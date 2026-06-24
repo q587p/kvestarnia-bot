@@ -1,22 +1,35 @@
 import type { Bot } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
 import type { DevResetService } from "../../services/devResetService";
+import type { FightService } from "../../services/fightService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT } from "../../services/presenceService";
 import { playerFromContext } from "../context";
+import { buildPersistentFightResultKeyboard } from "../keyboards/fightKeyboard";
 import { buildDevResetKeyboard } from "../keyboards/mainMenuKeyboard";
 import {
   presentDevAdventureResetResult,
+  presentDevMonsterRestResetResult,
   presentDevRaidStopResult,
   presentDevResetDisabled,
   presentDevResetPrompt
 } from "../presenters/devResetPresenter";
+import {
+  presentFightNoCharacter,
+  presentPersistentFight,
+  presentPersistentFightIntro
+} from "../presenters/fightPresenter";
 import { presentLevelUpCelebration } from "../presenters/levelGrowthPresenter";
 
 export function registerDevResetCommand(
   bot: Bot,
   devResetService: DevResetService,
   adventureService?: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">,
-  tavernRaidService?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">
+  tavernRaidService?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">,
+  fightService?: Pick<
+    FightService,
+    "getOrStartPersistentFightForTelegramUser" | "recordPersistentFightMessageReference" | "resetMonsterRestCooldownForDev"
+  >
 ): void {
   bot.command("dev_reset_me", async (ctx) => {
     if (!devResetService.isEnabled()) {
@@ -87,5 +100,77 @@ export function registerDevResetCommand(
         await ctx.reply(levelUpText, { parse_mode: "HTML" });
       }
     }
+  });
+
+  bot.command("dev_reset_monster_rest", async (ctx) => {
+    if (!devResetService.isEnabled()) {
+      await ctx.reply(presentDevResetDisabled());
+      return;
+    }
+
+    if (!fightService) {
+      await ctx.reply(presentDevMonsterRestResetResult({ state: "unavailable" }));
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+    if (!telegramUserId) {
+      await ctx.reply(presentDevMonsterRestResetResult({ state: "no-character" }));
+      return;
+    }
+
+    const result = await fightService.resetMonsterRestCooldownForDev(telegramUserId);
+
+    await ctx.reply(presentDevMonsterRestResetResult(result));
+  });
+
+  bot.command("dev_two_enemies", async (ctx) => {
+    if (!devResetService.isEnabled()) {
+      await ctx.reply(presentDevResetDisabled());
+      return;
+    }
+
+    if (!fightService) {
+      await ctx.reply("Dev-бій із двома ворогами зараз недоступний.");
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+    if (!telegramUserId) {
+      await ctx.reply(presentFightNoCharacter());
+      return;
+    }
+
+    const result = await fightService.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      enemyCount: 2,
+      devBypassAvailability: true,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    if (result.state === "no-character") {
+      await ctx.reply(presentFightNoCharacter());
+      return;
+    }
+
+    if (result.state === "persistent-active") {
+      if (result.started) {
+        await ctx.reply(presentPersistentFightIntro(result), { parse_mode: "HTML" });
+      }
+      const activeMessage = await ctx.reply(presentPersistentFight(result), {
+        parse_mode: "HTML",
+        reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+      });
+      if (ctx.chat?.id && activeMessage.message_id) {
+        await fightService.recordPersistentFightMessageReference(telegramUserId, result.session.id, {
+          chatId: String(ctx.chat.id),
+          messageId: activeMessage.message_id
+        });
+      }
+      return;
+    }
+
+    await ctx.reply("Dev-бій не стартував: спершу завершіть або відновіть поточний бій.");
   });
 }

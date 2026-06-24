@@ -12,11 +12,28 @@ This is the smallest remaining social-interaction promise after duels, nearby ta
 
 Prompt: [ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md).
 
+Status: shipped in `0.2.0`.
+
 ### `0.2.1` - Multi-Enemy Foundation
 
 Add backward-compatible state and exactly two enemies first. Do not include threat streaks, Yeger integration, location pools or a new reward faucet in the foundation PR.
 
-### `0.2.2` - Threat Escalation
+Status: shipped in `0.2.1` as dev-only two-enemy exposure plus compatibility state. Production ordinary/Yeger/Adventure/training/duel starts remain one-enemy.
+
+### `0.2.2` - Architecture Stabilization
+
+Before adding threat behavior, run a behavior-preserving architecture release that makes bot registration, cross-cutting middleware, runtime lifecycle and application composition easier to review.
+
+Task: [tasks/0.2.2-architecture-stabilization.md](tasks/0.2.2-architecture-stabilization.md).
+
+Supporting docs:
+
+- [architecture/0.2.x-release-sequence.md](architecture/0.2.x-release-sequence.md);
+- [architecture/0.2.x-architecture-audit.md](architecture/0.2.x-architecture-audit.md);
+- [architecture/0.2.x-target-architecture.md](architecture/0.2.x-target-architecture.md);
+- [architecture/implementation-map.md](architecture/implementation-map.md).
+
+### `0.2.3` - Threat Escalation
 
 After the foundation:
 
@@ -25,7 +42,9 @@ After the foundation:
 - rewards scale carefully;
 - authored gossip/escalation lines explain the shift.
 
-### `0.2.3` - Item Tags / One-Use Manatky
+If the architecture release shows `FightService` is still too dense for threat work, use [tasks/0.2.x-combat-application-decomposition.md](tasks/0.2.x-combat-application-decomposition.md) before Threat Escalation and shift behavior slices by one version.
+
+### `0.2.4` - Item Tags / One-Use Manatky
 
 Add a clear content contract for trade/use/duel/raid eligibility and one narrow consumable path. Do not ship a broad action catalog in the same slice.
 

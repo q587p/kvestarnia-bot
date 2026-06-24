@@ -109,6 +109,32 @@ export interface CombatContextModifiers {
   flatDexterityDelta: number;
 }
 
+export interface CombatMonsterState {
+  id: string;
+  name?: string;
+  level?: number;
+  hp: number;
+  hpMax: number;
+  attack?: number;
+  armor?: number;
+  resist?: number;
+  dexterity?: number;
+  classId?: string;
+  className?: string;
+  raceId?: string;
+  raceName?: string;
+  title?: string;
+  spellPower?: number;
+  copiedEquipment?: CombatCopiedEquipment[];
+  debugTrace?: CombatDebugTrace;
+  contextModifiers?: CombatContextModifiers;
+}
+
+export interface CombatEnemyState extends CombatMonsterState {
+  enemyId: string;
+  monsterRuntime?: MonsterAbilityRuntimeStateV1;
+}
+
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
@@ -127,26 +153,8 @@ export interface CombatState {
     mana: number;
     manaMax: number;
   };
-  monster: {
-    id: string;
-    name?: string;
-    level?: number;
-    hp: number;
-    hpMax: number;
-    attack?: number;
-    armor?: number;
-    resist?: number;
-    dexterity?: number;
-    classId?: string;
-    className?: string;
-    raceId?: string;
-    raceName?: string;
-    title?: string;
-    spellPower?: number;
-    copiedEquipment?: CombatCopiedEquipment[];
-    debugTrace?: CombatDebugTrace;
-    contextModifiers?: CombatContextModifiers;
-  };
+  monster: CombatMonsterState;
+  enemies?: CombatEnemyState[];
   cooldowns?: {
     abilities?: Record<string, {
       id: string;
@@ -243,7 +251,21 @@ export interface CombatTurnSummary {
   monsterTelegraphAbilityId?: string;
   heroCounterDamage?: number;
   monsterBarkId?: string;
+  enemyActions?: CombatEnemyTurnSummary[];
   debugTrace?: CombatDebugTrace;
+}
+
+export interface CombatEnemyTurnSummary {
+  enemyId: string;
+  monsterId: string;
+  monsterName?: string;
+  monsterOutcome?: CombatTurnOutcome;
+  monsterDamage: number;
+  monsterAction?: "attack" | "skill" | "defend" | "telegraph";
+  monsterSkillId?: string;
+  monsterDamageKind?: CombatDamageKind;
+  monsterEffectText?: string;
+  monsterTelegraphAbilityId?: string;
 }
 
 export interface CombatTurnLogEntry {
@@ -257,6 +279,10 @@ export interface CombatTurnLogEntry {
   monster: {
     hp: number;
   };
+  enemies?: Array<{
+    enemyId: string;
+    hp: number;
+  }>;
 }
 
 export interface CombatGuardState {
@@ -270,16 +296,15 @@ export interface StartCombatInput {
     manaCurrent?: number;
   };
   monster: MonsterCombatStats;
+  enemies?: MonsterCombatStats[];
 }
 
 export function startCombat(input: StartCombatInput): CombatState {
   const heroHpMax = safePositiveInt(input.hero.hpMax);
   const heroManaMax = safeNonNegativeInt(input.hero.manaMax);
-  const monsterHpMax = safePositiveInt(input.monster.hpMax);
-  const monsterRuntime = createMonsterAbilityRuntime({
-    monster: input.monster,
-    seed: input.id ?? input.monster.monsterId
-  });
+  const inputEnemies = normalizeStartEnemies(input);
+  const primaryEnemy = inputEnemies[0]!;
+  const monsterRuntime = primaryEnemy.monsterRuntime;
 
   return {
     ...(input.id ? { id: input.id } : {}),
@@ -292,27 +317,9 @@ export function startCombat(input: StartCombatInput): CombatState {
       manaMax: heroManaMax
     },
     monster: {
-      id: input.monster.monsterId,
-      ...(input.monster.name ? { name: input.monster.name } : {}),
-      level: input.monster.level,
-      hp: monsterHpMax,
-      hpMax: monsterHpMax,
-      attack: input.monster.attack,
-      armor: input.monster.armor,
-      resist: input.monster.resist,
-      dexterity: input.monster.dexterity,
-      ...(input.monster.classId ? { classId: input.monster.classId } : {}),
-      ...(input.monster.className ? { className: input.monster.className } : {}),
-      ...(input.monster.raceId ? { raceId: input.monster.raceId } : {}),
-      ...(input.monster.raceName ? { raceName: input.monster.raceName } : {}),
-      ...(input.monster.title ? { title: input.monster.title } : {}),
-      ...(input.monster.spellPower ? { spellPower: input.monster.spellPower } : {}),
-      ...(input.monster.copiedEquipment ? { copiedEquipment: input.monster.copiedEquipment } : {}),
-      ...(input.monster.debugTrace ? { debugTrace: { ...input.monster.debugTrace } } : {}),
-      ...(input.monster.contextModifiers
-        ? { contextModifiers: { ...input.monster.contextModifiers } }
-        : {})
+      ...combatEnemyToMonster(primaryEnemy)
     },
+    ...(inputEnemies.length > 1 ? { enemies: inputEnemies } : {}),
     ...(monsterRuntime ? { monsterRuntime } : {})
   };
 }
@@ -353,6 +360,7 @@ export function cloneCombatState(state: CombatState): CombatState {
         ? { contextModifiers: { ...state.monster.contextModifiers } }
         : {})
     },
+    ...(state.enemies ? { enemies: state.enemies.map(cloneCombatEnemyState) } : {}),
     ...(state.cooldowns
       ? {
           cooldowns: cloneCombatCooldowns(state.cooldowns)
@@ -370,6 +378,95 @@ export function cloneCombatState(state: CombatState): CombatState {
         }
       : {}),
     ...(state.turnLog ? { turnLog: state.turnLog.map(cloneCombatTurnLogEntry) } : {})
+  };
+}
+
+export function normalizeCombatEnemies(state: CombatState): CombatEnemyState[] {
+  if (state.enemies) {
+    return state.enemies.map(cloneCombatEnemyState);
+  }
+
+  return [combatMonsterToEnemy(state.monster, "enemy:1", state.monsterRuntime)];
+}
+
+export function hasCombatEnemyCollection(state: CombatState): boolean {
+  return Array.isArray(state.enemies);
+}
+
+export function getLivingCombatEnemies(state: CombatState): CombatEnemyState[] {
+  return normalizeCombatEnemies(state).filter((enemy) => enemy.hp > 0);
+}
+
+export function getPrimaryCombatEnemy(state: CombatState): CombatEnemyState {
+  return getLivingCombatEnemies(state)[0] ?? normalizeCombatEnemies(state)[0]!;
+}
+
+export function syncPrimaryCombatEnemy(state: CombatState): void {
+  const hasEnemyCollection = hasCombatEnemyCollection(state);
+  const enemies = normalizeCombatEnemies(state);
+  const primary = enemies.find((enemy) => enemy.hp > 0) ?? enemies[0]!;
+  const primaryMirror = combatMonsterToEnemy(
+    combatEnemyToMonster(primary),
+    primary.enemyId,
+    primary.monsterRuntime
+  );
+  const orderedEnemies = [
+    primaryMirror,
+    ...enemies
+      .filter((enemy) => enemy.enemyId !== primary.enemyId)
+      .map(cloneCombatEnemyState)
+  ];
+
+  state.monster = combatEnemyToMonster(primaryMirror);
+  if (primaryMirror.monsterRuntime) {
+    state.monsterRuntime = cloneMonsterAbilityRuntimeState(primaryMirror.monsterRuntime)!;
+  } else {
+    delete state.monsterRuntime;
+  }
+
+  if (hasEnemyCollection || enemies.length > 1) {
+    state.enemies = orderedEnemies;
+  } else {
+    delete state.enemies;
+  }
+}
+
+export function updateCombatEnemy(
+  state: CombatState,
+  enemyId: string,
+  enemy: CombatEnemyState
+): void {
+  const hasEnemyCollection = hasCombatEnemyCollection(state);
+  const enemies = normalizeCombatEnemies(state).map((candidate) =>
+    candidate.enemyId === enemyId ? cloneCombatEnemyState(enemy) : candidate
+  );
+
+  if (!enemies.some((candidate) => candidate.enemyId === enemyId)) {
+    return;
+  }
+
+  if (hasEnemyCollection || enemies.length > 1) {
+    state.enemies = enemies;
+  } else {
+    delete state.enemies;
+  }
+  syncPrimaryCombatEnemy(state);
+}
+
+export function combatEnemyToMonster(enemy: CombatEnemyState): CombatMonsterState {
+  const monster: CombatMonsterState = { ...enemy };
+  delete (monster as CombatMonsterState & { enemyId?: string }).enemyId;
+  delete (monster as CombatMonsterState & {
+    monsterRuntime?: MonsterAbilityRuntimeStateV1;
+  }).monsterRuntime;
+
+  return {
+    ...monster,
+    ...(monster.copiedEquipment
+      ? { copiedEquipment: monster.copiedEquipment.map((item) => ({ ...item })) }
+      : {}),
+    ...(monster.debugTrace ? { debugTrace: { ...monster.debugTrace } } : {}),
+    ...(monster.contextModifiers ? { contextModifiers: { ...monster.contextModifiers } } : {})
   };
 }
 
@@ -497,7 +594,8 @@ export function expireCombat(state: CombatState): CombatState {
     },
     monster: {
       hp: next.monster.hp
-    }
+    },
+    ...turnLogEnemies(next)
   });
 
   return next;
@@ -576,6 +674,9 @@ export function cloneCombatCooldowns(
 export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSummary {
   return {
     ...summary,
+    ...(summary.enemyActions
+      ? { enemyActions: summary.enemyActions.map((entry) => ({ ...entry })) }
+      : {}),
     ...(summary.debugTrace ? { debugTrace: { ...summary.debugTrace } } : {})
   };
 }
@@ -586,7 +687,87 @@ export function cloneCombatTurnLogEntry(entry: CombatTurnLogEntry): CombatTurnLo
     turn: entry.turn,
     summary: cloneCombatTurnSummary(entry.summary),
     hero: { ...entry.hero },
-    monster: { ...entry.monster }
+    monster: { ...entry.monster },
+    ...(entry.enemies ? { enemies: entry.enemies.map((enemy) => ({ ...enemy })) } : {})
+  };
+}
+
+export function turnLogEnemies(state: CombatState): {
+  enemies?: Array<{ enemyId: string; hp: number }>;
+} {
+  const enemies = normalizeCombatEnemies(state);
+
+  return enemies.length > 1
+    ? { enemies: enemies.map((enemy) => ({ enemyId: enemy.enemyId, hp: enemy.hp })) }
+    : {};
+}
+
+export function cloneCombatEnemyState(enemy: CombatEnemyState): CombatEnemyState {
+  const runtime = cloneMonsterAbilityRuntimeState(enemy.monsterRuntime);
+
+  return {
+    ...enemy,
+    ...(enemy.copiedEquipment
+      ? { copiedEquipment: enemy.copiedEquipment.map((item) => ({ ...item })) }
+      : {}),
+    ...(enemy.debugTrace ? { debugTrace: { ...enemy.debugTrace } } : {}),
+    ...(enemy.contextModifiers ? { contextModifiers: { ...enemy.contextModifiers } } : {}),
+    ...(runtime ? { monsterRuntime: runtime } : {})
+  };
+}
+
+function normalizeStartEnemies(input: StartCombatInput): CombatEnemyState[] {
+  const selected = [input.monster, ...(input.enemies ?? [])].slice(0, 2);
+  const monsters = selected.length > 0 ? selected : [input.monster];
+
+  return monsters.slice(0, 2).map((monster, index) => {
+    const enemyId = `enemy:${index + 1}`;
+    const seed = `${input.id ?? input.monster.monsterId}:${enemyId}:${monster.monsterId}`;
+
+    return combatMonsterToEnemy(
+      monsterStatsToState(monster),
+      enemyId,
+      createMonsterAbilityRuntime({ monster, seed })
+    );
+  });
+}
+
+function monsterStatsToState(monster: MonsterCombatStats): CombatMonsterState {
+  const hpMax = safePositiveInt(monster.hpMax);
+
+  return {
+    id: monster.monsterId,
+    ...(monster.name ? { name: monster.name } : {}),
+    level: monster.level,
+    hp: hpMax,
+    hpMax,
+    attack: monster.attack,
+    armor: monster.armor,
+    resist: monster.resist,
+    dexterity: monster.dexterity,
+    ...(monster.classId ? { classId: monster.classId } : {}),
+    ...(monster.className ? { className: monster.className } : {}),
+    ...(monster.raceId ? { raceId: monster.raceId } : {}),
+    ...(monster.raceName ? { raceName: monster.raceName } : {}),
+    ...(monster.title ? { title: monster.title } : {}),
+    ...(monster.spellPower ? { spellPower: monster.spellPower } : {}),
+    ...(monster.copiedEquipment ? { copiedEquipment: monster.copiedEquipment } : {}),
+    ...(monster.debugTrace ? { debugTrace: { ...monster.debugTrace } } : {}),
+    ...(monster.contextModifiers ? { contextModifiers: { ...monster.contextModifiers } } : {})
+  };
+}
+
+function combatMonsterToEnemy(
+  monster: CombatMonsterState,
+  enemyId: string,
+  monsterRuntime?: MonsterAbilityRuntimeStateV1
+): CombatEnemyState {
+  const runtime = cloneMonsterAbilityRuntimeState(monsterRuntime);
+
+  return {
+    enemyId,
+    ...combatEnemyToMonster({ enemyId, ...monster }),
+    ...(runtime ? { monsterRuntime: runtime } : {})
   };
 }
 

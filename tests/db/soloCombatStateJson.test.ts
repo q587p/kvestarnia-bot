@@ -1,0 +1,185 @@
+import { describe, expect, it } from "vitest";
+import { parseCombatState } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
+
+const legacyState = {
+  turn: 1,
+  status: "active",
+  hero: {
+    hp: 10,
+    hpMax: 10,
+    mana: 3,
+    manaMax: 3
+  },
+  monster: {
+    id: "monster.legacy",
+    hp: 5,
+    hpMax: 5
+  }
+};
+
+describe("solo combat state JSON parser", () => {
+  it("keeps legacy one-enemy state readable without adding an enemies array", () => {
+    expect(parseCombatState(legacyState)).toEqual(legacyState);
+  });
+
+  it("reads a valid two-enemy state with stable identities", () => {
+    const state = parseCombatState({
+      ...legacyState,
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          name: "Second",
+          level: 2,
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.enemies?.map((enemy) => [enemy.enemyId, enemy.id, enemy.hp])).toEqual([
+      ["enemy:1", "monster.legacy", 5],
+      ["enemy:2", "monster.second", 7]
+    ]);
+  });
+
+  it("round-trips a two-enemy state after primary death", () => {
+    const state = {
+      ...legacyState,
+      monster: {
+        id: "monster.second",
+        hp: 7,
+        hpMax: 7
+      },
+      enemies: [
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        },
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 0,
+          hpMax: 5
+        }
+      ]
+    };
+
+    expect(parseCombatState(JSON.parse(JSON.stringify(state)))).toMatchObject({
+      monster: {
+        id: "monster.second",
+        hp: 7,
+        hpMax: 7
+      },
+      enemies: [
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        },
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 0,
+          hpMax: 5
+        }
+      ]
+    });
+  });
+
+  it.each(["won", "lost", "fled", "expired"] as const)(
+    "round-trips terminal %s two-enemy state",
+    (status) => {
+      const state = {
+        ...legacyState,
+        status,
+        ...(status === "lost"
+          ? {
+              hero: {
+                ...legacyState.hero,
+                hp: 0
+              }
+            }
+          : {}),
+        monster: {
+          id: "monster.second",
+          hp: status === "won" ? 0 : 3,
+          hpMax: 7
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            hp: status === "won" ? 0 : 3,
+            hpMax: 7
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.legacy",
+            hp: 0,
+            hpMax: 5
+          }
+        ]
+      };
+
+      const parsed = parseCombatState(JSON.parse(JSON.stringify(state)));
+
+      expect(parsed?.status).toBe(status);
+      expect(parsed?.enemies).toHaveLength(2);
+    }
+  );
+
+  it("rejects malformed duplicate enemy identities safely", () => {
+    expect(parseCombatState({
+      ...legacyState,
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:1",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    })).toBeNull();
+  });
+
+  it("rejects a malformed primary enemy mirror safely", () => {
+    expect(parseCombatState({
+      ...legacyState,
+      monster: {
+        id: "monster.second",
+        hp: 7,
+        hpMax: 7
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    })).toBeNull();
+  });
+});

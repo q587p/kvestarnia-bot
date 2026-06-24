@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.1] - 12026-06-24 - Multi-Enemy Foundation
+
+### Added
+- Added a backward-compatible persistent combat `enemies` state shape for exactly one or two enemies while preserving the legacy primary `monster` mirror and `monsterId` repository boundary.
+- Added deterministic primary-target behavior: attack and class skill hit the first living enemy, then the next living enemy becomes primary after the first is defeated.
+- Added per-enemy enemy phase resolution so every living enemy gets its own action entry, while dead enemies never act.
+- Added `/dev_two_enemies` as a local dev-reset-gated QA command that starts a controlled two-enemy ordinary persistent fight without exposing multi-enemy starts through production `/fight`, Yeger, Adventure, training or duel routes.
+- Added parser tests for legacy one-enemy JSON, valid two-enemy JSON and malformed duplicate enemy identities.
+- Added domain tests for primary targeting, primary advancement, separate living enemy actions and terminal win only after all enemies are defeated.
+
+### Changed
+- Persistent fight cards now show separate enemy HP rows when a stored fight has two enemies; one-enemy cards keep the existing compact shape.
+- Persistent fight turn logs can store per-enemy HP snapshots and per-enemy action summaries for replay.
+- Timeout and stale callback recovery rebuild all stored enemy combat stats from session JSON before resolving a turn.
+
+### Unchanged
+- Existing production fight entry points remain one-enemy by default.
+- Two-enemy foundation fights grant at most the existing single encounter reward contract; there is no per-enemy XP, gold or loot multiplication.
+- No Prisma migration, threat streaks, Yeger escalation, location encounter pools, target-selection UI, party combat, raids, PvP or reward scaling ship in this slice.
+
 ## [0.2.0] - 12026-06-24 - Safe Gifting MVP
 
 ### Added

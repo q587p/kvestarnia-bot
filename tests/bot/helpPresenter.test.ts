@@ -39,6 +39,7 @@ describe("help presenter", () => {
     expect(text).not.toContain("/dev_reset_me");
     expect(text).not.toContain("/dev_adventure_reset");
     expect(text).not.toContain("/dev_raid_stop");
+    expect(text).not.toContain("/dev_reset_monster_rest");
     expect(text).not.toContain("/dev_add_level");
     expect(text).not.toContain("/dev_add_xp");
     expect(text).not.toContain("/dev_add_gold");
@@ -83,6 +84,7 @@ describe("help presenter", () => {
     expect(resetOnly).toContain("/dev_reset_me");
     expect(resetOnly).toContain("/dev_adventure_reset");
     expect(resetOnly).toContain("/dev_raid_stop");
+    expect(resetOnly).toContain("/dev_reset_monster_rest");
     expect(resetOnly).not.toContain("🪜 /dev_add_level");
     expect(resetOnly).not.toContain("🔢 /dev_add_xp");
     expect(resetOnly).not.toContain("🪙 /dev_add_gold");
@@ -95,6 +97,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("/dev_reset_me");
     expect(grantsEnabled).toContain("/dev_adventure_reset");
     expect(grantsEnabled).toContain("/dev_raid_stop");
+    expect(grantsEnabled).toContain("/dev_reset_monster_rest");
     expect(grantsEnabled).toContain("🪜 /dev_add_level");
     expect(grantsEnabled).toContain("🔢 /dev_add_xp");
     expect(grantsEnabled).toContain("🪙 /dev_add_gold");
@@ -113,6 +116,7 @@ describe("help presenter", () => {
     expect(resetOnly).toContain("🧪 /dev_reset_me");
     expect(resetOnly).toContain("⏱️ /dev_adventure_reset");
     expect(resetOnly).toContain("⏹️ /dev_raid_stop");
+    expect(resetOnly).toContain("⌛ /dev_reset_monster_rest");
     expect(resetOnly).not.toContain("/dev_add_xp");
 
     expect(grantsEnabled).toContain("🔢 /dev_add_xp");

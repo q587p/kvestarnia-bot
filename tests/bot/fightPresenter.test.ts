@@ -224,11 +224,12 @@ describe("fight presenter", () => {
     expect(intro).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(intro).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
     expect(intro).toContain("поки не видає нагород");
+    expect(intro).toContain("<i>Порада дня:");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
     expect(text).toContain("⚔️ <b>Бій</b>");
     expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
-    expect(text).toContain("<i>Порада дня:");
+    expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
@@ -241,6 +242,153 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Нагорода");
     expect(text).not.toContain("XP");
     expect(text).not.toContain("золота</b>");
+  });
+
+  it("marks the reloaded living primary enemy as the target", () => {
+    const result = {
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        monster: {
+          id: "monster.second",
+          name: "<i>Другий</i>",
+          level: 3,
+          hp: 7,
+          hpMax: 16
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            name: "<i>Другий</i>",
+            level: 3,
+            hp: 7,
+            hpMax: 16
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.first",
+            name: "<b>Перший</b>",
+            level: 2,
+            hp: 0,
+            hpMax: 18
+          }
+        ]
+      }),
+      monster: {
+        id: "monster.second",
+        name: "<i>Другий</i>",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    } as const;
+    const intro = presentPersistentFightIntro(result);
+    const text = presentPersistentFight(result);
+
+    expect(intro).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(intro).toContain("<i>Порада дня:");
+    expect(intro).not.toContain("<i>Другий</i>");
+    expect(intro).not.toContain("<b>Перший</b>");
+
+    expect(text).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(text).not.toContain("Проти вас: <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3");
+    expect(text).toContain("👹 1. &lt;i&gt;Другий&lt;/i&gt;: 7/16 ← ціль");
+    expect(text).toContain("👹 2. &lt;b&gt;Перший&lt;/b&gt;: 0/18");
+    expect(text).not.toContain("<i>Порада дня:");
+    expect(text).not.toContain("<i>Другий</i>");
+    expect(text).not.toContain("<b>Перший</b>");
+  });
+
+  it("falls back to stable labels when multi-enemy HP rows lack names", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 4,
+        monster: {
+          id: "monster.sourdough-golem",
+          name: "Квасний голем на заквасці",
+          level: 5,
+          hp: 32,
+          hpMax: 32
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            id: "monster.sourdough-golem",
+            level: 5,
+            hp: 32,
+            hpMax: 32
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            level: 3,
+            hp: 26,
+            hpMax: 26
+          }
+        ]
+      }),
+      monster: {
+        id: "monster.sourdough-golem",
+        name: "Квасний голем на заквасці",
+        description: "Тестовий монстр.",
+        level: 5,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("👹 1. Квасний голем на заквасці: 32/32 ← ціль");
+    expect(text).toContain("👹 2. Монстр 2: 26/26");
+    expect(text).not.toContain("👹 1.:");
+    expect(text).not.toContain("👹 2.:");
+  });
+
+  it("does not render active prompts for terminal multi-enemy state", () => {
+    const text = presentPersistentFight({
+      state: "persistent-terminal",
+      character,
+      session: persistentSession({
+        status: "won",
+        monster: {
+          id: "monster.second",
+          name: "Другий",
+          level: 3,
+          hp: 0,
+          hpMax: 16
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.second",
+            name: "Другий",
+            level: 3,
+            hp: 0,
+            hpMax: 16
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.first",
+            name: "Перший",
+            level: 2,
+            hp: 0,
+            hpMax: 18
+          }
+        ]
+      }),
+      monster: null,
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("👹 1. Другий: 0/16");
+    expect(text).toContain("👹 2. Перший: 0/18");
+    expect(text).not.toContain("що робимо?");
+    expect(text).not.toContain("На хід є 23 секунди");
   });
 
   it("names the skill that is still on cooldown", () => {

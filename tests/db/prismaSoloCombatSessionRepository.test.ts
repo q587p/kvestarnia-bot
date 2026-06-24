@@ -2,7 +2,9 @@ import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { PrismaSoloCombatSessionRepository } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
 import {
+  normalizeCombatEnemies,
   resolveCombatTurn,
+  startCombat,
   type CombatActorStats,
   type CombatState,
   type MonsterCombatStats
@@ -381,6 +383,64 @@ describe("PrismaSoloCombatSessionRepository", () => {
     }
     expect(result.state.guard).toEqual({ consecutiveDefends: 2 });
     expect(result.summary.monsterDamage).toBe(7);
+  });
+
+  it("maps a persisted two-enemy fight after primary death so it can continue", async () => {
+    const secondMonster: MonsterCombatStats = {
+      ...combatMonster,
+      monsterId: "monster.audit-rat",
+      hpMax: 60,
+      attack: 3
+    };
+    const state = startCombat({
+      id: "session-two-enemies",
+      hero: combatHero,
+      monster: combatMonster,
+      enemies: [secondMonster]
+    });
+    state.enemies![0]!.hp = 1;
+    state.enemies![1]!.hp = 60;
+    state.monster.hp = 1;
+    const first = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: combatHero,
+      monster: combatMonster,
+      enemies: [combatMonster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected first two-enemy turn to resolve.");
+    }
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findFirst: () => Promise.resolve(makeSoloCombatRow(first.state, {
+          telegramUserId: 42n,
+          monsterId: combatMonster.monsterId
+        }))
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const mapped = await repository.findByIdForTelegramUserId(42n, "session-two-enemies");
+
+    expect(mapped?.state?.monster.id).toBe(secondMonster.monsterId);
+    expect(normalizeCombatEnemies(mapped!.state!).map((enemy) => enemy.enemyId)).toEqual([
+      "enemy:2",
+      "enemy:1"
+    ]);
+    const second = resolveCombatTurn({
+      state: mapped!.state!,
+      action: "attack",
+      hero: combatHero,
+      monster: secondMonster,
+      enemies: [combatMonster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(second.ok).toBe(true);
+    expect(second.state.monster.id).toBe(normalizeCombatEnemies(second.state)[0]!.id);
+    expect(normalizeCombatEnemies(second.state)[1]).toMatchObject({ enemyId: "enemy:1", hp: 0 });
   });
 
   it("lists due active sessions with telegram ids for the combat scheduler", async () => {

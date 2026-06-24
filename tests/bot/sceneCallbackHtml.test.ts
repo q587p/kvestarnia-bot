@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import {
+  clearMessageFreshnessTracking,
+  rememberLatestMessageForChat
+} from "../../src/bot/messageFreshness";
 import { toQuestCallbackKey } from "../../src/content/questResolution";
 import {
   makeAdventureApproachCallbackData,
@@ -43,6 +47,8 @@ type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAc
 describe("scene callback HTML options", () => {
   afterEach(() => {
     vi.useRealTimers();
+    clearMessageFreshnessTracking();
+    vi.restoreAllMocks();
   });
 
   it.each([
@@ -925,6 +931,77 @@ describe("scene callback HTML options", () => {
     expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
   });
 
+  it("does not send a passage movement notice after a persistent skill turn", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        action: "skill"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated" as const,
+              character,
+              session: {
+                ...session,
+                turn: 2,
+                state: {
+                  ...session.state,
+                  turn: 2,
+                  lastTurn: {
+                    action: "skill" as const,
+                    heroOutcome: "hit" as const,
+                    heroDamage: 4,
+                    monsterDamage: 1,
+                    manaSpent: 2,
+                    critical: false,
+                    skillId: "skill.strict-blessing"
+                  }
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Тестовий монстр.",
+                level: 2,
+                tags: ["beast"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви пішли у прямий прохід.")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentRaidId: null,
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(movement).toBeUndefined();
+  });
+
   it("adds a Shynok route button to completed problem quest progress", async () => {
     const calls = await captureApiCalls(
       makeFightTurnCallbackData({
@@ -1244,12 +1321,15 @@ describe("scene callback HTML options", () => {
     ).toBe(false);
   });
 
-  it("shows a visible combat-lock explanation when a place button is pressed during a fight", async () => {
+  it("records the edited callback message as the active persistent fight card", async () => {
+    rememberLatestMessageForChat(42, 10);
     const markAction = vi.fn(() => Promise.resolve());
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
     const calls = await captureApiCalls(
       makePlaceCallbackData("hall"),
       servicesWith({
         fight: {
+          recordPersistentFightMessageReference,
           getFightOverviewForTelegramUser: () =>
             Promise.resolve({
               state: "persistent-active" as const,
@@ -1289,6 +1369,139 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Спершу завершіть цю сутичку");
     expect(String(edit?.payload.text)).toContain("❤️ Ви:");
     expect(String(edit?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 10
+    });
+  });
+
+  it("records the new reply message when a stale combat-lock callback falls back to sendMessage", async () => {
+    rememberLatestMessageForChat(42, 12);
+    const markAction = vi.fn(() => Promise.resolve());
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("hall"),
+      servicesWith({
+        fight: {
+          recordPersistentFightMessageReference,
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active" as const,
+              character,
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                state: {
+                  ...persistentSession("monster.deadline-spider").state,
+                  source: "adventure",
+                  originLocationId: "location.korchma.quest_table"
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null
+            })
+        },
+        presence: {
+          markAction
+        }
+      }),
+      { messageResults: true }
+    );
+    const reply = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("⚔️ <b>Бій тримає вас за рукав</b>")
+    );
+
+    expect(calls.some((call) => call.method === "editMessageText")).toBe(false);
+    expect(reply?.payload.parse_mode).toBe("HTML");
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain("v1:fight:turn:");
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.quest_table",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 3
+    });
+    expect(recordPersistentFightMessageReference).not.toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 10
+    });
+  });
+
+  it("does not record a fabricated combat-lock reference when stale fallback delivery fails", async () => {
+    rememberLatestMessageForChat(42, 12);
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
+
+    await expect(
+      captureApiCalls(
+        makePlaceCallbackData("hall"),
+        servicesWith({
+          fight: {
+            recordPersistentFightMessageReference,
+            getFightOverviewForTelegramUser: () =>
+              Promise.resolve({
+                state: "persistent-active" as const,
+                character,
+                session: persistentSession("monster.deadline-spider"),
+                monster: {
+                  id: "monster.deadline-spider",
+                  name: "Павук дедлайнів",
+                  description: "Плете павутину з «сьогодні швиденько».",
+                  level: 2,
+                  tags: ["beast", "time", "web"]
+                },
+                questProgress: null
+              })
+          }
+        }),
+        { failSendMessage: true }
+      )
+    ).rejects.toThrow("send failed");
+
+    expect(recordPersistentFightMessageReference).not.toHaveBeenCalled();
+  });
+
+  it("records a combat-lock reply as the active persistent fight card", async () => {
+    const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
+    const calls = await captureTextApiCalls(
+      "/fight",
+      servicesWith({
+        fight: {
+          recordPersistentFightMessageReference,
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active" as const,
+              character,
+              session: persistentSession("monster.deadline-spider"),
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null
+            })
+        }
+      }),
+      { asCommand: true, messageResults: true }
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+      chatId: "42",
+      messageId: 2
+    });
   });
 
   it.each([
@@ -4200,7 +4413,7 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
 async function captureApiCalls(
   callbackData: string,
   services: BotServices,
-  options: { messageResults?: boolean } = {}
+  options: { messageResults?: boolean; failSendMessage?: boolean } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
@@ -4221,6 +4434,10 @@ async function captureApiCalls(
           username: "kvestarnia_bot"
         }
       });
+    }
+
+    if (options.failSendMessage && method === "sendMessage") {
+      return Promise.reject(new Error("send failed"));
     }
 
     if (options.messageResults && method === "sendMessage") {
@@ -4337,7 +4554,7 @@ async function captureRepeatedApiCalls(
 async function captureTextApiCalls(
   text: string,
   services: BotServices,
-  options: { asCommand?: boolean } = {}
+  options: { asCommand?: boolean; messageResults?: boolean } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
@@ -4356,6 +4573,20 @@ async function captureTextApiCalls(
           is_bot: true,
           first_name: "Квестарня",
           username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    if (options.messageResults && method === "sendMessage") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          message_id: calls.length,
+          date: 0,
+          chat: {
+            id: 42,
+            type: "private"
+          }
         }
       });
     }

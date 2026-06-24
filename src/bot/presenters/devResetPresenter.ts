@@ -1,3 +1,4 @@
+import type { DevMonsterRestCooldownResetResult } from "../../services/fightService";
 import type { TavernDevRaidStopResult } from "../../services/tavernRaidService";
 
 export function presentDevResetDisabled(): string {
@@ -33,6 +34,24 @@ export function presentDevAdventureResetResult(
 
   if (result === "unavailable") {
     return "Скидання пригоди недоступне: сховище не має потрібного гачка.";
+  }
+
+  return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
+}
+
+export function presentDevMonsterRestResetResult(
+  result: DevMonsterRestCooldownResetResult
+): string {
+  if (result.state === "reset") {
+    return `Перерву монстрів скинуто. Низ знову вдає, що готовий до бою. Зістарено записів: ${result.clearedSessions}.`;
+  }
+
+  if (result.state === "no-cooldown") {
+    return "Активної перерви монстрів не знайдено. Низ і так бурчить у робочому режимі.";
+  }
+
+  if (result.state === "unavailable") {
+    return "Скидання перерви монстрів недоступне: сховище не має потрібного гачка.";
   }
 
   return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";

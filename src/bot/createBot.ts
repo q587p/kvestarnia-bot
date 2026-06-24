@@ -372,7 +372,7 @@ import {
 } from "./presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "./safeAnswerCallbackQuery";
 import { safeEditMessageText } from "./safeEditMessageText";
-import { installMessageFreshnessTracking } from "./messageFreshness";
+import { getCallbackMessageFreshness, installMessageFreshnessTracking } from "./messageFreshness";
 import { getPresenceContext, type PresenceContext } from "./presence/presenceRouting";
 
 export interface BotServices {
@@ -488,7 +488,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant);
   }
-  registerDevResetCommand(bot, services.devReset, services.adventure, services.tavern);
+  registerDevResetCommand(bot, services.devReset, services.adventure, services.tavern, services.fight);
   registerRestartCommand(bot);
   if (services.remort) {
     registerRemortCommand(bot, services.remort, services.tavern);
@@ -985,9 +985,10 @@ async function redirectCombatLockIfNeeded(
       currentRaidId: null,
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
-    await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
+    const messageId = await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
       reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character)
     });
+    await recordCombatLockPersistentFightMessage(ctx, services.fight, telegramUserId, lock.session.id, messageId);
     return true;
   }
 
@@ -1151,18 +1152,42 @@ async function sendCombatLockText(
   ctx: Context,
   text: string,
   options: { reply_markup: InlineKeyboard }
-): Promise<void> {
+): Promise<number | null> {
   const messageOptions = {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: options.reply_markup
   };
 
   if (ctx.callbackQuery) {
+    if (getCallbackMessageFreshness(ctx) === "stale") {
+      const message = await ctx.reply(text, messageOptions);
+      return message.message_id;
+    }
+
     await safeEditMessageText(ctx, text, messageOptions);
+    return ctx.callbackQuery.message?.message_id ?? null;
+  }
+
+  const message = await ctx.reply(text, messageOptions);
+  return message.message_id;
+}
+
+async function recordCombatLockPersistentFightMessage(
+  ctx: Context,
+  fightService: FightService,
+  telegramUserId: bigint,
+  sessionId: string,
+  messageId: number | null
+): Promise<void> {
+  const chatId = ctx.chat?.id ?? ctx.callbackQuery?.message?.chat.id;
+  if (!messageId || !chatId || typeof fightService.recordPersistentFightMessageReference !== "function") {
     return;
   }
 
-  await ctx.reply(text, messageOptions);
+  await fightService.recordPersistentFightMessageReference(telegramUserId, sessionId, {
+    chatId: String(chatId),
+    messageId
+  });
 }
 
 async function handleOnboardingCallback(
