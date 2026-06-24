@@ -3791,6 +3791,14 @@ describe("FightService", () => {
     if (started.state !== "persistent-active") {
       return;
     }
+    const enemyNames = normalizeCombatEnemies(started.session.state!).map((enemy) => enemy.name);
+    expect(enemyNames).toEqual([
+      started.session.state!.monster.name,
+      expect.any(String)
+    ]);
+    expect(enemyNames).not.toContain("Монстр 1");
+    expect(enemyNames).not.toContain("Монстр 2");
+
     const reloadedAfterPrimaryDeath = moveSessionToPostPrimaryDeath(sessions, started.session.id);
     expect(normalizeCombatEnemies(reloadedAfterPrimaryDeath).map((enemy) => enemy.enemyId)).toEqual([
       "enemy:2",

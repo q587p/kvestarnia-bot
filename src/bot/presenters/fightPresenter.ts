@@ -520,12 +520,11 @@ function presentPersistentFightState(input: {
   statusNote?: string;
 }): string {
   const state = input.session.state;
-  const monsterName = state?.monster.name ?? input.monster?.name ?? "Невідомий монстр";
-  const monsterLevel = state?.monster.level ?? input.monster?.level;
+  const opponentRows = presentPersistentFightStateOpponents(state, input.monster);
   const enemyRows = state ? presentEnemyHpRows(state) : [`👹 Монстр: ?/?`];
   const lines = [
     "⚔️ <b>Бій</b>",
-    `Проти вас: <b>${escapeHtml(monsterName)}</b>${monsterLevel ? ` · рівень ${monsterLevel}` : ""}`,
+    ...opponentRows,
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     ...enemyRows,
@@ -600,6 +599,32 @@ function presentPersistentFightState(input: {
   }
 
   return lines.join("\n");
+}
+
+function presentPersistentFightStateOpponents(
+  state: Parameters<typeof presentPersistentFightState>[0]["session"]["state"],
+  monster?: { name: string; level: number } | null
+): string[] {
+  const enemies = state?.enemies ? normalizeCombatEnemies(state) : [];
+
+  if (enemies.length > 1) {
+    return [
+      "Проти вас:",
+      ...enemies.map((enemy, index) => {
+        const level = enemy.level ? ` · рівень ${enemy.level}` : "";
+        const fallbackName =
+          enemy.name ??
+          (index === 0 && state?.monster.name ? state.monster.name : `Монстр ${index + 1}`);
+
+        return `👹 ${index + 1}. <b>${escapeHtml(fallbackName)}</b>${level}`;
+      })
+    ];
+  }
+
+  const monsterName = state?.monster.name ?? monster?.name ?? "Невідомий монстр";
+  const monsterLevel = state?.monster.level ?? monster?.level;
+
+  return [`Проти вас: <b>${escapeHtml(monsterName)}</b>${monsterLevel ? ` · рівень ${monsterLevel}` : ""}`];
 }
 
 function getPersistentFightJournalEntries(

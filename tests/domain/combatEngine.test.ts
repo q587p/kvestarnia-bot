@@ -1312,6 +1312,7 @@ describe("combat domain engine", () => {
     for (const candidate of monsters) {
       expect(deriveMonsterCombatStats(candidate)).toMatchObject({
         monsterId: candidate.id,
+        name: candidate.name,
         level: candidate.level,
         tags: candidate.tags
       });

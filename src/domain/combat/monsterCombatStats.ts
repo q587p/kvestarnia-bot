@@ -9,6 +9,7 @@ export function deriveMonsterCombatStats(monster: MonsterContent): MonsterCombat
 
   return {
     monsterId: monster.id,
+    name: monster.name,
     level,
     hpMax: 10 + level * 4 + highTierLevel * 2 + lateTierLevel + tagHpBonus(tags),
     attack: 2 + level + Math.floor(level / 2) + Math.floor(highTierLevel / 2) + tagAttackBonus(tags),

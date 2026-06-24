@@ -293,6 +293,8 @@ describe("fight presenter", () => {
     expect(intro).not.toContain("<i>Другий</i>");
     expect(intro).not.toContain("<b>Перший</b>");
 
+    expect(text).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(text).not.toContain("Проти вас: <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3");
     expect(text).toContain("👹 1. &lt;i&gt;Другий&lt;/i&gt;: 7/16 ← ціль");
     expect(text).toContain("👹 2. &lt;b&gt;Перший&lt;/b&gt;: 0/18");
     expect(text).not.toContain("<i>Порада дня:");

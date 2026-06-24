@@ -925,6 +925,77 @@ describe("scene callback HTML options", () => {
     expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
   });
 
+  it("does not send a passage movement notice after a persistent skill turn", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        action: "skill"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated" as const,
+              character,
+              session: {
+                ...session,
+                turn: 2,
+                state: {
+                  ...session.state,
+                  turn: 2,
+                  lastTurn: {
+                    action: "skill" as const,
+                    heroOutcome: "hit" as const,
+                    heroDamage: 4,
+                    monsterDamage: 1,
+                    manaSpent: 2,
+                    critical: false,
+                    skillId: "skill.strict-blessing"
+                  }
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Тестовий монстр.",
+                level: 2,
+                tags: ["beast"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви пішли у прямий прохід.")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentRaidId: null,
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(movement).toBeUndefined();
+  });
+
   it("adds a Shynok route button to completed problem quest progress", async () => {
     const calls = await captureApiCalls(
       makeFightTurnCallbackData({
