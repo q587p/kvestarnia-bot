@@ -1522,6 +1522,8 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
     return null;
   }
 
+  const pressure = parseCombatThreatPressure(value.pressure);
+
   return value.enemyCount === 2 &&
     value.reason === "ordinary-win-streak" &&
     value.eligibleWins === 3 &&
@@ -1534,9 +1536,46 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
         reason: "ordinary-win-streak",
         eligibleWins: 3,
         lineId: value.lineId,
-        lineVersion: value.lineVersion
+        lineVersion: value.lineVersion,
+        ...(pressure ? { pressure } : {})
       }
     : null;
+}
+
+function parseCombatThreatPressure(value: unknown): NonNullable<NonNullable<CombatState["threat"]>["pressure"]> | null {
+  if (!isRecord(value) || value.version !== 1 || typeof value.boostedEnemyId !== "string") {
+    return null;
+  }
+
+  const consecutiveWonEscalatedFights = boundedOptionalInt(value.consecutiveWonEscalatedFights, 0, 587);
+  const requestedSecondEnemyLevelBonus = boundedOptionalInt(value.requestedSecondEnemyLevelBonus, 0, 587);
+  const appliedSecondEnemyLevelBonus = boundedOptionalInt(value.appliedSecondEnemyLevelBonus, 0, 587);
+  const boostedEnemyEffectiveLevel = boundedOptionalInt(value.boostedEnemyEffectiveLevel, 1, 587);
+  const levelCap = boundedOptionalInt(value.levelCap, 1, 587);
+
+  if (
+    consecutiveWonEscalatedFights === undefined ||
+    requestedSecondEnemyLevelBonus === undefined ||
+    appliedSecondEnemyLevelBonus === undefined ||
+    boostedEnemyEffectiveLevel === undefined ||
+    levelCap === undefined ||
+    value.boostedEnemyId.length === 0 ||
+    value.boostedEnemyId.length > 80 ||
+    appliedSecondEnemyLevelBonus > requestedSecondEnemyLevelBonus ||
+    boostedEnemyEffectiveLevel > levelCap
+  ) {
+    return null;
+  }
+
+  return {
+    version: 1,
+    consecutiveWonEscalatedFights,
+    requestedSecondEnemyLevelBonus,
+    appliedSecondEnemyLevelBonus,
+    boostedEnemyId: value.boostedEnemyId,
+    boostedEnemyEffectiveLevel,
+    levelCap
+  };
 }
 
 function parseCombatThreatExclusion(value: unknown): CombatState["threatExclusion"] | null {
@@ -2261,6 +2300,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(monsterDamageKind ? { monsterDamageKind } : {}),
     ...(typeof value.monsterEffectText === "string" ? { monsterEffectText: value.monsterEffectText } : {}),
     ...(typeof value.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: value.monsterTelegraphAbilityId } : {}),
+    ...(typeof value.simultaneousFinalResponse === "boolean" ? { simultaneousFinalResponse: value.simultaneousFinalResponse } : {}),
     ...(heroCounterDamage !== null ? { heroCounterDamage } : {}),
     ...(typeof value.monsterBarkId === "string" ? { monsterBarkId: value.monsterBarkId } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
@@ -2295,7 +2335,8 @@ function parseEnemyTurnSummaries(value: unknown): CombatEnemyTurnSummary[] {
           ...(typeof entry.monsterSkillId === "string" ? { monsterSkillId: entry.monsterSkillId } : {}),
           ...(monsterDamageKind ? { monsterDamageKind } : {}),
           ...(typeof entry.monsterEffectText === "string" ? { monsterEffectText: entry.monsterEffectText } : {}),
-          ...(typeof entry.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: entry.monsterTelegraphAbilityId } : {})
+          ...(typeof entry.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: entry.monsterTelegraphAbilityId } : {}),
+          ...(typeof entry.simultaneousFinalResponse === "boolean" ? { simultaneousFinalResponse: entry.simultaneousFinalResponse } : {})
         }];
   });
 }

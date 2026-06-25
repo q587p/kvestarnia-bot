@@ -188,6 +188,17 @@ export interface CombatThreatState {
   eligibleWins: 3;
   lineId: string;
   lineVersion: string;
+  pressure?: CombatThreatPressureState;
+}
+
+export interface CombatThreatPressureState {
+  version: 1;
+  consecutiveWonEscalatedFights: number;
+  requestedSecondEnemyLevelBonus: number;
+  appliedSecondEnemyLevelBonus: number;
+  boostedEnemyId: string;
+  boostedEnemyEffectiveLevel: number;
+  levelCap: number;
 }
 
 export interface CombatThreatExclusionState {
@@ -266,6 +277,7 @@ export interface CombatTurnSummary {
   monsterDamageKind?: CombatDamageKind;
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
   heroCounterDamage?: number;
   monsterBarkId?: string;
   enemyActions?: CombatEnemyTurnSummary[];
@@ -283,6 +295,7 @@ export interface CombatEnemyTurnSummary {
   monsterDamageKind?: CombatDamageKind;
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
 }
 
 export interface CombatTurnLogEntry {
@@ -361,7 +374,14 @@ export function cloneCombatState(state: CombatState): CombatState {
           }
         }
       : {}),
-    ...(state.threat ? { threat: { ...state.threat } } : {}),
+    ...(state.threat
+      ? {
+          threat: {
+            ...state.threat,
+            ...(state.threat.pressure ? { pressure: { ...state.threat.pressure } } : {})
+          }
+        }
+      : {}),
     ...(state.threatExclusion ? { threatExclusion: { ...state.threatExclusion } } : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),

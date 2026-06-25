@@ -330,6 +330,7 @@ describe("combat domain engine", () => {
 
     expect(defeatedEnemyAction?.enemyId).toBe("enemy:1");
     expect(defeatedEnemyAction?.monsterAction).toBe("attack");
+    expect(defeatedEnemyAction?.simultaneousFinalResponse).toBe(true);
     expect(defeatedEnemyAction?.monsterDamage).toBeGreaterThanOrEqual(0);
     expectPrimaryEnemyMirror(result.state, "enemy:2");
   });
@@ -412,6 +413,7 @@ describe("combat domain engine", () => {
     expect(second.state.status).toBe("won");
     expect(normalizeCombatEnemies(second.state).every((enemy) => enemy.hp === 0)).toBe(true);
     expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+    expect(second.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
     expect(parseCombatState(JSON.parse(JSON.stringify(second.state)))).not.toBeNull();
   });
 
@@ -438,7 +440,89 @@ describe("combat domain engine", () => {
     expect(normalizeCombatEnemies(result.state).every((enemy) => enemy.hp === 0)).toBe(true);
     expect(result.summary.heroOutcome).toBe("won");
     expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+    expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(result.state.turnLog?.at(-1)?.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
     expect(result.state.turnLog?.at(-1)?.eventId).toBe("terminal:won");
+  });
+
+  it("counts a final single-enemy same-turn response KO as a hero win", () => {
+    const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster });
+    state.hero.hp = 1;
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.monster.hp).toBe(0);
+    expect(result.summary.simultaneousFinalResponse).toBe(true);
+    expect(result.summary.monsterAction).toBe("attack");
+    expect(result.state.turnLog?.at(-1)?.summary.simultaneousFinalResponse).toBe(true);
+  });
+
+  it("treats a final response KO as a loss when another enemy remains", () => {
+    const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster, enemies: [secondMonster] });
+    state.hero.hp = 1;
+    state.enemies![0]!.hp = 1;
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("lost");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1"]);
+    expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(normalizeCombatEnemies(result.state).some((enemy) => enemy.enemyId === "enemy:2" && enemy.hp > 0)).toBe(true);
+  });
+
+  it("does not let a defeated final responder heal, shield, or support itself", () => {
+    const state: CombatState = {
+      ...startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster }),
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+        aiProfile: "defender",
+        loadoutIds: ["monster.common-treasure-shield"],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        ownActionCount: 0,
+        effects: []
+      }
+    };
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.monster.hp).toBe(0);
+    expect(result.summary.simultaneousFinalResponse).toBe(true);
+    expect(result.summary.monsterAction).toBe("attack");
+    expect(result.summary.monsterSkillId).toBeUndefined();
+    expect(result.summary.monsterEffectText).toBeUndefined();
+    expect(result.state.monsterRuntime?.effects?.some((effect) => effect.kind === "shield")).not.toBe(true);
   });
 
   it.each([

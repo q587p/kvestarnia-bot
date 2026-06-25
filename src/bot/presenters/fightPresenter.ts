@@ -249,9 +249,9 @@ export function presentPersistentFightIntro(
     "Бій починається. Корчма відкриває журнал ходів і робить вигляд, що це звичайний облік."
   ];
   lines.push("", ...presentPersistentFightIntroOpponents(result));
-  const threatLine = presentThreatEscalationLine(result.session.state);
-  if (threatLine) {
-    lines.push("", threatLine);
+  const threatLines = presentThreatEscalationLines(result.session.state);
+  if (threatLines.length > 0) {
+    lines.push("", ...threatLines);
   }
 
   const startTip = presentBattleStartTip(result.character, result.session.id ?? result.session.state?.id ?? "active");
@@ -652,11 +652,11 @@ function presentPersistentFightState(input: {
   statusNote?: string;
 }): string {
   const state = input.session.state;
-  const threatLine = presentThreatEscalationLine(state);
+  const threatLines = presentThreatEscalationLines(state);
   const enemyRows = state ? presentEnemyHpRows(state, input.monster) : [`👹 Монстр: ?/?`];
   const lines = [
     state ? `⚔️ <b>Бій</b>: ${formatBattleTurn(state.turn)}` : "⚔️ <b>Бій</b>",
-    ...(threatLine ? ["", threatLine] : []),
+    ...(threatLines.length > 0 ? ["", ...threatLines] : []),
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     ...enemyRows
@@ -735,12 +735,63 @@ function presentPersistentFightState(input: {
   return lines.join("\n");
 }
 
-function presentThreatEscalationLine(
+function presentThreatEscalationLines(
+  state: Parameters<typeof presentPersistentFightState>[0]["session"]["state"] | null | undefined
+): string[] {
+  const lines: string[] = [];
+  const line = findThreatEscalationLine(state?.threat?.lineId);
+  if (line) {
+    lines.push(`⚠️ <i>${escapeHtml(line.text)}</i>`);
+  }
+
+  const pressureLine = presentThreatPressureLine(state);
+  if (pressureLine) {
+    lines.push(pressureLine);
+  }
+
+  return lines;
+}
+
+function presentThreatPressureLine(
   state: Parameters<typeof presentPersistentFightState>[0]["session"]["state"] | null | undefined
 ): string | null {
-  const line = findThreatEscalationLine(state?.threat?.lineId);
+  const pressure = state?.threat?.pressure;
+  if (!pressure || pressure.appliedSecondEnemyLevelBonus <= 0) {
+    return null;
+  }
 
-  return line ? `⚠️ <i>${escapeHtml(line.text)}</i>` : null;
+  const enemy = state
+    ? normalizeCombatEnemies(state).find((candidate) =>
+        candidate.enemyId === pressure.boostedEnemyId || candidate.id === pressure.boostedEnemyId
+      )
+    : null;
+  const enemyName = escapeHtml(enemy?.name ?? "Супротивник");
+  const requestedLevelBonus = pressure.requestedSecondEnemyLevelBonus;
+  const appliedLevelBonus = pressure.appliedSecondEnemyLevelBonus;
+  const capped = pressure.boostedEnemyEffectiveLevel >= pressure.levelCap &&
+    requestedLevelBonus > appliedLevelBonus;
+
+  if (capped) {
+    return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> дійшов до межі ${pressure.levelCap}; зайві рівні Корчма вперла в стелю.`;
+  }
+
+  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}.`;
+}
+
+function formatLevelPoints(value: number): string {
+  const abs = Math.abs(value);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return "рівень";
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return "рівні";
+  }
+
+  return "рівнів";
 }
 
 function getPersistentFightJournalEntries(
@@ -1110,37 +1161,43 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
         ? `${shortName} ${getEnemyActionDisplayIndex(entry, index)}`
         : shortName;
       const name = escapeHtml(disambiguatedName);
+      const finalResponsePrefix = entry.simultaneousFinalResponse
+        ? `${name} устиг відповісти в ту саму мить.\n`
+        : "";
       if (entry.monsterDamage > 0) {
-        return `${name} діє окремо й завдає ${entry.monsterDamage} шкоди.`;
+        return `${finalResponsePrefix}${name} діє окремо й завдає ${entry.monsterDamage} шкоди.`;
       }
 
       if (entry.monsterAction === "telegraph") {
-        return `${name} готує неприємність і дуже пишається паузою.`;
+        return `${finalResponsePrefix}${name} готує неприємність і дуже пишається паузою.`;
       }
 
       if (entry.monsterAction === "defend") {
-        return `${name} стає в захист.`;
+        return `${finalResponsePrefix}${name} стає в захист.`;
       }
 
       if (entry.monsterOutcome === "miss") {
-        return `${name} промахується й удає, що це був маневр.`;
+        return `${finalResponsePrefix}${name} промахується й удає, що це був маневр.`;
       }
 
-      return `${name} діє окремо, але шкоди цього разу не додає.`;
+      return `${finalResponsePrefix}${name} діє окремо, але шкоди цього разу не додає.`;
     })
     .join("\n");
 }
 
 function presentMonsterResponse(summary: CombatTurnSummary): string {
   const directMonsterDamage = getDirectMonsterDamage(summary);
+  const finalResponsePrefix = summary.simultaneousFinalResponse
+    ? "Монстр устиг відповісти в ту саму мить.\n"
+    : "";
 
   if (summary.monsterAction === "telegraph" && summary.monsterTelegraphAbilityId) {
     const skill = getCombatSkillDisplay(summary.monsterTelegraphAbilityId);
-    return `⚠️ Монстр готує ${skill.icon} <i>${escapeHtml(skill.name)}</i>. Захист може помʼякшити удар.`;
+    return `${finalResponsePrefix}⚠️ Монстр готує ${skill.icon} <i>${escapeHtml(skill.name)}</i>. Захист може помʼякшити удар.`;
   }
 
   if (summary.monsterAction === "defend") {
-    return summary.monsterEffectText || "Монстр став у захист.";
+    return `${finalResponsePrefix}${summary.monsterEffectText || "Монстр став у захист."}`;
   }
 
   if (summary.monsterAction === "skill" && summary.monsterSkillId) {
@@ -1151,17 +1208,17 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
     ];
 
     if (consequences.length === 0) {
-      return `Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i> без прямої шкоди цього ходу.`;
+      return `${finalResponsePrefix}Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i> без прямої шкоди цього ходу.`;
     }
 
-    return `Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i>: ${consequences.join("; ")}.`;
+    return `${finalResponsePrefix}Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i>: ${consequences.join("; ")}.`;
   }
 
   if (directMonsterDamage > 0) {
-    return presentBasicMonsterAttack(summary);
+    return `${finalResponsePrefix}${presentBasicMonsterAttack(summary)}`;
   }
 
-  return "";
+  return finalResponsePrefix.trimEnd();
 }
 
 function presentBasicMonsterAttack(summary: CombatTurnSummary): string {

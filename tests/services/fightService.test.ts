@@ -3127,6 +3127,15 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 2);
+      expect(started.session.state?.threat?.pressure).toMatchObject({
+        version: 1,
+        consecutiveWonEscalatedFights: 1,
+        requestedSecondEnemyLevelBonus: 2,
+        appliedSecondEnemyLevelBonus: 2,
+        boostedEnemyId: secondEnemy?.enemyId,
+        boostedEnemyEffectiveLevel: secondEnemy?.level,
+        levelCap: 23
+      });
     }
   });
 
@@ -3166,6 +3175,57 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 4);
+      expect(started.session.state?.threat?.pressure).toMatchObject({
+        consecutiveWonEscalatedFights: 2,
+        requestedSecondEnemyLevelBonus: 4,
+        appliedSecondEnemyLevelBonus: 4,
+        boostedEnemyId: secondEnemy?.enemyId,
+        boostedEnemyEffectiveLevel: secondEnemy?.level,
+        levelCap: 23
+      });
+    }
+  });
+
+  it("caps repeated second enemy pressure at the current game level ceiling", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 23, xp: 130_000 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.999, 0.999, 0.999])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (let index = 0; index < 5; index += 1) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-cap-${index + 1}`, {
+        completedAt: new Date(`2026-06-12T10:29:4${index}.000Z`),
+        escalated: true
+      }));
+    }
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      const enemies = normalizeCombatEnemies(started.session.state!);
+      const secondEnemy = enemies[1];
+
+      expect(enemies).toHaveLength(2);
+      expect(secondEnemy?.level).toBe(23);
+      expect(started.session.state?.threat?.pressure).toMatchObject({
+        consecutiveWonEscalatedFights: 5,
+        requestedSecondEnemyLevelBonus: 10,
+        boostedEnemyId: secondEnemy?.enemyId,
+        boostedEnemyEffectiveLevel: 23,
+        levelCap: 23
+      });
+      expect(started.session.state?.threat?.pressure?.appliedSecondEnemyLevelBonus).toBeLessThan(10);
+      expect(enemies.every((enemy) => (enemy.level ?? 0) <= 23)).toBe(true);
     }
   });
 
@@ -3588,6 +3648,14 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 2);
+      expect(started.session.state?.threat?.pressure).toMatchObject({
+        consecutiveWonEscalatedFights: 1,
+        requestedSecondEnemyLevelBonus: 2,
+        appliedSecondEnemyLevelBonus: 2,
+        boostedEnemyId: secondEnemy?.enemyId,
+        boostedEnemyEffectiveLevel: secondEnemy?.level,
+        levelCap: 23
+      });
     }
   });
 
@@ -3640,6 +3708,14 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 4);
+      expect(started.session.state?.threat?.pressure).toMatchObject({
+        consecutiveWonEscalatedFights: 2,
+        requestedSecondEnemyLevelBonus: 4,
+        appliedSecondEnemyLevelBonus: 4,
+        boostedEnemyId: secondEnemy?.enemyId,
+        boostedEnemyEffectiveLevel: secondEnemy?.level,
+        levelCap: 23
+      });
     }
   });
 

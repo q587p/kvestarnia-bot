@@ -132,6 +132,7 @@ interface MonsterResponseResult {
   monsterSkill?: CombatSkillProfile;
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
   defendCounter?: boolean;
 }
 
@@ -420,6 +421,9 @@ function resolveHeroAttack(
   });
   const heroDamage = runtimeHeroDamage.heroDamage;
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
+  const monsterDefeatedByHeroExchange = monsterHpBeforeHeroAction > 0 &&
+    nextState.monster.hp <= 0 &&
+    heroDamage > 0;
 
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
   let heroEffectDamage = 0;
@@ -465,7 +469,8 @@ function resolveHeroAttack(
     monsterResponse = resolveMonsterResponse({
       state: nextState,
       input,
-      damageReduction: skill?.monsterDamageReduction ?? 0
+      damageReduction: skill?.monsterDamageReduction ?? 0,
+      simultaneousFinalResponse: monsterDefeatedByHeroExchange
     });
     monsterDamage += monsterResponse.damage;
   }
@@ -503,6 +508,7 @@ function resolveHeroAttack(
     ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
+    ...(monsterResponse.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {}),
     ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
     ...(debugTrace ? { debugTrace } : {})
   });
@@ -1034,6 +1040,7 @@ function buildSummary(input: {
   monsterAction?: CombatTurnSummary["monsterAction"];
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
   manaSpent: number;
   critical: boolean;
   skill?: CombatSkillProfile;
@@ -1072,6 +1079,7 @@ function buildSummary(input: {
       : {}),
     ...(input.monsterEffectText ? { monsterEffectText: input.monsterEffectText } : {}),
     ...(input.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: input.monsterTelegraphAbilityId } : {}),
+    ...(input.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {}),
     ...(input.heroCounterDamage ? { heroCounterDamage: input.heroCounterDamage } : {}),
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
     ...(input.enemyActions ? { enemyActions: input.enemyActions } : {}),
@@ -1104,6 +1112,7 @@ function resolveLivingEnemyPhase(
     const enemy = normalizeCombatEnemies(state).find((candidate) =>
       candidate.enemyId === participant.enemyId
     ) ?? participant;
+    const simultaneousFinalResponse = participant.hp > 0 && enemy.hp <= 0;
     state.monster = combatEnemyToMonster(enemy);
     if (enemy.monsterRuntime) {
       state.monsterRuntime = enemy.monsterRuntime;
@@ -1117,7 +1126,8 @@ function resolveLivingEnemyPhase(
         ...input,
         monster: findEnemyStats(input, enemy)
       },
-      damageReduction
+      damageReduction,
+      simultaneousFinalResponse
     });
     const updatedEnemy: CombatEnemyState = {
       ...enemy,
@@ -1140,7 +1150,8 @@ function resolveLivingEnemyPhase(
       ...(response.monsterSkill ? { monsterSkillId: response.monsterSkill.id } : {}),
       ...(response.monsterSkill?.damageKind ? { monsterDamageKind: response.monsterSkill.damageKind } : {}),
       ...(response.monsterEffectText ? { monsterEffectText: response.monsterEffectText } : {}),
-      ...(response.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: response.monsterTelegraphAbilityId } : {})
+      ...(response.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: response.monsterTelegraphAbilityId } : {}),
+      ...(response.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {})
     });
   }
 
@@ -1160,12 +1171,14 @@ function enemyActionToSummaryFields(action: CombatEnemyTurnSummary): {
   monsterAction?: CombatTurnSummary["monsterAction"];
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
 } {
   return {
     ...(action.monsterOutcome ? { monsterOutcome: action.monsterOutcome } : {}),
     ...(action.monsterAction ? { monsterAction: action.monsterAction } : {}),
     ...(action.monsterEffectText ? { monsterEffectText: action.monsterEffectText } : {}),
-    ...(action.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: action.monsterTelegraphAbilityId } : {})
+    ...(action.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: action.monsterTelegraphAbilityId } : {}),
+    ...(action.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {})
   };
 }
 
@@ -1268,8 +1281,16 @@ function resolveMonsterResponse(input: {
   state: CombatState;
   input: ResolveCombatTurnInput;
   damageReduction: number;
+  simultaneousFinalResponse?: boolean;
 }): MonsterResponseResult {
   const monsterForResponse = applyDrinkMonsterActionModifiers(input.state, input.input.monster);
+
+  if (input.simultaneousFinalResponse) {
+    return {
+      ...resolveBasicMonsterResponse({ ...input, monster: monsterForResponse }),
+      simultaneousFinalResponse: true
+    };
+  }
 
   if (input.state.monsterRuntime) {
     const runtimeMonster = applyMonsterRuntimeMonsterActionModifiers(input.state, monsterForResponse);
@@ -1334,9 +1355,18 @@ function resolveMonsterResponse(input: {
     };
   }
 
+  return resolveBasicMonsterResponse({ ...input, monster: monsterForResponse });
+}
+
+function resolveBasicMonsterResponse(input: {
+  state: CombatState;
+  input: ResolveCombatTurnInput;
+  damageReduction: number;
+  monster: MonsterCombatStats;
+}): MonsterResponseResult {
   const monsterDamage = rollMonsterDamage(
     input.input.hero,
-    monsterForResponse,
+    input.monster,
     input.input.rng,
     input.damageReduction
   );
@@ -1345,10 +1375,14 @@ function resolveMonsterResponse(input: {
     damage: monsterDamage,
     rng: input.input.rng
   });
-  input.state.hero.hp = Math.max(0, input.state.hero.hp - defendedMonsterAttack.damage);
+  const modifiedMonsterAttack = consumeMonsterRuntimeDirectHitModifiers({
+    state: input.state,
+    damage: defendedMonsterAttack.damage
+  });
+  input.state.hero.hp = Math.max(0, input.state.hero.hp - modifiedMonsterAttack.damage);
 
   return {
-    damage: defendedMonsterAttack.damage,
+    damage: modifiedMonsterAttack.damage,
     monsterAction: "attack",
     defendCounter: defendedMonsterAttack.counter
   };

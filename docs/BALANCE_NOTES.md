@@ -123,6 +123,10 @@ level 13: 1300
 
 Рівні `14-23` планувати як епічний діапазон із новими важелями, а не лише більшими числами. За прикладом Munchkin, раси й класи можуть відкривати додаткові абілки на milestone-рівнях: другий класовий трюк, расову витівку, тимчасовий bypass для манаток, бонус до конкретного типу подій або кумедний недолік, який іноді стає перевагою. Балансне правило: milestone має бути помітним у грі й тексті, але не робити одну расу/клас обов’язковим вибором.
 
+`0.2.3` ordinary threat pressure не відкриває рівні понад поточну стелю `23`. Кожна поспіль виграна escalated two-enemy пара просить ще `+2` effective levels тільки для другого ворога, але applied рівень дорівнює `min(23, normalEffectiveSecondLevel + requestedBonus)`. У state треба зберігати requested і applied значення окремо, щоб баланс-репорти бачили, де тиск уже вперся в стелю. Це не reward multiplier: вся escalated пара лишається одним encounter settlement.
+
+Same-turn final response не має ставати прихованим defensive comeback. Ворог, якого геройська attack/class-skill дія зводить до `0 HP`, може встигнути один раз відповісти offensive/basic дією, але не може після lethal hit лікуватися, ставити щит, чистити ефекти, сапортити або відновлювати себе. Взаємне `0 HP` проти final enemy рахується перемогою героя; `0 HP` героя за наявности іншого живого ворога — поразка.
+
 ## Authored quest-resolution checks
 
 `0.1.20` replaces the active Adventure Choice `safe/flair/risky` ladder with authored scene/race/class/signature methods. Quest-resolution checks use the canonical effective stat snapshot, deterministic character/period/scene/method seeding, bounded qualitative chance bands and four grades: `strong-success`, `success`, `mixed-success`, `complication`. Player-facing pre-commit copy stays qualitative: no exact percentages and no exact future rewards.

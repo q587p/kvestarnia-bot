@@ -258,7 +258,16 @@ describe("fight presenter", () => {
           reason: "ordinary-win-streak",
           eligibleWins: 3,
           lineId: "one-hero-invitation",
-          lineVersion: "threat-escalation-v1"
+          lineVersion: "threat-escalation-v1",
+          pressure: {
+            version: 1,
+            consecutiveWonEscalatedFights: 1,
+            requestedSecondEnemyLevelBonus: 2,
+            appliedSecondEnemyLevelBonus: 2,
+            boostedEnemyId: "enemy:2",
+            boostedEnemyEffectiveLevel: 3,
+            levelCap: 23
+          }
         },
         monster: {
           id: "monster.second",
@@ -300,12 +309,16 @@ describe("fight presenter", () => {
 
     expect(intro).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
     expect(intro).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
+    expect(intro).toContain("Натиск Низу:");
+    expect(intro).toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.");
     expect(intro).toContain("<i>Порада дня:");
     expect(intro).not.toContain("<i>Другий</i>");
     expect(intro).not.toContain("<b>Перший</b>");
 
     expect(text).not.toContain("Проти вас:");
     expect(text).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
+    expect(text).toContain("Натиск Низу:");
+    expect(text).toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.");
     expect(text).not.toContain("Проти вас: <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3");
     expect(text).toContain("👹 1. Другий: 7/16 ← ціль");
     expect(text).toContain("👹 2. Перший: 0/18");
@@ -485,6 +498,38 @@ describe("fight presenter", () => {
     expect(text).toContain("Привид 2 діє окремо й завдає 4 шкоди.");
     expect(text).not.toContain("Привид діє окремо й завдає 3 шкоди.");
     expect(text).not.toContain("Привид діє окремо й завдає 4 шкоди.");
+  });
+
+  it("marks simultaneous final response lines in persisted turn summaries", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "won",
+          heroDamage: 18,
+          monsterDamage: 4,
+          manaSpent: 0,
+          critical: false,
+          simultaneousFinalResponse: true,
+          monsterOutcome: "hit",
+          monsterAction: "attack"
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тест.",
+        level: 1,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Монстр устиг відповісти в ту саму мить.");
+    expect(text).toContain("Монстр атакував у відповідь на ваш хід і завдав 4 шкоди.");
   });
 
   it("falls back to stable labels when multi-enemy HP rows lack names", () => {

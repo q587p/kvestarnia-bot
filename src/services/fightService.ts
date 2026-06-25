@@ -53,9 +53,11 @@ import {
   findThreatEscalationLine,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINE_VERSION,
+  THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS,
   type CombatActionType,
   type CombatActorStats,
   type CombatBalanceSource,
+  type CombatEnemyState,
   type CombatState,
   type DrinkCombatModifiers,
   type MonsterCombatStats
@@ -63,6 +65,7 @@ import {
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
 import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
 import {
+  CURRENT_GAME_LEVEL_CAP,
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
@@ -123,6 +126,14 @@ export type FightAction = CombatProbeAction;
 
 interface RecoveryNoticeField {
   recoveryNotice?: ResourceRecoveryNotice;
+}
+
+interface PersistentFightExtraMonsterSelection {
+  baseMonster: MonsterContent;
+  monster: MonsterContent;
+  requestedLevelBonus: number;
+  appliedLevelBonus: number;
+  levelCap: number;
 }
 
 type ResourceSettlementFlowResult =
@@ -1126,7 +1137,7 @@ export class FightService {
     originLocationId: string;
     enemyCount: 1 | 2;
     secondEnemyLevelBonus: number;
-  }): Promise<Array<{ baseMonster: MonsterContent; monster: MonsterContent }>> {
+  }): Promise<PersistentFightExtraMonsterSelection[]> {
     if (input.enemyCount !== 2) {
       return [];
     }
@@ -1138,12 +1149,15 @@ export class FightService {
       input.difficulty,
       [input.primaryBaseMonsterId, ...recentMonsterIds]
     );
-    const monster = applyThreatSecondEnemyLevelBonus(
-      applyPersistentFightDifficulty(baseMonster, input.character, input.difficulty),
-      input.secondEnemyLevelBonus
-    );
+    const monster = applyPersistentFightDifficulty(baseMonster, input.character, input.difficulty);
 
-    return [{ baseMonster, monster }];
+    return [
+      applyThreatSecondEnemyLevelBonus({
+        baseMonster,
+        monster,
+        requestedLevelBonus: input.secondEnemyLevelBonus
+      })
+    ];
   }
 
   async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
@@ -1727,19 +1741,19 @@ export class FightService {
       threatDecision.enemyCount === 2 && !options.enemyCount
         ? threatDecision.secondEnemyLevelBonus
         : 0;
-    const extraMonsters = enemyCount === 2
+    const extraBaseMonster = enemyCount === 2
+      ? selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
+          baseMonster.id,
+          ...recentMonsterIds
+        ])
+      : null;
+    const extraMonsters: PersistentFightExtraMonsterSelection[] = extraBaseMonster
       ? [
-          applyThreatSecondEnemyLevelBonus(
-            applyPersistentFightDifficulty(
-              selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
-                baseMonster.id,
-                ...recentMonsterIds
-              ]),
-              characterSummary,
-              difficulty
-            ),
-            secondEnemyLevelBonus
-          )
+          applyThreatSecondEnemyLevelBonus({
+            baseMonster: extraBaseMonster,
+            monster: applyPersistentFightDifficulty(extraBaseMonster, characterSummary, difficulty),
+            requestedLevelBonus: secondEnemyLevelBonus
+          })
         ]
       : [];
     const sessionId = randomUUID();
@@ -1755,7 +1769,7 @@ export class FightService {
       deriveMonsterCombatStats(monster),
       monsterContext
     );
-    const extraMonsterStats = extraMonsters.map((enemy) => {
+    const extraMonsterStats = extraMonsters.map(({ monster: enemy }) => {
       const context = resolveMonsterContext({ monster: enemy, world: worldContext });
 
       return applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context);
@@ -1779,14 +1793,12 @@ export class FightService {
     };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
     if (threatDecision.enemyCount === 2 && !options.enemyCount) {
-      state.threat = {
-        version: 1,
-        enemyCount: 2,
-        reason: "ordinary-win-streak",
-        eligibleWins: threatDecision.eligibleWins,
-        lineId: selectThreatEscalationLineId(sessionId),
-        lineVersion: THREAT_ESCALATION_LINE_VERSION
-      };
+      state.threat = buildCombatThreatState({
+        sessionId,
+        threatDecision,
+        extraMonster: extraMonsters[0],
+        boostedEnemy: state.enemies?.[1]
+      });
     }
     if (options.enemyCount === 2 && options.devBypassAvailability) {
       state.threatExclusion = {
@@ -3310,7 +3322,7 @@ export class FightService {
     characterSummary: CharacterSummary;
     baseMonster: MonsterContent;
     monster: MonsterContent;
-    extraMonsters?: Array<{ baseMonster: MonsterContent; monster: MonsterContent }>;
+    extraMonsters?: PersistentFightExtraMonsterSelection[];
     difficulty: PersistentFightDifficultyConfig;
     originLocationId: string;
     source: NonNullable<PersistentFightStartOptions["source"]>;
@@ -3359,14 +3371,12 @@ export class FightService {
     };
     state.originLocationId = input.originLocationId;
     if (input.threatDecision?.enemyCount === 2) {
-      state.threat = {
-        version: 1,
-        enemyCount: 2,
-        reason: "ordinary-win-streak",
-        eligibleWins: input.threatDecision.eligibleWins,
-        lineId: selectThreatEscalationLineId(input.sessionId),
-        lineVersion: THREAT_ESCALATION_LINE_VERSION
-      };
+      state.threat = buildCombatThreatState({
+        sessionId: input.sessionId,
+        threatDecision: input.threatDecision,
+        extraMonster: input.extraMonsters?.[0],
+        boostedEnemy: state.enemies?.[1]
+      });
     }
     if (input.drinkModifiers) {
       state.drinkModifiers = input.drinkModifiers;
@@ -4201,15 +4211,59 @@ function applyPersistentFightDifficulty(
   return level === baseMonster.level ? baseMonster : { ...baseMonster, level };
 }
 
-function applyThreatSecondEnemyLevelBonus(
-  monster: MonsterContent,
-  levelBonus: number
-): MonsterContent {
-  if (levelBonus <= 0) {
-    return monster;
+function applyThreatSecondEnemyLevelBonus(input: {
+  baseMonster: MonsterContent;
+  monster: MonsterContent;
+  requestedLevelBonus: number;
+}): PersistentFightExtraMonsterSelection {
+  const requestedLevelBonus = Math.max(0, Math.floor(input.requestedLevelBonus));
+  const normalLevel = Math.max(1, Math.floor(input.monster.level));
+  const boostedLevel = Math.min(CURRENT_GAME_LEVEL_CAP, normalLevel + requestedLevelBonus);
+  const appliedLevelBonus = Math.max(0, boostedLevel - normalLevel);
+
+  return {
+    baseMonster: input.baseMonster,
+    monster: boostedLevel === input.monster.level ? input.monster : { ...input.monster, level: boostedLevel },
+    requestedLevelBonus,
+    appliedLevelBonus,
+    levelCap: CURRENT_GAME_LEVEL_CAP
+  };
+}
+
+function buildCombatThreatState(input: {
+  sessionId: string;
+  threatDecision: ReturnType<typeof decideThreatEscalation>;
+  extraMonster?: PersistentFightExtraMonsterSelection | undefined;
+  boostedEnemy?: CombatEnemyState | undefined;
+}): NonNullable<CombatState["threat"]> {
+  if (input.threatDecision.enemyCount !== 2) {
+    throw new Error("Combat threat state can only be built for escalated two-enemy decisions.");
   }
 
-  return { ...monster, level: Math.max(1, monster.level + levelBonus) };
+  const requestedLevelBonus = input.extraMonster?.requestedLevelBonus ?? 0;
+  const pressure = input.extraMonster && input.boostedEnemy
+    ? {
+        version: 1 as const,
+        consecutiveWonEscalatedFights: Math.floor(
+          requestedLevelBonus / THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
+        ),
+        requestedSecondEnemyLevelBonus: requestedLevelBonus,
+        appliedSecondEnemyLevelBonus: input.extraMonster.appliedLevelBonus,
+        boostedEnemyId: input.boostedEnemy.enemyId,
+        boostedEnemyEffectiveLevel: input.extraMonster.monster.level,
+        levelCap: input.extraMonster.levelCap
+      }
+    : undefined;
+
+  return {
+    version: 1,
+    enemyCount: 2,
+    reason: "ordinary-win-streak",
+    eligibleWins: input.threatDecision.eligibleWins,
+    lineId: selectThreatEscalationLineId(input.sessionId),
+    lineVersion: THREAT_ESCALATION_LINE_VERSION,
+    ...(pressure ? { pressure } : {})
+  };
 }
 
 function buildPersistentFightInterventionTrace(

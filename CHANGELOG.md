@@ -28,12 +28,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.
 - Battle journal pages for two-enemy fights now show per-enemy HP rows and explicit zero-damage enemy misses instead of collapsing the turn to one generic monster row.
 - Monster runtime effects now name the applied effect, use full `пунктів` wording for point deltas, show remaining actions/charges, split ongoing effect damage from the direct monster response, and persist active effect plus skill-cooldown notices into battle journal replay.
-- Hero attack and class-skill turns now resolve the monster response after hero damage even when the target was defeated by that action, and a final-enemy mutual KO still resolves as a win so terminal win cards can include same-turn incoming damage.
+- Hero attack and class-skill turns now resolve the monster response after hero damage even when the target was defeated by that action. Same-turn final responses are persisted in turn summaries/journals, defeated responders are restricted to one offensive/basic response without self-heal/shield/support, final-enemy mutual KO resolves as a win, and hero 0 HP with another enemy still living resolves as a loss.
 - Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; multi-enemy response lines disambiguate colliding short monster labels with deterministic enemy numbers; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
 - A lost, fled or expired escalated two-enemy terminal encounter resets the cycle back to one enemy.
 - A won escalated two-enemy terminal encounter keeps the next ordinary start escalated immediately, even while won-fight settlement is still pending.
-- Consecutive won escalated fights stack only the second enemy's effective-level bonus by +2 each time (`+2`, `+4`, `+6`, ...); the primary enemy stays at its normal selected level.
+- Consecutive won escalated fights stack only the second enemy's requested effective-level bonus by +2 each time (`+2`, `+4`, `+6`, ...); the primary enemy stays at its normal selected level, the applied second-enemy level is capped at the current game ceiling `23`, and `CombatState.threat.pressure` preserves requested/applied bonus metadata for replay/presentation.
 
 ### Unchanged
 - Rewards remain the existing single-encounter settlement contract for the whole two-enemy fight.

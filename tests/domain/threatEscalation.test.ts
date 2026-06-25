@@ -59,6 +59,20 @@ describe("threat escalation policy", () => {
     });
   });
 
+  it("keeps requesting repeat pressure for long won escalated streaks", () => {
+    expect(decideThreatEscalation(Array.from({ length: 5 }, () => ({
+      result: "won" as const,
+      enemyCount: 2 as const,
+      eligible: true,
+      escalated: true
+    })))).toEqual({
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins: 3,
+      secondEnemyLevelBonus: THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS * 5
+    });
+  });
+
   it.each(["lost", "fled", "expired"] as const)(
     "resets after a %s two-enemy checkpoint",
     (result) => {
