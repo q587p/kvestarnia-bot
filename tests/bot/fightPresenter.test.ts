@@ -765,6 +765,95 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Хід записано");
   });
 
+  it("renders multi-enemy journal HP rows and zero-damage enemy misses", () => {
+    const session = persistentSession({
+      turn: 2,
+      monster: {
+        id: "monster.bread",
+        name: "Буханець дедлайнів",
+        level: 3,
+        hp: 6,
+        hpMax: 17
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.bread",
+          name: "Буханець дедлайнів",
+          level: 3,
+          hp: 6,
+          hpMax: 17
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.pack",
+          name: "Зграя дрібних правок",
+          level: 2,
+          hp: 8,
+          hpMax: 18
+        }
+      ],
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 16, mana: 11 },
+          monster: { hp: 6 },
+          enemies: [
+            { enemyId: "enemy:1", hp: 6 },
+            { enemyId: "enemy:2", hp: 8 }
+          ],
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 9,
+            monsterDamage: 0,
+            manaSpent: 0,
+            critical: false,
+            enemyActions: [
+              {
+                enemyId: "enemy:1",
+                monsterId: "monster.bread",
+                monsterName: "Буханець дедлайнів",
+                monsterOutcome: "miss",
+                monsterDamage: 0,
+                monsterAction: "attack"
+              },
+              {
+                enemyId: "enemy:2",
+                monsterId: "monster.pack",
+                monsterName: "Зграя дрібних правок",
+                monsterOutcome: "miss",
+                monsterDamage: 0,
+                monsterAction: "attack"
+              }
+            ]
+          }
+        }
+      ]
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.bread",
+        name: "Буханець дедлайнів",
+        description: "Тестовий буханець.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 0);
+
+    expect(text).toContain("👹 1. Буханець після ходу: 6/17");
+    expect(text).toContain("👹 2. Зграя після ходу: 8/18");
+    expect(text).not.toContain("👹 Монстр після ходу");
+    expect(text).toContain("Атака влучає на 9 шкоди.");
+    expect(text).toContain("Буханець промахується");
+    expect(text).toContain("Зграя промахується");
+  });
+
   it("adds the terminal last turn to the journal when it is missing from stored turns", () => {
     const session = persistentSession({
       status: "won",

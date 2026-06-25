@@ -389,12 +389,31 @@ export function presentPersistentFightJournal(
     "",
     `Хід <b>${entry.turn}</b> · запис ${page + 1}/${log.length}`,
     `❤️ Ви після ходу: ${entry.hero.hp}/${state?.hero.hpMax ?? "?"} · мана ${entry.hero.mana}/${state?.hero.manaMax ?? "?"}`,
-    `👹 Монстр після ходу: ${entry.monster.hp}/${state?.monster.hpMax ?? "?"}`,
+    ...presentJournalEnemyHpRows(entry, state),
     "",
     presentTurnSummary(entry.summary, { includeHeading: false })
   ];
 
   return lines.join("\n");
+}
+
+function presentJournalEnemyHpRows(
+  entry: CombatTurnLogEntry,
+  state: Extract<PersistentFightSnapshotResult, { state: "found" }>["session"]["state"] | null
+): string[] {
+  if (!entry.enemies || entry.enemies.length <= 1) {
+    return [`👹 Монстр після ходу: ${entry.monster.hp}/${state?.monster.hpMax ?? "?"}`];
+  }
+
+  const stateEnemies = state ? normalizeCombatEnemies(state) : [];
+
+  return entry.enemies.map((enemy, index) => {
+    const stateEnemy = stateEnemies.find((candidate) => candidate.enemyId === enemy.enemyId);
+    const fallbackName = index === 0 ? state?.monster.name : undefined;
+    const name = presentShortMonsterName(stateEnemy?.name ?? fallbackName, `Монстр ${index + 1}`);
+
+    return `👹 ${index + 1}. ${name} після ходу: ${enemy.hp}/${stateEnemy?.hpMax ?? "?"}`;
+  });
 }
 
 export function presentProblemQuestProgressAfterFight(
@@ -964,6 +983,10 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
 
       if (entry.monsterAction === "defend") {
         return `${name} стає в захист.`;
+      }
+
+      if (entry.monsterOutcome === "miss") {
+        return `${name} промахується й удає, що це був маневр.`;
       }
 
       return `${name} діє окремо, але шкоди цього разу не додає.`;
