@@ -39,9 +39,10 @@
 10. На high-level персонажі або fixed-seed локальному сценарії продовж серію до capped pressure: очікування — другий ворог не переходить effective level `23`, а картка показує `Натиск Низу` з applied/capped bonus.
 11. Убий поточну ціль attack/class-skill дією так, щоб вона була жива на початку обміну: очікування — вона може один раз відповісти `в ту саму мить`, але не лікується, не ставить щит і не сапортить себе після `0 HP`.
 12. Перевір mutual-KO: якщо герой і final enemy падають до `0 HP` в тому самому обміні, бій завершено як перемогу; якщо лишається інший живий ворог, це поразка.
-13. Перерви серію loss/flee/expiry в eligible one-enemy або escalated two-enemy бою: наступний ordinary старт повертається до one-enemy.
-14. Перевір Yeger, Adventure, training, duel, starter і `/dev_two_enemies`: вони не trigger/consume ordinary threat.
-15. Після третьої ordinary перемоги більше не має зʼявлятися old `Низ просить тихіше` start denial для eligible ordinary start.
+13. Програй two-enemy бій після знешкодження одного ворога: очікування — є `За спробу` з більш ніж `+1 XP`, але без золота, без манаток і без нового прогресу справи.
+14. Перерви серію loss/flee/expiry в eligible one-enemy або escalated two-enemy бою: наступний ordinary старт повертається до one-enemy.
+15. Перевір Yeger, Adventure, training, duel, starter і `/dev_two_enemies`: вони не trigger/consume ordinary threat.
+16. Після третьої ordinary перемоги більше не має зʼявлятися old `Низ просить тихіше` start denial для eligible ordinary start.
 
 ## 0.2.2 — Architecture stabilization smoke
 

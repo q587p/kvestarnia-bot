@@ -2979,6 +2979,120 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
+  it("grants half XP for defeated enemies when a multi-enemy persistent fight is lost", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110, hpCurrent: 1 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2, 0.1, 0.9, 0.2])
+    );
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-partial-loss-${index + 1}`, {
+        completedAt
+      }));
+    }
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+
+    const postPrimaryDeath = moveSessionToPostPrimaryDeath(sessions, started.session.id);
+    const defeatedEnemy = postPrimaryDeath.enemies?.find((enemy) => enemy.hp <= 0);
+    const livingEnemy = postPrimaryDeath.enemies?.find((enemy) => enemy.hp > 0);
+    expect(defeatedEnemy).toBeDefined();
+    expect(livingEnemy).toBeDefined();
+    if (!defeatedEnemy || !livingEnemy) {
+      return;
+    }
+    livingEnemy.hp = 999;
+    livingEnemy.hpMax = 999;
+    postPrimaryDeath.monster = {
+      ...postPrimaryDeath.monster,
+      hp: 999,
+      hpMax: 999
+    };
+    postPrimaryDeath.hero = {
+      ...postPrimaryDeath.hero,
+      hp: 1
+    };
+    const defeatedContent = monsters.find((monster) => monster.id === defeatedEnemy.id);
+    const defeatedLevel = defeatedEnemy.level ?? defeatedContent?.level ?? 1;
+    const expectedPartialXp = Math.ceil(
+      buildCenterBaselinePersistentFightWinXp({
+        characterLevel: 6,
+        baseMonsterLevel: defeatedLevel
+      }) * 0.5
+    );
+    await sessions.updateById(started.session.id, {
+      status: "active",
+      state: postPrimaryDeath
+    });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 2,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.status).toBe("lost");
+      expect(result.fightReward).toMatchObject({
+        state: "claimed",
+        reward: {
+          xp: expectedPartialXp,
+          gold: 0,
+          localDate: started.session.id,
+          itemGrants: []
+        }
+      });
+      expect(result.fightReward?.reward.xp).toBeGreaterThan(1);
+      expect(result.questProgress).toMatchObject({ wins: 3, completed: false });
+    }
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
+    expect(rewardRecords[0]).toMatchObject({
+      key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+      localDate: started.session.id,
+      rewardXp: expectedPartialXp,
+      rewardGold: 0
+    });
+    expect(dailyActions.grantedItems).toEqual([]);
+
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 2,
+      action: "attack"
+    });
+
+    expect(repeated.state).toBe("terminal");
+    if (repeated.state === "terminal") {
+      expect(repeated.fightReward).toMatchObject({
+        state: "replayed",
+        reward: {
+          xp: expectedPartialXp,
+          gold: 0,
+          localDate: started.session.id,
+          itemGrants: []
+        }
+      });
+    }
+  });
+
   it("does not grant persistent fight rewards for flee or expired sessions", async () => {
     const fledCharacters = new FakeCharacterRepository();
     fledCharacters.add(telegramUserId, { xp: 25 });

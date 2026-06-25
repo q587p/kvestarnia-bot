@@ -25,11 +25,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Safe Gifting now treats `trade-blocked` and `soulbound` as transfer-blocking tags while preserving legacy untagged priced item eligibility; gift fingerprints include tags so tag/content edits between preview and create/accept stale out safely.
 - Bandage confirmation now settles HP/mana once through the canonical passive recovery math with Shynok recovery windows, then applies capped HP healing without wiping fractional mana recovery progress.
 - Єгер paid bandage purchase now uses preview/confirm/cancel callbacks backed by the existing daily-action audit boundary, so duplicate confirms replay the same receipt instead of debiting/granting again.
-- Item use blocks during active combat, at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry.
+- Out-of-combat item use blocks at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry; active persistent PvE combat routes eligible one-use manatky through the turn-bound combat item-use path instead.
 - Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.
 - Remort cancels live pending/processing item-use orders without consuming their reserved stack.
 - Remort resets both the first 5-target and the second 17-target Єгер unquiet board keys so a new life starts the Єгер quest chain from zero.
 - Shynok manatka sales now round the basket-level 42% payout up to the nearest whole gold instead of truncating fractional gold down.
+- Lost multi-enemy persistent fights now grant half of normal XP for each enemy defeated before the loss, while still granting no gold, no items and no quest progress for the failed fight.
 - The task, roadmap, phase-2, balance, security, technical, playtesting and compact Codex context docs now distinguish this shipped bandage slice from broader shops, food, action catalogs, race abilities, achievements, titles and signature techniques.
 
 ### Unchanged

@@ -4039,7 +4039,7 @@ function buildPersistentFightReward(
 ): { xp: number; gold: number; itemGrants: Array<{ itemId: string; quantity: number }> } {
   if (status === "lost") {
     return {
-      xp: 1,
+      xp: buildPersistentFightLossXp(character, session),
       gold: 0,
       itemGrants: []
     };
@@ -4087,6 +4087,42 @@ function buildPersistentFightReward(
     gold,
     itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
   };
+}
+
+function buildPersistentFightLossXp(
+  character: CharacterSummary,
+  session?: SoloCombatSessionRecord
+): number {
+  const enemies = session?.state?.enemies;
+  if (!enemies || enemies.length <= 1) {
+    return 1;
+  }
+
+  const defeatedXp = enemies
+    .filter((enemy) => enemy.hp <= 0)
+    .reduce((sum, enemy) => sum + buildDefeatedEnemyLossXp(character, enemy), 0);
+
+  return Math.max(1, defeatedXp);
+}
+
+function buildDefeatedEnemyLossXp(
+  character: CharacterSummary,
+  enemy: CombatEnemyState
+): number {
+  const content = findMonster(enemy.id);
+  const authoredLevel = content ? getAuthoredMonsterLevel(content) : enemy.level ?? 1;
+  const baseMonsterLevel = Math.max(1, Math.floor(enemy.debugTrace?.baseMonsterLevel ?? authoredLevel));
+  const effectiveMonsterLevel = Math.max(
+    1,
+    Math.floor(enemy.debugTrace?.effectiveMonsterLevel ?? enemy.level ?? authoredLevel)
+  );
+  const winXp = buildBaselinePersistentFightWinXp({
+    characterLevel: character.level,
+    baseMonsterLevel,
+    effectiveMonsterLevel
+  });
+
+  return Math.max(1, Math.ceil(winXp * 0.5));
 }
 
 function buildPersistentFightWinXp(input: {

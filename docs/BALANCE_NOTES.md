@@ -129,6 +129,8 @@ level 13: 1300
 
 Same-turn final response не має ставати прихованим defensive comeback. Ворог, якого геройська attack/class-skill дія зводить до `0 HP`, може встигнути один раз відповісти offensive/basic дією, але не може після lethal hit лікуватися, ставити щит, чистити ефекти, сапортити або відновлювати себе. Взаємне `0 HP` проти final enemy рахується перемогою героя; `0 HP` героя за наявности іншого живого ворога — поразка.
 
+Якщо multi-enemy persistent fight програно після знешкодження хоча б одного ворога, спроба дає partial XP: `ceil(0.5 * normal XP)` за кожного знешкодженого ворога, мінімум `1 XP` загалом. Gold, item drops, problem-chain/Yeger progress і ordinary threat win progress не видаються, бо encounter програно.
+
 ## Authored quest-resolution checks
 
 `0.1.20` replaces the active Adventure Choice `safe/flair/risky` ladder with authored scene/race/class/signature methods. Quest-resolution checks use the canonical effective stat snapshot, deterministic character/period/scene/method seeding, bounded qualitative chance bands and four grades: `strong-success`, `success`, `mixed-success`, `complication`. Player-facing pre-commit copy stays qualitative: no exact percentages and no exact future rewards.
