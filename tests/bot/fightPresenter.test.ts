@@ -318,7 +318,7 @@ describe("fight presenter", () => {
       state: "updated",
       character,
       session: persistentSession({
-        turn: 3,
+        turn: 6,
         monster: {
           id: "monster.spider",
           name: "Павук дедлайнів",
@@ -405,7 +405,8 @@ describe("fight presenter", () => {
       fightReward: null
     });
 
-    expect(text).toContain("⚔️ <b>Бій</b>: 3 ходи");
+    expect(text).toContain("⚔️ <b>Бій</b>: 6 хід");
+    expect(text).not.toContain("⚔️ <b>Бій</b>: 6 ходів");
     expect(text).toContain("👹 1. Павук: 18/18 ← ціль");
     expect(text).toContain("👹 2. Капустяний: 0/18");
     expect(text).toContain("Знешкоджено: Капустяний. Нова ціль — Павук; Корчма переставила табличку без голосування.");

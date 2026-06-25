@@ -634,7 +634,7 @@ function presentPersistentFightState(input: {
   const threatLine = presentThreatEscalationLine(state);
   const enemyRows = state ? presentEnemyHpRows(state, input.monster) : [`👹 Монстр: ?/?`];
   const lines = [
-    state ? `⚔️ <b>Бій</b>: ${formatTurns(state.turn)}` : "⚔️ <b>Бій</b>",
+    state ? `⚔️ <b>Бій</b>: ${formatBattleTurn(state.turn)}` : "⚔️ <b>Бій</b>",
     ...(threatLine ? ["", threatLine] : []),
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
@@ -1169,6 +1169,10 @@ function presentBattleStartTip(character: CharacterSummary, seed: string): strin
 
 function formatTurns(count: number): string {
   return `${count} ${pluralize(count, "хід", "ходи", "ходів")}`;
+}
+
+function formatBattleTurn(turn: number): string {
+  return `${turn} хід`;
 }
 
 function pluralize(count: number, one: string, few: string, many: string): string {
