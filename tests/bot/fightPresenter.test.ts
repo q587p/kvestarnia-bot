@@ -208,7 +208,29 @@ describe("fight presenter", () => {
         ...character,
         name: "<b>Мандрівник</b>"
       },
-      session: persistentSession(),
+      session: persistentSession({
+        monsterRuntime: {
+          version: 1,
+          rulesVersion: "monster-abilities-v1",
+          aiProfile: "controller",
+          loadoutIds: [],
+          cooldowns: {},
+          onceUsedAbilityIds: [],
+          consecutiveAbilityUses: 0,
+          ownActionCount: 0,
+          effects: [{
+            id: "test-accuracy-pressure",
+            sourceAbilityId: "monster.test-pressure",
+            sourceActor: "monster",
+            target: "hero",
+            kind: "accuracy",
+            value: 15,
+            polarity: "harmful",
+            removable: true,
+            remainingTargetActivations: 1
+          }]
+        }
+      }),
       monster: {
         id: "monster.test",
         name: "<i>Монстр</i>",
@@ -236,6 +258,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(text).toContain("👹 Тестовий: 18/18");
+    expect(text).toContain("🧷 Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії.");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
     expect(text).not.toContain("що робимо?\n\n⏳");
     expect(text).toContain("⏳ На хід є 23 секунди");

@@ -4,6 +4,7 @@ import {
   findThreatEscalationLine,
   getTerminalCombatTurnLogEventId,
   normalizeCombatEnemies,
+  presentActiveMonsterRuntimeEffectNotices,
   type CombatTurnLogEntry,
   type CombatTurnSummary
 } from "../../domain/combat";
@@ -409,6 +410,20 @@ function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
   ];
 }
 
+function presentActiveFightEffectNotices(
+  state: NonNullable<Extract<PersistentFightSnapshotResult, { state: "found" }>["session"]["state"]>
+): string[] {
+  const notices = normalizeCombatEnemies(state)
+    .flatMap((enemy) =>
+      enemy.monsterRuntime
+        ? presentActiveMonsterRuntimeEffectNotices(enemy.monsterRuntime)
+        : []
+    )
+    .map((notice) => `🧷 Ефект триває: ${escapeHtml(trimTerminalPunctuation(notice))}.`);
+
+  return Array.from(new Set(notices));
+}
+
 function presentJournalEnemyHpRows(
   entry: CombatTurnLogEntry,
   state: Extract<PersistentFightSnapshotResult, { state: "found" }>["session"]["state"] | null
@@ -673,6 +688,10 @@ function presentPersistentFightState(input: {
 
   if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
     lines.push(presentSkillCooldown(state.cooldowns.skill));
+  }
+
+  if (state?.status === "active") {
+    lines.push(...presentActiveFightEffectNotices(state));
   }
 
   if (state?.status === "active" && state.turn === 1 && !state.lastTurn && state.context?.cue) {
