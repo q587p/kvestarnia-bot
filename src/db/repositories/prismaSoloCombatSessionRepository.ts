@@ -1463,6 +1463,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const life = parseCombatLife(value.life);
   const settlement = parseCombatSettlement(value.settlement);
   const threat = parseCombatThreat(value.threat);
+  const threatExclusion = parseCombatThreatExclusion(value.threatExclusion);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
   const enemies = parseEnemies(value.enemies, monster);
@@ -1491,6 +1492,7 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(life ? { life } : {}),
     ...(settlement ? { settlement } : {}),
     ...(threat ? { threat } : {}),
+    ...(threatExclusion ? { threatExclusion } : {}),
     ...(typeof value.originLocationId === "string" ? { originLocationId: value.originLocationId } : {}),
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
@@ -1530,6 +1532,19 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
         eligibleWins: 3,
         lineId: value.lineId,
         lineVersion: value.lineVersion
+      }
+    : null;
+}
+
+function parseCombatThreatExclusion(value: unknown): CombatState["threatExclusion"] | null {
+  if (!isRecord(value) || value.version !== 1) {
+    return null;
+  }
+
+  return value.reason === "dev-forced-two-enemies"
+    ? {
+        version: 1,
+        reason: "dev-forced-two-enemies"
       }
     : null;
 }

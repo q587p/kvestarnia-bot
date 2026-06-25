@@ -1773,6 +1773,12 @@ export class FightService {
         lineVersion: THREAT_ESCALATION_LINE_VERSION
       };
     }
+    if (options.enemyCount === 2 && options.devBypassAvailability) {
+      state.threatExclusion = {
+        version: 1,
+        reason: "dev-forced-two-enemies"
+      };
+    }
     if (monsterContext) {
       state.context = monsterContext;
     }
@@ -3549,6 +3555,22 @@ function toThreatEscalationHistoryEntry(
 
   const enemyCount = getThreatHistoryEnemyCount(state);
   const escalated = state.threat?.enemyCount === 2 && state.threat.reason === "ordinary-win-streak";
+  if (state.threatExclusion?.reason === "dev-forced-two-enemies") {
+    return {
+      result,
+      enemyCount: 1,
+      eligible: false,
+      escalated: false
+    };
+  }
+  if (enemyCount === 2 && !escalated) {
+    return {
+      result: "expired",
+      enemyCount: 1,
+      eligible: true,
+      escalated: false
+    };
+  }
   const wonButUnsettled = session.status === "won" &&
     state.settlement !== undefined &&
     state.settlement.status !== "completed";

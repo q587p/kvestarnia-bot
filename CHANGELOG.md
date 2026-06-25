@@ -13,13 +13,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added ordinary threat escalation for normal persistent fights: after three consecutive eligible one-enemy ordinary wins, the next eligible ordinary start creates exactly two enemies.
 - Added a pure threat policy with 13 stable Ukrainian escalation lines and stored `CombatState.threat` metadata so intro, restart, active and terminal replay cards reuse the same line.
 - Added bounded durable combat-history lookup for recent terminal solo-combat sessions without a schema migration; the scan maps completion times before sorting by canonical `completedAt DESC`.
-- Added focused policy, service, presenter and Prisma repository tests for escalation, resets, excluded routes, passage attacks, two-enemy checkpoint behavior, stable copy and history ordering.
+- Added focused policy, service, presenter, parser and Prisma repository tests for escalation, resets, excluded routes, passage attacks, two-enemy checkpoint behavior, stable copy, malformed/dropped threat metadata and history ordering.
 
 ### Changed
 - Replaced the old eligible ordinary three-win monster-rest start denial with escalation for ordinary normal starts.
 - Nyz passage attack callbacks now decide escalation at combat-session creation, keep the previewed monster as the primary enemy, freeze the same threat metadata/line as direct starts, and return the canonical consumed session on duplicate callbacks.
 - Consumed Nyz passage survivor recovery no longer rebuilds stored multi-enemy/threat fights as a one-enemy continuation.
-- Excluded Yeger, Adventure, training, duel, starter and dev-forced rows no longer consume the bounded ordinary threat streak window; malformed terminal rows fail safely back to base threat.
+- Excluded Yeger, Adventure, training, duel, starter and dev-forced rows no longer consume the bounded ordinary threat streak window; malformed terminal rows and ordinary two-enemy rows without valid threat metadata fail safely back to base threat.
 - Persistent fight state cards no longer repeat the full opponent roster after the intro; active and terminal cards keep compact HP rows with short monster labels.
 - Persistent fight state cards now carry the current turn count in the heading and no longer spend a separate `Хід:` line.
 - Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.

@@ -3156,7 +3156,8 @@ describe("FightService", () => {
     }));
     sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-ignore-dev-two", {
       completedAt: new Date("2026-06-12T10:29:43.000Z"),
-      enemyCount: 2
+      enemyCount: 2,
+      threatExclusion: true
     }));
     sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-ignore-yeger", {
       completedAt: new Date("2026-06-12T10:29:44.000Z"),
@@ -3254,6 +3255,44 @@ describe("FightService", () => {
       }),
       state: null
     });
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(1);
+      expect(started.session.state?.threat).toBeUndefined();
+    }
+  });
+
+  it("fails a two-enemy normal row with dropped threat metadata safely to base threat", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-dropped-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-dropped-two-enemy", {
+      completedAt: new Date("2026-06-12T10:29:43.000Z"),
+      enemyCount: 2
+    }));
 
     const started = await service.getFightForTelegramUser(telegramUserId);
 
@@ -6025,6 +6064,7 @@ function makeEligibleOrdinaryThreatSession(
     monsterId?: string;
     enemyCount?: 1 | 2;
     escalated?: boolean;
+    threatExclusion?: boolean;
   }
 ): SoloCombatSessionRecord {
   const monsterId = options.monsterId ?? "monster.deadline-spider";
@@ -6052,6 +6092,14 @@ function makeEligibleOrdinaryThreatSession(
             eligibleWins: 3 as const,
             lineId: "nyz-added-witnesses",
             lineVersion: "threat-escalation-v1"
+          }
+        }
+      : {}),
+    ...(options.threatExclusion
+      ? {
+          threatExclusion: {
+            version: 1 as const,
+            reason: "dev-forced-two-enemies" as const
           }
         }
       : {})

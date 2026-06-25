@@ -49,6 +49,45 @@ describe("solo combat state JSON parser", () => {
     ]);
   });
 
+  it("drops invalid threat metadata while preserving dev threat exclusion", () => {
+    const state = parseCombatState({
+      ...legacyState,
+      source: "normal",
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 2,
+        lineId: "invalid",
+        lineVersion: "invalid"
+      },
+      threatExclusion: {
+        version: 1,
+        reason: "dev-forced-two-enemies"
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.threat).toBeUndefined();
+    expect(state?.threatExclusion).toEqual({
+      version: 1,
+      reason: "dev-forced-two-enemies"
+    });
+  });
+
   it("round-trips a two-enemy state after primary death", () => {
     const state = {
       ...legacyState,

@@ -141,6 +141,7 @@ export interface CombatState {
   life?: CombatLifeState;
   settlement?: CombatSettlementState;
   threat?: CombatThreatState;
+  threatExclusion?: CombatThreatExclusionState;
   originLocationId?: string;
   completedAt?: string;
   turnExpiresAt?: string;
@@ -187,6 +188,11 @@ export interface CombatThreatState {
   eligibleWins: 3;
   lineId: string;
   lineVersion: string;
+}
+
+export interface CombatThreatExclusionState {
+  version: 1;
+  reason: "dev-forced-two-enemies";
 }
 
 export interface DrinkCombatModifiers {
@@ -353,6 +359,7 @@ export function cloneCombatState(state: CombatState): CombatState {
         }
       : {}),
     ...(state.threat ? { threat: { ...state.threat } } : {}),
+    ...(state.threatExclusion ? { threatExclusion: { ...state.threatExclusion } } : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
