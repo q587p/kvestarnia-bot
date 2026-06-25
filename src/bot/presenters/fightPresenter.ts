@@ -246,7 +246,7 @@ export function presentPersistentFightIntro(
     "⚔️ Бій",
     presentCharacterHeader(result.character),
     "",
-    "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
+    "Бій починається. Корчма відкриває журнал ходів і робить вигляд, що це звичайний облік."
   ];
   lines.push("", ...presentPersistentFightIntroOpponents(result));
   const threatLine = presentThreatEscalationLine(result.session.state);

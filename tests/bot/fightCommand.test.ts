@@ -636,7 +636,8 @@ describe("fight command", () => {
       }
     ]);
     expect(replies[0]?.text).toContain("Павук дедлайнів");
-    expect(replies[0]?.text).toContain("поки не видає нагород");
+    expect(replies[0]?.text).toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(replies[0]?.text).not.toContain("поки не видає нагород");
     expect(replies[1]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
     expect(replies[1]?.text).toContain("⏳ На хід є 23 секунди");
   });
@@ -676,7 +677,8 @@ describe("fight command", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toMatchObject({ method: "edit" });
     expect(calls[0]?.text).toContain("Проти вас: <b>Павук дедлайнів</b> · рівень 1");
-    expect(calls[0]?.text).toContain("поки не видає нагород");
+    expect(calls[0]?.text).toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(calls[0]?.text).not.toContain("поки не видає нагород");
     expect(calls[0]?.text).toContain("<i>Порада дня:");
     expect(calls[1]).toMatchObject({ method: "reply" });
     expect(calls[1]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");

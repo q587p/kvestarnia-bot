@@ -223,7 +223,8 @@ describe("fight presenter", () => {
 
     expect(intro).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(intro).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
-    expect(intro).toContain("поки не видає нагород");
+    expect(intro).toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(intro).not.toContain("поки не видає нагород");
     expect(intro).toContain("<i>Порада дня:");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
