@@ -26,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Item use blocks during active combat, at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry.
 - Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.
 - Remort cancels live pending/processing item-use orders without consuming their reserved stack.
+- Shynok manatka sales now round the basket-level 42% payout up to the nearest whole gold instead of truncating fractional gold down.
 - The task, roadmap, phase-2, balance, security, technical, playtesting and compact Codex context docs now distinguish this shipped bandage slice from broader shops, food, action catalogs, race abilities, achievements, titles and signature techniques.
 
 ### Unchanged

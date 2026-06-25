@@ -888,12 +888,12 @@ describe("PrismaShynokRepository integration", () => {
 
     expect(results.map((result) => result.state).sort()).toEqual(["replayed", "sold"]);
     await expect(prisma.character.findUnique({ where: { id: "character-sale" } })).resolves.toMatchObject({
-      gold: 18
+      gold: 19
     });
     await expect(prisma.characterItem.count({ where: { characterId: "character-sale" } })).resolves.toBe(0);
     await expect(prisma.korchmaMantokSale.findUnique({
       where: { token: "12345678-1234-4234-9234-000000000901" }
-    })).resolves.toMatchObject({ status: "completed", payoutGold: 8 });
+    })).resolves.toMatchObject({ status: "completed", payoutGold: 9 });
   });
 
   it("blocks Mantok sale confirmation when an active combat lease appears after preview", async () => {

@@ -105,7 +105,7 @@ export function selectAllMantokSaleEligibleUnits(
 }
 
 export function calculateMantokSalePayout(nominalValue: number): number {
-  return Math.floor((Math.max(0, Math.floor(nominalValue)) * MANTOK_SALE_RATE_PERCENT) / 100);
+  return Math.ceil((Math.max(0, Math.floor(nominalValue)) * MANTOK_SALE_RATE_PERCENT) / 100);
 }
 
 export function createMantokSaleFingerprint(

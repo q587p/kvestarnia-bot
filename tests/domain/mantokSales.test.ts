@@ -68,7 +68,7 @@ describe("Mantok sales", () => {
     expect(eligible.map((item) => item.itemId)).toEqual(["item.sell.cheap", "item.sell.good"]);
   });
 
-  it("calculates one basket-level 42 percent payout", () => {
+  it("calculates one basket-level 42 percent payout rounded up", () => {
     const eligible = buildMantokSaleEligibleStacks({
       stacks: [
         { itemId: "item.sell.cheap", quantity: 3 },
@@ -80,9 +80,11 @@ describe("Mantok sales", () => {
 
     expect(basket).toMatchObject({
       nominalValue: 103,
-      payoutGold: 43
+      payoutGold: 44
     });
-    expect(calculateMantokSalePayout(1)).toBe(0);
+    expect(calculateMantokSalePayout(7)).toBe(3);
+    expect(calculateMantokSalePayout(1)).toBe(1);
+    expect(calculateMantokSalePayout(0)).toBe(0);
   });
 
   it("bounds selected quantities to currently eligible stacks", () => {
