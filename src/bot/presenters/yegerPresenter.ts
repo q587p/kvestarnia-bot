@@ -3,7 +3,9 @@ import type {
   YegerQuestLookupResult,
   YegerQuestStartResult,
   YegerTrackingResult,
-  YegerQuestTurnInResult
+  YegerQuestTurnInResult,
+  YegerBandageSupplyResult,
+  YegerRangerBandageResult
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -123,6 +125,68 @@ export function presentYegerCorner(
 
 export function presentYegerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Єгер не видає сліди порожнім чоботам.";
+}
+
+export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "insufficient-gold") {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      `Єгер показує ціну: <b>${result.requiredGold} золота</b>.`,
+      "У торбі лунає фінансова тиша."
+    ].join("\n");
+  }
+
+  return [
+    "🩹 Бинти Єгеря",
+    presentCharacterHeader(result.character),
+    "",
+    `Куплено: ${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
+    `Витрачено: <b>${result.spentGold} золота</b>.`,
+    "",
+    "Єгер сказав: «Не наклеюйте на гордість. На гордість не тримається»."
+  ].join("\n");
+}
+
+export function presentYegerRangerBandage(result: YegerRangerBandageResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "class-locked") {
+    return [
+      "🏹 Єгерський бинт",
+      presentCharacterHeader(result.character),
+      "",
+      "Єгер ховає безкоштовну пачку під карту.",
+      "«Це для єгерів. Іншим продаю, бо виховання теж має бюджет»."
+    ].join("\n");
+  }
+
+  if (result.state === "on-cooldown") {
+    return [
+      "🏹 Єгерський бинт",
+      presentCharacterHeader(result.character),
+      "",
+      `Безкоштовний бинт буде знову ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+      "Єгер каже, що запас теж має сліди."
+    ].join("\n");
+  }
+
+  return [
+    "🏹 Єгерський бинт",
+    presentCharacterHeader(result.character),
+    "",
+    `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
+    `Наступний безкоштовний бинт: ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+    "",
+    "Єгер кивнув так, ніби це не доброта, а техніка виживання."
+  ].join("\n");
 }
 
 export function presentYegerStart(result: YegerQuestStartResult): string {

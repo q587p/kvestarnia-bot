@@ -10,6 +10,7 @@ import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
 import type { HuntService } from "../services/huntService";
 import type { InventoryService } from "../services/inventoryService";
+import type { ItemUseService } from "../services/itemUseService";
 import type { ItemTransferService } from "../services/itemTransferService";
 import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
@@ -35,6 +36,7 @@ export interface BotServices {
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
+  itemUse: ItemUseService;
   itemTransfers?: ItemTransferService;
   levelBarter: LevelBarterService;
   levelMilestones?: LevelMilestoneService;

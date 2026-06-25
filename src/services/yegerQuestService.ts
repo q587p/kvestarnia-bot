@@ -12,6 +12,7 @@ import {
   YEGER_UNQUIET_TRIAL_STARTED_KEY
 } from "./dailyActionKeys";
 import {
+  BANDAGE_ITEM_ID,
   enrichRewardItemGrants,
   YEGER_FIRST_NOTCH_ITEM_ID,
   type RewardItemGrant
@@ -36,6 +37,11 @@ export const YEGER_TRACKING_BASE_EXACT_CHANCE = 0.65;
 export const YEGER_TRACKING_RANGER_BONUS = 0.15;
 export const YEGER_TRACKING_STAT_BONUS_CAP = 0.1;
 export const YEGER_TRACKING_NEAR_MISS_CHANCE = 0.2;
+export const YEGER_BANDAGE_SUPPLY_KEY = "yeger.bandage.supply.buy";
+export const YEGER_RANGER_FREE_BANDAGE_KEY = "yeger.bandage.supply.ranger-free";
+export const YEGER_BANDAGE_PRICE = 7;
+export const YEGER_RANGER_BANDAGE_PRICE = 4;
+export const YEGER_RANGER_FREE_BANDAGE_MINUTES = 93;
 
 export interface YegerQuestProgress {
   wins: number;
@@ -127,6 +133,17 @@ export interface YegerQuestReward {
   itemGrants: RewardItemGrant[];
   itemReplayUnavailable?: boolean;
 }
+
+export type YegerBandageSupplyResult =
+  | { state: "no-character" }
+  | { state: "bought"; character: CharacterSummary; spentGold: number; itemGrants: RewardItemGrant[] }
+  | { state: "insufficient-gold"; character: CharacterSummary; requiredGold: number };
+
+export type YegerRangerBandageResult =
+  | { state: "no-character" }
+  | { state: "class-locked"; character: CharacterSummary }
+  | { state: "claimed"; character: CharacterSummary; itemGrants: RewardItemGrant[]; nextAvailableAt: Date; now: Date }
+  | { state: "on-cooldown"; character: CharacterSummary; nextAvailableAt: Date; now: Date };
 
 export class YegerQuestService {
   constructor(
@@ -393,6 +410,111 @@ export class YegerQuestService {
     };
   }
 
+  async buyBandageForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const summary = summarizeCharacter(character);
+    const price = getYegerBandagePrice(summary);
+    const now = this.now();
+    const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_SUPPLY_KEY,
+      now,
+      availableAt: now,
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: price,
+      itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }],
+      expectedLife: {
+        remortCount: summary.remortCount ?? 0
+      },
+      resultJson: {
+        kind: "yeger-bandage-buy",
+        price
+      }
+    });
+
+    if (!claim) {
+      return { state: "no-character" };
+    }
+
+    if (claim.state === "insufficient-gold") {
+      return {
+        state: "insufficient-gold",
+        character: summarizeCharacter(claim.character),
+        requiredGold: claim.requiredGold
+      };
+    }
+
+    if (claim.state === "on-cooldown") {
+      throw new Error("Yeger bandage purchase unexpectedly entered cooldown.");
+    }
+
+    return {
+      state: "bought",
+      character: summarizeCharacter(claim.character),
+      spentGold: price,
+      itemGrants: enrichRewardItemGrants(claim.itemGrants)
+    };
+  }
+
+  async claimRangerBandageForTelegramUser(telegramUserId: bigint): Promise<YegerRangerBandageResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const summary = summarizeCharacter(character);
+    if (summary.classId !== "class.ranger") {
+      return { state: "class-locked", character: summary };
+    }
+
+    const now = this.now();
+    const nextAvailableAt = addMinutes(now, YEGER_RANGER_FREE_BANDAGE_MINUTES);
+    const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
+      key: YEGER_RANGER_FREE_BANDAGE_KEY,
+      now,
+      availableAt: nextAvailableAt,
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }],
+      expectedLife: {
+        remortCount: summary.remortCount ?? 0
+      },
+      resultJson: {
+        kind: "yeger-ranger-free-bandage",
+        minutes: YEGER_RANGER_FREE_BANDAGE_MINUTES
+      }
+    });
+
+    if (!claim) {
+      return { state: "no-character" };
+    }
+
+    if (claim.state === "on-cooldown") {
+      return {
+        state: "on-cooldown",
+        character: summarizeCharacter(claim.character),
+        nextAvailableAt: claim.cooldown.availableAt,
+        now
+      };
+    }
+
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Free Yeger bandage unexpectedly required gold.");
+    }
+
+    return {
+      state: "claimed",
+      character: summarizeCharacter(claim.character),
+      itemGrants: enrichRewardItemGrants(claim.itemGrants),
+      nextAvailableAt: claim.cooldown.availableAt,
+      now
+    };
+  }
+
   private async countProgress(
     telegramUserId: bigint,
     startedAt: Date
@@ -450,6 +572,10 @@ export function getYegerTrackingExactChance(character: CharacterSummary): number
   );
 
   return Math.min(0.95, YEGER_TRACKING_BASE_EXACT_CHANCE + classBonus + statBonus);
+}
+
+export function getYegerBandagePrice(character: Pick<CharacterSummary, "classId">): number {
+  return character.classId === "class.ranger" ? YEGER_RANGER_BANDAGE_PRICE : YEGER_BANDAGE_PRICE;
 }
 
 export function rollYegerTrackingOutcome(

@@ -16,6 +16,7 @@ import type {
   ItemTransferStatus
 } from "./itemTransferRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
@@ -460,7 +461,7 @@ async function getReservedItemIds(
   now: Date,
   exceptTransferId?: string
 ): Promise<string[]> {
-  const [pendingChestRuns, pendingLevelBarters, pendingSales, pendingTransfers] = await Promise.all([
+  const [pendingChestRuns, pendingLevelBarters, pendingSales, pendingTransfers, pendingUses] = await Promise.all([
     tx.mantokChestRun.findMany({
       where: { characterId, status: "pending" },
       select: { inputItemsJson: true }
@@ -477,6 +478,10 @@ async function getReservedItemIds(
       senderCharacterId: characterId,
       now,
       ...(exceptTransferId ? { exceptTransferId } : {})
+    }),
+    findActiveItemUseReservedItems(tx, {
+      characterId,
+      now
     })
   ]);
   const reserved = new Set<string>();
@@ -498,6 +503,9 @@ async function getReservedItemIds(
   }
   for (const transfer of pendingTransfers) {
     reserved.add(transfer.itemId);
+  }
+  for (const use of pendingUses) {
+    reserved.add(use.itemId);
   }
 
   return [...reserved];

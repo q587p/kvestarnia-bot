@@ -8,6 +8,10 @@ type EquipmentCallback,
 type ItemCallback
 } from "../callbacks/itemCallbackData";
 import {
+parseItemUseCallbackData,
+type ItemUseCallback
+} from "../callbacks/itemUseCallbackData";
+import {
 parseLevelBarterCallbackData,
 type LevelBarterCallback
 } from "../callbacks/levelBarterCallbackData";
@@ -21,7 +25,9 @@ import { playerFromContext } from "../context";
 import {
 buildEquipItemResultKeyboard,
 buildEquipmentKeyboard,
-buildItemDetailKeyboard
+buildItemDetailKeyboard,
+buildItemUsePreviewKeyboard,
+buildItemUseResultKeyboard
 } from "../keyboards/inventoryKeyboard";
 import {
 buildLevelBarterOfferKeyboard,
@@ -42,6 +48,11 @@ presentEquipment,
 presentUnequipSlotResult
 } from "../presenters/equipmentPresenter";
 import { presentItemDetail } from "../presenters/itemDetailPresenter";
+import {
+presentItemUseCancel,
+presentItemUseConfirm,
+presentItemUsePreview
+} from "../presenters/itemUsePresenter";
 import {
 presentLevelBarterConfirmResult,
 presentLevelBarterOffer,
@@ -95,6 +106,17 @@ export function registerInventoryBotModule(
     await handleItemCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:use:/, async (ctx) => {
+    const parsed = parseItemUseCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleItemUseCallback(ctx, parsed.value, services);
+  });
+
   bot.callbackQuery(/^v1:chest:/, async (ctx) => {
     const parsed = parseMantokChestCallbackData(ctx.callbackQuery.data);
 
@@ -146,11 +168,86 @@ async function handleItemCallback(
     equipment.state === "ready"
       ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
       : null;
+  const itemUse = result.state === "found"
+    ? services.itemUse.getAvailability(result.item.content)
+    : null;
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview }), {
+  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview, itemUse }), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot)
+    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
+      canUse: itemUse?.state === "usable"
+    })
+  });
+}
+
+async function handleItemUseCallback(
+  ctx: Context,
+  action: ItemUseCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action.type === "preview") {
+    const result = await services.itemUse.createPreviewForTelegramUser(telegramUserId, action.itemId);
+
+    await safeAnswerCallbackQuery(ctx, {
+      show_alert:
+        result.state === "combat-locked" ||
+        result.state === "full-hp" ||
+        result.state === "reserved"
+    });
+    await safeEditMessageText(ctx, presentItemUsePreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "preview-created" || result.state === "preview-replayed"
+          ? buildItemUsePreviewKeyboard(result.order.token)
+          : buildItemUseResultKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "cancel") {
+    const result = await services.itemUse.cancelForTelegramUser(telegramUserId, action.token);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "cancelled" || result.state === "replayed"
+        ? { text: "Скасовано." }
+        : { show_alert: result.state === "invalid-token" }
+    );
+    await safeEditMessageText(ctx, presentItemUseCancel(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUseResultKeyboard()
+    });
+    return;
+  }
+
+  const result = await services.itemUse.confirmForTelegramUser(telegramUserId, action.token);
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "used"
+      ? { text: "Бинт використано." }
+      : result.state === "replayed"
+        ? { text: "Уже записано." }
+        : {
+            show_alert:
+              result.state === "invalid-token" ||
+              result.state === "stale-selection" ||
+              result.state === "combat-locked" ||
+              result.state === "full-hp" ||
+              result.state === "expired"
+          }
+  );
+  await safeEditMessageText(ctx, presentItemUseConfirm(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildItemUseResultKeyboard()
   });
 }
 

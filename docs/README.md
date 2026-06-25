@@ -57,12 +57,13 @@
 
 ## Phase 2 roadmap reset
 
-Phase 2 більше не починається з великого групового рейду. `0.1.25` закриває перший **Social Combat & Interactions** MVP: opt-in дуелі, реванші, картки результатів, nearby invites, combat locks, remort boundaries, Nyz preview memory and Shynok economy prep. Далі `0.2.x` починається з safe gifting і лише потім рухається до trading, multi-enemy combat, item tags/equipment, party combat / real raids.
+Phase 2 більше не починається з великого групового рейду. `0.1.25` закриває перший **Social Combat & Interactions** MVP: opt-in дуелі, реванші, картки результатів, nearby invites, combat locks, remort boundaries, Nyz preview memory and Shynok economy prep. Далі `0.2.x` починається з safe gifting, multi-enemy foundation, architecture stabilization, threat escalation and the first item-tag/one-use bandage slice; broader trading, equipment rebalance, party combat / real raids remain later slices.
 
 - [PHASE2_MVP_RELEASE_NOTES.md](PHASE2_MVP_RELEASE_NOTES.md) — канонічний підсумок `0.1.25` Phase 2 MVP closeout.
 - [PHASE2_MVP_CLOSEOUT_PLAN.md](PHASE2_MVP_CLOSEOUT_PLAN.md) — межа `0.1.x`, Phase 2 MVP DoD, backlog disposition і порядок closeout.
 - [PHASE2_CLOSEOUT_SMOKE.md](PHASE2_CLOSEOUT_SMOKE.md) — two-player, Shynok і production smoke для закриття Phase 2 MVP.
 - [PHASE2_DEFERRED_0_2.md](PHASE2_DEFERRED_0_2.md) — що переноситься в `0.2.x`, рекомендований порядок і WIP-limit.
+- [backlog/UNFINISHED_CHARACTER_AND_0_1X_TAILS.md](backlog/UNFINISHED_CHARACTER_AND_0_1X_TAILS.md) — shipped `0.2.4` bandage boundary and deferred race ability / achievement / title / signature tails.
 - [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md) — головний план Phase 2.
 - [phase2/DUELS_AND_INVITES.md](phase2/DUELS_AND_INVITES.md) — перший MVP для дуелей і shareable invite cards.
 - [phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md) — як рейди виростають із дуелей, party sessions і multi-enemy combat.

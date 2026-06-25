@@ -8,6 +8,8 @@ export type YegerCallback =
   | { type: "start"; questId: "u1" }
   | { type: "track"; questId: "u1" }
   | { type: "turn-in"; questId: "u1" }
+  | { type: "buy-bandage" }
+  | { type: "free-bandage" }
   | { type: "help" };
 
 export type YegerCallbackError =
@@ -48,6 +50,14 @@ export function makeYegerHelpCallbackData(): string {
   return assertYegerCallbackData(`${PREFIX}:help`);
 }
 
+export function makeYegerBuyBandageCallbackData(): string {
+  return assertYegerCallbackData(`${PREFIX}:buy:bdg`);
+}
+
+export function makeYegerFreeBandageCallbackData(): string {
+  return assertYegerCallbackData(`${PREFIX}:free:bdg`);
+}
+
 export function parseYegerCallbackData(
   data: string | undefined
 ): Result<YegerCallback, YegerCallbackError> {
@@ -75,6 +85,14 @@ export function parseYegerCallbackData(
 
   if (action === "help") {
     return questId ? err("invalid-prefix") : ok({ type: "help" });
+  }
+
+  if (action === "buy") {
+    return questId === "bdg" ? ok({ type: "buy-bandage" }) : err("invalid-prefix");
+  }
+
+  if (action === "free") {
+    return questId === "bdg" ? ok({ type: "free-bandage" }) : err("invalid-prefix");
   }
 
   if (questId !== UNQUIET_TRIAL_ID) {

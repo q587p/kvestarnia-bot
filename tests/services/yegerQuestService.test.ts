@@ -26,8 +26,12 @@ import { FakeRandomSource } from "../../src/shared/random";
 import type { FightLookupResult, FightService, PersistentFightStartOptions } from "../../src/services/fightService";
 import {
   getYegerUnquietTrialTurnInXp,
+  getYegerBandagePrice,
   getYegerTrackingExactChance,
   isYegerUnquietTarget,
+  YEGER_BANDAGE_PRICE,
+  YEGER_RANGER_BANDAGE_PRICE,
+  YEGER_RANGER_FREE_BANDAGE_KEY,
   YEGER_TRACKING_COOLDOWN_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YEGER_UNQUIET_TRIAL_REWARD,
@@ -494,6 +498,53 @@ describe("YegerQuestService", () => {
     expect(getYegerTrackingExactChance(ranger)).toBeGreaterThan(getYegerTrackingExactChance(ordinary));
     expect(getYegerTrackingExactChance(sharpRanger)).toBeLessThanOrEqual(0.95);
   });
+
+  it("lets Yeger sell bandages with a ranger discount", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+
+    const result = await world.service().buyBandageForTelegramUser(telegramUserId);
+
+    expect(getYegerBandagePrice(world.characterSummary())).toBe(YEGER_RANGER_BANDAGE_PRICE);
+    expect(result).toMatchObject({
+      state: "bought",
+      spentGold: YEGER_RANGER_BANDAGE_PRICE,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+    });
+    expect(world.character?.gold).toBe(16);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+  });
+
+  it("blocks Yeger bandage purchase without enough gold", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 0, classId: "class.warrior" });
+
+    await expect(world.service().buyBandageForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "insufficient-gold",
+      requiredGold: YEGER_BANDAGE_PRICE
+    });
+    expect(world.character?.gold).toBe(0);
+    expect(world.itemGrants).toEqual([]);
+  });
+
+  it("gives rangers one free bandage on a 93-minute cooldown", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ classId: "class.ranger" });
+
+    const first = await world.service().claimRangerBandageForTelegramUser(telegramUserId);
+    const second = await world.service().claimRangerBandageForTelegramUser(telegramUserId);
+
+    expect(first).toMatchObject({
+      state: "claimed",
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+    });
+    expect(second).toMatchObject({
+      state: "on-cooldown",
+      nextAvailableAt: new Date("2026-06-15T11:38:00.000Z")
+    });
+    expect(world.cooldowns.find((cooldown) => cooldown.key === YEGER_RANGER_FREE_BANDAGE_KEY)?.availableAt)
+      .toEqual(new Date("2026-06-15T11:38:00.000Z"));
+  });
 });
 
 class FakeWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository, CooldownRepository {
@@ -655,6 +706,15 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       });
     }
 
+    const spentGold = input.spentGold ?? 0;
+    if (spentGold > 0 && this.character.gold < spentGold) {
+      return Promise.resolve({
+        state: "insufficient-gold",
+        character: { ...this.character },
+        requiredGold: spentGold
+      });
+    }
+
     const cooldown: CharacterCooldownRecord = existing ?? {
       id: `cooldown-${this.cooldowns.length + 1}`,
       characterId: this.character.id,
@@ -672,8 +732,10 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     this.character = {
       ...this.character,
       xp: this.character.xp + input.rewardXp,
-      gold: this.character.gold + input.rewardGold
+      gold: this.character.gold + input.rewardGold - spentGold
     };
+    const itemGrants = input.itemGrants?.map((grant) => ({ itemId: grant.itemId, quantity: grant.quantity })) ?? [];
+    this.itemGrants.push(...itemGrants);
 
     return Promise.resolve({
       state: "completed",
@@ -684,7 +746,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
         newLevel: this.character.level,
         leveledUp: false
       },
-      itemGrants: input.itemGrants ?? []
+      itemGrants
     });
   }
 

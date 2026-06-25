@@ -1,6 +1,7 @@
 import type { ItemContent } from "../../content/schema";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import { isEquippableItem } from "../../services/equipmentService";
+import type { ItemUseAvailability } from "../../services/itemUseService";
 import type {
   InventoryItemDetailResult,
   InventoryItemSummary
@@ -12,6 +13,7 @@ import { escapeHtml } from "./telegramHtml";
 export interface ItemDetailOptions {
   equippedSlot?: EquipmentSlot | null;
   equipPreview?: ItemEquipPreviewResult | null;
+  itemUse?: ItemUseAvailability | null;
 }
 
 export function presentItemDetail(
@@ -48,10 +50,23 @@ export function presentOwnedItemDetail(
     "",
     `<i>${escapeHtml(content.description)}</i>`,
     "",
+    ...presentItemUseLine(options.itemUse ?? null),
+    ...(options.itemUse ? [""] : []),
     presentEquipmentLine(content, options.equippedSlot ?? null, options.equipPreview ?? null),
     "",
     presentItemFlavor(content)
   ].join("\n");
+}
+
+function presentItemUseLine(availability: ItemUseAvailability | null): string[] {
+  if (!availability || availability.state !== "usable") {
+    return [];
+  }
+
+  return [
+    "Використання: <b>можна застосувати поза боєм</b>.",
+    "Попередній перегляд покаже поточне лікування перед витратою."
+  ];
 }
 
 export function presentRarity(rarity: ItemContent["rarity"]): string {

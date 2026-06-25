@@ -9,6 +9,7 @@ import type {
   MantokChestSnapshot
 } from "./mantokChestRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { findActiveItemUseReservedItems } from "./itemUseReservations";
 
 type TxClient = Prisma.TransactionClient;
 type PrismaMantokChestRunRecord = Awaited<ReturnType<PrismaClient["mantokChestRun"]["findFirst"]>>;
@@ -384,7 +385,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     return null;
   }
 
-  const [items, equipment, pendingTransfers] = await Promise.all([
+  const [items, equipment, pendingTransfers, pendingUses] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: character.id
@@ -409,6 +410,10 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     findActiveTransferReservedItems(tx, {
       senderCharacterId: character.id,
       now
+    }),
+    findActiveItemUseReservedItems(tx, {
+      characterId: character.id,
+      now
     })
   ]);
 
@@ -416,7 +421,10 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     characterId: character.id,
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
-    reservedItemIds: pendingTransfers.map((row) => row.itemId)
+    reservedItemIds: [
+      ...pendingTransfers.map((row) => row.itemId),
+      ...pendingUses.map((row) => row.itemId)
+    ]
   };
 }
 

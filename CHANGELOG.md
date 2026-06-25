@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.4] - 12026-06-25 - Item Tags and One-use Bandages
+
+### Added
+- Added a narrow validated item tag contract for consumable/use/trade/duel/raid safety: `consumable`, `one-use`, `tradeable`, `trade-blocked`, `duel-blocked`, `raid-blocked`, `story`, `memory`, `sentimental` and `soulbound`.
+- Added the first explicit one-use healing item, `Бинт відповідальної паніки`, with a capped out-of-combat `heal-hp` use effect.
+- Added replay-safe `item_use_orders` persistence for item-use preview, reservation, confirmation, cancellation, expiry and terminal-result replay.
+- Added item-use reservation checks to Shynok sales, safe gifting, Mantok Chest, Munchkin barter and remort cleanup so a live use order cannot race another item-spending flow.
+- Added inventory item-detail use buttons, exact current heal previews, confirmation/cancel callbacks and result cards for usable one-use items.
+- Added a narrow Єгер supply path: any eligible hero can buy one bandage from the Єгер, while `class.ranger` gets a lower price and a replay-safe periodic free bandage claim.
+- Added `Бинт відповідальної паніки` to the basement mouse authored loot list so ordinary monster loot can occasionally grant it through the existing persistent-fight loot path.
+
+### Changed
+- Item content validation now rejects unknown or duplicate tags, contradictory `tradeable` + `trade-blocked`, `one-use` without `consumable`, and use effects that are not explicit one-use consumables.
+- Item use blocks during active combat, at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry.
+- Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.
+- Remort cancels live pending/processing item-use orders without consuming their reserved stack.
+- The task, roadmap, phase-2, balance, security, technical, playtesting and compact Codex context docs now distinguish this shipped bandage slice from broader shops, food, action catalogs, race abilities, achievements, titles and signature techniques.
+
+### Unchanged
+- No in-combat item use, mana restore, damage item, buff/debuff item, broad action catalog, food, coffee, crafting, market, buyback, item-instance rewrite, duel item action, raid item action, race ability, achievement, title or signature-technique runtime ships in this slice.
+- The bandage drop uses existing monster loot/reward machinery; no new broad loot weighting engine, reward multiplier or per-monster drop formula ships here.
+
 ## [0.2.3] - 12026-06-25 - Threat Escalation MVP
 
 ### Added

@@ -4,6 +4,8 @@ import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData"
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
+  makeYegerBuyBandageCallbackData,
+  makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
@@ -70,6 +72,11 @@ export function buildYegerCornerKeyboard(
 
   if (result.state !== "level-locked") {
     keyboard.text("🏹 Неспокійні справи", makeYegerQuestCallbackData()).row();
+  }
+
+  keyboard.text("🩹 Купити бинт", makeYegerBuyBandageCallbackData()).row();
+  if (result.state !== "level-locked" && result.character.classId === "class.ranger") {
+    keyboard.text("🏹 Єгерський бинт", makeYegerFreeBandageCallbackData()).row();
   }
 
   return keyboard

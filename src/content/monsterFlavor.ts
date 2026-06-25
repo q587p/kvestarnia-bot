@@ -143,6 +143,7 @@ export const monsterLoot = {
   "monster.basement-mouse-with-title": [
     "item.cheese-of-procedural-doubt",
     "item.napkin-of-mouse-diplomacy",
+    "item.responsible-panic-bandage",
     "item.cork-ring-of-serious-business"
   ],
   "monster.stamp-doorkeeper-skeleton": [

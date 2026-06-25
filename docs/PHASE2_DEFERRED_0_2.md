@@ -54,6 +54,24 @@ Add a clear content contract for trade/use/duel/raid eligibility and one narrow 
 
 First candidate: a narrow bandage-like one-use manatka, if the item-tag contract and combat balance still support it when the slice starts.
 
+Status: shipped in `0.2.4` as `Бинт відповідальної паніки`: item tags, out-of-combat item-use orders, inventory preview/confirm/replay, Єгер bandage supply with a ranger advantage, and a small authored monster-loot entry. Broad shops, food, in-combat consumables, duel/raid item actions and tag-weighted loot formulas remain later work.
+
+### `0.2.5` - Race Abilities MVP
+
+Recommended next runtime slice after the bandage contract. Add one conservative, testable race ability surface that uses existing combat/action boundaries and does not require achievements, signature techniques or a broad item-action catalog.
+
+Status: proposed next.
+
+### `0.2.6` - Achievements and Cosmetic Titles
+
+Add rewardless achievements/cosmetic title records and player-facing browsing/unlock copy after the race-ability slice clarifies current identity hooks.
+
+Status: proposed after `0.2.5`.
+
+### Later - Selected Signature Techniques
+
+Pick a small subset of signature techniques only after race abilities and cosmetic/title records prove the identity surfaces. Do not batch a full technique catalog into the same PR.
+
 ## Later After Evidence
 
 - paid postal/courier manatka delivery for known recipients who are not currently nearby;
@@ -65,6 +83,7 @@ First candidate: a narrow bandage-like one-use manatka, if the item-tag contract
 - remort/social achievement-board ideas;
 - richer remort-only social records;
 - achievements and collections;
+- selected signature techniques after race abilities and cosmetic titles have runtime evidence;
 - monster gender/case metadata;
 - food, coffee and bard performance after economy telemetry.
 

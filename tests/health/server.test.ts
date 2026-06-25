@@ -78,11 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Низ почув про ваші перемоги й покликав свідків");
-    expect(text).toContain("Звичайні бої в Низі більше не впираються");
+    expect(text).toContain("Єгер знайшов бинти й тепер дуже серйозний");
+    expect(text).toContain("Єгер дістав із сумки бинти");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("Перед таким боєм видно окрему шапку");
-    expect(text).toContain("Перемога над двома все одно рахується як одна проблема й одна винагорода");
+    expect(text).toContain("перший бинт, який можна явно використати поза боєм");
+    expect(text).toContain("Це ще не велика крамниця");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
@@ -164,7 +164,7 @@ describe("health server", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(text).toContain("Вісті Квестарні");
-    expect(text).toContain("Банка підтримки отримала табличку");
+    expect(text).toContain("Єгер знайшов бинти");
     expect(text).toContain("Архів");
     expect(text).toContain("Першу петлю закрито");
     expect(text).toContain("/news?entry=1");
@@ -177,7 +177,7 @@ describe("health server", () => {
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(text).toContain("Перший корчемний виклик і ясніші гачки");
+    expect(text).toContain("Низ почув про ваші перемоги й покликав свідків");
     expect(text).toContain("Новіша");
   });
 
@@ -188,7 +188,7 @@ describe("health server", () => {
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(text).toContain("Реванш і картка після дуелі");
+    expect(text).toContain("Єгер знайшов бинти");
   });
 
   it("returns 404 for other paths", async () => {

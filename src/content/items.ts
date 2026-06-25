@@ -173,6 +173,19 @@ export const items = [
     priceless: true
   },
   {
+    id: "item.responsible-panic-bandage",
+    name: "Бинт відповідальної паніки",
+    description: "Намотаний так, ніби хтось уже вибачився перед майбутнім синцем.",
+    rarity: "common",
+    slot: "consumable",
+    goldValue: 7,
+    tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+    useEffect: {
+      kind: "heal-hp",
+      amount: 7
+    }
+  },
+  {
     id: "item.cellar.fancy-cheese",
     name: "Кльовий шмат сиру",
     description: "Дипломатичний аргумент із запахом, який важко оскаржити без ложки.",

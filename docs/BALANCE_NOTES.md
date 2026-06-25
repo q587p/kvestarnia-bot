@@ -65,6 +65,8 @@ Equipment effects для атак мають заходити через оди�
 
 `0.0.21` persistent solo `/fight` використовує бойовий рушій у runtime. У цьому slice він навмисно не видавав XP, золото або лут, щоб перевірити session correctness, stale callbacks, mana failure і terminal states без нового economy source. `0.0.22` додає перші малі equipment stat effects через один helper, а `0.0.23` додає малий reward/loot path для won persistent fights.
 
+`0.2.4` keeps one-use healing deliberately small: `Бинт відповідальної паніки` restores a capped fixed HP amount only outside combat, consumes exactly one item on confirmed use and cannot be used at full HP. Єгер supply is a narrow gold sink / class-flavor perk, not a broad shop or free power faucet; ranger's advantage is convenience around the same low-power item. Monster-side bandage acquisition uses existing loot/drop mechanics and one authored low-level loot entry rather than a new high-volume reward formula.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 

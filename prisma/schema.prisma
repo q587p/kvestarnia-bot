@@ -45,6 +45,7 @@ model Character {
   korchmaMantokSales KorchmaMantokSale[]
   itemTransfersSent ItemTransfer[] @relation("ItemTransferSender")
   itemTransfersReceived ItemTransfer[] @relation("ItemTransferReceiver")
+  itemUseOrders ItemUseOrder[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
   pendingPassageEncounters PendingPassageEncounter[]
@@ -429,6 +430,33 @@ model ItemTransfer {
   @@index([receiverCharacterId, status, expiresAt])
   @@index([itemId, status])
   @@map("item_transfers")
+}
+
+model ItemUseOrder {
+  id              String    @id @default(uuid())
+  token           String    @unique
+  characterId     String    @map("character_id")
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  telegramUserId  BigInt    @map("telegram_user_id")
+  remortCount     Int       @default(0) @map("remort_count")
+  itemId          String    @map("item_id")
+  itemName        String    @map("item_name")
+  itemFingerprint String    @map("item_fingerprint")
+  quantity        Int       @default(1)
+  effectKind      String    @map("effect_kind")
+  status          String    @default("pending")
+  reservationKey  String?   @unique @map("reservation_key")
+  previewJson     Json      @map("preview_json")
+  resultJson      Json?     @map("result_json")
+  expiresAt       DateTime  @map("expires_at")
+  completedAt     DateTime? @map("completed_at")
+  cancelledAt     DateTime? @map("cancelled_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([characterId, status, expiresAt])
+  @@index([itemId, status])
+  @@map("item_use_orders")
 }
 
 model BarrelRaidNotification {

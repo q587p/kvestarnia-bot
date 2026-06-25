@@ -190,6 +190,55 @@ describe("content tables", () => {
     ).toThrow();
   });
 
+  it("validates the narrow item tag and use-effect contract", () => {
+    const bandage = items.find((item) => item.id === "item.responsible-panic-bandage");
+
+    expect(bandage).toMatchObject({
+      slot: "consumable",
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+      useEffect: {
+        kind: "heal-hp",
+        amount: 7
+      }
+    });
+    expect(() => itemSchema.parse({
+      id: "item.test-unknown-tag",
+      name: "Тест",
+      description: "Тест.",
+      rarity: "common",
+      slot: "junk",
+      goldValue: 1,
+      tags: ["mystery"]
+    })).toThrow();
+    expect(() => itemSchema.parse({
+      id: "item.test-duplicate-tag",
+      name: "Тест",
+      description: "Тест.",
+      rarity: "common",
+      slot: "junk",
+      goldValue: 1,
+      tags: ["tradeable", "tradeable"]
+    })).toThrow();
+    expect(() => itemSchema.parse({
+      id: "item.test-trade-contradiction",
+      name: "Тест",
+      description: "Тест.",
+      rarity: "common",
+      slot: "junk",
+      goldValue: 1,
+      tags: ["tradeable", "trade-blocked"]
+    })).toThrow();
+    expect(() => itemSchema.parse({
+      id: "item.test-one-use-without-consumable",
+      name: "Тест",
+      description: "Тест.",
+      rarity: "common",
+      slot: "consumable",
+      goldValue: 1,
+      tags: ["one-use"]
+    })).toThrow();
+  });
+
   it("gives every item either a gold value or a priceless marker", () => {
     for (const item of items) {
       expect(item.goldValue !== undefined || item.priceless === true).toBe(true);

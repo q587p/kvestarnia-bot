@@ -676,6 +676,24 @@ async function cancelShynokLifecycleForRemort(
       }
     }
   });
+
+  await tx.itemUseOrder.updateMany({
+    where: {
+      characterId,
+      status: {
+        in: ["pending", "processing"]
+      }
+    },
+    data: {
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: now,
+      updatedAt: now,
+      resultJson: {
+        kind: "remort-cancelled-item-use"
+      }
+    }
+  });
 }
 
 async function getSnapshot(

@@ -60,6 +60,7 @@ buildKorchmaBarKeyboard
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import {
 buildYegerHelpKeyboard,
+buildYegerCornerKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
 buildYegerTurnInKeyboard
@@ -89,9 +90,11 @@ presentInvalidCallback
 import { presentParticipants } from "../presenters/presencePresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
+presentYegerBandageBuy,
 presentYegerHelp,
 presentYegerNoCharacter,
 presentYegerQuest,
+presentYegerRangerBandage,
 presentYegerStart,
 presentYegerTrackingBlockedByOtherFight,
 presentYegerTrackingNone,
@@ -796,6 +799,40 @@ async function handleYegerCallback(
     await safeEditMessageText(ctx, presentYegerHelp(), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildYegerHelpKeyboard()
+    });
+    return;
+  }
+
+  if (callback.type === "buy-bandage") {
+    const result = await services.yeger.buyBandageForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "bought"
+        ? { text: "Бинт у торбі." }
+        : { show_alert: result.state === "insufficient-gold" }
+    );
+    await markYegerCornerPresence(ctx, services.presence);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
+    });
+    return;
+  }
+
+  if (callback.type === "free-bandage") {
+    const result = await services.yeger.claimRangerBandageForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "claimed"
+        ? { text: "Єгер видав бинт." }
+        : { show_alert: result.state === "class-locked" || result.state === "on-cooldown" }
+    );
+    await markYegerCornerPresence(ctx, services.presence);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentYegerRangerBandage(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
     });
     return;
   }

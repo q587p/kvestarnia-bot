@@ -24,10 +24,12 @@ export { activeRaces, races } from "./races";
 export {
   classSchema,
   contentIdSchema,
+  itemTagSchema,
   itemSchema,
+  itemUseEffectSchema,
   monsterSchema,
   pronounSchema,
   raceSchema,
   statBlockSchema
 } from "./schema";
-export type { Pronoun } from "./schema";
+export type { ItemTagContent, ItemUseEffectContent, Pronoun } from "./schema";

@@ -45,6 +45,19 @@ export const monsterSchema = z.object({
 
 export const itemRaritySchema = z.enum(["common", "uncommon", "rare", "epic"]);
 
+export const itemTagSchema = z.enum([
+  "consumable",
+  "one-use",
+  "tradeable",
+  "trade-blocked",
+  "duel-blocked",
+  "raid-blocked",
+  "story",
+  "memory",
+  "sentimental",
+  "soulbound"
+]);
+
 export const itemEffectSchema = z.object({
   hpMax: z.number().int().min(0).max(20).optional(),
   manaMax: z.number().int().min(0).max(20).optional(),
@@ -61,6 +74,11 @@ export const itemEffectSchema = z.object({
   message: "Item effect must contain at least one supported bonus."
 });
 
+export const itemUseEffectSchema = z.object({
+  kind: z.literal("heal-hp"),
+  amount: z.number().int().min(1).max(13)
+}).strict();
+
 export const itemSchema = z.object({
   id: contentIdSchema,
   name: z.string().min(1),
@@ -69,10 +87,14 @@ export const itemSchema = z.object({
   slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"]),
   goldValue: z.number().int().min(0).optional(),
   priceless: z.boolean().optional(),
-  effect: itemEffectSchema.optional()
+  effect: itemEffectSchema.optional(),
+  tags: z.array(itemTagSchema).optional(),
+  useEffect: itemUseEffectSchema.optional()
 }).superRefine((item, ctx) => {
   const hasGoldValue = item.goldValue !== undefined;
   const isPriceless = item.priceless === true;
+  const tags = item.tags ?? [];
+  const uniqueTags = new Set(tags);
 
   if (hasGoldValue && isPriceless) {
     ctx.addIssue({
@@ -94,6 +116,43 @@ export const itemSchema = z.object({
       message: "Only equippable items can have item effects."
     });
   }
+
+  if (uniqueTags.size !== tags.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Item tags must be unique."
+    });
+  }
+
+  if (uniqueTags.has("tradeable") && uniqueTags.has("trade-blocked")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Item cannot be both tradeable and trade-blocked."
+    });
+  }
+
+  if (uniqueTags.has("one-use") && !uniqueTags.has("consumable")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "one-use items must also have the consumable tag."
+    });
+  }
+
+  if (item.useEffect) {
+    if (item.slot !== "consumable") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only consumable items can have use effects."
+      });
+    }
+
+    if (!uniqueTags.has("consumable") || !uniqueTags.has("one-use")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Use effects require consumable and one-use tags."
+      });
+    }
+  }
 });
 
 export type RaceContent = z.infer<typeof raceSchema>;
@@ -101,4 +160,6 @@ export type ClassContent = z.infer<typeof classSchema>;
 export type Pronoun = z.infer<typeof pronounSchema>;
 export type MonsterContent = z.infer<typeof monsterSchema>;
 export type ItemEffectContent = z.infer<typeof itemEffectSchema>;
+export type ItemTagContent = z.infer<typeof itemTagSchema>;
+export type ItemUseEffectContent = z.infer<typeof itemUseEffectSchema>;
 export type ItemContent = z.infer<typeof itemSchema>;

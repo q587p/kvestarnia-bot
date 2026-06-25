@@ -10,6 +10,20 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.4 — Item tags and bandage smoke
+
+1. Give a wounded out-of-combat hero `Бинт відповідальної паніки`; open `/inventory`, item detail and `🩹 Використати`.
+2. Confirm the preview shows the exact current HP recovery and does not mutate inventory before confirm.
+3. Confirm use: one bandage is consumed, HP increases only up to the effective max, and the result card replays on repeated confirm.
+4. Try at full HP: no use order should spend a bandage.
+5. Try during an active persistent fight: use is blocked and the fight remains authoritative.
+6. Open a preview, then change inventory/equipment/reservation state before confirm: confirm must fail stale without healing or consuming.
+7. While a bandage use preview is pending, try gift/sale/chest/barter of the same `itemId`: the stack should be reserved.
+8. Remort with a pending use order: remort should cancel the use reservation without consuming the bandage.
+9. At the Єгер surface, buy one bandage with enough gold; repeat with insufficient gold.
+10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely.
+11. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.
+
 ## 0.2.3 — Threat escalation smoke
 
 1. Персонаж 3+ має видану звичайну справу і може стартувати ordinary бій у Низі.

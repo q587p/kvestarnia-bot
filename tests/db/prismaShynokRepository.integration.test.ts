@@ -1500,6 +1500,27 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       responded_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE item_use_orders (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      token TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL,
+      telegram_user_id BIGINT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_fingerprint TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      effect_kind TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT UNIQUE,
+      preview_json JSONB NOT NULL,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      cancelled_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
