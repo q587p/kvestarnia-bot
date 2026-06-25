@@ -416,6 +416,82 @@ function presentJournalEnemyHpRows(
   });
 }
 
+function presentDefeatedEnemyLines(
+  state: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>,
+  monster?: { name: string; level: number } | null
+): string[] {
+  if (state.status !== "won" && (!state.lastTurn || state.lastTurn.heroDamage <= 0)) {
+    return [];
+  }
+
+  const enemies = normalizeCombatEnemies(state);
+  const defeated = findEnemiesDefeatedOnLastTurn(state, enemies);
+
+  if (state.status === "won") {
+    const names = defeated.length > 0 ? defeated : enemies.filter((enemy) => enemy.hp <= 0);
+    const label = names.map((enemy) => presentEnemyShortLabel(enemy, monster)).join(", ");
+
+    return label
+      ? ["", `🧾 Знешкоджено: ${label}. У бойовій відомості Корчми навпроти супротивників стоїть «досить».`]
+      : [];
+  }
+
+  const nextTarget = enemies.find((enemy) => enemy.hp > 0);
+  if (defeated.length === 0 || !nextTarget) {
+    return [];
+  }
+
+  const defeatedLabel = defeated.map((enemy) => presentEnemyShortLabel(enemy, monster)).join(", ");
+  const nextTargetLabel = presentEnemyShortLabel(nextTarget, monster);
+
+  return [
+    "",
+    `🧾 Знешкоджено: ${defeatedLabel}. Нова ціль — ${nextTargetLabel}; Корчма переставила табличку без голосування.`
+  ];
+}
+
+function findEnemiesDefeatedOnLastTurn(
+  state: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>,
+  enemies: ReturnType<typeof normalizeCombatEnemies>
+): ReturnType<typeof normalizeCombatEnemies> {
+  const latest = state.turnLog?.at(-1);
+  const previous = state.turnLog?.at(-2);
+
+  if (latest?.enemies && previous?.enemies) {
+    const previousHpById = new Map(previous.enemies.map((enemy) => [enemy.enemyId, enemy.hp]));
+
+    return enemies.filter((enemy) => {
+      const latestHp = latest.enemies?.find((entry) => entry.enemyId === enemy.enemyId)?.hp ?? enemy.hp;
+      const previousHp = previousHpById.get(enemy.enemyId);
+
+      return typeof previousHp === "number" && previousHp > 0 && latestHp <= 0;
+    });
+  }
+
+  if (latest?.enemies) {
+    const actedEnemyIds = new Set(state.lastTurn?.enemyActions?.map((entry) => entry.enemyId) ?? []);
+
+    return enemies.filter((enemy) => {
+      const latestHp = latest.enemies?.find((entry) => entry.enemyId === enemy.enemyId)?.hp ?? enemy.hp;
+
+      return latestHp <= 0 && !actedEnemyIds.has(enemy.enemyId);
+    });
+  }
+
+  if (state.status === "won" && state.monster.hp <= 0) {
+    return enemies.filter((enemy, index) => index === 0 && enemy.hp <= 0);
+  }
+
+  return [];
+}
+
+function presentEnemyShortLabel(
+  enemy: ReturnType<typeof normalizeCombatEnemies>[number],
+  monster?: { name: string; level: number } | null
+): string {
+  return presentShortMonsterName(enemy.name ?? (enemy.enemyId === "enemy:1" ? monster?.name : undefined), "Монстр");
+}
+
 export function presentProblemQuestProgressAfterFight(
   progress: ThirteenSmallProblemsProgress | null
 ): string | null {
@@ -547,12 +623,11 @@ function presentPersistentFightState(input: {
   const threatLine = presentThreatEscalationLine(state);
   const enemyRows = state ? presentEnemyHpRows(state, input.monster) : [`👹 Монстр: ?/?`];
   const lines = [
-    "⚔️ <b>Бій</b>",
+    state ? `⚔️ <b>Бій</b>: ${formatTurns(state.turn)}` : "⚔️ <b>Бій</b>",
     ...(threatLine ? ["", threatLine] : []),
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
-    ...enemyRows,
-    `Хід: ${state?.turn ?? "?"}`
+    ...enemyRows
   ];
 
   if (input.statusNote) {
@@ -572,8 +647,11 @@ function presentPersistentFightState(input: {
     lines.push("", `🌗 <i>${escapeHtml(state.context.cue.text)}</i>`);
   }
 
-  if (state?.lastTurn) {
-    lines.push("", presentTurnSummary(state.lastTurn, { includeHeading: false }));
+  if (state?.lastTurn || state?.status === "won") {
+    if (state.lastTurn) {
+      lines.push("", presentTurnSummary(state.lastTurn, { includeHeading: false }));
+    }
+    lines.push(...presentDefeatedEnemyLines(state, input.monster));
   }
 
   if (input.fightReward) {
@@ -590,6 +668,10 @@ function presentPersistentFightState(input: {
       "",
       "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
     );
+
+    if (input.questProgress?.issued) {
+      lines.push("📋 Корчмар зараховує це як одну проблему: у журналі один рядок, хоч зубів могло бути більше.");
+    }
 
     if (readyQuestLine) {
       lines.push(readyQuestLine);

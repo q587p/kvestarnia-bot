@@ -227,7 +227,8 @@ describe("fight presenter", () => {
     expect(intro).toContain("<i>Порада дня:");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
-    expect(text).toContain("⚔️ <b>Бій</b>");
+    expect(text).toContain("⚔️ <b>Бій</b>: 1 хід");
+    expect(text).not.toContain("\nХід:");
     expect(text).not.toContain("Проти вас:");
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
@@ -310,6 +311,104 @@ describe("fight presenter", () => {
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("<i>Другий</i>");
     expect(text).not.toContain("<b>Перший</b>");
+  });
+
+  it("announces a defeated enemy and the next target in a two-enemy fight", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 3,
+        monster: {
+          id: "monster.spider",
+          name: "Павук дедлайнів",
+          level: 3,
+          hp: 18,
+          hpMax: 18
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.spider",
+            name: "Павук дедлайнів",
+            level: 3,
+            hp: 18,
+            hpMax: 18
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.cabbage",
+            name: "Капустяний лицар на перерві",
+            level: 2,
+            hp: 0,
+            hpMax: 18
+          }
+        ],
+        lastTurn: {
+          action: "skill",
+          heroOutcome: "hit",
+          heroDamage: 18,
+          monsterDamage: 5,
+          manaSpent: 3,
+          critical: true,
+          skillId: "skill.hot-spell",
+          enemyActions: [
+            {
+              enemyId: "enemy:2",
+              monsterId: "monster.spider",
+              monsterName: "Павук дедлайнів",
+              monsterOutcome: "hit",
+              monsterDamage: 5,
+              monsterAction: "attack"
+            }
+          ]
+        },
+        turnLog: [
+          {
+            turn: 2,
+            hero: { hp: 29, mana: 5 },
+            monster: { hp: 18 },
+            enemies: [
+              { enemyId: "enemy:2", hp: 18 },
+              { enemyId: "enemy:1", hp: 0 }
+            ],
+            summary: {
+              action: "skill",
+              heroOutcome: "hit",
+              heroDamage: 18,
+              monsterDamage: 5,
+              manaSpent: 3,
+              critical: true,
+              skillId: "skill.hot-spell",
+              enemyActions: [
+                {
+                  enemyId: "enemy:2",
+                  monsterId: "monster.spider",
+                  monsterName: "Павук дедлайнів",
+                  monsterOutcome: "hit",
+                  monsterDamage: 5,
+                  monsterAction: "attack"
+                }
+              ]
+            }
+          }
+        ]
+      }),
+      monster: {
+        id: "monster.spider",
+        name: "Павук дедлайнів",
+        description: "Тестовий павук.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("⚔️ <b>Бій</b>: 3 ходи");
+    expect(text).toContain("👹 1. Павук: 18/18 ← ціль");
+    expect(text).toContain("👹 2. Капустяний: 0/18");
+    expect(text).toContain("Знешкоджено: Капустяний. Нова ціль — Павук; Корчма переставила табличку без голосування.");
   });
 
   it("falls back to stable labels when multi-enemy HP rows lack names", () => {
@@ -1330,6 +1429,8 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Проти вас:");
     expect(text).toContain("👹 Монстр: 0/18");
     expect(text).not.toContain("<b>Монстр</b>");
+    expect(text).toContain("Знешкоджено: Монстр.");
+    expect(text).toContain("Корчмар зараховує це як одну проблему");
   });
 
   it("shows consolation XP for a lost persistent fight as an attempt reward", () => {
