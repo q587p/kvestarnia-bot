@@ -30,6 +30,7 @@
 - [QUEST_RESOLUTION_VARIETY.md](QUEST_RESOLUTION_VARIETY.md) — authored quest methods, result grades, costs and idempotent reward ledger for Adventure Choice, starter shawarma and cellar mouse.
 - [QUEST_SKILLS_AND_CHECKS.md](QUEST_SKILLS_AND_CHECKS.md) — deterministic quest-resolution check math, technique vocabulary and qualitative chance bands.
 - [QUEST_RESOLUTION_CONTENT_SEEDS.md](QUEST_RESOLUTION_CONTENT_SEEDS.md) — minimum authored content direction for general, generated and starter quest-resolution scenes.
+- [NONCOMBAT_TECHNIQUES.md](NONCOMBAT_TECHNIQUES.md) — docs-only planning for class/race/signature non-combat techniques, starting with Bard Performance in Shynok; preserves the archive pack without runtime implementation.
 - [LOOT_EXPANSION_CANONICAL_IDS.md](LOOT_EXPANSION_CANONICAL_IDS.md) — adapter boundary для generated loot: canonical class/race ids, title-gate surrogates і equipability filtering.
 - [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md) — внутрішні reference notes для корчмарського ланцюжка `13 -> 23 -> 42 -> 93`.
 - [ROADMAP.md](ROADMAP.md) — фази розвитку й Definition of Done.

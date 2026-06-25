@@ -67,6 +67,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 - [0.2.x-postal-mantok-delivery.md](0.2.x-postal-mantok-delivery.md) — draft future paid postal/courier delivery for sending one eligible manatka to a known non-nearby recipient.
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
+- [0.2.x-bard-performance-mvp.md](0.2.x-bard-performance-mvp.md) — draft future non-combat Bard Performance slice with small role-action XP and voluntary Shynok audience responses.
 
 ## Closeout
 
