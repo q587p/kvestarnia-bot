@@ -185,7 +185,7 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-active") {
-    if (mode === "reply" && result.started && !options?.suppressStartIntro) {
+    if (result.started && !options?.suppressStartIntro) {
       await sendResultText(presentPersistentFightIntro(result));
       const messageId = await sendText(ctx, "reply", presentPersistentFight(result), {
         type: "persistent-fight",

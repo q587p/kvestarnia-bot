@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Replaced the old eligible ordinary three-win monster-rest start denial with escalation for ordinary normal starts.
 - Nyz passage attack callbacks now decide escalation at combat-session creation, keep the previewed monster as the primary enemy, freeze the same threat metadata/line as direct starts, and return the canonical consumed session on duplicate callbacks.
 - Newly started Nyz passage fights now send the separate fight intro before the active combat card, so escalated passage starts show the warning line, full opponent roster and battle tip before later compact HP rows.
+- Newly started ordinary fights now keep the separate fight intro even when the start comes from an edited callback, so the opponent roster and battle tip are not lost before the active combat card.
 - Consumed Nyz passage survivor recovery no longer rebuilds stored multi-enemy/threat fights as a one-enemy continuation.
 - Excluded Yeger, Adventure, training, duel, starter and dev-forced rows no longer consume the bounded ordinary threat streak window; malformed terminal rows and ordinary two-enemy rows without valid threat metadata fail safely back to base threat.
 - Persistent fight state cards no longer repeat the full opponent roster after the intro; active and terminal cards keep compact HP rows with short monster labels.

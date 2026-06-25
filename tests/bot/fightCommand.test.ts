@@ -641,6 +641,49 @@ describe("fight command", () => {
     expect(replies[1]?.text).toContain("⏳ На хід є 23 секунди");
   });
 
+  it("keeps the persistent fight intro when a normal fight starts from an edited callback", async () => {
+    const calls: Array<{ method: "edit" | "reply"; text: string; options: unknown }> = [];
+    const fightService = {
+      getOrStartPersistentFightForTelegramUser: () =>
+        Promise.resolve({
+          state: "persistent-active" as const,
+          character: {
+            ...character,
+            level: 3
+          },
+          session: persistentSession(),
+          started: true,
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з «сьогодні швиденько».",
+            level: 1,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: questProgress(0)
+        }),
+      recordPersistentFightMessageReference: () => Promise.resolve()
+    } as unknown as FightService;
+
+    await sendFight(makeEditContext(calls), fightService, "edit", {
+      presence: new CapturingPresenceService({
+        locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+        insideKorchma: true
+      }),
+      difficulty: "normal"
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({ method: "edit" });
+    expect(calls[0]?.text).toContain("Проти вас: <b>Павук дедлайнів</b> · рівень 1");
+    expect(calls[0]?.text).toContain("поки не видає нагород");
+    expect(calls[0]?.text).toContain("<i>Порада дня:");
+    expect(calls[1]).toMatchObject({ method: "reply" });
+    expect(calls[1]?.text).toContain("❤️ Ви: 24/24 · мана 12/12");
+    expect(calls[1]?.text).not.toContain("Проти вас:");
+    expect(calls[1]?.text).not.toContain("<i>Порада дня:");
+  });
+
   it("routes unissued problem quests to the Шинок instead of starting a fight", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -768,6 +811,40 @@ function makeContextWithMessage(
     reply: (text: string, options: unknown) => {
       replies.push({ text, options });
       return Promise.resolve({ message_id: messageId });
+    }
+  } as unknown as Context;
+}
+
+function makeEditContext(
+  calls: Array<{ method: "edit" | "reply"; text: string; options: unknown }>
+): Context {
+  return {
+    chat: {
+      id: 42,
+      type: "private"
+    },
+    from: {
+      id: 42,
+      is_bot: false,
+      first_name: "Тест"
+    },
+    callbackQuery: {
+      message: {
+        message_id: 587,
+        date: Math.floor(Date.now() / 1000),
+        chat: {
+          id: 42,
+          type: "private"
+        }
+      }
+    },
+    editMessageText: (text: string, options: unknown) => {
+      calls.push({ method: "edit", text, options });
+      return Promise.resolve({});
+    },
+    reply: (text: string, options: unknown) => {
+      calls.push({ method: "reply", text, options });
+      return Promise.resolve({ message_id: 588 });
     }
   } as unknown as Context;
 }
