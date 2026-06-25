@@ -12,11 +12,15 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added ordinary threat escalation for normal persistent fights: after three consecutive eligible one-enemy ordinary wins, the next eligible ordinary start creates exactly two enemies.
 - Added a pure threat policy with 13 stable Ukrainian escalation lines and stored `CombatState.threat` metadata so intro, restart, active and terminal replay cards reuse the same line.
-- Added bounded durable combat-history lookup for recent terminal solo-combat sessions without a schema migration.
-- Added focused policy, service and presenter tests for escalation, resets, excluded routes, two-enemy checkpoint behavior and stable copy.
+- Added bounded durable combat-history lookup for recent terminal solo-combat sessions without a schema migration; the scan maps completion times before sorting by canonical `completedAt DESC`.
+- Added focused policy, service, presenter and Prisma repository tests for escalation, resets, excluded routes, passage attacks, two-enemy checkpoint behavior, stable copy and history ordering.
 
 ### Changed
 - Replaced the old eligible ordinary three-win monster-rest start denial with escalation for ordinary normal starts.
+- Nyz passage attack callbacks now decide escalation at combat-session creation, keep the previewed monster as the primary enemy, freeze the same threat metadata/line as direct starts, and return the canonical consumed session on duplicate callbacks.
+- Consumed Nyz passage survivor recovery no longer rebuilds stored multi-enemy/threat fights as a one-enemy continuation.
+- Excluded Yeger, Adventure, training, duel, starter and dev-forced rows no longer consume the bounded ordinary threat streak window; malformed terminal rows fail safely back to base threat.
+- Persistent fight state cards no longer repeat the full opponent roster after the intro; active and terminal cards keep compact HP rows with short monster labels.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
 - A stored escalated two-enemy terminal encounter checkpoints the cycle, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
 

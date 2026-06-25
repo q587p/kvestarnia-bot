@@ -228,12 +228,12 @@ describe("fight presenter", () => {
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
     expect(text).toContain("⚔️ <b>Бій</b>");
-    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).not.toContain("Проти вас:");
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
-    expect(text).toContain("👹 Монстр: 18/18");
+    expect(text).toContain("👹 Тестовий: 18/18");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
     expect(text).not.toContain("що робимо?\n\n⏳");
     expect(text).toContain("⏳ На хід є 23 секунди");
@@ -302,11 +302,11 @@ describe("fight presenter", () => {
     expect(intro).not.toContain("<i>Другий</i>");
     expect(intro).not.toContain("<b>Перший</b>");
 
-    expect(text).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(text).not.toContain("Проти вас:");
     expect(text).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
     expect(text).not.toContain("Проти вас: <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3");
-    expect(text).toContain("👹 1. &lt;i&gt;Другий&lt;/i&gt;: 7/16 ← ціль");
-    expect(text).toContain("👹 2. &lt;b&gt;Перший&lt;/b&gt;: 0/18");
+    expect(text).toContain("👹 1. Другий: 7/16 ← ціль");
+    expect(text).toContain("👹 2. Перший: 0/18");
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("<i>Другий</i>");
     expect(text).not.toContain("<b>Перший</b>");
@@ -352,8 +352,8 @@ describe("fight presenter", () => {
       questProgress: questProgress(4)
     });
 
-    expect(text).toContain("👹 1. Квасний голем на заквасці: 32/32 ← ціль");
-    expect(text).toContain("👹 2. Монстр 2: 26/26");
+    expect(text).toContain("👹 1. Квасний: 32/32 ← ціль");
+    expect(text).toContain("👹 2. Монстр: 26/26");
     expect(text).not.toContain("👹 1.:");
     expect(text).not.toContain("👹 2.:");
   });
@@ -552,7 +552,8 @@ describe("fight presenter", () => {
     });
 
     expect(stale).toContain("поточний стан");
-    expect(stale).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(stale).not.toContain("Проти вас:");
+    expect(stale).toContain("👹 Тестовий: 18/18");
     expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
   });
@@ -617,7 +618,8 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");
     expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
-    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).not.toContain("Проти вас:");
+    expect(text).toContain("👹 Тестовий: 18/18");
     expect(text).not.toContain("критично дала");
   });
 
@@ -1236,7 +1238,8 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Винагорода вже видана");
     expect(text).toContain("Винагорода за бій:\n<b>+7 XP\n+2 золота</b>");
-    expect(text).toContain("Проти вас: <b>&lt;b&gt;Монстр&lt;/b&gt;</b> · рівень 3");
+    expect(text).not.toContain("Проти вас:");
+    expect(text).toContain("👹 Монстр: 0/18");
     expect(text).not.toContain("<b>Монстр</b>");
   });
 

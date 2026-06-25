@@ -3184,6 +3184,379 @@ describe("FightService", () => {
     }
   });
 
+  it("does not let excluded rows consume the ordinary threat history window", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-window-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+    for (let index = 0; index < 30; index += 1) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-window-yeger-${index + 1}`, {
+        completedAt: new Date(Date.UTC(2026, 5, 12, 10, 30, index)),
+        source: "yeger"
+      }));
+    }
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(2);
+    }
+  });
+
+  it("fails malformed terminal threat history safely to base threat", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-malformed-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+    sessions.addSession({
+      ...makeTerminalSession("won", "ordinary-threat-malformed-newer", `character-${telegramUserId.toString()}`, "monster.deadline-spider", {
+        completedAt: new Date("2026-06-12T10:29:43.000Z"),
+        settlement: null
+      }),
+      state: null
+    });
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(1);
+      expect(started.session.state?.threat).toBeUndefined();
+    }
+  });
+
+  it("decides Nyz passage threat escalation when consuming the preview", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `passage-threat-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      const enemies = normalizeCombatEnemies(started.session.state!);
+      expect(enemies).toHaveLength(2);
+      expect(enemies[0]?.id).toBe(preview.monster.id);
+      expect(started.session.monsterId).toBe(preview.monster.id);
+      expect(started.session.state?.threat).toMatchObject({
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineVersion: "threat-escalation-v1"
+      });
+      if (new Set(enemies.map((enemy) => enemy.id)).size > 1) {
+        expect(enemies[1]?.id).not.toBe(preview.monster.id);
+      }
+    }
+    expect(pending.consumeCount).toBe(1);
+  });
+
+  it("keeps Nyz passage base threat before three wins and after a newer loss", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    characters.add(77n, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.2, 0.3, 0.4]),
+      undefined,
+      undefined,
+      pending
+    );
+
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-base-win-1", {
+      completedAt: new Date("2026-06-12T10:29:40.000Z")
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-base-win-2", {
+      completedAt: new Date("2026-06-12T10:29:41.000Z")
+    }));
+    const basePreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (basePreview.state !== "persistent-preview") {
+      throw new Error("Expected base preview");
+    }
+    const baseStarted = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      basePreview.encounterToken
+    );
+
+    expect(baseStarted.state).toBe("persistent-active");
+    if (baseStarted.state === "persistent-active") {
+      expect(normalizeCombatEnemies(baseStarted.session.state!)).toHaveLength(1);
+      expect(baseStarted.session.state?.threat).toBeUndefined();
+    }
+
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-loss-win-1", {
+      completedAt: new Date("2026-06-12T10:29:40.000Z"),
+      characterId: "character-77"
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-loss-win-2", {
+      completedAt: new Date("2026-06-12T10:29:41.000Z"),
+      characterId: "character-77"
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-loss-win-3", {
+      completedAt: new Date("2026-06-12T10:29:42.000Z"),
+      characterId: "character-77"
+    }));
+    const lossPreview = await service.previewPersistentFightForTelegramUser(77n, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (lossPreview.state !== "persistent-preview") {
+      throw new Error("Expected loss preview");
+    }
+    sessions.addSession(makeEligibleOrdinaryThreatSession("lost", "passage-threat-newer-loss", {
+      completedAt: new Date("2026-06-12T10:29:43.000Z"),
+      characterId: "character-77"
+    }));
+
+    const lossStarted = await service.attackPersistentPassageEncounterForTelegramUser(
+      77n,
+      lossPreview.encounterToken
+    );
+
+    expect(lossStarted.state).toBe("persistent-active");
+    if (lossStarted.state === "persistent-active") {
+      expect(normalizeCombatEnemies(lossStarted.session.state!)).toHaveLength(1);
+      expect(lossStarted.session.state?.threat).toBeUndefined();
+    }
+  });
+
+  it("returns the canonical escalated passage session for duplicate and reloaded callbacks", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `passage-threat-duplicate-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+
+    const first = await service.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
+    const duplicate = await service.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
+    const reloadedService = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.8]),
+      undefined,
+      undefined,
+      pending
+    );
+    const reloaded = await reloadedService.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
+
+    expect(first.state).toBe("persistent-active");
+    expect(duplicate.state).toBe("persistent-active");
+    expect(reloaded.state).toBe("persistent-active");
+    if (first.state === "persistent-active" && duplicate.state === "persistent-active" && reloaded.state === "persistent-active") {
+      const firstEnemies = normalizeCombatEnemies(first.session.state!).map((enemy) => enemy.id);
+      expect(duplicate.session.id).toBe(first.session.id);
+      expect(reloaded.session.id).toBe(first.session.id);
+      expect(normalizeCombatEnemies(duplicate.session.state!).map((enemy) => enemy.id)).toEqual(firstEnemies);
+      expect(normalizeCombatEnemies(reloaded.session.state!).map((enemy) => enemy.id)).toEqual(firstEnemies);
+      expect(duplicate.session.state?.threat?.lineId).toBe(first.session.state?.threat?.lineId);
+      expect(reloaded.session.state?.threat?.lineId).toBe(first.session.state?.threat?.lineId);
+    }
+  });
+
+  it("checkpoints terminal escalated passage fights and disables legacy one-enemy recovery", async () => {
+    let now = fixedClock();
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      clock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2, 0.3]),
+      undefined,
+      undefined,
+      pending
+    );
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `passage-threat-checkpoint-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected escalated passage fight");
+    }
+    expect(normalizeCombatEnemies(started.session.state)).toHaveLength(2);
+
+    const lostState = {
+      ...started.session.state,
+      status: "lost" as const,
+      completedAt: now.toISOString(),
+      hero: {
+        ...started.session.state.hero,
+        hp: 0
+      },
+      monster: {
+        ...started.session.state.monster,
+        hp: 4
+      }
+    };
+    await sessions.updateById(started.session.id, { state: lostState, status: "lost" });
+
+    now = addSeconds(fixedClock(), 60);
+    const recoveryPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    expect(recoveryPreview.state).toBe("persistent-preview");
+    if (recoveryPreview.state !== "persistent-preview") {
+      throw new Error("Expected fresh preview");
+    }
+    expect(recoveryPreview.encounterToken).not.toBe(preview.encounterToken);
+    expect(recoveryPreview.monsterHp).toBeUndefined();
+
+    const terminalState = markCombatSettlementCompleted({
+      ...lostState,
+      status: "won",
+      completedAt: now.toISOString(),
+      hero: {
+        ...lostState.hero,
+        hp: 8
+      },
+      monster: {
+        ...lostState.monster,
+        hp: 0
+      },
+      enemies: lostState.enemies?.map((enemy) => ({ ...enemy, hp: 0 }))
+    }, now);
+    await sessions.updateById(started.session.id, { state: terminalState, status: "won" });
+
+    const nextStarted = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      recoveryPreview.encounterToken
+    );
+
+    expect(nextStarted.state).toBe("persistent-active");
+    if (nextStarted.state === "persistent-active") {
+      expect(normalizeCombatEnemies(nextStarted.session.state!)).toHaveLength(1);
+      expect(nextStarted.session.state?.threat).toBeUndefined();
+    }
+  });
+
   it("marks the first problem quest ready on the thirteenth win without auto-claiming", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -5647,6 +6020,7 @@ function makeEligibleOrdinaryThreatSession(
   id: string,
   options: {
     completedAt: Date;
+    characterId?: string;
     source?: "normal" | "yeger" | "adventure" | "training";
     monsterId?: string;
     enemyCount?: 1 | 2;
@@ -5657,7 +6031,7 @@ function makeEligibleOrdinaryThreatSession(
   const session = makeTerminalSession(
     status,
     id,
-    `character-${telegramUserId.toString()}`,
+    options.characterId ?? `character-${telegramUserId.toString()}`,
     monsterId,
     {
       createdAt: new Date(options.completedAt.getTime() - 60_000),

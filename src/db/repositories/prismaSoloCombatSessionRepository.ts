@@ -242,11 +242,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     telegramUserId: bigint,
     limit: number
   ): Promise<SoloCombatSessionCompletionRecord[]> {
-    const resultLimit = Math.max(1, Math.min(50, Math.floor(limit)));
-    const completed: SoloCombatSessionCompletionRecord[] = [];
+    const resultLimit = Math.max(1, Math.min(RECENT_ORDINARY_SCAN_CAP, Math.floor(limit)));
+    const completed: Array<SoloCombatSessionCompletionRecord & { id: string }> = [];
     let scanned = 0;
 
-    while (completed.length < resultLimit && scanned < RECENT_ORDINARY_SCAN_CAP) {
+    while (scanned < RECENT_ORDINARY_SCAN_CAP) {
       const records = await this.prisma.soloCombatSession.findMany({
         where: {
           character: {
@@ -256,7 +256,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           }
         },
         orderBy: [
-          { updatedAt: "desc" },
+          { createdAt: "desc" },
           { id: "desc" }
         ],
         skip: scanned,
@@ -278,10 +278,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       scanned += records.length;
 
       for (const record of records) {
-        if (completed.length >= resultLimit) {
-          break;
-        }
-
         const status = parseStatus(record.status);
         const state = parseCombatState(record.stateJson);
         const completedAt = getSessionCompletionTime({
@@ -295,6 +291,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
 
         completed.push({
+          id: record.id,
           monsterId: record.monsterId,
           status,
           state,
@@ -305,11 +302,23 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     }
 
-    return completed.sort(
-      (left, right) =>
-        right.completedAt.getTime() - left.completedAt.getTime() ||
-        right.updatedAt.getTime() - left.updatedAt.getTime()
-    );
+    return completed
+      .sort(
+        (left, right) =>
+          right.completedAt.getTime() - left.completedAt.getTime() ||
+          right.createdAt.getTime() - left.createdAt.getTime() ||
+          right.updatedAt.getTime() - left.updatedAt.getTime() ||
+          right.id.localeCompare(left.id)
+      )
+      .slice(0, resultLimit)
+      .map((record) => ({
+        monsterId: record.monsterId,
+        status: record.status,
+        state: record.state,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        completedAt: record.completedAt
+      }));
   }
 
   async clearMonsterRestCooldownForTelegramUser(

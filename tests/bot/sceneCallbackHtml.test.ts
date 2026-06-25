@@ -3137,8 +3137,10 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(fightTexts.some((text) => text.includes("Павук дедлайнів"))).toBe(true);
-    expect(fightTexts.some((text) => text.includes("Павук дедлайнів") && text.includes("7/12"))).toBe(true);
+    expect(fightTexts.some((text) => text.includes("Павук"))).toBe(true);
+    expect(
+      fightTexts.some((text) => text.includes("Павук") && text.includes("7/12") && !text.includes("Проти вас:"))
+    ).toBe(true);
   });
 
   it("keeps rapid duplicate passage attack taps on one active session", async () => {

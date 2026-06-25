@@ -525,12 +525,10 @@ function presentPersistentFightState(input: {
   statusNote?: string;
 }): string {
   const state = input.session.state;
-  const opponentRows = presentPersistentFightStateOpponents(state, input.monster);
   const threatLine = presentThreatEscalationLine(state);
-  const enemyRows = state ? presentEnemyHpRows(state) : [`👹 Монстр: ?/?`];
+  const enemyRows = state ? presentEnemyHpRows(state, input.monster) : [`👹 Монстр: ?/?`];
   const lines = [
     "⚔️ <b>Бій</b>",
-    ...opponentRows,
     ...(threatLine ? ["", threatLine] : []),
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
@@ -614,32 +612,6 @@ function presentThreatEscalationLine(
   const line = findThreatEscalationLine(state?.threat?.lineId);
 
   return line ? `⚠️ <i>${escapeHtml(line.text)}</i>` : null;
-}
-
-function presentPersistentFightStateOpponents(
-  state: Parameters<typeof presentPersistentFightState>[0]["session"]["state"],
-  monster?: { name: string; level: number } | null
-): string[] {
-  const enemies = state?.enemies ? normalizeCombatEnemies(state) : [];
-
-  if (enemies.length > 1) {
-    return [
-      "Проти вас:",
-      ...enemies.map((enemy, index) => {
-        const level = enemy.level ? ` · рівень ${enemy.level}` : "";
-        const fallbackName =
-          enemy.name ??
-          (index === 0 && state?.monster.name ? state.monster.name : `Монстр ${index + 1}`);
-
-        return `👹 ${index + 1}. <b>${escapeHtml(fallbackName)}</b>${level}`;
-      })
-    ];
-  }
-
-  const monsterName = state?.monster.name ?? monster?.name ?? "Невідомий монстр";
-  const monsterLevel = state?.monster.level ?? monster?.level;
-
-  return [`Проти вас: <b>${escapeHtml(monsterName)}</b>${monsterLevel ? ` · рівень ${monsterLevel}` : ""}`];
 }
 
 function getPersistentFightJournalEntries(
@@ -943,11 +915,14 @@ function presentTurnSummary(
   return withMonsterBark(summary, [...heading, hit, response].filter(Boolean));
 }
 
-function presentEnemyHpRows(state: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>): string[] {
+function presentEnemyHpRows(
+  state: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>,
+  monster?: { name: string; level: number } | null
+): string[] {
   const enemies = normalizeCombatEnemies(state);
 
   if (enemies.length <= 1) {
-    return [`👹 Монстр: ${state.monster.hp}/${state.monster.hpMax}`];
+    return [`👹 ${presentShortMonsterName(state.monster.name ?? monster?.name, "Монстр")}: ${state.monster.hp}/${state.monster.hpMax}`];
   }
 
   const primaryEnemyId = enemies.find((enemy) => enemy.hp > 0)?.enemyId ?? enemies[0]?.enemyId;
@@ -955,13 +930,20 @@ function presentEnemyHpRows(state: NonNullable<Parameters<typeof presentPersiste
   return enemies.map((enemy, index) => {
     const marker = enemy.hp > 0 && enemy.enemyId === primaryEnemyId ? " ← ціль" : "";
     const fallbackName =
-      index === 0 && state.monster.name
-        ? state.monster.name
+      index === 0 && (state.monster.name ?? monster?.name)
+        ? state.monster.name ?? monster?.name
         : `Монстр ${index + 1}`;
-    const name = ` ${escapeHtml(enemy.name ?? fallbackName)}`;
+    const name = ` ${presentShortMonsterName(enemy.name ?? fallbackName, `Монстр ${index + 1}`)}`;
 
     return `👹 ${index + 1}.${name}: ${enemy.hp}/${enemy.hpMax}${marker}`;
   });
+}
+
+function presentShortMonsterName(name: string | null | undefined, fallback: string): string {
+  const plainName = name?.replace(/<[^>]*>/g, "").trim() ?? "";
+  const shortName = plainName.split(/[\s\-–—]+/u).find(Boolean) ?? fallback;
+
+  return escapeHtml(shortName);
 }
 
 function presentEnemyResponses(summary: CombatTurnSummary): string {
@@ -971,7 +953,7 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
 
   return summary.enemyActions
     .map((entry, index) => {
-      const name = entry.monsterName ? escapeHtml(entry.monsterName) : `Монстр ${index + 1}`;
+      const name = presentShortMonsterName(entry.monsterName, `Монстр ${index + 1}`);
       if (entry.monsterDamage > 0) {
         return `${name} діє окремо й завдає ${entry.monsterDamage} шкоди.`;
       }
