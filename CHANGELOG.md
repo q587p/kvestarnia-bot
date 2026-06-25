@@ -29,7 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Monster runtime effects now name the applied effect, show its remaining actions/charges, and split ongoing effect damage from the direct monster response.
 - Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
-- A stored escalated two-enemy terminal encounter checkpoints the cycle, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
+- A stored escalated two-enemy terminal encounter checkpoints the cycle even while won-fight settlement is still pending, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
 
 ### Unchanged
 - Rewards remain the existing single-encounter settlement contract for the whole two-enemy fight.

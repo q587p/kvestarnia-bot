@@ -3576,7 +3576,7 @@ function toThreatEscalationHistoryEntry(
     state.settlement.status !== "completed";
   const monster = findMonster(session.monsterId);
   const eligible =
-    !wonButUnsettled &&
+    (!wonButUnsettled || escalated) &&
     state.source === "normal" &&
     Boolean(monster && isSoloFightMonsterEligible(monster, Number.POSITIVE_INFINITY)) &&
     (enemyCount === 1 || escalated);

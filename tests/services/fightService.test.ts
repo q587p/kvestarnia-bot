@@ -3130,6 +3130,44 @@ describe("FightService", () => {
     }
   });
 
+  it("uses an escalated won fight as a checkpoint even while settlement is pending", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-1", {
+      completedAt: new Date("2026-06-12T10:29:40.000Z")
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-2", {
+      completedAt: new Date("2026-06-12T10:29:41.000Z")
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-3", {
+      completedAt: new Date("2026-06-12T10:29:42.000Z")
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-escalated", {
+      completedAt: new Date("2026-06-12T10:29:43.000Z"),
+      escalated: true,
+      settlement: "pending"
+    }));
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(1);
+    }
+  });
+
   it("ignores dev-forced two-enemy, starter, training, Yeger, and Adventure rows for ordinary threat", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -6065,6 +6103,7 @@ function makeEligibleOrdinaryThreatSession(
     enemyCount?: 1 | 2;
     escalated?: boolean;
     threatExclusion?: boolean;
+    settlement?: "pending" | "completed" | "forfeited-by-remort" | null;
   }
 ): SoloCombatSessionRecord {
   const monsterId = options.monsterId ?? "monster.deadline-spider";
@@ -6077,7 +6116,7 @@ function makeEligibleOrdinaryThreatSession(
       createdAt: new Date(options.completedAt.getTime() - 60_000),
       completedAt: options.completedAt,
       updatedAt: options.completedAt,
-      settlement: "completed"
+      settlement: options.settlement ?? "completed"
     }
   );
   const state: NonNullable<SoloCombatSessionRecord["state"]> = {
