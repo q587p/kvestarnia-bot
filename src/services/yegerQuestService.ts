@@ -13,6 +13,8 @@ import {
   YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
   YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
   YEGER_UNQUIET_TRIAL_STARTED_KEY
 } from "./dailyActionKeys";
 import {
@@ -23,16 +25,26 @@ import {
 } from "./itemGrant";
 import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "./presenceService";
 
-export { YEGER_UNQUIET_TRIAL_COMPLETED_KEY, YEGER_UNQUIET_TRIAL_STARTED_KEY } from "./dailyActionKeys";
+export {
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
+  YEGER_UNQUIET_TRIAL_STARTED_KEY
+} from "./dailyActionKeys";
 
 export const YEGER_UNQUIET_TRIAL_MIN_LEVEL = 4;
 export const YEGER_UNQUIET_TRIAL_TARGET = 5;
+export const YEGER_UNQUIET_TRIAL_SECOND_TARGET = 17;
 export const YEGER_UNQUIET_TRIAL_BUCKET = "once";
 export const YEGER_UNQUIET_TRIAL_TAGS = ["undead", "ghost", "cursed", "unquiet"] as const;
 export const YEGER_UNQUIET_TRIAL_REWARD = {
   maxXp: 80,
   gold: 120,
   itemId: YEGER_FIRST_NOTCH_ITEM_ID
+};
+export const YEGER_UNQUIET_TRIAL_SECOND_REWARD = {
+  maxXp: 170,
+  gold: 170
 };
 export const YEGER_TRACKING_COOLDOWN_KEY = "quest.yeger.unquiet-trial.tracking";
 export const YEGER_TRACKING_MIN_MINUTES = 3;
@@ -48,9 +60,45 @@ export const YEGER_RANGER_BANDAGE_PRICE = 4;
 export const YEGER_RANGER_FREE_BANDAGE_MINUTES = 93;
 export const YEGER_BANDAGE_PURCHASE_TTL_MINUTES = 23;
 
+export type YegerQuestStageId = "first" | "second";
+
+interface YegerQuestStage {
+  id: YegerQuestStageId;
+  startedKey: string;
+  completedKey: string;
+  target: number;
+  reward: {
+    maxXp: number;
+    gold: number;
+    itemId?: string;
+  };
+}
+
+const YEGER_UNQUIET_TRIAL_FIRST_STAGE: YegerQuestStage = {
+  id: "first",
+  startedKey: YEGER_UNQUIET_TRIAL_STARTED_KEY,
+  completedKey: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  target: YEGER_UNQUIET_TRIAL_TARGET,
+  reward: YEGER_UNQUIET_TRIAL_REWARD
+};
+
+const YEGER_UNQUIET_TRIAL_SECOND_STAGE: YegerQuestStage = {
+  id: "second",
+  startedKey: YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
+  completedKey: YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+  target: YEGER_UNQUIET_TRIAL_SECOND_TARGET,
+  reward: YEGER_UNQUIET_TRIAL_SECOND_REWARD
+};
+
+const YEGER_UNQUIET_TRIAL_STAGES: readonly YegerQuestStage[] = [
+  YEGER_UNQUIET_TRIAL_FIRST_STAGE,
+  YEGER_UNQUIET_TRIAL_SECOND_STAGE
+];
+
 export interface YegerQuestProgress {
   wins: number;
   target: number;
+  stageId?: YegerQuestStageId;
 }
 
 export type YegerTrackingSummary =
@@ -196,26 +244,30 @@ export class YegerQuestService {
       };
     }
 
-    const completed = await this.dailyActions.findForTelegramUser(telegramUserId, {
-      key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
-      localDate: YEGER_UNQUIET_TRIAL_BUCKET
-    });
+    const stage = await this.getCurrentStage(telegramUserId);
 
-    if (completed) {
+    if (!stage) {
+      const completed = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+        localDate: YEGER_UNQUIET_TRIAL_BUCKET
+      });
+
+      const replayReward = {
+        ...(completed?.rewardXp === undefined ? {} : { xp: completed.rewardXp }),
+        ...(completed?.rewardGold === undefined ? {} : { gold: completed.rewardGold }),
+        replayUnavailable: true
+      };
+
       return {
         state: "completed",
         character: summary,
-        progress: { wins: YEGER_UNQUIET_TRIAL_TARGET, target: YEGER_UNQUIET_TRIAL_TARGET },
-        reward: buildYegerQuestReward({
-          xp: completed.rewardXp,
-          gold: completed.rewardGold,
-          replayUnavailable: true
-        })
+        progress: buildYegerQuestProgress(YEGER_UNQUIET_TRIAL_SECOND_STAGE, YEGER_UNQUIET_TRIAL_SECOND_TARGET),
+        reward: buildYegerQuestReward(YEGER_UNQUIET_TRIAL_SECOND_STAGE, replayReward)
       };
     }
 
     const started = await this.dailyActions.findForTelegramUser(telegramUserId, {
-      key: YEGER_UNQUIET_TRIAL_STARTED_KEY,
+      key: stage.startedKey,
       localDate: YEGER_UNQUIET_TRIAL_BUCKET
     });
 
@@ -223,13 +275,13 @@ export class YegerQuestService {
       return {
         state: "offered",
         character: summary,
-        progress: { wins: 0, target: YEGER_UNQUIET_TRIAL_TARGET }
+        progress: buildYegerQuestProgress(stage, 0)
       };
     }
 
-    const progress = await this.countProgress(telegramUserId, started.createdAt);
+    const progress = await this.countProgress(telegramUserId, started.createdAt, stage);
 
-    if (progress.wins >= YEGER_UNQUIET_TRIAL_TARGET) {
+    if (progress.wins >= stage.target) {
       return { state: "turn-in-ready", character: summary, progress };
     }
 
@@ -248,8 +300,9 @@ export class YegerQuestService {
       return current;
     }
 
+    const stage = getYegerQuestStage(current.progress);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: YEGER_UNQUIET_TRIAL_STARTED_KEY,
+      key: stage.startedKey,
       localDate: YEGER_UNQUIET_TRIAL_BUCKET,
       rewardXp: 0,
       rewardGold: 0
@@ -262,7 +315,7 @@ export class YegerQuestService {
     return {
       state: "in-progress",
       character: summarizeCharacter(claim.character),
-      progress: { wins: 0, target: YEGER_UNQUIET_TRIAL_TARGET },
+      progress: buildYegerQuestProgress(stage, 0),
       tracking: { state: "none" }
     };
   }
@@ -378,6 +431,28 @@ export class YegerQuestService {
     }
 
     if (current.state === "offered") {
+      const stage = getYegerQuestStage(current.progress);
+      if (stage.id === "second") {
+        const previousCompleted = await this.dailyActions.findForTelegramUser(telegramUserId, {
+          key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+          localDate: YEGER_UNQUIET_TRIAL_BUCKET
+        });
+
+        if (previousCompleted) {
+          return {
+            state: "already-completed",
+            character: current.character,
+            progress: buildYegerQuestProgress(YEGER_UNQUIET_TRIAL_FIRST_STAGE, YEGER_UNQUIET_TRIAL_TARGET),
+            reward: buildYegerQuestReward(YEGER_UNQUIET_TRIAL_FIRST_STAGE, {
+              xp: previousCompleted.rewardXp,
+              gold: previousCompleted.rewardGold,
+              replayUnavailable: true
+            }),
+            levelChange: null
+          };
+        }
+      }
+
       return {
         state: "not-started",
         character: current.character,
@@ -403,12 +478,16 @@ export class YegerQuestService {
       };
     }
 
+    const stage = getYegerQuestStage(current.progress);
+    const itemGrants = stage.reward.itemId
+      ? [{ itemId: stage.reward.itemId, quantity: 1, maxOwnedQuantity: 1 }]
+      : [];
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+      key: stage.completedKey,
       localDate: YEGER_UNQUIET_TRIAL_BUCKET,
-      rewardXp: getYegerUnquietTrialTurnInXp(current.character),
-      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold,
-      itemGrants: [{ itemId: YEGER_UNQUIET_TRIAL_REWARD.itemId, quantity: 1, maxOwnedQuantity: 1 }]
+      rewardXp: getYegerUnquietTrialTurnInXp(current.character, stage.id),
+      rewardGold: stage.reward.gold,
+      itemGrants
     });
 
     if (!claim) {
@@ -419,16 +498,18 @@ export class YegerQuestService {
       throw new Error("Yeger quest daily claim unexpectedly required gold.");
     }
 
+    const rewardInput = {
+      xp: claim.action.rewardXp,
+      gold: claim.action.rewardGold,
+      ...(claim.state === "created" ? { itemGrants: claim.itemGrants } : {}),
+      replayUnavailable: claim.state === "existing"
+    };
+
     return {
       state: claim.state === "created" ? "completed" : "already-completed",
       character: summarizeCharacter(claim.character),
       progress: current.progress,
-      reward: buildYegerQuestReward({
-        xp: claim.action.rewardXp,
-        gold: claim.action.rewardGold,
-        itemGrants: claim.state === "created" ? claim.itemGrants : [],
-        replayUnavailable: claim.state === "existing"
-      }),
+      reward: buildYegerQuestReward(stage, rewardInput),
       levelChange: claim.levelChange
     };
   }
@@ -678,9 +759,25 @@ export class YegerQuestService {
     };
   }
 
+  private async getCurrentStage(telegramUserId: bigint): Promise<YegerQuestStage | null> {
+    for (const stage of YEGER_UNQUIET_TRIAL_STAGES) {
+      const completed = await this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: stage.completedKey,
+        localDate: YEGER_UNQUIET_TRIAL_BUCKET
+      });
+
+      if (!completed) {
+        return stage;
+      }
+    }
+
+    return null;
+  }
+
   private async countProgress(
     telegramUserId: bigint,
-    startedAt: Date
+    startedAt: Date,
+    stage: YegerQuestStage
   ): Promise<YegerQuestProgress> {
     const sessions = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, startedAt);
     const wins = sessions.filter((session) => {
@@ -689,10 +786,7 @@ export class YegerQuestService {
       return session.status === "won" && !!monster && isYegerUnquietTarget(monster);
     }).length;
 
-    return {
-      wins: Math.min(wins, YEGER_UNQUIET_TRIAL_TARGET),
-      target: YEGER_UNQUIET_TRIAL_TARGET
-    };
+    return buildYegerQuestProgress(stage, Math.min(wins, stage.target));
   }
 
   private async getTrackingSummary(telegramUserId: bigint): Promise<YegerTrackingSummary> {
@@ -752,8 +846,13 @@ export function rollYegerTrackingOutcome(
   return rng.nextFloat() < YEGER_TRACKING_NEAR_MISS_CHANCE ? "near-miss" : "none";
 }
 
-export function getYegerUnquietTrialTurnInXp(character: Pick<CharacterSummary, "level">): number {
-  return Math.min(YEGER_UNQUIET_TRIAL_REWARD.maxXp, Math.max(1, Math.floor(character.level * 7)));
+export function getYegerUnquietTrialTurnInXp(
+  character: Pick<CharacterSummary, "level">,
+  stageId: YegerQuestStageId = "first"
+): number {
+  const stage = stageId === "second" ? YEGER_UNQUIET_TRIAL_SECOND_STAGE : YEGER_UNQUIET_TRIAL_FIRST_STAGE;
+
+  return Math.min(stage.reward.maxXp, Math.max(1, Math.floor(character.level * 7)));
 }
 
 function addMinutes(date: Date, minutes: number): Date {
@@ -826,19 +925,32 @@ function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity
   return parsed.length > 0 ? parsed : [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
 }
 
-function buildYegerQuestReward(input?: {
+function getYegerQuestStage(progress: YegerQuestProgress): YegerQuestStage {
+  return progress.stageId === "second" ? YEGER_UNQUIET_TRIAL_SECOND_STAGE : YEGER_UNQUIET_TRIAL_FIRST_STAGE;
+}
+
+function buildYegerQuestProgress(stage: YegerQuestStage, wins: number): YegerQuestProgress {
+  return {
+    wins,
+    target: stage.target,
+    stageId: stage.id
+  };
+}
+
+function buildYegerQuestReward(stage: YegerQuestStage, input?: {
   xp?: number;
   gold?: number;
   itemGrants?: Array<{ itemId: string; quantity: number }>;
   replayUnavailable?: boolean;
 }): YegerQuestReward {
+  const defaultItemGrants = stage.reward.itemId
+    ? [{ itemId: stage.reward.itemId, quantity: 1 }]
+    : [];
+
   return {
-    xp: input?.xp ?? YEGER_UNQUIET_TRIAL_REWARD.maxXp,
-    gold: input?.gold ?? YEGER_UNQUIET_TRIAL_REWARD.gold,
-    itemGrants:
-      input?.itemGrants && input.itemGrants.length > 0
-        ? enrichRewardItemGrants(input.itemGrants)
-        : enrichRewardItemGrants([{ itemId: YEGER_UNQUIET_TRIAL_REWARD.itemId, quantity: 1 }]),
+    xp: input?.xp ?? stage.reward.maxXp,
+    gold: input?.gold ?? stage.reward.gold,
+    itemGrants: enrichRewardItemGrants(input?.itemGrants ?? defaultItemGrants),
     ...(input?.replayUnavailable ? { itemReplayUnavailable: true } : {})
   };
 }

@@ -277,6 +277,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "скинути таймер бинта Єгеря локально",
     includeInMenu: false,
     devOnly: "grant"
+  },
+  {
+    command: "dev_reset_yeger_trail",
+    icon: "👣",
+    description: "завершити очікування сліду Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
   }
 ];
 

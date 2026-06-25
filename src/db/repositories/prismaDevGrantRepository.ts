@@ -268,6 +268,39 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
       };
     });
   }
+
+  async finishCooldownForTelegramUser(
+    telegramUserId: bigint,
+    key: string,
+    now: Date
+  ): Promise<DevGrantCooldownResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const updated = await tx.characterCooldown.updateMany({
+        where: {
+          characterId: character.id,
+          key,
+          availableAt: {
+            gt: now
+          }
+        },
+        data: {
+          availableAt: now,
+          updatedAt: now
+        }
+      });
+
+      return {
+        character: toCharacterRecord(character),
+        cleared: updated.count > 0
+      };
+    });
+  }
 }
 
 const currentLocationInclude = {

@@ -76,6 +76,12 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: безкоштовний бинт Єгеря і так доступний.";
   }
 
+  if (result.kind === "yeger-tracking-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: очікування Єгерського сліду завершено."
+      : "🧪 Dev: Єгерський слід уже готовий або ще не взятий.";
+  }
+
   if (result.kind === "items") {
     const itemLines = result.itemGrants.map((grant) =>
       grant.quantity === 1 ? `• ${grant.name}` : `• ${grant.name} ×${grant.quantity}`

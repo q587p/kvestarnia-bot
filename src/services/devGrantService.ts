@@ -4,7 +4,7 @@ import type { DevGrantRepository } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
-import { YEGER_RANGER_FREE_BANDAGE_KEY } from "./yegerQuestService";
+import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
 
 export type DevGrantResult =
   | { state: "disabled" }
@@ -18,7 +18,7 @@ export type DevGrantResult =
     }
   | {
       state: "updated";
-      kind: "yeger-bandage-cooldown";
+      kind: "yeger-bandage-cooldown" | "yeger-tracking-cooldown";
       character: CharacterRecord;
       cleared: boolean;
     };
@@ -166,6 +166,27 @@ export class DevGrantService {
       ? {
           state: "updated",
           kind: "yeger-bandage-cooldown",
+          character: result.character,
+          cleared: result.cleared
+        }
+        : { state: "no-character" };
+  }
+
+  async resetYegerTrackingCooldown(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.finishCooldownForTelegramUser(
+      telegramUserId,
+      YEGER_TRACKING_COOLDOWN_KEY,
+      new Date()
+    );
+
+    return result
+      ? {
+          state: "updated",
+          kind: "yeger-tracking-cooldown",
           character: result.character,
           cleared: result.cleared
         }

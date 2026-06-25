@@ -16,13 +16,14 @@
 2. Confirm the preview shows the exact current HP recovery and does not mutate inventory before confirm.
 3. Confirm use: one bandage is consumed, HP increases only up to the effective max, and the result card replays on repeated confirm.
 4. Try at full HP: no use order should spend a bandage.
-5. Try during an active persistent fight: use is blocked and the fight remains authoritative.
+5. Try during an active persistent PvE fight while wounded: item detail should route to the fight item action, consume exactly one eligible bandage, heal combat HP, advance the turn and let the monster respond; full-HP, stale-turn, missing-stack and reserved-stack attempts should not consume or advance.
 6. Open a preview, then change inventory/equipment/reservation state before confirm: confirm must fail stale without healing or consuming.
 7. While a bandage use preview is pending, try gift/sale/chest/barter of the same `itemId`: the stack should be reserved.
 8. Remort with a pending use order: remort should cancel the use reservation without consuming the bandage.
 9. At the Єгер surface, open paid bandage purchase, verify exact price/current gold, confirm once, replay confirm, cancel a fresh preview, intentionally buy again with a new token, and repeat with insufficient gold.
 10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the wait and confirm a fresh claim can be tested without changing production rules.
-11. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.
+11. For Yeger trail QA, use `/dev_reset_yeger_trail` after taking a trail to make `🔎 Перевірити слід` available immediately without weakening production timers.
+12. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.
 
 ## 0.2.3 — Threat escalation smoke
 
@@ -339,8 +340,12 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 17. Очікування: прогрес росте тільки за перемоги після старту справи; lost/fled/expired і wrong-tag монстри не рахуються.
 18. Після `5/5` натисни `🏹 Здати Єгерю`.
 19. Очікування: одноразова нагорода з рівнево обмеженим XP, `+120 золота`, `Єгерська риска на дощечці`; повторний callback не дублює винагороду.
-20. Старі `v1:hunt:*` callback-и мають безпечно оновити Єгерську дошку, а не видати стару hourly reward.
-21. Поки рейд на Бочку pending, `/hunt`, Yeger/hunt callback-и й bestiary callback-и не мають переносити presence зі сцени Бочки; reward actions мають показати рейдовий блок.
+20. Після першої здачі знову відкрий `/hunt`.
+21. Очікування: Єгер пропонує наступну дощечку на `17` цілей із прогресом `0/17`, окремим стартом і без повторної риски з першої нагороди.
+22. Візьми другу дощечку, переможи одну правильну ціль, потім зроби реморт.
+23. Очікування: після реморту `/hunt` починає Єгерський ланцюжок заново з першої дощечки `0/5`, без перенесення старого `1/17`.
+24. Старі `v1:hunt:*` callback-и мають безпечно оновити Єгерську дошку, а не видати стару hourly reward.
+25. Поки рейд на Бочку pending, `/hunt`, Yeger/hunt callback-и й bestiary callback-и не мають переносити presence зі сцени Бочки; reward actions мають показати рейдовий блок.
 
 ## Бестіарій
 
@@ -453,6 +458,8 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_reset_me` — у локальному режимі видаляє тільки персонажа поточного користувача після підтвердження.
 - `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
+- `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
+- `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.

@@ -6,6 +6,8 @@ export const HUNT_BOARD_CONTRACT_KEY = "combat.hunt-board.contract";
 export const PERSISTENT_SOLO_FIGHT_REWARD_KEY = "combat.solo-fight.reward";
 export const YEGER_UNQUIET_TRIAL_STARTED_KEY = "quest.yeger.unquiet-trial.started";
 export const YEGER_UNQUIET_TRIAL_COMPLETED_KEY = "quest.yeger.unquiet-trial.completed";
+export const YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY = "quest.yeger.unquiet-trial.second.started";
+export const YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY = "quest.yeger.unquiet-trial.second.completed";
 export const YEGER_BANDAGE_PURCHASE_PREVIEW_KEY = "yeger.bandage.purchase.preview";
 export const YEGER_BANDAGE_PURCHASE_CONFIRM_KEY = "yeger.bandage.purchase.confirm";
 export const YEGER_BANDAGE_PURCHASE_CANCEL_KEY = "yeger.bandage.purchase.cancel";
@@ -26,6 +28,8 @@ export const REMORT_RESET_DAILY_ACTION_KEYS = [
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
   YEGER_UNQUIET_TRIAL_STARTED_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
   PROBLEM_QUEST_13_ISSUED_KEY,
   PROBLEM_QUEST_13_REWARD_KEY,
   PROBLEM_QUEST_23_ISSUED_KEY,

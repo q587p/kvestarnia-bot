@@ -34,6 +34,8 @@ import {
   YEGER_RANGER_FREE_BANDAGE_KEY,
   YEGER_TRACKING_COOLDOWN_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
   YEGER_UNQUIET_TRIAL_REWARD,
   YEGER_UNQUIET_TRIAL_STARTED_KEY,
   YegerQuestService
@@ -76,6 +78,26 @@ describe("YegerQuestService", () => {
     expect(world.actions.filter((action) => action.key === YEGER_UNQUIET_TRIAL_STARTED_KEY)).toHaveLength(1);
   });
 
+  it("offers the next 17 unquiet targets after the first board is complete", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 6, xp: 170 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
+      rewardXp: 42,
+      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+    });
+    const service = world.service();
+
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "offered",
+      progress: { wins: 0, target: 17, stageId: "second" }
+    });
+    await expect(service.startForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "in-progress",
+      progress: { wins: 0, target: 17, stageId: "second" }
+    });
+    expect(world.actions.filter((action) => action.key === YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY)).toHaveLength(1);
+  });
+
   it("counts only won unquiet sessions after quest start", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 5, xp: 110 });
@@ -91,6 +113,26 @@ describe("YegerQuestService", () => {
     await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "in-progress",
       progress: { wins: 2, target: 5 }
+    });
+  });
+
+  it("counts the second Yeger board from its own start time", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 8, xp: 320 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, new Date("2026-06-15T09:00:00.000Z"), {
+      rewardXp: 42,
+      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+    });
+    world.addAction(YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY, startedAt);
+    world.sessions.push(
+      { monsterId: "monster.stamp-doorkeeper-skeleton", status: "won", createdAt: new Date(startedAt.getTime() - 1) },
+      { monsterId: "monster.stamp-doorkeeper-skeleton", status: "won", createdAt: startedAt },
+      { monsterId: "monster.unread-rules-ghost", status: "won", createdAt: new Date(startedAt.getTime() + 1) }
+    );
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "in-progress",
+      progress: { wins: 2, target: 17, stageId: "second" }
     });
   });
 
@@ -177,7 +219,7 @@ describe("YegerQuestService", () => {
     expect(world.character?.xp).toBe(97);
   });
 
-  it("keeps old completed Yeger turn-in XP replaying from the stored ledger", async () => {
+  it("keeps stale first-board turn-in callbacks replaying from the stored ledger", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 5, xp: 190, gold: 120 });
     world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
@@ -186,10 +228,38 @@ describe("YegerQuestService", () => {
     });
 
     await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
-      state: "completed",
+      state: "offered",
+      progress: { wins: 0, target: 17, stageId: "second" }
+    });
+    await expect(world.service().turnInForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      progress: { wins: 5, target: 5, stageId: "first" },
       reward: {
         xp: 80,
         gold: 120
+      }
+    });
+  });
+
+  it("replays completed second Yeger board without first-board keepsake fallback", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 8, xp: 320, gold: 290 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
+      rewardXp: 42,
+      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+    });
+    world.addAction(YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY, startedAt, {
+      rewardXp: 56,
+      rewardGold: 170
+    });
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "completed",
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 56,
+        gold: 170,
+        itemGrants: []
       }
     });
   });

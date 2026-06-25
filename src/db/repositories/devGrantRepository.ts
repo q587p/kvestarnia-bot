@@ -55,4 +55,10 @@ export interface DevGrantRepository {
     telegramUserId: bigint,
     key: string
   ): Promise<DevGrantCooldownResult | null>;
+
+  finishCooldownForTelegramUser(
+    telegramUserId: bigint,
+    key: string,
+    now: Date
+  ): Promise<DevGrantCooldownResult | null>;
 }

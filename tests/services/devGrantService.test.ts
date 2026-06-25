@@ -10,7 +10,7 @@ import type {
 import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository";
 import { items } from "../../src/content";
 import { DevGrantService } from "../../src/services/devGrantService";
-import { YEGER_RANGER_FREE_BANDAGE_KEY } from "../../src/services/yegerQuestService";
+import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
 import { FakeRandomSource } from "../../src/shared/random";
 
 describe("DevGrantService", () => {
@@ -182,6 +182,21 @@ describe("DevGrantService", () => {
     expect(repository.calls).toContain(`cooldown:42:${YEGER_RANGER_FREE_BANDAGE_KEY}`);
   });
 
+  it("finishes the Yeger trail wait for the current character", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.resetYegerTrackingCooldown(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "yeger-tracking-cooldown",
+      cleared: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    expect(repository.calls).toContain(`cooldown-ready:42:${YEGER_TRACKING_COOLDOWN_KEY}`);
+  });
+
   it("returns no-character when the repository cannot find a character", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -334,6 +349,22 @@ class FakeDevGrantRepository implements DevGrantRepository {
     key: string
   ): Promise<DevGrantCooldownResult | null> {
     this.calls.push(`cooldown:${telegramUserId.toString()}:${key}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      character: this.character,
+      cleared: true
+    });
+  }
+
+  finishCooldownForTelegramUser(
+    telegramUserId: bigint,
+    key: string
+  ): Promise<DevGrantCooldownResult | null> {
+    this.calls.push(`cooldown-ready:${telegramUserId.toString()}:${key}`);
 
     if (telegramUserId !== 42n) {
       return Promise.resolve(null);

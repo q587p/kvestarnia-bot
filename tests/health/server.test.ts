@@ -81,7 +81,8 @@ describe("health server", () => {
     expect(text).toContain("Єгер знайшов бинти й тепер дуже серйозний");
     expect(text).toContain("Єгер дістав із сумки бинти");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("перший бинт, який можна явно використати поза боєм");
+    expect(text).toContain("перший бинт, який можна явно використати з торби");
+    expect(text).toContain("одноразова манатка може стати ходом замість удару");
     expect(text).toContain("Це ще не велика крамниця");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");

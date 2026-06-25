@@ -35,9 +35,13 @@ export function presentYegerQuest(
       "Доступна справа:",
       "<b>Неспокійні справи</b>",
       "",
-      "Переможіть 5 неупокоєних проблем, які не зрозуміли, що робочий день скінчився.",
+      result.progress.target === 17
+        ? "Перша дощечка закрита. Тепер Єгер просить наступні 17 неупокоєних проблем, бо хтось необережно сказав слово «серія»."
+        : "Переможіть 5 неупокоєних проблем, які не зрозуміли, що робочий день скінчився.",
       "",
-      "Нагорода: XP, золото на якісне пиво, єгерська риска в журналі."
+      result.progress.target === 17
+        ? "Нагорода: XP і золото на дуже переконливу паузу біля Бочки."
+        : "Нагорода: XP, золото на якісне пиво, єгерська риска в журналі."
     ].join("\n");
   }
 
@@ -45,6 +49,7 @@ export function presentYegerQuest(
     return presentYegerCompleted({
       character: result.character,
       reward: result.reward,
+      progress: result.progress,
       replay: true
     });
   }
@@ -248,6 +253,7 @@ export function presentYegerStart(result: YegerQuestStartResult): string {
     return presentYegerCompleted({
       character: result.character,
       reward: result.reward,
+      progress: result.progress,
       replay: true
     });
   }
@@ -380,12 +386,14 @@ export function presentYegerTurnIn(result: YegerQuestTurnInResult): string {
   return presentYegerCompleted({
     character: result.character,
     reward: result.reward,
+    progress: result.progress,
     replay: result.state === "already-completed"
   });
 }
 
 function presentYegerCompleted(input: {
   character: { name: string; title: string };
+  progress: { target: number };
   reward: {
     xp: number;
     gold: number;
@@ -398,7 +406,9 @@ function presentYegerCompleted(input: {
     "🏹 Неспокійні справи закрито",
     `<b>${escapeHtml(input.character.name)}</b> · <i>${escapeHtml(input.character.title)}</i>`,
     "",
-    "П’ята неупокоєна проблема нарешті лягла в журнал.",
+    input.progress.target === 17
+      ? "Сімнадцята наступна неупокоєна проблема нарешті лягла в журнал і попросила не нумерувати її родичів."
+      : "П’ята неупокоєна проблема нарешті лягла в журнал.",
     "",
     "Журнал тихо зрадів і попросив не робити з цього традицію."
   ];
