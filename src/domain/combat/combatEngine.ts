@@ -430,13 +430,17 @@ function resolveHeroAttack(
       : actorAction.summary.actorOutcome;
 
   if (nextState.hero.hp <= 0) {
-    nextState.status = "lost";
+    nextState.status = nextState.monster.hp <= 0 ? "won" : "lost";
     nextState.turn += 1;
     const summary = buildSummary({
       action: input.action,
       ...summaryActionOrigin(input),
-      heroOutcome: actorAction.summary.actorOutcome === "won" ? "hit" : actorAction.summary.actorOutcome,
-      monsterOutcome: "lost",
+      heroOutcome: nextState.status === "won"
+        ? "won"
+        : actorAction.summary.actorOutcome === "won"
+          ? "hit"
+          : actorAction.summary.actorOutcome,
+      ...(nextState.status === "lost" ? { monsterOutcome: "lost" as const } : {}),
       heroDamage,
       monsterDamage,
       manaSpent,
@@ -469,7 +473,7 @@ function resolveHeroAttack(
     counterDamage = rollDefendCounterDamage(input.hero, input.monster, input.rng);
     nextState.monster.hp = Math.max(0, nextState.monster.hp - counterDamage);
   }
-  nextState.status = nextState.hero.hp <= 0 ? "lost" : nextState.monster.hp <= 0 ? "won" : "active";
+  nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
   const monsterOutcome = monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss");
   nextState.turn += 1;
   const bark = resolveMonsterBark({
@@ -679,7 +683,7 @@ function resolveMultiEnemyHeroAttack(
   let counterDamage = 0;
 
   if (nextState.hero.hp <= 0) {
-    nextState.status = "lost";
+    nextState.status = getLivingCombatEnemies(nextState).length === 0 ? "won" : "lost";
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
     heroEffectDamage = heroEffect.damage;
@@ -697,10 +701,10 @@ function resolveMultiEnemyHeroAttack(
       counterTarget.hp = Math.max(0, counterTarget.hp - counterDamage);
       updateCombatEnemy(nextState, counterTarget.enemyId, counterTarget);
     }
-    nextState.status = nextState.hero.hp <= 0
-      ? "lost"
-      : getLivingCombatEnemies(nextState).length === 0
-        ? "won"
+    nextState.status = getLivingCombatEnemies(nextState).length === 0
+      ? "won"
+      : nextState.hero.hp <= 0
+        ? "lost"
         : "active";
     const heroOutcome = nextState.status === "won"
       ? "won"
@@ -741,7 +745,11 @@ function resolveMultiEnemyHeroAttack(
   const summary = buildSummary({
     action: input.action,
     ...summaryActionOrigin(input),
-    heroOutcome: actorAction.summary.actorOutcome === "won" ? "hit" : actorAction.summary.actorOutcome,
+    heroOutcome: nextState.status === "won"
+      ? "won"
+      : actorAction.summary.actorOutcome === "won"
+        ? "hit"
+        : actorAction.summary.actorOutcome,
     heroDamage,
     monsterDamage,
     manaSpent,

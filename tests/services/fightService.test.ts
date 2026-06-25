@@ -2005,6 +2005,44 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
+  it("claims a persistent fight reward when the final monster response drops the hero to zero", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 1);
+    sessions.setMonsterHp(started.session.id, 1);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.status).toBe("won");
+      expect(result.session.state?.hero.hp).toBe(0);
+      expect(result.fightReward?.state).toBe("claimed");
+    }
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
+  });
+
   it.each(["normal", "yeger", "adventure"] as const)(
     "uses shared variable-gold rewards for %s persistent fight sources",
     async (source) => {

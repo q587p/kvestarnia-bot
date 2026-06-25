@@ -226,6 +226,44 @@ describe("combat domain engine", () => {
     });
   });
 
+  it("counts a final-enemy same-turn response KO as a hero win", () => {
+    const result = resolveCombatTurn({
+      state: {
+        ...startCombat({ hero: unarmedMage, monster }),
+        hero: {
+          hp: 1,
+          hpMax: unarmedMage.hpMax,
+          mana: unarmedMage.manaMax,
+          manaMax: unarmedMage.manaMax
+        },
+        monster: {
+          id: monster.monsterId,
+          hp: 4,
+          hpMax: monster.hpMax
+        }
+      },
+      action: "attack",
+      hero: unarmedMage,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.monster.hp).toBe(0);
+    expect(result.summary).toMatchObject({
+      action: "attack",
+      heroOutcome: "won",
+      heroDamage: 4,
+      monsterOutcome: "hit",
+      monsterDamage: 4,
+      monsterAction: "attack",
+      manaSpent: 0
+    });
+    expect(result.state.turnLog?.[0]?.eventId).toBe("terminal:won");
+  });
+
   it("does not mutate the input state when resolving an active turn", () => {
     const state = startCombat({ hero: warrior, monster });
     const before = structuredClone(state);
@@ -374,6 +412,32 @@ describe("combat domain engine", () => {
     expect(normalizeCombatEnemies(second.state).every((enemy) => enemy.hp === 0)).toBe(true);
     expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
     expect(parseCombatState(JSON.parse(JSON.stringify(second.state)))).not.toBeNull();
+  });
+
+  it("counts a final two-enemy same-turn response KO as a hero win", () => {
+    const state = makeStateAfterPrimaryEnemyDeath();
+    state.hero.hp = 1;
+    state.enemies![0]!.hp = 1;
+    state.enemies![0]!.hpMax = secondMonster.hpMax;
+    state.monster.hp = 1;
+    state.monster.hpMax = secondMonster.hpMax;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster: secondMonster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.hero.hp).toBe(0);
+    expect(normalizeCombatEnemies(result.state).every((enemy) => enemy.hp === 0)).toBe(true);
+    expect(result.summary.heroOutcome).toBe("won");
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+    expect(result.state.turnLog?.at(-1)?.eventId).toBe("terminal:won");
   });
 
   it.each([
@@ -961,7 +1025,7 @@ describe("combat domain engine", () => {
     expect(blocked.state.turnLog).toEqual(first.state.turnLog);
   });
 
-  it("treats reactive mutual KO as a hero loss before rewards can resolve", () => {
+  it("treats reactive final-enemy mutual KO as a hero win", () => {
     const state: CombatState = {
       ...startCombat({ hero: warrior, monster }),
       hero: {
@@ -1007,12 +1071,13 @@ describe("combat domain engine", () => {
     if (!result.ok) {
       throw new Error("Expected reactive terminal turn to resolve.");
     }
-    expect(result.state.status).toBe("lost");
+    expect(result.state.status).toBe("won");
     expect(result.state.hero.hp).toBe(0);
     expect(result.state.monster.hp).toBe(0);
+    expect(result.summary.heroOutcome).toBe("won");
     expect(result.summary.heroDamage).toBeGreaterThan(0);
     expect(result.summary.monsterDamage).toBe(3);
-    expect(result.state.turnLog?.[0]?.eventId).toBe("terminal:lost");
+    expect(result.state.turnLog?.[0]?.eventId).toBe("terminal:won");
   });
 
   it("puts class skills on one intervening own action cooldown and treats cooldown presses as no-op", () => {
