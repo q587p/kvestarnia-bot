@@ -458,7 +458,7 @@ function formatTrackingWait(availableAt: Date, now: Date): string {
 
   const minutes = Math.max(1, Math.ceil(diffMs / 60_000));
 
-  return `приблизно за ${minutes} хв.`;
+  return `приблизно за ${minutes} хв`;
 }
 
 function presentTrackingQuestLines(input?: {

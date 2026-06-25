@@ -4,6 +4,7 @@ import {
   presentYegerHelp,
   presentYegerHuntOutside,
   presentYegerQuest,
+  presentYegerRangerBandage,
   presentYegerStart,
   presentYegerTrackingNone,
   presentYegerTrackingPending,
@@ -262,6 +263,49 @@ describe("Yeger presenter", () => {
     expect(started).toContain("приблизно за 3 хв.");
     expect(empty).toContain("🔎 Слід перевірено.");
     expect(empty).toContain("Неупокоєне сьогодні не знайшлося.");
+  });
+
+  it("does not render accidental double periods after approximate wait times", () => {
+    const tracking = {
+      state: "tracking-pending" as const,
+      availableAt: new Date("2026-06-15T11:38:00.000Z"),
+      now: new Date("2026-06-15T10:05:00.000Z")
+    };
+    const messages = [
+      presentYegerTrackingPending({
+        state: "tracking-started",
+        character,
+        progress: { wins: 1, target: 5 },
+        tracking
+      }),
+      presentYegerTrackingNone({
+        state: "tracking-resolved-none",
+        character,
+        progress: { wins: 1, target: 5 },
+        tracking,
+        outcome: "none"
+      }),
+      presentYegerRangerBandage({
+        state: "claimed",
+        character,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }],
+        nextAvailableAt: tracking.availableAt,
+        now: tracking.now
+      }),
+      presentYegerRangerBandage({
+        state: "on-cooldown",
+        character,
+        nextAvailableAt: tracking.availableAt,
+        now: tracking.now
+      })
+    ];
+
+    for (const message of messages) {
+      expect(message).toContain("приблизно за 93 хв.");
+      expect(message).not.toContain("хв..");
+      expect(message).not.toContain("..");
+      expect(message).not.toContain("...");
+    }
   });
 });
 
