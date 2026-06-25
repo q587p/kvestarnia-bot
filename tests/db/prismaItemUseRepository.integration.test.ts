@@ -36,6 +36,7 @@ describe("PrismaItemUseRepository integration", () => {
 
   beforeEach(async () => {
     await prisma.itemUseOrder.deleteMany();
+    await prisma.characterDrinkState.deleteMany();
     await prisma.itemTransfer.deleteMany();
     await prisma.korchmaMantokSale.deleteMany();
     await prisma.mantokChestRun.deleteMany();
@@ -85,6 +86,31 @@ describe("PrismaItemUseRepository integration", () => {
     expect(replay).toMatchObject({ state: "replayed", order: { status: "completed" } });
     await expectBandageQuantity(1);
     await expectCharacterHp(17);
+  });
+
+  it("preserves fractional mana recovery markers when a HP bandage leaves HP below max", async () => {
+    const marker = new Date(now().getTime() - 1_000);
+    await seedCharacter({ hpCurrent: 10, hpMax: 25, manaCurrent: 5, hpRegenAt: marker, manaRegenAt: marker });
+    await seedBandages(1);
+    await createPreview("use-token-fractional");
+
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-fractional",
+      itemContents: items,
+      now: now()
+    })).resolves.toMatchObject({
+      state: "used",
+      order: {
+        result: {
+          hpAfter: 17
+        }
+      }
+    });
+
+    const character = await prisma.character.findUniqueOrThrow({ where: { id: characterId } });
+    expect(character.manaCurrent).toBe(5);
+    expect(character.manaRegenAt).toEqual(marker);
+    expect(character.hpRegenAt).toEqual(marker);
   });
 
   it("keeps concurrent confirmations to one consume", async () => {
@@ -155,7 +181,13 @@ describe("PrismaItemUseRepository integration", () => {
     });
   }
 
-  async function seedCharacter(input: { hpCurrent: number; hpMax: number }): Promise<void> {
+  async function seedCharacter(input: {
+    hpCurrent: number;
+    hpMax: number;
+    manaCurrent?: number;
+    hpRegenAt?: Date;
+    manaRegenAt?: Date;
+  }): Promise<void> {
     await prisma.user.create({
       data: {
         id: userId,
@@ -177,10 +209,10 @@ describe("PrismaItemUseRepository integration", () => {
         gold: 0,
         hpCurrent: input.hpCurrent,
         hpMax: input.hpMax,
-        manaCurrent: 10,
+        manaCurrent: input.manaCurrent ?? 10,
         manaMax: 10,
-        hpRegenAt: now(),
-        manaRegenAt: now(),
+        hpRegenAt: input.hpRegenAt ?? now(),
+        manaRegenAt: input.manaRegenAt ?? now(),
         statsJson: {
           strength: 8,
           dexterity: 6,
@@ -281,6 +313,21 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "character_id" TEXT NOT NULL,
       "slot" TEXT NOT NULL,
       "item_id" TEXT NOT NULL,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE "character_drink_states" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "activation_id" TEXT NOT NULL,
+      "character_id" TEXT NOT NULL UNIQUE,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "drink_key" TEXT NOT NULL,
+      "phase" TEXT NOT NULL,
+      "started_at" DATETIME NOT NULL,
+      "expires_at" DATETIME NOT NULL,
+      "source_type" TEXT NOT NULL,
+      "source_id" TEXT,
+      "metadata_json" JSONB,
       "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

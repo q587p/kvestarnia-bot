@@ -8,7 +8,9 @@ export type YegerCallback =
   | { type: "start"; questId: "u1" }
   | { type: "track"; questId: "u1" }
   | { type: "turn-in"; questId: "u1" }
-  | { type: "buy-bandage" }
+  | { type: "buy-bandage-preview" }
+  | { type: "buy-bandage-confirm"; token: string }
+  | { type: "buy-bandage-cancel"; token: string }
   | { type: "free-bandage" }
   | { type: "help" };
 
@@ -54,6 +56,14 @@ export function makeYegerBuyBandageCallbackData(): string {
   return assertYegerCallbackData(`${PREFIX}:buy:bdg`);
 }
 
+export function makeYegerConfirmBandagePurchaseCallbackData(token: string): string {
+  return assertYegerCallbackData(`${PREFIX}:bc:${token}`);
+}
+
+export function makeYegerCancelBandagePurchaseCallbackData(token: string): string {
+  return assertYegerCallbackData(`${PREFIX}:bx:${token}`);
+}
+
 export function makeYegerFreeBandageCallbackData(): string {
   return assertYegerCallbackData(`${PREFIX}:free:bdg`);
 }
@@ -88,7 +98,13 @@ export function parseYegerCallbackData(
   }
 
   if (action === "buy") {
-    return questId === "bdg" ? ok({ type: "buy-bandage" }) : err("invalid-prefix");
+    return questId === "bdg" ? ok({ type: "buy-bandage-preview" }) : err("invalid-prefix");
+  }
+
+  if (action === "bc" || action === "bx") {
+    return questId && rest.length === 0 && isPurchaseToken(questId)
+      ? ok({ type: action === "bc" ? "buy-bandage-confirm" : "buy-bandage-cancel", token: questId })
+      : err("invalid-prefix");
   }
 
   if (action === "free") {
@@ -128,4 +144,8 @@ function assertYegerCallbackData(data: string): string {
   }
 
   return data;
+}
+
+function isPurchaseToken(token: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token);
 }

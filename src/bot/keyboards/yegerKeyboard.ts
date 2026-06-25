@@ -5,6 +5,8 @@ import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   makeYegerBuyBandageCallbackData,
+  makeYegerCancelBandagePurchaseCallbackData,
+  makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
@@ -83,6 +85,14 @@ export function buildYegerCornerKeyboard(
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
     .row()
     .text("🍺 До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildYegerBandagePurchaseKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("✅ Купити", makeYegerConfirmBandagePurchaseCallbackData(token))
+    .text("✖️ Скасувати", makeYegerCancelBandagePurchaseCallbackData(token))
+    .row()
+    .text("⬅️ До Єгеря", makeYegerOpenCallbackData());
 }
 
 export function buildYegerTurnInKeyboard(

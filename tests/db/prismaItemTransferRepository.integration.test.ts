@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { items } from "../../src/content";
 import type { ItemContent } from "../../src/content/schema";
 import { PrismaItemTransferRepository } from "../../src/db/repositories/prismaItemTransferRepository";
 import { createItemGiftFingerprint } from "../../src/domain/itemTransfers";
@@ -15,6 +16,11 @@ const item: ItemContent = {
   slot: "junk",
   goldValue: 13
 };
+const bandage = items.find((candidate) => candidate.id === "item.responsible-panic-bandage");
+
+if (!bandage) {
+  throw new Error("Bandage content is missing.");
+}
 
 describe("PrismaItemTransferRepository integration", () => {
   let dir: string;
@@ -360,6 +366,32 @@ describe("PrismaItemTransferRepository integration", () => {
     await expectQuantities({ sender: 1, receiver: 0 });
   });
 
+  it("rejects an old rendered gift selection when tags now block transfer", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1, bandage.id);
+
+    const result = await repository.createGiftForTelegramUser(1n, {
+      token: "gift-token-1",
+      receiverTelegramUserId: 2n,
+      item: bandage,
+      itemFingerprint: createItemGiftFingerprint(bandage),
+      now: now(),
+      expiresAt: future()
+    });
+
+    expect(result.state).toBe("stale-selection");
+    await expect(prisma.itemTransfer.count()).resolves.toBe(0);
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: "sender",
+          itemId: bandage.id
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 1 });
+  });
+
   it("fails safely when item content changes before accept", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
@@ -515,11 +547,11 @@ describe("PrismaItemTransferRepository integration", () => {
     });
   }
 
-  async function seedItem(characterId: string, quantity: number) {
+  async function seedItem(characterId: string, quantity: number, itemId = item.id) {
     await prisma.characterItem.create({
       data: {
         characterId,
-        itemId: item.id,
+        itemId,
         quantity
       }
     });

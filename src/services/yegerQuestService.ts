@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
@@ -8,6 +9,9 @@ import { summarizeCharacter, type CharacterSummary } from "../domain/characters/
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import type { FightLookupResult, FightService } from "./fightService";
 import {
+  YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
+  YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+  YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YEGER_UNQUIET_TRIAL_STARTED_KEY
 } from "./dailyActionKeys";
@@ -42,6 +46,7 @@ export const YEGER_RANGER_FREE_BANDAGE_KEY = "yeger.bandage.supply.ranger-free";
 export const YEGER_BANDAGE_PRICE = 7;
 export const YEGER_RANGER_BANDAGE_PRICE = 4;
 export const YEGER_RANGER_FREE_BANDAGE_MINUTES = 93;
+export const YEGER_BANDAGE_PURCHASE_TTL_MINUTES = 23;
 
 export interface YegerQuestProgress {
   wins: number;
@@ -136,7 +141,25 @@ export interface YegerQuestReward {
 
 export type YegerBandageSupplyResult =
   | { state: "no-character" }
-  | { state: "bought"; character: CharacterSummary; spentGold: number; itemGrants: RewardItemGrant[] }
+  | {
+      state: "preview";
+      character: CharacterSummary;
+      token: string;
+      priceGold: number;
+      currentGold: number;
+      itemGrants: RewardItemGrant[];
+      expiresAt: Date;
+      now: Date;
+    }
+  | {
+      state: "bought" | "replayed";
+      character: CharacterSummary;
+      spentGold: number;
+      itemGrants: RewardItemGrant[];
+    }
+  | { state: "cancelled"; character: CharacterSummary }
+  | { state: "invalid-token" }
+  | { state: "stale-token"; character: CharacterSummary }
   | { state: "insufficient-gold"; character: CharacterSummary; requiredGold: number };
 
 export type YegerRangerBandageResult =
@@ -410,7 +433,7 @@ export class YegerQuestService {
     };
   }
 
-  async buyBandageForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
+  async previewBandagePurchaseForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     if (!character) {
       return { state: "no-character" };
@@ -419,10 +442,91 @@ export class YegerQuestService {
     const summary = summarizeCharacter(character);
     const price = getYegerBandagePrice(summary);
     const now = this.now();
-    const claim = await this.cooldowns.claimRewardForTelegramUser(telegramUserId, {
-      key: YEGER_BANDAGE_SUPPLY_KEY,
-      now,
-      availableAt: now,
+    const token = randomUUID();
+    const expiresAt = addMinutes(now, YEGER_BANDAGE_PURCHASE_TTL_MINUTES);
+    const preview = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
+      localDate: token,
+      rewardXp: 0,
+      rewardGold: 0,
+      expectedLife: {
+        remortCount: summary.remortCount ?? 0
+      },
+      resultJson: {
+        kind: "yeger-bandage-purchase-preview",
+        rulesVersion: "yeger-bandage-purchase-v1",
+        token,
+        price,
+        classId: summary.classId,
+        itemId: BANDAGE_ITEM_ID,
+        remortCount: summary.remortCount ?? 0,
+        expiresAt: expiresAt.toISOString()
+      }
+    });
+
+    if (!preview) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "preview",
+      character: summarizeCharacter(preview.character),
+      token,
+      priceGold: price,
+      currentGold: summary.gold,
+      itemGrants: enrichRewardItemGrants([{ itemId: BANDAGE_ITEM_ID, quantity: 1 }]),
+      expiresAt,
+      now
+    };
+  }
+
+  async confirmBandagePurchaseForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<YegerBandageSupplyResult> {
+    if (!isPurchaseToken(token)) {
+      return { state: "invalid-token" };
+    }
+
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const summary = summarizeCharacter(character);
+    const cancelled = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
+      localDate: token
+    });
+    if (cancelled) {
+      return { state: "cancelled", character: summary };
+    }
+
+    const preview = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
+      localDate: token
+    });
+    if (!preview) {
+      return { state: "invalid-token" };
+    }
+
+    const snapshot = parsePurchasePreview(preview.resultJson);
+    const price = getYegerBandagePrice(summary);
+    const now = this.now();
+    if (
+      !snapshot ||
+      snapshot.expiresAt <= now ||
+      snapshot.itemId !== BANDAGE_ITEM_ID ||
+      snapshot.classId !== summary.classId ||
+      snapshot.price !== price ||
+      snapshot.remortCount !== (summary.remortCount ?? 0)
+    ) {
+      return { state: "stale-token", character: summary };
+    }
+
+    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      localDate: token,
       rewardXp: 0,
       rewardGold: 0,
       spentGold: price,
@@ -431,8 +535,10 @@ export class YegerQuestService {
         remortCount: summary.remortCount ?? 0
       },
       resultJson: {
-        kind: "yeger-bandage-buy",
-        price
+        kind: "yeger-bandage-purchase-confirm",
+        token,
+        price,
+        itemId: BANDAGE_ITEM_ID
       }
     });
 
@@ -448,16 +554,73 @@ export class YegerQuestService {
       };
     }
 
-    if (claim.state === "on-cooldown") {
-      throw new Error("Yeger bandage purchase unexpectedly entered cooldown.");
+    return {
+      state: claim.state === "created" ? "bought" : "replayed",
+      character: summarizeCharacter(claim.character),
+      spentGold: claim.action.spentGold || price,
+      itemGrants: enrichRewardItemGrants(claim.state === "created" ? claim.itemGrants : readAppliedItemGrants(claim.action.resultJson))
+    };
+  }
+
+  async cancelBandagePurchaseForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<YegerBandageSupplyResult> {
+    if (!isPurchaseToken(token)) {
+      return { state: "invalid-token" };
     }
 
-    return {
-      state: "bought",
-      character: summarizeCharacter(claim.character),
-      spentGold: price,
-      itemGrants: enrichRewardItemGrants(claim.itemGrants)
-    };
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const completed = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      localDate: token
+    });
+    if (completed) {
+      return {
+        state: "replayed",
+        character: summarizeCharacter(character),
+        spentGold: completed.spentGold,
+        itemGrants: enrichRewardItemGrants(readAppliedItemGrants(completed.resultJson))
+      };
+    }
+
+    const preview = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
+      localDate: token
+    });
+    if (!preview) {
+      return { state: "invalid-token" };
+    }
+
+    const cancel = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
+      localDate: token,
+      rewardXp: 0,
+      rewardGold: 0,
+      expectedLife: {
+        remortCount: summarizeCharacter(character).remortCount ?? 0
+      },
+      resultJson: {
+        kind: "yeger-bandage-purchase-cancel",
+        token
+      }
+    });
+
+    return cancel
+      ? { state: "cancelled", character: summarizeCharacter(cancel.character) }
+      : { state: "no-character" };
+  }
+
+  async buyBandageForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
+    const preview = await this.previewBandagePurchaseForTelegramUser(telegramUserId);
+
+    return preview.state === "preview"
+      ? this.confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token)
+      : preview;
   }
 
   async claimRangerBandageForTelegramUser(telegramUserId: bigint): Promise<YegerRangerBandageResult> {
@@ -595,6 +758,72 @@ export function getYegerUnquietTrialTurnInXp(character: Pick<CharacterSummary, "
 
 function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60_000);
+}
+
+function isPurchaseToken(token: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token);
+}
+
+function parsePurchasePreview(value: unknown): {
+  itemId: string;
+  classId: string;
+  price: number;
+  remortCount: number;
+  expiresAt: Date;
+} | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const expiresAt = typeof record.expiresAt === "string" ? new Date(record.expiresAt) : null;
+  if (!expiresAt || !Number.isFinite(expiresAt.getTime())) {
+    return null;
+  }
+
+  return typeof record.itemId === "string" &&
+    typeof record.classId === "string" &&
+    typeof record.price === "number" &&
+    typeof record.remortCount === "number"
+    ? {
+        itemId: record.itemId,
+        classId: record.classId,
+        price: Math.max(0, Math.floor(record.price)),
+        remortCount: Math.max(0, Math.floor(record.remortCount)),
+        expiresAt
+      }
+    : null;
+}
+
+function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
+  }
+
+  const reward = (value as { reward?: unknown }).reward;
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
+    return [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
+  }
+
+  const applied = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  if (!Array.isArray(applied)) {
+    return [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
+  }
+
+  const parsed = applied.flatMap((grant) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      return [];
+    }
+
+    const itemId = (grant as { itemId?: unknown }).itemId;
+    const quantity = (grant as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number" && quantity > 0
+      ? [{ itemId, quantity: Math.floor(quantity) }]
+      : [];
+  });
+
+  return parsed.length > 0 ? parsed : [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
 }
 
 function buildYegerQuestReward(input?: {

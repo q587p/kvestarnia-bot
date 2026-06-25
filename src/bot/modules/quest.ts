@@ -60,6 +60,7 @@ buildKorchmaBarKeyboard
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import {
 buildYegerHelpKeyboard,
+buildYegerBandagePurchaseKeyboard,
 buildYegerCornerKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
@@ -803,13 +804,36 @@ async function handleYegerCallback(
     return;
   }
 
-  if (callback.type === "buy-bandage") {
-    const result = await services.yeger.buyBandageForTelegramUser(telegramUserId);
+  if (callback.type === "buy-bandage-preview") {
+    const result = await services.yeger.previewBandagePurchaseForTelegramUser(telegramUserId);
     await safeAnswerCallbackQuery(
       ctx,
-      result.state === "bought"
-        ? { text: "Бинт у торбі." }
+      result.state === "preview"
+        ? { text: "Єгер показав ціну." }
         : { show_alert: result.state === "insufficient-gold" }
+    );
+    await markYegerCornerPresence(ctx, services.presence);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: result.state === "preview"
+        ? buildYegerBandagePurchaseKeyboard(result.token)
+        : quest.state === "no-character"
+          ? buildYegerHelpKeyboard()
+          : buildYegerCornerKeyboard(quest)
+    });
+    return;
+  }
+
+  if (callback.type === "buy-bandage-confirm" || callback.type === "buy-bandage-cancel") {
+    const result = callback.type === "buy-bandage-confirm"
+      ? await services.yeger.confirmBandagePurchaseForTelegramUser(telegramUserId, callback.token)
+      : await services.yeger.cancelBandagePurchaseForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "bought" || result.state === "replayed"
+        ? { text: result.state === "bought" ? "Бинт у торбі." : "Чек уже проведено." }
+        : { show_alert: result.state === "insufficient-gold" || result.state === "invalid-token" || result.state === "stale-token" }
     );
     await markYegerCornerPresence(ctx, services.presence);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);

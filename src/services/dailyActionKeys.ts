@@ -6,6 +6,9 @@ export const HUNT_BOARD_CONTRACT_KEY = "combat.hunt-board.contract";
 export const PERSISTENT_SOLO_FIGHT_REWARD_KEY = "combat.solo-fight.reward";
 export const YEGER_UNQUIET_TRIAL_STARTED_KEY = "quest.yeger.unquiet-trial.started";
 export const YEGER_UNQUIET_TRIAL_COMPLETED_KEY = "quest.yeger.unquiet-trial.completed";
+export const YEGER_BANDAGE_PURCHASE_PREVIEW_KEY = "yeger.bandage.purchase.preview";
+export const YEGER_BANDAGE_PURCHASE_CONFIRM_KEY = "yeger.bandage.purchase.confirm";
+export const YEGER_BANDAGE_PURCHASE_CANCEL_KEY = "yeger.bandage.purchase.cancel";
 
 export const PROBLEM_QUEST_13_ISSUED_KEY = "quest.problem-chain.13.issued";
 export const PROBLEM_QUEST_13_REWARD_KEY = "quest.thirteen-small-problems";

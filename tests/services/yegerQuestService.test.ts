@@ -515,6 +515,55 @@ describe("YegerQuestService", () => {
     expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
   });
 
+  it("previews Yeger bandage purchase before spending gold", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+
+    const result = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "preview",
+      priceGold: YEGER_RANGER_BANDAGE_PRICE,
+      currentGold: 20,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+    });
+    expect(world.character?.gold).toBe(20);
+    expect(world.itemGrants).toEqual([]);
+  });
+
+  it("confirms a Yeger bandage purchase token at most once", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+    const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    const first = await world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token);
+    const replay = await world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token);
+
+    expect(first).toMatchObject({ state: "bought", spentGold: YEGER_RANGER_BANDAGE_PRICE });
+    expect(replay).toMatchObject({ state: "replayed", spentGold: YEGER_RANGER_BANDAGE_PRICE });
+    expect(world.character?.gold).toBe(16);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+  });
+
+  it("cancels a Yeger bandage purchase token before spend", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.warrior" });
+    const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    await expect(world.service().cancelBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({ state: "cancelled" });
+    await expect(world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({ state: "cancelled" });
+    expect(world.character?.gold).toBe(20);
+    expect(world.itemGrants).toEqual([]);
+  });
+
   it("blocks Yeger bandage purchase without enough gold", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 0, classId: "class.warrior" });
@@ -652,6 +701,8 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       localDate: "once",
       rewardXp: reward.rewardXp ?? 0,
       rewardGold: reward.rewardGold ?? 0,
+      spentGold: 0,
+      resultJson: null,
       createdAt
     });
   }
@@ -776,16 +827,36 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       localDate: input.localDate,
       rewardXp: input.rewardXp,
       rewardGold: input.rewardGold,
+      spentGold: input.spentGold ?? 0,
+      resultJson: input.resultJson as DailyActionRecord["resultJson"] ?? null,
       createdAt: startedAt
     };
+    const spentGold = input.spentGold ?? 0;
+    if (spentGold > 0 && this.character.gold < spentGold) {
+      return Promise.resolve({
+        state: "insufficient-gold",
+        character: { ...this.character },
+        requiredGold: spentGold
+      });
+    }
     this.actions.push(action);
     this.character = {
       ...this.character,
       xp: this.character.xp + input.rewardXp,
-      gold: this.character.gold + input.rewardGold
+      gold: this.character.gold + input.rewardGold - spentGold
     };
     const itemGrants = input.itemGrants?.map((grant) => ({ itemId: grant.itemId, quantity: grant.quantity })) ?? [];
     this.itemGrants.push(...itemGrants);
+    if (itemGrants.length > 0) {
+      action.resultJson = {
+        ...(action.resultJson && typeof action.resultJson === "object" && !Array.isArray(action.resultJson)
+          ? action.resultJson
+          : {}),
+        reward: {
+          appliedItemGrants: itemGrants
+        }
+      };
+    }
 
     return Promise.resolve({
       state: "created",

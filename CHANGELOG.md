@@ -15,11 +15,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added replay-safe `item_use_orders` persistence for item-use preview, reservation, confirmation, cancellation, expiry and terminal-result replay.
 - Added item-use reservation checks to Shynok sales, safe gifting, Mantok Chest, Munchkin barter and remort cleanup so a live use order cannot race another item-spending flow.
 - Added inventory item-detail use buttons, exact current heal previews, confirmation/cancel callbacks and result cards for usable one-use items.
-- Added a narrow Єгер supply path: any eligible hero can buy one bandage from the Єгер, while `class.ranger` gets a lower price and a replay-safe periodic free bandage claim.
+- Added a narrow Єгер supply path: any eligible hero can preview the exact bandage price/current gold, then confirm or cancel a tokenized one-bandage purchase; `class.ranger` gets a lower price and a replay-safe periodic free bandage claim.
 - Added `Бинт відповідальної паніки` to the basement mouse authored loot list so ordinary monster loot can occasionally grant it through the existing persistent-fight loot path.
 
 ### Changed
-- Item content validation now rejects unknown or duplicate tags, contradictory `tradeable` + `trade-blocked`, `one-use` without `consumable`, and use effects that are not explicit one-use consumables.
+- Item content validation now rejects unknown or duplicate tags, contradictory `tradeable` + `trade-blocked`, contradictory `soulbound` + `tradeable`, `one-use` without `consumable`, and use effects that are not explicit one-use consumables.
+- Safe Gifting now treats `trade-blocked` and `soulbound` as transfer-blocking tags while preserving legacy untagged priced item eligibility; gift fingerprints include tags so tag/content edits between preview and create/accept stale out safely.
+- Bandage confirmation now settles HP/mana once through the canonical passive recovery math with Shynok recovery windows, then applies capped HP healing without wiping fractional mana recovery progress.
+- Єгер paid bandage purchase now uses preview/confirm/cancel callbacks backed by the existing daily-action audit boundary, so duplicate confirms replay the same receipt instead of debiting/granting again.
 - Item use blocks during active combat, at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry.
 - Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.
 - Remort cancels live pending/processing item-use orders without consuming their reserved stack.

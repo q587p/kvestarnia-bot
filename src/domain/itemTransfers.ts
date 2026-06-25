@@ -19,6 +19,12 @@ export interface ItemGiftEligibleStack {
   fingerprint: string;
 }
 
+export function isItemTransferBlockedByTags(item: ItemContent): boolean {
+  const tags = new Set(item.tags ?? []);
+
+  return tags.has("trade-blocked") || tags.has("soulbound");
+}
+
 export function buildItemGiftEligibleStacks(input: {
   stacks: readonly ItemGiftStackInput[];
   equippedItemIds?: ReadonlySet<string>;
@@ -40,6 +46,7 @@ export function buildItemGiftEligibleStacks(input: {
       unitGoldValue <= 0 ||
       equippedItemIds.has(stack.itemId) ||
       reservedItemIds.has(stack.itemId) ||
+      isItemTransferBlockedByTags(content) ||
       isProtectedMantokChestItem(content)
     ) {
       return [];
@@ -71,6 +78,7 @@ export function createItemGiftFingerprint(item: ItemContent): string {
     name: item.name,
     unitGoldValue: Math.max(0, Math.floor(item.goldValue ?? 0)),
     priceless: item.priceless === true,
+    tags: [...(item.tags ?? [])].sort(),
     protected: isProtectedMantokChestItem(item)
   };
 

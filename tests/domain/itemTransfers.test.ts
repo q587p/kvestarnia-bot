@@ -16,6 +16,18 @@ const priceless = item({
   name: "Сюжетна серветка",
   priceless: true
 });
+const tradeBlocked = item({
+  id: "item.trade-blocked-bandage",
+  name: "Бинт із застереженням",
+  goldValue: 7,
+  tags: ["trade-blocked"]
+});
+const soulbound = item({
+  id: "item.soulbound-spoon",
+  name: "Душевна ложка",
+  goldValue: 13,
+  tags: ["soulbound"]
+});
 
 describe("item gift eligibility", () => {
   it("keeps one owned ordinary stack eligible", () => {
@@ -50,6 +62,26 @@ describe("item gift eligibility", () => {
     expect(eligible).toEqual([]);
   });
 
+  it("blocks transfer-blocked tagged items while keeping legacy untagged priced items eligible", () => {
+    const eligible = buildItemGiftEligibleStacks({
+      stacks: [
+        { itemId: giftable.id, quantity: 1 },
+        { itemId: tradeBlocked.id, quantity: 1 },
+        { itemId: soulbound.id, quantity: 1 }
+      ],
+      itemContents: [giftable, tradeBlocked, soulbound]
+    });
+
+    expect(eligible.map((stack) => stack.itemId)).toEqual([giftable.id]);
+  });
+
+  it("includes transfer tags in the gift fingerprint so tag edits stale old selections", () => {
+    expect(createItemGiftFingerprint(giftable)).not.toBe(createItemGiftFingerprint({
+      ...giftable,
+      tags: ["trade-blocked"]
+    }));
+  });
+
   it("selects by stable visible index", () => {
     const eligible = buildItemGiftEligibleStacks({
       stacks: [{ itemId: giftable.id, quantity: 1 }],
@@ -66,6 +98,7 @@ function item(input: {
   name: string;
   goldValue?: number;
   priceless?: true;
+  tags?: ItemContent["tags"];
 }): ItemContent {
   return {
     id: input.id,
@@ -73,6 +106,7 @@ function item(input: {
     description: "Тестова манатка.",
     rarity: "common",
     slot: "junk",
+    ...(input.tags ? { tags: input.tags } : {}),
     ...(input.priceless ? { priceless: true } : { goldValue: input.goldValue ?? 1 })
   };
 }

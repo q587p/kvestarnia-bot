@@ -229,6 +229,15 @@ describe("content tables", () => {
       tags: ["tradeable", "trade-blocked"]
     })).toThrow();
     expect(() => itemSchema.parse({
+      id: "item.test-soulbound-tradeable",
+      name: "Тест",
+      description: "Тест.",
+      rarity: "common",
+      slot: "junk",
+      goldValue: 1,
+      tags: ["soulbound", "tradeable"]
+    })).toThrow();
+    expect(() => itemSchema.parse({
       id: "item.test-one-use-without-consumable",
       name: "Тест",
       description: "Тест.",

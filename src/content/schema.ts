@@ -131,6 +131,13 @@ export const itemSchema = z.object({
     });
   }
 
+  if (uniqueTags.has("tradeable") && uniqueTags.has("soulbound")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Item cannot be both tradeable and soulbound."
+    });
+  }
+
   if (uniqueTags.has("one-use") && !uniqueTags.has("consumable")) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

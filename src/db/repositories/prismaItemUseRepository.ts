@@ -1,4 +1,4 @@
-import { Prisma, type Character, type CharacterItem, type ItemUseOrder, type PrismaClient } from "@prisma/client";
+import { Prisma, type Character, type CharacterDrinkState, type CharacterItem, type ItemUseOrder, type PrismaClient } from "@prisma/client";
 import type { ItemContent } from "../../content/schema";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import {
@@ -9,6 +9,7 @@ import {
   ITEM_USE_RULES_VERSION
 } from "../../domain/itemUse";
 import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
+import { buildShynokRecoveryWindows, isShynokDrinkKey } from "../../domain/shynokDrinks";
 import type { CharacterRecord } from "./characterRepository";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import {
@@ -236,8 +237,22 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           return (await replayTerminalConfirm(tx, current, character)) ?? { state: "stale-selection", order: current };
         }
 
-        const preview = buildPreview(character, input.itemContents, input.now, effect);
+        const settlement = getRegeneratedResources(character, input.itemContents, input.now);
+        const preview = calculateHealingPreview({
+          hpCurrent: settlement.resources.hpCurrent,
+          hpMax: settlement.resources.hpMax,
+          effect
+        });
         if (preview.healAmount <= 0) {
+          await tx.character.update({
+            where: { id: character.id },
+            data: {
+              hpCurrent: settlement.resources.hpCurrent,
+              manaCurrent: settlement.resources.manaCurrent,
+              hpRegenAt: settlement.resources.hpRegenAt,
+              manaRegenAt: settlement.resources.manaRegenAt
+            }
+          });
           const full = await setTerminalOrder(tx, order.id, "completed", input.now, {
             ...preview,
             kind: "full-hp",
@@ -276,9 +291,9 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           where: { id: character.id },
           data: {
             hpCurrent: preview.hpAfter,
-            manaCurrent: getRegeneratedResources(character, input.itemContents, input.now).manaCurrent,
-            hpRegenAt: input.now,
-            manaRegenAt: input.now
+            manaCurrent: settlement.resources.manaCurrent,
+            hpRegenAt: preview.hpAfter >= preview.hpMax ? input.now : settlement.resources.hpRegenAt,
+            manaRegenAt: settlement.resources.manaRegenAt
           }
         });
 
@@ -371,6 +386,7 @@ const characterInclude = {
   },
   activeCombatLease: true,
   equipment: true,
+  drinkState: true,
   _count: {
     select: {
       remorts: true
@@ -462,11 +478,11 @@ function buildPreview(
   now: Date,
   effect: NonNullable<ReturnType<typeof getItemUseEffect>>
 ): ItemUsePreview {
-  const resources = getRegeneratedResources(character, itemContents, now);
+  const settlement = getRegeneratedResources(character, itemContents, now);
 
   return calculateHealingPreview({
-    hpCurrent: resources.hpCurrent,
-    hpMax: resources.hpMax,
+    hpCurrent: settlement.resources.hpCurrent,
+    hpMax: settlement.resources.hpMax,
     effect
   });
 }
@@ -475,7 +491,7 @@ function getRegeneratedResources(
   character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
   itemContents: readonly ItemContent[],
   now: Date
-): { hpCurrent: number; hpMax: number; manaCurrent: number; manaMax: number } {
+): ReturnType<typeof applyPassiveResourceRegeneration> {
   const equippedItems = character.equipment.flatMap((slot) => {
     const item = itemContents.find((candidate) => candidate.id === slot.itemId);
     return item ? [item] : [];
@@ -484,7 +500,7 @@ function getRegeneratedResources(
     equippedItems,
     remortCount: getIncludedRemortCount(character)
   });
-  const regeneration = applyPassiveResourceRegeneration({
+  return applyPassiveResourceRegeneration({
     resources: {
       hpCurrent: summary.hpCurrent,
       hpMax: summary.hpMax,
@@ -499,10 +515,31 @@ function getRegeneratedResources(
       title: summary.title,
       stats: summary.stats
     },
-    now
+    now,
+    multiplierWindows: buildShynokRecoveryWindows(mapDrinkState(character.drinkState))
   });
+}
 
-  return regeneration.resources;
+function mapDrinkState(record: CharacterDrinkState | null): Parameters<typeof buildShynokRecoveryWindows>[0] {
+  if (!record || !isShynokDrinkKey(record.drinkKey)) {
+    return null;
+  }
+
+  const phase = record.phase === "timed" || record.phase === "queued"
+    ? record.phase
+    : null;
+
+  if (!phase) {
+    return null;
+  }
+
+  return {
+    drinkKey: record.drinkKey,
+    phase,
+    startedAt: record.startedAt,
+    expiresAt: record.expiresAt,
+    metadata: record.metadataJson
+  };
 }
 
 async function lockItemStack(
