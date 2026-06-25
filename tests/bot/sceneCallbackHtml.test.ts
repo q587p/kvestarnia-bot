@@ -3025,6 +3025,13 @@ describe("scene callback HTML options", () => {
       })
     );
     expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(
+      calls.some(
+        (call) =>
+          call.method === "sendMessage" &&
+          String(call.payload.text).includes("Ви пішли у прямий прохід.")
+      )
+    ).toBe(false);
   });
 
   it("routes a repeated passage attack callback through the same survivor token", async () => {

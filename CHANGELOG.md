@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Consumed Nyz passage survivor recovery no longer rebuilds stored multi-enemy/threat fights as a one-enemy continuation.
 - Excluded Yeger, Adventure, training, duel, starter and dev-forced rows no longer consume the bounded ordinary threat streak window; malformed terminal rows fail safely back to base threat.
 - Persistent fight state cards no longer repeat the full opponent roster after the intro; active and terminal cards keep compact HP rows with short monster labels.
+- Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
 - A stored escalated two-enemy terminal encounter checkpoints the cycle, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
 
