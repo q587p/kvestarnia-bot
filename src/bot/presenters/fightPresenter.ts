@@ -249,11 +249,8 @@ export function presentPersistentFightIntro(
     "",
     "Бій починається. Корчма відкриває журнал ходів і робить вигляд, що це звичайний облік."
   ];
-  lines.push("", ...presentPersistentFightIntroOpponents(result));
   const threatLines = presentThreatEscalationLines(result.session.state);
-  if (threatLines.length > 0) {
-    lines.push("", ...threatLines);
-  }
+  lines.push("", ...presentPersistentFightIntroOpponents(result, threatLines));
 
   const startTip = presentBattleStartTip(result.character, result.session.id ?? result.session.state?.id ?? "active");
   if (startTip) {
@@ -264,7 +261,8 @@ export function presentPersistentFightIntro(
 }
 
 function presentPersistentFightIntroOpponents(
-  result: Extract<FightLookupResult, { state: "persistent-active" }>
+  result: Extract<FightLookupResult, { state: "persistent-active" }>,
+  threatLines: readonly string[] = []
 ): string[] {
   const state = result.session.state;
   const enemies = state?.enemies ? normalizeCombatEnemies(state) : [];
@@ -272,6 +270,7 @@ function presentPersistentFightIntroOpponents(
   if (enemies.length > 1) {
     return [
       "Проти вас:",
+      ...threatLines,
       ...enemies.map((enemy, index) => {
         const level = enemy.level ? ` · рівень ${enemy.level}` : "";
         const name =
@@ -287,7 +286,9 @@ function presentPersistentFightIntroOpponents(
   const monsterLevel = result.monster?.level ?? state?.monster.level;
   const level = monsterLevel ? ` · рівень ${monsterLevel}` : "";
 
-  return [`Проти вас: <b>${escapeHtml(monsterName)}</b>${level}`];
+  return threatLines.length > 0
+    ? ["Проти вас:", ...threatLines, `<b>${escapeHtml(monsterName)}</b>${level}`]
+    : [`Проти вас: <b>${escapeHtml(monsterName)}</b>${level}`];
 }
 
 export function presentPersistentFight(
@@ -667,11 +668,9 @@ function presentPersistentFightState(input: {
   statusNote?: string;
 }): string {
   const state = input.session.state;
-  const threatLines = presentThreatEscalationLines(state);
   const enemyRows = state ? presentEnemyHpRows(state, input.monster) : [`👹 Монстр: ?/?`];
   const lines = [
     state ? `⚔️ <b>Бій</b>: ${formatBattleTurn(state.turn)}` : "⚔️ <b>Бій</b>",
-    ...(threatLines.length > 0 ? ["", ...threatLines] : []),
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     ...enemyRows
