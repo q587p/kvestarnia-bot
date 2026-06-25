@@ -46,7 +46,7 @@ After the foundation:
 
 Task: [tasks/0.2.3-threat-escalation.md](tasks/0.2.3-threat-escalation.md).
 
-Status: shipped in `0.2.3` as an ordinary-only exactly-two-enemy MVP. Three consecutive eligible one-enemy ordinary wins make the next eligible ordinary fight start with two enemies, with stable stored escalation copy and the existing single-encounter reward contract. Yeger, Adventure, training, duel, starter and dev-forced sessions remain excluded.
+Status: shipped in `0.2.3` as an ordinary-only exactly-two-enemy MVP. Three consecutive eligible one-enemy ordinary wins make the next eligible ordinary fight start with two enemies; consecutive won two-enemy fights keep the next ordinary fight at two enemies and stack only the second enemy's effective level by +2 each time. Loss/flee/expiry resets the ordinary threat chain to one enemy. Stable stored escalation copy and the existing single-encounter reward contract remain in place. Yeger, Adventure, training, duel, starter and dev-forced sessions remain excluded. Three-or-more enemies and increased XP/gold/manatka quantity or quality remain later work.
 
 ### `0.2.4` - Item Tags / One-Use Manatky
 

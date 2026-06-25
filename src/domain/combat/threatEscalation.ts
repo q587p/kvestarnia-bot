@@ -17,7 +17,7 @@ export type ThreatEscalationDecision =
       enemyCount: 2;
       reason: "ordinary-win-streak";
       eligibleWins: typeof THREAT_ESCALATION_REQUIRED_WINS;
-      secondEnemyLevelBonus: 0 | typeof THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS;
+      secondEnemyLevelBonus: number;
     };
 
 export interface ThreatEscalationLine {
@@ -84,27 +84,29 @@ export function decideThreatEscalation(
   newestFirstHistory: readonly ThreatEscalationHistoryEntry[]
 ): ThreatEscalationDecision {
   let wins = 0;
-  let escalationReady = false;
+  let wonEscalatedCheckpoints = 0;
 
   for (const entry of newestFirstHistory) {
     if (!entry.eligible) {
       continue;
     }
 
-    if (escalationReady) {
+    if (entry.escalated && entry.enemyCount === 2) {
+      if (entry.result !== "won") {
+        return { enemyCount: 1, reason: "base", eligibleWins: 0 };
+      }
+      wonEscalatedCheckpoints += 1;
+      continue;
+    }
+
+    if (wonEscalatedCheckpoints > 0) {
       return {
         enemyCount: 2,
         reason: "ordinary-win-streak",
         eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
         secondEnemyLevelBonus:
-          entry.escalated && entry.enemyCount === 2 && entry.result === "won"
-            ? THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
-            : 0
+          wonEscalatedCheckpoints * THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
       };
-    }
-
-    if (entry.escalated && entry.enemyCount === 2) {
-      return { enemyCount: 1, reason: "base", eligibleWins: 0 };
     }
 
     if (entry.enemyCount !== 1) {
@@ -117,16 +119,22 @@ export function decideThreatEscalation(
 
     wins += 1;
     if (wins >= THREAT_ESCALATION_REQUIRED_WINS) {
-      escalationReady = true;
+      return {
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+        secondEnemyLevelBonus: 0
+      };
     }
   }
 
-  if (escalationReady) {
+  if (wonEscalatedCheckpoints > 0) {
     return {
       enemyCount: 2,
       reason: "ordinary-win-streak",
       eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
-      secondEnemyLevelBonus: 0
+      secondEnemyLevelBonus:
+        wonEscalatedCheckpoints * THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
     };
   }
 

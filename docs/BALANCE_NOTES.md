@@ -244,7 +244,7 @@ Loss отримує тільки малий consolation reward `1 XP` за сп�
 
 `0.2.1` multi-enemy foundation не додає нового faucet: dev-only two-enemy fights використовують той самий single-encounter settlement/reward path, без per-enemy XP/gold/item multiplier і без progress scaling.
 
-`0.2.3` threat escalation лишає цей economy contract незмінним. Після трьох eligible one-enemy ordinary wins наступний eligible ordinary бій може стартувати з exactly two enemies, але payout лишається одним stored encounter reward: XP/gold/item rolls не множаться за кількістю ворогів і не використовують deferred `0.75x per enemy` модель. Two-enemy terminal encounter є checkpoint для threat cycle незалежно від результату, а loss/flee/expiry в eligible one-enemy бою обриває серію. Yeger, Adventure, starter, training, duel і dev-forced `/dev_two_enemies` не впливають на ordinary threat.
+`0.2.3` threat escalation лишає цей economy contract незмінним. Після трьох eligible one-enemy ordinary wins наступний eligible ordinary бій може стартувати з exactly two enemies, але payout лишається одним stored encounter reward: XP/gold/item rolls не множаться за кількістю ворогів і не використовують deferred `0.75x per enemy` модель. Перемога в escalated two-enemy бою одразу тримає наступний ordinary бій escalated і додає тільки другому ворогу ще `+2` effective levels за кожну поспіль виграну пару; loss/flee/expiry в eligible one-enemy або escalated two-enemy бою скидає ordinary threat до бази. Yeger, Adventure, starter, training, duel і dev-forced `/dev_two_enemies` не впливають на ordinary threat.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 

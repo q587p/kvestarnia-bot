@@ -30,13 +30,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Hero attack and class-skill turns now resolve the monster response after hero damage even when the target was defeated by that action, so terminal win cards can still include same-turn incoming damage.
 - Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
-- A stored escalated two-enemy terminal encounter checkpoints the cycle even while won-fight settlement is still pending, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
-- If a player previously won an escalated two-enemy checkpoint, the next escalated cycle boosts the second enemy by 2 effective levels.
+- A lost, fled or expired escalated two-enemy terminal encounter resets the cycle back to one enemy.
+- A won escalated two-enemy terminal encounter keeps the next ordinary start escalated immediately, even while won-fight settlement is still pending.
+- Consecutive won escalated fights stack only the second enemy's effective-level bonus by +2 each time (`+2`, `+4`, `+6`, ...); the primary enemy stays at its normal selected level.
 
 ### Unchanged
 - Rewards remain the existing single-encounter settlement contract for the whole two-enemy fight.
 - Yeger, Adventure, training, duel, starter and dev-forced `/dev_two_enemies` sessions do not trigger or consume ordinary threat escalation.
-- No Prisma schema, migration, reward scaling, Yeger escalation, Adventure escalation, target UI, three-or-more enemies, party combat or raid runtime ships in this slice.
+- No Prisma schema, migration, reward scaling, increased XP/gold/manatka quantity or quality, Yeger escalation, Adventure escalation, target UI, three-or-more enemies, party combat or raid runtime ships in this slice.
 
 ## [0.2.2] - 12026-06-25 - Architecture Stabilization
 

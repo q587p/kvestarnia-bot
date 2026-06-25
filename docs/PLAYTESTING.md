@@ -19,10 +19,11 @@
 5. Перезапусти процес або перевідкрий активний бій: ті самі два вороги й та сама escalation line.
 6. Дочекайся timeout і потім добий primary enemy: second living enemy стає primary target, dead enemy не діє.
 7. Заверши бій і натисни старі action/result кнопки: reward/settlement replay occurs once.
-8. Стартуй наступний ordinary бій: очікування — one-enemy, доки не накопичаться три нові eligible one-enemy wins.
-9. Перерви серію loss/flee/expiry в eligible one-enemy бою: наступний ordinary старт не ескалує.
-10. Перевір Yeger, Adventure, training, duel, starter і `/dev_two_enemies`: вони не trigger/consume ordinary threat.
-11. Після третьої ordinary перемоги більше не має зʼявлятися old `Низ просить тихіше` start denial для eligible ordinary start.
+8. Стартуй наступний ordinary бій після перемоги над двома: очікування — знову two-enemy, primary на звичайному рівні, другий ворог з `+2` effective levels.
+9. Переможи ще одну escalated пару й стартуй наступний ordinary бій: очікування — знову two-enemy, другий ворог уже з `+4` effective levels.
+10. Перерви серію loss/flee/expiry в eligible one-enemy або escalated two-enemy бою: наступний ordinary старт повертається до one-enemy.
+11. Перевір Yeger, Adventure, training, duel, starter і `/dev_two_enemies`: вони не trigger/consume ordinary threat.
+12. Після третьої ordinary перемоги більше не має зʼявлятися old `Низ просить тихіше` start denial для eligible ordinary start.
 
 ## 0.2.2 — Architecture stabilization smoke
 

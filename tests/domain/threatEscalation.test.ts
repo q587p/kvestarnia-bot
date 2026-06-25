@@ -36,11 +36,8 @@ describe("threat escalation policy", () => {
     });
   });
 
-  it("boosts the second enemy on the next escalation after a won two-enemy checkpoint", () => {
+  it("continues escalation and boosts the second enemy after a won two-enemy checkpoint", () => {
     expect(decideThreatEscalation([
-      { result: "won", enemyCount: 1, eligible: true, escalated: false },
-      { result: "won", enemyCount: 1, eligible: true, escalated: false },
-      { result: "won", enemyCount: 1, eligible: true, escalated: false },
       { result: "won", enemyCount: 2, eligible: true, escalated: true }
     ])).toEqual({
       enemyCount: 2,
@@ -50,7 +47,33 @@ describe("threat escalation policy", () => {
     });
   });
 
-  it("does not boost the next escalation after a lost two-enemy checkpoint", () => {
+  it("stacks the second enemy boost across consecutive won two-enemy checkpoints", () => {
+    expect(decideThreatEscalation([
+      { result: "won", enemyCount: 2, eligible: true, escalated: true },
+      { result: "won", enemyCount: 2, eligible: true, escalated: true }
+    ])).toEqual({
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins: 3,
+      secondEnemyLevelBonus: THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS * 2
+    });
+  });
+
+  it.each(["lost", "fled", "expired"] as const)(
+    "resets after a %s two-enemy checkpoint",
+    (result) => {
+      expect(decideThreatEscalation([
+        { result, enemyCount: 2, eligible: true, escalated: true },
+        { result: "won", enemyCount: 2, eligible: true, escalated: true }
+      ])).toEqual({
+        enemyCount: 1,
+        reason: "base",
+        eligibleWins: 0
+      });
+    }
+  );
+
+  it("does not inherit a boost from an older lost two-enemy checkpoint after three fresh wins", () => {
     expect(decideThreatEscalation([
       { result: "won", enemyCount: 1, eligible: true, escalated: false },
       { result: "won", enemyCount: 1, eligible: true, escalated: false },
@@ -77,16 +100,17 @@ describe("threat escalation policy", () => {
     });
   });
 
-  it("uses an escalated two-enemy terminal as the cycle checkpoint", () => {
+  it("uses a won escalated two-enemy terminal as the next escalation checkpoint", () => {
     expect(decideThreatEscalation([
       { result: "won", enemyCount: 2, eligible: true, escalated: true },
       { result: "won", enemyCount: 1, eligible: true, escalated: false },
       { result: "won", enemyCount: 1, eligible: true, escalated: false },
       { result: "won", enemyCount: 1, eligible: true, escalated: false }
     ])).toEqual({
-      enemyCount: 1,
-      reason: "base",
-      eligibleWins: 0
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins: 3,
+      secondEnemyLevelBonus: THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
     });
   });
 

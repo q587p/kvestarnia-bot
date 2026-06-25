@@ -52,7 +52,6 @@ import {
   decideThreatEscalation,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINE_VERSION,
-  THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS,
   type CombatActionType,
   type CombatActorStats,
   type CombatBalanceSource,
@@ -1125,7 +1124,7 @@ export class FightService {
     encounterSeed: string;
     originLocationId: string;
     enemyCount: 1 | 2;
-    secondEnemyLevelBonus: 0 | typeof THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS;
+    secondEnemyLevelBonus: number;
   }): Promise<Array<{ baseMonster: MonsterContent; monster: MonsterContent }>> {
     if (input.enemyCount !== 2) {
       return [];
@@ -4196,7 +4195,7 @@ function applyPersistentFightDifficulty(
 
 function applyThreatSecondEnemyLevelBonus(
   monster: MonsterContent,
-  levelBonus: 0 | typeof THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
+  levelBonus: number
 ): MonsterContent {
   if (levelBonus <= 0) {
     return monster;

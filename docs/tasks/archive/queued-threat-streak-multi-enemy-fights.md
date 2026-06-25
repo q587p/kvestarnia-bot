@@ -14,8 +14,8 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 - Start eligible ordinary fights at one enemy while the threat tier is base.
 - After `3` consecutive eligible wins at one enemy, the next eligible fight starts with `2` enemies.
 - At `2+` enemies, every `2` consecutive eligible wins at the current enemy count increase the next eligible fight by one more enemy.
-- A defeat resets the current win counter and decreases the enemy count by exactly one for future eligible fights, never below one enemy. Example: if the player reached `5` enemies, they need `4` defeats over time to return to one enemy.
-- Flee/expiry/stale non-terminal paths should reset the current win counter without granting escalation; whether they de-escalate like defeats is a balance decision to settle during implementation.
+- A defeat resets the current win counter and drops future eligible fights back to one enemy. Example: if the player reached `5` enemies, one defeat ends the current threat chain and returns the next eligible start to one enemy.
+- Flee/expiry/stale non-terminal paths should reset the current win counter without granting escalation and should de-escalate like defeats unless a later balance task explicitly changes that contract.
 - Exclude:
   - training doppelganger fights;
   - starter/newbie fights;
@@ -32,7 +32,7 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 - Add `13` authored Ukrainian escalation lines and choose one deterministically/pseudo-randomly per escalated fight card, replay-safe with the combat session. Tone: fame, curiosity, bad decisions and tavern gossip brought more monsters to watch or participate.
 - During each enemy phase, each living enemy attacks or uses an ability, producing separate enemy action lines.
 - Keep rewards conservative:
-  - each enemy contributes about `0.75x` of its normal XP/gold/drop opportunity;
+  - explicit future balance may increase XP, gold, manatka quantity and manatka quality as enemy count rises;
   - reward replay remains idempotent and stored with the completed combat session;
   - do not grant full independent rewards per enemy.
 
@@ -51,7 +51,7 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 
 - Three consecutive eligible one-enemy wins make the next eligible ordinary fight start with two enemies.
 - At two or more enemies, two consecutive eligible wins at the current enemy count raise the next eligible ordinary fight by one enemy.
-- A defeat resets the current win counter and lowers the future enemy count by one, with a minimum of one enemy. From five enemies, four defeats are required to return to one enemy.
+- A defeat resets the current win counter and returns the future eligible enemy count to one enemy.
 - Eligible ordinary fights no longer show the old monster-rest block after three wins; they remain playable and escalate instead.
 - Starter fights and `/spar` never affect or consume threat tier.
 - Korchmar/problem fights and Yeger fights both use the same threat-tier behavior.
@@ -59,7 +59,7 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 - The design leaves room for location-scoped monster pools where several monsters are visible before combat and non-targeted bystanders can join after the player attacks one of them.
 - Fight intro rendering has exactly `13` escalation lines available and replays the stored line for old cards.
 - Each living enemy gets its own attack/ability resolution line per enemy phase.
-- Multi-enemy rewards are idempotent and scaled around `0.75x` per enemy contribution.
+- Multi-enemy rewards are idempotent; future tasks may increase XP, gold, manatka quantity and manatka quality with the enemy count, but must do so through an explicit balance pass rather than accidental full duplicate payouts.
 - `/dev_harder` is local/dev-only, visible in dev help, and raises the current player's next eligible threat tier without granting XP/gold/items.
 - Stale callbacks, active-session restore, terminal replay, flee/loss/expiry and no-character gates remain safe.
 
@@ -78,8 +78,8 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 ## Focused Tests
 
 - Domain combat tests for multiple enemies, per-enemy turns, defeat/win/flee/loss states and serializable state restore.
-- Fight service tests for `3` one-enemy wins escalating to two enemies, repeat `2`-win escalation at higher enemy counts, one-step defeat de-escalation, starter/doppelganger exclusions and Korchmar/Yeger inclusion.
-- Reward tests for `0.75x` per-enemy scaling and replay idempotency.
+- Fight service tests for `3` one-enemy wins escalating to two enemies, repeat escalation at higher enemy counts, defeat reset to one enemy, starter/doppelganger exclusions and Korchmar/Yeger inclusion.
+- Reward tests for explicit multi-enemy reward scaling and replay idempotency.
 - Presenter tests for multi-enemy intro, the `13` escalation-line pool, stored escalation-line replay, HP rows, enemy action lines and HTML safety.
 - Service tests for location encounter pools: previewing several present monsters, attacking one chosen monster, and deterministic nearby-monster join-in without duplicate rewards.
 - Dev command tests for `/dev_harder` enabled/disabled/no-character paths.
@@ -92,7 +92,7 @@ This task should replace the old three-win monster-rest UX for eligible ordinary
 3. Resolve one turn and confirm each living enemy produces its own action line.
 4. Win the fight and confirm reward is not a full duplicate payout per enemy.
 5. Win two more eligible fights at two enemies and confirm the next eligible fight starts with three enemies.
-6. Force or play through one defeat at three enemies and confirm the next eligible fight drops to two enemies and the current win counter resets.
+6. Force or play through one defeat at three enemies and confirm the next eligible fight drops to one enemy and the current win counter resets.
 7. Use `/dev_harder` and start the next Korchmar/problem fight; confirm more than one enemy appears and one of the stored escalation lines is shown.
 8. Start a Yeger fight and confirm the same threat behavior applies.
 9. Start `/spar` and confirm the doppelganger remains single-enemy and does not affect threat.

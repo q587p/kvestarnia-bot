@@ -3058,7 +3058,7 @@ describe("FightService", () => {
     }
   });
 
-  it("boosts the second enemy level after a previous escalated two-enemy win", async () => {
+  it("continues with two enemies and boosts the second enemy after a previous escalated two-enemy win", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3077,15 +3077,6 @@ describe("FightService", () => {
       completedAt: new Date("2026-06-12T10:29:39.000Z"),
       escalated: true
     }));
-    for (const [index, completedAt] of [
-      new Date("2026-06-12T10:29:40.000Z"),
-      new Date("2026-06-12T10:29:41.000Z"),
-      new Date("2026-06-12T10:29:42.000Z")
-    ].entries()) {
-      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-repeat-${index + 1}`, {
-        completedAt
-      }));
-    }
 
     const started = await service.getFightForTelegramUser(telegramUserId);
 
@@ -3098,6 +3089,45 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 2);
+    }
+  });
+
+  it("stacks the second enemy level boost across consecutive won two-enemy fights", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-repeat-checkpoint-1", {
+      completedAt: new Date("2026-06-12T10:29:39.000Z"),
+      escalated: true
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-repeat-checkpoint-2", {
+      completedAt: new Date("2026-06-12T10:29:40.000Z"),
+      escalated: true
+    }));
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      const enemies = normalizeCombatEnemies(started.session.state!);
+      const secondEnemy = enemies[1];
+      const baseSecondEnemy = monsters.find((monster) => monster.id === secondEnemy?.id);
+
+      expect(enemies).toHaveLength(2);
+      expect(secondEnemy).toBeDefined();
+      expect(baseSecondEnemy).toBeDefined();
+      expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 4);
     }
   });
 
@@ -3137,7 +3167,7 @@ describe("FightService", () => {
     }
   );
 
-  it("returns to one enemy after an escalated terminal checkpoint", async () => {
+  it("resets to one enemy after a lost escalated terminal checkpoint", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3152,16 +3182,7 @@ describe("FightService", () => {
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
-    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-checkpoint-1", {
-      completedAt: new Date("2026-06-12T10:29:40.000Z")
-    }));
-    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-checkpoint-2", {
-      completedAt: new Date("2026-06-12T10:29:41.000Z")
-    }));
-    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-checkpoint-3", {
-      completedAt: new Date("2026-06-12T10:29:42.000Z")
-    }));
-    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-checkpoint-escalated", {
+    sessions.addSession(makeEligibleOrdinaryThreatSession("lost", "ordinary-threat-checkpoint-escalated", {
       completedAt: new Date("2026-06-12T10:29:43.000Z"),
       escalated: true
     }));
@@ -3174,7 +3195,7 @@ describe("FightService", () => {
     }
   });
 
-  it("uses an escalated won fight as a checkpoint even while settlement is pending", async () => {
+  it("continues escalation after a won two-enemy fight even while settlement is pending", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3189,15 +3210,6 @@ describe("FightService", () => {
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
-    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-1", {
-      completedAt: new Date("2026-06-12T10:29:40.000Z")
-    }));
-    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-2", {
-      completedAt: new Date("2026-06-12T10:29:41.000Z")
-    }));
-    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-3", {
-      completedAt: new Date("2026-06-12T10:29:42.000Z")
-    }));
     sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-pending-checkpoint-escalated", {
       completedAt: new Date("2026-06-12T10:29:43.000Z"),
       escalated: true,
@@ -3208,7 +3220,7 @@ describe("FightService", () => {
 
     expect(started.state).toBe("persistent-active");
     if (started.state === "persistent-active") {
-      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(1);
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(2);
     }
   });
 
@@ -3443,7 +3455,7 @@ describe("FightService", () => {
     expect(pending.consumeCount).toBe(1);
   });
 
-  it("boosts the second Nyz passage enemy level after a previous escalated two-enemy win", async () => {
+  it("continues Nyz passage escalation and boosts the second enemy after a previous escalated two-enemy win", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3471,15 +3483,6 @@ describe("FightService", () => {
       completedAt: new Date("2026-06-12T10:29:39.000Z"),
       escalated: true
     }));
-    for (const [index, completedAt] of [
-      new Date("2026-06-12T10:29:40.000Z"),
-      new Date("2026-06-12T10:29:41.000Z"),
-      new Date("2026-06-12T10:29:42.000Z")
-    ].entries()) {
-      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `passage-threat-repeat-${index + 1}`, {
-        completedAt
-      }));
-    }
 
     const started = await service.attackPersistentPassageEncounterForTelegramUser(
       telegramUserId,
@@ -3496,6 +3499,58 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 2);
+    }
+  });
+
+  it("stacks the second Nyz passage enemy boost across consecutive won two-enemy fights", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2]),
+      undefined,
+      undefined,
+      pending
+    );
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected preview");
+    }
+
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-repeat-checkpoint-1", {
+      completedAt: new Date("2026-06-12T10:29:39.000Z"),
+      escalated: true
+    }));
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-repeat-checkpoint-2", {
+      completedAt: new Date("2026-06-12T10:29:40.000Z"),
+      escalated: true
+    }));
+
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      const enemies = normalizeCombatEnemies(started.session.state!);
+      const secondEnemy = enemies[1];
+      const baseSecondEnemy = monsters.find((monster) => monster.id === secondEnemy?.id);
+
+      expect(enemies).toHaveLength(2);
+      expect(enemies[0]?.id).toBe(preview.monster.id);
+      expect(secondEnemy).toBeDefined();
+      expect(baseSecondEnemy).toBeDefined();
+      expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 4);
     }
   });
 
@@ -3729,8 +3784,14 @@ describe("FightService", () => {
 
     expect(nextStarted.state).toBe("persistent-active");
     if (nextStarted.state === "persistent-active") {
-      expect(normalizeCombatEnemies(nextStarted.session.state!)).toHaveLength(1);
-      expect(nextStarted.session.state?.threat).toBeUndefined();
+      const enemies = normalizeCombatEnemies(nextStarted.session.state!);
+      expect(enemies).toHaveLength(2);
+      expect(enemies[0]?.id).toBe(recoveryPreview.monster.id);
+      expect(nextStarted.session.state?.threat).toMatchObject({
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3
+      });
     }
   });
 
