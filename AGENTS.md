@@ -79,6 +79,7 @@ For implementation work:
 7. Inspect changed/relevant files first; avoid repository-wide scans unless necessary.
 8. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.
 9. Final output must be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
+10. If the user provides a prompt for the next versioned implementation task, start it. Do the minimal current-`main` and repo-state verification needed to avoid stacking on the wrong branch, then create/switch to the task branch and begin. Do not block on unverifiable external gates such as deployment, accepted review, Telegram smoke, or CI status unless the user explicitly says those gates must stop implementation or a checked source proves the gate failed.
 
 For second Codex review:
 
