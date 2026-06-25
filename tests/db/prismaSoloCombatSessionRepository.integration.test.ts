@@ -1374,6 +1374,44 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(recent[0]?.completedAt.toISOString()).toBe("2026-06-24T14:00:00.000Z");
   });
 
+  it("keeps long-running fights completed recently inside the bounded recent scan", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-recent-long-running",
+      characterId: "character-recent-long-running",
+      telegramUserId: 9307n
+    });
+
+    const noisyBase = new Date("2026-06-24T15:00:00.000Z").getTime();
+    const sessions = [];
+    for (let index = 0; index < 205; index += 1) {
+      sessions.push(makeSoloSessionData({
+        id: `recent-long-noise-${String(index).padStart(3, "0")}`,
+        characterId: "character-recent-long-running",
+        monsterId: `monster.noise-${String(index).padStart(3, "0")}`,
+        status: "won",
+        source: "normal",
+        completedAt: new Date(noisyBase - index * 60_000),
+        updatedAt: new Date(noisyBase - index * 60_000)
+      }));
+    }
+    sessions.push(makeSoloSessionData({
+      id: "recent-long-running-winner",
+      characterId: "character-recent-long-running",
+      monsterId: "monster.long-running",
+      status: "won",
+      source: "normal",
+      completedAt: new Date("2026-06-24T16:00:00.000Z"),
+      updatedAt: new Date("2026-06-24T16:00:00.000Z"),
+      createdAt: new Date("2026-06-20T09:00:00.000Z")
+    }));
+    await prisma.soloCombatSession.createMany({ data: sessions });
+
+    const recent = await repository.listRecentCompletedByTelegramUserId(9307n, 1);
+
+    expect(recent[0]?.monsterId).toBe("monster.long-running");
+    expect(recent[0]?.completedAt.toISOString()).toBe("2026-06-24T16:00:00.000Z");
+  });
+
   it("isolates recent completion history by Telegram user", async () => {
     await seedCharacter(prisma, {
       userId: "user-recent-target",
@@ -1667,6 +1705,7 @@ function makeSoloSessionData(input: {
   source: NonNullable<CombatState["source"]>;
   completedAt: Date;
   updatedAt: Date;
+  createdAt?: Date;
   settlementStatus?: "pending" | "completed" | "forfeited-by-remort";
 }) {
   const state = {
@@ -1700,7 +1739,7 @@ function makeSoloSessionData(input: {
     status: input.status,
     turn: 1,
     expiresAt: new Date(input.updatedAt.getTime() + 30 * 60_000),
-    createdAt: input.completedAt,
+    createdAt: input.createdAt ?? input.completedAt,
     updatedAt: input.updatedAt
   };
 }

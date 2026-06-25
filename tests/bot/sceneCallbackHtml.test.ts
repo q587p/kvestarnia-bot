@@ -1105,6 +1105,64 @@ describe("scene callback HTML options", () => {
     expect(movement).toBeUndefined();
   });
 
+  it("refreshes the location keyboard after a non-passage fight callback changes place", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const getCurrentPlaceForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "ready" as const,
+        locationId: "location.korchma.hall",
+        locationName: "Зала корчми",
+        insideKorchma: true
+      })
+      .mockResolvedValue({
+        state: "ready" as const,
+        locationId: "location.korchma.deep.level1.straight",
+        locationName: "Прямий прохід",
+        insideKorchma: true
+      });
+    const calls = await captureApiCalls(
+      makeFightViewCallbackData(session.id),
+      servicesWith({
+        fight: {
+          getPersistentFightSnapshotForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser
+        }
+      })
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви пішли у прямий прохід.")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(movement).toBeDefined();
+    expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.deepStraight);
+  });
+
   it("adds a Shynok route button to completed problem quest progress", async () => {
     const calls = await captureApiCalls(
       makeFightTurnCallbackData({

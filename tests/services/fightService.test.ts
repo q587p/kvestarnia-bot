@@ -3416,6 +3416,45 @@ describe("FightService", () => {
     }
   });
 
+  it("computes ordinary threat from completion order instead of insertion order", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (let index = 0; index < 13; index += 1) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-completion-yeger-${index}`, {
+        completedAt: new Date(Date.UTC(2026, 5, 12, 10, 31, index)),
+        source: "yeger"
+      }));
+    }
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-completion-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(2);
+    }
+  });
+
   it("fails malformed terminal threat history safely to base threat", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

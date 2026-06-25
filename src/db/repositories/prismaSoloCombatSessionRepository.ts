@@ -258,7 +258,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           }
         },
         orderBy: [
-          { createdAt: "desc" },
+          // Completion lives in stateJson, but terminal writes update the row.
+          // Scan by updatedAt before the canonical completedAt sort so old
+          // long-running fights completed recently stay inside the bounded window.
+          { updatedAt: "desc" },
           { id: "desc" }
         ],
         skip: scanned,

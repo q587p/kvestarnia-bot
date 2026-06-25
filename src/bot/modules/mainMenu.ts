@@ -42,6 +42,7 @@ sendTavern,
 sendTavernBarrel
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
+import { parseFightCallbackData } from "../callbacks/fightCallbackData";
 import {
 buildMainMenuKeyboard,
 getMainMenuLocationButtonPresenceId,
@@ -124,7 +125,8 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
       await next();
       return;
     }
-    const suppressMovementNotice = ctx.callbackQuery.data.startsWith("v1:fight:");
+    const fightCallback = parseFightCallbackData(ctx.callbackQuery.data);
+    const suppressMovementNotice = fightCallback.ok && fightCallback.value.type === "passage";
 
     const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
 
