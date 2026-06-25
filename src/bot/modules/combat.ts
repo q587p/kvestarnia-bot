@@ -361,13 +361,19 @@ async function handleFightCallback(
     return;
   }
 
-  if (callback.type === "turn") {
+  if (callback.type === "turn" || callback.type === "item") {
     const yegerBefore = await getYegerProgressSnapshot(services.yeger, telegramUserId);
-    const result = await services.fight.resolvePersistentFightTurn(telegramUserId, {
-      sessionId: callback.sessionId,
-      turn: callback.turn,
-      action: callback.action
-    });
+    const result = callback.type === "turn"
+      ? await services.fight.resolvePersistentFightTurn(telegramUserId, {
+          sessionId: callback.sessionId,
+          turn: callback.turn,
+          action: callback.action
+        })
+      : await services.fight.resolvePersistentFightItemTurn(telegramUserId, {
+          sessionId: callback.sessionId,
+          turn: callback.turn,
+          itemKey: callback.itemKey
+        });
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);

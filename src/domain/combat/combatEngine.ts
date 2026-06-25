@@ -63,6 +63,25 @@ export interface ResolveCombatTurnInput {
   rng: RandomSource;
 }
 
+export interface ResolveCombatItemTurnInput {
+  state: CombatState;
+  item: {
+    id: string;
+    name: string;
+    effect: CombatItemEffectInput;
+  };
+  hero: CombatActorStats;
+  monster: MonsterCombatStats;
+  enemies?: MonsterCombatStats[];
+  rng: RandomSource;
+}
+
+export type CombatItemEffectInput =
+  | {
+      kind: "heal-hp";
+      amount: number;
+    };
+
 export type ResolveCombatTurnResult =
   | {
       ok: true;
@@ -72,6 +91,19 @@ export type ResolveCombatTurnResult =
   | {
       ok: false;
       reason: "inactive" | "not-enough-mana" | "skill-on-cooldown";
+      state: CombatState;
+      summary: CombatTurnSummary;
+    };
+
+export type ResolveCombatItemTurnResult =
+  | {
+      ok: true;
+      state: CombatState;
+      summary: CombatTurnSummary;
+    }
+  | {
+      ok: false;
+      reason: "inactive" | "full-hp";
       state: CombatState;
       summary: CombatTurnSummary;
     };
@@ -263,6 +295,25 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
     return resolveHeroSkip(input);
   }
 
+  if (input.action === "item") {
+    const summary = buildSummary({
+      action: "item",
+      ...summaryActionOrigin(input),
+      heroOutcome: "inactive",
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false
+    });
+
+    return {
+      ok: false,
+      reason: "inactive",
+      state: cloneCombatState(input.state),
+      summary
+    };
+  }
+
   if (input.action === "skill") {
     const skill = getCombatSkillProfile(input.hero.classId);
     if (isHeroClassSkillLockedByMonster(input.state)) {
@@ -311,6 +362,169 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
   }
 
   return resolveHeroAttack(input);
+}
+
+export function resolveCombatItemTurn(input: ResolveCombatItemTurnInput): ResolveCombatItemTurnResult {
+  const turnInput: ResolveCombatTurnInput = {
+    state: input.state,
+    action: "item",
+    hero: input.hero,
+    monster: input.monster,
+    ...(input.enemies ? { enemies: input.enemies } : {}),
+    rng: input.rng
+  };
+
+  if (input.state.status !== "active") {
+    const summary = buildSummary({
+      action: "item",
+      heroOutcome: "inactive",
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false,
+      item: input.item,
+      heroHealing: 0
+    });
+
+    return {
+      ok: false,
+      reason: "inactive",
+      state: cloneCombatState(input.state),
+      summary
+    };
+  }
+
+  if (input.item.effect.kind === "heal-hp" && input.state.hero.hp >= input.state.hero.hpMax) {
+    const summary = buildSummary({
+      action: "item",
+      heroOutcome: "item-used",
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false,
+      item: input.item,
+      heroHealing: 0
+    });
+
+    return {
+      ok: false,
+      reason: "full-hp",
+      state: cloneCombatState(input.state),
+      summary
+    };
+  }
+
+  if (hasCombatEnemyCollection(input.state)) {
+    return resolveMultiEnemyCombatItemTurn(turnInput, input.item);
+  }
+
+  return resolveSingleEnemyCombatItemTurn(turnInput, input.item);
+}
+
+function resolveSingleEnemyCombatItemTurn(
+  input: ResolveCombatTurnInput,
+  item: ResolveCombatItemTurnInput["item"]
+): ResolveCombatItemTurnResult {
+  const nextState = cloneCombatState(input.state);
+  tickSkillCooldown(nextState);
+  const heroHealing = resolveCombatItemHealing(nextState, item);
+  nextState.hero.hp = Math.min(nextState.hero.hpMax, nextState.hero.hp + heroHealing);
+
+  const heroEffect = applyHeroActivationMonsterEffects(nextState);
+  const heroEffectDamage = heroEffect.damage;
+  const monsterResponse = nextState.hero.hp > 0
+    ? resolveMonsterResponse({
+        state: nextState,
+        input,
+        damageReduction: 0
+      })
+    : { damage: 0 };
+  const monsterDamage = heroEffectDamage + monsterResponse.damage;
+  nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
+  nextState.turn += 1;
+  const bark = resolveMonsterBark({
+    state: input.state,
+    monster: input.monster,
+    monsterCommittedAction: Boolean(monsterResponse.monsterAction),
+    monsterUsedAbility: Boolean(monsterResponse.monsterSkill),
+    monsterHpAfterHeroAction: nextState.monster.hp
+  });
+  nextState.barks = bark.state;
+  const debugTrace = buildTurnDebugTrace(input.monster, monsterResponse.monsterSkill ?? null);
+  const summary = buildSummary({
+    action: "item",
+    heroOutcome: "item-used",
+    monsterOutcome: nextState.status === "lost"
+      ? "lost"
+      : monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss"),
+    heroDamage: 0,
+    monsterDamage,
+    heroEffectDamage,
+    manaSpent: 0,
+    critical: false,
+    item,
+    heroHealing,
+    ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
+    ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
+    ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
+    ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
+    ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
+    ...(debugTrace ? { debugTrace } : {})
+  });
+  nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
+
+  return {
+    ok: true,
+    state: recordCombatAnalyticsTurn(nextState, summary),
+    summary
+  };
+}
+
+function resolveMultiEnemyCombatItemTurn(
+  input: ResolveCombatTurnInput,
+  item: ResolveCombatItemTurnInput["item"]
+): ResolveCombatItemTurnResult {
+  const nextState = cloneCombatState(input.state);
+  tickSkillCooldown(nextState);
+  const heroHealing = resolveCombatItemHealing(nextState, item);
+  nextState.hero.hp = Math.min(nextState.hero.hpMax, nextState.hero.hp + heroHealing);
+
+  const enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
+  nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
+  nextState.turn += 1;
+  syncPrimaryCombatEnemy(nextState);
+  const summary = buildSummary({
+    action: "item",
+    heroOutcome: "item-used",
+    monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
+    heroDamage: 0,
+    monsterDamage: enemyPhase.monsterDamage,
+    manaSpent: 0,
+    critical: false,
+    item,
+    heroHealing,
+    ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
+    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
+  });
+  nextState.lastTurn = summary;
+  appendCombatTurnLog(nextState, input.state.turn, summary);
+
+  return {
+    ok: true,
+    state: recordCombatAnalyticsTurn(nextState, summary),
+    summary
+  };
+}
+
+function resolveCombatItemHealing(
+  state: CombatState,
+  item: ResolveCombatItemTurnInput["item"]
+): number {
+  switch (item.effect.kind) {
+    case "heal-hp":
+      return Math.min(Math.max(0, item.effect.amount), Math.max(0, state.hero.hpMax - state.hero.hp));
+  }
 }
 
 function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
@@ -1043,6 +1257,8 @@ function buildSummary(input: {
   simultaneousFinalResponse?: boolean;
   manaSpent: number;
   critical: boolean;
+  item?: ResolveCombatItemTurnInput["item"];
+  heroHealing?: number;
   skill?: CombatSkillProfile;
   monsterSkill?: CombatSkillProfile;
   enemyActions?: CombatEnemyTurnSummary[];
@@ -1082,6 +1298,8 @@ function buildSummary(input: {
     ...(input.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {}),
     ...(input.heroCounterDamage ? { heroCounterDamage: input.heroCounterDamage } : {}),
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
+    ...(input.item ? { itemId: input.item.id, itemName: input.item.name } : {}),
+    ...(input.heroHealing ? { heroHealing: input.heroHealing } : {}),
     ...(input.enemyActions ? { enemyActions: input.enemyActions } : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
   };

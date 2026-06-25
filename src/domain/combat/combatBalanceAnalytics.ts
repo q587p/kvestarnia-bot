@@ -207,6 +207,7 @@ export function recordCombatAnalyticsTurn(
   ability.critCount += summary.critical ? 1 : 0;
   ability.missCount += summary.heroOutcome === "miss" ? 1 : 0;
   ability.totalDamage += heroDamage;
+  ability.totalHealing += Math.max(0, summary.heroHealing ?? 0);
   ability.resourceSpent += Math.max(0, summary.manaSpent);
 
   analytics.abilities[abilityRecordKey] = ability;
@@ -322,6 +323,10 @@ function getAbilityKey(summary: CombatTurnSummary): string {
     return SYSTEM_SKIP_ABILITY_ID;
   }
 
+  if (summary.action === "item") {
+    return summary.itemId ? `item:${summary.itemId}` : "item:unknown";
+  }
+
   return BASIC_ATTACK_ABILITY_ID;
 }
 
@@ -355,6 +360,7 @@ function isSuccessfulHeroUse(summary: CombatTurnSummary): boolean {
     summary.heroOutcome === "critical-hit" ||
     summary.heroOutcome === "won" ||
     summary.heroOutcome === "defended" ||
+    summary.heroOutcome === "item-used" ||
     summary.heroOutcome === "fled"
   );
 }

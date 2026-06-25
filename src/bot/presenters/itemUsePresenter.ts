@@ -19,7 +19,7 @@ export function presentItemUsePreview(result: ItemUsePreviewRepositoryResult): s
   }
 
   if (result.state === "combat-locked") {
-    return "Під час бою бинти не слухаються. Спершу завершіть сутичку.";
+    return "Під час бою манатку треба використати як бойову дію. Відкрийте її з торби ще раз: кнопка піде в поточний хід.";
   }
 
   if (result.state === "reserved") {
@@ -41,7 +41,7 @@ export function presentItemUsePreview(result: ItemUsePreviewRepositoryResult): s
     `<b>${escapeHtml(result.order.itemName)}</b> зникне з торби.`,
     `HP: <b>${result.order.preview.hpBefore}/${result.order.preview.hpMax}</b> → <b>${result.order.preview.hpAfter}/${result.order.preview.hpMax}</b>.`,
     "",
-    "Підтвердження ще раз перевірить торбу, бій і здоров'я."
+    "Підтвердження ще раз перевірить торбу й здоров'я."
   ].join("\n");
 }
 
@@ -55,7 +55,7 @@ export function presentItemUseConfirm(result: ItemUseConfirmRepositoryResult): s
   }
 
   if (result.state === "combat-locked") {
-    return "Під час бою бинт не витрачається. Він чекає, поки ви перестанете героїчно махати руками.";
+    return "Під час бою це підтвердження не витрачає манатку. Відкрийте її з торби ще раз і використайте як бойову дію.";
   }
 
   if (result.state === "expired") {

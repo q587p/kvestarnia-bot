@@ -11,6 +11,7 @@ import {
   makeItemUseConfirmCallbackData,
   makeItemUsePreviewCallbackData
 } from "../callbacks/itemUseCallbackData";
+import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentService";
@@ -75,7 +76,14 @@ export function buildItemDetailKeyboard(
   equippedSlot: EquipmentSlot | null = null,
   page = 0,
   slotFilter: InventorySlotFilter = null,
-  options: { canUse?: boolean } = {}
+  options: {
+    canUse?: boolean;
+    combatUse?: {
+      sessionId: string;
+      turn: number;
+      itemKey: string;
+    };
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -92,7 +100,11 @@ export function buildItemDetailKeyboard(
   }
 
   if (result.state === "found" && options.canUse === true) {
-    keyboard.text("🩹 Використати", makeItemUsePreviewCallbackData(result.item.itemId)).row();
+    if (options.combatUse) {
+      keyboard.text("⚔️ Використати у бою", makeFightItemUseCallbackData(options.combatUse)).row();
+    } else {
+      keyboard.text("🩹 Використати", makeItemUsePreviewCallbackData(result.item.itemId)).row();
+    }
   }
 
   return keyboard

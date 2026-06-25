@@ -46,6 +46,7 @@ import {
   normalizeCombatEnemies,
   recordCombatTimeout,
   resetCombatTimeout,
+  resolveCombatItemTurn,
   resolveCombatTurn,
   resolveMonsterContext,
   startCombat,
@@ -119,6 +120,7 @@ import {
   type RewardItemGrant
 } from "./itemGrant";
 import { getEquippedItemContents } from "./equipmentService";
+import { findCombatUsableItemByKey } from "./combatItemUse";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export { PERSISTENT_SOLO_FIGHT_REWARD_KEY } from "./dailyActionKeys";
@@ -408,6 +410,14 @@ export type PersistentFightTurnResult =
   | {
       state: "not-enough-mana";
       reason?: "not-enough-mana" | "skill-on-cooldown";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent;
+      questProgress: ThirteenSmallProblemsProgress;
+    }
+  | {
+      state: "item-unavailable";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -2292,6 +2302,357 @@ export class FightService {
           fallbackMonster,
           characterSummary
         )
+      };
+    }
+
+    const fightReward =
+      updated.status !== "active"
+        ? await this.getOrRecoverPersistentFightReward(
+            telegramUserId,
+            updated,
+            monster,
+            characterSummary
+          )
+        : null;
+
+    const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+
+    return {
+      state: "updated",
+      character: characterSummary,
+      session: updated,
+      monster,
+      questProgress: refreshedQuestProgress,
+      fightReward
+    };
+  }
+
+  async resolvePersistentFightItemTurn(
+    telegramUserId: bigint,
+    input: { sessionId: string; turn: number; itemKey: string }
+  ): Promise<PersistentFightTurnResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+
+    if (!this.combatSessions) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    let session = await this.combatSessions.findByIdForTelegramUserId(
+      telegramUserId,
+      input.sessionId
+    );
+
+    if (!session) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    if (isTrainingDoppelgangerMonsterId(session.monsterId)) {
+      return {
+        state: "not-found",
+        character: characterSummary
+      };
+    }
+
+    session = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
+
+    if (session.status === "active") {
+      const activeSession = await this.combatSessions.findActiveByTelegramUserId(telegramUserId);
+
+      if (activeSession && activeSession.id !== session.id) {
+        return {
+          state: "stale-turn",
+          character: characterSummary,
+          session: activeSession,
+          monster: findPersistentFightMonster(activeSession),
+          questProgress
+        };
+      }
+    }
+
+    if (session.status !== "active") {
+      const monster = findPersistentFightMonster(session);
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (!session.state) {
+      await this.combatSessions.markStatusById(session.id, "expired");
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: { ...session, status: "expired" },
+        monster: findPersistentFightMonster(session),
+        questProgress,
+        fightReward: null
+      };
+    }
+
+    const monster = findPersistentFightMonster(session);
+
+    if (isExpired(session, this.clock())) {
+      const expiredState = stampCombatCompletedAt(expireCombat(session.state), this.clock());
+      const updated = await this.combatSessions.updateById(session.id, {
+        state: expiredState,
+        status: expiredState.status
+      });
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: updated ?? { ...session, state: expiredState, status: "expired" },
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          updated ?? session,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (!monster || session.state.status !== "active") {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    const deadlineSession = await this.advanceExpiredPersistentTurn(
+      telegramUserId,
+      session,
+      characterSummary,
+      monster
+    );
+    if (deadlineSession.id === session.id && deadlineSession.state?.turn !== session.state.turn) {
+      if (deadlineSession.status === "active" && deadlineSession.state?.status === "active") {
+        return {
+          state: "stale-turn",
+          character: characterSummary,
+          session: deadlineSession,
+          monster,
+          questProgress
+        };
+      }
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: deadlineSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          deadlineSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    const currentSession = deadlineSession;
+
+    if (!currentSession.state) {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          currentSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (currentSession.state.turn !== input.turn) {
+      return {
+        state: "stale-turn",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    if (currentSession.state.hero.hp <= 0) {
+      const terminalSession = await this.terminalizeZeroHpActiveSession(
+        telegramUserId,
+        currentSession
+      );
+      const fightReward = await this.getOrRecoverPersistentFightReward(
+        telegramUserId,
+        terminalSession,
+        monster,
+        characterSummary
+      );
+      const settledSession = await this.reloadSessionAfterSettlement(telegramUserId, terminalSession);
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: settledSession ?? terminalSession,
+        monster,
+        questProgress,
+        fightReward
+      };
+    }
+
+    const combatItem = findCombatUsableItemByKey(items, input.itemKey);
+    if (!combatItem) {
+      return {
+        state: "item-unavailable",
+        reason: "not-usable",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    const resolved = resolveCombatItemTurn({
+      state: currentSession.state,
+      item: {
+        id: combatItem.item.id,
+        name: combatItem.item.name,
+        effect: combatItem.effect
+      },
+      hero: buildHeroCombatStats(characterSummary),
+      monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
+      ...withPersistentEnemyCombatStats(currentSession.state),
+      rng: this.rng
+    });
+
+    if (!resolved.ok) {
+      if (resolved.reason === "full-hp") {
+        return {
+          state: "item-unavailable",
+          reason: "full-hp",
+          character: characterSummary,
+          session: currentSession,
+          monster,
+          questProgress
+        };
+      }
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          session,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    const resolvedState = withNextTurnExpiry(
+      stampCombatCompletedAt(resetCombatTimeout(resolved.state), this.clock()),
+      this.clock()
+    );
+    const itemUpdate = await this.combatSessions.applyCombatItemTurnById?.(currentSession.id, input.turn, {
+      telegramUserId,
+      characterId: currentSession.characterId,
+      itemId: combatItem.item.id,
+      now: this.clock(),
+      state: resolvedState,
+      status: resolvedState.status,
+      expiresAt: getSessionExpiry(this.clock())
+    });
+
+    if (!itemUpdate || itemUpdate.outcome === "stale-turn") {
+      const currentSession = await this.combatSessions.findByIdForTelegramUserId(
+        telegramUserId,
+        input.sessionId
+      );
+      const fallbackSession = currentSession ?? session;
+
+      if (fallbackSession.status === "active" && fallbackSession.state?.status === "active") {
+        return {
+          state: "stale-turn",
+          character: characterSummary,
+          session: fallbackSession,
+          monster: findPersistentFightMonster(fallbackSession),
+          questProgress
+        };
+      }
+      const fallbackMonster = findPersistentFightMonster(fallbackSession);
+
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: fallbackSession,
+        monster: fallbackMonster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          fallbackSession,
+          fallbackMonster,
+          characterSummary
+        )
+      };
+    }
+
+    if (itemUpdate.outcome === "not-owned" || itemUpdate.outcome === "reserved") {
+      return {
+        state: "item-unavailable",
+        reason: itemUpdate.outcome,
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    const updated = itemUpdate.session;
+    if (!updated) {
+      return {
+        state: "stale-turn",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
       };
     }
 

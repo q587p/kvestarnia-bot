@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeFightCallbackData,
+  makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightPassageAttackCallbackData,
   makeFightTurnCallbackData,
@@ -61,6 +62,25 @@ describe("fight callback data", () => {
         sessionId: "123e4567-e89b-12d3-a456-426614174000",
         turn: 3,
         action
+      }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("parses persistent fight item action callbacks", () => {
+    const data = makeFightItemUseCallbackData({
+      sessionId: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 3,
+      itemKey: "abc123"
+    });
+
+    expect(parseFightCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "item",
+        sessionId: "123e4567-e89b-12d3-a456-426614174000",
+        turn: 3,
+        itemKey: "abc123"
       }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);

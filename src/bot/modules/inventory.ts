@@ -1,5 +1,6 @@
 import { type Bot,type Context } from "grammy";
 import { getMunchkinLocationAt } from "../../domain/levelBarter/munchkinSchedule";
+import { getCombatUsableItem } from "../../services/combatItemUse";
 import type { BotServices } from "../botServices";
 import {
 parseEquipmentCallbackData,
@@ -171,14 +172,40 @@ async function handleItemCallback(
   const itemUse = result.state === "found"
     ? services.itemUse.getAvailability(result.item.content)
     : null;
+  const combatUse = result.state === "found" && itemUse?.state === "usable"
+    ? await getCombatUseActionForItem(services, telegramUserId, result.item.content)
+    : null;
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview, itemUse }), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
-      canUse: itemUse?.state === "usable"
+      canUse: itemUse?.state === "usable",
+      ...(combatUse ? { combatUse } : {})
     })
   });
+}
+
+async function getCombatUseActionForItem(
+  services: BotServices,
+  telegramUserId: bigint,
+  item: Parameters<typeof getCombatUsableItem>[0]
+): Promise<{ sessionId: string; turn: number; itemKey: string } | null> {
+  const combatItem = getCombatUsableItem(item);
+  if (!combatItem || typeof services.fight.getFightOverviewForTelegramUser !== "function") {
+    return null;
+  }
+
+  const fight = await services.fight.getFightOverviewForTelegramUser(telegramUserId);
+  if (fight.state !== "persistent-active" || fight.session.state?.status !== "active") {
+    return null;
+  }
+
+  return {
+    sessionId: fight.session.id,
+    turn: fight.session.state.turn,
+    itemKey: combatItem.key
+  };
 }
 
 async function handleItemUseCallback(

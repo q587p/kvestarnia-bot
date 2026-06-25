@@ -12,6 +12,8 @@ import type {
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
 import type {
+  ApplyCombatItemTurnInput,
+  ApplyCombatItemTurnResult,
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
@@ -68,6 +70,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 } from "../../src/services/presenceService";
+import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 
 const telegramUserId = 42n;
 
@@ -1876,6 +1879,47 @@ describe("FightService", () => {
       expect(turn.character.equipmentEffects).toMatchObject({ hpMax: 2, armor: 1 });
       expect(turn.session.state?.hero.hpMax).toBe(30);
       expect(turn.session.state?.hero.hp).toBeLessThan(12);
+    }
+  });
+
+  it("uses a one-use manatka as the current persistent fight action", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.combatItemStacks.set("item.responsible-panic-bandage", 1);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 10);
+
+    const result = await service.resolvePersistentFightItemTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey("item.responsible-panic-bandage")
+    });
+
+    expect(result.state).toBe("updated");
+    expect(sessions.consumedCombatItems).toEqual(["item.responsible-panic-bandage"]);
+    expect(sessions.combatItemStacks.get("item.responsible-panic-bandage")).toBe(0);
+    if (result.state === "updated") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "item",
+        heroOutcome: "item-used",
+        itemId: "item.responsible-panic-bandage",
+        heroHealing: 7
+      });
+      expect(result.session.state?.turnLog?.at(-1)?.summary.action).toBe("item");
     }
   });
 
@@ -5732,6 +5776,8 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   activeSessionToReturnOnCreate: SoloCombatSessionRecord | null = null;
   createCount = 0;
   updateCount = 0;
+  readonly combatItemStacks = new Map<string, number>();
+  readonly consumedCombatItems: string[] = [];
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -5980,6 +6026,27 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     }
 
     return this.updateById(sessionId, input);
+  }
+
+  async applyCombatItemTurnById(
+    sessionId: string,
+    expectedTurn: number,
+    input: ApplyCombatItemTurnInput
+  ): Promise<ApplyCombatItemTurnResult> {
+    const quantity = this.combatItemStacks.get(input.itemId) ?? 0;
+    if (quantity < 1) {
+      return { outcome: "not-owned", session: null };
+    }
+
+    const updated = await this.updateByIdIfActiveTurn(sessionId, expectedTurn, input);
+    if (!updated) {
+      return { outcome: "stale-turn", session: null };
+    }
+
+    this.combatItemStacks.set(input.itemId, quantity - 1);
+    this.consumedCombatItems.push(input.itemId);
+
+    return { outcome: "updated", session: updated };
   }
 
   applyTerminalResourcesById(

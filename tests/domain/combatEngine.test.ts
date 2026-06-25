@@ -15,6 +15,7 @@ import {
   rollFleeSuccess,
   rollMonsterDamage,
   rollSkillAttack,
+  resolveCombatItemTurn,
   resolveCombatTurn,
   startCombat,
   type CombatActorStats,
@@ -225,6 +226,41 @@ describe("combat domain engine", () => {
       monsterAction: "attack",
       manaSpent: 0
     });
+  });
+
+  it("resolves a combat item as the current turn", () => {
+    const result = resolveCombatItemTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster }),
+        hero: {
+          hp: 10,
+          hpMax: warrior.hpMax,
+          mana: warrior.manaMax,
+          manaMax: warrior.manaMax
+        }
+      },
+      item: {
+        id: "item.test-combat-mantok",
+        name: "Тестова бойова манатка",
+        effect: { kind: "heal-hp", amount: 7 }
+      },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toMatchObject({
+      action: "item",
+      heroOutcome: "item-used",
+      itemId: "item.test-combat-mantok",
+      heroHealing: 7,
+      heroDamage: 0
+    });
+    expect(result.state.turn).toBe(2);
+    expect(result.state.lastTurn?.action).toBe("item");
+    expect(result.state.turnLog?.at(-1)?.summary.action).toBe("item");
+    expect(result.state.hero.hp).toBeGreaterThanOrEqual(10);
   });
 
   it("counts a final-enemy same-turn response KO as a hero win", () => {

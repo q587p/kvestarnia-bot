@@ -23,6 +23,12 @@ export type FightCallback =
       action: PlayerCombatActionType;
     }
   | {
+      type: "item";
+      sessionId: string;
+      turn: number;
+      itemKey: string;
+    }
+  | {
       type: "view";
       sessionId: string;
     }
@@ -39,6 +45,7 @@ export type FightCallback =
 
 const MIMIC_PREFIX = "v1:fight:mimic";
 const TURN_PREFIX = "v1:fight:turn";
+const ITEM_PREFIX = "v1:fight:item";
 const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
 const PASSAGE_PREFIX = "v1:fight:pass";
@@ -51,6 +58,7 @@ const passageActions = new Set<Extract<PlaceCallback, "deep-left" | "deep-straig
 ]);
 const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const encounterTokenPattern = /^[a-z0-9]{1,16}$/i;
+const combatItemKeyPattern = /^[a-z0-9]{1,10}$/i;
 
 export function makeFightCallbackData(action: CombatProbeAction): string {
   return `${MIMIC_PREFIX}:${action}`;
@@ -62,6 +70,14 @@ export function makeFightTurnCallbackData(input: {
   action: PlayerCombatActionType;
 }): string {
   return `${TURN_PREFIX}:${input.sessionId}:${input.turn}:${input.action}`;
+}
+
+export function makeFightItemUseCallbackData(input: {
+  sessionId: string;
+  turn: number;
+  itemKey: string;
+}): string {
+  return `${ITEM_PREFIX}:${input.sessionId}:${input.turn}:${input.itemKey}`;
 }
 
 export function makeFightViewCallbackData(sessionId: string): string {
@@ -136,6 +152,35 @@ export function parseFightCallbackData(
       sessionId,
       turn,
       action: action as PlayerCombatActionType
+    });
+  }
+
+  if (data.startsWith(`${ITEM_PREFIX}:`)) {
+    const [, section, scene, sessionId, turnRaw, itemKey, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "item" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    const turn = Number(turnRaw);
+
+    if (!Number.isInteger(turn) || turn < 1) {
+      return err("invalid-turn");
+    }
+
+    if (!itemKey || !combatItemKeyPattern.test(itemKey)) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "item",
+      sessionId,
+      turn,
+      itemKey
     });
   }
 

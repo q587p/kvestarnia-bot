@@ -61,6 +61,24 @@ export interface UpdateSoloCombatSessionInput {
   releaseLease?: boolean;
 }
 
+export interface ApplyCombatItemTurnInput extends UpdateSoloCombatSessionInput {
+  telegramUserId: bigint;
+  characterId: string;
+  itemId: string;
+  now: Date;
+}
+
+export type ApplyCombatItemTurnOutcome =
+  | "updated"
+  | "stale-turn"
+  | "not-owned"
+  | "reserved";
+
+export interface ApplyCombatItemTurnResult {
+  outcome: ApplyCombatItemTurnOutcome;
+  session: SoloCombatSessionRecord | null;
+}
+
 export interface RecordSoloCombatRewardInput {
   rewardXp: number;
   rewardGold: number;
@@ -255,6 +273,11 @@ export interface SoloCombatSessionRepository {
     expectedTurn: number,
     input: UpdateSoloCombatSessionInput
   ): Promise<SoloCombatSessionRecord | null>;
+  applyCombatItemTurnById?(
+    sessionId: string,
+    expectedTurn: number,
+    input: ApplyCombatItemTurnInput
+  ): Promise<ApplyCombatItemTurnResult>;
   recordRewardById(
     sessionId: string,
     input: RecordSoloCombatRewardInput
