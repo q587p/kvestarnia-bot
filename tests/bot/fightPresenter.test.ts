@@ -517,10 +517,61 @@ describe("fight presenter", () => {
       questProgress: questProgress(4)
     });
 
-    expect(text).toContain("Привид 1 діє окремо й завдає 3 шкоди.");
-    expect(text).toContain("Привид 2 діє окремо й завдає 4 шкоди.");
-    expect(text).not.toContain("Привид діє окремо й завдає 3 шкоди.");
-    expect(text).not.toContain("Привид діє окремо й завдає 4 шкоди.");
+    expect(text).toContain("Привид 1 атакує у відповідь і завдає 3 шкоди.");
+    expect(text).toContain("Привид 2 атакує у відповідь і завдає 4 шкоди.");
+    expect(text).not.toContain("Привид атакує у відповідь і завдає 3 шкоди.");
+    expect(text).not.toContain("Привид атакує у відповідь і завдає 4 шкоди.");
+    expect(text).not.toContain("діє окремо");
+  });
+
+  it("combines multi-enemy final responses into one readable line", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 1,
+          monsterDamage: 6,
+          manaSpent: 0,
+          critical: true,
+          enemyActions: [
+            {
+              enemyId: "enemy:1",
+              monsterId: "monster.ghost",
+              monsterName: "Привид старого боргу",
+              monsterOutcome: "hit",
+              monsterDamage: 6,
+              monsterAction: "attack",
+              simultaneousFinalResponse: true
+            },
+            {
+              enemyId: "enemy:2",
+              monsterId: "monster.dragon",
+              monsterName: "Дракончик попереднього погодження",
+              monsterOutcome: "hit",
+              monsterDamage: 6,
+              monsterAction: "attack"
+            }
+          ]
+        }
+      }),
+      monster: {
+        id: "monster.ghost",
+        name: "Привид старого боргу",
+        description: "Тестовий привид.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Привид устиг відповісти в ту саму мить і завдав 6 шкоди.");
+    expect(text).toContain("Дракончик атакує у відповідь і завдає 6 шкоди.");
+    expect(text).not.toContain("Привид устиг відповісти в ту саму мить.\nПривид");
+    expect(text).not.toContain("діє окремо");
   });
 
   it("marks simultaneous final response lines in persisted turn summaries", () => {

@@ -1179,26 +1179,33 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
         ? `${shortName} ${getEnemyActionDisplayIndex(entry, index)}`
         : shortName;
       const name = escapeHtml(disambiguatedName);
-      const finalResponsePrefix = entry.simultaneousFinalResponse
-        ? `${name} устиг відповісти в ту саму мить.\n`
-        : "";
       if (entry.monsterDamage > 0) {
-        return `${finalResponsePrefix}${name} діє окремо й завдає ${entry.monsterDamage} шкоди.`;
+        return entry.simultaneousFinalResponse
+          ? `${name} устиг відповісти в ту саму мить і завдав ${entry.monsterDamage} шкоди.`
+          : `${name} атакує у відповідь і завдає ${entry.monsterDamage} шкоди.`;
       }
 
       if (entry.monsterAction === "telegraph") {
-        return `${finalResponsePrefix}${name} готує неприємність і дуже пишається паузою.`;
+        return entry.simultaneousFinalResponse
+          ? `${name} устиг відповісти в ту саму мить і готує неприємність.`
+          : `${name} готує неприємність і дуже пишається паузою.`;
       }
 
       if (entry.monsterAction === "defend") {
-        return `${finalResponsePrefix}${name} стає в захист.`;
+        return entry.simultaneousFinalResponse
+          ? `${name} устиг відповісти в ту саму мить і став у захист.`
+          : `${name} стає в захист.`;
       }
 
       if (entry.monsterOutcome === "miss") {
-        return `${finalResponsePrefix}${name} промахується й удає, що це був маневр.`;
+        return entry.simultaneousFinalResponse
+          ? `${name} устиг відповісти в ту саму мить, але промахнувся.`
+          : `${name} промахується й удає, що це був маневр.`;
       }
 
-      return `${finalResponsePrefix}${name} діє окремо, але шкоди цього разу не додає.`;
+      return entry.simultaneousFinalResponse
+        ? `${name} устиг відповісти в ту саму мить, але шкоди не додав.`
+        : `${name} відповідає на ваш хід, але шкоди цього разу не додає.`;
     })
     .join("\n");
 }
