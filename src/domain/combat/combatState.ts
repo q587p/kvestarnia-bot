@@ -256,6 +256,7 @@ export interface CombatTurnSummary {
   monsterOutcome?: CombatTurnOutcome;
   heroDamage: number;
   monsterDamage: number;
+  heroEffectDamage?: number;
   manaSpent: number;
   critical: boolean;
   skillId?: string;

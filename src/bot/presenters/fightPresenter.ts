@@ -955,6 +955,7 @@ function presentTurnSummary(
   const heading = options.includeHeading === false ? [] : ["Остання дія"];
   const monsterResponse = presentMonsterResponse(summary);
   const enemyResponses = presentEnemyResponses(summary);
+  const heroEffectResponse = presentHeroEffectDamage(summary);
 
   if (summary.heroOutcome === "not-enough-mana") {
     return withMonsterBark(summary, [
@@ -976,6 +977,7 @@ function presentTurnSummary(
     return withMonsterBark(summary, [
       ...heading,
       "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
+      heroEffectResponse,
       enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",
       summary.heroCounterDamage
         ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
@@ -991,16 +993,18 @@ function presentTurnSummary(
     return withMonsterBark(summary, [
       ...heading,
       "Втеча не вдалася.",
+      heroEffectResponse,
       presentBasicMonsterAttack(summary)
-    ]);
+    ].filter(Boolean));
   }
 
   if (summary.heroOutcome === "inactive") {
     return withMonsterBark(summary, [
       ...heading,
       "Ви не встигли обрати дію.",
+      heroEffectResponse,
       enemyResponses || monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута."
-    ]);
+    ].filter(Boolean));
   }
 
   const action =
@@ -1020,7 +1024,7 @@ function presentTurnSummary(
       ? "Монстр промахнувся й зробив вигляд, що так і планував."
       : "");
 
-  return withMonsterBark(summary, [...heading, hit, response].filter(Boolean));
+  return withMonsterBark(summary, [...heading, hit, heroEffectResponse, response].filter(Boolean));
 }
 
 function presentEnemyHpRows(
@@ -1084,6 +1088,8 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
 }
 
 function presentMonsterResponse(summary: CombatTurnSummary): string {
+  const directMonsterDamage = getDirectMonsterDamage(summary);
+
   if (summary.monsterAction === "telegraph" && summary.monsterTelegraphAbilityId) {
     const skill = getCombatSkillDisplay(summary.monsterTelegraphAbilityId);
     return `⚠️ Монстр готує ${skill.icon} <i>${escapeHtml(skill.name)}</i>. Захист може помʼякшити удар.`;
@@ -1096,7 +1102,7 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
   if (summary.monsterAction === "skill" && summary.monsterSkillId) {
     const skill = getCombatSkillDisplay(summary.monsterSkillId);
     const consequences = [
-      ...(summary.monsterDamage > 0 ? [`завдав ${summary.monsterDamage} шкоди`] : []),
+      ...(directMonsterDamage > 0 ? [`завдав ${directMonsterDamage} шкоди`] : []),
       ...(summary.monsterEffectText ? [escapeHtml(trimTerminalPunctuation(summary.monsterEffectText))] : [])
     ];
 
@@ -1107,7 +1113,7 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
     return `Монстр застосував ${skill.icon} <i>${escapeHtml(skill.name)}</i>: ${consequences.join("; ")}.`;
   }
 
-  if (summary.monsterDamage > 0) {
+  if (directMonsterDamage > 0) {
     return presentBasicMonsterAttack(summary);
   }
 
@@ -1115,11 +1121,29 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
 }
 
 function presentBasicMonsterAttack(summary: CombatTurnSummary): string {
-  if (summary.monsterDamage <= 0) {
+  const directMonsterDamage = getDirectMonsterDamage(summary);
+
+  if (directMonsterDamage <= 0) {
     return "Монстр не завдав шкоди.";
   }
 
-  return `Монстр атакував у відповідь на ваш хід і завдав ${summary.monsterDamage} шкоди.`;
+  return `Монстр атакував у відповідь на ваш хід і завдав ${directMonsterDamage} шкоди.`;
+}
+
+function presentHeroEffectDamage(summary: CombatTurnSummary): string {
+  const damage = getHeroEffectDamage(summary);
+
+  return damage > 0
+    ? `Накладений ефект спрацював і завдав ${damage} шкоди.`
+    : "";
+}
+
+function getDirectMonsterDamage(summary: CombatTurnSummary): number {
+  return Math.max(0, summary.monsterDamage - getHeroEffectDamage(summary));
+}
+
+function getHeroEffectDamage(summary: CombatTurnSummary): number {
+  return Math.max(0, summary.heroEffectDamage ?? 0);
 }
 
 function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }): string {

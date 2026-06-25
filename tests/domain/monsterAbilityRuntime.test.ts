@@ -381,7 +381,7 @@ describe("monster ability runtime", () => {
     });
 
     expect(napkin.ability?.id).toBe("monster.napkin-denial");
-    expect(napkin.effectText).toBe("ефект зачепився й уже працює");
+    expect(napkin.effectText).toBe("опір статусам зріс на 40 п.п., ще 2 дії монстра");
     expect(napkin.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
       sourceAbilityId: "monster.cold-rind",
       target: "monster",

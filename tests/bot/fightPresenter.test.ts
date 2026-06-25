@@ -1163,7 +1163,8 @@ describe("fight presenter", () => {
           action: "attack",
           heroOutcome: "hit",
           heroDamage: 4,
-          monsterDamage: 5,
+          monsterDamage: 7,
+          heroEffectDamage: 2,
           manaSpent: 0,
           critical: false,
           monsterAction: "skill",
@@ -1210,6 +1211,7 @@ describe("fight presenter", () => {
 
     expect(damaging).toContain("Монстр застосував");
     expect(damaging).toContain("завдав 5 шкоди");
+    expect(damaging).toContain("Накладений ефект спрацював і завдав 2 шкоди.");
     expect(damaging).toContain("захист героя просів на 1");
     expect(noDamage).toContain("без прямої шкоди цього ходу");
   });

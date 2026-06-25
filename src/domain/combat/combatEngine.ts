@@ -319,6 +319,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
   tickSkillCooldown(nextState);
 
   const heroEffect = applyHeroActivationMonsterEffects(nextState);
+  const heroEffectDamage = heroEffect.damage;
   const monsterResponse = nextState.hero.hp > 0
     ? resolveMonsterResponse({
         state: nextState,
@@ -326,7 +327,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
         damageReduction: 0
       })
     : { damage: 0 };
-  const monsterDamage = heroEffect.damage + monsterResponse.damage;
+  const monsterDamage = heroEffectDamage + monsterResponse.damage;
   nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
   const bark = resolveMonsterBark({
@@ -347,6 +348,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
       : monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss"),
     heroDamage: 0,
     monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
@@ -419,6 +421,7 @@ function resolveHeroAttack(
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
 
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
+  let heroEffectDamage = 0;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   const heroOutcome = nextState.monster.hp <= 0 && actorAction.summary.actorOutcome === "won"
     ? "won"
@@ -474,7 +477,8 @@ function resolveHeroAttack(
   }
 
   const heroEffect = applyHeroActivationMonsterEffects(nextState);
-  monsterDamage += heroEffect.damage;
+  heroEffectDamage = heroEffect.damage;
+  monsterDamage += heroEffectDamage;
   if (nextState.hero.hp > 0) {
     monsterResponse = resolveMonsterResponse({
       state: nextState,
@@ -508,6 +512,7 @@ function resolveHeroAttack(
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterOutcome,
     heroDamage,
     monsterDamage,
+    heroEffectDamage,
     heroCounterDamage: counterDamage,
     manaSpent,
     critical: actorAction.summary.critical,
@@ -541,6 +546,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     input.rng
   );
   let monsterDamage = 0;
+  let heroEffectDamage = 0;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   tickSkillCooldown(nextState);
 
@@ -549,6 +555,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     nextState.turn += 1;
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
+    heroEffectDamage = heroEffect.damage;
     monsterResponse = nextState.hero.hp > 0
       ? resolveMonsterResponse({
           state: nextState,
@@ -556,7 +563,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
           damageReduction: 0
         })
       : { damage: 0 };
-    monsterDamage = heroEffect.damage + monsterResponse.damage;
+    monsterDamage = heroEffectDamage + monsterResponse.damage;
     nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
     nextState.turn += 1;
   }
@@ -583,6 +590,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterOutcome,
     heroDamage: 0,
     monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
@@ -689,6 +697,7 @@ function resolveMultiEnemyHeroAttack(
   const heroDamage = runtimeHeroDamage.heroDamage;
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
+  let heroEffectDamage = 0;
   let counterDamage = 0;
 
   if (nextState.hero.hp <= 0) {
@@ -697,7 +706,8 @@ function resolveMultiEnemyHeroAttack(
     nextState.status = "won";
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
-    monsterDamage += heroEffect.damage;
+    heroEffectDamage = heroEffect.damage;
+    monsterDamage += heroEffectDamage;
     const enemyPhase = resolveLivingEnemyPhase(nextState, input, skill?.monsterDamageReduction ?? 0);
     monsterDamage += enemyPhase.monsterDamage;
     if (nextState.hero.hp > 0 && enemyPhase.defendCounter && monsterDamage > 0) {
@@ -727,6 +737,7 @@ function resolveMultiEnemyHeroAttack(
       monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
       heroDamage,
       monsterDamage,
+      heroEffectDamage,
       heroCounterDamage: counterDamage,
       manaSpent,
       critical: actorAction.summary.critical,
@@ -781,13 +792,15 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
     enemyActions: [],
     defendCounter: false
   };
+  let heroEffectDamage = 0;
 
   if (fled) {
     nextState.status = "fled";
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
+    heroEffectDamage = heroEffect.damage;
     enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
-    enemyPhase.monsterDamage += heroEffect.damage;
+    enemyPhase.monsterDamage += heroEffectDamage;
     nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   }
 
@@ -802,6 +815,7 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
       : {}),
     heroDamage: 0,
     monsterDamage: enemyPhase.monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
@@ -1001,6 +1015,7 @@ function buildSummary(input: {
   monsterOutcome?: CombatTurnSummary["monsterOutcome"];
   heroDamage: number;
   monsterDamage: number;
+  heroEffectDamage?: number;
   heroCounterDamage?: number;
   monsterBarkId?: string;
   monsterAction?: CombatTurnSummary["monsterAction"];
@@ -1020,6 +1035,7 @@ function buildSummary(input: {
     ...(input.monsterOutcome ? { monsterOutcome: input.monsterOutcome } : {}),
     heroDamage: input.heroDamage,
     monsterDamage: input.monsterDamage,
+    ...(input.heroEffectDamage ? { heroEffectDamage: input.heroEffectDamage } : {}),
     manaSpent: input.manaSpent,
     critical: input.critical,
     ...(input.skill

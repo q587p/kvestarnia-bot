@@ -1415,6 +1415,49 @@ describe("combat domain engine", () => {
     expect(levelThirteen.hpMax).toBeGreaterThan(levelFive.hpMax * 2.5);
     expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack * 2.5);
   });
+
+  it("separates ongoing monster effect damage from the direct monster response", () => {
+    const state = startCombat({ hero: warrior, monster });
+    state.monster.attack = 6;
+    state.monsterRuntime = {
+      version: 1,
+      rulesVersion: "monster-abilities-v1",
+      aiProfile: "skirmisher",
+      loadoutIds: ["monster.test-missing-ability"],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 0,
+      effects: [{
+        id: "burn:test",
+        sourceAbilityId: "monster.test-burn",
+        sourceActor: "monster",
+        target: "hero",
+        kind: "burn",
+        value: 0.5,
+        polarity: "harmful",
+        removable: true,
+        remainingTargetActivations: 2
+      }],
+      ownActionCount: 0
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster: { ...monster, attack: 6 },
+      rng: new FakeRandomSource([0.1, 0.5, 0.5, 0.5, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected combat turn to resolve.");
+    }
+
+    expect(result.summary.heroEffectDamage).toBe(3);
+    expect(result.summary.monsterDamage).toBeGreaterThanOrEqual(3);
+    expect(result.state.lastTurn?.heroEffectDamage).toBe(3);
+  });
 });
 
 function makeStateAfterPrimaryEnemyDeath(): CombatState {

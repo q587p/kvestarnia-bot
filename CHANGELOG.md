@@ -26,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Persistent fight state cards now carry the current turn number in the heading as `N хід` and no longer spend a separate `Хід:` line.
 - Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.
 - Battle journal pages for two-enemy fights now show per-enemy HP rows and explicit zero-damage enemy misses instead of collapsing the turn to one generic monster row.
+- Monster runtime effects now name the applied effect, show its remaining actions/charges, and split ongoing effect damage from the direct monster response.
 - Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
 - A stored escalated two-enemy terminal encounter checkpoints the cycle, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.

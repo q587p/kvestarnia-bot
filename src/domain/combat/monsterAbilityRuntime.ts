@@ -2100,7 +2100,8 @@ function resolveMonsterAbilityEffects(input: {
   const effectTexts = plan.components
     .map((component) => applyMonsterAbilityPlanComponent(input, component, { directHitLanded }))
     .filter((result) => result.applied)
-    .map((result) => result.text ?? "ефект зачепився й уже працює");
+    .map((result) => result.text)
+    .filter((text): text is string => Boolean(text));
 
   return {
     damage,
@@ -2220,11 +2221,106 @@ function addRuntimeEffectFromComponent(
     }
 
     input.runtime.effects[duplicateIndex] = merged;
-    return { applied: true };
+    return { applied: true, text: presentRuntimeEffectApplied(merged) };
   }
 
   input.runtime.effects.push(replacement);
-  return { applied: true };
+  return { applied: true, text: presentRuntimeEffectApplied(replacement) };
+}
+
+function presentRuntimeEffectApplied(effect: MonsterAbilityRuntimeEffect): string {
+  const duration = presentRuntimeEffectDuration(effect);
+  const withDuration = (text: string): string => duration ? `${text}, ${duration}` : text;
+
+  switch (effect.kind) {
+    case "accuracy":
+      return withDuration(effect.target === "hero"
+        ? `ваша влучність просіла на ${formatPercentPoints(effect.value)}`
+        : `влучність монстра зросла на ${formatPercentPoints(effect.value)}`);
+    case "evasion":
+      return withDuration(effect.target === "hero"
+        ? `ваше ухилення просіло на ${formatPercentPoints(effect.value)}`
+        : `ухилення монстра зросло на ${formatPercentPoints(effect.value)}`);
+    case "outgoing-damage":
+      return withDuration(effect.target === "hero"
+        ? `ваша шкода просіла на ${formatMultiplierDelta(effect.value)}`
+        : `шкода монстра зросла на ${formatMultiplierDelta(effect.value)}`);
+    case "incoming-damage":
+      return withDuration(effect.target === "monster"
+        ? `монстр зменшує вхідну шкоду на ${formatFractionPercent(effect.value)}`
+        : `вам буде болючіше на ${formatMultiplierDelta(effect.value)}`);
+    case "mark":
+      return withDuration("на вас висить мітка для сильнішого удару");
+    case "burn":
+      return withDuration("горіння вже працює");
+    case "bleed":
+      return withDuration("кровотеча вже працює");
+    case "ability-lock":
+      return withDuration("класове вміння заклинило");
+    case "mana-cost-pressure":
+      return withDuration(`ману притисло на ${Math.max(1, Math.floor(effect.value))}`);
+    case "reflect":
+      return withDuration(`відбиття тримає ${Math.max(1, Math.floor(effect.value))} шкоди`);
+    case "status-resistance":
+      return withDuration(`опір статусам зріс на ${formatPercentPoints(effect.value)}`);
+    case "flee":
+      return withDuration(`втеча стала важчою на ${formatPercentPoints(effect.value)}`);
+    case "crit":
+      return withDuration(`критичний шанс просів на ${formatPercentPoints(effect.value)}`);
+    case "slow":
+      return withDuration(`темп просів на ${formatPercentPoints(effect.value)}`);
+    case "confusion":
+      return withDuration("ціль збилася");
+    case "cooldown-pressure":
+      return withDuration("відсап здібності розтягнувся");
+    case "next-attack-bonus":
+      return withDuration(`наступна атака монстра сильніша на ${formatMultiplierDelta(effect.value)}`);
+    case "counter":
+      return withDuration("контрудар монстра напоготові");
+    case "repeat-penalty":
+      return withDuration("повтор вашої дії під наглядом");
+  }
+}
+
+function presentRuntimeEffectDuration(effect: MonsterAbilityRuntimeEffect): string {
+  const parts = [
+    effect.remainingOwnActivations
+      ? `ще ${formatCount(effect.remainingOwnActivations, "дія монстра", "дії монстра", "дій монстра")}`
+      : "",
+    effect.remainingTargetActivations
+      ? `ще ${formatCount(effect.remainingTargetActivations, "ваша дія", "ваші дії", "ваших дій")}`
+      : "",
+    effect.charges
+      ? formatCount(effect.charges, "заряд", "заряди", "зарядів")
+      : ""
+  ].filter(Boolean);
+
+  return parts.join(", ");
+}
+
+function formatPercentPoints(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value)))} п.п.`;
+}
+
+function formatFractionPercent(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value) * 100))}%`;
+}
+
+function formatMultiplierDelta(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value - 1) * 100))}%`;
+}
+
+function formatCount(value: number, one: string, few: string, many: string): string {
+  const count = Math.max(0, Math.floor(value));
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  const word = mod10 === 1 && mod100 !== 11
+    ? one
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? few
+      : many;
+
+  return `${count} ${word}`;
 }
 
 function createRuntimeEffectFromComponent(
