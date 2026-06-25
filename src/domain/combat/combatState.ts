@@ -289,6 +289,8 @@ export interface CombatTurnLogEntry {
   eventId?: string;
   turn: number;
   summary: CombatTurnSummary;
+  notices?: string[];
+  cooldowns?: NonNullable<CombatState["cooldowns"]>;
   hero: {
     hp: number;
     mana: number;
@@ -705,6 +707,8 @@ export function cloneCombatTurnLogEntry(entry: CombatTurnLogEntry): CombatTurnLo
     ...(entry.eventId ? { eventId: entry.eventId } : {}),
     turn: entry.turn,
     summary: cloneCombatTurnSummary(entry.summary),
+    ...(entry.notices ? { notices: [...entry.notices] } : {}),
+    ...(entry.cooldowns ? { cooldowns: cloneCombatCooldowns(entry.cooldowns) } : {}),
     hero: { ...entry.hero },
     monster: { ...entry.monster },
     ...(entry.enemies ? { enemies: entry.enemies.map((enemy) => ({ ...enemy })) } : {})

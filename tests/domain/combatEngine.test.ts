@@ -9,6 +9,7 @@ import {
   getCombatSkillProfile,
   getCombatActionAvailability,
   getPrimaryCombatEnemy,
+  MONSTER_ABILITY_RUNTIME_RULES_VERSION,
   normalizeCombatEnemies,
   rollBasicAttack,
   rollFleeSuccess,
@@ -1023,6 +1024,66 @@ describe("combat domain engine", () => {
 
     expect(blocked.ok).toBe(false);
     expect(blocked.state.turnLog).toEqual(first.state.turnLog);
+  });
+
+  it("stores skill cooldown snapshots and active effect notices in the combat turn log", () => {
+    const sturdyMonster = { ...monster, hpMax: 80 };
+    const skillTurn = resolveCombatTurn({
+      state: startCombat({ hero: unarmedMage, monster: sturdyMonster }),
+      action: "skill",
+      hero: unarmedMage,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(skillTurn.ok).toBe(true);
+    if (!skillTurn.ok) {
+      throw new Error("Expected skill turn to resolve.");
+    }
+    expect(skillTurn.state.turnLog?.[0]?.cooldowns?.skill).toEqual({
+      id: "skill.hot-spell",
+      remainingTurns: 1
+    });
+
+    const pressuredState: CombatState = {
+      ...startCombat({ hero: warrior, monster: sturdyMonster }),
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+        aiProfile: "controller",
+        loadoutIds: [],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        ownActionCount: 0,
+        effects: [{
+          id: "test-accuracy-pressure",
+          sourceAbilityId: "monster.test-pressure",
+          sourceActor: "monster",
+          target: "hero",
+          kind: "accuracy",
+          value: 15,
+          polarity: "harmful",
+          removable: true,
+          remainingTargetActivations: 2
+        }]
+      }
+    };
+    const effectTurn = resolveCombatTurn({
+      state: pressuredState,
+      action: "attack",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(effectTurn.ok).toBe(true);
+    if (!effectTurn.ok) {
+      throw new Error("Expected attack with active effect to resolve.");
+    }
+    expect(effectTurn.state.turnLog?.[0]?.notices).toContain(
+      "Ефект триває: ваша влучність просіла на 15 пунктів, ще 1 ваша дія."
+    );
   });
 
   it("treats reactive final-enemy mutual KO as a hero win", () => {

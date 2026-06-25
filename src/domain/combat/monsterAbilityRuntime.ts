@@ -167,6 +167,22 @@ export interface MonsterRuntimeDirectHitModifierResult {
   consumedNextAttackBonus: boolean;
 }
 
+export function presentActiveMonsterRuntimeEffectNotices(
+  runtime: MonsterAbilityRuntimeStateV1 | undefined
+): string[] {
+  if (!runtime) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      runtime.effects
+        .filter(isActiveRuntimeEffect)
+        .map((effect) => presentRuntimeEffectApplied(effect))
+    )
+  );
+}
+
 const aiWeights: Record<MonsterAiProfile, { basic: number; ability: number; defend: number }> = {
   boss: { basic: 45, ability: 45, defend: 10 },
   brute: { basic: 65, ability: 30, defend: 5 },
@@ -2299,7 +2315,7 @@ function presentRuntimeEffectDuration(effect: MonsterAbilityRuntimeEffect): stri
 }
 
 function formatPercentPoints(value: number): string {
-  return `${Math.max(1, Math.round(Math.abs(value)))} п.п.`;
+  return `${Math.max(1, Math.round(Math.abs(value)))} пунктів`;
 }
 
 function formatFractionPercent(value: number): string {

@@ -940,6 +940,56 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Хід записано");
   });
 
+  it("renders stored cooldowns and active effect notices in combat journal pages", () => {
+    const session = persistentSession({
+      turn: 3,
+      turnLog: [
+        {
+          turn: 2,
+          hero: { hp: 22, mana: 9 },
+          monster: { hp: 11 },
+          cooldowns: {
+            skill: {
+              id: "skill.hot-spell",
+              remainingTurns: 1
+            }
+          },
+          notices: [
+            "Ефект триває: ваша влучність просіла на 15 пунктів, ще 1 ваша дія."
+          ],
+          summary: {
+            action: "skill",
+            heroOutcome: "hit",
+            heroDamage: 7,
+            monsterDamage: 3,
+            manaSpent: 3,
+            critical: false,
+            skillId: "skill.hot-spell",
+            damageKind: "spell"
+          }
+        }
+      ]
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("🫁 🪄 Гаряче закляття відсапується: ще 1 хід.");
+    expect(text).toContain("🧷 Ефект триває: ваша влучність просіла на 15 пунктів, ще 1 ваша дія.");
+    expect(text).not.toContain("п.п.");
+  });
+
   it("renders multi-enemy journal HP rows and zero-damage enemy misses", () => {
     const session = persistentSession({
       turn: 2,

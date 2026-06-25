@@ -394,8 +394,19 @@ export function presentPersistentFightJournal(
     "",
     presentTurnSummary(entry.summary, { includeHeading: false })
   ];
+  const notices = presentJournalTurnNotices(entry);
+  if (notices.length > 0) {
+    lines.push("", ...notices);
+  }
 
   return lines.join("\n");
+}
+
+function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
+  return [
+    ...(entry.cooldowns?.skill?.remainingTurns ? [presentSkillCooldown(entry.cooldowns.skill)] : []),
+    ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`)
+  ];
 }
 
 function presentJournalEnemyHpRows(

@@ -16,6 +16,7 @@ import {
   getMonsterRuntimeSkillManaCostIncrease,
   isHeroClassSkillLockedByMonster,
   monsterAbilityAsCombatSkill,
+  presentActiveMonsterRuntimeEffectNotices,
   resolveMonsterRuntimeAction
 } from "./monsterAbilityRuntime";
 import {
@@ -870,10 +871,14 @@ function appendCombatTurnLog(
   turn: number,
   summary: CombatTurnSummary
 ): void {
+  const notices = buildCombatTurnLogNotices(state);
+
   appendCombatTurnLogEntry(state, {
     ...(state.status !== "active" ? { eventId: getTerminalCombatTurnLogEventId(state.status) } : {}),
     turn,
     summary: cloneCombatTurnSummary(summary),
+    ...(notices.length > 0 ? { notices } : {}),
+    ...(state.cooldowns ? { cooldowns: cloneCombatCooldowns(state.cooldowns) } : {}),
     hero: {
       hp: state.hero.hp,
       mana: state.hero.mana
@@ -883,6 +888,25 @@ function appendCombatTurnLog(
     },
     ...turnLogEnemies(state)
   });
+}
+
+function buildCombatTurnLogNotices(state: CombatState): string[] {
+  const runtimes = state.enemies
+    ? state.enemies.flatMap((enemy) => enemy.monsterRuntime ? [enemy.monsterRuntime] : [])
+    : state.monsterRuntime
+      ? [state.monsterRuntime]
+      : [];
+  const effectNotices = runtimes.flatMap((runtime) =>
+    presentActiveMonsterRuntimeEffectNotices(runtime).map((notice) =>
+      `Ефект триває: ${trimTerminalPunctuation(notice)}.`
+    )
+  );
+
+  return Array.from(new Set(effectNotices));
+}
+
+function trimTerminalPunctuation(text: string): string {
+  return text.trim().replace(/[.!?]+$/u, "");
 }
 
 export function getNonManaSkillCooldownTurns(

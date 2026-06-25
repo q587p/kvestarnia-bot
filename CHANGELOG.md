@@ -27,7 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Persistent fight state cards now carry the current turn number in the heading as `N хід` and no longer spend a separate `Хід:` line.
 - Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.
 - Battle journal pages for two-enemy fights now show per-enemy HP rows and explicit zero-damage enemy misses instead of collapsing the turn to one generic monster row.
-- Monster runtime effects now name the applied effect, show its remaining actions/charges, and split ongoing effect damage from the direct monster response.
+- Monster runtime effects now name the applied effect, use full `пунктів` wording for point deltas, show remaining actions/charges, split ongoing effect damage from the direct monster response, and persist active effect plus skill-cooldown notices into battle journal replay.
 - Hero attack and class-skill turns now resolve the monster response after hero damage even when the target was defeated by that action, and a final-enemy mutual KO still resolves as a win so terminal win cards can include same-turn incoming damage.
 - Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; multi-enemy response lines disambiguate colliding short monster labels with deterministic enemy numbers; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.

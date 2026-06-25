@@ -2316,6 +2316,8 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
     const monster = parseTurnLogMonster(entry.monster);
     const enemies = parseTurnLogEnemies(entry.enemies);
     const eventId = parseTurnLogEventId(entry.eventId);
+    const notices = parseTurnLogNotices(entry.notices);
+    const cooldowns = parseCooldowns(entry.cooldowns);
 
     return turn === null || turn < 1 || !summary || !hero || !monster
       ? []
@@ -2323,11 +2325,23 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
           ...(eventId ? { eventId } : {}),
           turn,
           summary,
+          ...(notices.length > 0 ? { notices } : {}),
+          ...(cooldowns ? { cooldowns } : {}),
           hero,
           monster,
           ...(enemies.length > 0 ? { enemies } : {})
         }];
   });
+}
+
+function parseTurnLogNotices(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is string =>
+    typeof entry === "string" && entry.trim().length > 0 && entry.length <= 240
+  );
 }
 
 function parseTurnLogEnemies(value: unknown): NonNullable<CombatTurnLogEntry["enemies"]> {
