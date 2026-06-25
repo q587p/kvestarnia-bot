@@ -57,6 +57,7 @@ const expectedCommandAliasInventory = [
   "dev_raid_stop",
   "dev_reset_me",
   "dev_reset_monster_rest",
+  "dev_reset_yeger_bandage",
   "dev_restore_mana",
   "dev_two_enemies",
   "duel",

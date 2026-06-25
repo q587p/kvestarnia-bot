@@ -4,6 +4,7 @@ import type { DevGrantRepository } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
+import { YEGER_RANGER_FREE_BANDAGE_KEY } from "./yegerQuestService";
 
 export type DevGrantResult =
   | { state: "disabled" }
@@ -14,6 +15,12 @@ export type DevGrantResult =
       amount: number;
       character: CharacterRecord;
       levelChange?: RewardLevelChange;
+    }
+  | {
+      state: "updated";
+      kind: "yeger-bandage-cooldown";
+      character: CharacterRecord;
+      cleared: boolean;
     };
 
 export type DevGrantItemsResult =
@@ -141,6 +148,26 @@ export class DevGrantService {
           amount,
           character: result.character,
           itemGrants: enrichRewardItemGrants(result.itemGrants)
+        }
+      : { state: "no-character" };
+  }
+
+  async resetYegerBandageCooldown(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.clearCooldownForTelegramUser(
+      telegramUserId,
+      YEGER_RANGER_FREE_BANDAGE_KEY
+    );
+
+    return result
+      ? {
+          state: "updated",
+          kind: "yeger-bandage-cooldown",
+          character: result.character,
+          cleared: result.cleared
         }
       : { state: "no-character" };
   }

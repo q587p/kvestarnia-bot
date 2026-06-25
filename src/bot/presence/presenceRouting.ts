@@ -299,7 +299,8 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_add_gold" ||
     command === "dev_heal" ||
     command === "dev_restore_mana" ||
-    command === "dev_add_random_item"
+    command === "dev_add_random_item" ||
+    command === "dev_reset_yeger_bandage"
   ) {
     return {};
   }

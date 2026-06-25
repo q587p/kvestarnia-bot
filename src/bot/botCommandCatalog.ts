@@ -270,6 +270,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "додати випадкові манатки локально",
     includeInMenu: false,
     devOnly: "grant"
+  },
+  {
+    command: "dev_reset_yeger_bandage",
+    icon: "🧷",
+    description: "скинути таймер бинта Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
   }
 ];
 

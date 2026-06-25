@@ -5,6 +5,7 @@ import { getLevelForXp } from "../../domain/progression/level";
 import type { CharacterRecord } from "./characterRepository";
 import type {
   DevGrantCharacterResult,
+  DevGrantCooldownResult,
   DevGrantItemResult,
   DevGrantProgressResult,
   DevGrantRepository
@@ -239,6 +240,31 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
       return {
         character: toCharacterRecord(character),
         itemGrants: normalizedGrants
+      };
+    });
+  }
+
+  async clearCooldownForTelegramUser(
+    telegramUserId: bigint,
+    key: string
+  ): Promise<DevGrantCooldownResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const deleted = await tx.characterCooldown.deleteMany({
+        where: {
+          characterId: character.id,
+          key
+        }
+      });
+
+      return {
+        character: toCharacterRecord(character),
+        cleared: deleted.count > 0
       };
     });
   }

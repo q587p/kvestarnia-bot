@@ -70,6 +70,12 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
     ].join("\n");
   }
 
+  if (result.kind === "yeger-bandage-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: таймер безкоштовного бинта Єгеря скинуто."
+      : "🧪 Dev: безкоштовний бинт Єгеря і так доступний.";
+  }
+
   if (result.kind === "items") {
     const itemLines = result.itemGrants.map((grant) =>
       grant.quantity === 1 ? `• ${grant.name}` : `• ${grant.name} ×${grant.quantity}`

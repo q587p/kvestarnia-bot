@@ -15,6 +15,11 @@ export type DevGrantItemResult = {
   itemGrants: ItemGrant[];
 };
 
+export type DevGrantCooldownResult = {
+  character: CharacterRecord;
+  cleared: boolean;
+};
+
 export interface DevGrantRepository {
   addLevelForTelegramUser(
     telegramUserId: bigint,
@@ -45,4 +50,9 @@ export interface DevGrantRepository {
     telegramUserId: bigint,
     itemGrants: ItemGrant[]
   ): Promise<DevGrantItemResult | null>;
+
+  clearCooldownForTelegramUser(
+    telegramUserId: bigint,
+    key: string
+  ): Promise<DevGrantCooldownResult | null>;
 }

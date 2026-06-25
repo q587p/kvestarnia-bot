@@ -21,7 +21,7 @@
 7. While a bandage use preview is pending, try gift/sale/chest/barter of the same `itemId`: the stack should be reserved.
 8. Remort with a pending use order: remort should cancel the use reservation without consuming the bandage.
 9. At the Єгер surface, buy one bandage with enough gold; repeat with insufficient gold.
-10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely.
+10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the wait and confirm a fresh claim can be tested without changing production rules.
 11. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.
 
 ## 0.2.3 — Threat escalation smoke
@@ -452,6 +452,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_help` — у локальному режимі показує доступні dev-команди.
 - `/dev_reset_me` — у локальному режимі видаляє тільки персонажа поточного користувача після підтвердження.
 - `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
+- `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
