@@ -1166,7 +1166,7 @@ describe("combat domain engine", () => {
       throw new Error("Expected attack with active effect to resolve.");
     }
     expect(effectTurn.state.turnLog?.[0]?.notices).toContain(
-      "Ефект триває: ваша влучність просіла на 15 пунктів, ще 1 ваша дія."
+      "Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії."
     );
   });
 

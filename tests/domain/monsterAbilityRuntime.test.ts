@@ -381,7 +381,7 @@ describe("monster ability runtime", () => {
     });
 
     expect(napkin.ability?.id).toBe("monster.napkin-denial");
-    expect(napkin.effectText).toBe("опір статусам зріс на 40 пунктів, ще 2 дії монстра");
+    expect(napkin.effectText).toBe("опір статусам зріс на 40 пунктів, спаде після 2 дій монстра");
     expect(napkin.state.monsterRuntime?.effects).toContainEqual(expect.objectContaining({
       sourceAbilityId: "monster.cold-rind",
       target: "monster",
@@ -936,6 +936,19 @@ describe("monster ability runtime", () => {
       heroAction: "skill"
     }).heroDamage).toBe(20);
     expect(changed.monsterRuntime?.effects.some((effect) => effect.kind === "repeat-penalty")).toBe(true);
+  });
+
+  it("explains repeat penalties as temporary damage reduction triggers", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.unread-clause"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.effectText).toBe(
+      "якщо повторите попередню дію, шкода просяде на 20%, спаде після 2 ваших дій, ще 1 спрацювання"
+    );
   });
 
   it("records eligible committed misses and defend for repeat prediction without letting it persist forever", () => {

@@ -2294,28 +2294,48 @@ function presentRuntimeEffectApplied(effect: MonsterAbilityRuntimeEffect): strin
     case "counter":
       return withDuration("контрудар монстра напоготові");
     case "repeat-penalty":
-      return withDuration("повтор вашої дії під наглядом");
+      return withDuration(`якщо повторите попередню дію, шкода просяде на ${formatWholePercent(effect.value)}`);
   }
 }
 
 function presentRuntimeEffectDuration(effect: MonsterAbilityRuntimeEffect): string {
   const parts = [
     effect.remainingOwnActivations
-      ? `ще ${formatCount(effect.remainingOwnActivations, "дія монстра", "дії монстра", "дій монстра")}`
+      ? formatOwnActivationDuration(effect.remainingOwnActivations)
       : "",
     effect.remainingTargetActivations
-      ? `ще ${formatCount(effect.remainingTargetActivations, "ваша дія", "ваші дії", "ваших дій")}`
+      ? formatTargetActivationDuration(effect.remainingTargetActivations)
       : "",
     effect.charges
-      ? formatCount(effect.charges, "заряд", "заряди", "зарядів")
+      ? `ще ${formatCount(effect.charges, "спрацювання", "спрацювання", "спрацювань")}`
       : ""
   ].filter(Boolean);
 
   return parts.join(", ");
 }
 
+function formatOwnActivationDuration(value: number): string {
+  const count = Math.max(0, Math.floor(value));
+
+  return count <= 1
+    ? "спаде після наступної дії монстра"
+    : `спаде після ${formatCount(count, "дії монстра", "дій монстра", "дій монстра")}`;
+}
+
+function formatTargetActivationDuration(value: number): string {
+  const count = Math.max(0, Math.floor(value));
+
+  return count <= 1
+    ? "спаде після вашої наступної дії"
+    : `спаде після ${formatCount(count, "вашої дії", "ваших дій", "ваших дій")}`;
+}
+
 function formatPercentPoints(value: number): string {
   return `${Math.max(1, Math.round(Math.abs(value)))} пунктів`;
+}
+
+function formatWholePercent(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value)))}%`;
 }
 
 function formatFractionPercent(value: number): string {
