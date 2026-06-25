@@ -1055,10 +1055,20 @@ function presentEnemyHpRows(
 }
 
 function presentShortMonsterName(name: string | null | undefined, fallback: string): string {
-  const plainName = name?.replace(/<[^>]*>/g, "").trim() ?? "";
-  const shortName = plainName.split(/[\s\-–—]+/u).find(Boolean) ?? fallback;
+  return escapeHtml(getShortMonsterName(name, fallback));
+}
 
-  return escapeHtml(shortName);
+function getShortMonsterName(name: string | null | undefined, fallback: string): string {
+  const plainName = name?.replace(/<[^>]*>/g, "").trim() ?? "";
+
+  return plainName.split(/[\s\-–—]+/u).find(Boolean) ?? fallback;
+}
+
+function getEnemyActionDisplayIndex(entry: NonNullable<CombatTurnSummary["enemyActions"]>[number], actionIndex: number): number {
+  const match = /^enemy:(\d+)$/u.exec(entry.enemyId);
+  const parsed = match ? Number.parseInt(match[1] ?? "", 10) : Number.NaN;
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : actionIndex + 1;
 }
 
 function presentEnemyResponses(summary: CombatTurnSummary): string {
@@ -1066,9 +1076,22 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
     return "";
   }
 
+  const shortNames = summary.enemyActions.map((entry, index) =>
+    getShortMonsterName(entry.monsterName, `Монстр ${index + 1}`)
+  );
+  const shortNameCounts = shortNames.reduce((counts, name) => {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+
+    return counts;
+  }, new Map<string, number>());
+
   return summary.enemyActions
     .map((entry, index) => {
-      const name = presentShortMonsterName(entry.monsterName, `Монстр ${index + 1}`);
+      const shortName = shortNames[index] ?? `Монстр ${index + 1}`;
+      const disambiguatedName = (shortNameCounts.get(shortName) ?? 0) > 1
+        ? `${shortName} ${getEnemyActionDisplayIndex(entry, index)}`
+        : shortName;
+      const name = escapeHtml(disambiguatedName);
       if (entry.monsterDamage > 0) {
         return `${name} діє окремо й завдає ${entry.monsterDamage} шкоди.`;
       }

@@ -3435,6 +3435,57 @@ describe("FightService", () => {
     }
   });
 
+  it.each([
+    {
+      name: "unknown threat line id",
+      threatLineId: "unknown-threat-line",
+      threatLineVersion: "threat-escalation-v1"
+    },
+    {
+      name: "unsupported threat line version",
+      threatLineId: "nyz-added-witnesses",
+      threatLineVersion: "future-threat-lines-v2"
+    }
+  ])("fails a two-enemy normal row with $name safely to base threat", async ({ threatLineId, threatLineVersion }) => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1])
+    );
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-invalid-line-win-${index + 1}`, {
+        completedAt
+      }));
+    }
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-invalid-line-two-enemy", {
+      completedAt: new Date("2026-06-12T10:29:43.000Z"),
+      escalated: true,
+      threatLineId,
+      threatLineVersion
+    }));
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(1);
+      expect(started.session.state?.threat).toBeUndefined();
+    }
+  });
+
   it("decides Nyz passage threat escalation when consuming the preview", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
@@ -6301,6 +6352,8 @@ function makeEligibleOrdinaryThreatSession(
     monsterId?: string;
     enemyCount?: 1 | 2;
     escalated?: boolean;
+    threatLineId?: string;
+    threatLineVersion?: string;
     threatExclusion?: boolean;
     settlement?: "pending" | "completed" | "forfeited-by-remort" | null;
   }
@@ -6328,8 +6381,8 @@ function makeEligibleOrdinaryThreatSession(
             enemyCount: 2 as const,
             reason: "ordinary-win-streak" as const,
             eligibleWins: 3 as const,
-            lineId: "nyz-added-witnesses",
-            lineVersion: "threat-escalation-v1"
+            lineId: options.threatLineId ?? "nyz-added-witnesses",
+            lineVersion: options.threatLineVersion ?? "threat-escalation-v1"
           }
         }
       : {}),

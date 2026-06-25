@@ -412,6 +412,80 @@ describe("fight presenter", () => {
     expect(text).toContain("Знешкоджено: Капустяний лицар на перерві. Нова ціль — Павук дедлайнів; Корчма переставила табличку без голосування.");
   });
 
+  it("disambiguates colliding short monster names in multi-enemy response lines", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 3,
+        monster: {
+          id: "monster.ghost-audit",
+          name: "Привид аудиту",
+          level: 3,
+          hp: 12,
+          hpMax: 18
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            id: "monster.ghost-audit",
+            name: "Привид аудиту",
+            level: 3,
+            hp: 12,
+            hpMax: 18
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.ghost-comment",
+            name: "Привид коментаря",
+            level: 3,
+            hp: 10,
+            hpMax: 18
+          }
+        ],
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 5,
+          monsterDamage: 7,
+          manaSpent: 0,
+          critical: false,
+          enemyActions: [
+            {
+              enemyId: "enemy:1",
+              monsterId: "monster.ghost-audit",
+              monsterName: "Привид аудиту",
+              monsterOutcome: "hit",
+              monsterDamage: 3,
+              monsterAction: "attack"
+            },
+            {
+              enemyId: "enemy:2",
+              monsterId: "monster.ghost-comment",
+              monsterName: "Привид коментаря",
+              monsterOutcome: "hit",
+              monsterDamage: 4,
+              monsterAction: "attack"
+            }
+          ]
+        }
+      }),
+      monster: {
+        id: "monster.ghost-audit",
+        name: "Привид аудиту",
+        description: "Тестовий привид.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Привид 1 діє окремо й завдає 3 шкоди.");
+    expect(text).toContain("Привид 2 діє окремо й завдає 4 шкоди.");
+    expect(text).not.toContain("Привид діє окремо й завдає 3 шкоди.");
+    expect(text).not.toContain("Привид діє окремо й завдає 4 шкоди.");
+  });
+
   it("falls back to stable labels when multi-enemy HP rows lack names", () => {
     const text = presentPersistentFight({
       state: "persistent-active",

@@ -50,6 +50,7 @@ import {
   resolveMonsterContext,
   startCombat,
   decideThreatEscalation,
+  findThreatEscalationLine,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINE_VERSION,
   type CombatActionType,
@@ -3568,7 +3569,7 @@ function toThreatEscalationHistoryEntry(
   }
 
   const enemyCount = getThreatHistoryEnemyCount(state);
-  const escalated = state.threat?.enemyCount === 2 && state.threat.reason === "ordinary-win-streak";
+  const escalated = isValidStoredThreatEscalation(state);
   if (state.threatExclusion?.reason === "dev-forced-two-enemies") {
     return {
       result,
@@ -3601,6 +3602,13 @@ function toThreatEscalationHistoryEntry(
     eligible,
     escalated
   };
+}
+
+function isValidStoredThreatEscalation(state: CombatState): boolean {
+  return state.threat?.enemyCount === 2 &&
+    state.threat.reason === "ordinary-win-streak" &&
+    state.threat.lineVersion === THREAT_ESCALATION_LINE_VERSION &&
+    Boolean(findThreatEscalationLine(state.threat.lineId));
 }
 
 function getThreatHistoryEnemyCount(state: CombatState): 1 | 2 {

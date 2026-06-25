@@ -53,6 +53,11 @@ describe("solo combat state JSON parser", () => {
     const state = parseCombatState({
       ...legacyState,
       source: "normal",
+      monster: {
+        id: "monster.legacy",
+        hp: 5,
+        hpMax: 5
+      },
       threat: {
         version: 1,
         enemyCount: 2,
@@ -86,6 +91,49 @@ describe("solo combat state JSON parser", () => {
       version: 1,
       reason: "dev-forced-two-enemies"
     });
+  });
+
+  it.each([
+    {
+      name: "unknown line id",
+      lineId: "unknown-threat-line",
+      lineVersion: "threat-escalation-v1"
+    },
+    {
+      name: "unsupported line version",
+      lineId: "nyz-added-witnesses",
+      lineVersion: "future-threat-lines-v2"
+    }
+  ])("drops otherwise valid threat metadata with $name", ({ lineId, lineVersion }) => {
+    const state = parseCombatState({
+      ...legacyState,
+      source: "normal",
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineId,
+        lineVersion
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.threat).toBeUndefined();
+    expect(state?.enemies).toHaveLength(2);
   });
 
   it("round-trips a two-enemy state after primary death", () => {

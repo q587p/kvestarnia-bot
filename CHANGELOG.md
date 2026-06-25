@@ -22,13 +22,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Newly started ordinary fights now keep the separate fight intro even when the start comes from an edited callback, so the opponent roster and battle tip are not lost before the active combat card.
 - Consumed Nyz passage survivor recovery no longer rebuilds stored multi-enemy/threat fights as a one-enemy continuation.
 - Excluded Yeger, Adventure, training, duel, starter and dev-forced rows no longer consume the bounded ordinary threat streak window; malformed terminal rows and ordinary two-enemy rows without valid threat metadata fail safely back to base threat.
+- Threat metadata now requires the current escalation line version and a known authored line id before it can count as an escalated checkpoint or grant repeat second-enemy level bonuses.
 - Persistent fight state cards no longer repeat the full opponent roster after the intro; active and terminal cards keep compact HP rows with short monster labels.
 - Persistent fight state cards now carry the current turn number in the heading as `N хід` and no longer spend a separate `Хід:` line.
 - Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.
 - Battle journal pages for two-enemy fights now show per-enemy HP rows and explicit zero-damage enemy misses instead of collapsing the turn to one generic monster row.
 - Monster runtime effects now name the applied effect, show its remaining actions/charges, and split ongoing effect damage from the direct monster response.
 - Hero attack and class-skill turns now resolve the monster response after hero damage even when the target was defeated by that action, and a final-enemy mutual KO still resolves as a win so terminal win cards can include same-turn incoming damage.
-- Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
+- Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; multi-enemy response lines disambiguate colliding short monster labels with deterministic enemy numbers; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
 - A lost, fled or expired escalated two-enemy terminal encounter resets the cycle back to one enemy.
 - A won escalated two-enemy terminal encounter keeps the next ordinary start escalated immediately, even while won-fight settlement is still pending.

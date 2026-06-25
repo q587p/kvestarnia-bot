@@ -18,10 +18,12 @@ import type {
   CombatTurnSummary
 } from "../../domain/combat";
 import {
+  findThreatEscalationLine,
   markCombatSettlementCompleted,
   markCombatSettlementForfeitedByRemort,
   parseCombatAnalyticsState,
-  parseMonsterAbilityRuntimeState
+  parseMonsterAbilityRuntimeState,
+  THREAT_ESCALATION_LINE_VERSION
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
@@ -1524,7 +1526,8 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
     value.reason === "ordinary-win-streak" &&
     value.eligibleWins === 3 &&
     typeof value.lineId === "string" &&
-    typeof value.lineVersion === "string"
+    value.lineVersion === THREAT_ESCALATION_LINE_VERSION &&
+    findThreatEscalationLine(value.lineId)
     ? {
         version: 1,
         enemyCount: 2,
