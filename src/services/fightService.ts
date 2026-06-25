@@ -52,6 +52,7 @@ import {
   decideThreatEscalation,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINE_VERSION,
+  THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS,
   type CombatActionType,
   type CombatActorStats,
   type CombatBalanceSource,
@@ -1025,7 +1026,10 @@ export class FightService {
       difficulty,
       encounterSeed: encounter.seedHash,
       originLocationId: encounter.originLocationId,
-      enemyCount: threatDecision.enemyCount
+      enemyCount: threatDecision.enemyCount,
+      secondEnemyLevelBonus: threatDecision.enemyCount === 2
+        ? threatDecision.secondEnemyLevelBonus
+        : 0
     });
     const state = this.buildPersistentFightCombatState({
       sessionId,
@@ -1121,6 +1125,7 @@ export class FightService {
     encounterSeed: string;
     originLocationId: string;
     enemyCount: 1 | 2;
+    secondEnemyLevelBonus: 0 | typeof THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS;
   }): Promise<Array<{ baseMonster: MonsterContent; monster: MonsterContent }>> {
     if (input.enemyCount !== 2) {
       return [];
@@ -1133,7 +1138,10 @@ export class FightService {
       input.difficulty,
       [input.primaryBaseMonsterId, ...recentMonsterIds]
     );
-    const monster = applyPersistentFightDifficulty(baseMonster, input.character, input.difficulty);
+    const monster = applyThreatSecondEnemyLevelBonus(
+      applyPersistentFightDifficulty(baseMonster, input.character, input.difficulty),
+      input.secondEnemyLevelBonus
+    );
 
     return [{ baseMonster, monster }];
   }
@@ -1715,15 +1723,22 @@ export class FightService {
       : selectSoloFightMonster(characterSummary, encounterRng, difficulty, recentMonsterIds);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const enemyCount = options.enemyCount ?? threatDecision.enemyCount;
+    const secondEnemyLevelBonus =
+      threatDecision.enemyCount === 2 && !options.enemyCount
+        ? threatDecision.secondEnemyLevelBonus
+        : 0;
     const extraMonsters = enemyCount === 2
       ? [
-          applyPersistentFightDifficulty(
-            selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
-              baseMonster.id,
-              ...recentMonsterIds
-            ]),
-            characterSummary,
-            difficulty
+          applyThreatSecondEnemyLevelBonus(
+            applyPersistentFightDifficulty(
+              selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
+                baseMonster.id,
+                ...recentMonsterIds
+              ]),
+              characterSummary,
+              difficulty
+            ),
+            secondEnemyLevelBonus
           )
         ]
       : [];
@@ -4177,6 +4192,17 @@ function applyPersistentFightDifficulty(
   });
 
   return level === baseMonster.level ? baseMonster : { ...baseMonster, level };
+}
+
+function applyThreatSecondEnemyLevelBonus(
+  monster: MonsterContent,
+  levelBonus: 0 | typeof THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
+): MonsterContent {
+  if (levelBonus <= 0) {
+    return monster;
+  }
+
+  return { ...monster, level: Math.max(1, monster.level + levelBonus) };
 }
 
 function buildPersistentFightInterventionTrace(

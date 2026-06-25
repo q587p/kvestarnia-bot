@@ -3,7 +3,8 @@ import {
   decideThreatEscalation,
   findThreatEscalationLine,
   selectThreatEscalationLineId,
-  THREAT_ESCALATION_LINES
+  THREAT_ESCALATION_LINES,
+  THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
 } from "../../src/domain/combat/threatEscalation";
 
 describe("threat escalation policy", () => {
@@ -30,7 +31,36 @@ describe("threat escalation policy", () => {
     ])).toEqual({
       enemyCount: 2,
       reason: "ordinary-win-streak",
-      eligibleWins: 3
+      eligibleWins: 3,
+      secondEnemyLevelBonus: 0
+    });
+  });
+
+  it("boosts the second enemy on the next escalation after a won two-enemy checkpoint", () => {
+    expect(decideThreatEscalation([
+      { result: "won", enemyCount: 1, eligible: true, escalated: false },
+      { result: "won", enemyCount: 1, eligible: true, escalated: false },
+      { result: "won", enemyCount: 1, eligible: true, escalated: false },
+      { result: "won", enemyCount: 2, eligible: true, escalated: true }
+    ])).toEqual({
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins: 3,
+      secondEnemyLevelBonus: THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
+    });
+  });
+
+  it("does not boost the next escalation after a lost two-enemy checkpoint", () => {
+    expect(decideThreatEscalation([
+      { result: "won", enemyCount: 1, eligible: true, escalated: false },
+      { result: "won", enemyCount: 1, eligible: true, escalated: false },
+      { result: "won", enemyCount: 1, eligible: true, escalated: false },
+      { result: "lost", enemyCount: 2, eligible: true, escalated: true }
+    ])).toEqual({
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins: 3,
+      secondEnemyLevelBonus: 0
     });
   });
 
@@ -69,7 +99,8 @@ describe("threat escalation policy", () => {
       { result: "won", enemyCount: 1, eligible: true, escalated: false }
     ])).toMatchObject({
       enemyCount: 2,
-      reason: "ordinary-win-streak"
+      reason: "ordinary-win-streak",
+      secondEnemyLevelBonus: 0
     });
   });
 

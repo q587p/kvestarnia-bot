@@ -1,6 +1,7 @@
 import type { CombatStatus } from "./combatState";
 
 export const THREAT_ESCALATION_REQUIRED_WINS = 3;
+export const THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS = 2;
 export const THREAT_ESCALATION_LINE_VERSION = "threat-escalation-v1";
 
 export interface ThreatEscalationHistoryEntry {
@@ -16,6 +17,7 @@ export type ThreatEscalationDecision =
       enemyCount: 2;
       reason: "ordinary-win-streak";
       eligibleWins: typeof THREAT_ESCALATION_REQUIRED_WINS;
+      secondEnemyLevelBonus: 0 | typeof THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS;
     };
 
 export interface ThreatEscalationLine {
@@ -82,10 +84,23 @@ export function decideThreatEscalation(
   newestFirstHistory: readonly ThreatEscalationHistoryEntry[]
 ): ThreatEscalationDecision {
   let wins = 0;
+  let escalationReady = false;
 
   for (const entry of newestFirstHistory) {
     if (!entry.eligible) {
       continue;
+    }
+
+    if (escalationReady) {
+      return {
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+        secondEnemyLevelBonus:
+          entry.escalated && entry.enemyCount === 2 && entry.result === "won"
+            ? THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
+            : 0
+      };
     }
 
     if (entry.escalated && entry.enemyCount === 2) {
@@ -102,12 +117,17 @@ export function decideThreatEscalation(
 
     wins += 1;
     if (wins >= THREAT_ESCALATION_REQUIRED_WINS) {
-      return {
-        enemyCount: 2,
-        reason: "ordinary-win-streak",
-        eligibleWins: THREAT_ESCALATION_REQUIRED_WINS
-      };
+      escalationReady = true;
     }
+  }
+
+  if (escalationReady) {
+    return {
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+      secondEnemyLevelBonus: 0
+    };
   }
 
   return { enemyCount: 1, reason: "base", eligibleWins: wins };

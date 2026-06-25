@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
 - A stored escalated two-enemy terminal encounter checkpoints the cycle even while won-fight settlement is still pending, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
+- If a player previously won an escalated two-enemy checkpoint, the next escalated cycle boosts the second enemy by 2 effective levels.
 
 ### Unchanged
 - Rewards remain the existing single-encounter settlement contract for the whole two-enemy fight.
