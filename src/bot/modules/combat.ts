@@ -46,6 +46,7 @@ buildProblemQuestProgressAfterFightEntry,
 presentFightLevelRetired,
 presentFightNoCharacter,
 presentFightResult,
+presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
 presentPersistentFightJournal,
 presentPersistentFightPassagePreview,
@@ -299,11 +300,15 @@ async function handleFightCallback(
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
       });
+      if (result.started) {
+        await ctx.reply(presentPersistentFightIntro(result), HTML_MESSAGE_OPTIONS);
+      }
     }
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: false
+      requireKorchmaInterior: false,
+      suppressStartIntro: Boolean(result.state === "persistent-active" && result.started)
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;

@@ -3050,6 +3050,45 @@ describe("scene callback HTML options", () => {
 
   it("starts a passage preview encounter only after Attack", async () => {
     const markAction = vi.fn(() => Promise.resolve());
+    const escalatedSession = {
+      ...persistentSessionWithOrigin("location.korchma.deep.level1.straight"),
+      state: {
+        ...persistentSessionWithOrigin("location.korchma.deep.level1.straight").state,
+        monster: {
+          id: "monster.kvass-golem",
+          name: "Квасний голем на заквасці",
+          level: 5,
+          hp: 31,
+          hpMax: 32
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            id: "monster.kvass-golem",
+            name: "Квасний голем на заквасці",
+            level: 5,
+            hp: 31,
+            hpMax: 32
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.fox",
+            name: "Лис нечіткого дедлайну",
+            level: 4,
+            hp: 26,
+            hpMax: 26
+          }
+        ],
+        threat: {
+          version: 1,
+          enemyCount: 2,
+          reason: "ordinary-win-streak",
+          eligibleWins: 3,
+          lineId: "fame-went-ahead",
+          lineVersion: "threat-escalation-v1"
+        }
+      }
+    };
     const attackPersistentPassageEncounterForTelegramUser = vi.fn(() =>
       Promise.resolve({
         state: "persistent-active" as const,
@@ -3058,13 +3097,13 @@ describe("scene callback HTML options", () => {
           ...character,
           level: 3
         },
-        session: persistentSessionWithOrigin("location.korchma.deep.level1.straight"),
+        session: escalatedSession,
         monster: {
-          id: "monster.deadline-spider",
-          name: "Павук дедлайнів",
-          description: "Плете павутину з «сьогодні швиденько».",
-          level: 2,
-          tags: ["beast", "time", "web"]
+          id: "monster.kvass-golem",
+          name: "Квасний голем на заквасці",
+          description: "Булькає так, ніби має план.",
+          level: 5,
+          tags: ["construct", "kvass"]
         },
         questProgress: null
       })
@@ -3085,13 +3124,13 @@ describe("scene callback HTML options", () => {
           ...character,
           level: 3
         },
-        session: persistentSession("monster.deadline-spider"),
+        session: escalatedSession,
         monster: {
-          id: "monster.deadline-spider",
-          name: "Павук дедлайнів",
-          description: "Плете павутину з «сьогодні швиденько».",
-          level: 2,
-          tags: ["beast", "time", "web"]
+          id: "monster.kvass-golem",
+          name: "Квасний голем на заквасці",
+          description: "Булькає так, ніби має план.",
+          level: 5,
+          tags: ["construct", "kvass"]
         },
         questProgress: null
       });
@@ -3115,7 +3154,9 @@ describe("scene callback HTML options", () => {
         }
       })
     );
-    const fight = calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("❤️ Ви:"));
+    const messages = calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text));
+    const introMessages = messages.filter((text) => text.includes("Проти вас:"));
+    const fight = messages.find((text) => text.includes("❤️ Ви:"));
 
     expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledWith(42n, "token13", {
       callbackOriginLocationId: "location.korchma.deep.level1.straight",
@@ -3127,7 +3168,13 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(introMessages).toHaveLength(1);
+    expect(introMessages[0]).toContain("Слава далеко пішла. На шум прийшов ще один охочий подивитися");
+    expect(introMessages[0]).toContain("👹 1. <b>Квасний голем на заквасці</b> · рівень 5");
+    expect(introMessages[0]).toContain("👹 2. <b>Лис нечіткого дедлайну</b> · рівень 4");
+    expect(introMessages[0]).toContain("<i>Порада дня:");
+    expect(fight).toContain("⏳ На хід є 23 секунди.");
+    expect(fight).not.toContain("Проти вас:");
     expect(
       calls.some(
         (call) =>
