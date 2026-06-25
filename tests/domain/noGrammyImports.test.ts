@@ -10,6 +10,14 @@ describe("domain layer imports", () => {
       expect(readFileSync(file, "utf8")).not.toMatch(/from\s+["']grammy["']/);
     }
   });
+
+  it("does not import bot adapter modules", () => {
+    const domainFiles = listTypeScriptFiles(join(process.cwd(), "src", "domain"));
+
+    for (const file of domainFiles) {
+      expect(readFileSync(file, "utf8")).not.toMatch(/from\s+["'][^"']*(?:\.\.\/)+bot\//);
+    }
+  });
 });
 
 function listTypeScriptFiles(directory: string): string[] {

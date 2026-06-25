@@ -10,6 +10,25 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.2 — Architecture stabilization smoke
+
+Цей реліз не має змінювати ігрову поведінку. Перевіряй, що маршрути після рознесення bot registration і runtime lifecycle працюють як у `0.2.1`:
+
+1. `/start` і один onboarding callback.
+2. `/hero`, inventory item detail і equipment.
+3. Поточна навігація Корчмою через reply keyboard та inline place callbacks.
+4. Quest Hub → Adventure Choice.
+5. Низ: passage preview і старт persistent fight.
+6. Активний persistent fight redirects a blocked route back to combat.
+7. Safe side surface during combat remains allowed.
+8. Training або turn-based duel active lock restores its card.
+9. Pending Barrel raid blocks one mutation and allows existing read-only shortcut.
+10. Shynok overview and one drink/sale callback.
+11. Nearby players and either duel targeting or safe gifting.
+12. `/news`, `/help`, `/version`.
+13. One stale/old callback.
+14. Restart/reopen restores canonical durable state.
+
 ## 0.2.1 — Multi-enemy foundation smoke
 
 1. Увімкнути локальні dev-команди й стартувати `/dev_two_enemies`.

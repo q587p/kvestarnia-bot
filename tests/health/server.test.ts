@@ -78,10 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Низ навчився рахувати до двох");
-    expect(text).toContain("Бойова картка вже вміє показати кількох супротивників");
-    expect(text).toContain("Корчма не оголошує перемогу завчасно");
-    expect(text).toContain("Автоматичних зграй, нових щедрих нагород");
+    expect(text).toContain("Корчма переклала дроти під підлогою");
+    expect(text).toContain("Це тихе технічне оновлення без нових пригод");
+    expect(text).toContain("пригодники, інвентар, Корчма, Низ");
+    expect(text).toContain("Бойові замки, старі кнопки, очікування рейду на Бочку");
+    expect(text).toContain("Корчмар не додав нового меню");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

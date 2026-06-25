@@ -1,0 +1,31 @@
+import type { Context } from "grammy";
+import type { TavernRaidService } from "../../services/tavernRaidService";
+import { buildTavernResultKeyboard } from "../keyboards/tavernKeyboard";
+import { presentPendingRaidActionBlock } from "../presenters/tavernPresenter";
+import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
+import { safeEditMessageText } from "../safeEditMessageText";
+
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
+
+export async function editPendingRaidBlockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  tavernRaidService: TavernRaidService
+): Promise<boolean> {
+  const pending = await tavernRaidService.getActivePendingFridayBarrelRaidForTelegramUser(
+    telegramUserId
+  );
+
+  if (pending.state !== "pending") {
+    return false;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentPendingRaidActionBlock(pending), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildTavernResultKeyboard("pending")
+  });
+  return true;
+}

@@ -60,6 +60,9 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 - [0.2.1-multi-enemy-foundation.md](0.2.1-multi-enemy-foundation.md) — task for backward-compatible two-enemy combat state and dev-only two-enemy exposure.
 - [0.2.2-architecture-stabilization.md](0.2.2-architecture-stabilization.md) — queued behavior-preserving architecture stabilization before threat escalation.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
+- [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
+- [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
+- [0.2.x-senior-barrel-brother-group-raid.md](0.2.x-senior-barrel-brother-group-raid.md) — draft future Senior Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
 - [0.2.x-postal-mantok-delivery.md](0.2.x-postal-mantok-delivery.md) — draft future paid postal/courier delivery for sending one eligible manatka to a known non-nearby recipient.
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
