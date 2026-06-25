@@ -26,7 +26,8 @@ import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
   buildInventoryKeyboard,
-  buildItemDetailKeyboard
+  buildItemDetailKeyboard,
+  buildItemUseResultKeyboard
 } from "../../src/bot/keyboards/inventoryKeyboard";
 import {
   buildMantokChestManualSelectionKeyboard,
@@ -1384,6 +1385,27 @@ describe("main menu and scene keyboards", () => {
       "v1:equip:clear:weapon",
       "v1:equip:clear:accessory",
       "v1:item:inventory"
+    ]);
+  });
+
+  it("adds another item-use button only when requested", () => {
+    expect(flatInlineButtonTexts(buildItemUseResultKeyboard())).toEqual([
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
+      flatInlineButtonTexts(buildItemUseResultKeyboard({ repeatItemId: "item.responsible-panic-bandage" }))
+    ).toEqual([
+      "🩹 Ще один",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
+      flatInlineButtonCallbacks(buildItemUseResultKeyboard({ repeatItemId: "item.responsible-panic-bandage" }))
+    ).toEqual([
+      "v1:use:p:item.responsible-panic-bandage",
+      "v1:item:inventory",
+      "v1:equip:view"
     ]);
   });
 

@@ -124,8 +124,14 @@ export function buildItemUsePreviewKeyboard(token: string): InlineKeyboard {
     .text("⬅️ До манаток", makeInventoryCallbackData());
 }
 
-export function buildItemUseResultKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildItemUseResultKeyboard(options: { repeatItemId?: string | null } = {}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (options.repeatItemId) {
+    keyboard.text("🩹 Ще один", makeItemUsePreviewCallbackData(options.repeatItemId)).row();
+  }
+
+  return keyboard
     .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());

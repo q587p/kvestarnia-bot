@@ -256,6 +256,7 @@ async function handleItemUseCallback(
   }
 
   const result = await services.itemUse.confirmForTelegramUser(telegramUserId, action.token);
+  const repeatItemId = await getRepeatItemUseId(services, telegramUserId, result);
 
   await safeAnswerCallbackQuery(
     ctx,
@@ -274,8 +275,33 @@ async function handleItemUseCallback(
   );
   await safeEditMessageText(ctx, presentItemUseConfirm(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUseResultKeyboard()
+    reply_markup: buildItemUseResultKeyboard({ repeatItemId })
   });
+}
+
+async function getRepeatItemUseId(
+  services: BotServices,
+  telegramUserId: bigint,
+  result: Awaited<ReturnType<BotServices["itemUse"]["confirmForTelegramUser"]>>
+): Promise<string | null> {
+  if (result.state !== "used" && result.state !== "replayed") {
+    return null;
+  }
+
+  const outcome = result.order.result ?? result.order.preview;
+  if (outcome.hpAfter >= outcome.hpMax) {
+    return null;
+  }
+
+  const inventory = await services.inventory.listForTelegramUser(telegramUserId);
+  if (inventory.state !== "found") {
+    return null;
+  }
+
+  const itemId = result.order.itemId;
+  const stack = inventory.items.find((item) => item.itemId === itemId);
+
+  return stack && stack.quantity > 0 ? itemId : null;
 }
 
 async function handleEquipmentCallback(
