@@ -7,6 +7,39 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.3] - 12026-06-25 - Threat Escalation MVP
+
+### Added
+- Added ordinary threat escalation for normal persistent fights: after three consecutive eligible one-enemy ordinary wins, the next eligible ordinary start creates exactly two enemies.
+- Added a pure threat policy with 13 stable Ukrainian escalation lines and stored `CombatState.threat` metadata so intro, restart, active and terminal replay cards reuse the same line.
+- Added bounded durable combat-history lookup for recent terminal solo-combat sessions without a schema migration; the scan maps completion times before sorting by canonical `completedAt DESC`.
+- Added focused policy, service, presenter, parser and Prisma repository tests for escalation, resets, excluded routes, passage attacks, two-enemy checkpoint behavior, stable copy, malformed/dropped threat metadata and history ordering.
+
+### Changed
+- Replaced the old eligible ordinary three-win monster-rest start denial with escalation for ordinary normal starts.
+- Nyz passage attack callbacks now decide escalation at combat-session creation, keep the previewed monster as the primary enemy, freeze the same threat metadata/line as direct starts, and return the canonical consumed session on duplicate callbacks.
+- Newly started Nyz passage fights now send the separate fight intro before the active combat card, so escalated passage starts show the warning line, full opponent roster and battle tip before later compact HP rows.
+- Newly started ordinary fights now keep the separate fight intro even when the start comes from an edited callback, so the opponent roster and battle tip are not lost before the active combat card.
+- Consumed Nyz passage survivor recovery no longer rebuilds stored multi-enemy/threat fights as a one-enemy continuation.
+- Excluded Yeger, Adventure, training, duel, starter and dev-forced rows no longer consume the bounded ordinary threat streak window; malformed terminal rows and ordinary two-enemy rows without valid threat metadata fail safely back to base threat.
+- Threat metadata now requires the current escalation line version and a known authored line id before it can count as an escalated checkpoint or grant repeat second-enemy level bonuses.
+- Persistent fight state cards no longer repeat the full opponent roster after the intro; active and terminal cards keep compact HP rows with short monster labels.
+- Persistent fight state cards now carry the current turn number in the heading as `N хід` and no longer spend a separate `Хід:` line.
+- Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.
+- Battle journal pages for two-enemy fights now show per-enemy HP rows and explicit zero-damage enemy misses instead of collapsing the turn to one generic monster row.
+- Monster runtime effects now name the applied effect, use full `пунктів` wording for point deltas, show remaining actions/charges, split ongoing effect damage from the direct monster response, and persist active effect plus skill-cooldown notices into battle journal replay.
+- Hero attack and class-skill turns now resolve the monster response after hero damage even when the target was defeated by that action. Same-turn final responses are persisted in turn summaries/journals, defeated responders are restricted to one offensive/basic response without self-heal/shield/support, final-enemy mutual KO resolves as a win, and hero 0 HP with another enemy still living resolves as a loss.
+- Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; multi-enemy response lines disambiguate colliding short monster labels with deterministic enemy numbers; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
+- Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
+- A lost, fled or expired escalated two-enemy terminal encounter resets the cycle back to one enemy.
+- A won escalated two-enemy terminal encounter keeps the next ordinary start escalated immediately, even while won-fight settlement is still pending.
+- Consecutive won escalated fights stack only the second enemy's requested effective-level bonus by +2 each time (`+2`, `+4`, `+6`, ...); the primary enemy stays at its normal selected level, the applied second-enemy level is capped at the current game ceiling `23`, and `CombatState.threat.pressure` preserves requested/applied bonus metadata for replay/presentation.
+
+### Unchanged
+- Rewards remain the existing single-encounter settlement contract for the whole two-enemy fight.
+- Yeger, Adventure, training, duel, starter and dev-forced `/dev_two_enemies` sessions do not trigger or consume ordinary threat escalation.
+- No Prisma schema, migration, reward scaling, increased XP/gold/manatka quantity or quality, Yeger escalation, Adventure escalation, target UI, three-or-more enemies, party combat or raid runtime ships in this slice.
+
 ## [0.2.2] - 12026-06-25 - Architecture Stabilization
 
 ### Changed

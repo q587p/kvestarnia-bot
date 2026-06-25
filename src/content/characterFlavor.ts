@@ -379,7 +379,7 @@ function buildShawarmaStartComboLines(): CharacterFlavorLine[] {
     placement: "quest.start",
     scene: "shawarma",
     selector: { combos: [{ raceId, classId }] },
-    text: `{title} біля шаурми. ${shawarmaComboRaceBeat(raceId)} ${shawarmaComboClassBeat(classId)}`
+    text: `{title} біля шаурми.\n\n${shawarmaComboRaceBeat(raceId)} ${shawarmaComboClassBeat(classId)}`
   }));
 }
 
@@ -437,7 +437,7 @@ function buildFightStartComboLines(): CharacterFlavorLine[] {
     placement: "quest.start",
     scene: "fight",
     selector: { combos: [{ raceId, classId }] },
-    text: `{title} навпроти підозрілого монстра. ${fightComboRaceBeat(raceId)} ${fightComboClassBeat(classId)}`
+    text: `{title} навпроти підозрілого монстра.\n\n${fightComboRaceBeat(raceId)} ${fightComboClassBeat(classId)}`
   }));
 }
 

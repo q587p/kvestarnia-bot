@@ -1233,6 +1233,225 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     ]);
   });
 
+  it("orders recent completed candidates by canonical completedAt instead of later updatedAt touches", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-recent-order",
+      characterId: "character-recent-order",
+      telegramUserId: 9301n
+    });
+
+    await prisma.soloCombatSession.createMany({
+      data: [
+        makeSoloSessionData({
+          id: "recent-order-older-touched",
+          characterId: "character-recent-order",
+          monsterId: "monster.deadline-spider",
+          status: "won",
+          source: "normal",
+          completedAt: new Date("2026-06-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-06-24T11:00:00.000Z")
+        }),
+        makeSoloSessionData({
+          id: "recent-order-newer-completed",
+          characterId: "character-recent-order",
+          monsterId: "monster.preapproval-dragonling",
+          status: "won",
+          source: "normal",
+          completedAt: new Date("2026-06-24T10:05:00.000Z"),
+          updatedAt: new Date("2026-06-24T10:05:00.000Z")
+        })
+      ]
+    });
+
+    const recent = await repository.listRecentCompletedByTelegramUserId(9301n, 2);
+
+    expect(recent.map((session) => session.monsterId)).toEqual([
+      "monster.preapproval-dragonling",
+      "monster.deadline-spider"
+    ]);
+  });
+
+  it("paginates the bounded recent completion scan before sorting and slicing", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-recent-page",
+      characterId: "character-recent-page",
+      telegramUserId: 9302n
+    });
+
+    const base = new Date("2026-06-24T12:00:00.000Z").getTime();
+    const sessions = [];
+    for (let index = 0; index < 60; index += 1) {
+      sessions.push(makeSoloSessionData({
+        id: `recent-page-${String(index).padStart(2, "0")}`,
+        characterId: "character-recent-page",
+        monsterId: `monster.page-${String(index).padStart(2, "0")}`,
+        status: "won",
+        source: "normal",
+        completedAt: new Date(base + index * 60_000),
+        updatedAt: new Date(base + index * 60_000)
+      }));
+    }
+    await prisma.soloCombatSession.createMany({ data: sessions });
+
+    const recent = await repository.listRecentCompletedByTelegramUserId(9302n, 55);
+
+    expect(recent).toHaveLength(55);
+    expect(recent[0]?.monsterId).toBe("monster.page-59");
+    expect(recent.at(-1)?.monsterId).toBe("monster.page-05");
+  });
+
+  it("returns excluded rows inside the scan so threat policy can skip them without losing older ordinary wins", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-recent-excluded",
+      characterId: "character-recent-excluded",
+      telegramUserId: 9303n
+    });
+
+    const base = new Date("2026-06-24T13:00:00.000Z").getTime();
+    const sessions = [];
+    for (let index = 0; index < 3; index += 1) {
+      sessions.push(makeSoloSessionData({
+        id: `recent-excluded-normal-${index}`,
+        characterId: "character-recent-excluded",
+        monsterId: `monster.normal-${index}`,
+        status: "won",
+        source: "normal",
+        completedAt: new Date(base + index * 60_000),
+        updatedAt: new Date(base + index * 60_000)
+      }));
+    }
+    for (let index = 0; index < 30; index += 1) {
+      sessions.push(makeSoloSessionData({
+        id: `recent-excluded-yeger-${String(index).padStart(2, "0")}`,
+        characterId: "character-recent-excluded",
+        monsterId: `monster.yeger-${index}`,
+        status: "won",
+        source: "yeger",
+        completedAt: new Date(base + (index + 10) * 60_000),
+        updatedAt: new Date(base + (index + 10) * 60_000)
+      }));
+    }
+    await prisma.soloCombatSession.createMany({ data: sessions });
+
+    const recent = await repository.listRecentCompletedByTelegramUserId(9303n, 200);
+
+    expect(recent).toHaveLength(33);
+    expect(recent.slice(-3).map((session) => session.monsterId)).toEqual([
+      "monster.normal-2",
+      "monster.normal-1",
+      "monster.normal-0"
+    ]);
+  });
+
+  it("uses createdAt as the legacy canonical completion time fallback", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-recent-legacy-fallback",
+      characterId: "character-recent-legacy-fallback",
+      telegramUserId: 9304n
+    });
+
+    const state = {
+      ...makeCombatState("recent-legacy-fallback", "monster.deadline-spider"),
+      status: "won",
+      source: "normal"
+    };
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "recent-legacy-fallback",
+        characterId: "character-recent-legacy-fallback",
+        monsterId: "monster.deadline-spider",
+        stateJson: state,
+        status: "won",
+        turn: 1,
+        expiresAt: new Date("2026-06-24T14:30:00.000Z"),
+        createdAt: new Date("2026-06-24T14:00:00.000Z"),
+        updatedAt: new Date("2026-06-24T14:23:00.000Z")
+      }
+    });
+
+    const recent = await repository.listRecentCompletedByTelegramUserId(9304n, 1);
+
+    expect(recent[0]?.completedAt.toISOString()).toBe("2026-06-24T14:00:00.000Z");
+  });
+
+  it("keeps long-running fights completed recently inside the bounded recent scan", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-recent-long-running",
+      characterId: "character-recent-long-running",
+      telegramUserId: 9307n
+    });
+
+    const noisyBase = new Date("2026-06-24T15:00:00.000Z").getTime();
+    const sessions = [];
+    for (let index = 0; index < 205; index += 1) {
+      sessions.push(makeSoloSessionData({
+        id: `recent-long-noise-${String(index).padStart(3, "0")}`,
+        characterId: "character-recent-long-running",
+        monsterId: `monster.noise-${String(index).padStart(3, "0")}`,
+        status: "won",
+        source: "normal",
+        completedAt: new Date(noisyBase - index * 60_000),
+        updatedAt: new Date(noisyBase - index * 60_000)
+      }));
+    }
+    sessions.push(makeSoloSessionData({
+      id: "recent-long-running-winner",
+      characterId: "character-recent-long-running",
+      monsterId: "monster.long-running",
+      status: "won",
+      source: "normal",
+      completedAt: new Date("2026-06-24T16:00:00.000Z"),
+      updatedAt: new Date("2026-06-24T16:00:00.000Z"),
+      createdAt: new Date("2026-06-20T09:00:00.000Z")
+    }));
+    await prisma.soloCombatSession.createMany({ data: sessions });
+
+    const recent = await repository.listRecentCompletedByTelegramUserId(9307n, 1);
+
+    expect(recent[0]?.monsterId).toBe("monster.long-running");
+    expect(recent[0]?.completedAt.toISOString()).toBe("2026-06-24T16:00:00.000Z");
+  });
+
+  it("isolates recent completion history by Telegram user", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-recent-target",
+      characterId: "character-recent-target",
+      telegramUserId: 9305n
+    });
+    await seedCharacter(prisma, {
+      userId: "user-recent-other",
+      characterId: "character-recent-other",
+      telegramUserId: 9306n
+    });
+
+    await prisma.soloCombatSession.createMany({
+      data: [
+        makeSoloSessionData({
+          id: "recent-target-session",
+          characterId: "character-recent-target",
+          monsterId: "monster.deadline-spider",
+          status: "won",
+          source: "normal",
+          completedAt: new Date("2026-06-24T15:00:00.000Z"),
+          updatedAt: new Date("2026-06-24T15:00:00.000Z")
+        }),
+        makeSoloSessionData({
+          id: "recent-other-session",
+          characterId: "character-recent-other",
+          monsterId: "monster.preapproval-dragonling",
+          status: "won",
+          source: "normal",
+          completedAt: new Date("2026-06-24T15:01:00.000Z"),
+          updatedAt: new Date("2026-06-24T15:01:00.000Z")
+        })
+      ]
+    });
+
+    const recent = await repository.listRecentCompletedByTelegramUserId(9305n, 5);
+
+    expect(recent.map((session) => session.monsterId)).toEqual(["monster.deadline-spider"]);
+  });
+
   it("scans past newer active and non-ordinary sessions for recent ordinary monsters", async () => {
     await seedCharacter(prisma, {
       userId: "user-history",
@@ -1486,6 +1705,7 @@ function makeSoloSessionData(input: {
   source: NonNullable<CombatState["source"]>;
   completedAt: Date;
   updatedAt: Date;
+  createdAt?: Date;
   settlementStatus?: "pending" | "completed" | "forfeited-by-remort";
 }) {
   const state = {
@@ -1519,7 +1739,7 @@ function makeSoloSessionData(input: {
     status: input.status,
     turn: 1,
     expiresAt: new Date(input.updatedAt.getTime() + 30 * 60_000),
-    createdAt: input.completedAt,
+    createdAt: input.createdAt ?? input.completedAt,
     updatedAt: input.updatedAt
   };
 }

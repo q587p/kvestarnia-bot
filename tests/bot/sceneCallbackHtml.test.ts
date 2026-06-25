@@ -923,12 +923,115 @@ describe("scene callback HTML options", () => {
     expect(String(progress?.payload.text)).toContain(
       "<i>Двадцять три підозрілі проблеми</i>: <b>7/23</b>."
     );
+    expect(String(progress?.payload.text)).not.toContain("Корчмар зараховує цей бій як одну проблему");
     const celebration = calls.find(
       (call) => call.method === "sendMessage" && String(call.payload.text).includes("🎉 Рівень підріс!")
     );
 
     expect(celebration?.payload.parse_mode).toBe("HTML");
     expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
+  });
+
+  it("puts the single-problem reminder in the progress ping only for won multi-enemy problem fights", async () => {
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174001",
+        turn: 3,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated",
+              character,
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                id: "123e4567-e89b-42d3-a456-426614174001",
+                status: "won",
+                turn: 4,
+                state: {
+                  id: "123e4567-e89b-42d3-a456-426614174001",
+                  status: "won",
+                  turn: 4,
+                  hero: {
+                    hp: 17,
+                    hpMax: 20,
+                    mana: 7,
+                    manaMax: 10
+                  },
+                  monster: {
+                    id: "monster.deadline-spider",
+                    hp: 0,
+                    hpMax: 12
+                  },
+                  enemies: [
+                    {
+                      enemyId: "enemy:1",
+                      id: "monster.deadline-spider",
+                      hp: 0,
+                      hpMax: 12
+                    },
+                    {
+                      enemyId: "enemy:2",
+                      id: "monster.complaint-lantern",
+                      hp: 0,
+                      hpMax: 16
+                    }
+                  ],
+                  lastTurn: {
+                    action: "attack",
+                    heroOutcome: "hit",
+                    heroDamage: 12,
+                    monsterDamage: 0,
+                    manaSpent: 0,
+                    critical: false
+                  }
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: {
+                stageId: "23",
+                title: "Двадцять три підозрілі проблеми",
+                wins: 8,
+                target: 23,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              fightReward: {
+                state: "claimed",
+                reward: {
+                  xp: 20,
+                  gold: 0,
+                  localDate: "123e4567-e89b-42d3-a456-426614174001",
+                  itemGrants: []
+                },
+                levelChange: null
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const progress = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Прогрес справи зрушив")
+    );
+
+    expect(String(edit?.payload.text)).toContain("🎉 Ви перемогли");
+    expect(String(edit?.payload.text)).not.toContain("Корчмар зараховує");
+    expect(progress?.payload.parse_mode).toBe("HTML");
+    expect(String(progress?.payload.text)).toContain(
+      "<i>Двадцять три підозрілі проблеми</i>: <b>8/23</b>."
+    );
+    expect(String(progress?.payload.text)).toContain("Корчмар зараховує цей бій як одну проблему");
   });
 
   it("does not send a passage movement notice after a persistent skill turn", async () => {
@@ -1000,6 +1103,64 @@ describe("scene callback HTML options", () => {
       })
     );
     expect(movement).toBeUndefined();
+  });
+
+  it("refreshes the location keyboard after a non-passage fight callback changes place", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const getCurrentPlaceForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "ready" as const,
+        locationId: "location.korchma.hall",
+        locationName: "Зала корчми",
+        insideKorchma: true
+      })
+      .mockResolvedValue({
+        state: "ready" as const,
+        locationId: "location.korchma.deep.level1.straight",
+        locationName: "Прямий прохід",
+        insideKorchma: true
+      });
+    const calls = await captureApiCalls(
+      makeFightViewCallbackData(session.id),
+      servicesWith({
+        fight: {
+          getPersistentFightSnapshotForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser
+        }
+      })
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви пішли у прямий прохід.")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(movement).toBeDefined();
+    expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.deepStraight);
   });
 
   it("adds a Shynok route button to completed problem quest progress", async () => {
@@ -2947,6 +3108,45 @@ describe("scene callback HTML options", () => {
 
   it("starts a passage preview encounter only after Attack", async () => {
     const markAction = vi.fn(() => Promise.resolve());
+    const escalatedSession = {
+      ...persistentSessionWithOrigin("location.korchma.deep.level1.straight"),
+      state: {
+        ...persistentSessionWithOrigin("location.korchma.deep.level1.straight").state,
+        monster: {
+          id: "monster.kvass-golem",
+          name: "Квасний голем на заквасці",
+          level: 5,
+          hp: 31,
+          hpMax: 32
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            id: "monster.kvass-golem",
+            name: "Квасний голем на заквасці",
+            level: 5,
+            hp: 31,
+            hpMax: 32
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.fox",
+            name: "Лис нечіткого дедлайну",
+            level: 4,
+            hp: 26,
+            hpMax: 26
+          }
+        ],
+        threat: {
+          version: 1,
+          enemyCount: 2,
+          reason: "ordinary-win-streak",
+          eligibleWins: 3,
+          lineId: "fame-went-ahead",
+          lineVersion: "threat-escalation-v1"
+        }
+      }
+    };
     const attackPersistentPassageEncounterForTelegramUser = vi.fn(() =>
       Promise.resolve({
         state: "persistent-active" as const,
@@ -2955,13 +3155,13 @@ describe("scene callback HTML options", () => {
           ...character,
           level: 3
         },
-        session: persistentSessionWithOrigin("location.korchma.deep.level1.straight"),
+        session: escalatedSession,
         monster: {
-          id: "monster.deadline-spider",
-          name: "Павук дедлайнів",
-          description: "Плете павутину з «сьогодні швиденько».",
-          level: 2,
-          tags: ["beast", "time", "web"]
+          id: "monster.kvass-golem",
+          name: "Квасний голем на заквасці",
+          description: "Булькає так, ніби має план.",
+          level: 5,
+          tags: ["construct", "kvass"]
         },
         questProgress: null
       })
@@ -2982,13 +3182,13 @@ describe("scene callback HTML options", () => {
           ...character,
           level: 3
         },
-        session: persistentSession("monster.deadline-spider"),
+        session: escalatedSession,
         monster: {
-          id: "monster.deadline-spider",
-          name: "Павук дедлайнів",
-          description: "Плете павутину з «сьогодні швиденько».",
-          level: 2,
-          tags: ["beast", "time", "web"]
+          id: "monster.kvass-golem",
+          name: "Квасний голем на заквасці",
+          description: "Булькає так, ніби має план.",
+          level: 5,
+          tags: ["construct", "kvass"]
         },
         questProgress: null
       });
@@ -3012,7 +3212,9 @@ describe("scene callback HTML options", () => {
         }
       })
     );
-    const fight = calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("❤️ Ви:"));
+    const messages = calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text));
+    const introMessages = messages.filter((text) => text.includes("Проти вас:"));
+    const fight = messages.find((text) => text.includes("❤️ Ви:"));
 
     expect(attackPersistentPassageEncounterForTelegramUser).toHaveBeenCalledWith(42n, "token13", {
       callbackOriginLocationId: "location.korchma.deep.level1.straight",
@@ -3024,7 +3226,20 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(String(fight?.payload.text)).toContain("⏳ На хід є 23 секунди.");
+    expect(introMessages).toHaveLength(1);
+    expect(introMessages[0]).toContain("Слава далеко пішла. На шум прийшов ще один охочий подивитися");
+    expect(introMessages[0]).toContain("👹 1. <b>Квасний голем на заквасці</b> · рівень 5");
+    expect(introMessages[0]).toContain("👹 2. <b>Лис нечіткого дедлайну</b> · рівень 4");
+    expect(introMessages[0]).toContain("<i>Порада дня:");
+    expect(fight).toContain("⏳ На хід є 23 секунди.");
+    expect(fight).not.toContain("Проти вас:");
+    expect(
+      calls.some(
+        (call) =>
+          call.method === "sendMessage" &&
+          String(call.payload.text).includes("Ви пішли у прямий прохід.")
+      )
+    ).toBe(false);
   });
 
   it("routes a repeated passage attack callback through the same survivor token", async () => {
@@ -3137,8 +3352,10 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
-    expect(fightTexts.some((text) => text.includes("Павук дедлайнів"))).toBe(true);
-    expect(fightTexts.some((text) => text.includes("Павук дедлайнів") && text.includes("7/12"))).toBe(true);
+    expect(fightTexts.some((text) => text.includes("Павук"))).toBe(true);
+    expect(
+      fightTexts.some((text) => text.includes("Павук") && text.includes("7/12") && !text.includes("Проти вас:"))
+    ).toBe(true);
   });
 
   it("keeps rapid duplicate passage attack taps on one active session", async () => {

@@ -11,3 +11,4 @@ export * from "./combatWorldContext";
 export * from "./monsterAbilityRuntime";
 export * from "./monsterCombatStats";
 export * from "./monsterContext";
+export * from "./threatEscalation";

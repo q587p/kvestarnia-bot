@@ -140,6 +140,8 @@ export interface CombatState {
   source?: "normal" | "yeger" | "adventure" | "training";
   life?: CombatLifeState;
   settlement?: CombatSettlementState;
+  threat?: CombatThreatState;
+  threatExclusion?: CombatThreatExclusionState;
   originLocationId?: string;
   completedAt?: string;
   turnExpiresAt?: string;
@@ -177,6 +179,31 @@ export interface CombatState {
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
+}
+
+export interface CombatThreatState {
+  version: 1;
+  enemyCount: 2;
+  reason: "ordinary-win-streak";
+  eligibleWins: 3;
+  lineId: string;
+  lineVersion: string;
+  pressure?: CombatThreatPressureState;
+}
+
+export interface CombatThreatPressureState {
+  version: 1;
+  consecutiveWonEscalatedFights: number;
+  requestedSecondEnemyLevelBonus: number;
+  appliedSecondEnemyLevelBonus: number;
+  boostedEnemyId: string;
+  boostedEnemyEffectiveLevel: number;
+  levelCap: number;
+}
+
+export interface CombatThreatExclusionState {
+  version: 1;
+  reason: "dev-forced-two-enemies";
 }
 
 export interface DrinkCombatModifiers {
@@ -240,6 +267,7 @@ export interface CombatTurnSummary {
   monsterOutcome?: CombatTurnOutcome;
   heroDamage: number;
   monsterDamage: number;
+  heroEffectDamage?: number;
   manaSpent: number;
   critical: boolean;
   skillId?: string;
@@ -249,6 +277,7 @@ export interface CombatTurnSummary {
   monsterDamageKind?: CombatDamageKind;
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
   heroCounterDamage?: number;
   monsterBarkId?: string;
   enemyActions?: CombatEnemyTurnSummary[];
@@ -266,12 +295,15 @@ export interface CombatEnemyTurnSummary {
   monsterDamageKind?: CombatDamageKind;
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
 }
 
 export interface CombatTurnLogEntry {
   eventId?: string;
   turn: number;
   summary: CombatTurnSummary;
+  notices?: string[];
+  cooldowns?: NonNullable<CombatState["cooldowns"]>;
   hero: {
     hp: number;
     mana: number;
@@ -342,6 +374,15 @@ export function cloneCombatState(state: CombatState): CombatState {
           }
         }
       : {}),
+    ...(state.threat
+      ? {
+          threat: {
+            ...state.threat,
+            ...(state.threat.pressure ? { pressure: { ...state.threat.pressure } } : {})
+          }
+        }
+      : {}),
+    ...(state.threatExclusion ? { threatExclusion: { ...state.threatExclusion } } : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
@@ -686,6 +727,8 @@ export function cloneCombatTurnLogEntry(entry: CombatTurnLogEntry): CombatTurnLo
     ...(entry.eventId ? { eventId: entry.eventId } : {}),
     turn: entry.turn,
     summary: cloneCombatTurnSummary(entry.summary),
+    ...(entry.notices ? { notices: [...entry.notices] } : {}),
+    ...(entry.cooldowns ? { cooldowns: cloneCombatCooldowns(entry.cooldowns) } : {}),
     hero: { ...entry.hero },
     monster: { ...entry.monster },
     ...(entry.enemies ? { enemies: entry.enemies.map((enemy) => ({ ...enemy })) } : {})

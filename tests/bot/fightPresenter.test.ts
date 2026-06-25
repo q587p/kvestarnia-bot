@@ -208,7 +208,29 @@ describe("fight presenter", () => {
         ...character,
         name: "<b>Мандрівник</b>"
       },
-      session: persistentSession(),
+      session: persistentSession({
+        monsterRuntime: {
+          version: 1,
+          rulesVersion: "monster-abilities-v1",
+          aiProfile: "controller",
+          loadoutIds: [],
+          cooldowns: {},
+          onceUsedAbilityIds: [],
+          consecutiveAbilityUses: 0,
+          ownActionCount: 0,
+          effects: [{
+            id: "test-accuracy-pressure",
+            sourceAbilityId: "monster.test-pressure",
+            sourceActor: "monster",
+            target: "hero",
+            kind: "accuracy",
+            value: 15,
+            polarity: "harmful",
+            removable: true,
+            remainingTargetActivations: 1
+          }]
+        }
+      }),
       monster: {
         id: "monster.test",
         name: "<i>Монстр</i>",
@@ -223,17 +245,20 @@ describe("fight presenter", () => {
 
     expect(intro).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(intro).toContain("Проти вас: <b>&lt;i&gt;Монстр&lt;/i&gt;</b> · рівень 3");
-    expect(intro).toContain("поки не видає нагород");
+    expect(intro).toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(intro).not.toContain("поки не видає нагород");
     expect(intro).toContain("<i>Порада дня:");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
-    expect(text).toContain("⚔️ <b>Бій</b>");
-    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).toContain("⚔️ <b>Бій</b>: 1 хід");
+    expect(text).not.toContain("\nХід:");
+    expect(text).not.toContain("Проти вас:");
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("📋 <b>Тринадцять дрібних проблем</b>");
     expect(text).not.toContain("Прогрес справи: <b>4/13</b> проблем записано в журнал.");
     expect(text).toContain("❤️ Ви: 24/24 · мана 12/12");
-    expect(text).toContain("👹 Монстр: 18/18");
+    expect(text).toContain("👹 Тестовий: 18/18");
+    expect(text).toContain("🧷 Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії.");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?\n⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
     expect(text).not.toContain("що робимо?\n\n⏳");
     expect(text).toContain("⏳ На хід є 23 секунди");
@@ -250,6 +275,23 @@ describe("fight presenter", () => {
       character,
       session: persistentSession({
         turn: 2,
+        threat: {
+          version: 1,
+          enemyCount: 2,
+          reason: "ordinary-win-streak",
+          eligibleWins: 3,
+          lineId: "one-hero-invitation",
+          lineVersion: "threat-escalation-v1",
+          pressure: {
+            version: 1,
+            consecutiveWonEscalatedFights: 1,
+            requestedSecondEnemyLevelBonus: 2,
+            appliedSecondEnemyLevelBonus: 2,
+            boostedEnemyId: "enemy:2",
+            boostedEnemyEffectiveLevel: 3,
+            levelCap: 23
+          }
+        },
         monster: {
           id: "monster.second",
           name: "<i>Другий</i>",
@@ -288,18 +330,280 @@ describe("fight presenter", () => {
     const intro = presentPersistentFightIntro(result);
     const text = presentPersistentFight(result);
 
-    expect(intro).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(intro).toContain("⚠️ <i>Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.</i>\n📈 <i>Натиск Низу:</i> <b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.\n\nПроти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(intro).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
+    expect(intro).toContain("Натиск Низу:");
+    expect(intro).toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.");
     expect(intro).toContain("<i>Порада дня:");
     expect(intro).not.toContain("<i>Другий</i>");
     expect(intro).not.toContain("<b>Перший</b>");
 
-    expect(text).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(text).not.toContain("Проти вас:");
+    expect(text).not.toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
+    expect(text).not.toContain("Натиск Низу:");
+    expect(text).not.toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.");
     expect(text).not.toContain("Проти вас: <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3");
-    expect(text).toContain("👹 1. &lt;i&gt;Другий&lt;/i&gt;: 7/16 ← ціль");
-    expect(text).toContain("👹 2. &lt;b&gt;Перший&lt;/b&gt;: 0/18");
+    expect(text).toContain("👹 1. Другий: 7/16 ← ціль");
+    expect(text).toContain("👹 2. Перший: 0/18");
     expect(text).not.toContain("<i>Порада дня:");
     expect(text).not.toContain("<i>Другий</i>");
     expect(text).not.toContain("<b>Перший</b>");
+  });
+
+  it("announces a defeated enemy and the next target in a two-enemy fight", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 6,
+        monster: {
+          id: "monster.spider",
+          name: "Павук дедлайнів",
+          level: 3,
+          hp: 18,
+          hpMax: 18
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.spider",
+            name: "Павук дедлайнів",
+            level: 3,
+            hp: 18,
+            hpMax: 18
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.cabbage",
+            name: "Капустяний лицар на перерві",
+            level: 2,
+            hp: 0,
+            hpMax: 18
+          }
+        ],
+        lastTurn: {
+          action: "skill",
+          heroOutcome: "hit",
+          heroDamage: 18,
+          monsterDamage: 5,
+          manaSpent: 3,
+          critical: true,
+          skillId: "skill.hot-spell",
+          enemyActions: [
+            {
+              enemyId: "enemy:2",
+              monsterId: "monster.spider",
+              monsterName: "Павук дедлайнів",
+              monsterOutcome: "hit",
+              monsterDamage: 5,
+              monsterAction: "attack"
+            }
+          ]
+        },
+        turnLog: [
+          {
+            turn: 2,
+            hero: { hp: 29, mana: 5 },
+            monster: { hp: 18 },
+            enemies: [
+              { enemyId: "enemy:2", hp: 18 },
+              { enemyId: "enemy:1", hp: 0 }
+            ],
+            summary: {
+              action: "skill",
+              heroOutcome: "hit",
+              heroDamage: 18,
+              monsterDamage: 5,
+              manaSpent: 3,
+              critical: true,
+              skillId: "skill.hot-spell",
+              enemyActions: [
+                {
+                  enemyId: "enemy:2",
+                  monsterId: "monster.spider",
+                  monsterName: "Павук дедлайнів",
+                  monsterOutcome: "hit",
+                  monsterDamage: 5,
+                  monsterAction: "attack"
+                }
+              ]
+            }
+          }
+        ]
+      }),
+      monster: {
+        id: "monster.spider",
+        name: "Павук дедлайнів",
+        description: "Тестовий павук.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("⚔️ <b>Бій</b>: 6 хід");
+    expect(text).not.toContain("⚔️ <b>Бій</b>: 6 ходів");
+    expect(text).toContain("👹 1. Павук: 18/18 ← ціль");
+    expect(text).toContain("👹 2. Капустяний: 0/18");
+    expect(text).toContain("Знешкоджено: <b>Капустяний лицар на перерві</b>. Нова ціль — <b>Павук дедлайнів</b>; Корчма переставила табличку без голосування.");
+  });
+
+  it("disambiguates colliding short monster names in multi-enemy response lines", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 3,
+        monster: {
+          id: "monster.ghost-audit",
+          name: "Привид аудиту",
+          level: 3,
+          hp: 12,
+          hpMax: 18
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            id: "monster.ghost-audit",
+            name: "Привид аудиту",
+            level: 3,
+            hp: 12,
+            hpMax: 18
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.ghost-comment",
+            name: "Привид коментаря",
+            level: 3,
+            hp: 10,
+            hpMax: 18
+          }
+        ],
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 5,
+          monsterDamage: 7,
+          manaSpent: 0,
+          critical: false,
+          enemyActions: [
+            {
+              enemyId: "enemy:1",
+              monsterId: "monster.ghost-audit",
+              monsterName: "Привид аудиту",
+              monsterOutcome: "hit",
+              monsterDamage: 3,
+              monsterAction: "attack"
+            },
+            {
+              enemyId: "enemy:2",
+              monsterId: "monster.ghost-comment",
+              monsterName: "Привид коментаря",
+              monsterOutcome: "hit",
+              monsterDamage: 4,
+              monsterAction: "attack"
+            }
+          ]
+        }
+      }),
+      monster: {
+        id: "monster.ghost-audit",
+        name: "Привид аудиту",
+        description: "Тестовий привид.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Привид 1 атакує у відповідь і завдає 3 шкоди.");
+    expect(text).toContain("Привид 2 атакує у відповідь і завдає 4 шкоди.");
+    expect(text).not.toContain("Привид атакує у відповідь і завдає 3 шкоди.");
+    expect(text).not.toContain("Привид атакує у відповідь і завдає 4 шкоди.");
+    expect(text).not.toContain("діє окремо");
+  });
+
+  it("combines multi-enemy final responses into one readable line", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 1,
+          monsterDamage: 6,
+          manaSpent: 0,
+          critical: true,
+          enemyActions: [
+            {
+              enemyId: "enemy:1",
+              monsterId: "monster.ghost",
+              monsterName: "Привид старого боргу",
+              monsterOutcome: "hit",
+              monsterDamage: 6,
+              monsterAction: "attack",
+              simultaneousFinalResponse: true
+            },
+            {
+              enemyId: "enemy:2",
+              monsterId: "monster.dragon",
+              monsterName: "Дракончик попереднього погодження",
+              monsterOutcome: "hit",
+              monsterDamage: 6,
+              monsterAction: "attack"
+            }
+          ]
+        }
+      }),
+      monster: {
+        id: "monster.ghost",
+        name: "Привид старого боргу",
+        description: "Тестовий привид.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Привид устиг відповісти в ту саму мить і завдав 6 шкоди.");
+    expect(text).toContain("Дракончик атакує у відповідь і завдає 6 шкоди.");
+    expect(text).not.toContain("Привид устиг відповісти в ту саму мить.\nПривид");
+    expect(text).not.toContain("діє окремо");
+  });
+
+  it("marks simultaneous final response lines in persisted turn summaries", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "won",
+          heroDamage: 18,
+          monsterDamage: 4,
+          manaSpent: 0,
+          critical: false,
+          simultaneousFinalResponse: true,
+          monsterOutcome: "hit",
+          monsterAction: "attack"
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тест.",
+        level: 1,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Монстр устиг відповісти в ту саму мить.");
+    expect(text).toContain("Монстр атакував у відповідь на ваш хід і завдав 4 шкоди.");
   });
 
   it("falls back to stable labels when multi-enemy HP rows lack names", () => {
@@ -342,8 +646,8 @@ describe("fight presenter", () => {
       questProgress: questProgress(4)
     });
 
-    expect(text).toContain("👹 1. Квасний голем на заквасці: 32/32 ← ціль");
-    expect(text).toContain("👹 2. Монстр 2: 26/26");
+    expect(text).toContain("👹 1. Квасний: 32/32 ← ціль");
+    expect(text).toContain("👹 2. Монстр: 26/26");
     expect(text).not.toContain("👹 1.:");
     expect(text).not.toContain("👹 2.:");
   });
@@ -542,7 +846,8 @@ describe("fight presenter", () => {
     });
 
     expect(stale).toContain("поточний стан");
-    expect(stale).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(stale).not.toContain("Проти вас:");
+    expect(stale).toContain("👹 Тестовий: 18/18");
     expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
   });
@@ -607,7 +912,8 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Останній хід: вміння");
     expect(text).not.toContain("критично:");
     expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
-    expect(text).toContain("Проти вас: <b>Тестовий монстр</b> · рівень 3");
+    expect(text).not.toContain("Проти вас:");
+    expect(text).toContain("👹 Тестовий: 18/18");
     expect(text).not.toContain("критично дала");
   });
 
@@ -751,6 +1057,145 @@ describe("fight presenter", () => {
     expect(text).toContain("👹 Монстр після ходу: 14/18");
     expect(text).toContain("Ви стали в захист");
     expect(text).not.toContain("Хід записано");
+  });
+
+  it("renders stored cooldowns and active effect notices in combat journal pages", () => {
+    const session = persistentSession({
+      turn: 3,
+      turnLog: [
+        {
+          turn: 2,
+          hero: { hp: 22, mana: 9 },
+          monster: { hp: 11 },
+          cooldowns: {
+            skill: {
+              id: "skill.hot-spell",
+              remainingTurns: 1
+            }
+          },
+          notices: [
+            "Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії."
+          ],
+          summary: {
+            action: "skill",
+            heroOutcome: "hit",
+            heroDamage: 7,
+            monsterDamage: 3,
+            manaSpent: 3,
+            critical: false,
+            skillId: "skill.hot-spell",
+            damageKind: "spell"
+          }
+        }
+      ]
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("🫁 🪄 Гаряче закляття відсапується: ще 1 хід.");
+    expect(text).toContain("🧷 Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії.");
+    expect(text).not.toContain("п.п.");
+  });
+
+  it("renders multi-enemy journal HP rows and zero-damage enemy misses", () => {
+    const session = persistentSession({
+      turn: 2,
+      monster: {
+        id: "monster.bread",
+        name: "Буханець дедлайнів",
+        level: 3,
+        hp: 6,
+        hpMax: 17
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.bread",
+          name: "Буханець дедлайнів",
+          level: 3,
+          hp: 6,
+          hpMax: 17
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.pack",
+          name: "Зграя дрібних правок",
+          level: 2,
+          hp: 8,
+          hpMax: 18
+        }
+      ],
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 16, mana: 11 },
+          monster: { hp: 6 },
+          enemies: [
+            { enemyId: "enemy:1", hp: 6 },
+            { enemyId: "enemy:2", hp: 8 }
+          ],
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 9,
+            monsterDamage: 0,
+            manaSpent: 0,
+            critical: false,
+            enemyActions: [
+              {
+                enemyId: "enemy:1",
+                monsterId: "monster.bread",
+                monsterName: "Буханець дедлайнів",
+                monsterOutcome: "miss",
+                monsterDamage: 0,
+                monsterAction: "attack"
+              },
+              {
+                enemyId: "enemy:2",
+                monsterId: "monster.pack",
+                monsterName: "Зграя дрібних правок",
+                monsterOutcome: "miss",
+                monsterDamage: 0,
+                monsterAction: "attack"
+              }
+            ]
+          }
+        }
+      ]
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.bread",
+        name: "Буханець дедлайнів",
+        description: "Тестовий буханець.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 0);
+
+    expect(text).toContain("👹 1. Буханець після ходу: 6/17");
+    expect(text).toContain("👹 2. Зграя після ходу: 8/18");
+    expect(text).not.toContain("👹 Монстр після ходу");
+    expect(text).toContain("Атака влучає на 9 шкоди.");
+    expect(text).toContain("Буханець промахується");
+    expect(text).toContain("Зграя промахується");
   });
 
   it("adds the terminal last turn to the journal when it is missing from stored turns", () => {
@@ -962,7 +1407,8 @@ describe("fight presenter", () => {
           action: "attack",
           heroOutcome: "hit",
           heroDamage: 4,
-          monsterDamage: 5,
+          monsterDamage: 7,
+          heroEffectDamage: 2,
           manaSpent: 0,
           critical: false,
           monsterAction: "skill",
@@ -1009,6 +1455,7 @@ describe("fight presenter", () => {
 
     expect(damaging).toContain("Монстр застосував");
     expect(damaging).toContain("завдав 5 шкоди");
+    expect(damaging).toContain("Накладений ефект спрацював і завдав 2 шкоди.");
     expect(damaging).toContain("захист героя просів на 1");
     expect(noDamage).toContain("без прямої шкоди цього ходу");
   });
@@ -1101,6 +1548,8 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
     expect(text).not.toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
     expect(text).toContain("Корчмар уже чує, що проблем вистачило — занесіть це в шинок.");
+    expect(text.indexOf("🎉 Ви перемогли")).toBeLessThan(text.indexOf("Винагорода за бій:"));
+    expect(text.indexOf("Корчмар уже чує")).toBeLessThan(text.indexOf("Винагорода за бій:"));
     expect(text).not.toContain("Після бою:");
     expect(text).not.toContain("список дрібних проблем теж не відвертівся");
   });
@@ -1108,11 +1557,16 @@ describe("fight presenter", () => {
   it("renders a separate progress ping for won problem fights", () => {
     const moved = presentProblemQuestProgressAfterFight(questProgress(5));
     const ready = presentProblemQuestProgressAfterFight(questProgress(13, true, false));
+    const multiEnemy = presentProblemQuestProgressAfterFight(questProgress(6), {
+      singleProblemHint: true
+    });
     const claimed = presentProblemQuestProgressAfterFight(questProgress(13, true, true));
 
     expect(moved).toContain("📋 <b>Прогрес справи зрушив</b>");
     expect(moved).toContain("<i>Тринадцять дрібних проблем</i>: <b>5/13</b>.");
     expect(moved).not.toContain("Корчмар чекає");
+    expect(moved).not.toContain("Корчмар зараховує цей бій як одну проблему");
+    expect(multiEnemy).toContain("Корчмар зараховує цей бій як одну проблему");
     expect(ready).toContain("<i>Тринадцять дрібних проблем</i>: <b>13/13</b>.");
     expect(ready).toContain("Корчмар чекає в шинку");
     expect(claimed).toBeNull();
@@ -1226,8 +1680,11 @@ describe("fight presenter", () => {
 
     expect(text).toContain("Винагорода вже видана");
     expect(text).toContain("Винагорода за бій:\n<b>+7 XP\n+2 золота</b>");
-    expect(text).toContain("Проти вас: <b>&lt;b&gt;Монстр&lt;/b&gt;</b> · рівень 3");
-    expect(text).not.toContain("<b>Монстр</b>");
+    expect(text).not.toContain("Проти вас:");
+    expect(text).toContain("👹 Монстр: 0/18");
+    expect(text).not.toContain("👹 <b>Монстр</b>: 0/18");
+    expect(text).toContain("Знешкоджено: <b>Монстр</b>.");
+    expect(text).not.toContain("Корчмар зараховує");
   });
 
   it("shows consolation XP for a lost persistent fight as an attempt reward", () => {
@@ -1273,6 +1730,7 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain("🎒 За спробу:\n<b>+1 XP</b>");
+    expect(text.indexOf("💤 Ви програли.")).toBeLessThan(text.indexOf("🎒 За спробу:"));
     expect(text).not.toContain("Корчмар підсунув 1 XP за спробу");
     expect(text).not.toContain("Винагорода за бій:\n<b>+1 XP</b>");
     expect(text).not.toContain("+0 золота");

@@ -49,6 +49,186 @@ describe("solo combat state JSON parser", () => {
     ]);
   });
 
+  it("drops invalid threat metadata while preserving dev threat exclusion", () => {
+    const state = parseCombatState({
+      ...legacyState,
+      source: "normal",
+      monster: {
+        id: "monster.legacy",
+        hp: 5,
+        hpMax: 5
+      },
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 2,
+        lineId: "invalid",
+        lineVersion: "invalid"
+      },
+      threatExclusion: {
+        version: 1,
+        reason: "dev-forced-two-enemies"
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.threat).toBeUndefined();
+    expect(state?.threatExclusion).toEqual({
+      version: 1,
+      reason: "dev-forced-two-enemies"
+    });
+  });
+
+  it.each([
+    {
+      name: "unknown line id",
+      lineId: "unknown-threat-line",
+      lineVersion: "threat-escalation-v1"
+    },
+    {
+      name: "unsupported line version",
+      lineId: "nyz-added-witnesses",
+      lineVersion: "future-threat-lines-v2"
+    }
+  ])("drops otherwise valid threat metadata with $name", ({ lineId, lineVersion }) => {
+    const state = parseCombatState({
+      ...legacyState,
+      source: "normal",
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineId,
+        lineVersion
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.threat).toBeUndefined();
+    expect(state?.enemies).toHaveLength(2);
+  });
+
+  it("preserves valid threat pressure metadata", () => {
+    const state = parseCombatState({
+      ...legacyState,
+      source: "normal",
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineId: "nyz-added-witnesses",
+        lineVersion: "threat-escalation-v1",
+        pressure: {
+          version: 1,
+          consecutiveWonEscalatedFights: 5,
+          requestedSecondEnemyLevelBonus: 10,
+          appliedSecondEnemyLevelBonus: 3,
+          boostedEnemyId: "enemy:2",
+          boostedEnemyEffectiveLevel: 23,
+          levelCap: 23
+        }
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.threat?.pressure).toEqual({
+      version: 1,
+      consecutiveWonEscalatedFights: 5,
+      requestedSecondEnemyLevelBonus: 10,
+      appliedSecondEnemyLevelBonus: 3,
+      boostedEnemyId: "enemy:2",
+      boostedEnemyEffectiveLevel: 23,
+      levelCap: 23
+    });
+  });
+
+  it("drops malformed threat pressure metadata while preserving the valid threat", () => {
+    const state = parseCombatState({
+      ...legacyState,
+      source: "normal",
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineId: "nyz-added-witnesses",
+        lineVersion: "threat-escalation-v1",
+        pressure: {
+          version: 1,
+          consecutiveWonEscalatedFights: 5,
+          requestedSecondEnemyLevelBonus: 2,
+          appliedSecondEnemyLevelBonus: 10,
+          boostedEnemyId: "enemy:2",
+          boostedEnemyEffectiveLevel: 24,
+          levelCap: 23
+        }
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.threat).toMatchObject({
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins: 3
+    });
+    expect(state?.threat?.pressure).toBeUndefined();
+  });
+
   it("round-trips a two-enemy state after primary death", () => {
     const state = {
       ...legacyState,

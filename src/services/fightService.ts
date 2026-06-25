@@ -14,6 +14,7 @@ import type {
   GuardedResourceSettlementOutcome,
   GuardedSettlementOutcome,
   CombatDrinkStateCommit,
+  SoloCombatSessionCompletionRecord,
   SoloCombatSessionRecord,
   SoloCombatSessionRepository
 } from "../db/repositories/soloCombatSessionRepository";
@@ -48,9 +49,15 @@ import {
   resolveCombatTurn,
   resolveMonsterContext,
   startCombat,
+  decideThreatEscalation,
+  findThreatEscalationLine,
+  selectThreatEscalationLineId,
+  THREAT_ESCALATION_LINE_VERSION,
+  THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS,
   type CombatActionType,
   type CombatActorStats,
   type CombatBalanceSource,
+  type CombatEnemyState,
   type CombatState,
   type DrinkCombatModifiers,
   type MonsterCombatStats
@@ -58,6 +65,7 @@ import {
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
 import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
 import {
+  CURRENT_GAME_LEVEL_CAP,
   isWithinActivityMaxLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../domain/progression/activityGates";
@@ -120,6 +128,14 @@ interface RecoveryNoticeField {
   recoveryNotice?: ResourceRecoveryNotice;
 }
 
+interface PersistentFightExtraMonsterSelection {
+  baseMonster: MonsterContent;
+  monster: MonsterContent;
+  requestedLevelBonus: number;
+  appliedLevelBonus: number;
+  levelCap: number;
+}
+
 type ResourceSettlementFlowResult =
   | { outcome: "ready" | "completed"; session: SoloCombatSessionRecord }
   | { outcome: "forfeited" | "blocked"; session: SoloCombatSessionRecord | null };
@@ -153,6 +169,9 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
 };
 export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
+// Storage scan bound for ordinary threat history. Excluded rows inside this
+// window do not consume the logical streak; rows beyond it fail back to base.
+export const THREAT_ESCALATION_HISTORY_LIMIT = 200;
 export const PERSISTENT_FIGHT_TURN_SECONDS = 23;
 export const PENDING_PASSAGE_ENCOUNTER_TTL_MS = 93 * 60 * 1000;
 export const PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS = HP_BASE_FULL_REGEN_SECONDS;
@@ -868,6 +887,14 @@ export class FightService {
           return { state: "no-character" };
         }
 
+        if (isEscalatedPassageRecoveryDisabled(snapshot.session)) {
+          return this.previewPersistentFightForTelegramUser(telegramUserId, {
+            difficulty: encounter.difficulty,
+            originLocationId: encounter.originLocationId,
+            refreshed: "stale"
+          }) as Promise<PersistentFightPassageAttackResult>;
+        }
+
         const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
         const sessionId = randomUUID();
         const drinkSnapshot = await this.buildDrinkCombatSnapshot(telegramUserId, now);
@@ -993,19 +1020,40 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
     const sessionId = randomUUID();
     const drinkSnapshot = await this.buildDrinkCombatSnapshot(telegramUserId, now);
+    const difficulty = getPersistentFightDifficultyConfig(encounter.difficulty);
+    const threatDecision = await this.resolveThreatEscalationDecision(telegramUserId, {
+      source: "normal",
+      difficulty: encounter.difficulty,
+      encounterSeed: encounter.seedHash,
+      originLocationId: encounter.originLocationId
+    });
+    const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
+    const extraMonsters = await this.selectPersistentFightExtraMonsters({
+      telegramUserId,
+      character: gate.character,
+      primaryBaseMonsterId: baseMonster.id,
+      difficulty,
+      encounterSeed: encounter.seedHash,
+      originLocationId: encounter.originLocationId,
+      enemyCount: threatDecision.enemyCount,
+      secondEnemyLevelBonus: threatDecision.enemyCount === 2
+        ? threatDecision.secondEnemyLevelBonus
+        : 0
+    });
     const state = this.buildPersistentFightCombatState({
       sessionId,
       character,
       characterSummary: gate.character,
       baseMonster,
       monster,
-      difficulty: getPersistentFightDifficultyConfig(encounter.difficulty),
+      extraMonsters,
+      difficulty,
       originLocationId: encounter.originLocationId,
       source: "normal",
       now,
+      threatDecision,
       ...(drinkSnapshot ? { drinkModifiers: drinkSnapshot.modifiers } : {})
     });
     const consumed = await this.pendingPassageEncounters.consumeForTelegramUser(telegramUserId, token, {
@@ -1080,6 +1128,38 @@ export class FightService {
     return { state: "invalid-preview" };
   }
 
+  private async selectPersistentFightExtraMonsters(input: {
+    telegramUserId: bigint;
+    character: CharacterSummary;
+    primaryBaseMonsterId: string;
+    difficulty: PersistentFightDifficultyConfig;
+    encounterSeed: string;
+    originLocationId: string;
+    enemyCount: 1 | 2;
+    secondEnemyLevelBonus: number;
+  }): Promise<PersistentFightExtraMonsterSelection[]> {
+    if (input.enemyCount !== 2) {
+      return [];
+    }
+
+    const recentMonsterIds = await getRecentOrdinaryMonsterIds(this.combatSessions, input.telegramUserId);
+    const baseMonster = selectSoloFightMonster(
+      input.character,
+      buildPersistentFightEncounterRng(input.encounterSeed, input.difficulty, input.originLocationId),
+      input.difficulty,
+      [input.primaryBaseMonsterId, ...recentMonsterIds]
+    );
+    const monster = applyPersistentFightDifficulty(baseMonster, input.character, input.difficulty);
+
+    return [
+      applyThreatSecondEnemyLevelBonus({
+        baseMonster,
+        monster,
+        requestedLevelBonus: input.secondEnemyLevelBonus
+      })
+    ];
+  }
+
   async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -1134,17 +1214,6 @@ export class FightService {
           character: characterSummary,
           questProgress,
           ...(recoveryNotice ? { recoveryNotice } : {})
-        };
-      }
-
-      const rest = await this.getMonsterRestCooldown(telegramUserId, "normal");
-      if (rest) {
-        return {
-          state: "monster-rest",
-          character: characterSummary,
-          questProgress,
-          ...(recoveryNotice ? { recoveryNotice } : {}),
-          ...rest
         };
       }
 
@@ -1648,18 +1717,7 @@ export class FightService {
       };
     }
 
-    const monsterRest = options.devBypassAvailability
-      ? null
-      : await this.getMonsterRestCooldown(telegramUserId, options.source ?? "normal");
-    if (monsterRest) {
-      return {
-        state: "monster-rest",
-        character: characterSummary,
-        questProgress,
-        ...(recoveryNotice ? { recoveryNotice } : {}),
-        ...monsterRest
-      };
-    }
+    const threatDecision = await this.resolveThreatEscalationDecision(telegramUserId, options);
 
     const difficulty = options.target
       ? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
@@ -1678,16 +1736,24 @@ export class FightService {
       ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
       : selectSoloFightMonster(characterSummary, encounterRng, difficulty, recentMonsterIds);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
-    const extraMonsters = options.enemyCount === 2
+    const enemyCount = options.enemyCount ?? threatDecision.enemyCount;
+    const secondEnemyLevelBonus =
+      threatDecision.enemyCount === 2 && !options.enemyCount
+        ? threatDecision.secondEnemyLevelBonus
+        : 0;
+    const extraBaseMonster = enemyCount === 2
+      ? selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
+          baseMonster.id,
+          ...recentMonsterIds
+        ])
+      : null;
+    const extraMonsters: PersistentFightExtraMonsterSelection[] = extraBaseMonster
       ? [
-          applyPersistentFightDifficulty(
-            selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
-              baseMonster.id,
-              ...recentMonsterIds
-            ]),
-            characterSummary,
-            difficulty
-          )
+          applyThreatSecondEnemyLevelBonus({
+            baseMonster: extraBaseMonster,
+            monster: applyPersistentFightDifficulty(extraBaseMonster, characterSummary, difficulty),
+            requestedLevelBonus: secondEnemyLevelBonus
+          })
         ]
       : [];
     const sessionId = randomUUID();
@@ -1703,7 +1769,7 @@ export class FightService {
       deriveMonsterCombatStats(monster),
       monsterContext
     );
-    const extraMonsterStats = extraMonsters.map((enemy) => {
+    const extraMonsterStats = extraMonsters.map(({ monster: enemy }) => {
       const context = resolveMonsterContext({ monster: enemy, world: worldContext });
 
       return applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context);
@@ -1726,6 +1792,20 @@ export class FightService {
       version: 1
     };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
+    if (threatDecision.enemyCount === 2 && !options.enemyCount) {
+      state.threat = buildCombatThreatState({
+        sessionId,
+        threatDecision,
+        extraMonster: extraMonsters[0],
+        boostedEnemy: state.enemies?.[1]
+      });
+    }
+    if (options.enemyCount === 2 && options.devBypassAvailability) {
+      state.threatExclusion = {
+        version: 1,
+        reason: "dev-forced-two-enemies"
+      };
+    }
     if (monsterContext) {
       state.context = monsterContext;
     }
@@ -3222,6 +3302,9 @@ export class FightService {
     if (!consumed?.session || !findMonster(consumed.encounter.monsterId)) {
       return null;
     }
+    if (isEscalatedPassageRecoveryDisabled(consumed.session)) {
+      return null;
+    }
 
     const monsterHp = getSurvivingPassageMonsterHp(consumed.session, now);
 
@@ -3239,11 +3322,13 @@ export class FightService {
     characterSummary: CharacterSummary;
     baseMonster: MonsterContent;
     monster: MonsterContent;
+    extraMonsters?: PersistentFightExtraMonsterSelection[];
     difficulty: PersistentFightDifficultyConfig;
     originLocationId: string;
     source: NonNullable<PersistentFightStartOptions["source"]>;
     now: Date;
     initialMonsterHp?: number;
+    threatDecision?: ReturnType<typeof decideThreatEscalation>;
     drinkModifiers?: DrinkCombatModifiers;
   }): CombatState {
     const worldContext = buildCombatWorldContext({
@@ -3256,10 +3341,16 @@ export class FightService {
       deriveMonsterCombatStats(input.monster),
       monsterContext
     );
+    const extraMonsterStats = (input.extraMonsters ?? []).map(({ monster }) => {
+      const context = resolveMonsterContext({ monster, world: worldContext });
+
+      return applyMonsterContextToStats(deriveMonsterCombatStats(monster), context);
+    });
     const state = startCombat({
       id: input.sessionId,
       hero: buildHeroCombatStats(input.characterSummary),
-      monster: monsterStats
+      monster: monsterStats,
+      ...(extraMonsterStats.length > 0 ? { enemies: extraMonsterStats } : {})
     });
     if (input.initialMonsterHp !== undefined) {
       state.monster.hp = Math.min(
@@ -3279,6 +3370,14 @@ export class FightService {
       version: 1
     };
     state.originLocationId = input.originLocationId;
+    if (input.threatDecision?.enemyCount === 2) {
+      state.threat = buildCombatThreatState({
+        sessionId: input.sessionId,
+        threatDecision: input.threatDecision,
+        extraMonster: input.extraMonsters?.[0],
+        boostedEnemy: state.enemies?.[1]
+      });
+    }
     if (input.drinkModifiers) {
       state.drinkModifiers = input.drinkModifiers;
     }
@@ -3303,6 +3402,18 @@ export class FightService {
     });
     if (analytics) {
       state.analytics = analytics;
+    }
+    if (state.enemies && input.extraMonsters) {
+      for (const [index, enemy] of state.enemies.entries()) {
+        const extra = input.extraMonsters[index - 1];
+        if (!extra) {
+          continue;
+        }
+        enemy.debugTrace = {
+          ...enemy.debugTrace,
+          ...buildPersistentFightInterventionTrace(extra.baseMonster, extra.monster, input.difficulty)
+        };
+      }
     }
 
     return state;
@@ -3397,6 +3508,121 @@ export class FightService {
 
     return availableAt > now ? { availableAt, now } : null;
   }
+
+  private async resolveThreatEscalationDecision(
+    telegramUserId: bigint,
+    options: PersistentFightStartOptions
+  ): Promise<ReturnType<typeof decideThreatEscalation>> {
+    if (
+      !this.combatSessions ||
+      options.devBypassAvailability ||
+      options.enemyCount ||
+      options.target ||
+      (options.source && options.source !== "normal")
+    ) {
+      return { enemyCount: 1, reason: "base", eligibleWins: 0 };
+    }
+
+    const history = this.combatSessions.listRecentCompletedByTelegramUserId
+      ? await this.combatSessions.listRecentCompletedByTelegramUserId(
+          telegramUserId,
+          THREAT_ESCALATION_HISTORY_LIMIT
+        )
+      : await this.combatSessions.listCompletedByTelegramUserIdSince(
+          telegramUserId,
+          new Date(0)
+        );
+
+    return decideThreatEscalation(
+      history
+        .sort((left, right) => right.completedAt.getTime() - left.completedAt.getTime())
+        .map((session) => toThreatEscalationHistoryEntry(session))
+    );
+  }
+}
+
+function toThreatEscalationHistoryEntry(
+  session: SoloCombatSessionCompletionRecord
+): Parameters<typeof decideThreatEscalation>[0][number] {
+  const state = session.state;
+  const terminal =
+    session.status === "won" ||
+    session.status === "lost" ||
+    session.status === "fled" ||
+    session.status === "expired";
+
+  if (!terminal) {
+    return {
+      result: "expired",
+      enemyCount: 1,
+      eligible: false,
+      escalated: false
+    };
+  }
+
+  const result = session.status as Exclude<SoloCombatSessionRecord["status"], "active">;
+  if (!state || state.status === "active" || !state.source) {
+    return {
+      result: "expired",
+      enemyCount: 1,
+      eligible: true,
+      escalated: false
+    };
+  }
+  if (state.source !== "normal") {
+    return {
+      result,
+      enemyCount: 1,
+      eligible: false,
+      escalated: false
+    };
+  }
+
+  const enemyCount = getThreatHistoryEnemyCount(state);
+  const escalated = isValidStoredThreatEscalation(state);
+  if (state.threatExclusion?.reason === "dev-forced-two-enemies") {
+    return {
+      result,
+      enemyCount: 1,
+      eligible: false,
+      escalated: false
+    };
+  }
+  if (enemyCount === 2 && !escalated) {
+    return {
+      result: "expired",
+      enemyCount: 1,
+      eligible: true,
+      escalated: false
+    };
+  }
+  const wonButUnsettled = session.status === "won" &&
+    state.settlement !== undefined &&
+    state.settlement.status !== "completed";
+  const monster = findMonster(session.monsterId);
+  const eligible =
+    (!wonButUnsettled || escalated) &&
+    state.source === "normal" &&
+    Boolean(monster && isSoloFightMonsterEligible(monster, Number.POSITIVE_INFINITY)) &&
+    (enemyCount === 1 || escalated);
+
+  return {
+    result,
+    enemyCount,
+    eligible,
+    escalated
+  };
+}
+
+function isValidStoredThreatEscalation(state: CombatState): boolean {
+  return state.threat?.enemyCount === 2 &&
+    state.threat.reason === "ordinary-win-streak" &&
+    state.threat.lineVersion === THREAT_ESCALATION_LINE_VERSION &&
+    Boolean(findThreatEscalationLine(state.threat.lineId));
+}
+
+function getThreatHistoryEnemyCount(state: CombatState): 1 | 2 {
+  return normalizeCombatEnemies(state).length === 2 ? 2 : 1;
 }
 
 function resolvePersistentFightOriginLocationId(options: PersistentFightStartOptions): string {
@@ -3767,6 +3993,15 @@ function getSurvivingPassageMonsterHp(
   return { current, max: hpMax };
 }
 
+function isEscalatedPassageRecoveryDisabled(session: SoloCombatSessionRecord): boolean {
+  const state = session.state;
+
+  return Boolean(
+    state?.threat?.enemyCount === 2 ||
+    (state && normalizeCombatEnemies(state).length > 1)
+  );
+}
+
 function getSessionExpiry(now: Date): Date {
   return new Date(now.getTime() + 30 * 60 * 1000);
 }
@@ -3974,6 +4209,61 @@ function applyPersistentFightDifficulty(
   });
 
   return level === baseMonster.level ? baseMonster : { ...baseMonster, level };
+}
+
+function applyThreatSecondEnemyLevelBonus(input: {
+  baseMonster: MonsterContent;
+  monster: MonsterContent;
+  requestedLevelBonus: number;
+}): PersistentFightExtraMonsterSelection {
+  const requestedLevelBonus = Math.max(0, Math.floor(input.requestedLevelBonus));
+  const normalLevel = Math.max(1, Math.floor(input.monster.level));
+  const boostedLevel = Math.min(CURRENT_GAME_LEVEL_CAP, normalLevel + requestedLevelBonus);
+  const appliedLevelBonus = Math.max(0, boostedLevel - normalLevel);
+
+  return {
+    baseMonster: input.baseMonster,
+    monster: boostedLevel === input.monster.level ? input.monster : { ...input.monster, level: boostedLevel },
+    requestedLevelBonus,
+    appliedLevelBonus,
+    levelCap: CURRENT_GAME_LEVEL_CAP
+  };
+}
+
+function buildCombatThreatState(input: {
+  sessionId: string;
+  threatDecision: ReturnType<typeof decideThreatEscalation>;
+  extraMonster?: PersistentFightExtraMonsterSelection | undefined;
+  boostedEnemy?: CombatEnemyState | undefined;
+}): NonNullable<CombatState["threat"]> {
+  if (input.threatDecision.enemyCount !== 2) {
+    throw new Error("Combat threat state can only be built for escalated two-enemy decisions.");
+  }
+
+  const requestedLevelBonus = input.extraMonster?.requestedLevelBonus ?? 0;
+  const pressure = input.extraMonster && input.boostedEnemy
+    ? {
+        version: 1 as const,
+        consecutiveWonEscalatedFights: Math.floor(
+          requestedLevelBonus / THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
+        ),
+        requestedSecondEnemyLevelBonus: requestedLevelBonus,
+        appliedSecondEnemyLevelBonus: input.extraMonster.appliedLevelBonus,
+        boostedEnemyId: input.boostedEnemy.enemyId,
+        boostedEnemyEffectiveLevel: input.extraMonster.monster.level,
+        levelCap: input.extraMonster.levelCap
+      }
+    : undefined;
+
+  return {
+    version: 1,
+    enemyCount: 2,
+    reason: "ordinary-win-streak",
+    eligibleWins: input.threatDecision.eligibleWins,
+    lineId: selectThreatEscalationLineId(input.sessionId),
+    lineVersion: THREAT_ESCALATION_LINE_VERSION,
+    ...(pressure ? { pressure } : {})
+  };
 }
 
 function buildPersistentFightInterventionTrace(

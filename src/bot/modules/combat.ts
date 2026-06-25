@@ -1,4 +1,5 @@
 import { InlineKeyboard,type Bot,type Context } from "grammy";
+import { normalizeCombatEnemies } from "../../domain/combat";
 import type {
 PersistentFightTurnResult
 } from "../../services/fightService";
@@ -45,6 +46,7 @@ buildProblemQuestProgressAfterFightEntry,
 presentFightLevelRetired,
 presentFightNoCharacter,
 presentFightResult,
+presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
 presentPersistentFightJournal,
 presentPersistentFightPassagePreview,
@@ -298,11 +300,15 @@ async function handleFightCallback(
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
       });
+      if (result.started) {
+        await ctx.reply(presentPersistentFightIntro(result), HTML_MESSAGE_OPTIONS);
+      }
     }
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: false
+      requireKorchmaInterior: false,
+      suppressStartIntro: Boolean(result.state === "persistent-active" && result.started)
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -467,7 +473,9 @@ async function presentWonFightQuestProgressAfterFight(
   yegerBefore: YegerProgressSnapshot
 ): Promise<FightQuestProgressAfterFightMessage | null> {
   const entries: QuestProgressAfterFightEntry[] = [];
-  const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress);
+  const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress, {
+    singleProblemHint: hasMoreThanOnePersistentEnemy(result)
+  });
 
   if (problemEntry) {
     entries.push(problemEntry);
@@ -501,6 +509,12 @@ async function presentWonFightQuestProgressAfterFight(
     text,
     ...(replyMarkup ? { replyMarkup } : {})
   };
+}
+
+function hasMoreThanOnePersistentEnemy(
+  result: Extract<PersistentFightTurnResult, { state: "updated" }>
+): boolean {
+  return result.session.state ? normalizeCombatEnemies(result.session.state).length > 1 : false;
 }
 
 function buildQuestProgressAfterFightKeyboard(

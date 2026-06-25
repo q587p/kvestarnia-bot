@@ -10,6 +10,24 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.3 — Threat escalation smoke
+
+1. Персонаж 3+ має видану звичайну справу і може стартувати ordinary бій у Низі.
+2. Заверши 0, 1 або 2 eligible ordinary one-enemy перемоги; наступний ordinary старт лишається one-enemy.
+3. Заверши третю consecutive eligible ordinary one-enemy перемогу.
+4. Стартуй наступний ordinary бій через `/fight` або passage attack: очікування — exactly two enemies, окремі HP-рядки, stable escalation line.
+5. Перезапусти процес або перевідкрий активний бій: ті самі два вороги й та сама escalation line.
+6. Дочекайся timeout і потім добий primary enemy: second living enemy стає primary target, dead enemy не діє.
+7. Заверши бій і натисни старі action/result кнопки: reward/settlement replay occurs once.
+8. Стартуй наступний ordinary бій після перемоги над двома: очікування — знову two-enemy, primary на звичайному рівні, другий ворог з `+2` effective levels.
+9. Переможи ще одну escalated пару й стартуй наступний ordinary бій: очікування — знову two-enemy, другий ворог уже з `+4` effective levels.
+10. На high-level персонажі або fixed-seed локальному сценарії продовж серію до capped pressure: очікування — другий ворог не переходить effective level `23`, а картка показує `Натиск Низу` з applied/capped bonus.
+11. Убий поточну ціль attack/class-skill дією так, щоб вона була жива на початку обміну: очікування — вона може один раз відповісти `в ту саму мить`, але не лікується, не ставить щит і не сапортить себе після `0 HP`.
+12. Перевір mutual-KO: якщо герой і final enemy падають до `0 HP` в тому самому обміні, бій завершено як перемогу; якщо лишається інший живий ворог, це поразка.
+13. Перерви серію loss/flee/expiry в eligible one-enemy або escalated two-enemy бою: наступний ordinary старт повертається до one-enemy.
+14. Перевір Yeger, Adventure, training, duel, starter і `/dev_two_enemies`: вони не trigger/consume ordinary threat.
+15. Після третьої ordinary перемоги більше не має зʼявлятися old `Низ просить тихіше` start denial для eligible ordinary start.
+
 ## 0.2.2 — Architecture stabilization smoke
 
 Цей реліз не має змінювати ігрову поведінку. Перевіряй, що маршрути після рознесення bot registration і runtime lifecycle працюють як у `0.2.1`:
@@ -301,7 +319,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 12. Очікування: видно ready-стан і кнопку `🔎 Перевірити слід`.
 13. Натисни `🔎 Перевірити слід`.
 14. Очікування: перевірка або стартує/повертає ordinary non-boss бій з тегом `undead`, `ghost`, `cursed` чи `unquiet`, або показує no-fight результат без прогресу й винагород.
-14a. Якщо перед цим три звичайні бої в Низі ввімкнули коротку monster-rest перерву, ready Єгерський слід усе одно має стартувати/повернути цільовий бій, а не показати `Низ просить тихіше`.
+14a. Якщо перед цим три звичайні бої в Низі підняли ordinary threat, ready Єгерський слід усе одно має стартувати/повернути цільовий бій як Yeger route, без ordinary two-enemy escalation.
 15. Якщо активний інший старший бій уже є, бот повертає його без створення другого й не називає нецільового монстра неупокоєною ціллю.
 16. Виграй цільовий старший бій і повернись до `/hunt`.
 17. Очікування: прогрес росте тільки за перемоги після старту справи; lost/fled/expired і wrong-tag монстри не рахуються.
@@ -422,8 +440,8 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
-- `/dev_reset_monster_rest` — у локальному режимі скидає коротку перерву монстрів після серії ordinary боїв у Низі.
-- `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation без production threat escalation.
+- `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
+- `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 
 ## `0.1.0` Phase 1 Definition of Done
 

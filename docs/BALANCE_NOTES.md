@@ -123,6 +123,10 @@ level 13: 1300
 
 Рівні `14-23` планувати як епічний діапазон із новими важелями, а не лише більшими числами. За прикладом Munchkin, раси й класи можуть відкривати додаткові абілки на milestone-рівнях: другий класовий трюк, расову витівку, тимчасовий bypass для манаток, бонус до конкретного типу подій або кумедний недолік, який іноді стає перевагою. Балансне правило: milestone має бути помітним у грі й тексті, але не робити одну расу/клас обов’язковим вибором.
 
+`0.2.3` ordinary threat pressure не відкриває рівні понад поточну стелю `23`. Кожна поспіль виграна escalated two-enemy пара просить ще `+2` effective levels тільки для другого ворога, але applied рівень дорівнює `min(23, normalEffectiveSecondLevel + requestedBonus)`. У state треба зберігати requested і applied значення окремо, щоб баланс-репорти бачили, де тиск уже вперся в стелю. Це не reward multiplier: вся escalated пара лишається одним encounter settlement.
+
+Same-turn final response не має ставати прихованим defensive comeback. Ворог, якого геройська attack/class-skill дія зводить до `0 HP`, може встигнути один раз відповісти offensive/basic дією, але не може після lethal hit лікуватися, ставити щит, чистити ефекти, сапортити або відновлювати себе. Взаємне `0 HP` проти final enemy рахується перемогою героя; `0 HP` героя за наявности іншого живого ворога — поразка.
+
 ## Authored quest-resolution checks
 
 `0.1.20` replaces the active Adventure Choice `safe/flair/risky` ladder with authored scene/race/class/signature methods. Quest-resolution checks use the canonical effective stat snapshot, deterministic character/period/scene/method seeding, bounded qualitative chance bands and four grades: `strong-success`, `success`, `mixed-success`, `complication`. Player-facing pre-commit copy stays qualitative: no exact percentages and no exact future rewards.
@@ -242,7 +246,9 @@ Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The 
 
 Loss отримує тільки малий consolation reward `1 XP` за спробу, без золота, луту або progress у Korchmar problem chain. Flee і expired fights не отримують reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item. `0.1.6` додає stage chain `13 -> 23 -> 42 -> 93`; кожен новий етап рахує тільки звичайні won solo fights після часу видачі етапу, а training doppelganger не рахується.
 
-`0.2.1` multi-enemy foundation не додає нового faucet: dev-only two-enemy fights використовують той самий single-encounter settlement/reward path, без per-enemy XP/gold/item multiplier і без progress scaling. Production `/fight`, Yeger, Adventure, starter, training і duel routes лишаються one-enemy, доки окремий threat-escalation slice не принесе власну балансну перевірку.
+`0.2.1` multi-enemy foundation не додає нового faucet: dev-only two-enemy fights використовують той самий single-encounter settlement/reward path, без per-enemy XP/gold/item multiplier і без progress scaling.
+
+`0.2.3` threat escalation лишає цей economy contract незмінним. Після трьох eligible one-enemy ordinary wins наступний eligible ordinary бій може стартувати з exactly two enemies, але payout лишається одним stored encounter reward: XP/gold/item rolls не множаться за кількістю ворогів і не використовують deferred `0.75x per enemy` модель. Перемога в escalated two-enemy бою одразу тримає наступний ordinary бій escalated і додає тільки другому ворогу ще `+2` effective levels за кожну поспіль виграну пару; loss/flee/expiry в eligible one-enemy або escalated two-enemy бою скидає ordinary threat до бази. Yeger, Adventure, starter, training, duel і dev-forced `/dev_two_enemies` не впливають на ordinary threat.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 

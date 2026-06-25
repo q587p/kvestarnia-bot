@@ -16,6 +16,7 @@ import {
   getMonsterRuntimeSkillManaCostIncrease,
   isHeroClassSkillLockedByMonster,
   monsterAbilityAsCombatSkill,
+  presentActiveMonsterRuntimeEffectNotices,
   resolveMonsterRuntimeAction
 } from "./monsterAbilityRuntime";
 import {
@@ -36,6 +37,7 @@ import {
   getPrimaryCombatEnemy,
   getTerminalCombatTurnLogEventId,
   hasCombatEnemyCollection,
+  normalizeCombatEnemies,
   syncPrimaryCombatEnemy,
   turnLogEnemies,
   updateCombatEnemy,
@@ -130,6 +132,7 @@ interface MonsterResponseResult {
   monsterSkill?: CombatSkillProfile;
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
   defendCounter?: boolean;
 }
 
@@ -319,6 +322,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
   tickSkillCooldown(nextState);
 
   const heroEffect = applyHeroActivationMonsterEffects(nextState);
+  const heroEffectDamage = heroEffect.damage;
   const monsterResponse = nextState.hero.hp > 0
     ? resolveMonsterResponse({
         state: nextState,
@@ -326,7 +330,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
         damageReduction: 0
       })
     : { damage: 0 };
-  const monsterDamage = heroEffect.damage + monsterResponse.damage;
+  const monsterDamage = heroEffectDamage + monsterResponse.damage;
   nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
   const bark = resolveMonsterBark({
@@ -347,6 +351,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
       : monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss"),
     heroDamage: 0,
     monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
@@ -415,10 +420,13 @@ function resolveHeroAttack(
     rng: input.rng
   });
   const heroDamage = runtimeHeroDamage.heroDamage;
-  const monsterHp = nextState.monster.hp;
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
+  const monsterDefeatedByHeroExchange = monsterHpBeforeHeroAction > 0 &&
+    nextState.monster.hp <= 0 &&
+    heroDamage > 0;
 
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
+  let heroEffectDamage = 0;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   const heroOutcome = nextState.monster.hp <= 0 && actorAction.summary.actorOutcome === "won"
     ? "won"
@@ -427,36 +435,17 @@ function resolveHeroAttack(
       : actorAction.summary.actorOutcome;
 
   if (nextState.hero.hp <= 0) {
-    nextState.status = "lost";
+    nextState.status = nextState.monster.hp <= 0 ? "won" : "lost";
     nextState.turn += 1;
     const summary = buildSummary({
       action: input.action,
       ...summaryActionOrigin(input),
-      heroOutcome: actorAction.summary.actorOutcome === "won" ? "hit" : actorAction.summary.actorOutcome,
-      monsterOutcome: "lost",
-      heroDamage,
-      monsterDamage,
-      manaSpent,
-      critical: actorAction.summary.critical,
-      ...(skill ? { skill } : {})
-    });
-    nextState.lastTurn = summary;
-    appendCombatTurnLog(nextState, input.state.turn, summary);
-
-    return {
-      ok: true,
-      state: recordCombatAnalyticsTurn(nextState, summary),
-      summary
-    };
-  }
-
-  if (monsterHp <= 0) {
-    nextState.status = "won";
-    nextState.turn += 1;
-    const summary = buildSummary({
-      action: input.action,
-      ...summaryActionOrigin(input),
-      heroOutcome: "won",
+      heroOutcome: nextState.status === "won"
+        ? "won"
+        : actorAction.summary.actorOutcome === "won"
+          ? "hit"
+          : actorAction.summary.actorOutcome,
+      ...(nextState.status === "lost" ? { monsterOutcome: "lost" as const } : {}),
       heroDamage,
       monsterDamage,
       manaSpent,
@@ -474,12 +463,14 @@ function resolveHeroAttack(
   }
 
   const heroEffect = applyHeroActivationMonsterEffects(nextState);
-  monsterDamage += heroEffect.damage;
+  heroEffectDamage = heroEffect.damage;
+  monsterDamage += heroEffectDamage;
   if (nextState.hero.hp > 0) {
     monsterResponse = resolveMonsterResponse({
       state: nextState,
       input,
-      damageReduction: skill?.monsterDamageReduction ?? 0
+      damageReduction: skill?.monsterDamageReduction ?? 0,
+      simultaneousFinalResponse: monsterDefeatedByHeroExchange
     });
     monsterDamage += monsterResponse.damage;
   }
@@ -488,7 +479,7 @@ function resolveHeroAttack(
     counterDamage = rollDefendCounterDamage(input.hero, input.monster, input.rng);
     nextState.monster.hp = Math.max(0, nextState.monster.hp - counterDamage);
   }
-  nextState.status = nextState.hero.hp <= 0 ? "lost" : nextState.monster.hp <= 0 ? "won" : "active";
+  nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
   const monsterOutcome = monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss");
   nextState.turn += 1;
   const bark = resolveMonsterBark({
@@ -508,6 +499,7 @@ function resolveHeroAttack(
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterOutcome,
     heroDamage,
     monsterDamage,
+    heroEffectDamage,
     heroCounterDamage: counterDamage,
     manaSpent,
     critical: actorAction.summary.critical,
@@ -516,6 +508,7 @@ function resolveHeroAttack(
     ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
+    ...(monsterResponse.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {}),
     ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
     ...(debugTrace ? { debugTrace } : {})
   });
@@ -541,6 +534,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     input.rng
   );
   let monsterDamage = 0;
+  let heroEffectDamage = 0;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   tickSkillCooldown(nextState);
 
@@ -549,6 +543,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     nextState.turn += 1;
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
+    heroEffectDamage = heroEffect.damage;
     monsterResponse = nextState.hero.hp > 0
       ? resolveMonsterResponse({
           state: nextState,
@@ -556,7 +551,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
           damageReduction: 0
         })
       : { damage: 0 };
-    monsterDamage = heroEffect.damage + monsterResponse.damage;
+    monsterDamage = heroEffectDamage + monsterResponse.damage;
     nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
     nextState.turn += 1;
   }
@@ -583,6 +578,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     monsterOutcome: nextState.status === "lost" ? "lost" : monsterOutcome,
     heroDamage: 0,
     monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
@@ -639,6 +635,7 @@ function resolveMultiEnemyHeroAttack(
   syncPrimaryCombatEnemy(nextState);
   const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
   const primary = getPrimaryCombatEnemy(nextState);
+  const enemyPhaseParticipants = getLivingCombatEnemies(nextState);
   const primaryStats = findEnemyStats(input, primary);
   const monsterHpBeforeHeroAction = primary.hp;
   const defenderStats = applyMonsterRuntimeHeroAttackModifiers(
@@ -689,16 +686,21 @@ function resolveMultiEnemyHeroAttack(
   const heroDamage = runtimeHeroDamage.heroDamage;
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
+  let heroEffectDamage = 0;
   let counterDamage = 0;
 
   if (nextState.hero.hp <= 0) {
-    nextState.status = "lost";
-  } else if (getLivingCombatEnemies(nextState).length === 0) {
-    nextState.status = "won";
+    nextState.status = getLivingCombatEnemies(nextState).length === 0 ? "won" : "lost";
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
-    monsterDamage += heroEffect.damage;
-    const enemyPhase = resolveLivingEnemyPhase(nextState, input, skill?.monsterDamageReduction ?? 0);
+    heroEffectDamage = heroEffect.damage;
+    monsterDamage += heroEffectDamage;
+    const enemyPhase = resolveLivingEnemyPhase(
+      nextState,
+      input,
+      skill?.monsterDamageReduction ?? 0,
+      enemyPhaseParticipants
+    );
     monsterDamage += enemyPhase.monsterDamage;
     if (nextState.hero.hp > 0 && enemyPhase.defendCounter && monsterDamage > 0) {
       counterDamage = rollDefendCounterDamage(input.hero, primaryStats, input.rng);
@@ -706,10 +708,10 @@ function resolveMultiEnemyHeroAttack(
       counterTarget.hp = Math.max(0, counterTarget.hp - counterDamage);
       updateCombatEnemy(nextState, counterTarget.enemyId, counterTarget);
     }
-    nextState.status = nextState.hero.hp <= 0
-      ? "lost"
-      : getLivingCombatEnemies(nextState).length === 0
-        ? "won"
+    nextState.status = getLivingCombatEnemies(nextState).length === 0
+      ? "won"
+      : nextState.hero.hp <= 0
+        ? "lost"
         : "active";
     const heroOutcome = nextState.status === "won"
       ? "won"
@@ -727,6 +729,7 @@ function resolveMultiEnemyHeroAttack(
       monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
       heroDamage,
       monsterDamage,
+      heroEffectDamage,
       heroCounterDamage: counterDamage,
       manaSpent,
       critical: actorAction.summary.critical,
@@ -749,7 +752,11 @@ function resolveMultiEnemyHeroAttack(
   const summary = buildSummary({
     action: input.action,
     ...summaryActionOrigin(input),
-    heroOutcome: nextState.status === "won" ? "won" : actorAction.summary.actorOutcome,
+    heroOutcome: nextState.status === "won"
+      ? "won"
+      : actorAction.summary.actorOutcome === "won"
+        ? "hit"
+        : actorAction.summary.actorOutcome,
     heroDamage,
     monsterDamage,
     manaSpent,
@@ -781,13 +788,15 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
     enemyActions: [],
     defendCounter: false
   };
+  let heroEffectDamage = 0;
 
   if (fled) {
     nextState.status = "fled";
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
+    heroEffectDamage = heroEffect.damage;
     enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
-    enemyPhase.monsterDamage += heroEffect.damage;
+    enemyPhase.monsterDamage += heroEffectDamage;
     nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   }
 
@@ -802,6 +811,7 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
       : {}),
     heroDamage: 0,
     monsterDamage: enemyPhase.monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
@@ -867,10 +877,14 @@ function appendCombatTurnLog(
   turn: number,
   summary: CombatTurnSummary
 ): void {
+  const notices = buildCombatTurnLogNotices(state);
+
   appendCombatTurnLogEntry(state, {
     ...(state.status !== "active" ? { eventId: getTerminalCombatTurnLogEventId(state.status) } : {}),
     turn,
     summary: cloneCombatTurnSummary(summary),
+    ...(notices.length > 0 ? { notices } : {}),
+    ...(state.cooldowns ? { cooldowns: cloneCombatCooldowns(state.cooldowns) } : {}),
     hero: {
       hp: state.hero.hp,
       mana: state.hero.mana
@@ -880,6 +894,25 @@ function appendCombatTurnLog(
     },
     ...turnLogEnemies(state)
   });
+}
+
+function buildCombatTurnLogNotices(state: CombatState): string[] {
+  const runtimes = state.enemies
+    ? state.enemies.flatMap((enemy) => enemy.monsterRuntime ? [enemy.monsterRuntime] : [])
+    : state.monsterRuntime
+      ? [state.monsterRuntime]
+      : [];
+  const effectNotices = runtimes.flatMap((runtime) =>
+    presentActiveMonsterRuntimeEffectNotices(runtime).map((notice) =>
+      `Ефект триває: ${trimTerminalPunctuation(notice)}.`
+    )
+  );
+
+  return Array.from(new Set(effectNotices));
+}
+
+function trimTerminalPunctuation(text: string): string {
+  return text.trim().replace(/[.!?]+$/u, "");
 }
 
 export function getNonManaSkillCooldownTurns(
@@ -1001,11 +1034,13 @@ function buildSummary(input: {
   monsterOutcome?: CombatTurnSummary["monsterOutcome"];
   heroDamage: number;
   monsterDamage: number;
+  heroEffectDamage?: number;
   heroCounterDamage?: number;
   monsterBarkId?: string;
   monsterAction?: CombatTurnSummary["monsterAction"];
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
   manaSpent: number;
   critical: boolean;
   skill?: CombatSkillProfile;
@@ -1020,6 +1055,7 @@ function buildSummary(input: {
     ...(input.monsterOutcome ? { monsterOutcome: input.monsterOutcome } : {}),
     heroDamage: input.heroDamage,
     monsterDamage: input.monsterDamage,
+    ...(input.heroEffectDamage ? { heroEffectDamage: input.heroEffectDamage } : {}),
     manaSpent: input.manaSpent,
     critical: input.critical,
     ...(input.skill
@@ -1043,6 +1079,7 @@ function buildSummary(input: {
       : {}),
     ...(input.monsterEffectText ? { monsterEffectText: input.monsterEffectText } : {}),
     ...(input.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: input.monsterTelegraphAbilityId } : {}),
+    ...(input.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {}),
     ...(input.heroCounterDamage ? { heroCounterDamage: input.heroCounterDamage } : {}),
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
     ...(input.enemyActions ? { enemyActions: input.enemyActions } : {}),
@@ -1053,7 +1090,8 @@ function buildSummary(input: {
 function resolveLivingEnemyPhase(
   state: CombatState,
   input: ResolveCombatTurnInput,
-  damageReduction: number
+  damageReduction: number,
+  participants: readonly CombatEnemyState[] = getLivingCombatEnemies(state)
 ): {
   monsterDamage: number;
   monsterOutcome?: CombatTurnSummary["monsterOutcome"];
@@ -1066,11 +1104,15 @@ function resolveLivingEnemyPhase(
   let defendCounter = false;
   const enemyActions: CombatEnemyTurnSummary[] = [];
 
-  for (const enemy of getLivingCombatEnemies(state)) {
+  for (const participant of participants) {
     if (state.hero.hp <= 0) {
       break;
     }
 
+    const enemy = normalizeCombatEnemies(state).find((candidate) =>
+      candidate.enemyId === participant.enemyId
+    ) ?? participant;
+    const simultaneousFinalResponse = participant.hp > 0 && enemy.hp <= 0;
     state.monster = combatEnemyToMonster(enemy);
     if (enemy.monsterRuntime) {
       state.monsterRuntime = enemy.monsterRuntime;
@@ -1084,7 +1126,8 @@ function resolveLivingEnemyPhase(
         ...input,
         monster: findEnemyStats(input, enemy)
       },
-      damageReduction
+      damageReduction,
+      simultaneousFinalResponse
     });
     const updatedEnemy: CombatEnemyState = {
       ...enemy,
@@ -1107,7 +1150,8 @@ function resolveLivingEnemyPhase(
       ...(response.monsterSkill ? { monsterSkillId: response.monsterSkill.id } : {}),
       ...(response.monsterSkill?.damageKind ? { monsterDamageKind: response.monsterSkill.damageKind } : {}),
       ...(response.monsterEffectText ? { monsterEffectText: response.monsterEffectText } : {}),
-      ...(response.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: response.monsterTelegraphAbilityId } : {})
+      ...(response.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: response.monsterTelegraphAbilityId } : {}),
+      ...(response.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {})
     });
   }
 
@@ -1127,12 +1171,14 @@ function enemyActionToSummaryFields(action: CombatEnemyTurnSummary): {
   monsterAction?: CombatTurnSummary["monsterAction"];
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
+  simultaneousFinalResponse?: boolean;
 } {
   return {
     ...(action.monsterOutcome ? { monsterOutcome: action.monsterOutcome } : {}),
     ...(action.monsterAction ? { monsterAction: action.monsterAction } : {}),
     ...(action.monsterEffectText ? { monsterEffectText: action.monsterEffectText } : {}),
-    ...(action.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: action.monsterTelegraphAbilityId } : {})
+    ...(action.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: action.monsterTelegraphAbilityId } : {}),
+    ...(action.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {})
   };
 }
 
@@ -1235,8 +1281,16 @@ function resolveMonsterResponse(input: {
   state: CombatState;
   input: ResolveCombatTurnInput;
   damageReduction: number;
+  simultaneousFinalResponse?: boolean;
 }): MonsterResponseResult {
   const monsterForResponse = applyDrinkMonsterActionModifiers(input.state, input.input.monster);
+
+  if (input.simultaneousFinalResponse) {
+    return {
+      ...resolveBasicMonsterResponse({ ...input, monster: monsterForResponse }),
+      simultaneousFinalResponse: true
+    };
+  }
 
   if (input.state.monsterRuntime) {
     const runtimeMonster = applyMonsterRuntimeMonsterActionModifiers(input.state, monsterForResponse);
@@ -1301,9 +1355,18 @@ function resolveMonsterResponse(input: {
     };
   }
 
+  return resolveBasicMonsterResponse({ ...input, monster: monsterForResponse });
+}
+
+function resolveBasicMonsterResponse(input: {
+  state: CombatState;
+  input: ResolveCombatTurnInput;
+  damageReduction: number;
+  monster: MonsterCombatStats;
+}): MonsterResponseResult {
   const monsterDamage = rollMonsterDamage(
     input.input.hero,
-    monsterForResponse,
+    input.monster,
     input.input.rng,
     input.damageReduction
   );
@@ -1312,10 +1375,14 @@ function resolveMonsterResponse(input: {
     damage: monsterDamage,
     rng: input.input.rng
   });
-  input.state.hero.hp = Math.max(0, input.state.hero.hp - defendedMonsterAttack.damage);
+  const modifiedMonsterAttack = consumeMonsterRuntimeDirectHitModifiers({
+    state: input.state,
+    damage: defendedMonsterAttack.damage
+  });
+  input.state.hero.hp = Math.max(0, input.state.hero.hp - modifiedMonsterAttack.damage);
 
   return {
-    damage: defendedMonsterAttack.damage,
+    damage: modifiedMonsterAttack.damage,
     monsterAction: "attack",
     defendCounter: defendedMonsterAttack.counter
   };

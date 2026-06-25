@@ -18,10 +18,12 @@ import type {
   CombatTurnSummary
 } from "../../domain/combat";
 import {
+  findThreatEscalationLine,
   markCombatSettlementCompleted,
   markCombatSettlementForfeitedByRemort,
   parseCombatAnalyticsState,
-  parseMonsterAbilityRuntimeState
+  parseMonsterAbilityRuntimeState,
+  THREAT_ESCALATION_LINE_VERSION
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
@@ -236,6 +238,92 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         completedAt
       }];
     });
+  }
+
+  async listRecentCompletedByTelegramUserId(
+    telegramUserId: bigint,
+    limit: number
+  ): Promise<SoloCombatSessionCompletionRecord[]> {
+    const resultLimit = Math.max(1, Math.min(RECENT_ORDINARY_SCAN_CAP, Math.floor(limit)));
+    const completed: Array<SoloCombatSessionCompletionRecord & { id: string }> = [];
+    let scanned = 0;
+
+    while (scanned < RECENT_ORDINARY_SCAN_CAP) {
+      const records = await this.prisma.soloCombatSession.findMany({
+        where: {
+          character: {
+            user: {
+              telegramUserId
+            }
+          }
+        },
+        orderBy: [
+          // Completion lives in stateJson, but terminal writes update the row.
+          // Scan by updatedAt before the canonical completedAt sort so old
+          // long-running fights completed recently stay inside the bounded window.
+          { updatedAt: "desc" },
+          { id: "desc" }
+        ],
+        skip: scanned,
+        take: Math.min(RECENT_ORDINARY_PAGE_SIZE, RECENT_ORDINARY_SCAN_CAP - scanned),
+        select: {
+          id: true,
+          monsterId: true,
+          status: true,
+          stateJson: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
+
+      if (records.length === 0) {
+        break;
+      }
+
+      scanned += records.length;
+
+      for (const record of records) {
+        const status = parseStatus(record.status);
+        const state = parseCombatState(record.stateJson);
+        const completedAt = getSessionCompletionTime({
+          status,
+          state,
+          createdAt: record.createdAt
+        });
+
+        if (!completedAt) {
+          continue;
+        }
+
+        completed.push({
+          id: record.id,
+          monsterId: record.monsterId,
+          status,
+          state,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
+          completedAt
+        });
+      }
+    }
+
+    return completed
+      .sort(
+        (left, right) =>
+          right.completedAt.getTime() - left.completedAt.getTime() ||
+          right.createdAt.getTime() - left.createdAt.getTime() ||
+          right.updatedAt.getTime() - left.updatedAt.getTime() ||
+          right.id.localeCompare(left.id)
+      )
+      .slice(0, resultLimit)
+      .map((record) => ({
+        monsterId: record.monsterId,
+        status: record.status,
+        state: record.state,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        completedAt: record.completedAt
+      }));
   }
 
   async clearMonsterRestCooldownForTelegramUser(
@@ -1379,6 +1467,8 @@ export function parseCombatState(value: unknown): CombatState | null {
   const source = parseCombatSource(value.source);
   const life = parseCombatLife(value.life);
   const settlement = parseCombatSettlement(value.settlement);
+  const threat = parseCombatThreat(value.threat);
+  const threatExclusion = parseCombatThreatExclusion(value.threatExclusion);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
   const enemies = parseEnemies(value.enemies, monster);
@@ -1406,6 +1496,8 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(source ? { source } : {}),
     ...(life ? { life } : {}),
     ...(settlement ? { settlement } : {}),
+    ...(threat ? { threat } : {}),
+    ...(threatExclusion ? { threatExclusion } : {}),
     ...(typeof value.originLocationId === "string" ? { originLocationId: value.originLocationId } : {}),
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
@@ -1426,6 +1518,80 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(lastTurn ? { lastTurn } : {}),
     ...(turnLog.length > 0 ? { turnLog } : {})
   };
+}
+
+function parseCombatThreat(value: unknown): CombatState["threat"] | null {
+  if (!isRecord(value) || value.version !== 1) {
+    return null;
+  }
+
+  const pressure = parseCombatThreatPressure(value.pressure);
+
+  return value.enemyCount === 2 &&
+    value.reason === "ordinary-win-streak" &&
+    value.eligibleWins === 3 &&
+    typeof value.lineId === "string" &&
+    value.lineVersion === THREAT_ESCALATION_LINE_VERSION &&
+    findThreatEscalationLine(value.lineId)
+    ? {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineId: value.lineId,
+        lineVersion: value.lineVersion,
+        ...(pressure ? { pressure } : {})
+      }
+    : null;
+}
+
+function parseCombatThreatPressure(value: unknown): NonNullable<NonNullable<CombatState["threat"]>["pressure"]> | null {
+  if (!isRecord(value) || value.version !== 1 || typeof value.boostedEnemyId !== "string") {
+    return null;
+  }
+
+  const consecutiveWonEscalatedFights = boundedOptionalInt(value.consecutiveWonEscalatedFights, 0, 587);
+  const requestedSecondEnemyLevelBonus = boundedOptionalInt(value.requestedSecondEnemyLevelBonus, 0, 587);
+  const appliedSecondEnemyLevelBonus = boundedOptionalInt(value.appliedSecondEnemyLevelBonus, 0, 587);
+  const boostedEnemyEffectiveLevel = boundedOptionalInt(value.boostedEnemyEffectiveLevel, 1, 587);
+  const levelCap = boundedOptionalInt(value.levelCap, 1, 587);
+
+  if (
+    consecutiveWonEscalatedFights === undefined ||
+    requestedSecondEnemyLevelBonus === undefined ||
+    appliedSecondEnemyLevelBonus === undefined ||
+    boostedEnemyEffectiveLevel === undefined ||
+    levelCap === undefined ||
+    value.boostedEnemyId.length === 0 ||
+    value.boostedEnemyId.length > 80 ||
+    appliedSecondEnemyLevelBonus > requestedSecondEnemyLevelBonus ||
+    boostedEnemyEffectiveLevel > levelCap
+  ) {
+    return null;
+  }
+
+  return {
+    version: 1,
+    consecutiveWonEscalatedFights,
+    requestedSecondEnemyLevelBonus,
+    appliedSecondEnemyLevelBonus,
+    boostedEnemyId: value.boostedEnemyId,
+    boostedEnemyEffectiveLevel,
+    levelCap
+  };
+}
+
+function parseCombatThreatExclusion(value: unknown): CombatState["threatExclusion"] | null {
+  if (!isRecord(value) || value.version !== 1) {
+    return null;
+  }
+
+  return value.reason === "dev-forced-two-enemies"
+    ? {
+        version: 1,
+        reason: "dev-forced-two-enemies"
+      }
+    : null;
 }
 
 function parseDrinkModifiers(value: unknown): DrinkCombatModifiers | null {
@@ -2137,6 +2303,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(monsterDamageKind ? { monsterDamageKind } : {}),
     ...(typeof value.monsterEffectText === "string" ? { monsterEffectText: value.monsterEffectText } : {}),
     ...(typeof value.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: value.monsterTelegraphAbilityId } : {}),
+    ...(typeof value.simultaneousFinalResponse === "boolean" ? { simultaneousFinalResponse: value.simultaneousFinalResponse } : {}),
     ...(heroCounterDamage !== null ? { heroCounterDamage } : {}),
     ...(typeof value.monsterBarkId === "string" ? { monsterBarkId: value.monsterBarkId } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
@@ -2171,7 +2338,8 @@ function parseEnemyTurnSummaries(value: unknown): CombatEnemyTurnSummary[] {
           ...(typeof entry.monsterSkillId === "string" ? { monsterSkillId: entry.monsterSkillId } : {}),
           ...(monsterDamageKind ? { monsterDamageKind } : {}),
           ...(typeof entry.monsterEffectText === "string" ? { monsterEffectText: entry.monsterEffectText } : {}),
-          ...(typeof entry.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: entry.monsterTelegraphAbilityId } : {})
+          ...(typeof entry.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: entry.monsterTelegraphAbilityId } : {}),
+          ...(typeof entry.simultaneousFinalResponse === "boolean" ? { simultaneousFinalResponse: entry.simultaneousFinalResponse } : {})
         }];
   });
 }
@@ -2192,6 +2360,8 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
     const monster = parseTurnLogMonster(entry.monster);
     const enemies = parseTurnLogEnemies(entry.enemies);
     const eventId = parseTurnLogEventId(entry.eventId);
+    const notices = parseTurnLogNotices(entry.notices);
+    const cooldowns = parseCooldowns(entry.cooldowns);
 
     return turn === null || turn < 1 || !summary || !hero || !monster
       ? []
@@ -2199,11 +2369,23 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
           ...(eventId ? { eventId } : {}),
           turn,
           summary,
+          ...(notices.length > 0 ? { notices } : {}),
+          ...(cooldowns ? { cooldowns } : {}),
           hero,
           monster,
           ...(enemies.length > 0 ? { enemies } : {})
         }];
   });
+}
+
+function parseTurnLogNotices(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is string =>
+    typeof entry === "string" && entry.trim().length > 0 && entry.length <= 240
+  );
 }
 
 function parseTurnLogEnemies(value: unknown): NonNullable<CombatTurnLogEntry["enemies"]> {

@@ -226,6 +226,10 @@ export interface SoloCombatSessionRepository {
     telegramUserId: bigint,
     since: Date
   ): Promise<SoloCombatSessionCompletionRecord[]>;
+  listRecentCompletedByTelegramUserId?(
+    telegramUserId: bigint,
+    limit: number
+  ): Promise<SoloCombatSessionCompletionRecord[]>;
   clearMonsterRestCooldownForTelegramUser?(
     telegramUserId: bigint,
     input: { since: Date; completedAt: Date }

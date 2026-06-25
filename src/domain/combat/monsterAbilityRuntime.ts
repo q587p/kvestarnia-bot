@@ -167,6 +167,22 @@ export interface MonsterRuntimeDirectHitModifierResult {
   consumedNextAttackBonus: boolean;
 }
 
+export function presentActiveMonsterRuntimeEffectNotices(
+  runtime: MonsterAbilityRuntimeStateV1 | undefined
+): string[] {
+  if (!runtime) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      runtime.effects
+        .filter(isActiveRuntimeEffect)
+        .map((effect) => presentRuntimeEffectApplied(effect))
+    )
+  );
+}
+
 const aiWeights: Record<MonsterAiProfile, { basic: number; ability: number; defend: number }> = {
   boss: { basic: 45, ability: 45, defend: 10 },
   brute: { basic: 65, ability: 30, defend: 5 },
@@ -2100,7 +2116,8 @@ function resolveMonsterAbilityEffects(input: {
   const effectTexts = plan.components
     .map((component) => applyMonsterAbilityPlanComponent(input, component, { directHitLanded }))
     .filter((result) => result.applied)
-    .map((result) => result.text ?? "ефект зачепився й уже працює");
+    .map((result) => result.text)
+    .filter((text): text is string => Boolean(text));
 
   return {
     damage,
@@ -2220,11 +2237,126 @@ function addRuntimeEffectFromComponent(
     }
 
     input.runtime.effects[duplicateIndex] = merged;
-    return { applied: true };
+    return { applied: true, text: presentRuntimeEffectApplied(merged) };
   }
 
   input.runtime.effects.push(replacement);
-  return { applied: true };
+  return { applied: true, text: presentRuntimeEffectApplied(replacement) };
+}
+
+function presentRuntimeEffectApplied(effect: MonsterAbilityRuntimeEffect): string {
+  const duration = presentRuntimeEffectDuration(effect);
+  const withDuration = (text: string): string => duration ? `${text}, ${duration}` : text;
+
+  switch (effect.kind) {
+    case "accuracy":
+      return withDuration(effect.target === "hero"
+        ? `ваша влучність просіла на ${formatPercentPoints(effect.value)}`
+        : `влучність монстра зросла на ${formatPercentPoints(effect.value)}`);
+    case "evasion":
+      return withDuration(effect.target === "hero"
+        ? `ваше ухилення просіло на ${formatPercentPoints(effect.value)}`
+        : `ухилення монстра зросло на ${formatPercentPoints(effect.value)}`);
+    case "outgoing-damage":
+      return withDuration(effect.target === "hero"
+        ? `ваша шкода просіла на ${formatMultiplierDelta(effect.value)}`
+        : `шкода монстра зросла на ${formatMultiplierDelta(effect.value)}`);
+    case "incoming-damage":
+      return withDuration(effect.target === "monster"
+        ? `монстр зменшує вхідну шкоду на ${formatFractionPercent(effect.value)}`
+        : `вам буде болючіше на ${formatMultiplierDelta(effect.value)}`);
+    case "mark":
+      return withDuration("на вас висить мітка для сильнішого удару");
+    case "burn":
+      return withDuration("горіння вже працює");
+    case "bleed":
+      return withDuration("кровотеча вже працює");
+    case "ability-lock":
+      return withDuration("класове вміння заклинило");
+    case "mana-cost-pressure":
+      return withDuration(`ману притисло на ${Math.max(1, Math.floor(effect.value))}`);
+    case "reflect":
+      return withDuration(`відбиття тримає ${Math.max(1, Math.floor(effect.value))} шкоди`);
+    case "status-resistance":
+      return withDuration(`опір статусам зріс на ${formatPercentPoints(effect.value)}`);
+    case "flee":
+      return withDuration(`втеча стала важчою на ${formatPercentPoints(effect.value)}`);
+    case "crit":
+      return withDuration(`критичний шанс просів на ${formatPercentPoints(effect.value)}`);
+    case "slow":
+      return withDuration(`темп просів на ${formatPercentPoints(effect.value)}`);
+    case "confusion":
+      return withDuration("ціль збилася");
+    case "cooldown-pressure":
+      return withDuration("відсап здібності розтягнувся");
+    case "next-attack-bonus":
+      return withDuration(`наступна атака монстра сильніша на ${formatMultiplierDelta(effect.value)}`);
+    case "counter":
+      return withDuration("контрудар монстра напоготові");
+    case "repeat-penalty":
+      return withDuration(`якщо повторите попередню дію, шкода просяде на ${formatWholePercent(effect.value)}`);
+  }
+}
+
+function presentRuntimeEffectDuration(effect: MonsterAbilityRuntimeEffect): string {
+  const parts = [
+    effect.remainingOwnActivations
+      ? formatOwnActivationDuration(effect.remainingOwnActivations)
+      : "",
+    effect.remainingTargetActivations
+      ? formatTargetActivationDuration(effect.remainingTargetActivations)
+      : "",
+    effect.charges
+      ? `ще ${formatCount(effect.charges, "спрацювання", "спрацювання", "спрацювань")}`
+      : ""
+  ].filter(Boolean);
+
+  return parts.join(", ");
+}
+
+function formatOwnActivationDuration(value: number): string {
+  const count = Math.max(0, Math.floor(value));
+
+  return count <= 1
+    ? "спаде після наступної дії монстра"
+    : `спаде після ${formatCount(count, "дії монстра", "дій монстра", "дій монстра")}`;
+}
+
+function formatTargetActivationDuration(value: number): string {
+  const count = Math.max(0, Math.floor(value));
+
+  return count <= 1
+    ? "спаде після вашої наступної дії"
+    : `спаде після ${formatCount(count, "вашої дії", "ваших дій", "ваших дій")}`;
+}
+
+function formatPercentPoints(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value)))} пунктів`;
+}
+
+function formatWholePercent(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value)))}%`;
+}
+
+function formatFractionPercent(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value) * 100))}%`;
+}
+
+function formatMultiplierDelta(value: number): string {
+  return `${Math.max(1, Math.round(Math.abs(value - 1) * 100))}%`;
+}
+
+function formatCount(value: number, one: string, few: string, many: string): string {
+  const count = Math.max(0, Math.floor(value));
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  const word = mod10 === 1 && mod100 !== 11
+    ? one
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? few
+      : many;
+
+  return `${count} ${word}`;
 }
 
 function createRuntimeEffectFromComponent(

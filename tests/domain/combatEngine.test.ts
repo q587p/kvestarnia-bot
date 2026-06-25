@@ -9,6 +9,7 @@ import {
   getCombatSkillProfile,
   getCombatActionAvailability,
   getPrimaryCombatEnemy,
+  MONSTER_ABILITY_RUNTIME_RULES_VERSION,
   normalizeCombatEnemies,
   rollBasicAttack,
   rollFleeSuccess,
@@ -196,7 +197,7 @@ describe("combat domain engine", () => {
     });
   });
 
-  it("lets a basic attack win without requiring a starter weapon", () => {
+  it("lets a defeated single monster answer in the same turn", () => {
     const result = resolveCombatTurn({
       state: {
         ...startCombat({ hero: unarmedMage, monster }),
@@ -209,7 +210,7 @@ describe("combat domain engine", () => {
       action: "attack",
       hero: unarmedMage,
       monster,
-      rng: new FakeRandomSource([0.1, 0.9])
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
     });
 
     expect(result.ok).toBe(true);
@@ -219,8 +220,49 @@ describe("combat domain engine", () => {
       action: "attack",
       heroOutcome: "won",
       heroDamage: 4,
+      monsterOutcome: "hit",
+      monsterDamage: 4,
+      monsterAction: "attack",
       manaSpent: 0
     });
+  });
+
+  it("counts a final-enemy same-turn response KO as a hero win", () => {
+    const result = resolveCombatTurn({
+      state: {
+        ...startCombat({ hero: unarmedMage, monster }),
+        hero: {
+          hp: 1,
+          hpMax: unarmedMage.hpMax,
+          mana: unarmedMage.manaMax,
+          manaMax: unarmedMage.manaMax
+        },
+        monster: {
+          id: monster.monsterId,
+          hp: 4,
+          hpMax: monster.hpMax
+        }
+      },
+      action: "attack",
+      hero: unarmedMage,
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.monster.hp).toBe(0);
+    expect(result.summary).toMatchObject({
+      action: "attack",
+      heroOutcome: "won",
+      heroDamage: 4,
+      monsterOutcome: "hit",
+      monsterDamage: 4,
+      monsterAction: "attack",
+      manaSpent: 0
+    });
+    expect(result.state.turnLog?.[0]?.eventId).toBe("terminal:won");
   });
 
   it("does not mutate the input state when resolving an active turn", () => {
@@ -262,6 +304,35 @@ describe("combat domain engine", () => {
       ["enemy:1", 0]
     ]);
     expect(getPrimaryCombatEnemy(result.state).id).toBe(secondMonster.monsterId);
+  });
+
+  it("lets a primary enemy defeated by the hero answer before target handoff", () => {
+    const state = startCombat({ hero: warrior, monster, enemies: [secondMonster] });
+    state.enemies![0]!.hp = 1;
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("active");
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual([
+      "enemy:1",
+      "enemy:2"
+    ]);
+    const defeatedEnemyAction = result.summary.enemyActions?.[0];
+
+    expect(defeatedEnemyAction?.enemyId).toBe("enemy:1");
+    expect(defeatedEnemyAction?.monsterAction).toBe("attack");
+    expect(defeatedEnemyAction?.simultaneousFinalResponse).toBe(true);
+    expect(defeatedEnemyAction?.monsterDamage).toBeGreaterThanOrEqual(0);
+    expectPrimaryEnemyMirror(result.state, "enemy:2");
   });
 
   it("keeps the multi-enemy collection canonical when only one enemy remains", () => {
@@ -341,7 +412,117 @@ describe("combat domain engine", () => {
     expect(second.ok).toBe(true);
     expect(second.state.status).toBe("won");
     expect(normalizeCombatEnemies(second.state).every((enemy) => enemy.hp === 0)).toBe(true);
+    expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+    expect(second.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
     expect(parseCombatState(JSON.parse(JSON.stringify(second.state)))).not.toBeNull();
+  });
+
+  it("counts a final two-enemy same-turn response KO as a hero win", () => {
+    const state = makeStateAfterPrimaryEnemyDeath();
+    state.hero.hp = 1;
+    state.enemies![0]!.hp = 1;
+    state.enemies![0]!.hpMax = secondMonster.hpMax;
+    state.monster.hp = 1;
+    state.monster.hpMax = secondMonster.hpMax;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster: secondMonster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.hero.hp).toBe(0);
+    expect(normalizeCombatEnemies(result.state).every((enemy) => enemy.hp === 0)).toBe(true);
+    expect(result.summary.heroOutcome).toBe("won");
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+    expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(result.state.turnLog?.at(-1)?.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(result.state.turnLog?.at(-1)?.eventId).toBe("terminal:won");
+  });
+
+  it("counts a final single-enemy same-turn response KO as a hero win", () => {
+    const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster });
+    state.hero.hp = 1;
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.monster.hp).toBe(0);
+    expect(result.summary.simultaneousFinalResponse).toBe(true);
+    expect(result.summary.monsterAction).toBe("attack");
+    expect(result.state.turnLog?.at(-1)?.summary.simultaneousFinalResponse).toBe(true);
+  });
+
+  it("treats a final response KO as a loss when another enemy remains", () => {
+    const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster, enemies: [secondMonster] });
+    state.hero.hp = 1;
+    state.enemies![0]!.hp = 1;
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("lost");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1"]);
+    expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(normalizeCombatEnemies(result.state).some((enemy) => enemy.enemyId === "enemy:2" && enemy.hp > 0)).toBe(true);
+  });
+
+  it("does not let a defeated final responder heal, shield, or support itself", () => {
+    const state: CombatState = {
+      ...startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster }),
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+        aiProfile: "defender",
+        loadoutIds: ["monster.common-treasure-shield"],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        ownActionCount: 0,
+        effects: []
+      }
+    };
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("won");
+    expect(result.state.monster.hp).toBe(0);
+    expect(result.summary.simultaneousFinalResponse).toBe(true);
+    expect(result.summary.monsterAction).toBe("attack");
+    expect(result.summary.monsterSkillId).toBeUndefined();
+    expect(result.summary.monsterEffectText).toBeUndefined();
+    expect(result.state.monsterRuntime?.effects?.some((effect) => effect.kind === "shield")).not.toBe(true);
   });
 
   it.each([
@@ -929,7 +1110,67 @@ describe("combat domain engine", () => {
     expect(blocked.state.turnLog).toEqual(first.state.turnLog);
   });
 
-  it("treats reactive mutual KO as a hero loss before rewards can resolve", () => {
+  it("stores skill cooldown snapshots and active effect notices in the combat turn log", () => {
+    const sturdyMonster = { ...monster, hpMax: 80 };
+    const skillTurn = resolveCombatTurn({
+      state: startCombat({ hero: unarmedMage, monster: sturdyMonster }),
+      action: "skill",
+      hero: unarmedMage,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(skillTurn.ok).toBe(true);
+    if (!skillTurn.ok) {
+      throw new Error("Expected skill turn to resolve.");
+    }
+    expect(skillTurn.state.turnLog?.[0]?.cooldowns?.skill).toEqual({
+      id: "skill.hot-spell",
+      remainingTurns: 1
+    });
+
+    const pressuredState: CombatState = {
+      ...startCombat({ hero: warrior, monster: sturdyMonster }),
+      monsterRuntime: {
+        version: 1,
+        rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+        aiProfile: "controller",
+        loadoutIds: [],
+        cooldowns: {},
+        onceUsedAbilityIds: [],
+        consecutiveAbilityUses: 0,
+        ownActionCount: 0,
+        effects: [{
+          id: "test-accuracy-pressure",
+          sourceAbilityId: "monster.test-pressure",
+          sourceActor: "monster",
+          target: "hero",
+          kind: "accuracy",
+          value: 15,
+          polarity: "harmful",
+          removable: true,
+          remainingTargetActivations: 2
+        }]
+      }
+    };
+    const effectTurn = resolveCombatTurn({
+      state: pressuredState,
+      action: "attack",
+      hero: warrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0])
+    });
+
+    expect(effectTurn.ok).toBe(true);
+    if (!effectTurn.ok) {
+      throw new Error("Expected attack with active effect to resolve.");
+    }
+    expect(effectTurn.state.turnLog?.[0]?.notices).toContain(
+      "Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії."
+    );
+  });
+
+  it("treats reactive final-enemy mutual KO as a hero win", () => {
     const state: CombatState = {
       ...startCombat({ hero: warrior, monster }),
       hero: {
@@ -975,12 +1216,13 @@ describe("combat domain engine", () => {
     if (!result.ok) {
       throw new Error("Expected reactive terminal turn to resolve.");
     }
-    expect(result.state.status).toBe("lost");
+    expect(result.state.status).toBe("won");
     expect(result.state.hero.hp).toBe(0);
     expect(result.state.monster.hp).toBe(0);
+    expect(result.summary.heroOutcome).toBe("won");
     expect(result.summary.heroDamage).toBeGreaterThan(0);
     expect(result.summary.monsterDamage).toBe(3);
-    expect(result.state.turnLog?.[0]?.eventId).toBe("terminal:lost");
+    expect(result.state.turnLog?.[0]?.eventId).toBe("terminal:won");
   });
 
   it("puts class skills on one intervening own action cooldown and treats cooldown presses as no-op", () => {
@@ -1414,6 +1656,49 @@ describe("combat domain engine", () => {
     expect(levelFive.attack - levelFour.attack).toBeGreaterThan(0);
     expect(levelThirteen.hpMax).toBeGreaterThan(levelFive.hpMax * 2.5);
     expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack * 2.5);
+  });
+
+  it("separates ongoing monster effect damage from the direct monster response", () => {
+    const state = startCombat({ hero: warrior, monster });
+    state.monster.attack = 6;
+    state.monsterRuntime = {
+      version: 1,
+      rulesVersion: "monster-abilities-v1",
+      aiProfile: "skirmisher",
+      loadoutIds: ["monster.test-missing-ability"],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 0,
+      effects: [{
+        id: "burn:test",
+        sourceAbilityId: "monster.test-burn",
+        sourceActor: "monster",
+        target: "hero",
+        kind: "burn",
+        value: 0.5,
+        polarity: "harmful",
+        removable: true,
+        remainingTargetActivations: 2
+      }],
+      ownActionCount: 0
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster: { ...monster, attack: 6 },
+      rng: new FakeRandomSource([0.1, 0.5, 0.5, 0.5, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected combat turn to resolve.");
+    }
+
+    expect(result.summary.heroEffectDamage).toBe(3);
+    expect(result.summary.monsterDamage).toBeGreaterThanOrEqual(3);
+    expect(result.state.lastTurn?.heroEffectDamage).toBe(3);
   });
 });
 

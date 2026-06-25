@@ -338,6 +338,15 @@ describe("PrismaSoloCombatSessionRepository", () => {
         action: "skip",
         actionOrigin: "timeout-skip"
       },
+      cooldowns: {
+        skill: {
+          id: "skill.hot-spell",
+          remainingTurns: 1
+        }
+      },
+      notices: [
+        "Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії."
+      ],
       hero: {
         hp: 17,
         mana: 9
@@ -826,6 +835,15 @@ function runtimeRoundTripState(): CombatState {
     turnLog: [{
       eventId: "turn:3:timeout-skip",
       turn: 3,
+      cooldowns: {
+        skill: {
+          id: "skill.hot-spell",
+          remainingTurns: 1
+        }
+      },
+      notices: [
+        "Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії."
+      ],
       summary: {
         action: "skip",
         actionOrigin: "timeout-skip",

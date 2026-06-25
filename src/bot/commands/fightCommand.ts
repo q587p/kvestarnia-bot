@@ -81,6 +81,7 @@ export async function sendFight(
     originLocationId?: string;
     encounterSeed?: string;
     now?: Date;
+    suppressStartIntro?: boolean;
   }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -184,7 +185,7 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-active") {
-    if (mode === "reply" && result.started) {
+    if (result.started && !options?.suppressStartIntro) {
       await sendResultText(presentPersistentFightIntro(result));
       const messageId = await sendText(ctx, "reply", presentPersistentFight(result), {
         type: "persistent-fight",

@@ -394,20 +394,21 @@ Canonical design doc: [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md).
 ## Later — Шинок Bard Performance
 
 **Objective**
-Додати в `🍻 Шинок` бардівський виступ як малу культурну дію: бард раз на день або раз на годину може спробувати заспівати, заграти або скласти сатиричний куплет і отримати трохи золота. Може й не отримати, бо корчма має право на художню критику.
+Додати в `🍻 Шинок` бардівський виступ як малу культурну дію: бард раз на `93` хвилини або інший явно збалансований cooldown може спробувати заспівати, заграти або скласти сатиричний куплет, отримати трохи золота від закладу, малий role-action XP і добровільні реакції від присутніх. Може й не отримати золота, бо корчма має право на художню критику.
 
 **Design source**
 
-Корчма історично була місцем неофіційної культури: пісні, жарти, сатиричні куплети, бандура, скрипка, ложки, живий гумор і раптові виступи. У Квестарні це має стати не лекцією, а кнопкою з ризиком, короткою сценою й корчмарським висновком.
+Канонічний planning doc: [NONCOMBAT_TECHNIQUES.md](NONCOMBAT_TECHNIQUES.md). Корчма історично була місцем неофіційної культури: пісні, жарти, сатиричні куплети, бандура, скрипка, ложки, живий гумор і раптові виступи. У Квестарні це має стати не лекцією, а кнопкою з ризиком, короткою сценою й корчмарським висновком.
 
 **Rules**
 
 - Почати з класового доступу: тільки `Бард` бачить дію `🎶 Виступити` у `🍻 Шинку`.
-- Кулдаун: перший безпечний варіянт — раз на день за Києвом; якщо payout малий і не фармиться, можна окремо перевести на раз на годину.
+- Кулдаун: рекомендований перший варіянт із design pack — `93` хвилини, з Kyiv-day cap для house payout і replay-safe результатом.
 - Результат залежить від `charisma` і `luck`, із bounded randomness і без показу точних шансів.
 - Музична манатка дає суттєвий бонус до перевірки або payout. Якщо манатка bard-only, бонус для барда більший; якщо universal, інші класи можуть отримати дрібний flavor/майбутній bonus, але не цю дію.
 - Результати: провал із жартом і `0` золота, скромні оплески з малим золотом, добрий виступ із кращим золотом, рідкісний великий успіх із записом на дошці або короткою реплікою корчмаря.
-- Не давати XP, лут, рівень або бойовий баф у першому slice. Це мале золото й соціяльний flavor, не новий основний grind.
+- Давати малий role-action XP за завершений виступ, бо це реальна рольова дія гравця й персонажа. XP має бути capped, replay-safe, без problem-chain/quest/hunt/combat progress і не має перетворювати виступ на основний grind.
+- Не давати лут, бойовий баф, achievement power або прихований progression gate у першому slice. Це мале золото, малий XP і соціяльний flavor.
 - Не дозволяти виступ під час pending raid або інших станів, де пригодові дії заблоковані.
 
 **Musical manatky starter pack**
@@ -426,8 +427,9 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 **Acceptance criteria**
 
 - `🍻 Шинок` shows `🎶 Виступити` only for bards with an eligible character state;
-- daily/hourly cooldown is Kyiv-based and idempotent;
+- cooldown and Kyiv-day payout cap are idempotent;
 - payout is deterministic for a claimed action and replay does not reroll gold;
+- small role-action XP is granted at most once and does not count as combat/quest/problem progress;
 - charisma/luck influence the result within tested caps;
 - equipped or carried musical manatky affect performance according to clear metadata;
 - generated musical manatky appear in loot/content pool and item detail does not leak internal ids;
