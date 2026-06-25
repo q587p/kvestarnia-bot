@@ -79,6 +79,14 @@ describe("content tables", () => {
     expect(new Set(monsterBarks.map((bark) => bark.id)).size).toBe(monsterBarks.length);
   });
 
+  it("keeps monster bark copy free of accidental Telegram hashtags", () => {
+    for (const [monsterId, barks] of Object.entries(monsterBarkTextByMonsterId)) {
+      for (const text of Object.values(barks)) {
+        expect(text, `${monsterId}: ${text}`).not.toMatch(/#[^\s.,!?»]+/u);
+      }
+    }
+  });
+
   it("includes first persistent loot item ids", () => {
     expect(items.map((item) => item.id)).toEqual(
       expect.arrayContaining([
