@@ -430,7 +430,7 @@ function presentDefeatedEnemyLines(
 
   if (state.status === "won") {
     const names = defeated.length > 0 ? defeated : enemies.filter((enemy) => enemy.hp <= 0);
-    const label = names.map((enemy) => presentEnemyShortLabel(enemy, monster)).join(", ");
+    const label = names.map((enemy) => presentEnemyFullLabel(enemy, monster)).join(", ");
 
     return label
       ? ["", `🧾 Знешкоджено: ${label}. У бойовій відомості Корчми навпроти супротивників стоїть «досить».`]
@@ -442,8 +442,8 @@ function presentDefeatedEnemyLines(
     return [];
   }
 
-  const defeatedLabel = defeated.map((enemy) => presentEnemyShortLabel(enemy, monster)).join(", ");
-  const nextTargetLabel = presentEnemyShortLabel(nextTarget, monster);
+  const defeatedLabel = defeated.map((enemy) => presentEnemyFullLabel(enemy, monster)).join(", ");
+  const nextTargetLabel = presentEnemyFullLabel(nextTarget, monster);
 
   return [
     "",
@@ -486,11 +486,14 @@ function findEnemiesDefeatedOnLastTurn(
   return [];
 }
 
-function presentEnemyShortLabel(
+function presentEnemyFullLabel(
   enemy: ReturnType<typeof normalizeCombatEnemies>[number],
   monster?: { name: string; level: number } | null
 ): string {
-  return presentShortMonsterName(enemy.name ?? (enemy.enemyId === "enemy:1" ? monster?.name : undefined), "Монстр");
+  const name = enemy.name ?? (enemy.enemyId === "enemy:1" ? monster?.name : undefined) ?? "Монстр";
+  const plainName = name.replace(/<[^>]*>/g, "").trim();
+
+  return escapeHtml(plainName || "Монстр");
 }
 
 export function presentProblemQuestProgressAfterFight(

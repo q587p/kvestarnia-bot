@@ -409,7 +409,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("⚔️ <b>Бій</b>: 6 ходів");
     expect(text).toContain("👹 1. Павук: 18/18 ← ціль");
     expect(text).toContain("👹 2. Капустяний: 0/18");
-    expect(text).toContain("Знешкоджено: Капустяний. Нова ціль — Павук; Корчма переставила табличку без голосування.");
+    expect(text).toContain("Знешкоджено: Капустяний лицар на перерві. Нова ціль — Павук дедлайнів; Корчма переставила табличку без голосування.");
   });
 
   it("falls back to stable labels when multi-enemy HP rows lack names", () => {
