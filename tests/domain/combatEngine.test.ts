@@ -196,7 +196,7 @@ describe("combat domain engine", () => {
     });
   });
 
-  it("lets a basic attack win without requiring a starter weapon", () => {
+  it("lets a defeated single monster answer in the same turn", () => {
     const result = resolveCombatTurn({
       state: {
         ...startCombat({ hero: unarmedMage, monster }),
@@ -209,7 +209,7 @@ describe("combat domain engine", () => {
       action: "attack",
       hero: unarmedMage,
       monster,
-      rng: new FakeRandomSource([0.1, 0.9])
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
     });
 
     expect(result.ok).toBe(true);
@@ -219,6 +219,9 @@ describe("combat domain engine", () => {
       action: "attack",
       heroOutcome: "won",
       heroDamage: 4,
+      monsterOutcome: "hit",
+      monsterDamage: 4,
+      monsterAction: "attack",
       manaSpent: 0
     });
   });
@@ -262,6 +265,34 @@ describe("combat domain engine", () => {
       ["enemy:1", 0]
     ]);
     expect(getPrimaryCombatEnemy(result.state).id).toBe(secondMonster.monsterId);
+  });
+
+  it("lets a primary enemy defeated by the hero answer before target handoff", () => {
+    const state = startCombat({ hero: warrior, monster, enemies: [secondMonster] });
+    state.enemies![0]!.hp = 1;
+    state.monster.hp = 1;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("active");
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual([
+      "enemy:1",
+      "enemy:2"
+    ]);
+    const defeatedEnemyAction = result.summary.enemyActions?.[0];
+
+    expect(defeatedEnemyAction?.enemyId).toBe("enemy:1");
+    expect(defeatedEnemyAction?.monsterAction).toBe("attack");
+    expect(defeatedEnemyAction?.monsterDamage).toBeGreaterThanOrEqual(0);
+    expectPrimaryEnemyMirror(result.state, "enemy:2");
   });
 
   it("keeps the multi-enemy collection canonical when only one enemy remains", () => {
@@ -341,6 +372,7 @@ describe("combat domain engine", () => {
     expect(second.ok).toBe(true);
     expect(second.state.status).toBe("won");
     expect(normalizeCombatEnemies(second.state).every((enemy) => enemy.hp === 0)).toBe(true);
+    expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
     expect(parseCombatState(JSON.parse(JSON.stringify(second.state)))).not.toBeNull();
   });
 

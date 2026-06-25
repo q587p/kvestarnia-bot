@@ -36,6 +36,7 @@ import {
   getPrimaryCombatEnemy,
   getTerminalCombatTurnLogEventId,
   hasCombatEnemyCollection,
+  normalizeCombatEnemies,
   syncPrimaryCombatEnemy,
   turnLogEnemies,
   updateCombatEnemy,
@@ -417,7 +418,6 @@ function resolveHeroAttack(
     rng: input.rng
   });
   const heroDamage = runtimeHeroDamage.heroDamage;
-  const monsterHp = nextState.monster.hp;
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
 
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
@@ -437,29 +437,6 @@ function resolveHeroAttack(
       ...summaryActionOrigin(input),
       heroOutcome: actorAction.summary.actorOutcome === "won" ? "hit" : actorAction.summary.actorOutcome,
       monsterOutcome: "lost",
-      heroDamage,
-      monsterDamage,
-      manaSpent,
-      critical: actorAction.summary.critical,
-      ...(skill ? { skill } : {})
-    });
-    nextState.lastTurn = summary;
-    appendCombatTurnLog(nextState, input.state.turn, summary);
-
-    return {
-      ok: true,
-      state: recordCombatAnalyticsTurn(nextState, summary),
-      summary
-    };
-  }
-
-  if (monsterHp <= 0) {
-    nextState.status = "won";
-    nextState.turn += 1;
-    const summary = buildSummary({
-      action: input.action,
-      ...summaryActionOrigin(input),
-      heroOutcome: "won",
       heroDamage,
       monsterDamage,
       manaSpent,
@@ -647,6 +624,7 @@ function resolveMultiEnemyHeroAttack(
   syncPrimaryCombatEnemy(nextState);
   const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
   const primary = getPrimaryCombatEnemy(nextState);
+  const enemyPhaseParticipants = getLivingCombatEnemies(nextState);
   const primaryStats = findEnemyStats(input, primary);
   const monsterHpBeforeHeroAction = primary.hp;
   const defenderStats = applyMonsterRuntimeHeroAttackModifiers(
@@ -702,13 +680,16 @@ function resolveMultiEnemyHeroAttack(
 
   if (nextState.hero.hp <= 0) {
     nextState.status = "lost";
-  } else if (getLivingCombatEnemies(nextState).length === 0) {
-    nextState.status = "won";
   } else {
     const heroEffect = applyHeroActivationMonsterEffects(nextState);
     heroEffectDamage = heroEffect.damage;
     monsterDamage += heroEffectDamage;
-    const enemyPhase = resolveLivingEnemyPhase(nextState, input, skill?.monsterDamageReduction ?? 0);
+    const enemyPhase = resolveLivingEnemyPhase(
+      nextState,
+      input,
+      skill?.monsterDamageReduction ?? 0,
+      enemyPhaseParticipants
+    );
     monsterDamage += enemyPhase.monsterDamage;
     if (nextState.hero.hp > 0 && enemyPhase.defendCounter && monsterDamage > 0) {
       counterDamage = rollDefendCounterDamage(input.hero, primaryStats, input.rng);
@@ -760,7 +741,7 @@ function resolveMultiEnemyHeroAttack(
   const summary = buildSummary({
     action: input.action,
     ...summaryActionOrigin(input),
-    heroOutcome: nextState.status === "won" ? "won" : actorAction.summary.actorOutcome,
+    heroOutcome: actorAction.summary.actorOutcome === "won" ? "hit" : actorAction.summary.actorOutcome,
     heroDamage,
     monsterDamage,
     manaSpent,
@@ -1069,7 +1050,8 @@ function buildSummary(input: {
 function resolveLivingEnemyPhase(
   state: CombatState,
   input: ResolveCombatTurnInput,
-  damageReduction: number
+  damageReduction: number,
+  participants: readonly CombatEnemyState[] = getLivingCombatEnemies(state)
 ): {
   monsterDamage: number;
   monsterOutcome?: CombatTurnSummary["monsterOutcome"];
@@ -1082,11 +1064,14 @@ function resolveLivingEnemyPhase(
   let defendCounter = false;
   const enemyActions: CombatEnemyTurnSummary[] = [];
 
-  for (const enemy of getLivingCombatEnemies(state)) {
+  for (const participant of participants) {
     if (state.hero.hp <= 0) {
       break;
     }
 
+    const enemy = normalizeCombatEnemies(state).find((candidate) =>
+      candidate.enemyId === participant.enemyId
+    ) ?? participant;
     state.monster = combatEnemyToMonster(enemy);
     if (enemy.monsterRuntime) {
       state.monsterRuntime = enemy.monsterRuntime;

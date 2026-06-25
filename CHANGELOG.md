@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Passage fight callbacks no longer send an extra movement notice such as "Ви пішли у прямий прохід." after the battle card.
 - Battle journal pages for two-enemy fights now show per-enemy HP rows and explicit zero-damage enemy misses instead of collapsing the turn to one generic monster row.
 - Monster runtime effects now name the applied effect, show its remaining actions/charges, and split ongoing effect damage from the direct monster response.
+- Hero attack and class-skill turns now resolve the monster response after hero damage even when the target was defeated by that action, so terminal win cards can still include same-turn incoming damage.
 - Persistent fight state cards now announce newly defeated enemies, target switches and final defeated enemies with full monster names; the separate problem-chain progress ping reminds players that a two-enemy problem fight still counts as one problem.
 - Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
 - A stored escalated two-enemy terminal encounter checkpoints the cycle even while won-fight settlement is still pending, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
