@@ -13,14 +13,20 @@ import type {
 import type { CellarGrownupQuestLookupResult } from "../../src/services/cellarGrownupQuestService";
 
 describe("cellar presenter", () => {
-  it("renders a short cellar start scene with HTML quote", () => {
+  it("renders cellar start scene with method descriptions and HTML quote", () => {
     const text = presentCellarStart(ready);
 
     expect(text).toContain("🐭 Льохова справа");
     expect(text).toContain("<blockquote>");
     expect(text).toContain("Миша:");
+    expect(text).toContain("Можливі способи:");
+    expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
+    expect(text).toContain("<i>Пастка й сліди. Винагорода звичайна. Можна постраждати.</i>");
+    expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
+    expect(text).toContain("<i>Винагорода скромніша. Коштує 1 золото.</i>");
+    expect(text).not.toMatch(/Шанси \d|Підпис методу|race\+class/u);
     expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(15);
+    expect(text.split("\n").length).toBeLessThanOrEqual(30);
   });
 
   it("separates cellar combo title flavor from the following beat", () => {

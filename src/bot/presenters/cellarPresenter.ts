@@ -1,8 +1,10 @@
 import type {
   CellarErrandAction,
   CellarErrandLookupResult,
+  CellarErrandMethodOption,
   CellarErrandResult
 } from "../../services/cellarErrandService";
+import { buildCellarMethodOptions } from "../../services/cellarErrandService";
 import type {
   CellarGrownupQuestLookupResult,
   CellarGrownupQuestResult
@@ -15,6 +17,11 @@ import { escapeHtml, npcQuote } from "./telegramHtml";
 export function presentCellarStart(
   result: Extract<CellarErrandLookupResult, { state: "ready" }>
 ): string {
+  const methodLines = buildCellarMethodOptions(result.character).flatMap((method) => [
+    `${escapeHtml(method.buttonLabel ?? method.label)}`,
+    `<i>${escapeHtml(formatMethodHint(method))}</i>`
+  ]);
+
   return [
     "🐭 Льохова справа",
     "",
@@ -24,6 +31,10 @@ export function presentCellarStart(
     "",
     npcQuote("Миша", selectCellarStartMouseQuote(result.character)),
     ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
+    "",
+    "Можливі способи:",
+    "",
+    ...methodLines,
     "",
     `<b>${escapeHtml(result.character.name)}</b>, що робимо?`
   ].join("\n");
@@ -307,6 +318,30 @@ function presentHpLossLines(
     `Втрачено здоров’я: ${hpLoss.lost}`,
     `Здоров’я: ${currentHp}/${currentHpMax}`
   ];
+}
+
+function formatMethodHint(method: CellarErrandMethodOption): string {
+  const cleanHint = method.hint
+    .replace(/Коштує \d+ золот[а-яіїєґ]*\.?\s*/gu, "")
+    .replace(/Шанси [^.]+\.?\s*/giu, "")
+    .replace(/Добрі шанси,?\s*/giu, "")
+    .replace(/Майже надійно\.?\s*/giu, "")
+    .trim()
+    .replace(/\.$/u, "");
+  const parts = [
+    capitalizeFirst(cleanHint),
+    method.goldCost ? formatGoldCostHint(method.goldCost) : ""
+  ].filter(Boolean);
+
+  return `${parts.join(". ")}.`;
+}
+
+function formatGoldCostHint(goldCost: number): string {
+  return goldCost === 1 ? "Коштує 1 золото" : `Коштує ${goldCost} золота`;
+}
+
+function capitalizeFirst(value: string): string {
+  return value.length > 0 ? `${value[0]!.toLocaleUpperCase("uk-UA")}${value.slice(1)}` : value;
 }
 
 function presentCharacterFlavor(
