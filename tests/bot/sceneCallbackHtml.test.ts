@@ -923,12 +923,115 @@ describe("scene callback HTML options", () => {
     expect(String(progress?.payload.text)).toContain(
       "<i>Двадцять три підозрілі проблеми</i>: <b>7/23</b>."
     );
+    expect(String(progress?.payload.text)).not.toContain("Корчмар зараховує цей бій як одну проблему");
     const celebration = calls.find(
       (call) => call.method === "sendMessage" && String(call.payload.text).includes("🎉 Рівень підріс!")
     );
 
     expect(celebration?.payload.parse_mode).toBe("HTML");
     expect(String(celebration?.payload.text)).toContain("✨ <b>2 → 3</b>");
+  });
+
+  it("puts the single-problem reminder in the progress ping only for won multi-enemy problem fights", async () => {
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174001",
+        turn: 3,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated",
+              character,
+              session: {
+                ...persistentSession("monster.deadline-spider"),
+                id: "123e4567-e89b-42d3-a456-426614174001",
+                status: "won",
+                turn: 4,
+                state: {
+                  id: "123e4567-e89b-42d3-a456-426614174001",
+                  status: "won",
+                  turn: 4,
+                  hero: {
+                    hp: 17,
+                    hpMax: 20,
+                    mana: 7,
+                    manaMax: 10
+                  },
+                  monster: {
+                    id: "monster.deadline-spider",
+                    hp: 0,
+                    hpMax: 12
+                  },
+                  enemies: [
+                    {
+                      enemyId: "enemy:1",
+                      id: "monster.deadline-spider",
+                      hp: 0,
+                      hpMax: 12
+                    },
+                    {
+                      enemyId: "enemy:2",
+                      id: "monster.complaint-lantern",
+                      hp: 0,
+                      hpMax: 16
+                    }
+                  ],
+                  lastTurn: {
+                    action: "attack",
+                    heroOutcome: "hit",
+                    heroDamage: 12,
+                    monsterDamage: 0,
+                    manaSpent: 0,
+                    critical: false
+                  }
+                }
+              },
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 2,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: {
+                stageId: "23",
+                title: "Двадцять три підозрілі проблеми",
+                wins: 8,
+                target: 23,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              fightReward: {
+                state: "claimed",
+                reward: {
+                  xp: 20,
+                  gold: 0,
+                  localDate: "123e4567-e89b-42d3-a456-426614174001",
+                  itemGrants: []
+                },
+                levelChange: null
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const progress = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Прогрес справи зрушив")
+    );
+
+    expect(String(edit?.payload.text)).toContain("🎉 Ви перемогли");
+    expect(String(edit?.payload.text)).not.toContain("Корчмар зараховує");
+    expect(progress?.payload.parse_mode).toBe("HTML");
+    expect(String(progress?.payload.text)).toContain(
+      "<i>Двадцять три підозрілі проблеми</i>: <b>8/23</b>."
+    );
+    expect(String(progress?.payload.text)).toContain("Корчмар зараховує цей бій як одну проблему");
   });
 
   it("does not send a passage movement notice after a persistent skill turn", async () => {

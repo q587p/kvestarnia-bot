@@ -1,4 +1,5 @@
 import { InlineKeyboard,type Bot,type Context } from "grammy";
+import { normalizeCombatEnemies } from "../../domain/combat";
 import type {
 PersistentFightTurnResult
 } from "../../services/fightService";
@@ -467,7 +468,9 @@ async function presentWonFightQuestProgressAfterFight(
   yegerBefore: YegerProgressSnapshot
 ): Promise<FightQuestProgressAfterFightMessage | null> {
   const entries: QuestProgressAfterFightEntry[] = [];
-  const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress);
+  const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress, {
+    singleProblemHint: hasMoreThanOnePersistentEnemy(result)
+  });
 
   if (problemEntry) {
     entries.push(problemEntry);
@@ -501,6 +504,12 @@ async function presentWonFightQuestProgressAfterFight(
     text,
     ...(replyMarkup ? { replyMarkup } : {})
   };
+}
+
+function hasMoreThanOnePersistentEnemy(
+  result: Extract<PersistentFightTurnResult, { state: "updated" }>
+): boolean {
+  return result.session.state ? normalizeCombatEnemies(result.session.state).length > 1 : false;
 }
 
 function buildQuestProgressAfterFightKeyboard(

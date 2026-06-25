@@ -1308,11 +1308,16 @@ describe("fight presenter", () => {
   it("renders a separate progress ping for won problem fights", () => {
     const moved = presentProblemQuestProgressAfterFight(questProgress(5));
     const ready = presentProblemQuestProgressAfterFight(questProgress(13, true, false));
+    const multiEnemy = presentProblemQuestProgressAfterFight(questProgress(6), {
+      singleProblemHint: true
+    });
     const claimed = presentProblemQuestProgressAfterFight(questProgress(13, true, true));
 
     expect(moved).toContain("📋 <b>Прогрес справи зрушив</b>");
     expect(moved).toContain("<i>Тринадцять дрібних проблем</i>: <b>5/13</b>.");
     expect(moved).not.toContain("Корчмар чекає");
+    expect(moved).not.toContain("Корчмар зараховує цей бій як одну проблему");
+    expect(multiEnemy).toContain("Корчмар зараховує цей бій як одну проблему");
     expect(ready).toContain("<i>Тринадцять дрібних проблем</i>: <b>13/13</b>.");
     expect(ready).toContain("Корчмар чекає в шинку");
     expect(claimed).toBeNull();
@@ -1430,7 +1435,7 @@ describe("fight presenter", () => {
     expect(text).toContain("👹 Монстр: 0/18");
     expect(text).not.toContain("<b>Монстр</b>");
     expect(text).toContain("Знешкоджено: Монстр.");
-    expect(text).toContain("Корчмар зараховує це як одну проблему");
+    expect(text).not.toContain("Корчмар зараховує");
   });
 
   it("shows consolation XP for a lost persistent fight as an attempt reward", () => {

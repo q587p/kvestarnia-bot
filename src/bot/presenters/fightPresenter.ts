@@ -30,6 +30,7 @@ export interface QuestProgressAfterFightEntry {
   completed?: boolean;
   readyHint?: string;
   action?: "bar" | "yeger";
+  singleProblemHint?: boolean;
 }
 
 export function presentFightStart(character: CharacterSummary): string {
@@ -493,15 +494,17 @@ function presentEnemyShortLabel(
 }
 
 export function presentProblemQuestProgressAfterFight(
-  progress: ThirteenSmallProblemsProgress | null
+  progress: ThirteenSmallProblemsProgress | null,
+  options: { singleProblemHint?: boolean } = {}
 ): string | null {
-  const entry = buildProblemQuestProgressAfterFightEntry(progress);
+  const entry = buildProblemQuestProgressAfterFightEntry(progress, options);
 
   return presentQuestProgressAfterFight(entry ? [entry] : []);
 }
 
 export function buildProblemQuestProgressAfterFightEntry(
-  progress: ThirteenSmallProblemsProgress | null
+  progress: ThirteenSmallProblemsProgress | null,
+  options: { singleProblemHint?: boolean } = {}
 ): QuestProgressAfterFightEntry | null {
   if (!progress || !progress.issued || progress.branchComplete || progress.rewardClaimed) {
     return null;
@@ -512,6 +515,7 @@ export function buildProblemQuestProgressAfterFightEntry(
     wins: progress.wins,
     target: progress.target,
     completed: progress.completed,
+    ...(options.singleProblemHint ? { singleProblemHint: true } : {}),
     ...(progress.completed
       ? { readyHint: "Корчмар чекає в шинку.", action: "bar" as const }
       : {})
@@ -538,6 +542,13 @@ export function presentQuestProgressAfterFight(
 
     lines.push(
       `<i>${escapeHtml(entry.title)}</i>: <b>${entry.wins}/${entry.target}</b>.${readyHint}`
+    );
+  }
+
+  if (entries.some((entry) => entry.singleProblemHint)) {
+    lines.push(
+      "",
+      "Корчмар зараховує цей бій як одну проблему: у журналі один рядок, хоч зубів було більше."
     );
   }
 
@@ -668,10 +679,6 @@ function presentPersistentFightState(input: {
       "",
       "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
     );
-
-    if (input.questProgress?.issued) {
-      lines.push("📋 Корчмар зараховує це як одну проблему: у журналі один рядок, хоч зубів могло бути більше.");
-    }
 
     if (readyQuestLine) {
       lines.push(readyQuestLine);
