@@ -80,9 +80,9 @@ describe("health server", () => {
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Низ почув про ваші перемоги й покликав свідків");
     expect(text).toContain("Звичайні бої в Низі більше не впираються");
-    expect(text).toContain("Бойова картка показує обох окремо");
-    expect(text).toContain("стара кнопка або перезапуск показують ту саму історію");
-    expect(text).toContain("Нагороди теж не множаться за кількістю носів");
+    expect(text).toContain("У грі вже");
+    expect(text).toContain("Перед таким боєм видно окрему шапку");
+    expect(text).toContain("Перемога над двома все одно рахується як одна проблема й одна винагорода");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
