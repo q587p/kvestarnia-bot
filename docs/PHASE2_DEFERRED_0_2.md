@@ -41,10 +41,12 @@ After the foundation:
 
 - three one-enemy wins can make the next fight use two enemies;
 - higher-tier progression and de-escalation are conservative;
-- rewards scale carefully;
+- rewards stay conservative;
 - authored gossip/escalation lines explain the shift.
 
-If the architecture release shows `FightService` is still too dense for threat work, use [tasks/0.2.x-combat-application-decomposition.md](tasks/0.2.x-combat-application-decomposition.md) before Threat Escalation and shift behavior slices by one version.
+Task: [tasks/0.2.3-threat-escalation.md](tasks/0.2.3-threat-escalation.md).
+
+Status: shipped in `0.2.3` as an ordinary-only exactly-two-enemy MVP. Three consecutive eligible one-enemy ordinary wins make the next eligible ordinary fight start with two enemies, with stable stored escalation copy and the existing single-encounter reward contract. Yeger, Adventure, training, duel, starter and dev-forced sessions remain excluded.
 
 ### `0.2.4` - Item Tags / One-Use Manatky
 

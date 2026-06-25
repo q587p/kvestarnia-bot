@@ -1,6 +1,7 @@
 import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import {
+  findThreatEscalationLine,
   getTerminalCombatTurnLogEventId,
   normalizeCombatEnemies,
   type CombatTurnLogEntry,
@@ -247,6 +248,10 @@ export function presentPersistentFightIntro(
     "Бій триває. Корчма тримає рахунок ходів, але поки не видає нагород."
   ];
   lines.push("", ...presentPersistentFightIntroOpponents(result));
+  const threatLine = presentThreatEscalationLine(result.session.state);
+  if (threatLine) {
+    lines.push("", threatLine);
+  }
 
   const startTip = presentBattleStartTip(result.character, result.session.id ?? result.session.state?.id ?? "active");
   if (startTip) {
@@ -521,10 +526,12 @@ function presentPersistentFightState(input: {
 }): string {
   const state = input.session.state;
   const opponentRows = presentPersistentFightStateOpponents(state, input.monster);
+  const threatLine = presentThreatEscalationLine(state);
   const enemyRows = state ? presentEnemyHpRows(state) : [`👹 Монстр: ?/?`];
   const lines = [
     "⚔️ <b>Бій</b>",
     ...opponentRows,
+    ...(threatLine ? ["", threatLine] : []),
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     ...enemyRows,
@@ -599,6 +606,14 @@ function presentPersistentFightState(input: {
   }
 
   return lines.join("\n");
+}
+
+function presentThreatEscalationLine(
+  state: Parameters<typeof presentPersistentFightState>[0]["session"]["state"] | null | undefined
+): string | null {
+  const line = findThreatEscalationLine(state?.threat?.lineId);
+
+  return line ? `⚠️ <i>${escapeHtml(line.text)}</i>` : null;
 }
 
 function presentPersistentFightStateOpponents(

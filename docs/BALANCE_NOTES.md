@@ -242,7 +242,9 @@ Hand-authored `monsterLoot` trophies still matter alongside the broad pool. The 
 
 Loss отримує тільки малий consolation reward `1 XP` за спробу, без золота, луту або progress у Korchmar problem chain. Flee і expired fights не отримують reward. Repeated callback replay-ить persisted reward summary з `solo_combat_sessions` і не reroll-ить item. `0.1.6` додає stage chain `13 -> 23 -> 42 -> 93`; кожен новий етап рахує тільки звичайні won solo fights після часу видачі етапу, а training doppelganger не рахується.
 
-`0.2.1` multi-enemy foundation не додає нового faucet: dev-only two-enemy fights використовують той самий single-encounter settlement/reward path, без per-enemy XP/gold/item multiplier і без progress scaling. Production `/fight`, Yeger, Adventure, starter, training і duel routes лишаються one-enemy, доки окремий threat-escalation slice не принесе власну балансну перевірку.
+`0.2.1` multi-enemy foundation не додає нового faucet: dev-only two-enemy fights використовують той самий single-encounter settlement/reward path, без per-enemy XP/gold/item multiplier і без progress scaling.
+
+`0.2.3` threat escalation лишає цей economy contract незмінним. Після трьох eligible one-enemy ordinary wins наступний eligible ordinary бій може стартувати з exactly two enemies, але payout лишається одним stored encounter reward: XP/gold/item rolls не множаться за кількістю ворогів і не використовують deferred `0.75x per enemy` модель. Two-enemy terminal encounter є checkpoint для threat cycle незалежно від результату, а loss/flee/expiry в eligible one-enemy бою обриває серію. Yeger, Adventure, starter, training, duel і dev-forced `/dev_two_enemies` не впливають на ordinary threat.
 
 Модифікатори LUCK не мають ламати таблицю. Наприклад, LUCK додає не «+10% epic», а маленький бонус до upgrade roll.
 

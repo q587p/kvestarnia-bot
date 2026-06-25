@@ -250,6 +250,14 @@ describe("fight presenter", () => {
       character,
       session: persistentSession({
         turn: 2,
+        threat: {
+          version: 1,
+          enemyCount: 2,
+          reason: "ordinary-win-streak",
+          eligibleWins: 3,
+          lineId: "one-hero-invitation",
+          lineVersion: "threat-escalation-v1"
+        },
         monster: {
           id: "monster.second",
           name: "<i>Другий</i>",
@@ -289,11 +297,13 @@ describe("fight presenter", () => {
     const text = presentPersistentFight(result);
 
     expect(intro).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(intro).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
     expect(intro).toContain("<i>Порада дня:");
     expect(intro).not.toContain("<i>Другий</i>");
     expect(intro).not.toContain("<b>Перший</b>");
 
     expect(text).toContain("Проти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(text).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
     expect(text).not.toContain("Проти вас: <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3");
     expect(text).toContain("👹 1. &lt;i&gt;Другий&lt;/i&gt;: 7/16 ← ціль");
     expect(text).toContain("👹 2. &lt;b&gt;Перший&lt;/b&gt;: 0/18");

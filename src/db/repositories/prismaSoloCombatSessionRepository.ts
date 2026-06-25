@@ -238,6 +238,80 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
   }
 
+  async listRecentCompletedByTelegramUserId(
+    telegramUserId: bigint,
+    limit: number
+  ): Promise<SoloCombatSessionCompletionRecord[]> {
+    const resultLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+    const completed: SoloCombatSessionCompletionRecord[] = [];
+    let scanned = 0;
+
+    while (completed.length < resultLimit && scanned < RECENT_ORDINARY_SCAN_CAP) {
+      const records = await this.prisma.soloCombatSession.findMany({
+        where: {
+          character: {
+            user: {
+              telegramUserId
+            }
+          }
+        },
+        orderBy: [
+          { updatedAt: "desc" },
+          { id: "desc" }
+        ],
+        skip: scanned,
+        take: Math.min(RECENT_ORDINARY_PAGE_SIZE, RECENT_ORDINARY_SCAN_CAP - scanned),
+        select: {
+          id: true,
+          monsterId: true,
+          status: true,
+          stateJson: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
+
+      if (records.length === 0) {
+        break;
+      }
+
+      scanned += records.length;
+
+      for (const record of records) {
+        if (completed.length >= resultLimit) {
+          break;
+        }
+
+        const status = parseStatus(record.status);
+        const state = parseCombatState(record.stateJson);
+        const completedAt = getSessionCompletionTime({
+          status,
+          state,
+          createdAt: record.createdAt
+        });
+
+        if (!completedAt) {
+          continue;
+        }
+
+        completed.push({
+          monsterId: record.monsterId,
+          status,
+          state,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
+          completedAt
+        });
+      }
+    }
+
+    return completed.sort(
+      (left, right) =>
+        right.completedAt.getTime() - left.completedAt.getTime() ||
+        right.updatedAt.getTime() - left.updatedAt.getTime()
+    );
+  }
+
   async clearMonsterRestCooldownForTelegramUser(
     telegramUserId: bigint,
     input: { since: Date; completedAt: Date }
@@ -1379,6 +1453,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const source = parseCombatSource(value.source);
   const life = parseCombatLife(value.life);
   const settlement = parseCombatSettlement(value.settlement);
+  const threat = parseCombatThreat(value.threat);
   const hero = parseResourceBlock(value.hero);
   const monster = parseMonsterBlock(value.monster);
   const enemies = parseEnemies(value.enemies, monster);
@@ -1406,6 +1481,7 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(source ? { source } : {}),
     ...(life ? { life } : {}),
     ...(settlement ? { settlement } : {}),
+    ...(threat ? { threat } : {}),
     ...(typeof value.originLocationId === "string" ? { originLocationId: value.originLocationId } : {}),
     ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
     ...(turnExpiresAt ? { turnExpiresAt: turnExpiresAt.toISOString() } : {}),
@@ -1426,6 +1502,27 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(lastTurn ? { lastTurn } : {}),
     ...(turnLog.length > 0 ? { turnLog } : {})
   };
+}
+
+function parseCombatThreat(value: unknown): CombatState["threat"] | null {
+  if (!isRecord(value) || value.version !== 1) {
+    return null;
+  }
+
+  return value.enemyCount === 2 &&
+    value.reason === "ordinary-win-streak" &&
+    value.eligibleWins === 3 &&
+    typeof value.lineId === "string" &&
+    typeof value.lineVersion === "string"
+    ? {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineId: value.lineId,
+        lineVersion: value.lineVersion
+      }
+    : null;
 }
 
 function parseDrinkModifiers(value: unknown): DrinkCombatModifiers | null {

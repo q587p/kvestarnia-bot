@@ -140,6 +140,7 @@ export interface CombatState {
   source?: "normal" | "yeger" | "adventure" | "training";
   life?: CombatLifeState;
   settlement?: CombatSettlementState;
+  threat?: CombatThreatState;
   originLocationId?: string;
   completedAt?: string;
   turnExpiresAt?: string;
@@ -177,6 +178,15 @@ export interface CombatState {
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
+}
+
+export interface CombatThreatState {
+  version: 1;
+  enemyCount: 2;
+  reason: "ordinary-win-streak";
+  eligibleWins: 3;
+  lineId: string;
+  lineVersion: string;
 }
 
 export interface DrinkCombatModifiers {
@@ -342,6 +352,7 @@ export function cloneCombatState(state: CombatState): CombatState {
           }
         }
       : {}),
+    ...(state.threat ? { threat: { ...state.threat } } : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),

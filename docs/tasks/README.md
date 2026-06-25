@@ -58,7 +58,8 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 - [future-deploy-notification-visti.md](future-deploy-notification-visti.md) — future copy polish for deploy notifications as `вісти` with the first release paragraph.
 - [0.2.0-safe-gifting-mvp.md](0.2.0-safe-gifting-mvp.md) — draft first `0.2.x` task for exactly-one-unit safe gifting after closeout.
 - [0.2.1-multi-enemy-foundation.md](0.2.1-multi-enemy-foundation.md) — task for backward-compatible two-enemy combat state and dev-only two-enemy exposure.
-- [0.2.2-architecture-stabilization.md](0.2.2-architecture-stabilization.md) — queued behavior-preserving architecture stabilization before threat escalation.
+- [0.2.2-architecture-stabilization.md](0.2.2-architecture-stabilization.md) — shipped behavior-preserving architecture stabilization before threat escalation.
+- [0.2.3-threat-escalation.md](0.2.3-threat-escalation.md) — ordinary three-win threat escalation MVP using the existing two-enemy foundation.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.

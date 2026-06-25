@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.3] - 12026-06-25 - Threat Escalation MVP
+
+### Added
+- Added ordinary threat escalation for normal persistent fights: after three consecutive eligible one-enemy ordinary wins, the next eligible ordinary start creates exactly two enemies.
+- Added a pure threat policy with 13 stable Ukrainian escalation lines and stored `CombatState.threat` metadata so intro, restart, active and terminal replay cards reuse the same line.
+- Added bounded durable combat-history lookup for recent terminal solo-combat sessions without a schema migration.
+- Added focused policy, service and presenter tests for escalation, resets, excluded routes, two-enemy checkpoint behavior and stable copy.
+
+### Changed
+- Replaced the old eligible ordinary three-win monster-rest start denial with escalation for ordinary normal starts.
+- Loss, flee or expiry in an eligible one-enemy ordinary encounter breaks the streak.
+- A stored escalated two-enemy terminal encounter checkpoints the cycle, so later ordinary starts return to one enemy until three new eligible one-enemy wins accumulate.
+
+### Unchanged
+- Rewards remain the existing single-encounter settlement contract for the whole two-enemy fight.
+- Yeger, Adventure, training, duel, starter and dev-forced `/dev_two_enemies` sessions do not trigger or consume ordinary threat escalation.
+- No Prisma schema, migration, reward scaling, Yeger escalation, Adventure escalation, target UI, three-or-more enemies, party combat or raid runtime ships in this slice.
+
 ## [0.2.2] - 12026-06-25 - Architecture Stabilization
 
 ### Changed
