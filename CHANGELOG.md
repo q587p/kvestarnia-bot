@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.2] - 12026-06-24 - Architecture Stabilization
+## [0.2.2] - 12026-06-25 - Architecture Stabilization
 
 ### Changed
 - Split bot assembly into explicit core, character, inventory, tavern, quest, combat and social modules while keeping command and callback behavior unchanged.
