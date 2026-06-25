@@ -409,7 +409,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("⚔️ <b>Бій</b>: 6 ходів");
     expect(text).toContain("👹 1. Павук: 18/18 ← ціль");
     expect(text).toContain("👹 2. Капустяний: 0/18");
-    expect(text).toContain("Знешкоджено: Капустяний лицар на перерві. Нова ціль — Павук дедлайнів; Корчма переставила табличку без голосування.");
+    expect(text).toContain("Знешкоджено: <b>Капустяний лицар на перерві</b>. Нова ціль — <b>Павук дедлайнів</b>; Корчма переставила табличку без голосування.");
   });
 
   it("disambiguates colliding short monster names in multi-enemy response lines", () => {
@@ -1510,8 +1510,8 @@ describe("fight presenter", () => {
     expect(text).toContain("Винагорода за бій:\n<b>+7 XP\n+2 золота</b>");
     expect(text).not.toContain("Проти вас:");
     expect(text).toContain("👹 Монстр: 0/18");
-    expect(text).not.toContain("<b>Монстр</b>");
-    expect(text).toContain("Знешкоджено: Монстр.");
+    expect(text).not.toContain("👹 <b>Монстр</b>: 0/18");
+    expect(text).toContain("Знешкоджено: <b>Монстр</b>.");
     expect(text).not.toContain("Корчмар зараховує");
   });
 
