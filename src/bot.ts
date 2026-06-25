@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { createRepositories } from "./app/createRepositories";
+import { registerSignalShutdown } from "./app/registerSignalShutdown";
 import { createRuntime } from "./app/createRuntime";
 import { createServices } from "./app/createServices";
 import { loadConfig } from "./config/env";
@@ -15,11 +16,6 @@ const runtime = createRuntime({
   services
 });
 
-function shutdown(): void {
-  void runtime.stop();
-}
-
-process.once("SIGINT", shutdown);
-process.once("SIGTERM", shutdown);
+registerSignalShutdown(runtime);
 
 void runtime.start();
