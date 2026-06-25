@@ -686,10 +686,6 @@ function presentPersistentFightState(input: {
     lines.push(...presentDefeatedEnemyLines(state, input.monster));
   }
 
-  if (input.fightReward) {
-    lines.push("", ...presentPersistentFightReward(input.fightReward));
-  }
-
   if (state?.status === "won") {
     const readyQuestLine =
       input.questProgress?.completed && !input.questProgress.rewardClaimed
@@ -730,6 +726,10 @@ function presentPersistentFightState(input: {
     );
 
     lines.push(`⏳ На хід є ${PERSISTENT_FIGHT_TURN_SECONDS} секунди. Потім Корчма поставить вас у захист.`);
+  }
+
+  if (state?.status && state.status !== "active" && input.fightReward) {
+    lines.push("", ...presentPersistentFightReward(input.fightReward));
   }
 
   return lines.join("\n");

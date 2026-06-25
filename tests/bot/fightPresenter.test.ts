@@ -1474,6 +1474,8 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Нагорода за справу:\n<b>+35 XP\n+10 золота</b>");
     expect(text).not.toContain("Здобуто: <i>Жетон тринадцяти дрібних проблем</i>");
     expect(text).toContain("Корчмар уже чує, що проблем вистачило — занесіть це в шинок.");
+    expect(text.indexOf("🎉 Ви перемогли")).toBeLessThan(text.indexOf("Винагорода за бій:"));
+    expect(text.indexOf("Корчмар уже чує")).toBeLessThan(text.indexOf("Винагорода за бій:"));
     expect(text).not.toContain("Після бою:");
     expect(text).not.toContain("список дрібних проблем теж не відвертівся");
   });
@@ -1654,6 +1656,7 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain("🎒 За спробу:\n<b>+1 XP</b>");
+    expect(text.indexOf("💤 Ви програли.")).toBeLessThan(text.indexOf("🎒 За спробу:"));
     expect(text).not.toContain("Корчмар підсунув 1 XP за спробу");
     expect(text).not.toContain("Винагорода за бій:\n<b>+1 XP</b>");
     expect(text).not.toContain("+0 золота");
