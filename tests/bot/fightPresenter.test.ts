@@ -330,7 +330,7 @@ describe("fight presenter", () => {
     const intro = presentPersistentFightIntro(result);
     const text = presentPersistentFight(result);
 
-    expect(intro).toContain("Проти вас:\n⚠️ <i>Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.</i>\n📈 <i>Натиск Низу:</i> <b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(intro).toContain("⚠️ <i>Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.</i>\n📈 <i>Натиск Низу:</i> <b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.\n\nПроти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
     expect(intro).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
     expect(intro).toContain("Натиск Низу:");
     expect(intro).toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23.");

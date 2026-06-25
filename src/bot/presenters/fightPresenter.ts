@@ -250,7 +250,10 @@ export function presentPersistentFightIntro(
     "Бій починається. Корчма відкриває журнал ходів і робить вигляд, що це звичайний облік."
   ];
   const threatLines = presentThreatEscalationLines(result.session.state);
-  lines.push("", ...presentPersistentFightIntroOpponents(result, threatLines));
+  if (threatLines.length > 0) {
+    lines.push("", ...threatLines);
+  }
+  lines.push("", ...presentPersistentFightIntroOpponents(result));
 
   const startTip = presentBattleStartTip(result.character, result.session.id ?? result.session.state?.id ?? "active");
   if (startTip) {
@@ -261,8 +264,7 @@ export function presentPersistentFightIntro(
 }
 
 function presentPersistentFightIntroOpponents(
-  result: Extract<FightLookupResult, { state: "persistent-active" }>,
-  threatLines: readonly string[] = []
+  result: Extract<FightLookupResult, { state: "persistent-active" }>
 ): string[] {
   const state = result.session.state;
   const enemies = state?.enemies ? normalizeCombatEnemies(state) : [];
@@ -270,7 +272,6 @@ function presentPersistentFightIntroOpponents(
   if (enemies.length > 1) {
     return [
       "Проти вас:",
-      ...threatLines,
       ...enemies.map((enemy, index) => {
         const level = enemy.level ? ` · рівень ${enemy.level}` : "";
         const name =
@@ -286,9 +287,7 @@ function presentPersistentFightIntroOpponents(
   const monsterLevel = result.monster?.level ?? state?.monster.level;
   const level = monsterLevel ? ` · рівень ${monsterLevel}` : "";
 
-  return threatLines.length > 0
-    ? ["Проти вас:", ...threatLines, `<b>${escapeHtml(monsterName)}</b>${level}`]
-    : [`Проти вас: <b>${escapeHtml(monsterName)}</b>${level}`];
+  return [`Проти вас: <b>${escapeHtml(monsterName)}</b>${level}`];
 }
 
 export function presentPersistentFight(
