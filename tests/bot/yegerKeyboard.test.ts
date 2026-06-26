@@ -9,6 +9,7 @@ import {
 } from "../../src/bot/keyboards/yegerKeyboard";
 import {
   makeYegerBuyBandageCallbackData,
+  makeYegerFreeBandageCallbackData,
   makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData
 } from "../../src/bot/callbacks/yegerCallbackData";
@@ -47,6 +48,28 @@ describe("Yeger keyboard", () => {
       ["🩹 1 бинт", "🩹 5 бинтів"],
       ["🩹 17 бинтів", "🩹 93 бинти"]
     ]);
+  });
+
+  it("keeps the free ranger bandage available before the Yeger quest level gate", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "level-locked",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Єгер",
+        level: 1
+      },
+      requiredLevel: 4
+    });
+
+    expect(flatButtons(keyboard)).not.toContainEqual({
+      text: "🏹 Неспокійні справи",
+      callback_data: makeYegerQuestCallbackData()
+    });
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🏹 Єгерський бинт",
+      callback_data: makeYegerFreeBandageCallbackData()
+    });
   });
 
   it("links the completed Yeger keepsake from the quest screen", () => {

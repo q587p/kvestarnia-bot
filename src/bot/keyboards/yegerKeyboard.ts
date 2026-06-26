@@ -80,7 +80,7 @@ export function buildYegerCornerKeyboard(
   keyboard.text("🩹 5 бинтів", makeYegerBuyBandageCallbackData(5)).row();
   keyboard.text("🩹 17 бинтів", makeYegerBuyBandageCallbackData(17));
   keyboard.text("🩹 93 бинти", makeYegerBuyBandageCallbackData(93)).row();
-  if (result.state !== "level-locked" && result.character.classId === "class.ranger") {
+  if (result.character.classId === "class.ranger") {
     keyboard.text("🏹 Єгерський бинт", makeYegerFreeBandageCallbackData()).row();
   }
 
