@@ -41,6 +41,73 @@ describe("itemUsePresenter", () => {
     expect(text).toContain("Використано бинтів: <b>2</b>.");
     expect(text).toContain("HP: <b>30/44</b> → <b>44/44</b>.");
   });
+
+  it("renders restore-to-full preview quantity before spending", () => {
+    const result: ItemUseRestoreToFullRepositoryResult = {
+      state: "preview-created",
+      character: makeCharacter(),
+      neededQuantity: 2,
+      availableQuantity: 3,
+      order: {
+        ...makeOrder(),
+        quantity: 2,
+        status: "pending",
+        preview: {
+          rulesVersion: ITEM_USE_RULES_VERSION,
+          mode: "restore-to-full",
+          hpBefore: 30,
+          hpMax: 44,
+          healAmount: 14,
+          hpAfter: 44
+        },
+        result: null
+      }
+    };
+
+    const text = presentItemUseRestoreToFull(result);
+
+    expect(text).toContain("Відновитися до повного HP?");
+    expect(text).toContain("Бракує HP: <b>14</b>.");
+    expect(text).toContain("Буде витрачено бинтів: <b>2</b>.");
+    expect(text).toContain("У торбі зараз: <b>3</b>.");
+  });
+
+  it("renders canonical bulk restore confirmation result", () => {
+    const result: ItemUseConfirmRepositoryResult = {
+      state: "replayed",
+      character: makeCharacter(),
+      order: {
+        ...makeOrder(),
+        quantity: 2,
+        preview: {
+          rulesVersion: ITEM_USE_RULES_VERSION,
+          mode: "restore-to-full",
+          hpBefore: 30,
+          hpMax: 44,
+          healAmount: 14,
+          hpAfter: 44
+        },
+        result: {
+          rulesVersion: ITEM_USE_RULES_VERSION,
+          mode: "restore-to-full",
+          kind: "heal-hp",
+          itemId: "item.responsible-panic-bandage",
+          itemName: "Бинт відповідальної паніки",
+          hpBefore: 30,
+          hpMax: 44,
+          healAmount: 14,
+          hpAfter: 44
+        }
+      }
+    };
+
+    const text = presentItemUseConfirm(result);
+
+    expect(text).toContain("Відновлення завершено");
+    expect(text).toContain("Результат уже записано раніше.");
+    expect(text).toContain("Використано бинтів: <b>2</b>.");
+    expect(text).toContain("HP: <b>30/44</b> → <b>44/44</b>.");
+  });
 });
 
 function makeCharacter(): CharacterRecord {

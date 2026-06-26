@@ -85,11 +85,15 @@ export class ItemUseService {
       return { state: "not-usable" };
     }
 
+    const now = this.now();
+
     return this.repository.restoreToFullForTelegramUser(telegramUserId, {
       item,
       itemContents: items,
       itemFingerprint: createItemUseFingerprint(item),
-      now: this.now()
+      token: randomUUID(),
+      now,
+      expiresAt: addMinutes(now, ITEM_USE_TTL_MINUTES)
     });
   }
 }

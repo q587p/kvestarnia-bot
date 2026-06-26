@@ -84,11 +84,13 @@ export function presentItemUseConfirm(result: ItemUseConfirmRepositoryResult): s
 
   const replay = result.state === "replayed" ? "Результат уже записано раніше." : "Бинт використано.";
   const outcome = result.order.result ?? result.order.preview;
+  const restoredToFull = result.order.preview.mode === "restore-to-full";
 
   return [
-    "🩹 Бинт спрацював",
+    restoredToFull ? "🩹 Відновлення завершено" : "🩹 Бинт спрацював",
     "",
     `${replay}`,
+    ...(restoredToFull ? [`Використано бинтів: <b>${result.order.quantity}</b>.`] : []),
     `HP: <b>${outcome.hpBefore}/${outcome.hpMax}</b> → <b>${outcome.hpAfter}/${outcome.hpMax}</b>.`,
     "",
     "Єгер сказав: «Не героїзм, але бухгалтерія виживання схвалила»."
@@ -149,6 +151,18 @@ export function presentItemUseRestoreToFull(result: ItemUseRestoreToFullReposito
     ].join("\n");
   }
 
+  if (result.state === "preview-created" || result.state === "preview-replayed") {
+    return [
+      "🩹 Відновитися до повного HP?",
+      "",
+      `<b>${escapeHtml(result.order.itemName)}</b> зникнуть з торби лише після підтвердження.`,
+      `HP: <b>${result.order.preview.hpBefore}/${result.order.preview.hpMax}</b> → <b>${result.order.preview.hpAfter}/${result.order.preview.hpMax}</b>.`,
+      `Бракує HP: <b>${result.order.preview.healAmount}</b>.`,
+      `Буде витрачено бинтів: <b>${result.neededQuantity}</b>.`,
+      `У торбі зараз: <b>${result.availableQuantity}</b>.`
+    ].join("\n");
+  }
+
   if (result.state === "full-hp") {
     return [
       "🩹 Бинти чекають",
@@ -158,12 +172,16 @@ export function presentItemUseRestoreToFull(result: ItemUseRestoreToFullReposito
     ].join("\n");
   }
 
-  return [
-    "🩹 Відновлення завершено",
-    "",
-    `Використано бинтів: <b>${result.result.quantity}</b>.`,
-    `HP: <b>${result.result.hpBefore}/${result.result.hpMax}</b> → <b>${result.result.hpAfter}/${result.result.hpMax}</b>.`,
-    "",
-    "Єгер мовчки поставив печатку «виживе»."
-  ].join("\n");
+  if (result.state === "restored") {
+    return [
+      "🩹 Відновлення завершено",
+      "",
+      `Використано бинтів: <b>${result.result.quantity}</b>.`,
+      `HP: <b>${result.result.hpBefore}/${result.result.hpMax}</b> → <b>${result.result.hpAfter}/${result.result.hpMax}</b>.`,
+      "",
+      "Єгер мовчки поставив печатку «виживе»."
+    ].join("\n");
+  }
+
+  return "Це відновлення вже не можна застосувати. Відкрийте манатку ще раз.";
 }

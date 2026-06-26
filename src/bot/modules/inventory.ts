@@ -263,8 +263,8 @@ async function handleItemUseCallback(
 
     await safeAnswerCallbackQuery(
       ctx,
-      result.state === "restored"
-        ? { text: "HP відновлено." }
+      result.state === "preview-created" || result.state === "preview-replayed"
+        ? undefined
         : {
             show_alert:
               result.state === "not-owned" ||
@@ -276,7 +276,10 @@ async function handleItemUseCallback(
     );
     await safeEditMessageText(ctx, presentItemUseRestoreToFull(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildItemUseResultKeyboard()
+      reply_markup:
+        result.state === "preview-created" || result.state === "preview-replayed"
+          ? buildItemUsePreviewKeyboard(result.order.token)
+          : buildItemUseResultKeyboard()
     });
     return;
   }

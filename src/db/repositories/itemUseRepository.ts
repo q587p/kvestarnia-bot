@@ -5,6 +5,7 @@ export type ItemUseOrderStatus = "pending" | "processing" | "completed" | "cance
 
 export interface ItemUsePreview {
   rulesVersion: string;
+  mode?: "restore-to-full";
   hpBefore: number;
   hpMax: number;
   healAmount: number;
@@ -76,6 +77,7 @@ export type ItemUseRestoreToFullRepositoryResult =
   | { state: "combat-locked" }
   | { state: "reserved" }
   | { state: "full-hp"; character: CharacterRecord; preview: ItemUsePreview }
+  | { state: "preview-created" | "preview-replayed"; character: CharacterRecord; order: ItemUseOrderRecord; neededQuantity: number; availableQuantity: number }
   | {
       state: "not-enough";
       character: CharacterRecord;
@@ -121,7 +123,9 @@ export interface ItemUseRepository {
       item: ItemContent;
       itemContents: readonly ItemContent[];
       itemFingerprint: string;
+      token: string;
       now: Date;
+      expiresAt: Date;
     }
   ): Promise<ItemUseRestoreToFullRepositoryResult>;
 }

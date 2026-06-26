@@ -88,35 +88,303 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(17);
   });
 
-  it("uses exactly the bandages needed to restore HP to full", async () => {
+  it("previews restore-to-full without consuming bandages", async () => {
     await seedCharacter({ hpCurrent: 30, hpMax: 25 });
     await seedBandages(3);
 
-    await expect(restoreToFull()).resolves.toMatchObject({
-      state: "restored",
-      result: {
+    await expect(restoreToFull("restore-token-preview")).resolves.toMatchObject({
+      state: "preview-created",
+      neededQuantity: 2,
+      availableQuantity: 3,
+      order: {
         quantity: 2,
-        hpBefore: 30,
-        hpMax: 41,
-        healAmount: 11,
-        hpAfter: 41
+        preview: {
+          mode: "restore-to-full",
+          hpBefore: 30,
+          hpMax: 41,
+          healAmount: 11,
+          hpAfter: 41
+        }
+      }
+    });
+    await expectBandageQuantity(3);
+    await expectCharacterHp(30);
+    expect(await prisma.itemUseOrder.count()).toBe(1);
+  });
+
+  it("confirms restore-to-full once and replays the canonical result", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await restoreToFull("restore-token-confirm");
+
+    const first = await repository.confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-confirm",
+      itemContents: items,
+      now: now()
+    });
+    const replay = await new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-confirm",
+      itemContents: items,
+      now: now()
+    });
+
+    expect(first).toMatchObject({
+      state: "used",
+      order: {
+        quantity: 2,
+        result: {
+          kind: "heal-hp",
+          hpBefore: 30,
+          hpMax: 41,
+          healAmount: 11,
+          hpAfter: 41
+        }
+      }
+    });
+    expect(replay).toMatchObject({
+      state: "replayed",
+      order: {
+        quantity: 2,
+        result: {
+          kind: "heal-hp",
+          hpBefore: 30,
+          hpMax: 41,
+          healAmount: 11,
+          hpAfter: 41
+        }
       }
     });
     await expectBandageQuantity(1);
     await expectCharacterHp(41);
-    expect(await prisma.itemUseOrder.count()).toBe(0);
   });
 
   it("does not spend partial bandages when restore-to-full no longer has enough", async () => {
     await seedCharacter({ hpCurrent: 30, hpMax: 25 });
     await seedBandages(1);
 
-    await expect(restoreToFull()).resolves.toMatchObject({
+    await expect(restoreToFull("restore-token-not-enough")).resolves.toMatchObject({
       state: "not-enough",
       neededQuantity: 2,
       availableQuantity: 1
     });
     await expectBandageQuantity(1);
+    await expectCharacterHp(30);
+  });
+
+  it("cancels restore-to-full before confirmation without consuming", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await restoreToFull("restore-token-cancel");
+
+    await expect(repository.cancelForTelegramUser(telegramUserId, {
+      token: "restore-token-cancel",
+      now: now()
+    })).resolves.toMatchObject({ state: "cancelled" });
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-cancel",
+      itemContents: items,
+      now: now()
+    })).resolves.toMatchObject({ state: "cancelled" });
+    await expectBandageQuantity(3);
+    await expectCharacterHp(30);
+  });
+
+  it("expires restore-to-full before confirmation without consuming", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await restoreToFull("restore-token-expire");
+
+    const late = new Date("2026-06-25T09:24:00.000Z");
+    await expect(repository.cancelForTelegramUser(telegramUserId, {
+      token: "restore-token-expire",
+      now: late
+    })).resolves.toMatchObject({ state: "expired" });
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-expire",
+      itemContents: items,
+      now: late
+    })).resolves.toMatchObject({ state: "expired" });
+    await expectBandageQuantity(3);
+    await expectCharacterHp(30);
+  });
+
+  it("canonicalizes a restore-to-full confirm-vs-cancel race", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await restoreToFull("restore-token-confirm-cancel-race");
+
+    const [confirm, cancel] = await Promise.all([
+      repository.confirmForTelegramUser(telegramUserId, {
+        token: "restore-token-confirm-cancel-race",
+        itemContents: items,
+        now: now()
+      }),
+      repository.cancelForTelegramUser(telegramUserId, {
+        token: "restore-token-confirm-cancel-race",
+        now: now()
+      })
+    ]);
+    const order = await readUseOrder("restore-token-confirm-cancel-race");
+
+    expect(["completed", "cancelled"]).toContain(order.status);
+    expect(order.reservationKey).toBeNull();
+    if (order.status === "completed") {
+      expect(["used", "replayed"]).toContain(confirm.state);
+      expect(cancel.state).toBe("completed");
+      await expectBandageQuantity(1);
+      await expectCharacterHp(41);
+    } else {
+      expect(confirm.state).toBe("cancelled");
+      expect(["cancelled", "replayed"]).toContain(cancel.state);
+      await expectBandageQuantity(3);
+      await expectCharacterHp(30);
+    }
+  });
+
+  it("canonicalizes a restore-to-full confirm-vs-expiry race", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await restoreToFull("restore-token-confirm-expiry-race");
+
+    const [confirm, expiry] = await Promise.all([
+      repository.confirmForTelegramUser(telegramUserId, {
+        token: "restore-token-confirm-expiry-race",
+        itemContents: items,
+        now: now()
+      }),
+      repository.cancelForTelegramUser(telegramUserId, {
+        token: "restore-token-confirm-expiry-race",
+        now: new Date("2026-06-25T09:24:00.000Z")
+      })
+    ]);
+    const order = await readUseOrder("restore-token-confirm-expiry-race");
+
+    expect(["completed", "expired"]).toContain(order.status);
+    expect(order.reservationKey).toBeNull();
+    if (order.status === "completed") {
+      expect(["used", "replayed"]).toContain(confirm.state);
+      expect(expiry.state).toBe("completed");
+      await expectBandageQuantity(1);
+      await expectCharacterHp(41);
+    } else {
+      expect(confirm.state).toBe("expired");
+      expect(expiry.state).toBe("expired");
+      await expectBandageQuantity(3);
+      await expectCharacterHp(30);
+    }
+  });
+
+  it("stales restore-to-full if current HP needs a different frozen quantity", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await restoreToFull("restore-token-stale-hp");
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { hpCurrent: 37 }
+    });
+
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-stale-hp",
+      itemContents: items,
+      now: now()
+    })).resolves.toMatchObject({
+      state: "stale-selection",
+      order: {
+        status: "expired"
+      }
+    });
+    const order = await readUseOrder("restore-token-stale-hp");
+    expect(order.reservationKey).toBeNull();
+    await expectBandageQuantity(3);
+    await expectCharacterHp(37);
+  });
+
+  it("stores full-HP restore result when passive recovery reaches max before confirm", async () => {
+    await seedCharacter({ hpCurrent: 40, hpMax: 25, hpRegenAt: now() });
+    await seedBandages(2);
+    await restoreToFull("restore-token-passive-full");
+    await prisma.itemUseOrder.update({
+      where: { token: "restore-token-passive-full" },
+      data: { expiresAt: new Date("2026-06-25T12:00:00.000Z") }
+    });
+
+    const confirmAt = new Date("2026-06-25T11:00:00.000Z");
+    const first = await repository.confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-passive-full",
+      itemContents: items,
+      now: confirmAt
+    });
+    const replay = await new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-passive-full",
+      itemContents: items,
+      now: confirmAt
+    });
+
+    expect(first).toMatchObject({
+      state: "full-hp",
+      order: {
+        result: {
+          kind: "full-hp",
+          hpBefore: 41,
+          hpMax: 41,
+          healAmount: 0,
+          hpAfter: 41
+        }
+      }
+    });
+    expect(replay).toMatchObject({ state: "full-hp" });
+    await expectBandageQuantity(2);
+    await expectCharacterHp(41);
+  });
+
+  it("fails restore-to-full safely after remort changes the character life", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await restoreToFull("restore-token-remort");
+    await seedRemort();
+
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "restore-token-remort",
+      itemContents: items,
+      now: now()
+    })).resolves.toMatchObject({
+      state: "stale-selection",
+      order: {
+        status: "expired"
+      }
+    });
+    await expectBandageQuantity(3);
+    await expectCharacterHp(30);
+  });
+
+  it("blocks restore-to-full while the same item is reserved by another use order", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await createPreview("use-token-reserves-restore");
+
+    await expect(restoreToFull("restore-token-reserved-by-use")).resolves.toMatchObject({
+      state: "reserved"
+    });
+    await expectBandageQuantity(3);
+    await expectCharacterHp(30);
+  });
+
+  it("blocks restore-to-full for equipped items", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+    await prisma.characterEquipment.create({
+      data: {
+        id: "equipment-restore-reserved",
+        characterId,
+        slot: "trinket",
+        itemId: bandage.id
+      }
+    });
+
+    await expect(restoreToFull("restore-token-equipped")).resolves.toMatchObject({
+      state: "reserved"
+    });
+    await expectBandageQuantity(3);
     await expectCharacterHp(30);
   });
 
@@ -501,12 +769,14 @@ describe("PrismaItemUseRepository integration", () => {
     });
   }
 
-  async function restoreToFull() {
+  async function restoreToFull(token: string) {
     return repository.restoreToFullForTelegramUser(telegramUserId, {
       item: bandage,
       itemContents: items,
       itemFingerprint: createItemUseFingerprint(bandage),
-      now: now()
+      token,
+      now: now(),
+      expiresAt: future()
     });
   }
 
@@ -559,6 +829,22 @@ describe("PrismaItemUseRepository integration", () => {
         characterId,
         itemId: bandage.id,
         quantity
+      }
+    });
+  }
+
+  async function seedRemort(): Promise<void> {
+    await prisma.characterRemort.create({
+      data: {
+        id: "remort-1",
+        characterId,
+        token: "remort-token-1",
+        remortNumber: 1,
+        previousLevel: 4,
+        previousXp: 70,
+        previousGold: 0,
+        displayNameSnapshot: "Тестовий Мандрівник",
+        preservedPayloadJson: {}
       }
     });
   }

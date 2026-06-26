@@ -65,6 +65,10 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
+          if (isRestoreToFullOrder(existing)) {
+            return { state: "reserved" };
+          }
+
           const effect = getItemUseEffect(input.item);
           const validation = await validatePendingPreviewRefresh(tx, existing, character, {
             item: input.item,
@@ -225,15 +229,16 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         if (
           getIncludedRemortCount(character) !== order.remortCount ||
           order.preview.rulesVersion !== ITEM_USE_RULES_VERSION ||
-          order.quantity !== 1
+          (!isRestoreToFullOrder(order) && order.quantity !== 1) ||
+          (isRestoreToFullOrder(order) && order.quantity < 1)
         ) {
-          return { state: "stale-selection", order };
+          return await staleTerminalConfirm(tx, order, input.now, character);
         }
 
         const item = input.itemContents.find((candidate) => candidate.id === order.itemId);
         const effect = item ? getItemUseEffect(item) : null;
         if (!item || !effect || blocksAccidentalItemUse(item)) {
-          return { state: "stale-selection", order };
+          return await staleTerminalConfirm(tx, order, input.now, character);
         }
 
         if (
@@ -241,7 +246,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           createItemUseFingerprint(item) !== order.itemFingerprint ||
           effect.kind !== order.effectKind
         ) {
-          return { state: "stale-selection", order };
+          return await staleTerminalConfirm(tx, order, input.now, character);
         }
 
         const [items, equippedItemIds, reservedItemIds] = await Promise.all([
@@ -253,11 +258,11 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         const stack = items.find((candidate) => candidate.itemId === order.itemId);
         if (
           !stack ||
-          stack.quantity < 1 ||
+          stack.quantity < order.quantity ||
           equippedItemIds.includes(order.itemId) ||
           reservedItemIds.includes(order.itemId)
         ) {
-          return { state: "stale-selection", order };
+          return await staleTerminalConfirm(tx, order, input.now, character);
         }
 
         const claimed = await tx.itemUseOrder.updateMany({
@@ -281,7 +286,10 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }
 
         const settlement = getRegeneratedResources(character, input.itemContents, input.now);
-        const preview = calculateHealingPreview({
+        const restorePreview = isRestoreToFullOrder(order)
+          ? buildRestoreToFullPreview(character, input.itemContents, input.now, effect)
+          : null;
+        const preview = restorePreview?.preview ?? calculateHealingPreview({
           hpCurrent: settlement.resources.hpCurrent,
           hpMax: settlement.resources.hpMax,
           effect
@@ -317,14 +325,18 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           };
         }
 
+        if (restorePreview && restorePreview.neededQuantity !== order.quantity) {
+          return await staleTerminalConfirm(tx, order, input.now, character);
+        }
+
         const consumed = await tx.characterItem.updateMany({
           where: {
             characterId: character.id,
             itemId: order.itemId,
-            quantity: { gte: 1 }
+            quantity: { gte: order.quantity }
           },
           data: {
-            quantity: { decrement: 1 }
+            quantity: { decrement: order.quantity }
           }
         });
         if (consumed.count !== 1) {
@@ -425,149 +437,188 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       item: ItemContent;
       itemContents: readonly ItemContent[];
       itemFingerprint: string;
+      token: string;
       now: Date;
+      expiresAt: Date;
     }
   ): Promise<ItemUseRestoreToFullRepositoryResult> {
-    return this.prisma.$transaction(async (tx): Promise<ItemUseRestoreToFullRepositoryResult> => {
-      const character = await findCharacter(tx, telegramUserId);
-      if (!character) {
-        return { state: "no-character" };
-      }
+    try {
+      return await this.prisma.$transaction(async (tx): Promise<ItemUseRestoreToFullRepositoryResult> => {
+        const character = await findCharacter(tx, telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
 
-      if (character.activeCombatLease) {
-        return { state: "combat-locked" };
-      }
+        if (character.activeCombatLease) {
+          return { state: "combat-locked" };
+        }
 
-      const effect = getItemUseEffect(input.item);
-      if (!effect || blocksAccidentalItemUse(input.item) || effect.amount <= 0) {
-        return { state: "not-usable" };
-      }
+        const effect = getItemUseEffect(input.item);
+        if (!effect || blocksAccidentalItemUse(input.item) || effect.amount <= 0) {
+          return { state: "not-usable" };
+        }
 
-      if (
-        input.itemFingerprint !== createItemUseFingerprint(input.item) ||
-        input.itemFingerprint !== createItemUseFingerprint(input.itemContents.find((item) => item.id === input.item.id) ?? input.item)
-      ) {
-        return { state: "not-usable" };
-      }
+        if (
+          input.itemFingerprint !== createItemUseFingerprint(input.item) ||
+          input.itemFingerprint !== createItemUseFingerprint(input.itemContents.find((item) => item.id === input.item.id) ?? input.item)
+        ) {
+          return { state: "not-usable" };
+        }
 
-      await releaseExpiredUseReservations(tx, character.id, input.item.id, input.now);
-      await lockItemStack(tx, character.id, input.item.id, input.now);
+        await releaseExpiredUseReservations(tx, character.id, input.item.id, input.now);
+        await lockItemStack(tx, character.id, input.item.id, input.now);
 
-      const [items, equippedItemIds, reservedItemIds] = await Promise.all([
-        getItems(tx, character.id),
-        getEquippedItemIds(tx, character.id),
-        getReservedItemIds(tx, character.id, input.now)
-      ]);
+        const existing = mapOrder(await tx.itemUseOrder.findFirst({
+          where: {
+            characterId: character.id,
+            itemId: input.item.id,
+            status: "pending",
+            expiresAt: { gt: input.now }
+          },
+          orderBy: { createdAt: "desc" }
+        }));
+        if (existing) {
+          if (!isRestoreToFullOrder(existing)) {
+            return { state: "reserved" };
+          }
 
-      const stack = items.find((candidate) => candidate.itemId === input.item.id);
-      if (!stack || stack.quantity < 1) {
-        return { state: "not-owned" };
-      }
+          const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
+            item: input.item,
+            itemContents: input.itemContents,
+            itemFingerprint: input.itemFingerprint,
+            now: input.now,
+            effect
+          });
+          if (validation.state === "valid") {
+            const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
+            return {
+              state: "preview-replayed",
+              character: toCharacterRecord(character),
+              order: refreshed,
+              neededQuantity: validation.neededQuantity,
+              availableQuantity: validation.availableQuantity
+            };
+          }
 
-      if (equippedItemIds.includes(input.item.id) || reservedItemIds.includes(input.item.id)) {
+          await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
+            ? {
+                ...validation.preview,
+                kind: "full-hp",
+                itemId: existing.itemId,
+                itemName: existing.itemName
+              }
+            : {
+                ...existing.preview,
+                kind: "expired",
+                itemId: existing.itemId,
+                itemName: existing.itemName
+              },
+            validation.state === "full-hp" ? "completed" : "expired");
+
+          if (validation.state === "full-hp") {
+            return {
+              state: "full-hp",
+              character: toCharacterRecord(character),
+              preview: validation.preview
+            };
+          }
+          if (validation.state === "not-enough") {
+            return {
+              state: "not-enough",
+              character: toCharacterRecord(character),
+              neededQuantity: validation.neededQuantity,
+              availableQuantity: validation.availableQuantity,
+              preview: validation.preview
+            };
+          }
+
+          return { state: validation.state };
+        }
+
+        const [items, equippedItemIds, reservedItemIds] = await Promise.all([
+          getItems(tx, character.id),
+          getEquippedItemIds(tx, character.id),
+          getReservedItemIds(tx, character.id, input.now)
+        ]);
+
+        const stack = items.find((candidate) => candidate.itemId === input.item.id);
+        if (!stack || stack.quantity < 1) {
+          return { state: "not-owned" };
+        }
+
+        if (equippedItemIds.includes(input.item.id) || reservedItemIds.includes(input.item.id)) {
+          return { state: "reserved" };
+        }
+
+        const restore = buildRestoreToFullPreview(character, input.itemContents, input.now, effect);
+        if (restore.neededQuantity <= 0) {
+          await tx.character.update({
+            where: { id: character.id },
+            data: {
+              hpCurrent: restore.settlement.resources.hpCurrent,
+              manaCurrent: restore.settlement.resources.manaCurrent,
+              hpRegenAt: restore.settlement.resources.hpRegenAt,
+              manaRegenAt: restore.settlement.resources.manaRegenAt
+            }
+          });
+          const updated = await tx.character.findUniqueOrThrow({
+            where: { id: character.id },
+            include: characterInclude
+          });
+
+          return {
+            state: "full-hp",
+            character: toCharacterRecord(updated),
+            preview: restore.preview
+          };
+        }
+
+        if (stack.quantity < restore.neededQuantity) {
+          return {
+            state: "not-enough",
+            character: toCharacterRecord(character),
+            neededQuantity: restore.neededQuantity,
+            availableQuantity: stack.quantity,
+            preview: restore.preview
+          };
+        }
+
+        const order = await tx.itemUseOrder.create({
+          data: {
+            token: input.token,
+            characterId: character.id,
+            telegramUserId,
+            remortCount: getIncludedRemortCount(character),
+            itemId: input.item.id,
+            itemName: input.item.name,
+            itemFingerprint: input.itemFingerprint,
+            quantity: restore.neededQuantity,
+            effectKind: effect.kind,
+            status: "pending",
+            reservationKey: createReservationKey(character.id, input.item.id),
+            previewJson: restore.preview as unknown as Prisma.InputJsonValue,
+            expiresAt: input.expiresAt,
+            updatedAt: input.now
+          }
+        });
+
+        return {
+          state: "preview-created",
+          character: toCharacterRecord(character),
+          order: mapOrder(order) ?? (() => {
+            throw new Error("Restore-to-full item use order mapping failed after create.");
+          })(),
+          neededQuantity: restore.neededQuantity,
+          availableQuantity: stack.quantity
+        };
+      });
+    } catch (error) {
+      if (isLiveReservationConflict(error)) {
         return { state: "reserved" };
       }
 
-      const settlement = getRegeneratedResources(character, input.itemContents, input.now);
-      const hpMax = Math.max(1, Math.floor(settlement.resources.hpMax));
-      const hpBefore = Math.min(hpMax, Math.max(0, Math.floor(settlement.resources.hpCurrent)));
-      const missingHp = Math.max(0, hpMax - hpBefore);
-      const preview = calculateHealingPreview({
-        hpCurrent: settlement.resources.hpCurrent,
-        hpMax,
-        effect
-      });
-
-      if (missingHp <= 0) {
-        await tx.character.update({
-          where: { id: character.id },
-          data: {
-            hpCurrent: settlement.resources.hpCurrent,
-            manaCurrent: settlement.resources.manaCurrent,
-            hpRegenAt: settlement.resources.hpRegenAt,
-            manaRegenAt: settlement.resources.manaRegenAt
-          }
-        });
-        const updated = await tx.character.findUniqueOrThrow({
-          where: { id: character.id },
-          include: characterInclude
-        });
-
-        return {
-          state: "full-hp",
-          character: toCharacterRecord(updated),
-          preview
-        };
-      }
-
-      const neededQuantity = Math.ceil(missingHp / Math.max(1, Math.floor(effect.amount)));
-      if (stack.quantity < neededQuantity) {
-        return {
-          state: "not-enough",
-          character: toCharacterRecord(character),
-          neededQuantity,
-          availableQuantity: stack.quantity,
-          preview
-        };
-      }
-
-      const consumed = await tx.characterItem.updateMany({
-        where: {
-          characterId: character.id,
-          itemId: input.item.id,
-          quantity: { gte: neededQuantity }
-        },
-        data: {
-          quantity: { decrement: neededQuantity }
-        }
-      });
-      if (consumed.count !== 1) {
-        return {
-          state: "not-enough",
-          character: toCharacterRecord(character),
-          neededQuantity,
-          availableQuantity: stack.quantity,
-          preview
-        };
-      }
-
-      await tx.characterItem.deleteMany({
-        where: {
-          characterId: character.id,
-          quantity: { lte: 0 }
-        }
-      });
-
-      await tx.character.update({
-        where: { id: character.id },
-        data: {
-          hpCurrent: hpMax,
-          manaCurrent: settlement.resources.manaCurrent,
-          hpRegenAt: input.now,
-          manaRegenAt: settlement.resources.manaRegenAt
-        }
-      });
-
-      const updated = await tx.character.findUniqueOrThrow({
-        where: { id: character.id },
-        include: characterInclude
-      });
-
-      return {
-        state: "restored",
-        character: toCharacterRecord(updated),
-        result: {
-          rulesVersion: ITEM_USE_RULES_VERSION,
-          itemId: input.item.id,
-          itemName: input.item.name,
-          quantity: neededQuantity,
-          hpBefore,
-          hpMax,
-          healAmount: missingHp,
-          hpAfter: hpMax
-        }
-      };
-    });
+      throw error;
+    }
   }
 }
 
@@ -700,6 +751,12 @@ type PendingPreviewValidation =
   | { state: "full-hp"; preview: ItemUsePreview }
   | { state: "not-owned" | "not-usable" | "reserved" };
 
+type PendingRestoreToFullValidation =
+  | { state: "valid"; preview: ItemUsePreview; neededQuantity: number; availableQuantity: number }
+  | { state: "full-hp"; preview: ItemUsePreview }
+  | { state: "not-enough"; preview: ItemUsePreview; neededQuantity: number; availableQuantity: number }
+  | { state: "not-owned" | "not-usable" | "reserved" };
+
 async function validatePendingPreviewRefresh(
   tx: TxClient,
   order: ItemUseOrderRecord,
@@ -752,6 +809,76 @@ async function validatePendingPreviewRefresh(
   return preview.healAmount <= 0
     ? { state: "full-hp", preview }
     : { state: "valid", preview };
+}
+
+async function validatePendingRestoreToFullRefresh(
+  tx: TxClient,
+  order: ItemUseOrderRecord,
+  character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
+  input: {
+    item: ItemContent;
+    itemContents: readonly ItemContent[];
+    itemFingerprint: string;
+    now: Date;
+    effect: ReturnType<typeof getItemUseEffect>;
+  }
+): Promise<PendingRestoreToFullValidation> {
+  if (
+    getIncludedRemortCount(character) !== order.remortCount ||
+    order.preview.rulesVersion !== ITEM_USE_RULES_VERSION ||
+    !isRestoreToFullOrder(order) ||
+    input.item.id !== order.itemId
+  ) {
+    return { state: "not-usable" };
+  }
+
+  if (!input.effect || blocksAccidentalItemUse(input.item) || input.effect.amount <= 0) {
+    return { state: "not-usable" };
+  }
+
+  if (
+    input.item.name !== order.itemName ||
+    createItemUseFingerprint(input.item) !== order.itemFingerprint ||
+    createItemUseFingerprint(input.item) !== input.itemFingerprint ||
+    input.effect.kind !== order.effectKind
+  ) {
+    return { state: "not-usable" };
+  }
+
+  const [items, equippedItemIds, reservedItemIds] = await Promise.all([
+    getItems(tx, character.id),
+    getEquippedItemIds(tx, character.id),
+    getReservedItemIds(tx, character.id, input.now, order.id)
+  ]);
+  const stack = items.find((item) => item.itemId === order.itemId);
+  if (!stack || stack.quantity < 1) {
+    return { state: "not-owned" };
+  }
+
+  if (equippedItemIds.includes(order.itemId) || reservedItemIds.includes(order.itemId)) {
+    return { state: "reserved" };
+  }
+
+  const restore = buildRestoreToFullPreview(character, input.itemContents, input.now, input.effect);
+  if (restore.neededQuantity <= 0) {
+    return { state: "full-hp", preview: restore.preview };
+  }
+
+  if (stack.quantity < restore.neededQuantity) {
+    return {
+      state: "not-enough",
+      preview: restore.preview,
+      neededQuantity: restore.neededQuantity,
+      availableQuantity: stack.quantity
+    };
+  }
+
+  return {
+    state: "valid",
+    preview: restore.preview,
+    neededQuantity: restore.neededQuantity,
+    availableQuantity: stack.quantity
+  };
 }
 
 async function releasePendingOrder(
@@ -831,6 +958,38 @@ function buildPreview(
     hpMax: settlement.resources.hpMax,
     effect
   });
+}
+
+function buildRestoreToFullPreview(
+  character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
+  itemContents: readonly ItemContent[],
+  now: Date,
+  effect: NonNullable<ReturnType<typeof getItemUseEffect>>
+): {
+  preview: ItemUsePreview;
+  neededQuantity: number;
+  settlement: ReturnType<typeof getRegeneratedResources>;
+} {
+  const settlement = getRegeneratedResources(character, itemContents, now);
+  const hpMax = Math.max(1, Math.floor(settlement.resources.hpMax));
+  const hpBefore = Math.min(hpMax, Math.max(0, Math.floor(settlement.resources.hpCurrent)));
+  const missingHp = Math.max(0, hpMax - hpBefore);
+  const neededQuantity = missingHp > 0
+    ? Math.ceil(missingHp / Math.max(1, Math.floor(effect.amount)))
+    : 0;
+
+  return {
+    preview: {
+      rulesVersion: ITEM_USE_RULES_VERSION,
+      mode: "restore-to-full",
+      hpBefore,
+      hpMax,
+      healAmount: missingHp,
+      hpAfter: hpMax
+    },
+    neededQuantity,
+    settlement
+  };
 }
 
 function getRegeneratedResources(
@@ -952,6 +1111,37 @@ async function replayTerminalConfirm(
 
   const current = mapOrder(await tx.itemUseOrder.findUnique({ where: { id: order.id } })) ?? order;
   return { state: "stale-selection", order: current };
+}
+
+async function staleTerminalConfirm(
+  tx: TxClient,
+  order: ItemUseOrderRecord,
+  now: Date,
+  character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>
+): Promise<ItemUseConfirmRepositoryResult> {
+  if (!isRestoreToFullOrder(order)) {
+    return { state: "stale-selection", order };
+  }
+
+  const stale = await setTerminalOrder(tx, order.id, "expired", now, {
+    ...order.preview,
+    kind: "expired",
+      itemId: order.itemId,
+      itemName: order.itemName
+  }, "processing");
+  const terminal = stale.changed || stale.order.status !== "pending"
+    ? stale
+    : await setTerminalOrder(tx, order.id, "expired", now, {
+        ...order.preview,
+        kind: "expired",
+        itemId: order.itemId,
+        itemName: order.itemName
+      }, "pending");
+  const canonical = mapCanonicalConfirmResult(terminal.order, character, terminal.changed ? "expired" : undefined);
+
+  return canonical.state === "expired"
+    ? { state: "stale-selection", order: terminal.order }
+    : canonical;
 }
 
 function mapCanonicalConfirmResult(
@@ -1082,6 +1272,7 @@ function parsePreview(value: unknown): ItemUsePreview {
 
   return {
     rulesVersion: typeof value.rulesVersion === "string" ? value.rulesVersion : ITEM_USE_RULES_VERSION,
+    ...(value.mode === "restore-to-full" ? { mode: "restore-to-full" as const } : {}),
     hpBefore: numberOrZero(value.hpBefore),
     hpMax: Math.max(1, numberOrZero(value.hpMax)),
     healAmount: numberOrZero(value.healAmount),
@@ -1137,6 +1328,10 @@ function numberOrZero(value: unknown): number {
 
 function createReservationKey(characterId: string, itemId: string): string {
   return `use:${characterId}:${itemId}`;
+}
+
+function isRestoreToFullOrder(order: ItemUseOrderRecord): boolean {
+  return order.preview.mode === "restore-to-full";
 }
 
 function isLiveReservationConflict(error: unknown): boolean {
