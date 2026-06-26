@@ -491,11 +491,15 @@ export async function sendKorchmaBar(
     problemQuest?.state === "ready"
       ? getProblemQuestBarActionFromProgress(problemQuest.progress)
       : undefined;
+  const look = await presenceService.getLookForTelegramUser(telegramUserId);
+  const hasActiveAudience =
+    look.state === "ready" &&
+    look.location.people.active.some((person) => person.telegramUserId !== telegramUserId);
   const barOptions = {
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
-    bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
+    bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3 && hasActiveAudience,
     ...(problemQuestAction ? { problemQuestAction } : {})
   } as const;
 

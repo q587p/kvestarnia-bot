@@ -76,6 +76,80 @@ describe("PrismaBardPerformanceRepository integration", () => {
     });
   });
 
+  it("requires real active same-location audience before creating a performance", async () => {
+    await seedCharacter({
+      telegramUserId: 151n,
+      userId: "user-bard",
+      characterId: "character-bard",
+      classId: "class.bard",
+      level: 3,
+      gold: 10,
+      locationId: "location.korchma.front"
+    });
+
+    const result = await repository.startPerformanceForTelegramUser(151n, startInput({
+      token: "12345678-1234-4234-9234-000000000151",
+      rawHousePayoutGold: 0,
+      locationId: "location.korchma.front"
+    }));
+
+    expect(result.state).toBe("no-audience");
+    await expect(prisma.bardPerformance.count()).resolves.toBe(0);
+    await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
+      gold: 10
+    });
+  });
+
+  it("starts outside Shynok with no house payout and location-scoped cooldown", async () => {
+    await seedCharacter({
+      telegramUserId: 161n,
+      userId: "user-bard",
+      characterId: "character-bard",
+      classId: "class.bard",
+      level: 3,
+      gold: 10,
+      locationId: "location.korchma.front"
+    });
+    await seedCharacter({
+      telegramUserId: 162n,
+      userId: "user-audience",
+      characterId: "character-audience",
+      gold: 20,
+      locationId: "location.korchma.front"
+    });
+    await seedPerformance({
+      id: "performance-bar-cooldown",
+      token: "12345678-1234-4234-9234-000000000160",
+      housePayoutGold: 13,
+      cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z"),
+      expiresAt: new Date("2026-06-26T09:59:00.000Z"),
+      locationId: "location.korchma.bar"
+    });
+
+    const result = await repository.startPerformanceForTelegramUser(161n, startInput({
+      token: "12345678-1234-4234-9234-000000000161",
+      rawHousePayoutGold: 0,
+      locationId: "location.korchma.front"
+    }));
+    const duplicate = await repository.startPerformanceForTelegramUser(161n, startInput({
+      token: "12345678-1234-4234-9234-000000000162",
+      rawHousePayoutGold: 0,
+      locationId: "location.korchma.front"
+    }));
+
+    expect(result.state).toBe("started");
+    if (result.state !== "started") {
+      throw new Error("Expected started result.");
+    }
+    expect(result.performance.locationId).toBe("location.korchma.front");
+    expect(result.performance.housePayoutGold).toBe(0);
+    expect(result.audience.map((notice) => notice.telegramUserId)).toEqual([162n]);
+    expect(duplicate.state).toBe("live");
+    await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
+      gold: 10
+    });
+  });
+
   it("moves a tip exactly once and replays duplicates without spending again", async () => {
     await seedCharacter({ telegramUserId: 201n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3, gold: 0 });
     await seedCharacter({ telegramUserId: 202n, userId: "user-audience", characterId: "character-audience", gold: 8 });
@@ -326,6 +400,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
     housePayoutGold: number;
     cooldownAvailableAt?: Date;
     expiresAt?: Date;
+    locationId?: string;
   }): Promise<void> {
     await prisma.bardPerformance.create({
       data: {
@@ -337,7 +412,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
         remortCount: 0,
         techniqueId: "technique.class.bard.shynok-performance",
         rulesVersion: "bard-performance-v1",
-        locationId: "location.korchma.bar",
+        locationId: input.locationId ?? "location.korchma.bar",
         localDate: "2026-06-26",
         status: "active",
         grade: "pleasant",
@@ -409,12 +484,13 @@ describe("PrismaBardPerformanceRepository integration", () => {
 function startInput(overrides: {
   token: string;
   rawHousePayoutGold: number;
+  locationId?: string;
 }) {
   return {
     token: overrides.token,
     techniqueId: "technique.class.bard.shynok-performance",
     rulesVersion: "bard-performance-v1",
-    locationId: "location.korchma.bar",
+    locationId: overrides.locationId ?? "location.korchma.bar",
     localDate: "2026-06-26",
     grade: "legendary",
     power: 47,

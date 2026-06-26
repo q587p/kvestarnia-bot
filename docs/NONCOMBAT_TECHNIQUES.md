@@ -1,6 +1,6 @@
 # Non-Combat Techniques Planning
 
-This started as a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. `0.2.5` now ships the first narrow runtime proof: Bard Performance in Shynok. Keep the rest as planning input for future narrow `0.2.x+` tasks after the current branch is merged and `main` is refreshed.
+This started as a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. `0.2.5` now ships the first narrow runtime proof: Bard Performance in any current location with another active same-location character, plus Shynok-only house payout. Keep the rest as planning input for future narrow `0.2.x+` tasks after the current branch is merged and `main` is refreshed.
 
 ## Product Goal
 
@@ -87,7 +87,7 @@ Example: a Priest offers a blessing or heal to a nearby player.
 
 ### Performance / Local Event
 
-Example: a Bard performs in Shynok.
+Example: a Bard performs for active nearby characters in the current location.
 
 - actor starts the event;
 - active same-location audience gets best-effort prompts;
@@ -172,12 +172,12 @@ XP is neither faucet gold nor player transfer. It marks role activity. Keep it t
 
 Goal:
 
-> A level 3+ Bard can perform in Shynok once per cooldown. The tavern pays a small daily-capped amount, and active same-location players may applaud for free or explicitly tip small gold during a short window.
+> A level 3+ Bard can perform in any current location with another active same-location character once per location cooldown. Shynok can pay a small daily-capped tavern amount, and active same-location players may applaud for free or explicitly tip small gold during a short window.
 
 Why first:
 
 - class fantasy is obvious;
-- Shynok already exists;
+- presence already makes current-location audiences visible;
 - presence exists;
 - social offer and transfer patterns are proven nearby;
 - tips are voluntary, not forced PvP;
@@ -187,7 +187,7 @@ Why first:
 Suggested constants for the future task:
 
 ```text
-BARD_PERFORMANCE_COOLDOWN = 93 minutes
+BARD_PERFORMANCE_COOLDOWN = 93 minutes per location
 BARD_PERFORMANCE_WINDOW = 13 minutes
 BARD_PERFORMANCE_MIN_LEVEL = 3
 BARD_PERFORMANCE_DAILY_HOUSE_CAP = 23 gold
@@ -218,7 +218,9 @@ Shipped in `0.2.5`:
 - frozen effective stat snapshot;
 - stored grade, payout and `roleActionXp: 0`;
 - no reroll on refresh/replay;
-- daily house cap by Kyiv date;
+- start requires at least one active same-location audience character;
+- Shynok-only house payout with daily cap by Kyiv date;
+- per-location cooldown;
 - tips do not count toward house cap;
 - tip debit/credit and reaction completion happen in one transaction;
 - wrong location, remort-life drift, active combat, pending raid, expiry and insufficient balance are rechecked before mutation;
@@ -372,12 +374,12 @@ Privacy rules:
 
 The `0.2.5` Bard implementation covers:
 
-- class/level/location gates;
+- class/level/location/audience gates;
 - active combat and pending raid gates;
 - cooldown;
-- one live performance;
+- one live performance per location;
 - frozen effective stats;
-- house payout once;
+- Shynok house payout once;
 - stored `roleActionXp: 0`;
 - daily cap;
 - audience filtering;

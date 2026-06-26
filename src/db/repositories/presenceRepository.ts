@@ -4,6 +4,7 @@ export interface PresenceRecord {
   telegramUserId: bigint;
   displayName?: string | null;
   characterName?: string | null;
+  characterClassId?: string | null;
   characterLevel?: number | null;
   lastActionAt?: Date | null;
   lastSeenLocationId?: string | null;

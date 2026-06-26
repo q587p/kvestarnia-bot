@@ -60,6 +60,7 @@ buildCellarResultKeyboard
 import {
 buildBardPerformanceResponseKeyboard,
 buildBardPerformanceRespondResultKeyboard,
+buildBackToCurrentPlaceKeyboard,
 buildBackToShynokKeyboard,
 buildShynokDrinkMenuKeyboard,
 buildShynokDrinkPreviewKeyboard,
@@ -237,10 +238,15 @@ async function handleShynokCallback(
 
   if (action.type === "overview") {
     const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
+    const hasActiveAudience = result.state === "ready"
+      ? await hasActiveSameLocationAudience(services, telegramUserId)
+      : false;
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
     await safeEditMessageText(ctx, presentShynokOverview(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: result.state === "ready" ? buildShynokOverviewKeyboard(result) : buildBackToShynokKeyboard()
+      reply_markup: result.state === "ready"
+        ? buildShynokOverviewKeyboard(result, { hasActiveAudience })
+        : buildBackToShynokKeyboard()
     });
     return;
   }
@@ -270,7 +276,7 @@ async function handleShynokCallback(
     }
     await safeEditMessageText(ctx, presentBardPerformanceStartResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildBackToShynokKeyboard()
+      reply_markup: buildBackToCurrentPlaceKeyboard()
     });
     return;
   }
@@ -451,6 +457,17 @@ async function handleShynokCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildBackToShynokKeyboard()
   });
+}
+
+async function hasActiveSameLocationAudience(
+  services: BotServices,
+  telegramUserId: bigint
+): Promise<boolean> {
+  const look = await services.presence.getLookForTelegramUser(telegramUserId);
+
+  return look.state === "ready" &&
+    look.location.id === PRESENCE_LOCATION_KORCHMA_BAR &&
+    look.location.people.active.some((person) => person.telegramUserId !== telegramUserId);
 }
 
 async function notifyShynokRoundRecipients(

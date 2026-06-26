@@ -23,7 +23,11 @@ import {
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
-import { PRESENCE_ACTIVE_MS, PRESENCE_LOCATION_KORCHMA_BAR } from "./presenceService";
+import {
+  normalizePresenceLocationId,
+  PRESENCE_ACTIVE_MS,
+  PRESENCE_LOCATION_KORCHMA_BAR
+} from "./presenceService";
 import { toKorchmaLocalDate } from "./tavernRaidService";
 
 export type BardPerformanceGateState =
@@ -36,6 +40,7 @@ export type BardPerformanceGateState =
 
 export type BardPerformanceStartResult =
   | { state: BardPerformanceGateState; character?: CharacterSummary; requiredLevel?: number }
+  | { state: "no-audience"; character: CharacterSummary }
   | { state: "cooldown"; character: CharacterSummary; availableAt: Date }
   | { state: "live"; character: CharacterSummary; performance: PresentedBardPerformance }
   | {
@@ -86,6 +91,7 @@ export interface PresentedBardPerformance {
   grade: BardPerformanceGrade;
   housePayoutGold: number;
   audienceCount: number;
+  locationId: string;
   startedAt: Date;
   expiresAt: Date;
   cooldownAvailableAt: Date;
@@ -124,9 +130,6 @@ export class BardPerformanceService {
     });
     const character = summarizeCharacter(snapshot.character, { equippedItems });
 
-    if (snapshot.character.currentLocationId !== PRESENCE_LOCATION_KORCHMA_BAR) {
-      return { state: "wrong-place", character };
-    }
     if (snapshot.activeCombatLease) {
       return { state: "active-combat", character };
     }
@@ -141,6 +144,8 @@ export class BardPerformanceService {
     }
 
     const now = this.clock();
+    const locationId = normalizePresenceLocationId(snapshot.character.currentLocationId);
+    const isShynok = locationId === PRESENCE_LOCATION_KORCHMA_BAR;
     const plan = rollBardPerformanceCheck({
       charisma: character.stats.charisma,
       luck: character.stats.luck,
@@ -150,11 +155,11 @@ export class BardPerformanceService {
       token: randomUUID(),
       techniqueId: BARD_PERFORMANCE_TECHNIQUE_ID,
       rulesVersion: BARD_PERFORMANCE_RULES_VERSION,
-      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+      locationId,
       localDate: toKorchmaLocalDate(now),
       grade: plan.grade,
       power: plan.power,
-      rawHousePayoutGold: plan.rawHousePayoutGold,
+      rawHousePayoutGold: isShynok ? plan.rawHousePayoutGold : 0,
       roleActionXp: plan.roleActionXp,
       statSnapshot: {
         level: character.level,
@@ -167,7 +172,7 @@ export class BardPerformanceService {
         rulesVersion: plan.rulesVersion,
         grade: plan.grade,
         power: plan.power,
-        rawHousePayoutGold: plan.rawHousePayoutGold,
+        rawHousePayoutGold: isShynok ? plan.rawHousePayoutGold : 0,
         roleActionXp: 0
       },
       now,
@@ -226,6 +231,7 @@ function presentStartResult(result: RepositoryStartResult): BardPerformanceStart
     case "active-combat":
     case "pending-raid":
     case "not-bard":
+    case "no-audience":
       return { state: result.state, character: summarizeCharacter(result.character) };
     case "level-locked":
       return {
@@ -302,6 +308,7 @@ function presentPerformance(performance: BardPerformanceRecord): PresentedBardPe
     grade: performance.grade as BardPerformanceGrade,
     housePayoutGold: performance.housePayoutGold,
     audienceCount: performance.audienceCount,
+    locationId: performance.locationId,
     startedAt: performance.startedAt,
     expiresAt: performance.expiresAt,
     cooldownAvailableAt: performance.cooldownAvailableAt

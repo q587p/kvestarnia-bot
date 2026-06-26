@@ -36,6 +36,25 @@ describe("BardPerformanceService", () => {
     expect(repository.lastStartInput?.cooldownAvailableAt.toISOString()).toBe("2026-06-26T11:33:00.000Z");
   });
 
+  it("starts an off-Shynok same-location performance without house payout", async () => {
+    const repository = new FakeBardPerformanceRepository({
+      character: { currentLocationId: "location.korchma.front" }
+    });
+    const service = new BardPerformanceService(repository, () => now, new FakeRandomSource([0.5]));
+
+    const result = await service.startForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("started");
+    expect(repository.lastStartInput).toMatchObject({
+      locationId: "location.korchma.front",
+      rawHousePayoutGold: 0,
+      result: {
+        rawHousePayoutGold: 0,
+        roleActionXp: 0
+      }
+    });
+  });
+
   it("blocks non-Bards before rolling or mutating", async () => {
     const repository = new FakeBardPerformanceRepository({
       character: { classId: "class.warrior" }

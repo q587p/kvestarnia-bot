@@ -257,7 +257,36 @@ describe("tavern command screens", () => {
     });
   });
 
-  it("shows the Bard performance action only for level 3+ Bards in Shynok", async () => {
+  it("shows the Bard performance action for level 3+ Bards in Shynok with an active listener", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService({
+        ...character,
+        classId: "class.bard",
+        className: "Бард",
+        level: 3
+      }),
+      capturingPresenceService({
+        active: [
+          { telegramUserId: 42n, name: "Бард", status: "active" },
+          { telegramUserId: 77n, name: "Слухач", status: "active" }
+        ],
+        idle: [],
+        total: 2
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("Бардівський кут");
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    expect(options.reply_markup.inline_keyboard).toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
+  });
+
+  it("hides the Bard performance action in Shynok without an active listener", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaBar(
@@ -272,11 +301,11 @@ describe("tavern command screens", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("Бардівський кут");
+    expect(replies[0]?.text).not.toContain("Бардівський кут");
     const options = replies[0]?.options as {
       reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
     };
-    expect(options.reply_markup.inline_keyboard).toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
+    expect(options.reply_markup.inline_keyboard).not.toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
   });
 
   it("shows the fighting corner as a menu with training, duel modes and winners", async () => {
@@ -783,9 +812,24 @@ function readyTavernService(tavernCharacter: CharacterSummary = character): Tave
   } as unknown as TavernRaidService;
 }
 
-function capturingPresenceService(): PresenceService {
+function capturingPresenceService(
+  people = {
+    active: [{ telegramUserId: 42n, name: "Мандрівник", status: "active" as const }],
+    idle: [],
+    total: 1
+  }
+): PresenceService {
   return {
-    markAction: () => Promise.resolve()
+    markAction: () => Promise.resolve(),
+    getLookForTelegramUser: () =>
+      Promise.resolve({
+        state: "ready",
+        location: {
+          id: "location.korchma.bar",
+          name: "Шинок",
+          people
+        }
+      })
   } as unknown as PresenceService;
 }
 

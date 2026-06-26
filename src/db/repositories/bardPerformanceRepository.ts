@@ -62,6 +62,7 @@ export type BardPerformanceStartResult =
   | { state: "pending-raid"; character: CharacterRecord }
   | { state: "not-bard"; character: CharacterRecord }
   | { state: "level-locked"; character: CharacterRecord; requiredLevel: number }
+  | { state: "no-audience"; character: CharacterRecord }
   | { state: "cooldown"; character: CharacterRecord; availableAt: Date }
   | { state: "live"; character: CharacterRecord; performance: BardPerformanceRecord }
   | {

@@ -15,6 +15,7 @@ const presenceSelect = {
   character: {
     select: {
       name: true,
+      classId: true,
       level: true
     }
   }
@@ -163,6 +164,7 @@ function toPresenceRecord(user: SelectedPresenceUser): PresenceRecord {
     telegramUserId: user.telegramUserId,
     displayName: user.displayName,
     characterName: user.character?.name ?? null,
+    characterClassId: user.character?.classId ?? null,
     characterLevel: user.character?.level ?? null,
     lastActionAt: user.lastActionAt,
     lastSeenLocationId: user.lastSeenLocationId,

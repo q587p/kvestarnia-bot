@@ -83,6 +83,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
       const live = mapPerformance(await tx.bardPerformance.findFirst({
         where: {
           characterId: character.id,
+          locationId: input.locationId,
           status: "active",
           expiresAt: { gt: input.now }
         },
@@ -93,7 +94,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
       }
 
       const lastPerformance = mapPerformance(await tx.bardPerformance.findFirst({
-        where: { characterId: character.id },
+        where: { characterId: character.id, locationId: input.locationId },
         orderBy: { cooldownAvailableAt: "desc" }
       }));
       if (lastPerformance && lastPerformance.cooldownAvailableAt > input.now) {
@@ -104,20 +105,27 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         };
       }
 
-      const paidToday = await tx.bardPerformance.aggregate({
-        where: {
-          characterId: character.id,
-          localDate: input.localDate
-        },
-        _sum: {
-          housePayoutGold: true
-        }
-      });
+      const audience = await listAudience(tx, character.id, input.locationId, input.activeAudienceSince);
+      if (audience.length === 0) {
+        return { state: "no-audience", character: record };
+      }
+
+      const paidToday = input.rawHousePayoutGold > 0
+        ? await tx.bardPerformance.aggregate({
+            where: {
+              characterId: character.id,
+              locationId: input.locationId,
+              localDate: input.localDate
+            },
+            _sum: {
+              housePayoutGold: true
+            }
+          })
+        : null;
       const housePayoutGold = applyBardPerformanceDailyHouseCap(
         input.rawHousePayoutGold,
-        paidToday._sum.housePayoutGold ?? 0
+        paidToday?._sum.housePayoutGold ?? 0
       );
-      const audience = await listAudience(tx, character.id, input.locationId, input.activeAudienceSince);
       const performance = mapPerformance(await tx.bardPerformance.create({
         data: {
           token: input.token,

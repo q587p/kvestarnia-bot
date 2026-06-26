@@ -22,6 +22,10 @@ import type {
   KorchmaRoundLeaderboard,
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
+import {
+  getLocationName,
+  PRESENCE_LOCATION_KORCHMA_BAR
+} from "../../services/presenceService";
 import { presentCharacterHeader } from "./telegramHtml";
 import { escapeHtml } from "./telegramHtml";
 
@@ -204,23 +208,33 @@ export function presentShynokRoundOfferNotification(
 export function presentBardPerformanceStartResult(result: BardPerformanceStartResult): string {
   if (result.state === "started" || result.state === "live") {
     const performance = result.performance;
-
-    return [
+    const isShynok = performance.locationId === PRESENCE_LOCATION_KORCHMA_BAR;
+    const locationName = getLocationName(performance.locationId);
+    const lines = [
       result.state === "live" ? "🎶 Виступ уже триває." : "🎶 Бардський виступ",
       presentCharacterHeader(result.character),
       "",
       presentBardPerformanceGradeLine(performance),
-      `Корчмарська виплата: <b>${performance.housePayoutGold} золота</b>.`,
+      `Місцина: <b>${escapeHtml(locationName)}</b>.`
+    ];
+
+    if (isShynok) {
+      lines.push(`Корчмарська виплата: <b>${performance.housePayoutGold} золота</b>.`);
+    }
+
+    lines.push(
       `Слухачів на старті: <b>${performance.audienceCount}</b>.`,
       `Реакції на цей виступ: ще ${formatRemainingMinutes(performance.expiresAt)}.`,
       "",
       performance.audienceCount > 0
         ? "Кожен слухач зі стартового гурту отримав окрему записку: аплодувати, пригостити монетою або чемно втекти очима."
-        : "На старті поруч нікого не було: тепер публіка складається з корчмаря й дуже критичної полиці.",
+        : "На старті слухачів не було, тому записок не роздали.",
       "",
       "Нові слухачі зможуть застати вже наступний виступ.",
       `Наступний новий виступ: ${formatRemainingMinutes(performance.cooldownAvailableAt)}.`
-    ].join("\n");
+    );
+
+    return lines.join("\n");
   }
 
   if (result.state === "cooldown") {
@@ -229,6 +243,14 @@ export function presentBardPerformanceStartResult(result: BardPerformanceStartRe
       "",
       `Голос, публіка й рахівниця повернуться приблизно за ${formatRemainingMinutes(result.availableAt)}.`
     ].join("\n");
+  }
+
+  if (result.state === "no-audience") {
+    return "🎶 Бард оглянув місцину й побачив замало живих слухачів. Для виступу потрібен ще хоча б один активний пригодник поруч.";
+  }
+
+  if (result.state === "wrong-place") {
+    return "🎶 Місцина під ногами змінилася. Оновіть список поруч і почніть виступ там, де справді стоїте.";
   }
 
   if (result.state === "not-bard") {
@@ -249,7 +271,7 @@ export function presentBardPerformanceAudienceNotification(
   void notice;
 
   return [
-    `🎶 <b>${escapeHtml(performerName)}</b> починає виступ у шинку.`,
+    `🎶 <b>${escapeHtml(performerName)}</b> починає виступ у вашій місцині.`,
     "",
     "Можна аплодувати безкоштовно або добровільно кинути дрібну монету. Корчмар пильно дивиться, щоб ніхто не назвав це податком."
   ].join("\n");
@@ -295,7 +317,7 @@ export function presentBardPerformanceResponseResult(result: BardPerformanceResp
   }
 
   if (result.state === "wrong-place") {
-    return "🎶 Сцена лишилась у шинку. Поверніться до Шинку, якщо хочете реагувати на виступ.";
+    return "🎶 Виступ лишився там, де почався. Поверніться до тієї місцини, якщо хочете реагувати.";
   }
 
   if (result.state === "active-combat") {
@@ -307,7 +329,7 @@ export function presentBardPerformanceResponseResult(result: BardPerformanceResp
   }
 
   if (result.state === "performer-wrong-place") {
-    return "🎶 Бард уже не в Шинку. Корчмар закрив запис без списань.";
+    return "🎶 Бард уже не на місці виступу. Запис закрито без списань.";
   }
 
   if (result.state === "performer-active-combat") {
@@ -327,11 +349,11 @@ export function presentBardPerformanceResponseResult(result: BardPerformanceResp
 
 export function presentBardPerformancePerformerFeedback(result: BardPerformanceRespondResult): string | null {
   if (result.state === "applauded") {
-    return `👏 <b>${escapeHtml(result.reaction.audienceName)}</b> аплодує вашому виступу в шинку.`;
+    return `👏 <b>${escapeHtml(result.reaction.audienceName)}</b> аплодує вашому виступу.`;
   }
 
   if (result.state === "tipped") {
-    return `🪙 <b>${escapeHtml(result.reaction.audienceName)}</b> дає вам <b>${result.reaction.tipGold} золота</b> за виступ у шинку.`;
+    return `🪙 <b>${escapeHtml(result.reaction.audienceName)}</b> дає вам <b>${result.reaction.tipGold} золота</b> за виступ.`;
   }
 
   return null;

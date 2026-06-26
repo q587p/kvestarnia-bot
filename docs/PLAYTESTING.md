@@ -12,10 +12,10 @@
 
 ## 0.2.5 — Bard Performance smoke
 
-Use two accounts in Shynok with local dev commands enabled where helpful.
+Use two accounts in Shynok and another shared location with local dev commands enabled where helpful.
 
-1. Make one account a level 3+ Bard in `🍻 Шинок`; verify the Bard performance button appears only there and not for non-Bards or under-level heroes.
-2. Start a performance; verify the result card is stable on refresh and the house payout is not rerolled by old callbacks.
+1. Make one account a level 3+ Bard; verify the Bard performance button appears from `👀 Хто поруч` only when another active character is in the same location, and not for non-Bards or under-level heroes.
+2. Start a performance in `🍻 Шинок`; verify the result card is stable on refresh and the house payout is not rerolled by old callbacks.
 3. Confirm a second active same-location account receives one private audience prompt.
 4. Press applause; the audience wallet stays unchanged and repeated applause does not create a second response.
 5. Start a fresh performance after `/dev_reset_bard_performance`; tip `3` gold from the audience account and verify the audience wallet decreases once, the Bard wallet increases once and repeated tip callbacks replay safely.
@@ -23,9 +23,10 @@ Use two accounts in Shynok with local dev commands enabled where helpful.
 7. Move the audience character away before responding; the response should stale without gold movement.
 8. Put the audience character in active combat or a pending Barrel raid before responding; mutation should be blocked.
 9. Remort either side before an old response; remort-life drift should block mutation.
-10. Exhaust the Bard's Kyiv-day house cap; further performances can still resolve but house payout clips to `0`.
-11. Simulate blocked DM/notification failure: the stored performance and reaction rows remain authoritative.
-12. `/help`, `/dev_help`, `/version`, `/news` and Shynok navigation still render normally.
+10. Start in another shared location after resetting cooldown; verify there is no house payout, no Shynok-only shelf/корчмар audience copy, and Shynok cooldown does not block that location.
+11. Exhaust the Bard's Kyiv-day Shynok house cap; further Shynok performances can still resolve but house payout clips to `0`.
+12. Simulate blocked DM/notification failure: the stored performance and reaction rows remain authoritative.
+13. `/help`, `/dev_help`, `/version`, `/news`, `👀 Хто поруч` and Shynok navigation still render normally.
 
 ## 0.2.4 — Item tags and bandage smoke
 

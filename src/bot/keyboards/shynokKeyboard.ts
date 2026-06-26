@@ -38,7 +38,10 @@ import {
   makeShynokSaleRemoveCallbackData
 } from "../callbacks/shynokCallbackData";
 
-export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): InlineKeyboard {
+export function buildShynokOverviewKeyboard(
+  result?: ShynokOverviewResult,
+  options: { hasActiveAudience?: boolean } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
     .row()
@@ -50,7 +53,12 @@ export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): Inli
     .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
 
-  if (result?.state === "ready" && result.character.classId === "class.bard" && result.character.level >= 3) {
+  if (
+    result?.state === "ready" &&
+    result.character.classId === "class.bard" &&
+    result.character.level >= 3 &&
+    options.hasActiveAudience
+  ) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
   }
 
@@ -149,9 +157,7 @@ export function buildBardPerformanceResponseKeyboard(reactionId: string): Inline
     keyboard.text(`🪙 ${tip}`, makeShynokBardPerformanceTipCallbackData(reactionId, tip));
   }
 
-  return keyboard
-    .row()
-    .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+  return keyboard.row().text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
 export function buildBardPerformanceRespondResultKeyboard(result: BardPerformanceRespondResult): InlineKeyboard {
@@ -159,7 +165,11 @@ export function buildBardPerformanceRespondResultKeyboard(result: BardPerformanc
     return buildBardPerformanceResponseKeyboard(result.reaction.id);
   }
 
-  return buildBackToShynokKeyboard();
+  return buildBackToCurrentPlaceKeyboard();
+}
+
+export function buildBackToCurrentPlaceKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
 export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResult): InlineKeyboard {

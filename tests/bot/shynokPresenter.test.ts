@@ -377,9 +377,10 @@ describe("shynokPresenter", () => {
       const html = presentBardPerformanceStartResult(result);
 
       expect(html).toContain("🎶 Виступ уже триває.");
+      expect(html).toContain("Місцина: <b>Шинок</b>.");
       expect(html).toContain("Слухачів на старті: <b>0</b>.");
       expect(html).toContain("Реакції на цей виступ: ще 8 хв.");
-      expect(html).toContain("На старті поруч нікого не було");
+      expect(html).toContain("На старті слухачів не було");
       expect(html).toContain("Нові слухачі зможуть застати вже наступний виступ.");
       expect(html).toContain("Наступний новий виступ: 88 хв.");
       expect(html).not.toContain("Слухачів поруч");
@@ -389,8 +390,46 @@ describe("shynokPresenter", () => {
     }
   });
 
+  it("omits tavern payout copy for off-Shynok Bard performances", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T10:05:00.000Z"));
+
+    try {
+      const result: BardPerformanceStartResult = {
+        state: "started",
+        character,
+        performance: bardPerformance({
+          housePayoutGold: 0,
+          audienceCount: 1,
+          locationId: "location.korchma.front"
+        }),
+        audience: []
+      };
+
+      const html = presentBardPerformanceStartResult(result);
+
+      expect(html).toContain("Місцина: <b>Перед корчмою</b>.");
+      expect(html).toContain("Слухачів на старті: <b>1</b>.");
+      expect(html).not.toContain("Корчмарська виплата");
+      expect(html).not.toContain("критичної полиці");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("explains that Bard performances require another active listener", () => {
+    const html = presentBardPerformanceStartResult({
+      state: "no-audience",
+      character
+    });
+
+    expect(html).toContain("замало живих слухачів");
+    expect(html).toContain("ще хоча б один активний пригодник поруч");
+    expect(html).not.toContain("критичної полиці");
+  });
+
   it.each([
-    ["performer-wrong-place", "Бард уже не в Шинку"],
+    ["performer-wrong-place", "Бард уже не на місці виступу"],
     ["performer-active-combat", "Бард уже зайнятий боєм"],
     ["performer-pending-raid", "Бард уже біля Бочки"],
     ["performer-remorted", "попередньому житті"]
@@ -417,6 +456,7 @@ function bardPerformance(overrides: Partial<PresentedBardPerformance> = {}): Pre
     grade: "pleasant",
     housePayoutGold: 0,
     audienceCount: 1,
+    locationId: "location.korchma.bar",
     startedAt: new Date("2026-06-26T10:00:00.000Z"),
     expiresAt: new Date("2026-06-26T10:13:00.000Z"),
     cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z"),
