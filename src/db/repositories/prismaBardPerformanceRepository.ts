@@ -249,11 +249,21 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
           return { state: "pending-raid", reaction, performance };
         }
 
-        const performerRemortCount = await tx.characterRemort.count({
-          where: { characterId: performance.characterId }
-        });
-        if (performerRemortCount !== performance.remortCount) {
+        const performer = await findCharacterById(tx, performance.characterId);
+        if (!performer) {
+          return { state: "performer-missing", reaction, performance };
+        }
+        if (getIncludedRemortCount(performer) !== performance.remortCount) {
           return { state: "performer-remorted", reaction, performance };
+        }
+        if (performer.user.lastSeenLocationId !== performance.locationId) {
+          return { state: "performer-wrong-place", reaction, performance };
+        }
+        if (performer.activeCombatLease) {
+          return { state: "performer-active-combat", reaction, performance };
+        }
+        if (performer.user.currentRaidId) {
+          return { state: "performer-pending-raid", reaction, performance };
         }
 
         if (input.action === "decline") {
@@ -277,7 +287,8 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
               state: "insufficient-gold",
               reaction,
               performance,
-              character: toCharacterRecord(character)
+              character: toCharacterRecord(character),
+              attemptedTipGold: tipGold
             };
           }
 
@@ -403,6 +414,18 @@ async function listAudience(
 async function findCharacter(tx: TxClient, telegramUserId: bigint) {
   return tx.character.findFirst({
     where: { user: { telegramUserId } },
+    include: {
+      ...characterRecordInclude,
+      activeCombatLease: {
+        select: { kind: true, referenceId: true }
+      }
+    }
+  });
+}
+
+async function findCharacterById(tx: TxClient, characterId: string) {
+  return tx.character.findUnique({
+    where: { id: characterId },
     include: {
       ...characterRecordInclude,
       activeCombatLease: {

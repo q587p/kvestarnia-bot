@@ -284,7 +284,7 @@ export function presentBardPerformanceResponseResult(result: BardPerformanceResp
     return [
       "🪙 Монети не зійшлися.",
       "",
-      `Для цих чайових треба <b>${result.reaction.tipGold} золота</b>. Корчмар не бере майбутні овації в заставу.`
+      `Для цих чайових треба <b>${result.attemptedTipGold} золота</b>. Корчмар не бере майбутні овації в заставу.`
     ].join("\n");
   }
 
@@ -304,7 +304,19 @@ export function presentBardPerformanceResponseResult(result: BardPerformanceResp
     return "🎶 Спершу завершіть рейд на Бочку. Вона ревниво ставиться до овацій.";
   }
 
-  if (result.state === "remort-mismatch" || result.state === "performer-remorted") {
+  if (result.state === "performer-wrong-place") {
+    return "🎶 Бард уже не в Шинку. Корчмар закрив запис без списань.";
+  }
+
+  if (result.state === "performer-active-combat") {
+    return "🎶 Бард уже зайнятий боєм. Корчмар закрив овації без списань.";
+  }
+
+  if (result.state === "performer-pending-raid") {
+    return "🎶 Бард уже біля Бочки. Корчмар закрив реакцію без списань.";
+  }
+
+  if (result.state === "remort-mismatch" || result.state === "performer-remorted" || result.state === "performer-missing") {
     return "🎶 Цей виступ лишився в попередньому житті. Корчмар закрив запис без списань.";
   }
 

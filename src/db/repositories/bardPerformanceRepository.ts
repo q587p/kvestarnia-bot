@@ -81,8 +81,18 @@ export type BardPerformanceRespondResult =
   | { state: "active-combat"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
   | { state: "pending-raid"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
   | { state: "remort-mismatch"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
+  | { state: "performer-missing"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
   | { state: "performer-remorted"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
-  | { state: "insufficient-gold"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord; character: CharacterRecord }
+  | { state: "performer-wrong-place"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
+  | { state: "performer-active-combat"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
+  | { state: "performer-pending-raid"; reaction: BardPerformanceReactionRecord; performance: BardPerformanceRecord }
+  | {
+      state: "insufficient-gold";
+      reaction: BardPerformanceReactionRecord;
+      performance: BardPerformanceRecord;
+      character: CharacterRecord;
+      attemptedTipGold: number;
+    }
   | {
       state: "applauded" | "tipped";
       reaction: BardPerformanceReactionRecord;

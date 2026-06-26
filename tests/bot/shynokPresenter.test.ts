@@ -8,7 +8,8 @@ import {
   presentShynokRoundOfferNotification,
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
-  presentShynokSaleSelection
+  presentShynokSaleSelection,
+  presentBardPerformanceResponseResult
 } from "../../src/bot/presenters/shynokPresenter";
 import type {
   ShynokDrinkConfirmResult,
@@ -18,6 +19,11 @@ import type {
   ShynokRoundPreviewResult,
   ShynokSaleSelectionResult
 } from "../../src/services/shynokService";
+import type {
+  BardPerformanceRespondResult,
+  PresentedBardPerformance,
+  PresentedBardPerformanceReaction
+} from "../../src/services/bardPerformanceService";
 import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 import type { KorchmaRoundLeaderboard } from "../../src/db/repositories/korchmaRoundPurchaseRepository";
 
@@ -337,4 +343,63 @@ describe("shynokPresenter", () => {
       vi.useRealTimers();
     }
   });
+
+  it("shows the attempted amount when Bard tips are blocked by insufficient gold", () => {
+    const html = presentBardPerformanceResponseResult({
+      state: "insufficient-gold",
+      reaction: bardReaction({ tipGold: 0 }),
+      performance: bardPerformance(),
+      character,
+      attemptedTipGold: 13
+    });
+
+    expect(html).toContain("<b>13 золота</b>");
+    expect(html).not.toContain("<b>0 золота</b>");
+  });
+
+  it.each([
+    ["performer-wrong-place", "Бард уже не в Шинку"],
+    ["performer-active-combat", "Бард уже зайнятий боєм"],
+    ["performer-pending-raid", "Бард уже біля Бочки"],
+    ["performer-remorted", "попередньому житті"]
+  ] satisfies Array<[BardPerformanceRespondResult["state"], string]>)(
+    "uses short stale performer copy for %s",
+    (state, expected) => {
+      const html = presentBardPerformanceResponseResult({
+        state,
+        reaction: bardReaction(),
+        performance: bardPerformance()
+      });
+
+      expect(html).toContain(expected);
+      expect(html).toContain("без списань");
+    }
+  );
 });
+
+function bardPerformance(): PresentedBardPerformance {
+  return {
+    id: "performance-1",
+    token: "12345678-1234-4234-9234-000000000111",
+    performerName: "Лірник",
+    grade: "pleasant",
+    housePayoutGold: 0,
+    audienceCount: 1,
+    startedAt: new Date("2026-06-26T10:00:00.000Z"),
+    expiresAt: new Date("2026-06-26T10:13:00.000Z"),
+    cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z")
+  };
+}
+
+function bardReaction(
+  overrides: Partial<PresentedBardPerformanceReaction> = {}
+): PresentedBardPerformanceReaction {
+  return {
+    id: "12345678-1234-4234-9234-123456789abc",
+    audienceName: "Слухач",
+    status: "offered",
+    tipGold: 0,
+    expiresAt: new Date("2026-06-26T10:13:00.000Z"),
+    ...overrides
+  };
+}

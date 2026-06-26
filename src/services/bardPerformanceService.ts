@@ -56,7 +56,11 @@ export type BardPerformanceRespondResult =
         | "active-combat"
         | "pending-raid"
         | "remort-mismatch"
-        | "performer-remorted";
+        | "performer-missing"
+        | "performer-remorted"
+        | "performer-wrong-place"
+        | "performer-active-combat"
+        | "performer-pending-raid";
       reaction: PresentedBardPerformanceReaction;
       performance: PresentedBardPerformance;
     }
@@ -65,6 +69,7 @@ export type BardPerformanceRespondResult =
       reaction: PresentedBardPerformanceReaction;
       performance: PresentedBardPerformance;
       character: CharacterSummary;
+      attemptedTipGold: number;
     }
   | {
       state: "applauded" | "tipped";
@@ -260,7 +265,8 @@ function presentRespondResult(result: RepositoryRespondResult): BardPerformanceR
         state: "insufficient-gold",
         reaction: presentReaction(result.reaction),
         performance: presentPerformance(result.performance),
-        character: summarizeCharacter(result.character)
+        character: summarizeCharacter(result.character),
+        attemptedTipGold: result.attemptedTipGold
       };
     case "applauded":
     case "tipped":

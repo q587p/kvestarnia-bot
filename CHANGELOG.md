@@ -20,6 +20,8 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Shynok now shows the Bard performance action only when the current character is an eligible Bard in the bar surface.
 - The tavern module keeps ownership of Bard performance callbacks and the dev helper, preserving the `0.2.2` vertical bot-module and composition-root boundaries.
+- Audience responses now re-check the performer before mutation, so applause, declines and tips do not settle if the Bard left Shynok, entered combat, joined a pending Barrel raid or remorted after starting the performance.
+- Insufficient-gold tip responses now report the selected tip amount while leaving the offered reaction unchanged for a different response.
 - The non-combat techniques docs now record this shipped MVP as a no-XP first implementation, overriding the older planning note that expected small role-action XP.
 
 ### Unchanged

@@ -157,6 +157,127 @@ describe("PrismaBardPerformanceRepository integration", () => {
     })).resolves.toMatchObject({ status: "offered", tipGold: 0 });
   });
 
+  it("returns attempted tip amount without mutating when audience lacks gold", async () => {
+    await seedCharacter({ telegramUserId: 401n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3, gold: 0 });
+    await seedCharacter({ telegramUserId: 402n, userId: "user-audience", characterId: "character-audience", gold: 3 });
+    await seedPerformance({
+      id: "performance-insufficient",
+      token: "12345678-1234-4234-9234-000000000401",
+      housePayoutGold: 0
+    });
+    await seedReaction({
+      id: "12345678-1234-4234-9234-000000000402",
+      performanceId: "performance-insufficient",
+      characterId: "character-audience",
+      telegramUserId: 402n
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(402n, {
+      reactionId: "12345678-1234-4234-9234-000000000402",
+      action: "tip",
+      tipGold: 13,
+      now: now(),
+      result: { action: "tip" }
+    });
+
+    expect(result).toMatchObject({ state: "insufficient-gold", attemptedTipGold: 13 });
+    await expect(prisma.character.findUnique({ where: { id: "character-audience" } })).resolves.toMatchObject({
+      gold: 3
+    });
+    await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
+      gold: 0
+    });
+    await expect(prisma.bardPerformanceReaction.findUnique({
+      where: { id: "12345678-1234-4234-9234-000000000402" }
+    })).resolves.toMatchObject({ status: "offered", tipGold: 0 });
+  });
+
+  it("blocks decline mutation after performer leaves Shynok", async () => {
+    await seedRespondablePerformance();
+    await prisma.user.update({
+      where: { id: "user-bard" },
+      data: { lastSeenLocationId: "location.korchma.hall" }
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "decline",
+      now: now(),
+      result: { action: "decline" }
+    });
+
+    expect(result.state).toBe("performer-wrong-place");
+    await expectOfferedReactionAndBalances("12345678-1234-4234-9234-000000000502");
+  });
+
+  it("blocks tip mutation after performer enters combat", async () => {
+    await seedRespondablePerformance();
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: "character-bard",
+        kind: "fight",
+        referenceId: "fight-bard"
+      }
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "tip",
+      tipGold: 5,
+      now: now(),
+      result: { action: "tip" }
+    });
+
+    expect(result.state).toBe("performer-active-combat");
+    await expectOfferedReactionAndBalances("12345678-1234-4234-9234-000000000502");
+  });
+
+  it("blocks tip mutation after performer enters a pending Barrel raid", async () => {
+    await seedRespondablePerformance();
+    await prisma.user.update({
+      where: { id: "user-bard" },
+      data: { currentRaidId: "raid-barrel" }
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "tip",
+      tipGold: 5,
+      now: now(),
+      result: { action: "tip" }
+    });
+
+    expect(result.state).toBe("performer-pending-raid");
+    await expectOfferedReactionAndBalances("12345678-1234-4234-9234-000000000502");
+  });
+
+  it("blocks tip mutation after performer remorts", async () => {
+    await seedRespondablePerformance();
+    await prisma.characterRemort.create({
+      data: {
+        characterId: "character-bard",
+        token: "remort-bard-1",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 25,
+        previousGold: 0,
+        displayNameSnapshot: "character-bard",
+        preservedPayloadJson: {}
+      }
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "tip",
+      tipGold: 5,
+      now: now(),
+      result: { action: "tip" }
+    });
+
+    expect(result.state).toBe("performer-remorted");
+    await expectOfferedReactionAndBalances("12345678-1234-4234-9234-000000000502");
+  });
+
   async function seedCharacter(input: {
     telegramUserId: bigint;
     userId: string;
@@ -254,6 +375,34 @@ describe("PrismaBardPerformanceRepository integration", () => {
         expiresAt: new Date("2026-06-26T10:13:00.000Z")
       }
     });
+  }
+
+  async function seedRespondablePerformance(): Promise<void> {
+    await seedCharacter({ telegramUserId: 501n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3, gold: 0 });
+    await seedCharacter({ telegramUserId: 502n, userId: "user-audience", characterId: "character-audience", gold: 8 });
+    await seedPerformance({
+      id: "performance-performer-stale",
+      token: "12345678-1234-4234-9234-000000000501",
+      housePayoutGold: 0
+    });
+    await seedReaction({
+      id: "12345678-1234-4234-9234-000000000502",
+      performanceId: "performance-performer-stale",
+      characterId: "character-audience",
+      telegramUserId: 502n
+    });
+  }
+
+  async function expectOfferedReactionAndBalances(reactionId: string): Promise<void> {
+    await expect(prisma.character.findUnique({ where: { id: "character-audience" } })).resolves.toMatchObject({
+      gold: 8
+    });
+    await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
+      gold: 0
+    });
+    await expect(prisma.bardPerformanceReaction.findUnique({
+      where: { id: reactionId }
+    })).resolves.toMatchObject({ status: "offered", tipGold: 0 });
   }
 });
 
