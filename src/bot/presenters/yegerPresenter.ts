@@ -10,6 +10,7 @@ import type {
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
+import { presentItemNameWithQuantity } from "./itemStackPresenter";
 
 export function presentYegerQuest(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
@@ -186,7 +187,7 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
       "",
       `Планка на сьогодні: <b>${result.targetQuantity}</b>. Уже куплено: <b>${result.purchasedToday}</b>.`,
       `Єгер докладе: <b>${result.purchaseQuantity}</b>.`,
-      `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
+      `${result.itemGrants.map(presentPendingBandagePurchaseGrant).join(", ")}.`,
       `Ціна: <b>${result.priceGold} золота</b>.`,
       `У вас: <b>${result.currentGold} золота</b>.`,
       discountLine,
@@ -215,6 +216,13 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
     "",
     "Єгер сказав: «Не наклеюйте на гордість. На гордість не тримається. Я перевіряв»."
   ].filter((line, index, lines) => line !== "" || lines[index - 1] !== "").join("\n");
+}
+
+function presentPendingBandagePurchaseGrant(input: { name: string; quantity: number }): string {
+  return `Після купівлі: <i>${presentItemNameWithQuantity({
+    name: escapeHtml(input.name),
+    quantity: input.quantity
+  })}</i>`;
 }
 
 export function presentYegerRangerBandage(result: YegerRangerBandageResult): string {

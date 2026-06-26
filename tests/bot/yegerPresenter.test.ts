@@ -329,6 +329,8 @@ describe("Yeger presenter", () => {
     expect(text).toContain("🩹 Купити бинти");
     expect(text).toContain("Планка на сьогодні: <b>93</b>. Уже куплено: <b>5</b>.");
     expect(text).toContain("Єгер докладе: <b>88</b>.");
+    expect(text).toContain("Після купівлі: <i>Бинт відповідальної паніки ×88</i>.");
+    expect(text).not.toContain("Здобуто:");
     expect(text).toContain("Ціна: <b>616 золота</b>.");
     expect(text).toContain("У вас: <b>700 золота</b>.");
     expect(text).toContain("ящик першої підозрілої допомоги");
