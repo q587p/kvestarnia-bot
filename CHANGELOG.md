@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Bard performance cards now label audience count as the start snapshot, show the remaining response window separately from cooldown and clarify that new listeners join the next performance instead of being added mid-song.
 - Bard performance starts now use a database live guard so concurrent start callbacks for the same Bard/location replay the live performance instead of creating duplicate rows or duplicate Shynok house payout.
 - The Korchmar problem-chain paper is now server-gated to level 2+, so level 1 characters cannot take it through the Shynok button or old callbacks.
+- Mantok Chest auto-pick now skips consumable/one-use manatky such as `Бинт відповідальної паніки`; manual selection can still explicitly feed them to the chest.
 - The non-combat techniques docs now record this shipped MVP as a no-XP first implementation, overriding the older planning note that expected small role-action XP.
 
 ### Unchanged

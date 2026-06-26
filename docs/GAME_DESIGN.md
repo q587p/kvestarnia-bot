@@ -283,7 +283,7 @@ Same-turn combat exchange лишається одночасним для attack/
 - `0.0.22` додає перший малий stat-effect шар: currently equipped items можуть додати HP/ману, core stats, armor/resist, weapon damage або spell power через один effective-stats helper. `/hero`, `/equipment`, item detail і persistent solo combat читають цей самий summary.
 - Екіпірування не змінює inventory quantity, не продається, не ролиться випадково і не змінює reward math. Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects.
 - `/inventory` має перший item sink: `Дружня Скриня`. Вона бере 5 units, показує confirmation і повертає 1 output item зі score строго вище середнього input score. Це не магазин, не продаж і не crafting tree; це маленький pressure valve проти довгої торби.
-- Через stack-based inventory Скриня поки не знає item instances. Якщо `itemId` екіпірований, весь stack цього `itemId` захищений. Auto-pick бере тільки безпечні auto-eligible речі; manual selection може явно обрати protected/priceless/story речі з попередженням, якщо гравець справді хоче переконати Скриню.
+- Через stack-based inventory Скриня поки не знає item instances. Якщо `itemId` екіпірований, весь stack цього `itemId` захищений. Auto-pick бере тільки безпечні auto-eligible речі й пропускає витратні/одноразові манатки; manual selection може явно обрати protected/priceless/story/витратні речі з попередженням, якщо гравець справді хоче переконати Скриню.
 - Callback-и `v1:item:*` і `v1:equip:*` валідовані; item detail перевіряє ownership перед показом.
 
 Майбутній itemization/equipment борг:

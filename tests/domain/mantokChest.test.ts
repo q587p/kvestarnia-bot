@@ -85,6 +85,38 @@ describe("Mantok Chest domain", () => {
     ]);
   });
 
+  it("keeps consumable stacks manual-only so auto-pick does not spend them", () => {
+    const bandage = item({
+      id: "item.responsible-panic-bandage",
+      goldValue: 7,
+      slot: "consumable",
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"]
+    });
+    const priced = item({ id: "item.priced", goldValue: 3 });
+
+    const stacks = [
+      { itemId: bandage.id, quantity: 5 },
+      { itemId: priced.id, quantity: 4 }
+    ];
+
+    const autoEligible = buildMantokChestEligibleStacks({
+      stacks,
+      itemContents: [bandage, priced]
+    });
+    const manualEligible = buildMantokChestEligibleStacks({
+      stacks,
+      itemContents: [bandage, priced],
+      mode: "manual"
+    });
+
+    expect(autoEligible.map(({ itemId }) => itemId)).toEqual([priced.id]);
+    expect(selectCheapestMantokChestUnits(autoEligible)).toBeNull();
+    expect(manualEligible.map(({ itemId, manualOnly }) => ({ itemId, manualOnly }))).toEqual([
+      { itemId: bandage.id, manualOnly: true },
+      { itemId: priced.id, manualOnly: false }
+    ]);
+  });
+
   it("protects technical apology keepsakes from auto-pick", () => {
     expect([...protectedMantokChestItemIds]).toEqual(
       expect.arrayContaining([
