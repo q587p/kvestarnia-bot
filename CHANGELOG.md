@@ -10,7 +10,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.2.5] - 12026-06-26 - Bard Performance MVP
 
 ### Added
-- Added a narrow Bard-only non-combat performance for `class.bard` characters at level 3+ using stable technique id `technique.class.bard.shynok-performance`; it can start in any current location with another active same-location character.
+- Added a narrow Bard-only non-combat performance for `class.bard` characters at level 3+ using stable technique id `technique.class.bard.shynok-performance`; it can start solo in Shynok or in any other current location with another active same-location character.
 - Added persisted `bard_performances` and `bard_performance_reactions` rows with frozen effective CHA/LUCK/level snapshots, injected-RNG grade resolution, house payout replay data, a 93-minute per-location cooldown and a 13-minute audience response window.
 - Added a small Shynok-only house gold faucet by grade (`1/3/5/13`) capped at 23 gold per Bard per Kyiv day; tips are separate voluntary player transfers and do not count toward the house cap.
 - Added explicit same-location audience reactions: applause, decline, or voluntary tips of `1`, `3`, `5` or `13` gold, with one response per active audience character.
@@ -18,7 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused domain, service, Prisma repository, bot callback/keyboard/help/presence and migration tests for the performance flow.
 
 ### Changed
-- `👀 Хто поруч` and Shynok now show the Bard performance action only when the current character is an eligible Bard with another active character in the same location.
+- Shynok now shows the Bard performance action for eligible Bards even without live listeners; `👀 Хто поруч` still shows the action only with another active character in the same non-Shynok location.
 - The tavern module keeps ownership of Bard performance callbacks and the dev helper, preserving the `0.2.2` vertical bot-module and composition-root boundaries.
 - Audience responses now re-check the performer before mutation, so applause, declines and tips do not settle if the Bard left the performance location, entered combat, joined a pending Barrel raid or remorted after starting the performance.
 - Insufficient-gold tip responses now report the selected tip amount while leaving the offered reaction unchanged for a different response.

@@ -179,6 +179,7 @@ export class BardPerformanceService {
       expiresAt: new Date(now.getTime() + BARD_PERFORMANCE_WINDOW_MINUTES * 60_000),
       cooldownAvailableAt: new Date(now.getTime() + BARD_PERFORMANCE_COOLDOWN_MINUTES * 60_000),
       activeAudienceSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
+      allowNoAudience: isShynok,
       requiredLevel: BARD_PERFORMANCE_MIN_LEVEL
     });
 

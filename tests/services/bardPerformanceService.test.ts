@@ -24,6 +24,7 @@ describe("BardPerformanceService", () => {
       techniqueId: "technique.class.bard.shynok-performance",
       rulesVersion: "bard-performance-v1",
       locationId: "location.korchma.bar",
+      allowNoAudience: true,
       localDate: "2026-06-26",
       roleActionXp: 0,
       statSnapshot: {
@@ -47,6 +48,7 @@ describe("BardPerformanceService", () => {
     expect(result.state).toBe("started");
     expect(repository.lastStartInput).toMatchObject({
       locationId: "location.korchma.front",
+      allowNoAudience: false,
       rawHousePayoutGold: 0,
       result: {
         rawHousePayoutGold: 0,

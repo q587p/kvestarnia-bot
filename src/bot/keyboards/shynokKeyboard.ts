@@ -38,10 +38,7 @@ import {
   makeShynokSaleRemoveCallbackData
 } from "../callbacks/shynokCallbackData";
 
-export function buildShynokOverviewKeyboard(
-  result?: ShynokOverviewResult,
-  options: { hasActiveAudience?: boolean } = {}
-): InlineKeyboard {
+export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
     .row()
@@ -56,8 +53,7 @@ export function buildShynokOverviewKeyboard(
   if (
     result?.state === "ready" &&
     result.character.classId === "class.bard" &&
-    result.character.level >= 3 &&
-    options.hasActiveAudience
+    result.character.level >= 3
   ) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
   }

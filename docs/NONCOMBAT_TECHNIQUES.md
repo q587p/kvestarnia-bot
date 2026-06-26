@@ -1,6 +1,6 @@
 # Non-Combat Techniques Planning
 
-This started as a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. `0.2.5` now ships the first narrow runtime proof: Bard Performance in any current location with another active same-location character, plus Shynok-only house payout. Keep the rest as planning input for future narrow `0.2.x+` tasks after the current branch is merged and `main` is refreshed.
+This started as a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. `0.2.5` now ships the first narrow runtime proof: Bard Performance solo in Shynok or in any other current location with another active same-location character, plus Shynok-only house payout. Keep the rest as planning input for future narrow `0.2.x+` tasks after the current branch is merged and `main` is refreshed.
 
 ## Product Goal
 
@@ -172,7 +172,7 @@ XP is neither faucet gold nor player transfer. It marks role activity. Keep it t
 
 Goal:
 
-> A level 3+ Bard can perform in any current location with another active same-location character once per location cooldown. Shynok can pay a small daily-capped tavern amount, and active same-location players may applaud for free or explicitly tip small gold during a short window.
+> A level 3+ Bard can perform in Shynok even without a live audience, or in any other current location with another active same-location character once per location cooldown. Shynok can pay a small daily-capped tavern amount, and active same-location players may applaud for free or explicitly tip small gold during a short window.
 
 Why first:
 
@@ -218,7 +218,8 @@ Shipped in `0.2.5`:
 - frozen effective stat snapshot;
 - stored grade, payout and `roleActionXp: 0`;
 - no reroll on refresh/replay;
-- start requires at least one active same-location audience character;
+- Shynok start may have zero active audience characters;
+- non-Shynok start requires at least one active same-location audience character;
 - Shynok-only house payout with daily cap by Kyiv date;
 - per-location cooldown;
 - tips do not count toward house cap;

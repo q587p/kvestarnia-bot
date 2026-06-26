@@ -100,6 +100,34 @@ describe("PrismaBardPerformanceRepository integration", () => {
     });
   });
 
+  it("allows Shynok performances without active audience and still applies house payout", async () => {
+    await seedCharacter({
+      telegramUserId: 155n,
+      userId: "user-bard",
+      characterId: "character-bard",
+      classId: "class.bard",
+      level: 3,
+      gold: 10
+    });
+
+    const result = await repository.startPerformanceForTelegramUser(155n, startInput({
+      token: "12345678-1234-4234-9234-000000000155",
+      rawHousePayoutGold: 3
+    }));
+
+    expect(result.state).toBe("started");
+    if (result.state !== "started") {
+      throw new Error("Expected started result.");
+    }
+    expect(result.performance.locationId).toBe("location.korchma.bar");
+    expect(result.performance.audienceCount).toBe(0);
+    expect(result.performance.housePayoutGold).toBe(3);
+    expect(result.audience).toEqual([]);
+    await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
+      gold: 13
+    });
+  });
+
   it("starts outside Shynok with no house payout and location-scoped cooldown", async () => {
     await seedCharacter({
       telegramUserId: 161n,
@@ -485,12 +513,15 @@ function startInput(overrides: {
   token: string;
   rawHousePayoutGold: number;
   locationId?: string;
+  allowNoAudience?: boolean;
 }) {
+  const locationId = overrides.locationId ?? "location.korchma.bar";
+
   return {
     token: overrides.token,
     techniqueId: "technique.class.bard.shynok-performance",
     rulesVersion: "bard-performance-v1",
-    locationId: overrides.locationId ?? "location.korchma.bar",
+    locationId,
     localDate: "2026-06-26",
     grade: "legendary",
     power: 47,
@@ -502,6 +533,7 @@ function startInput(overrides: {
     expiresAt: new Date("2026-06-26T10:13:00.000Z"),
     cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z"),
     activeAudienceSince: new Date("2026-06-26T09:55:00.000Z"),
+    allowNoAudience: overrides.allowNoAudience ?? locationId === "location.korchma.bar",
     requiredLevel: 3
   };
 }

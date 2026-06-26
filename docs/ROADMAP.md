@@ -142,7 +142,7 @@ Deliverables:
 - `0.2.2` Architecture Stabilization: shipped real vertical bot modules, extracted cross-cutting middleware, explicit composition root/runtime lifecycle and architecture boundary tests without gameplay, schema, callback or copy changes.
 - `0.2.3` Threat Escalation MVP: three consecutive eligible one-enemy ordinary wins make the next eligible ordinary fight start with exactly two enemies, with stored stable escalation copy and no reward multiplication.
 - `0.2.4` Item Tags and One-use Bandages: shipped a narrow item tag contract, one out-of-combat one-use bandage with replay-safe confirmation, Єгер bandage supply and a small authored monster-loot entry.
-- `0.2.5` Bard Performance MVP: shipped a level 3+ Bard performance in any current location with another active same-location character, frozen CHA/LUCK/level check, 93-minute per-location cooldown, 13-minute audience window, Shynok-only capped house gold, voluntary same-location applause/tips and no XP/items/buffs/profession engine.
+- `0.2.5` Bard Performance MVP: shipped a level 3+ Bard performance solo in Shynok or in any other current location with another active same-location character, frozen CHA/LUCK/level check, 93-minute per-location cooldown, 13-minute audience window, Shynok-only capped house gold, voluntary same-location applause/tips and no XP/items/buffs/profession engine.
 - Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
@@ -246,7 +246,7 @@ Very-later platform note:
 - Daily tavern rumor.
 - Корчемне соціяльне частування: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Їжа в `🍻 Шинку` як gold sink із короткими бафами: один активний харчовий баф, підтвердження покупки, гумористичне меню, без stacking-а й без shortcuts до XP/loot.
-- Бардівський виступ shipped in `0.2.5`: у будь-якій поточній місцині з іншим активним пригодником, `93` хвилини cooldown на місцину, перевірка харизми/вдачі/рівня, малий capped house gold payout тільки в `🍻 Шинку`, voluntary applause/tips and no XP/items/buffs/profession engine. Future musical manatky or XP variants need their own task.
+- Бардівський виступ shipped in `0.2.5`: у `🍻 Шинку` навіть без інших пригодників або в будь-якій іншій поточній місцині з іншим активним пригодником, `93` хвилини cooldown на місцину, перевірка харизми/вдачі/рівня, малий capped house gold payout тільки в `🍻 Шинку`, voluntary applause/tips and no XP/items/buffs/profession engine. Future musical manatky or XP variants need their own task.
 - Календарні корчемні дні: недільні/святкові гуляння, малі не-FOMO бонуси, київський час і середові жаби як власний квестарнянський мемний мотив.
 - Player titles.
 - Seasonal boss.

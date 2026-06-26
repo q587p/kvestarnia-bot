@@ -122,6 +122,7 @@ export interface BardPerformanceRepository {
       expiresAt: Date;
       cooldownAvailableAt: Date;
       activeAudienceSince: Date;
+      allowNoAudience: boolean;
       requiredLevel: number;
     }
   ): Promise<BardPerformanceStartResult>;

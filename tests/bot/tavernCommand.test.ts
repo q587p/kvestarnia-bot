@@ -286,7 +286,7 @@ describe("tavern command screens", () => {
     expect(options.reply_markup.inline_keyboard).toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
   });
 
-  it("hides the Bard performance action in Shynok without an active listener", async () => {
+  it("shows the Bard performance action in Shynok without an active listener", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaBar(
@@ -301,11 +301,11 @@ describe("tavern command screens", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).not.toContain("Бардівський кут");
+    expect(replies[0]?.text).toContain("Бардівський кут");
     const options = replies[0]?.options as {
       reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
     };
-    expect(options.reply_markup.inline_keyboard).not.toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
+    expect(options.reply_markup.inline_keyboard).toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
   });
 
   it("shows the fighting corner as a menu with training, duel modes and winners", async () => {

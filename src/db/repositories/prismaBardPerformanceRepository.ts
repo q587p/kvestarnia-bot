@@ -106,7 +106,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
       }
 
       const audience = await listAudience(tx, character.id, input.locationId, input.activeAudienceSince);
-      if (audience.length === 0) {
+      if (audience.length === 0 && !input.allowNoAudience) {
         return { state: "no-audience", character: record };
       }
 

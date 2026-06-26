@@ -380,7 +380,7 @@ describe("shynokPresenter", () => {
       expect(html).toContain("Місцина: <b>Шинок</b>.");
       expect(html).toContain("Слухачів на старті: <b>0</b>.");
       expect(html).toContain("Реакції на цей виступ: ще 8 хв.");
-      expect(html).toContain("На старті слухачів не було");
+      expect(html).toContain("Публіка поки складається з корчмаря й дуже критичної полиці.");
       expect(html).toContain("Нові слухачі зможуть застати вже наступний виступ.");
       expect(html).toContain("Наступний новий виступ: 88 хв.");
       expect(html).not.toContain("Слухачів поруч");

@@ -228,7 +228,9 @@ export function presentBardPerformanceStartResult(result: BardPerformanceStartRe
       "",
       performance.audienceCount > 0
         ? "Кожен слухач зі стартового гурту отримав окрему записку: аплодувати, пригостити монетою або чемно втекти очима."
-        : "На старті слухачів не було, тому записок не роздали.",
+        : isShynok
+          ? "Публіка поки складається з корчмаря й дуже критичної полиці."
+          : "На старті слухачів не було, тому записок не роздали.",
       "",
       "Нові слухачі зможуть застати вже наступний виступ.",
       `Наступний новий виступ: ${formatRemainingMinutes(performance.cooldownAvailableAt)}.`

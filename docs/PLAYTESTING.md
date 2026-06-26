@@ -14,19 +14,20 @@
 
 Use two accounts in Shynok and another shared location with local dev commands enabled where helpful.
 
-1. Make one account a level 3+ Bard; verify the Bard performance button appears from `👀 Хто поруч` only when another active character is in the same location, and not for non-Bards or under-level heroes.
-2. Start a performance in `🍻 Шинок`; verify the result card is stable on refresh and the house payout is not rerolled by old callbacks.
-3. Confirm a second active same-location account receives one private audience prompt.
-4. Press applause; the audience wallet stays unchanged and repeated applause does not create a second response.
-5. Start a fresh performance after `/dev_reset_bard_performance`; tip `3` gold from the audience account and verify the audience wallet decreases once, the Bard wallet increases once and repeated tip callbacks replay safely.
-6. Try each tip amount (`1`, `3`, `5`, `13`) across fresh performances or reset windows.
-7. Move the audience character away before responding; the response should stale without gold movement.
-8. Put the audience character in active combat or a pending Barrel raid before responding; mutation should be blocked.
-9. Remort either side before an old response; remort-life drift should block mutation.
-10. Start in another shared location after resetting cooldown; verify there is no house payout, no Shynok-only shelf/корчмар audience copy, and Shynok cooldown does not block that location.
-11. Exhaust the Bard's Kyiv-day Shynok house cap; further Shynok performances can still resolve but house payout clips to `0`.
-12. Simulate blocked DM/notification failure: the stored performance and reaction rows remain authoritative.
-13. `/help`, `/dev_help`, `/version`, `/news`, `👀 Хто поруч` and Shynok navigation still render normally.
+1. Make one account a level 3+ Bard; verify the Bard performance button appears inside `🍻 Шинок` even when nobody else is nearby, and not for non-Bards or under-level heroes.
+2. Verify `👀 Хто поруч` shows the Bard performance button only when another active character is in the same non-Shynok location.
+3. Start a solo performance in `🍻 Шинок`; verify the result card is stable on refresh, the house payout is not rerolled by old callbacks and the zero-audience copy is Shynok-specific.
+4. Start a fresh performance with another active same-location account and confirm that account receives one private audience prompt.
+5. Press applause; the audience wallet stays unchanged and repeated applause does not create a second response.
+6. Start a fresh performance after `/dev_reset_bard_performance`; tip `3` gold from the audience account and verify the audience wallet decreases once, the Bard wallet increases once and repeated tip callbacks replay safely.
+7. Try each tip amount (`1`, `3`, `5`, `13`) across fresh performances or reset windows.
+8. Move the audience character away before responding; the response should stale without gold movement.
+9. Put the audience character in active combat or a pending Barrel raid before responding; mutation should be blocked.
+10. Remort either side before an old response; remort-life drift should block mutation.
+11. Start in another shared location after resetting cooldown; verify there is no house payout, no Shynok-only shelf/корчмар audience copy, and Shynok cooldown does not block that location.
+12. Exhaust the Bard's Kyiv-day Shynok house cap; further Shynok performances can still resolve but house payout clips to `0`.
+13. Simulate blocked DM/notification failure: the stored performance and reaction rows remain authoritative.
+14. `/help`, `/dev_help`, `/version`, `/news`, `👀 Хто поруч` and Shynok navigation still render normally.
 
 ## 0.2.4 — Item tags and bandage smoke
 
