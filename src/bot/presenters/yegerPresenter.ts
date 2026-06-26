@@ -255,7 +255,7 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
     presentCharacterHeader(result.character),
     "",
     `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
-    `Наступний безкоштовний бинт: ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+    `Наступний безкоштовний бинт ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
     "",
     "Єгер кивнув так, ніби це не доброта, а техніка виживання."
   ].join("\n");
