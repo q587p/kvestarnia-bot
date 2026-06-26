@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `Бинт відповідальної паніки` to the basement mouse authored loot list so ordinary monster loot can occasionally grant it through the existing persistent-fight loot path.
 - Added a second Єгер unquiet board: after the first 5-monster board is completed, Єгер offers the next 17 unquiet targets with its own start/completion keys and replay-safe turn-in.
 - Added local `/dev_reset_yeger_trail` to finish the pending Єгер trail wait for manual QA.
+- Added local `/dev_add_bandage [count]` for manual bandage QA and allowed local `/dev_heal [HP]` during active combat.
 
 ### Changed
 - Item content validation now rejects unknown or duplicate tags, contradictory `tradeable` + `trade-blocked`, contradictory `soulbound` + `tradeable`, `one-use` without `consumable`, and use effects that are not explicit one-use consumables.

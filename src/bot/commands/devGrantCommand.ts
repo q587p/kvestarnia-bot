@@ -20,6 +20,7 @@ type DevGrantCommand =
   | "dev_add_xp"
   | "dev_add_gold"
   | "dev_add_random_item"
+  | "dev_add_bandage"
   | "dev_heal"
   | "dev_restore_mana";
 type DevGrantContext = Context & { match?: string };
@@ -57,6 +58,15 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
       devGrantService,
       "dev_add_random_item",
       (telegramUserId, amount) => devGrantService.addRandomItems(telegramUserId, amount)
+    );
+  });
+
+  bot.command("dev_add_bandage", async (ctx) => {
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_bandage",
+      (telegramUserId, amount) => devGrantService.addBandages(telegramUserId, amount)
     );
   });
 

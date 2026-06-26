@@ -2,7 +2,7 @@ import { items } from "../content";
 import type { CharacterRecord } from "../db/repositories/characterRepository";
 import type { DevGrantRepository } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
-import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
+import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
 
@@ -140,6 +140,27 @@ export class DevGrantService {
 
     const itemGrants = this.pickRandomItemGrants(amount);
     const result = await this.grants.addItemsForTelegramUser(telegramUserId, itemGrants);
+
+    return result
+      ? {
+          state: "updated",
+          kind: "items",
+          amount,
+          character: result.character,
+          itemGrants: enrichRewardItemGrants(result.itemGrants)
+        }
+      : { state: "no-character" };
+  }
+
+  async addBandages(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.addItemsForTelegramUser(telegramUserId, [{
+      itemId: BANDAGE_ITEM_ID,
+      quantity: amount
+    }]);
 
     return result
       ? {

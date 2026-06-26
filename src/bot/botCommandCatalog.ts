@@ -272,6 +272,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_add_bandage",
+    icon: "🧻",
+    description: "додати бинти локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_yeger_bandage",
     icon: "🧷",
     description: "скинути таймер бинта Єгеря локально",

@@ -10,6 +10,7 @@ import type {
 import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository";
 import { items } from "../../src/content";
 import { DevGrantService } from "../../src/services/devGrantService";
+import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
 import { FakeRandomSource } from "../../src/shared/random";
 
@@ -167,6 +168,25 @@ describe("DevGrantService", () => {
     });
   });
 
+  it("adds responsible panic bandages directly for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addBandages(42n, 5)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 5,
+      itemGrants: [
+        {
+          itemId: BANDAGE_ITEM_ID,
+          name: "Бинт відповідальної паніки",
+          quantity: 5
+        }
+      ]
+    });
+    expect(repository.calls).toContain(`items:42:${BANDAGE_ITEM_ID}:5`);
+  });
+
   it("resets the Yeger free bandage cooldown for the current character", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -320,7 +340,9 @@ class FakeDevGrantRepository implements DevGrantRepository {
     telegramUserId: bigint,
     itemGrants: ItemGrant[]
   ): Promise<DevGrantItemResult | null> {
-    this.calls.push(`items:${telegramUserId.toString()}`);
+    this.calls.push(
+      `items:${telegramUserId.toString()}:${itemGrants.map((grant) => `${grant.itemId}:${grant.quantity}`).join(",")}`
+    );
 
     if (telegramUserId !== 42n) {
       return Promise.resolve(null);

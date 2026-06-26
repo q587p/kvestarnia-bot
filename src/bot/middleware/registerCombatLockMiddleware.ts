@@ -135,6 +135,8 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "equipment" ||
     command === "gear" ||
     command === "equip" ||
+    command === "dev_heal" ||
+    command === "dev_add_bandage" ||
     command === "online" ||
     command === "look" ||
     command === "restart" ||

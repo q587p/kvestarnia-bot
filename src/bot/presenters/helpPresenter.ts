@@ -153,6 +153,12 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     devOnly: "grant"
   },
   {
+    commands: ["dev_add_bandage"],
+    icon: "🧻",
+    description: "додати бинти локально",
+    devOnly: "grant"
+  },
+  {
     commands: ["dev_reset_yeger_bandage", "dev_reset_yeger_trail"],
     icon: "🧷",
     description: "скинути таймери Єгеря локально",

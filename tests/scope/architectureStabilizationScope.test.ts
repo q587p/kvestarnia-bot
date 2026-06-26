@@ -47,6 +47,7 @@ const expectedCommandAliasInventory = [
   "bag",
   "bestiary",
   "cellar",
+  "dev_add_bandage",
   "dev_add_gold",
   "dev_add_level",
   "dev_add_random_item",
