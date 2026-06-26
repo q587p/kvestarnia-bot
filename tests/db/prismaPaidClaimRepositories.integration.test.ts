@@ -8,6 +8,15 @@ import { PrismaCharacterRepository } from "../../src/db/repositories/prismaChara
 import { PrismaCooldownRepository } from "../../src/db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 import { DailyActionQuantityLimitExceededError } from "../../src/db/repositories/dailyActionRepository";
+import {
+  YEGER_BANDAGE_PRICE,
+  YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+  YegerQuestService
+} from "../../src/services/yegerQuestService";
+import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
+import { YEGER_BANDAGE_PURCHASE_CONFIRM_KEY } from "../../src/services/dailyActionKeys";
+import type { FightService } from "../../src/services/fightService";
+import type { SoloCombatSessionRepository } from "../../src/db/repositories/soloCombatSessionRepository";
 
 describe("paid Prisma claim repositories", () => {
   let dir: string;
@@ -414,6 +423,300 @@ describe("paid Prisma claim repositories", () => {
         }
       }
     })).resolves.toMatchObject({ quantity: 5 });
+  });
+
+  it("replays canonical cancel when cancel wins before Yeger purchase confirm", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-cancel-wins",
+      characterId: "character-yeger-cancel-wins",
+      telegramUserId: 9101n,
+      gold: 100
+    });
+    const service = createYegerService();
+    const preview = await previewYegerPurchase(service, 9101n, 5);
+
+    await expect(service.cancelBandagePurchaseForTelegramUser(9101n, preview.token))
+      .resolves.toMatchObject({ state: "cancelled" });
+    await expect(service.confirmBandagePurchaseForTelegramUser(9101n, preview.token))
+      .resolves.toMatchObject({ state: "cancelled" });
+    await expectCharacterGold(prisma, "character-yeger-cancel-wins", 100);
+    await expectBandageQuantity(prisma, "character-yeger-cancel-wins", 0);
+  });
+
+  it("replays the exact canonical Yeger receipt when cancel loses after confirm", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-confirm-wins",
+      characterId: "character-yeger-confirm-wins",
+      telegramUserId: 9102n,
+      gold: 100
+    });
+    const service = createYegerService();
+    const preview = await previewYegerPurchase(service, 9102n, 5);
+
+    await expect(service.confirmBandagePurchaseForTelegramUser(9102n, preview.token))
+      .resolves.toMatchObject({
+        state: "bought",
+        spentGold: YEGER_BANDAGE_PRICE * 5,
+        itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 5 }]
+      });
+    await expect(service.cancelBandagePurchaseForTelegramUser(9102n, preview.token))
+      .resolves.toMatchObject({
+        state: "replayed",
+        spentGold: YEGER_BANDAGE_PRICE * 5,
+        itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 5 }]
+      });
+    await expectCharacterGold(prisma, "character-yeger-confirm-wins", 65);
+    await expectBandageQuantity(prisma, "character-yeger-confirm-wins", 5);
+  });
+
+  it("canonicalizes a real concurrent Yeger confirm-vs-cancel race", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-confirm-cancel-race",
+      characterId: "character-yeger-confirm-cancel-race",
+      telegramUserId: 9103n,
+      gold: 700
+    });
+    const service = createYegerService();
+    const preview = await previewYegerPurchase(service, 9103n, 17);
+
+    const [confirm, cancel] = await Promise.all([
+      service.confirmBandagePurchaseForTelegramUser(9103n, preview.token),
+      service.cancelBandagePurchaseForTelegramUser(9103n, preview.token)
+    ]);
+    const rows = await purchaseDecisionRows("character-yeger-confirm-cancel-race");
+
+    expect(rows).toHaveLength(1);
+    const kind = getYegerDecisionKind(rows[0]?.resultJson);
+    if (kind === "confirm") {
+      expect(["bought", "replayed"]).toContain(confirm.state);
+      expect(cancel).toMatchObject({
+        state: "replayed",
+        spentGold: YEGER_BANDAGE_PRICE * 17,
+        itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 17 }]
+      });
+      await expectCharacterGold(prisma, "character-yeger-confirm-cancel-race", 581);
+      await expectBandageQuantity(prisma, "character-yeger-confirm-cancel-race", 17);
+    } else {
+      expect(kind).toBe("cancel");
+      expect(confirm.state).toBe("cancelled");
+      expect(cancel.state).toBe("cancelled");
+      await expectCharacterGold(prisma, "character-yeger-confirm-cancel-race", 700);
+      await expectBandageQuantity(prisma, "character-yeger-confirm-cancel-race", 0);
+    }
+  });
+
+  it("keeps duplicate concurrent Yeger confirms to one canonical receipt", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-duplicate-confirm",
+      characterId: "character-yeger-duplicate-confirm",
+      telegramUserId: 9104n,
+      gold: 100
+    });
+    const service = createYegerService();
+    const preview = await previewYegerPurchase(service, 9104n, 5);
+
+    const results = await Promise.all([
+      service.confirmBandagePurchaseForTelegramUser(9104n, preview.token),
+      service.confirmBandagePurchaseForTelegramUser(9104n, preview.token)
+    ]);
+
+    expect(results.map((result) => result.state).sort()).toEqual(["bought", "replayed"]);
+    for (const result of results) {
+      expect(result).toMatchObject({
+        spentGold: YEGER_BANDAGE_PRICE * 5,
+        itemGrants: [expect.objectContaining({ itemId: BANDAGE_ITEM_ID, quantity: 5 })]
+      });
+    }
+    await expect(purchaseDecisionRows("character-yeger-duplicate-confirm")).resolves.toHaveLength(1);
+    await expectCharacterGold(prisma, "character-yeger-duplicate-confirm", 65);
+    await expectBandageQuantity(prisma, "character-yeger-duplicate-confirm", 5);
+  });
+
+  it("fails closed for malformed Yeger purchase decision rows", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-malformed-decision",
+      characterId: "character-yeger-malformed-decision",
+      telegramUserId: 9105n,
+      gold: 100
+    });
+    const token = "11111111-1111-4111-8111-111111111111";
+    await prisma.dailyAction.create({
+      data: {
+        characterId: "character-yeger-malformed-decision",
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+        localDate: token,
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 35,
+        resultJson: {
+          kind: "yeger-bandage-purchase-confirm",
+          itemId: BANDAGE_ITEM_ID,
+          price: 35,
+          purchaseQuantity: 5
+        }
+      }
+    });
+
+    const result = await createYegerService().confirmBandagePurchaseForTelegramUser(9105n, token);
+
+    expect(result).toMatchObject({ state: "stale-token" });
+    expect("spentGold" in result).toBe(false);
+    expect("itemGrants" in result).toBe(false);
+    await expectCharacterGold(prisma, "character-yeger-malformed-decision", 100);
+    await expectBandageQuantity(prisma, "character-yeger-malformed-decision", 0);
+  });
+
+  it("keeps known legacy one-bandage Yeger receipts replayable without inventing bundle grants", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-legacy-receipt",
+      characterId: "character-yeger-legacy-receipt",
+      telegramUserId: 9106n,
+      gold: 100
+    });
+    const token = "22222222-2222-4222-8222-222222222222";
+    await prisma.dailyAction.create({
+      data: {
+        characterId: "character-yeger-legacy-receipt",
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+        localDate: token,
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: YEGER_BANDAGE_PRICE,
+        resultJson: {
+          kind: "yeger-bandage-purchase-confirm",
+          itemId: BANDAGE_ITEM_ID,
+          price: YEGER_BANDAGE_PRICE
+        }
+      }
+    });
+
+    await expect(createYegerService().confirmBandagePurchaseForTelegramUser(9106n, token))
+      .resolves.toMatchObject({
+        state: "replayed",
+        spentGold: YEGER_BANDAGE_PRICE,
+        itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }]
+      });
+    await expectBandageQuantity(prisma, "character-yeger-legacy-receipt", 0);
+  });
+
+  it("replays the same Yeger receipt after service restart", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-restart-replay",
+      characterId: "character-yeger-restart-replay",
+      telegramUserId: 9107n,
+      gold: 100
+    });
+    const preview = await previewYegerPurchase(createYegerService(), 9107n, 5);
+    await createYegerService().confirmBandagePurchaseForTelegramUser(9107n, preview.token);
+
+    await expect(createYegerService().confirmBandagePurchaseForTelegramUser(9107n, preview.token))
+      .resolves.toMatchObject({
+        state: "replayed",
+        spentGold: YEGER_BANDAGE_PRICE * 5,
+        itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 5 }]
+      });
+  });
+
+  it("keeps concurrent Yeger top-ups capped at the paid daily limit", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-topup-race",
+      characterId: "character-yeger-topup-race",
+      telegramUserId: 9108n,
+      gold: 1000
+    });
+    const service = createYegerService();
+    const first = await previewYegerPurchase(service, 9108n, 93);
+    const second = await previewYegerPurchase(service, 9108n, 93);
+
+    const results = await Promise.all([
+      service.confirmBandagePurchaseForTelegramUser(9108n, first.token),
+      service.confirmBandagePurchaseForTelegramUser(9108n, second.token)
+    ]);
+
+    expect(results.map((result) => result.state).sort()).toEqual(["bought", "stale-token"]);
+    await expect(purchaseDecisionRows("character-yeger-topup-race")).resolves.toHaveLength(1);
+    await expectCharacterGold(prisma, "character-yeger-topup-race", 1000 - YEGER_BANDAGE_PRICE * 93);
+    await expectBandageQuantity(prisma, "character-yeger-topup-race", YEGER_BANDAGE_PURCHASE_DAILY_LIMIT);
+  });
+
+  it("rolls back the losing Yeger top-up when 5 and 93 targets confirm concurrently", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-mixed-topup-race",
+      characterId: "character-yeger-mixed-topup-race",
+      telegramUserId: 9109n,
+      gold: 1000
+    });
+    const service = createYegerService();
+    const five = await previewYegerPurchase(service, 9109n, 5);
+    const ninetyThree = await previewYegerPurchase(service, 9109n, 93);
+
+    const results = await Promise.all([
+      service.confirmBandagePurchaseForTelegramUser(9109n, five.token),
+      service.confirmBandagePurchaseForTelegramUser(9109n, ninetyThree.token)
+    ]);
+    const rows = await purchaseDecisionRows("character-yeger-mixed-topup-race");
+    const quantity = await readBandageQuantity(prisma, "character-yeger-mixed-topup-race");
+    const character = await prisma.character.findUniqueOrThrow({
+      where: { id: "character-yeger-mixed-topup-race" }
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(quantity === 5 || quantity === 93).toBe(true);
+    expect(character.gold).toBe(1000 - YEGER_BANDAGE_PRICE * quantity);
+    expect(results.filter((result) => result.state === "bought")).toHaveLength(1);
+    expect(results.filter((result) => result.state === "stale-token")).toHaveLength(1);
+  });
+
+  it("keeps cancel-vs-confirm top-up races canonical without paid overflow", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-topup-cancel-race",
+      characterId: "character-yeger-topup-cancel-race",
+      telegramUserId: 9110n,
+      gold: 1000
+    });
+    const service = createYegerService();
+    const preview = await previewYegerPurchase(service, 9110n, 93);
+
+    const [confirm, cancel] = await Promise.all([
+      service.confirmBandagePurchaseForTelegramUser(9110n, preview.token),
+      service.cancelBandagePurchaseForTelegramUser(9110n, preview.token)
+    ]);
+    const rows = await purchaseDecisionRows("character-yeger-topup-cancel-race");
+    const kind = getYegerDecisionKind(rows[0]?.resultJson);
+
+    expect(rows).toHaveLength(1);
+    if (kind === "confirm") {
+      expect(["bought", "replayed"]).toContain(confirm.state);
+      expect(cancel.state).toBe("replayed");
+      await expectCharacterGold(prisma, "character-yeger-topup-cancel-race", 1000 - YEGER_BANDAGE_PRICE * 93);
+      await expectBandageQuantity(prisma, "character-yeger-topup-cancel-race", 93);
+    } else {
+      expect(kind).toBe("cancel");
+      expect(confirm.state).toBe("cancelled");
+      expect(cancel.state).toBe("cancelled");
+      await expectCharacterGold(prisma, "character-yeger-topup-cancel-race", 1000);
+      await expectBandageQuantity(prisma, "character-yeger-topup-cancel-race", 0);
+    }
+  });
+
+  it("uses the shared UTC purchase-day boundary for paid Yeger top-ups", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-utc-day",
+      characterId: "character-yeger-utc-day",
+      telegramUserId: 9111n,
+      gold: 1000
+    });
+    const beforeMidnight = createYegerService(new Date("2026-06-15T23:59:00.000Z"));
+    const first = await previewYegerPurchase(beforeMidnight, 9111n, 5);
+    await beforeMidnight.confirmBandagePurchaseForTelegramUser(9111n, first.token);
+
+    const afterMidnight = createYegerService(new Date("2026-06-16T00:01:00.000Z"));
+    await expect(afterMidnight.previewBandagePurchaseForTelegramUser(9111n, 5))
+      .resolves.toMatchObject({
+        state: "preview",
+        purchasedToday: 0,
+        purchaseQuantity: 5
+      });
   });
 
   it("serializes concurrent daily HP claims without a second injury", async () => {
@@ -1089,6 +1392,46 @@ describe("paid Prisma claim repositories", () => {
     await expect(prisma.characterCooldown.count({ where: { characterId: "character-cooldown-concurrent" } })).resolves.toBe(1);
     await expect(prisma.characterItem.count({ where: { characterId: "character-cooldown-concurrent" } })).resolves.toBe(1);
   });
+
+  function createYegerService(currentNow = new Date("2026-06-15T10:00:00.000Z")): YegerQuestService {
+    return new YegerQuestService(
+      characters,
+      dailyActions,
+      {
+        listCompletedByTelegramUserIdSince: () => Promise.resolve([]),
+        countWonByTelegramUserId: () => Promise.resolve(0)
+      } as unknown as SoloCombatSessionRepository,
+      {
+        getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getOrStartPersistentFightForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      } as unknown as FightService,
+      cooldowns,
+      () => currentNow
+    );
+  }
+
+  async function previewYegerPurchase(
+    service: YegerQuestService,
+    telegramUserId: bigint,
+    targetQuantity: 1 | 5 | 17 | 93
+  ) {
+    const preview = await service.previewBandagePurchaseForTelegramUser(telegramUserId, targetQuantity);
+    if (preview.state !== "preview") {
+      throw new Error(`Expected Yeger purchase preview, got ${preview.state}.`);
+    }
+
+    return preview;
+  }
+
+  async function purchaseDecisionRows(characterId: string) {
+    return prisma.dailyAction.findMany({
+      where: {
+        characterId,
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY
+      },
+      orderBy: { createdAt: "asc" }
+    });
+  }
 });
 
 async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
@@ -1242,4 +1585,54 @@ async function seedRemort(
       }
     }
   });
+}
+
+function getYegerDecisionKind(value: unknown): "confirm" | "cancel" | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const kind = (value as { kind?: unknown }).kind;
+  if (kind === "yeger-bandage-purchase-confirm") {
+    return "confirm";
+  }
+
+  if (kind === "yeger-bandage-purchase-cancel") {
+    return "cancel";
+  }
+
+  return null;
+}
+
+async function expectCharacterGold(
+  prisma: PrismaClient,
+  characterId: string,
+  gold: number
+): Promise<void> {
+  await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } }))
+    .resolves.toMatchObject({ gold });
+}
+
+async function readBandageQuantity(
+  prisma: PrismaClient,
+  characterId: string
+): Promise<number> {
+  const stack = await prisma.characterItem.findUnique({
+    where: {
+      characterId_itemId: {
+        characterId,
+        itemId: BANDAGE_ITEM_ID
+      }
+    }
+  });
+
+  return stack?.quantity ?? 0;
+}
+
+async function expectBandageQuantity(
+  prisma: PrismaClient,
+  characterId: string,
+  quantity: number
+): Promise<void> {
+  expect(await readBandageQuantity(prisma, characterId)).toBe(quantity);
 }

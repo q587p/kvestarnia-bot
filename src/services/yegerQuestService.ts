@@ -645,16 +645,7 @@ export class YegerQuestService {
       localDate: token
     });
     if (decision) {
-      if (getPurchaseDecisionKind(decision.resultJson) === "cancel") {
-        return { state: "cancelled", character: summary };
-      }
-
-      return {
-        state: "replayed",
-        character: summary,
-        spentGold: decision.spentGold,
-        itemGrants: enrichRewardItemGrants(readAppliedItemGrants(decision.resultJson))
-      };
+      return mapPurchaseDecision(summary, decision, "replayed");
     }
 
     const legacyCancelled = await this.dailyActions.findForTelegramUser(telegramUserId, {
@@ -690,7 +681,8 @@ export class YegerQuestService {
       purchasedToday !== snapshot.purchasedToday ||
       purchasedToday >= YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
     ) {
-      return { state: "stale-token", character: summary };
+      return await this.replayBandagePurchaseDecision(telegramUserId, token, summary) ??
+        { state: "stale-token", character: summary };
     }
 
     const expectedQuantity = Math.min(
@@ -698,7 +690,8 @@ export class YegerQuestService {
       YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday
     );
     if (expectedQuantity !== snapshot.purchaseQuantity || expectedQuantity <= 0) {
-      return { state: "stale-token", character: summary };
+      return await this.replayBandagePurchaseDecision(telegramUserId, token, summary) ??
+        { state: "stale-token", character: summary };
     }
 
     const claim = await this.claimBandagePurchase(telegramUserId, {
@@ -709,7 +702,8 @@ export class YegerQuestService {
       unitPrice
     });
     if (claim === "quantity-limit") {
-      return { state: "stale-token", character: summary };
+      return await this.replayBandagePurchaseDecision(telegramUserId, token, summary) ??
+        { state: "stale-token", character: summary };
     }
 
     if (!claim) {
@@ -724,12 +718,12 @@ export class YegerQuestService {
       };
     }
 
-    return {
-      state: claim.state === "created" ? "bought" : "replayed",
-      character: summarizeCharacter(claim.character),
-      spentGold: claim.action.spentGold || snapshot.price,
-      itemGrants: enrichRewardItemGrants(claim.state === "created" ? claim.itemGrants : readAppliedItemGrants(claim.action.resultJson))
-    };
+    return mapPurchaseDecision(
+      summarizeCharacter(claim.character),
+      claim.action,
+      claim.state === "created" ? "bought" : "replayed",
+      claim.state === "created" ? claim.itemGrants : undefined
+    );
   }
 
   async cancelBandagePurchaseForTelegramUser(
@@ -750,16 +744,7 @@ export class YegerQuestService {
       localDate: token
     });
     if (completed) {
-      if (getPurchaseDecisionKind(completed.resultJson) === "cancel") {
-        return { state: "cancelled", character: summarizeCharacter(character) };
-      }
-
-      return {
-        state: "replayed",
-        character: summarizeCharacter(character),
-        spentGold: completed.spentGold,
-        itemGrants: enrichRewardItemGrants(readAppliedItemGrants(completed.resultJson))
-      };
+      return mapPurchaseDecision(summarizeCharacter(character), completed, "replayed");
     }
 
     const preview = await this.dailyActions.findForTelegramUser(telegramUserId, {
@@ -793,16 +778,7 @@ export class YegerQuestService {
       throw new Error("Yeger bandage cancel unexpectedly required gold.");
     }
 
-    if (getPurchaseDecisionKind(cancel.action.resultJson) === "confirm") {
-      return {
-        state: "replayed",
-        character: summarizeCharacter(cancel.character),
-        spentGold: cancel.action.spentGold,
-        itemGrants: enrichRewardItemGrants(readAppliedItemGrants(cancel.action.resultJson))
-      };
-    }
-
-    return { state: "cancelled", character: summarizeCharacter(cancel.character) };
+    return mapPurchaseDecision(summarizeCharacter(cancel.character), cancel.action, "replayed");
   }
 
   async buyBandageForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
@@ -923,6 +899,19 @@ export class YegerQuestService {
 
   private rollTrackingMinutes(): number {
     return this.rng.nextInt(YEGER_TRACKING_MIN_MINUTES, YEGER_TRACKING_MAX_MINUTES);
+  }
+
+  private async replayBandagePurchaseDecision(
+    telegramUserId: bigint,
+    token: string,
+    character: CharacterSummary
+  ): Promise<Extract<YegerBandageSupplyResult, { state: "bought" | "replayed" | "cancelled" | "stale-token" }> | null> {
+    const decision = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      localDate: token
+    });
+
+    return decision ? mapPurchaseDecision(character, decision, "replayed") : null;
   }
 
   private async claimBandagePurchase(
@@ -1113,37 +1102,6 @@ function getPurchaseDecisionKind(value: unknown): "confirm" | "cancel" | null {
   return null;
 }
 
-function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity: number }> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
-  }
-
-  const reward = (value as { reward?: unknown }).reward;
-  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
-    return [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
-  }
-
-  const applied = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
-  if (!Array.isArray(applied)) {
-    return [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
-  }
-
-  const parsed = applied.flatMap((grant) => {
-    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
-      return [];
-    }
-
-    const itemId = (grant as { itemId?: unknown }).itemId;
-    const quantity = (grant as { quantity?: unknown }).quantity;
-
-    return typeof itemId === "string" && typeof quantity === "number" && quantity > 0
-      ? [{ itemId, quantity: Math.floor(quantity) }]
-      : [];
-  });
-
-  return parsed.length > 0 ? parsed : [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
-}
-
 function readPurchasedBandageQuantityForDay(action: DailyActionRecord, purchaseDay: string): number {
   if (getPurchaseDecisionKind(action.resultJson) !== "confirm") {
     return 0;
@@ -1154,9 +1112,120 @@ function readPurchasedBandageQuantityForDay(action: DailyActionRecord, purchaseD
     return 0;
   }
 
-  return readAppliedItemGrants(action.resultJson)
+  const receipt = readPurchaseReceipt(action);
+  if (!receipt) {
+    return 0;
+  }
+
+  return receipt.itemGrants
     .filter((grant) => grant.itemId === BANDAGE_ITEM_ID)
     .reduce((sum, grant) => sum + grant.quantity, 0);
+}
+
+function mapPurchaseDecision(
+  character: CharacterSummary,
+  action: DailyActionRecord,
+  successState: "bought" | "replayed",
+  createdItemGrants?: Array<{ itemId: string; quantity: number }>
+): Extract<YegerBandageSupplyResult, { state: "bought" | "replayed" | "cancelled" | "stale-token" }> {
+  const kind = getPurchaseDecisionKind(action.resultJson);
+
+  if (kind === "cancel") {
+    return { state: "cancelled", character };
+  }
+
+  if (kind !== "confirm") {
+    return { state: "stale-token", character };
+  }
+
+  const receipt = createdItemGrants
+    ? {
+        spentGold: action.spentGold,
+        itemGrants: createdItemGrants
+      }
+    : readPurchaseReceipt(action);
+
+  if (!receipt || receipt.itemGrants.length <= 0) {
+    return { state: "stale-token", character };
+  }
+
+  return {
+    state: successState,
+    character,
+    spentGold: receipt.spentGold,
+    itemGrants: enrichRewardItemGrants(receipt.itemGrants)
+  };
+}
+
+function readPurchaseReceipt(
+  action: DailyActionRecord
+): { spentGold: number; itemGrants: Array<{ itemId: string; quantity: number }> } | null {
+  if (getPurchaseDecisionKind(action.resultJson) !== "confirm") {
+    return null;
+  }
+
+  const itemGrants = readStrictAppliedItemGrants(action.resultJson);
+  if (itemGrants.length > 0) {
+    return {
+      spentGold: action.spentGold,
+      itemGrants
+    };
+  }
+
+  return isKnownLegacySingleBandageReceipt(action)
+    ? {
+        spentGold: action.spentGold,
+        itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }]
+      }
+    : null;
+}
+
+function readStrictAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  const reward = (value as { reward?: unknown }).reward;
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
+    return [];
+  }
+
+  const applied = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  if (!Array.isArray(applied)) {
+    return [];
+  }
+
+  return applied.flatMap((grant) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      return [];
+    }
+
+    const itemId = (grant as { itemId?: unknown }).itemId;
+    const quantity = (grant as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0
+      ? [{ itemId, quantity: Math.floor(quantity) }]
+      : [];
+  });
+}
+
+function isKnownLegacySingleBandageReceipt(action: DailyActionRecord): boolean {
+  const value = action.resultJson;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  const price = normalizePositiveInteger(record.price);
+  const purchaseQuantity = record.purchaseQuantity === undefined
+    ? 1
+    : normalizePositiveInteger(record.purchaseQuantity);
+
+  return record.kind === "yeger-bandage-purchase-confirm" &&
+    record.itemId === BANDAGE_ITEM_ID &&
+    purchaseQuantity === 1 &&
+    price !== null &&
+    action.spentGold === price;
 }
 
 function readPurchaseReceiptDay(value: unknown): string | null {

@@ -65,10 +65,38 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }));
         if (existing) {
           const effect = getItemUseEffect(input.item);
-          if (!effect || blocksAccidentalItemUse(input.item)) {
-            return { state: "not-usable" };
+          const validation = await validatePendingPreviewRefresh(tx, existing, character, {
+            item: input.item,
+            itemContents: input.itemContents,
+            itemFingerprint: input.itemFingerprint,
+            now: input.now,
+            effect
+          });
+          if (validation.state !== "valid") {
+            await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
+              ? {
+                  ...validation.preview,
+                  kind: "full-hp",
+                  itemId: existing.itemId,
+                  itemName: existing.itemName
+                }
+              : {
+                  ...existing.preview,
+                  kind: "expired",
+                  itemId: existing.itemId,
+                  itemName: existing.itemName
+                },
+              validation.state === "full-hp" ? "completed" : "expired");
+
+            return validation.state === "full-hp"
+              ? {
+                  state: "full-hp",
+                  character: toCharacterRecord(character),
+                  preview: validation.preview
+                }
+              : { state: validation.state };
           }
-          const refreshed = await refreshPendingPreview(tx, existing, character, input.itemContents, input.now, effect);
+          const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
           return {
             state: "preview-replayed",
             character: toCharacterRecord(character),
@@ -494,12 +522,9 @@ async function getReservedItemIds(
 async function refreshPendingPreview(
   tx: TxClient,
   order: ItemUseOrderRecord,
-  character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
-  itemContents: readonly ItemContent[],
-  now: Date,
-  effect: NonNullable<ReturnType<typeof getItemUseEffect>>
+  preview: ItemUsePreview,
+  now: Date
 ): Promise<ItemUseOrderRecord> {
-  const preview = buildPreview(character, itemContents, now, effect);
   const updated = await tx.itemUseOrder.updateMany({
     where: {
       id: order.id,
@@ -516,6 +541,75 @@ async function refreshPendingPreview(
   }
 
   return mapOrder(await tx.itemUseOrder.findUnique({ where: { id: order.id } })) ?? order;
+}
+
+type PendingPreviewValidation =
+  | { state: "valid"; preview: ItemUsePreview }
+  | { state: "full-hp"; preview: ItemUsePreview }
+  | { state: "not-owned" | "not-usable" | "reserved" };
+
+async function validatePendingPreviewRefresh(
+  tx: TxClient,
+  order: ItemUseOrderRecord,
+  character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
+  input: {
+    item: ItemContent;
+    itemContents: readonly ItemContent[];
+    itemFingerprint: string;
+    now: Date;
+    effect: ReturnType<typeof getItemUseEffect>;
+  }
+): Promise<PendingPreviewValidation> {
+  if (
+    getIncludedRemortCount(character) !== order.remortCount ||
+    order.preview.rulesVersion !== ITEM_USE_RULES_VERSION ||
+    order.quantity !== 1 ||
+    input.item.id !== order.itemId
+  ) {
+    return { state: "not-usable" };
+  }
+
+  if (!input.effect || blocksAccidentalItemUse(input.item)) {
+    return { state: "not-usable" };
+  }
+
+  if (
+    input.item.name !== order.itemName ||
+    createItemUseFingerprint(input.item) !== order.itemFingerprint ||
+    createItemUseFingerprint(input.item) !== input.itemFingerprint ||
+    input.effect.kind !== order.effectKind
+  ) {
+    return { state: "not-usable" };
+  }
+
+  const [items, equippedItemIds, reservedItemIds] = await Promise.all([
+    getItems(tx, character.id),
+    getEquippedItemIds(tx, character.id),
+    getReservedItemIds(tx, character.id, input.now, order.id)
+  ]);
+  const stack = items.find((item) => item.itemId === order.itemId);
+  if (!stack || stack.quantity < 1) {
+    return { state: "not-owned" };
+  }
+
+  if (equippedItemIds.includes(order.itemId) || reservedItemIds.includes(order.itemId)) {
+    return { state: "reserved" };
+  }
+
+  const preview = buildPreview(character, input.itemContents, input.now, input.effect);
+  return preview.healAmount <= 0
+    ? { state: "full-hp", preview }
+    : { state: "valid", preview };
+}
+
+async function releasePendingOrder(
+  tx: TxClient,
+  order: ItemUseOrderRecord,
+  now: Date,
+  result: ItemUseResult,
+  status: "completed" | "expired"
+): Promise<void> {
+  await setTerminalOrder(tx, order.id, status, now, result, "pending");
 }
 
 async function recoverLivePreviewAfterReservationConflict(
@@ -553,10 +647,21 @@ async function recoverLivePreviewAfterReservationConflict(
       return null;
     }
 
+    const validation = await validatePendingPreviewRefresh(tx, existing, character, {
+      item,
+      itemContents: input.itemContents,
+      itemFingerprint: createItemUseFingerprint(item),
+      now: input.now,
+      effect
+    });
+    if (validation.state !== "valid") {
+      return null;
+    }
+
     return {
       state: "preview-replayed",
       character: toCharacterRecord(character),
-      order: await refreshPendingPreview(tx, existing, character, input.itemContents, input.now, effect)
+      order: await refreshPendingPreview(tx, existing, validation.preview, input.now)
     };
   });
 }

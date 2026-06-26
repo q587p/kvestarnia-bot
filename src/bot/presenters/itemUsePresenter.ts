@@ -71,10 +71,12 @@ export function presentItemUseConfirm(result: ItemUseConfirmRepositoryResult): s
   }
 
   if (result.state === "full-hp") {
+    const outcome = result.order.result ?? result.order.preview;
+
     return [
       "🩹 Бинт не витрачено",
       "",
-      `HP уже повні: <b>${result.order.preview.hpBefore}/${result.order.preview.hpMax}</b>.`,
+      `HP уже повні: <b>${outcome.hpBefore}/${outcome.hpMax}</b>.`,
       "Єгер схвалює економію."
     ].join("\n");
   }

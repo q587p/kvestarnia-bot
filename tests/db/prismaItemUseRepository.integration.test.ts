@@ -136,6 +136,103 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(17);
   });
 
+  it("canonicalizes a real concurrent confirm-vs-cancel race", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+    await createPreview("use-token-confirm-cancel-race");
+
+    const [confirm, cancel] = await Promise.all([
+      repository.confirmForTelegramUser(telegramUserId, {
+        token: "use-token-confirm-cancel-race",
+        itemContents: items,
+        now: now()
+      }),
+      repository.cancelForTelegramUser(telegramUserId, {
+        token: "use-token-confirm-cancel-race",
+        now: now()
+      })
+    ]);
+    const order = await readUseOrder("use-token-confirm-cancel-race");
+
+    expect(await prisma.itemUseOrder.count({ where: { token: "use-token-confirm-cancel-race" } })).toBe(1);
+    expect(["completed", "cancelled"]).toContain(order.status);
+    expect(order.reservationKey).toBeNull();
+    if (order.status === "completed") {
+      expect(["used", "replayed"]).toContain(confirm.state);
+      expect(cancel.state).toBe("completed");
+      await expectBandageQuantity(0);
+      await expectCharacterHp(17);
+    } else {
+      expect(confirm.state).toBe("cancelled");
+      expect(["cancelled", "replayed"]).toContain(cancel.state);
+      await expectBandageQuantity(1);
+      await expectCharacterHp(10);
+    }
+  });
+
+  it("canonicalizes a real concurrent confirm-vs-expiry race", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+    await createPreview("use-token-confirm-expiry-race");
+
+    const [confirm, expiry] = await Promise.all([
+      repository.confirmForTelegramUser(telegramUserId, {
+        token: "use-token-confirm-expiry-race",
+        itemContents: items,
+        now: now()
+      }),
+      repository.cancelForTelegramUser(telegramUserId, {
+        token: "use-token-confirm-expiry-race",
+        now: new Date("2026-06-25T09:24:00.000Z")
+      })
+    ]);
+    const order = await readUseOrder("use-token-confirm-expiry-race");
+
+    expect(["completed", "expired"]).toContain(order.status);
+    expect(order.reservationKey).toBeNull();
+    if (order.status === "completed") {
+      expect(["used", "replayed"]).toContain(confirm.state);
+      expect(expiry.state).toBe("completed");
+      await expectBandageQuantity(0);
+      await expectCharacterHp(17);
+    } else {
+      expect(confirm.state).toBe("expired");
+      expect(expiry.state).toBe("expired");
+      await expectBandageQuantity(1);
+      await expectCharacterHp(10);
+    }
+  });
+
+  it("canonicalizes a real concurrent cancel-vs-expiry race", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+    await createPreview("use-token-cancel-expiry-race");
+
+    const [cancel, expiry] = await Promise.all([
+      repository.cancelForTelegramUser(telegramUserId, {
+        token: "use-token-cancel-expiry-race",
+        now: now()
+      }),
+      repository.cancelForTelegramUser(telegramUserId, {
+        token: "use-token-cancel-expiry-race",
+        now: new Date("2026-06-25T09:24:00.000Z")
+      })
+    ]);
+    const order = await readUseOrder("use-token-cancel-expiry-race");
+
+    expect(["cancelled", "expired"]).toContain(order.status);
+    expect(order.reservationKey).toBeNull();
+    if (order.status === "cancelled") {
+      expect(["cancelled", "replayed"]).toContain(cancel.state);
+      expect(["cancelled", "replayed"]).toContain(expiry.state);
+    } else {
+      expect(cancel.state).toBe("expired");
+      expect(expiry.state).toBe("expired");
+    }
+    await expectBandageQuantity(1);
+    await expectCharacterHp(10);
+  });
+
   it("refreshes a replayed live preview with the current recovery snapshot", async () => {
     await seedCharacter({ hpCurrent: 10, hpMax: 25 });
     await seedBandages(1);
@@ -177,6 +274,30 @@ describe("PrismaItemUseRepository integration", () => {
 
     expect(results.map((result) => result.state).sort()).toEqual(["preview-created", "preview-replayed"]);
     expect(await prisma.itemUseOrder.count()).toBe(1);
+    const order = await prisma.itemUseOrder.findFirstOrThrow();
+    expect(order.status).toBe("pending");
+    expect(order.reservationKey).toBe(`use:${characterId}:${bandage.id}`);
+  });
+
+  it("does not replay a live preview after the stack becomes reserved by equipment", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+    await createPreview("use-token-refresh-reserved");
+    await prisma.characterEquipment.create({
+      data: {
+        id: "equipment-refresh-reserved",
+        characterId,
+        slot: "trinket",
+        itemId: bandage.id
+      }
+    });
+
+    await expect(createPreview("use-token-refresh-reserved-2")).resolves.toMatchObject({
+      state: "reserved"
+    });
+    const order = await readUseOrder("use-token-refresh-reserved");
+    expect(order.status).toBe("expired");
+    expect(order.reservationKey).toBeNull();
   });
 
   it("reports the canonical completed order when cancel races behind confirm", async () => {
@@ -252,6 +373,72 @@ describe("PrismaItemUseRepository integration", () => {
     });
     await expectBandageQuantity(1);
     expect(await prisma.itemUseOrder.count()).toBe(0);
+  });
+
+  it("stores and replays a full-HP terminal result after passive recovery reaches max before confirm", async () => {
+    await seedCharacter({
+      hpCurrent: 40,
+      hpMax: 25,
+      hpRegenAt: now()
+    });
+    await seedBandages(1);
+    const preview = await createPreview("use-token-passive-full");
+    expect(preview).toMatchObject({
+      state: "preview-created",
+      order: {
+        preview: {
+          hpBefore: 40,
+          hpMax: 41,
+          hpAfter: 41
+        }
+      }
+    });
+    await prisma.itemUseOrder.update({
+      where: { token: "use-token-passive-full" },
+      data: { expiresAt: new Date("2026-06-25T12:00:00.000Z") }
+    });
+
+    const confirmAt = new Date("2026-06-25T11:00:00.000Z");
+    const first = await repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-passive-full",
+      itemContents: items,
+      now: confirmAt
+    });
+    const replay = await new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
+      token: "use-token-passive-full",
+      itemContents: items,
+      now: confirmAt
+    });
+    const order = await readUseOrder("use-token-passive-full");
+
+    expect(first).toMatchObject({
+      state: "full-hp",
+      order: {
+        result: {
+          kind: "full-hp",
+          hpBefore: 41,
+          hpMax: 41,
+          healAmount: 0,
+          hpAfter: 41
+        }
+      }
+    });
+    expect(replay).toMatchObject({
+      state: "full-hp",
+      order: {
+        result: {
+          kind: "full-hp",
+          hpBefore: 41,
+          hpMax: 41,
+          healAmount: 0,
+          hpAfter: 41
+        }
+      }
+    });
+    expect(order.status).toBe("completed");
+    expect(order.reservationKey).toBeNull();
+    await expectBandageQuantity(1);
+    await expectCharacterHp(41);
   });
 
   it("blocks use during active combat", async () => {
@@ -352,6 +539,12 @@ describe("PrismaItemUseRepository integration", () => {
     const character = await prisma.character.findUniqueOrThrow({ where: { id: characterId } });
 
     expect(character.hpCurrent).toBe(hpCurrent);
+  }
+
+  async function readUseOrder(token: string) {
+    return prisma.itemUseOrder.findUniqueOrThrow({
+      where: { token }
+    });
   }
 });
 
