@@ -88,6 +88,7 @@ Pick a small subset of signature techniques only after race abilities and cosmet
 - richer remort-only social records;
 - achievements and collections;
 - selected signature techniques after race abilities and cosmetic titles have runtime evidence;
+- daily `Корчмарський обхід`, preserved in [DAILY_KORCHMA_ROUNDS.md](DAILY_KORCHMA_ROUNDS.md) and [tasks/0.2.x-daily-korchma-rounds.md](tasks/0.2.x-daily-korchma-rounds.md), when explicitly activated;
 - monster gender/case metadata;
 - food, coffee and bard performance after economy telemetry.
 
