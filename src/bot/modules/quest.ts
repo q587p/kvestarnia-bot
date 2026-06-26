@@ -805,12 +805,15 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "buy-bandage-preview") {
-    const result = await services.yeger.previewBandagePurchaseForTelegramUser(telegramUserId);
+    const result = await services.yeger.previewBandagePurchaseForTelegramUser(
+      telegramUserId,
+      callback.targetQuantity
+    );
     await safeAnswerCallbackQuery(
       ctx,
       result.state === "preview"
         ? { text: "Єгер показав ціну." }
-        : { show_alert: result.state === "insufficient-gold" }
+        : { show_alert: result.state === "insufficient-gold" || result.state === "daily-limit" || result.state === "target-reached" }
     );
     await markYegerCornerPresence(ctx, services.presence);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
@@ -832,7 +835,7 @@ async function handleYegerCallback(
     await safeAnswerCallbackQuery(
       ctx,
       result.state === "bought" || result.state === "replayed"
-        ? { text: result.state === "bought" ? "Бинт у торбі." : "Чек уже проведено." }
+        ? { text: result.state === "bought" ? "Бинти у торбі." : "Чек уже проведено." }
         : { show_alert: result.state === "insufficient-gold" || result.state === "invalid-token" || result.state === "stale-token" }
     );
     await markYegerCornerPresence(ctx, services.presence);

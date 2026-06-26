@@ -46,7 +46,15 @@ describe("Yeger callback data", () => {
     });
     expect(parseYegerCallbackData(makeYegerBuyBandageCallbackData())).toEqual({
       ok: true,
-      value: { type: "buy-bandage-preview" }
+      value: { type: "buy-bandage-preview", targetQuantity: 1 }
+    });
+    expect(parseYegerCallbackData(makeYegerBuyBandageCallbackData(93))).toEqual({
+      ok: true,
+      value: { type: "buy-bandage-preview", targetQuantity: 93 }
+    });
+    expect(parseYegerCallbackData("v1:ygr:buy:bdg")).toEqual({
+      ok: true,
+      value: { type: "buy-bandage-preview", targetQuantity: 1 }
     });
   });
 
@@ -73,6 +81,9 @@ describe("Yeger callback data", () => {
       makeYegerTurnInCallbackData(),
       makeYegerHelpCallbackData(),
       makeYegerBuyBandageCallbackData(),
+      makeYegerBuyBandageCallbackData(5),
+      makeYegerBuyBandageCallbackData(17),
+      makeYegerBuyBandageCallbackData(93),
       makeYegerConfirmBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000"),
       makeYegerCancelBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000")
     ]) {

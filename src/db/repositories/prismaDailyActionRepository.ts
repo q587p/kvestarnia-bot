@@ -1,14 +1,15 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
-import type {
-  ClaimDailyActionInput,
-  ClaimDailyActionResult,
-  DailyActionClaimIdentity,
-  DailyActionRecord,
-  DailyActionRepository,
-  DailyActionRollbackInput,
-  HpLossAudit,
-  ItemGrant
+import {
+  DailyActionQuantityLimitExceededError,
+  type ClaimDailyActionInput,
+  type ClaimDailyActionResult,
+  type DailyActionClaimIdentity,
+  type DailyActionRecord,
+  type DailyActionRepository,
+  type DailyActionRollbackInput,
+  type HpLossAudit,
+  type ItemGrant
 } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
@@ -96,6 +97,22 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         const remortCount = await countCharacterRemorts(tx, character.id);
         if (input.expectedLife && remortCount !== input.expectedLife.remortCount) {
           return null;
+        }
+
+        if (input.quantityLimit) {
+          await tx.character.update({
+            where: {
+              id: character.id
+            },
+            data: {
+              updatedAt: new Date()
+            }
+          });
+          const currentQuantity = await countLimitedActionQuantity(tx, character.id, input.quantityLimit);
+
+          if (currentQuantity + Math.max(0, Math.floor(input.quantityLimit.quantity)) > input.quantityLimit.maxQuantity) {
+            throw new DailyActionQuantityLimitExceededError(currentQuantity, input.quantityLimit.maxQuantity);
+          }
         }
 
         const spentGold = normalizeSpentGold(input.spentGold);
@@ -490,6 +507,36 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
   }
 
+  async listForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.prisma.dailyAction.findMany({
+      where: {
+        characterId: character.id,
+        key: input.key
+      },
+      orderBy: {
+        createdAt: "asc"
+      }
+    });
+  }
+
   private async findExistingClaim(
     telegramUserId: bigint,
     input: ClaimDailyActionInput
@@ -561,6 +608,51 @@ async function getGrantQuantity(
   const remaining = grant.maxOwnedQuantity - (existing?.quantity ?? 0);
 
   return Math.min(quantity, Math.max(0, remaining));
+}
+
+async function countLimitedActionQuantity(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  limit: NonNullable<ClaimDailyActionInput["quantityLimit"]>
+): Promise<number> {
+  const actions = await tx.dailyAction.findMany({
+    where: {
+      characterId,
+      key: limit.key
+    }
+  });
+
+  return actions.reduce((sum, action) => {
+    if (!isResultKind(action.resultJson, limit.resultKind)) {
+      return sum;
+    }
+
+    const purchaseDay = readPurchaseDay(action.resultJson) ?? action.createdAt.toISOString().slice(0, 10);
+    if (purchaseDay !== limit.purchaseDay) {
+      return sum;
+    }
+
+    return sum + readItemGrants(action.resultJson)
+      .filter((grant) => grant.itemId === limit.itemId)
+      .reduce((grantSum, grant) => grantSum + Math.max(0, Math.floor(grant.quantity)), 0);
+  }, 0);
+}
+
+function isResultKind(resultJson: Prisma.JsonValue | null, kind: string): boolean {
+  return !!resultJson &&
+    typeof resultJson === "object" &&
+    !Array.isArray(resultJson) &&
+    (resultJson as { kind?: unknown }).kind === kind;
+}
+
+function readPurchaseDay(resultJson: Prisma.JsonValue | null): string | null {
+  if (!resultJson || typeof resultJson !== "object" || Array.isArray(resultJson)) {
+    return null;
+  }
+
+  const purchaseDay = (resultJson as { purchaseDay?: unknown }).purchaseDay;
+
+  return typeof purchaseDay === "string" ? purchaseDay : null;
 }
 
 function isUniqueConstraintError(error: unknown): boolean {

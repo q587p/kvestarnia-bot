@@ -7,6 +7,7 @@ import { getLevelForXp } from "../../src/domain/progression/level";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaCooldownRepository } from "../../src/db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
+import { DailyActionQuantityLimitExceededError } from "../../src/db/repositories/dailyActionRepository";
 
 describe("paid Prisma claim repositories", () => {
   let dir: string;
@@ -348,6 +349,71 @@ describe("paid Prisma claim repositories", () => {
     ).resolves.toMatchObject({ xp: 7, gold: 4 });
     await expect(prisma.dailyAction.count({ where: { characterId: "character-daily-concurrent" } })).resolves.toBe(1);
     await expect(prisma.characterItem.count({ where: { characterId: "character-daily-concurrent" } })).resolves.toBe(1);
+  });
+
+  it("rolls back a paid daily claim when its transaction-local quantity limit is reached", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-quantity-limit",
+      characterId: "character-daily-quantity-limit",
+      telegramUserId: 9013n,
+      gold: 700
+    });
+    const first = await dailyActions.claimForTelegramUser(9013n, {
+      key: "yeger.bandage.purchase.confirm",
+      localDate: "token-first",
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 35,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }],
+      quantityLimit: {
+        key: "yeger.bandage.purchase.confirm",
+        purchaseDay: "2026-06-15",
+        itemId: "item.responsible-panic-bandage",
+        resultKind: "yeger-bandage-purchase-confirm",
+        quantity: 5,
+        maxQuantity: 93
+      },
+      resultJson: {
+        kind: "yeger-bandage-purchase-confirm",
+        purchaseDay: "2026-06-15"
+      }
+    });
+
+    expect(first?.state).toBe("created");
+    await expect(dailyActions.claimForTelegramUser(9013n, {
+      key: "yeger.bandage.purchase.confirm",
+      localDate: "token-loser",
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 651,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 93 }],
+      quantityLimit: {
+        key: "yeger.bandage.purchase.confirm",
+        purchaseDay: "2026-06-15",
+        itemId: "item.responsible-panic-bandage",
+        resultKind: "yeger-bandage-purchase-confirm",
+        quantity: 93,
+        maxQuantity: 93
+      },
+      resultJson: {
+        kind: "yeger-bandage-purchase-confirm",
+        purchaseDay: "2026-06-15"
+      }
+    })).rejects.toBeInstanceOf(DailyActionQuantityLimitExceededError);
+    await expect(
+      prisma.character.findUniqueOrThrow({ where: { id: "character-daily-quantity-limit" } })
+    ).resolves.toMatchObject({ gold: 665 });
+    await expect(prisma.dailyAction.count({
+      where: { characterId: "character-daily-quantity-limit" }
+    })).resolves.toBe(1);
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "character-daily-quantity-limit",
+          itemId: "item.responsible-panic-bandage"
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 5 });
   });
 
   it("serializes concurrent daily HP claims without a second injury", async () => {

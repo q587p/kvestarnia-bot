@@ -1,4 +1,8 @@
 import { err, ok, type Result } from "../../shared/result";
+import {
+  YEGER_BANDAGE_PURCHASE_TARGETS,
+  type YegerBandagePurchaseTarget
+} from "../../services/yegerQuestService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type YegerCallback =
@@ -8,7 +12,7 @@ export type YegerCallback =
   | { type: "start"; questId: "u1" }
   | { type: "track"; questId: "u1" }
   | { type: "turn-in"; questId: "u1" }
-  | { type: "buy-bandage-preview" }
+  | { type: "buy-bandage-preview"; targetQuantity: YegerBandagePurchaseTarget }
   | { type: "buy-bandage-confirm"; token: string }
   | { type: "buy-bandage-cancel"; token: string }
   | { type: "free-bandage" }
@@ -52,8 +56,8 @@ export function makeYegerHelpCallbackData(): string {
   return assertYegerCallbackData(`${PREFIX}:help`);
 }
 
-export function makeYegerBuyBandageCallbackData(): string {
-  return assertYegerCallbackData(`${PREFIX}:buy:bdg`);
+export function makeYegerBuyBandageCallbackData(targetQuantity: YegerBandagePurchaseTarget = 1): string {
+  return assertYegerCallbackData(`${PREFIX}:buy:${targetQuantity}`);
 }
 
 export function makeYegerConfirmBandagePurchaseCallbackData(token: string): string {
@@ -98,7 +102,13 @@ export function parseYegerCallbackData(
   }
 
   if (action === "buy") {
-    return questId === "bdg" ? ok({ type: "buy-bandage-preview" }) : err("invalid-prefix");
+    if (questId === "bdg") {
+      return ok({ type: "buy-bandage-preview", targetQuantity: 1 });
+    }
+
+    const target = parseBandagePurchaseTarget(questId);
+
+    return target ? ok({ type: "buy-bandage-preview", targetQuantity: target }) : err("invalid-prefix");
   }
 
   if (action === "bc" || action === "bx") {
@@ -148,4 +158,12 @@ function assertYegerCallbackData(data: string): string {
 
 function isPurchaseToken(token: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token);
+}
+
+function parseBandagePurchaseTarget(value: string | undefined): YegerBandagePurchaseTarget | null {
+  const numeric = Number(value);
+
+  return YEGER_BANDAGE_PURCHASE_TARGETS.includes(numeric as YegerBandagePurchaseTarget)
+    ? numeric as YegerBandagePurchaseTarget
+    : null;
 }

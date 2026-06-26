@@ -155,30 +155,53 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
     ].join("\n");
   }
 
+  if (result.state === "daily-limit") {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      `Сьогодні куплено: <b>${result.purchasedToday}/${result.dailyLimit}</b>.`,
+      "Єгер закрив ящик ліктем.",
+      "«Бинти теж мають робочий день. Дуже малий, але гордий»."
+    ].join("\n");
+  }
+
+  if (result.state === "target-reached") {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      `До планки <b>${result.targetQuantity}</b> уже докуплено: <b>${result.purchasedToday}</b>.`,
+      "Єгер показує на більшу планку й мовчки пропонує не сваритися з арифметикою."
+    ].join("\n");
+  }
+
   if (result.state === "cancelled") {
     return [
       "🩹 Бинти Єгеря",
       presentCharacterHeader(result.character),
       "",
-      "Купівлю скасовано. Єгер сховав бинт так, ніби він теж має право на приватність."
+      "Купівлю скасовано. Єгер сховав бинти так, ніби вони теж мають право на приватність."
     ].join("\n");
   }
 
   if (result.state === "preview") {
-    const discountLine = result.priceGold < 7
+    const discountLine = result.unitPriceGold < 7
       ? "Єгерська знижка для єгерів уже врахована."
       : "Ціна звичайна, без таємних стежок у бухгалтерії.";
 
     return [
-      "🩹 Купити бинт",
+      "🩹 Купити бинти",
       presentCharacterHeader(result.character),
       "",
+      `Планка на сьогодні: <b>${result.targetQuantity}</b>. Уже куплено: <b>${result.purchasedToday}</b>.`,
+      `Єгер докладе: <b>${result.purchaseQuantity}</b>.`,
       `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
       `Ціна: <b>${result.priceGold} золота</b>.`,
       `У вас: <b>${result.currentGold} золота</b>.`,
       discountLine,
       "",
-      "Єгер чекає підтвердження й робить вигляд, що це не каса."
+      "Єгер чекає підтвердження й робить вигляд, що це не ящик першої підозрілої допомоги."
     ].join("\n");
   }
 
@@ -200,7 +223,7 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
     `Витрачено: <b>${result.spentGold} золота</b>.`,
     result.state === "replayed" ? "Цей чек уже проведено. Другий раз золото не зникло." : "",
     "",
-    "Єгер сказав: «Не наклеюйте на гордість. На гордість не тримається»."
+    "Єгер сказав: «Не наклеюйте на гордість. На гордість не тримається. Я перевіряв»."
   ].filter((line, index, lines) => line !== "" || lines[index - 1] !== "").join("\n");
 }
 

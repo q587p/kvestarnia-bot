@@ -3,7 +3,13 @@ import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { CooldownRepository } from "../db/repositories/cooldownRepository";
-import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import {
+  DailyActionQuantityLimitExceededError,
+  type ClaimDailyActionResult,
+  type DailyActionRecord,
+  type DailyActionRepository,
+  type RewardLevelChange
+} from "../db/repositories/dailyActionRepository";
 import type { SoloCombatSessionRepository } from "../db/repositories/soloCombatSessionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
@@ -24,6 +30,7 @@ import {
   type RewardItemGrant
 } from "./itemGrant";
 import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "./presenceService";
+import { toIsoDate } from "../shared/time";
 
 export {
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
@@ -59,6 +66,10 @@ export const YEGER_BANDAGE_PRICE = 7;
 export const YEGER_RANGER_BANDAGE_PRICE = 4;
 export const YEGER_RANGER_FREE_BANDAGE_MINUTES = 93;
 export const YEGER_BANDAGE_PURCHASE_TTL_MINUTES = 23;
+export const YEGER_BANDAGE_PURCHASE_DAILY_LIMIT = 93;
+export const YEGER_BANDAGE_PURCHASE_TARGETS = [1, 5, 17, 93] as const;
+
+export type YegerBandagePurchaseTarget = typeof YEGER_BANDAGE_PURCHASE_TARGETS[number];
 
 export type YegerQuestStageId = "first" | "second";
 
@@ -193,7 +204,12 @@ export type YegerBandageSupplyResult =
       state: "preview";
       character: CharacterSummary;
       token: string;
+      targetQuantity: YegerBandagePurchaseTarget;
+      purchaseQuantity: number;
+      purchasedToday: number;
+      dailyLimit: number;
       priceGold: number;
+      unitPriceGold: number;
       currentGold: number;
       itemGrants: RewardItemGrant[];
       expiresAt: Date;
@@ -205,6 +221,14 @@ export type YegerBandageSupplyResult =
       spentGold: number;
       itemGrants: RewardItemGrant[];
     }
+  | {
+      state: "target-reached";
+      character: CharacterSummary;
+      targetQuantity: YegerBandagePurchaseTarget;
+      purchasedToday: number;
+      dailyLimit: number;
+    }
+  | { state: "daily-limit"; character: CharacterSummary; purchasedToday: number; dailyLimit: number }
   | { state: "cancelled"; character: CharacterSummary }
   | { state: "invalid-token" }
   | { state: "stale-token"; character: CharacterSummary }
@@ -514,15 +538,45 @@ export class YegerQuestService {
     };
   }
 
-  async previewBandagePurchaseForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
+  async previewBandagePurchaseForTelegramUser(
+    telegramUserId: bigint,
+    targetQuantity: YegerBandagePurchaseTarget = 1
+  ): Promise<YegerBandageSupplyResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     if (!character) {
       return { state: "no-character" };
     }
 
     const summary = summarizeCharacter(character);
-    const price = getYegerBandagePrice(summary);
     const now = this.now();
+    const purchaseDay = toIsoDate(now);
+    const purchasedToday = await this.countPaidBandagesPurchasedToday(telegramUserId, purchaseDay);
+    const normalizedTarget = normalizeBandagePurchaseTarget(targetQuantity);
+    if (purchasedToday >= YEGER_BANDAGE_PURCHASE_DAILY_LIMIT) {
+      return {
+        state: "daily-limit",
+        character: summary,
+        purchasedToday,
+        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+      };
+    }
+
+    if (purchasedToday >= normalizedTarget) {
+      return {
+        state: "target-reached",
+        character: summary,
+        targetQuantity: normalizedTarget,
+        purchasedToday,
+        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+      };
+    }
+
+    const unitPrice = getYegerBandagePrice(summary);
+    const purchaseQuantity = Math.min(
+      normalizedTarget - purchasedToday,
+      YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday
+    );
+    const price = unitPrice * purchaseQuantity;
     const token = randomUUID();
     const expiresAt = addMinutes(now, YEGER_BANDAGE_PURCHASE_TTL_MINUTES);
     const preview = await this.dailyActions.claimForTelegramUser(telegramUserId, {
@@ -537,6 +591,12 @@ export class YegerQuestService {
         kind: "yeger-bandage-purchase-preview",
         rulesVersion: "yeger-bandage-purchase-v1",
         token,
+        targetQuantity: normalizedTarget,
+        purchaseQuantity,
+        purchasedToday,
+        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+        purchaseDay,
+        unitPrice,
         price,
         classId: summary.classId,
         itemId: BANDAGE_ITEM_ID,
@@ -553,9 +613,14 @@ export class YegerQuestService {
       state: "preview",
       character: summarizeCharacter(preview.character),
       token,
+      targetQuantity: normalizedTarget,
+      purchaseQuantity,
+      purchasedToday,
+      dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
       priceGold: price,
+      unitPriceGold: unitPrice,
       currentGold: summary.gold,
-      itemGrants: enrichRewardItemGrants([{ itemId: BANDAGE_ITEM_ID, quantity: 1 }]),
+      itemGrants: enrichRewardItemGrants([{ itemId: BANDAGE_ITEM_ID, quantity: purchaseQuantity }]),
       expiresAt,
       now
     };
@@ -609,38 +674,43 @@ export class YegerQuestService {
     }
 
     const snapshot = parsePurchasePreview(preview.resultJson);
-    const price = getYegerBandagePrice(summary);
+    const unitPrice = getYegerBandagePrice(summary);
     const now = this.now();
+    const purchaseDay = toIsoDate(now);
+    const purchasedToday = await this.countPaidBandagesPurchasedToday(telegramUserId, purchaseDay);
     if (
       !snapshot ||
       snapshot.expiresAt <= now ||
       snapshot.itemId !== BANDAGE_ITEM_ID ||
       snapshot.classId !== summary.classId ||
-      snapshot.price !== price ||
-      snapshot.remortCount !== (summary.remortCount ?? 0)
+      snapshot.unitPrice !== unitPrice ||
+      snapshot.price !== unitPrice * snapshot.purchaseQuantity ||
+      snapshot.remortCount !== (summary.remortCount ?? 0) ||
+      snapshot.purchaseDay !== purchaseDay ||
+      purchasedToday !== snapshot.purchasedToday ||
+      purchasedToday >= YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
     ) {
       return { state: "stale-token", character: summary };
     }
 
-    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
-      localDate: token,
-      rewardXp: 0,
-      rewardGold: 0,
-      spentGold: price,
-      itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }],
-      expectedLife: {
-        remortCount: summary.remortCount ?? 0
-      },
-      resultJson: {
-        kind: "yeger-bandage-purchase-confirm",
-        rulesVersion: "yeger-bandage-purchase-v1",
-        token,
-        price,
-        classId: summary.classId,
-        itemId: BANDAGE_ITEM_ID
-      }
+    const expectedQuantity = Math.min(
+      snapshot.targetQuantity - purchasedToday,
+      YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday
+    );
+    if (expectedQuantity !== snapshot.purchaseQuantity || expectedQuantity <= 0) {
+      return { state: "stale-token", character: summary };
+    }
+
+    const claim = await this.claimBandagePurchase(telegramUserId, {
+      token,
+      summary,
+      snapshot,
+      purchaseDay,
+      unitPrice
     });
+    if (claim === "quantity-limit") {
+      return { state: "stale-token", character: summary };
+    }
 
     if (!claim) {
       return { state: "no-character" };
@@ -657,7 +727,7 @@ export class YegerQuestService {
     return {
       state: claim.state === "created" ? "bought" : "replayed",
       character: summarizeCharacter(claim.character),
-      spentGold: claim.action.spentGold || price,
+      spentGold: claim.action.spentGold || snapshot.price,
       itemGrants: enrichRewardItemGrants(claim.state === "created" ? claim.itemGrants : readAppliedItemGrants(claim.action.resultJson))
     };
   }
@@ -736,7 +806,7 @@ export class YegerQuestService {
   }
 
   async buyBandageForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
-    const preview = await this.previewBandagePurchaseForTelegramUser(telegramUserId);
+    const preview = await this.previewBandagePurchaseForTelegramUser(telegramUserId, 1);
 
     return preview.state === "preview"
       ? this.confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token)
@@ -854,6 +924,74 @@ export class YegerQuestService {
   private rollTrackingMinutes(): number {
     return this.rng.nextInt(YEGER_TRACKING_MIN_MINUTES, YEGER_TRACKING_MAX_MINUTES);
   }
+
+  private async claimBandagePurchase(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      summary: CharacterSummary;
+      snapshot: PurchasePreviewSnapshot;
+      purchaseDay: string;
+      unitPrice: number;
+    }
+  ): Promise<ClaimDailyActionResult | "quantity-limit" | null> {
+    try {
+      return await this.dailyActions.claimForTelegramUser(telegramUserId, {
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+        localDate: input.token,
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: input.snapshot.price,
+        itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: input.snapshot.purchaseQuantity }],
+        expectedLife: {
+          remortCount: input.summary.remortCount ?? 0
+        },
+        quantityLimit: {
+          key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+          purchaseDay: input.purchaseDay,
+          itemId: BANDAGE_ITEM_ID,
+          resultKind: "yeger-bandage-purchase-confirm",
+          quantity: input.snapshot.purchaseQuantity,
+          maxQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+        },
+        resultJson: {
+          kind: "yeger-bandage-purchase-confirm",
+          rulesVersion: "yeger-bandage-purchase-v1",
+          token: input.token,
+          targetQuantity: input.snapshot.targetQuantity,
+          purchaseQuantity: input.snapshot.purchaseQuantity,
+          purchasedToday: input.snapshot.purchasedToday,
+          dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+          purchaseDay: input.purchaseDay,
+          unitPrice: input.unitPrice,
+          price: input.snapshot.price,
+          classId: input.summary.classId,
+          itemId: BANDAGE_ITEM_ID
+        }
+      });
+    } catch (error) {
+      if (error instanceof DailyActionQuantityLimitExceededError) {
+        return "quantity-limit";
+      }
+
+      throw error;
+    }
+  }
+
+  private async countPaidBandagesPurchasedToday(telegramUserId: bigint, purchaseDay: string): Promise<number> {
+    const actions = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY
+    });
+
+    if (!actions) {
+      return 0;
+    }
+
+    return Math.min(
+      YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      actions.reduce((sum, action) => sum + readPurchasedBandageQuantityForDay(action, purchaseDay), 0)
+    );
+  }
 }
 
 export function isYegerUnquietTarget(monster: Pick<MonsterContent, "tags">): boolean {
@@ -902,13 +1040,21 @@ function isPurchaseToken(token: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token);
 }
 
-function parsePurchasePreview(value: unknown): {
+interface PurchasePreviewSnapshot {
   itemId: string;
   classId: string;
+  targetQuantity: YegerBandagePurchaseTarget;
+  purchaseQuantity: number;
+  purchasedToday: number;
+  dailyLimit: number;
+  purchaseDay: string;
+  unitPrice: number;
   price: number;
   remortCount: number;
   expiresAt: Date;
-} | null {
+}
+
+function parsePurchasePreview(value: unknown): PurchasePreviewSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -919,13 +1065,30 @@ function parsePurchasePreview(value: unknown): {
     return null;
   }
 
+  const targetQuantity = normalizeBandagePurchaseTarget(record.targetQuantity);
+  const purchaseQuantity = normalizePositiveInteger(record.purchaseQuantity);
+  const purchasedToday = normalizeNonNegativeInteger(record.purchasedToday);
+  const dailyLimit = normalizePositiveInteger(record.dailyLimit) ?? YEGER_BANDAGE_PURCHASE_DAILY_LIMIT;
+  const purchaseDay = typeof record.purchaseDay === "string" ? record.purchaseDay : null;
+  const unitPrice = normalizePositiveInteger(record.unitPrice);
+
   return typeof record.itemId === "string" &&
     typeof record.classId === "string" &&
     typeof record.price === "number" &&
-    typeof record.remortCount === "number"
+    typeof record.remortCount === "number" &&
+    purchaseQuantity !== null &&
+    purchasedToday !== null &&
+    purchaseDay !== null &&
+    unitPrice !== null
     ? {
         itemId: record.itemId,
         classId: record.classId,
+        targetQuantity,
+        purchaseQuantity,
+        purchasedToday,
+        dailyLimit,
+        purchaseDay,
+        unitPrice,
         price: Math.max(0, Math.floor(record.price)),
         remortCount: Math.max(0, Math.floor(record.remortCount)),
         expiresAt
@@ -979,6 +1142,49 @@ function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity
   });
 
   return parsed.length > 0 ? parsed : [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }];
+}
+
+function readPurchasedBandageQuantityForDay(action: DailyActionRecord, purchaseDay: string): number {
+  if (getPurchaseDecisionKind(action.resultJson) !== "confirm") {
+    return 0;
+  }
+
+  const receiptDay = readPurchaseReceiptDay(action.resultJson) ?? toIsoDate(action.createdAt);
+  if (receiptDay !== purchaseDay) {
+    return 0;
+  }
+
+  return readAppliedItemGrants(action.resultJson)
+    .filter((grant) => grant.itemId === BANDAGE_ITEM_ID)
+    .reduce((sum, grant) => sum + grant.quantity, 0);
+}
+
+function readPurchaseReceiptDay(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const purchaseDay = (value as { purchaseDay?: unknown }).purchaseDay;
+
+  return typeof purchaseDay === "string" ? purchaseDay : null;
+}
+
+function normalizeBandagePurchaseTarget(value: unknown): YegerBandagePurchaseTarget {
+  return YEGER_BANDAGE_PURCHASE_TARGETS.includes(value as YegerBandagePurchaseTarget)
+    ? value as YegerBandagePurchaseTarget
+    : 1;
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : null;
+}
+
+function normalizeNonNegativeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : null;
 }
 
 function getYegerQuestStage(progress: YegerQuestProgress): YegerQuestStage {

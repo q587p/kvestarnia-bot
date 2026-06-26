@@ -76,7 +76,10 @@ export function buildYegerCornerKeyboard(
     keyboard.text("🏹 Неспокійні справи", makeYegerQuestCallbackData()).row();
   }
 
-  keyboard.text("🩹 Купити бинт", makeYegerBuyBandageCallbackData()).row();
+  keyboard.text("🩹 1 бинт", makeYegerBuyBandageCallbackData(1)).row();
+  keyboard.text("🧷 До 5 бинтів", makeYegerBuyBandageCallbackData(5));
+  keyboard.text("🧷 До 17 бинтів", makeYegerBuyBandageCallbackData(17)).row();
+  keyboard.text("🧷 До 93 бинтів", makeYegerBuyBandageCallbackData(93)).row();
   if (result.state !== "level-locked" && result.character.classId === "class.ranger") {
     keyboard.text("🏹 Єгерський бинт", makeYegerFreeBandageCallbackData()).row();
   }

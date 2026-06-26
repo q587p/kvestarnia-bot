@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentYegerBandageBuy,
   presentYegerCorner,
   presentYegerHelp,
   presentYegerHuntOutside,
@@ -306,6 +307,52 @@ describe("Yeger presenter", () => {
       expect(message).not.toContain("..");
       expect(message).not.toContain("...");
     }
+  });
+
+  it("renders paid bandage top-up copy with target and current gold", () => {
+    const text = presentYegerBandageBuy({
+      state: "preview",
+      character: { ...character, gold: 700 },
+      token: "123e4567-e89b-42d3-a456-426614174000",
+      targetQuantity: 93,
+      purchaseQuantity: 88,
+      purchasedToday: 5,
+      dailyLimit: 93,
+      priceGold: 616,
+      unitPriceGold: 7,
+      currentGold: 700,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 88 }],
+      expiresAt: new Date("2026-06-15T10:28:00.000Z"),
+      now: new Date("2026-06-15T10:05:00.000Z")
+    });
+
+    expect(text).toContain("🩹 Купити бинти");
+    expect(text).toContain("Планка на сьогодні: <b>93</b>. Уже куплено: <b>5</b>.");
+    expect(text).toContain("Єгер докладе: <b>88</b>.");
+    expect(text).toContain("Ціна: <b>616 золота</b>.");
+    expect(text).toContain("У вас: <b>700 золота</b>.");
+    expect(text).toContain("ящик першої підозрілої допомоги");
+  });
+
+  it("renders paid bandage daily cap and reached target states", () => {
+    const capped = presentYegerBandageBuy({
+      state: "daily-limit",
+      character,
+      purchasedToday: 93,
+      dailyLimit: 93
+    });
+    const reached = presentYegerBandageBuy({
+      state: "target-reached",
+      character,
+      targetQuantity: 5,
+      purchasedToday: 5,
+      dailyLimit: 93
+    });
+
+    expect(capped).toContain("Сьогодні куплено: <b>93/93</b>.");
+    expect(capped).toContain("Бинти теж мають робочий день");
+    expect(reached).toContain("До планки <b>5</b> уже докуплено: <b>5</b>.");
+    expect(reached).toContain("не сваритися з арифметикою");
   });
 });
 

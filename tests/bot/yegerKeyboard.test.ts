@@ -7,7 +7,11 @@ import {
   buildYegerKeyboard,
   buildYegerTurnInKeyboard
 } from "../../src/bot/keyboards/yegerKeyboard";
-import { makeYegerOutsideCallbackData, makeYegerQuestCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
+import {
+  makeYegerBuyBandageCallbackData,
+  makeYegerOutsideCallbackData,
+  makeYegerQuestCallbackData
+} from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("Yeger keyboard", () => {
@@ -23,6 +27,22 @@ describe("Yeger keyboard", () => {
       text: "🏹 Неспокійні справи",
       callback_data: makeYegerQuestCallbackData()
     });
+  });
+
+  it("offers paid Yeger bandages as one item and daily top-up targets", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "completed",
+      character,
+      progress: { wins: 5, target: 5 },
+      reward
+    });
+
+    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+      { text: "🩹 1 бинт", callback_data: makeYegerBuyBandageCallbackData(1) },
+      { text: "🧷 До 5 бинтів", callback_data: makeYegerBuyBandageCallbackData(5) },
+      { text: "🧷 До 17 бинтів", callback_data: makeYegerBuyBandageCallbackData(17) },
+      { text: "🧷 До 93 бинтів", callback_data: makeYegerBuyBandageCallbackData(93) }
+    ]));
   });
 
   it("links the completed Yeger keepsake from the quest screen", () => {
