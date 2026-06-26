@@ -128,6 +128,38 @@ describe("PrismaBardPerformanceRepository integration", () => {
     });
   });
 
+  it("serializes concurrent same-location starts to one live performance and one payout", async () => {
+    await seedCharacter({
+      telegramUserId: 156n,
+      userId: "user-bard",
+      characterId: "character-bard",
+      classId: "class.bard",
+      level: 3,
+      gold: 10
+    });
+
+    const [left, right] = await Promise.all([
+      repository.startPerformanceForTelegramUser(156n, startInput({
+        token: "12345678-1234-4234-9234-000000000156",
+        rawHousePayoutGold: 13
+      })),
+      repository.startPerformanceForTelegramUser(156n, startInput({
+        token: "12345678-1234-4234-9234-000000000157",
+        rawHousePayoutGold: 13
+      }))
+    ]);
+    const states = [left.state, right.state].sort();
+
+    expect(states).toEqual(["live", "started"]);
+    await expect(prisma.bardPerformance.count()).resolves.toBe(1);
+    await expect(prisma.bardPerformance.aggregate({ _sum: { housePayoutGold: true } })).resolves.toMatchObject({
+      _sum: { housePayoutGold: 13 }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
+      gold: 23
+    });
+  });
+
   it("starts outside Shynok with no house payout and location-scoped cooldown", async () => {
     await seedCharacter({
       telegramUserId: 161n,
@@ -443,6 +475,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
         locationId: input.locationId ?? "location.korchma.bar",
         localDate: "2026-06-26",
         status: "active",
+        liveGuard: `character-bard:${input.locationId ?? "location.korchma.bar"}`,
         grade: "pleasant",
         power: 26,
         housePayoutGold: input.housePayoutGold,
@@ -618,6 +651,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       location_id TEXT NOT NULL,
       local_date TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
+      live_guard TEXT,
       grade TEXT NOT NULL,
       power INTEGER NOT NULL,
       house_payout_gold INTEGER NOT NULL DEFAULT 0,
@@ -653,4 +687,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
   for (const statement of statements) {
     await prisma.$executeRawUnsafe(statement);
   }
+
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX bard_performances_live_guard_key ON bard_performances(live_guard)`
+  );
 }

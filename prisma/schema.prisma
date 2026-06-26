@@ -414,6 +414,7 @@ model BardPerformance {
   locationId           String    @map("location_id")
   localDate            String    @map("local_date")
   status               String    @default("active")
+  liveGuard            String?   @unique @map("live_guard")
   grade                String
   power                Int
   housePayoutGold      Int       @default(0) @map("house_payout_gold")

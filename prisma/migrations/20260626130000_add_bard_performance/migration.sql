@@ -11,6 +11,7 @@ CREATE TABLE "bard_performances" (
     "location_id" TEXT NOT NULL,
     "local_date" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'active',
+    "live_guard" TEXT,
     "grade" TEXT NOT NULL,
     "power" INTEGER NOT NULL,
     "house_payout_gold" INTEGER NOT NULL DEFAULT 0,
@@ -58,6 +59,9 @@ CREATE INDEX "bard_performances_character_id_cooldown_available_at_idx" ON "bard
 
 -- CreateIndex
 CREATE INDEX "bard_performances_local_date_idx" ON "bard_performances"("local_date");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "bard_performances_live_guard_key" ON "bard_performances"("live_guard");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "bard_performance_reactions_performance_id_character_id_key" ON "bard_performance_reactions"("performance_id", "character_id");

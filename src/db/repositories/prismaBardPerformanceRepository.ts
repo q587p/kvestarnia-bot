@@ -56,34 +56,182 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
     telegramUserId: bigint,
     input: Parameters<BardPerformanceRepository["startPerformanceForTelegramUser"]>[1]
   ): Promise<BardPerformanceStartResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const character = await findCharacter(tx, telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
+        const record = toCharacterRecord(character);
+        const remortCount = getIncludedRemortCount(character);
+
+        if (character.user.lastSeenLocationId !== input.locationId) {
+          return { state: "wrong-place", character: record };
+        }
+        if (character.activeCombatLease) {
+          return { state: "active-combat", character: record };
+        }
+        if (character.user.currentRaidId) {
+          return { state: "pending-raid", character: record };
+        }
+        if (character.classId !== BARD_CLASS_ID) {
+          return { state: "not-bard", character: record };
+        }
+        if (Math.max(character.level, record.level) < input.requiredLevel) {
+          return { state: "level-locked", character: record, requiredLevel: input.requiredLevel };
+        }
+
+        await expireLivePerformanceGuards(tx, character.id, input.locationId, input.now);
+
+        const live = mapPerformance(await tx.bardPerformance.findFirst({
+          where: {
+            characterId: character.id,
+            locationId: input.locationId,
+            status: "active",
+            expiresAt: { gt: input.now }
+          },
+          orderBy: { startedAt: "desc" }
+        }));
+        if (live) {
+          return { state: "live", character: record, performance: live };
+        }
+
+        const lastPerformance = mapPerformance(await tx.bardPerformance.findFirst({
+          where: { characterId: character.id, locationId: input.locationId },
+          orderBy: { cooldownAvailableAt: "desc" }
+        }));
+        if (lastPerformance && lastPerformance.cooldownAvailableAt > input.now) {
+          return {
+            state: "cooldown",
+            character: record,
+            availableAt: lastPerformance.cooldownAvailableAt
+          };
+        }
+
+        const audience = await listAudience(tx, character.id, input.locationId, input.activeAudienceSince);
+        if (audience.length === 0 && !input.allowNoAudience) {
+          return { state: "no-audience", character: record };
+        }
+
+        const paidToday = input.rawHousePayoutGold > 0
+          ? await tx.bardPerformance.aggregate({
+              where: {
+                characterId: character.id,
+                locationId: input.locationId,
+                localDate: input.localDate
+              },
+              _sum: {
+                housePayoutGold: true
+              }
+            })
+          : null;
+        const housePayoutGold = applyBardPerformanceDailyHouseCap(
+          input.rawHousePayoutGold,
+          paidToday?._sum.housePayoutGold ?? 0
+        );
+        const liveGuard = buildLiveGuard(character.id, input.locationId);
+        const performance = mapPerformance(await tx.bardPerformance.create({
+          data: {
+            token: input.token,
+            characterId: character.id,
+            telegramUserId,
+            performerName: character.name,
+            remortCount,
+            techniqueId: input.techniqueId,
+            rulesVersion: input.rulesVersion,
+            locationId: input.locationId,
+            localDate: input.localDate,
+            status: "active",
+            liveGuard,
+            grade: input.grade,
+            power: input.power,
+            housePayoutGold,
+            roleActionXp: input.roleActionXp,
+            audienceCount: audience.length,
+            statSnapshotJson: input.statSnapshot as Prisma.InputJsonValue,
+            resultJson: {
+              ...(isRecord(input.result) ? input.result : { value: input.result }),
+              housePayoutGold,
+              audienceCount: audience.length
+            },
+            startedAt: input.now,
+            expiresAt: input.expiresAt,
+            cooldownAvailableAt: input.cooldownAvailableAt,
+            completedAt: input.now
+          }
+        }));
+        if (!performance) {
+          throw new Error("Bard performance mapping failed after create.");
+        }
+
+        if (housePayoutGold > 0) {
+          await tx.character.update({
+            where: { id: character.id },
+            data: { gold: { increment: housePayoutGold } }
+          });
+        }
+
+        const notices: BardPerformanceAudienceNotice[] = [];
+        for (const member of audience) {
+          const reaction = mapReaction(await tx.bardPerformanceReaction.create({
+            data: {
+              performanceId: performance.id,
+              characterId: member.characterId,
+              telegramUserId: member.telegramUserId,
+              audienceName: member.name,
+              remortCount: member.remortCount,
+              status: "offered",
+              tipGold: 0,
+              resultJson: Prisma.JsonNull,
+              offeredAt: input.now,
+              expiresAt: input.expiresAt
+            }
+          }));
+          if (reaction) {
+            notices.push({
+              telegramUserId: member.telegramUserId,
+              name: member.name,
+              reaction
+            });
+          }
+        }
+
+        const updated = await tx.character.findUniqueOrThrow({
+          where: { id: character.id },
+          include: characterRecordInclude
+        });
+
+        return {
+          state: "started",
+          character: toCharacterRecord(updated),
+          performance,
+          audience: notices
+        };
+      });
+    } catch (error) {
+      if (isLiveGuardUniqueError(error)) {
+        return this.replayStartAfterLiveGuardRace(telegramUserId, input);
+      }
+
+      throw error;
+    }
+  }
+
+  private async replayStartAfterLiveGuardRace(
+    telegramUserId: bigint,
+    input: Parameters<BardPerformanceRepository["startPerformanceForTelegramUser"]>[1]
+  ): Promise<BardPerformanceStartResult> {
     return this.prisma.$transaction(async (tx) => {
       const character = await findCharacter(tx, telegramUserId);
       if (!character) {
         return { state: "no-character" };
       }
       const record = toCharacterRecord(character);
-      const remortCount = getIncludedRemortCount(character);
-
-      if (character.user.lastSeenLocationId !== input.locationId) {
-        return { state: "wrong-place", character: record };
-      }
-      if (character.activeCombatLease) {
-        return { state: "active-combat", character: record };
-      }
-      if (character.user.currentRaidId) {
-        return { state: "pending-raid", character: record };
-      }
-      if (character.classId !== BARD_CLASS_ID) {
-        return { state: "not-bard", character: record };
-      }
-      if (Math.max(character.level, record.level) < input.requiredLevel) {
-        return { state: "level-locked", character: record, requiredLevel: input.requiredLevel };
-      }
+      const liveGuard = buildLiveGuard(character.id, input.locationId);
 
       const live = mapPerformance(await tx.bardPerformance.findFirst({
         where: {
-          characterId: character.id,
-          locationId: input.locationId,
+          liveGuard,
           status: "active",
           expiresAt: { gt: input.now }
         },
@@ -105,103 +253,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         };
       }
 
-      const audience = await listAudience(tx, character.id, input.locationId, input.activeAudienceSince);
-      if (audience.length === 0 && !input.allowNoAudience) {
-        return { state: "no-audience", character: record };
-      }
-
-      const paidToday = input.rawHousePayoutGold > 0
-        ? await tx.bardPerformance.aggregate({
-            where: {
-              characterId: character.id,
-              locationId: input.locationId,
-              localDate: input.localDate
-            },
-            _sum: {
-              housePayoutGold: true
-            }
-          })
-        : null;
-      const housePayoutGold = applyBardPerformanceDailyHouseCap(
-        input.rawHousePayoutGold,
-        paidToday?._sum.housePayoutGold ?? 0
-      );
-      const performance = mapPerformance(await tx.bardPerformance.create({
-        data: {
-          token: input.token,
-          characterId: character.id,
-          telegramUserId,
-          performerName: character.name,
-          remortCount,
-          techniqueId: input.techniqueId,
-          rulesVersion: input.rulesVersion,
-          locationId: input.locationId,
-          localDate: input.localDate,
-          status: "active",
-          grade: input.grade,
-          power: input.power,
-          housePayoutGold,
-          roleActionXp: input.roleActionXp,
-          audienceCount: audience.length,
-          statSnapshotJson: input.statSnapshot as Prisma.InputJsonValue,
-          resultJson: {
-            ...(isRecord(input.result) ? input.result : { value: input.result }),
-            housePayoutGold,
-            audienceCount: audience.length
-          },
-          startedAt: input.now,
-          expiresAt: input.expiresAt,
-          cooldownAvailableAt: input.cooldownAvailableAt,
-          completedAt: input.now
-        }
-      }));
-      if (!performance) {
-        throw new Error("Bard performance mapping failed after create.");
-      }
-
-      if (housePayoutGold > 0) {
-        await tx.character.update({
-          where: { id: character.id },
-          data: { gold: { increment: housePayoutGold } }
-        });
-      }
-
-      const notices: BardPerformanceAudienceNotice[] = [];
-      for (const member of audience) {
-        const reaction = mapReaction(await tx.bardPerformanceReaction.create({
-          data: {
-            performanceId: performance.id,
-            characterId: member.characterId,
-            telegramUserId: member.telegramUserId,
-            audienceName: member.name,
-            remortCount: member.remortCount,
-            status: "offered",
-            tipGold: 0,
-            resultJson: Prisma.JsonNull,
-            offeredAt: input.now,
-            expiresAt: input.expiresAt
-          }
-        }));
-        if (reaction) {
-          notices.push({
-            telegramUserId: member.telegramUserId,
-            name: member.name,
-            reaction
-          });
-        }
-      }
-
-      const updated = await tx.character.findUniqueOrThrow({
-        where: { id: character.id },
-        include: characterRecordInclude
-      });
-
-      return {
-        state: "started",
-        character: toCharacterRecord(updated),
-        performance,
-        audience: notices
-      };
+      throw new Error("Bard performance live guard conflict did not resolve to live or cooldown state.");
     });
   }
 
@@ -473,6 +525,50 @@ async function setReactionStatus(
   }
 
   return mapReaction(await tx.bardPerformanceReaction.findUnique({ where: { id: reactionId } }));
+}
+
+async function expireLivePerformanceGuards(
+  tx: TxClient,
+  characterId: string,
+  locationId: string,
+  now: Date
+): Promise<void> {
+  await tx.bardPerformance.updateMany({
+    where: {
+      characterId,
+      locationId,
+      status: "active",
+      expiresAt: { lte: now }
+    },
+    data: {
+      status: "expired",
+      liveGuard: null
+    }
+  });
+}
+
+function buildLiveGuard(characterId: string, locationId: string): string {
+  return `${characterId}:${locationId}`;
+}
+
+function isLiveGuardUniqueError(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return false;
+  }
+
+  const meta = error.meta as { target?: unknown } | undefined;
+  const targetValue = meta?.target;
+  const target = Array.isArray(targetValue)
+    ? targetValue.filter((entry): entry is string => typeof entry === "string")
+    : typeof targetValue === "string"
+      ? [targetValue]
+      : [];
+
+  return target.some((entry) =>
+    entry.includes("live_guard") ||
+    entry.includes("liveGuard") ||
+    entry.includes("bard_performances_live_guard")
+  );
 }
 
 function replayReaction(
