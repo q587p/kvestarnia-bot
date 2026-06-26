@@ -9,7 +9,8 @@ import {
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
   presentShynokSaleSelection,
-  presentBardPerformanceResponseResult
+  presentBardPerformanceResponseResult,
+  presentBardPerformanceStartResult
 } from "../../src/bot/presenters/shynokPresenter";
 import type {
   ShynokDrinkConfirmResult,
@@ -21,6 +22,7 @@ import type {
 } from "../../src/services/shynokService";
 import type {
   BardPerformanceRespondResult,
+  BardPerformanceStartResult,
   PresentedBardPerformance,
   PresentedBardPerformanceReaction
 } from "../../src/services/bardPerformanceService";
@@ -357,6 +359,36 @@ describe("shynokPresenter", () => {
     expect(html).not.toContain("<b>0 золота</b>");
   });
 
+  it("labels Bard live audience as a start snapshot and shows response time left", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T10:05:00.000Z"));
+
+    try {
+      const result: BardPerformanceStartResult = {
+        state: "live",
+        character,
+        performance: bardPerformance({
+          audienceCount: 0,
+          expiresAt: new Date("2026-06-26T10:13:00.000Z"),
+          cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z")
+        })
+      };
+
+      const html = presentBardPerformanceStartResult(result);
+
+      expect(html).toContain("🎶 Виступ уже триває.");
+      expect(html).toContain("Слухачів на старті: <b>0</b>.");
+      expect(html).toContain("Реакції на цей виступ: ще 8 хв.");
+      expect(html).toContain("На старті поруч нікого не було");
+      expect(html).toContain("Нові слухачі зможуть застати вже наступний виступ.");
+      expect(html).toContain("Наступний новий виступ: 88 хв.");
+      expect(html).not.toContain("Слухачів поруч");
+      expect(html).not.toContain("Наступний виступ: 93 хв.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it.each([
     ["performer-wrong-place", "Бард уже не в Шинку"],
     ["performer-active-combat", "Бард уже зайнятий боєм"],
@@ -377,7 +409,7 @@ describe("shynokPresenter", () => {
   );
 });
 
-function bardPerformance(): PresentedBardPerformance {
+function bardPerformance(overrides: Partial<PresentedBardPerformance> = {}): PresentedBardPerformance {
   return {
     id: "performance-1",
     token: "12345678-1234-4234-9234-000000000111",
@@ -387,7 +419,8 @@ function bardPerformance(): PresentedBardPerformance {
     audienceCount: 1,
     startedAt: new Date("2026-06-26T10:00:00.000Z"),
     expiresAt: new Date("2026-06-26T10:13:00.000Z"),
-    cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z")
+    cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z"),
+    ...overrides
   };
 }
 

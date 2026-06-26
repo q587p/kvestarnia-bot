@@ -211,13 +211,15 @@ export function presentBardPerformanceStartResult(result: BardPerformanceStartRe
       "",
       presentBardPerformanceGradeLine(performance),
       `Корчмарська виплата: <b>${performance.housePayoutGold} золота</b>.`,
-      `Слухачів поруч: <b>${performance.audienceCount}</b>.`,
+      `Слухачів на старті: <b>${performance.audienceCount}</b>.`,
+      `Реакції на цей виступ: ще ${formatRemainingMinutes(performance.expiresAt)}.`,
       "",
       performance.audienceCount > 0
-        ? "Кожен отримав окрему записку: аплодувати, пригостити монетою або чемно втекти очима."
-        : "Публіка поки складається з корчмаря й дуже критичної полиці.",
+        ? "Кожен слухач зі стартового гурту отримав окрему записку: аплодувати, пригостити монетою або чемно втекти очима."
+        : "На старті поруч нікого не було: тепер публіка складається з корчмаря й дуже критичної полиці.",
       "",
-      `Наступний виступ: ${formatRemainingMinutes(performance.cooldownAvailableAt)}.`
+      "Нові слухачі зможуть застати вже наступний виступ.",
+      `Наступний новий виступ: ${formatRemainingMinutes(performance.cooldownAvailableAt)}.`
     ].join("\n");
   }
 
