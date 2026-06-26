@@ -1,4 +1,6 @@
 import { type Bot,type Context } from "grammy";
+import { items } from "../../content";
+import { getItemUseEffect } from "../../domain/itemUse";
 import { getMunchkinLocationAt } from "../../domain/levelBarter/munchkinSchedule";
 import { getCombatUsableItem } from "../../services/combatItemUse";
 import type { BotServices } from "../botServices";
@@ -52,7 +54,8 @@ import { presentItemDetail } from "../presenters/itemDetailPresenter";
 import {
 presentItemUseCancel,
 presentItemUseConfirm,
-presentItemUsePreview
+presentItemUsePreview,
+presentItemUseRestoreToFull
 } from "../presenters/itemUsePresenter";
 import {
 presentLevelBarterConfirmResult,
@@ -255,8 +258,31 @@ async function handleItemUseCallback(
     return;
   }
 
+  if (action.type === "restore-to-full") {
+    const result = await services.itemUse.restoreToFullForTelegramUser(telegramUserId, action.itemId);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "restored"
+        ? { text: "HP відновлено." }
+        : {
+            show_alert:
+              result.state === "not-owned" ||
+              result.state === "not-usable" ||
+              result.state === "reserved" ||
+              result.state === "not-enough" ||
+              result.state === "combat-locked"
+          }
+    );
+    await safeEditMessageText(ctx, presentItemUseRestoreToFull(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUseResultKeyboard()
+    });
+    return;
+  }
+
   const result = await services.itemUse.confirmForTelegramUser(telegramUserId, action.token);
-  const repeatItemId = await getRepeatItemUseId(services, telegramUserId, result);
+  const repeat = await getRepeatItemUseOptions(services, telegramUserId, result);
 
   await safeAnswerCallbackQuery(
     ctx,
@@ -275,33 +301,46 @@ async function handleItemUseCallback(
   );
   await safeEditMessageText(ctx, presentItemUseConfirm(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUseResultKeyboard({ repeatItemId })
+    reply_markup: buildItemUseResultKeyboard(repeat)
   });
 }
 
-async function getRepeatItemUseId(
+async function getRepeatItemUseOptions(
   services: BotServices,
   telegramUserId: bigint,
   result: Awaited<ReturnType<BotServices["itemUse"]["confirmForTelegramUser"]>>
-): Promise<string | null> {
+): Promise<{ repeatItemId?: string | null; restoreToFullItemId?: string | null }> {
   if (result.state !== "used" && result.state !== "replayed") {
-    return null;
+    return {};
   }
 
   const outcome = result.order.result ?? result.order.preview;
   if (outcome.hpAfter >= outcome.hpMax) {
-    return null;
+    return {};
   }
 
   const inventory = await services.inventory.listForTelegramUser(telegramUserId);
   if (inventory.state !== "found") {
-    return null;
+    return {};
   }
 
   const itemId = result.order.itemId;
   const stack = inventory.items.find((item) => item.itemId === itemId);
+  if (!stack || stack.quantity <= 0) {
+    return {};
+  }
 
-  return stack && stack.quantity > 0 ? itemId : null;
+  const item = items.find((candidate) => candidate.id === itemId);
+  const effect = item ? getItemUseEffect(item) : null;
+  const missingHp = Math.max(0, outcome.hpMax - outcome.hpAfter);
+  const neededQuantity = effect && effect.amount > 0
+    ? Math.ceil(missingHp / Math.max(1, Math.floor(effect.amount)))
+    : Number.POSITIVE_INFINITY;
+
+  return {
+    repeatItemId: itemId,
+    ...(stack.quantity >= neededQuantity ? { restoreToFullItemId: itemId } : {})
+  };
 }
 
 async function handleEquipmentCallback(

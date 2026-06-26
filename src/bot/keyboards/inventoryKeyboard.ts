@@ -9,7 +9,8 @@ import {
 import {
   makeItemUseCancelCallbackData,
   makeItemUseConfirmCallbackData,
-  makeItemUsePreviewCallbackData
+  makeItemUsePreviewCallbackData,
+  makeItemUseRestoreToFullCallbackData
 } from "../callbacks/itemUseCallbackData";
 import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
@@ -124,11 +125,17 @@ export function buildItemUsePreviewKeyboard(token: string): InlineKeyboard {
     .text("⬅️ До манаток", makeInventoryCallbackData());
 }
 
-export function buildItemUseResultKeyboard(options: { repeatItemId?: string | null } = {}): InlineKeyboard {
+export function buildItemUseResultKeyboard(
+  options: { repeatItemId?: string | null; restoreToFullItemId?: string | null } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (options.repeatItemId) {
-    keyboard.text("🩹 Ще один", makeItemUsePreviewCallbackData(options.repeatItemId)).row();
+    keyboard.text("🩹 Ще один", makeItemUsePreviewCallbackData(options.repeatItemId));
+    if (options.restoreToFullItemId) {
+      keyboard.text("❤️ До відновлення", makeItemUseRestoreToFullCallbackData(options.restoreToFullItemId));
+    }
+    keyboard.row();
   }
 
   return keyboard

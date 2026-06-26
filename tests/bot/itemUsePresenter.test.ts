@@ -1,36 +1,67 @@
 import { describe, expect, it } from "vitest";
-import { presentItemUseConfirm } from "../../src/bot/presenters/itemUsePresenter";
-import type { ItemUseConfirmRepositoryResult, ItemUseOrderRecord } from "../../src/db/repositories/itemUseRepository";
+import { presentItemUseConfirm, presentItemUseRestoreToFull } from "../../src/bot/presenters/itemUsePresenter";
+import type {
+  ItemUseConfirmRepositoryResult,
+  ItemUseOrderRecord,
+  ItemUseRestoreToFullRepositoryResult
+} from "../../src/db/repositories/itemUseRepository";
+import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import { ITEM_USE_RULES_VERSION } from "../../src/domain/itemUse";
 
 describe("itemUsePresenter", () => {
   it("renders the stored full-HP terminal result instead of the stale preview", () => {
     const result: ItemUseConfirmRepositoryResult = {
       state: "full-hp",
-      character: {
-        id: "character-1",
-        userId: "user-1",
-        name: "Мандрівник",
-        pronoun: "they",
-        path: "boundary",
-        raceId: "race.human-ish",
-        classId: "class.warrior",
-        level: 4,
-        xp: 0,
-        gold: 0,
-        hpCurrent: 41,
-        hpMax: 25,
-        manaCurrent: 10,
-        manaMax: 10,
-        statsJson: {}
-      },
+      character: makeCharacter(),
       order: makeOrder()
     };
 
     expect(presentItemUseConfirm(result)).toContain("HP уже повні: <b>41/41</b>.");
     expect(presentItemUseConfirm(result)).not.toContain("10/41");
   });
+
+  it("renders restore-to-full quantity and final HP", () => {
+    const result: ItemUseRestoreToFullRepositoryResult = {
+      state: "restored",
+      character: makeCharacter(),
+      result: {
+        rulesVersion: ITEM_USE_RULES_VERSION,
+        itemId: "item.responsible-panic-bandage",
+        itemName: "Бинт відповідальної паніки",
+        quantity: 2,
+        hpBefore: 30,
+        hpMax: 44,
+        healAmount: 14,
+        hpAfter: 44
+      }
+    };
+
+    const text = presentItemUseRestoreToFull(result);
+
+    expect(text).toContain("Використано бинтів: <b>2</b>.");
+    expect(text).toContain("HP: <b>30/44</b> → <b>44/44</b>.");
+  });
 });
+
+function makeCharacter(): CharacterRecord {
+  return {
+    id: "character-1",
+    userId: "user-1",
+    name: "Мандрівник",
+    pronoun: "they",
+    path: "boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 4,
+    xp: 0,
+    gold: 0,
+    hpCurrent: 41,
+    hpMax: 25,
+    manaCurrent: 10,
+    manaMax: 10,
+    statsJson: {}
+  };
+}
 
 function makeOrder(): ItemUseOrderRecord {
   const now = new Date("2026-06-25T09:00:00.000Z");

@@ -1,7 +1,8 @@
 import type {
   ItemUseCancelRepositoryResult,
   ItemUseConfirmRepositoryResult,
-  ItemUsePreviewRepositoryResult
+  ItemUsePreviewRepositoryResult,
+  ItemUseRestoreToFullRepositoryResult
 } from "../../db/repositories/itemUseRepository";
 import { escapeHtml } from "./telegramHtml";
 
@@ -116,4 +117,53 @@ export function presentItemUseCancel(result: ItemUseCancelRepositoryResult): str
   }
 
   return "Використання скасовано. Бинт лишився в торбі.";
+}
+
+export function presentItemUseRestoreToFull(result: ItemUseRestoreToFullRepositoryResult): string {
+  if (result.state === "no-character") {
+    return "Спершу створіть пригодника через /start.";
+  }
+
+  if (result.state === "not-usable") {
+    return "Цю манатку зараз не можна використати для відновлення.";
+  }
+
+  if (result.state === "combat-locked") {
+    return "Під час бою бинти треба використовувати як бойову дію.";
+  }
+
+  if (result.state === "reserved") {
+    return "Ця манатка вже зайнята іншою дією. Інвентар тримає чергу суворо.";
+  }
+
+  if (result.state === "not-owned") {
+    return "Бинтів у торбі вже немає. Єгер підозрює, що вони виконали план.";
+  }
+
+  if (result.state === "not-enough") {
+    return [
+      "🩹 Бинтів замало",
+      "",
+      `До повного HP треба: <b>${result.neededQuantity}</b>.`,
+      `У торбі зараз: <b>${result.availableQuantity}</b>.`
+    ].join("\n");
+  }
+
+  if (result.state === "full-hp") {
+    return [
+      "🩹 Бинти чекають",
+      "",
+      `HP уже повні: <b>${result.preview.hpBefore}/${result.preview.hpMax}</b>.`,
+      "Єгер схвалює економію."
+    ].join("\n");
+  }
+
+  return [
+    "🩹 Відновлення завершено",
+    "",
+    `Використано бинтів: <b>${result.result.quantity}</b>.`,
+    `HP: <b>${result.result.hpBefore}/${result.result.hpMax}</b> → <b>${result.result.hpAfter}/${result.result.hpMax}</b>.`,
+    "",
+    "Єгер мовчки поставив печатку «виживе»."
+  ].join("\n");
 }

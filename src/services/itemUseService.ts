@@ -9,7 +9,8 @@ import type {
   ItemUseCancelRepositoryResult,
   ItemUseConfirmRepositoryResult,
   ItemUsePreviewRepositoryResult,
-  ItemUseRepository
+  ItemUseRepository,
+  ItemUseRestoreToFullRepositoryResult
 } from "../db/repositories/itemUseRepository";
 
 export const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
@@ -71,6 +72,23 @@ export class ItemUseService {
   ): Promise<ItemUseCancelRepositoryResult> {
     return this.repository.cancelForTelegramUser(telegramUserId, {
       token,
+      now: this.now()
+    });
+  }
+
+  async restoreToFullForTelegramUser(
+    telegramUserId: bigint,
+    itemId: string
+  ): Promise<ItemUseRestoreToFullRepositoryResult> {
+    const item = findUsableItem(itemId);
+    if (!item) {
+      return { state: "not-usable" };
+    }
+
+    return this.repository.restoreToFullForTelegramUser(telegramUserId, {
+      item,
+      itemContents: items,
+      itemFingerprint: createItemUseFingerprint(item),
       now: this.now()
     });
   }

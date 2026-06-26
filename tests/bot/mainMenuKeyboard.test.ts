@@ -1401,9 +1401,24 @@ describe("main menu and scene keyboards", () => {
       "🛡️ Спорядження"
     ]);
     expect(
-      flatInlineButtonCallbacks(buildItemUseResultKeyboard({ repeatItemId: "item.responsible-panic-bandage" }))
+      flatInlineButtonTexts(buildItemUseResultKeyboard({
+        repeatItemId: "item.responsible-panic-bandage",
+        restoreToFullItemId: "item.responsible-panic-bandage"
+      }))
+    ).toEqual([
+      "🩹 Ще один",
+      "❤️ До відновлення",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
+      flatInlineButtonCallbacks(buildItemUseResultKeyboard({
+        repeatItemId: "item.responsible-panic-bandage",
+        restoreToFullItemId: "item.responsible-panic-bandage"
+      }))
     ).toEqual([
       "v1:use:p:item.responsible-panic-bandage",
+      "v1:use:full:item.responsible-panic-bandage",
       "v1:item:inventory",
       "v1:equip:view"
     ]);

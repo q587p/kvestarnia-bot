@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added replay-safe `item_use_orders` persistence for item-use preview, reservation, confirmation, cancellation, expiry and terminal-result replay.
 - Added item-use reservation checks to Shynok sales, safe gifting, Mantok Chest, Munchkin barter and remort cleanup so a live use order cannot race another item-spending flow.
 - Added inventory item-detail use buttons, exact current heal previews, confirmation/cancel callbacks and result cards for usable one-use items.
+- Added `До відновлення` shortcuts after out-of-combat bandage use and on the hero card when the remaining stack can fully restore HP; they consume exactly the number of bandages needed to reach full HP.
 - Added a narrow Єгер supply path: any eligible hero can preview the exact bandage price/current gold, then confirm or cancel a tokenized purchase for 1, 5, 17 or 93 paid bandages, capped at 93 paid bandages per day; `class.ranger` gets a lower price and a replay-safe periodic free bandage claim.
 - Added `Бинт відповідальної паніки` to the basement mouse authored loot list so ordinary monster loot can occasionally grant it through the existing persistent-fight loot path.
 - Added a second Єгер unquiet board: after the first 5-monster board is completed, Єгер offers the next 17 unquiet targets with its own start/completion keys and replay-safe turn-in.

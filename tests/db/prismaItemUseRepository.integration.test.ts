@@ -88,6 +88,38 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(17);
   });
 
+  it("uses exactly the bandages needed to restore HP to full", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(3);
+
+    await expect(restoreToFull()).resolves.toMatchObject({
+      state: "restored",
+      result: {
+        quantity: 2,
+        hpBefore: 30,
+        hpMax: 41,
+        healAmount: 11,
+        hpAfter: 41
+      }
+    });
+    await expectBandageQuantity(1);
+    await expectCharacterHp(41);
+    expect(await prisma.itemUseOrder.count()).toBe(0);
+  });
+
+  it("does not spend partial bandages when restore-to-full no longer has enough", async () => {
+    await seedCharacter({ hpCurrent: 30, hpMax: 25 });
+    await seedBandages(1);
+
+    await expect(restoreToFull()).resolves.toMatchObject({
+      state: "not-enough",
+      neededQuantity: 2,
+      availableQuantity: 1
+    });
+    await expectBandageQuantity(1);
+    await expectCharacterHp(30);
+  });
+
   it("preserves fractional mana recovery markers when a HP bandage leaves HP below max", async () => {
     const marker = new Date(now().getTime() - 1_000);
     await seedCharacter({ hpCurrent: 10, hpMax: 25, manaCurrent: 5, hpRegenAt: marker, manaRegenAt: marker });
@@ -466,6 +498,15 @@ describe("PrismaItemUseRepository integration", () => {
       token,
       now: now(),
       expiresAt: future()
+    });
+  }
+
+  async function restoreToFull() {
+    return repository.restoreToFullForTelegramUser(telegramUserId, {
+      item: bandage,
+      itemContents: items,
+      itemFingerprint: createItemUseFingerprint(bandage),
+      now: now()
     });
   }
 

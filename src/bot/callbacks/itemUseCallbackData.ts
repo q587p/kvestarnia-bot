@@ -6,11 +6,16 @@ const tokenPattern = /^[0-9a-f-]{36}$/i;
 
 export type ItemUseCallback =
   | { type: "preview"; itemId: string }
+  | { type: "restore-to-full"; itemId: string }
   | { type: "confirm"; token: string }
   | { type: "cancel"; token: string };
 
 export function makeItemUsePreviewCallbackData(itemId: string): string {
   return assertCallbackData(`${PREFIX}:p:${itemId}`);
+}
+
+export function makeItemUseRestoreToFullCallbackData(itemId: string): string {
+  return assertCallbackData(`${PREFIX}:full:${itemId}`);
 }
 
 export function makeItemUseConfirmCallbackData(token: string): string {
@@ -41,6 +46,14 @@ export function parseItemUseCallbackData(data: string | undefined): ParseItemUse
     }
 
     return { ok: true, value: { type: "preview", itemId: value } };
+  }
+
+  if (action === "full") {
+    if (!contentIdSchema.safeParse(value).success) {
+      return { ok: false };
+    }
+
+    return { ok: true, value: { type: "restore-to-full", itemId: value } };
   }
 
   if ((action === "ok" || action === "no") && tokenPattern.test(value)) {

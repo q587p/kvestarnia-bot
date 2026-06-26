@@ -1,9 +1,11 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
-import type { InventoryRepository } from "../db/repositories/inventoryRepository";
+import type { CharacterItemRecord, InventoryRepository } from "../db/repositories/inventoryRepository";
 import type { RemortRepository } from "../db/repositories/remortRepository";
 import type { ShynokDrinkStateRecord, ShynokRepository } from "../db/repositories/shynokRepository";
+import { items } from "../content";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
+import { getItemUseEffect } from "../domain/itemUse";
 import {
   buildDrinkEffect,
   buildShynokRecoveryWindows,
@@ -24,6 +26,7 @@ export type HeroLookupResult =
       character: CharacterSummary;
       inventoryGoldValue: number;
       activeDrink: HeroActiveDrink | null;
+      restoreToFullItemId: string | null;
       recoveryNotice?: ResourceRecoveryNotice;
     };
 
@@ -98,11 +101,40 @@ export class HeroService {
       character: resourceAware.character,
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
+      restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
       ...(resourceAware.recoveryNotice
         ? { recoveryNotice: resourceAware.recoveryNotice }
         : {})
     };
   }
+}
+
+function resolveRestoreToFullItemId(
+  character: CharacterSummary,
+  inventoryRows: readonly CharacterItemRecord[]
+): string | null {
+  if (character.hpCurrent >= character.hpMax) {
+    return null;
+  }
+
+  for (const row of inventoryRows) {
+    if (row.quantity <= 0) {
+      continue;
+    }
+
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    const effect = item ? getItemUseEffect(item) : null;
+    if (!effect || effect.amount <= 0) {
+      continue;
+    }
+
+    const neededQuantity = Math.ceil((character.hpMax - character.hpCurrent) / Math.max(1, effect.amount));
+    if (row.quantity >= neededQuantity) {
+      return row.itemId;
+    }
+  }
+
+  return null;
 }
 
 function presentHeroActiveDrink(state: ShynokDrinkStateRecord | null): HeroActiveDrink | null {

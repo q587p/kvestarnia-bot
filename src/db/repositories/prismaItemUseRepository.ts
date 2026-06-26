@@ -20,7 +20,8 @@ import {
   type ItemUsePreview,
   type ItemUsePreviewRepositoryResult,
   type ItemUseRepository,
-  type ItemUseResult
+  type ItemUseResult,
+  type ItemUseRestoreToFullRepositoryResult
 } from "./itemUseRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
@@ -415,6 +416,157 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         itemName: order.itemName
       }, "pending");
       return mapCanonicalCancelResult(cancelled.order, cancelled.changed ? "cancelled" : undefined);
+    });
+  }
+
+  async restoreToFullForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      item: ItemContent;
+      itemContents: readonly ItemContent[];
+      itemFingerprint: string;
+      now: Date;
+    }
+  ): Promise<ItemUseRestoreToFullRepositoryResult> {
+    return this.prisma.$transaction(async (tx): Promise<ItemUseRestoreToFullRepositoryResult> => {
+      const character = await findCharacter(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      if (character.activeCombatLease) {
+        return { state: "combat-locked" };
+      }
+
+      const effect = getItemUseEffect(input.item);
+      if (!effect || blocksAccidentalItemUse(input.item) || effect.amount <= 0) {
+        return { state: "not-usable" };
+      }
+
+      if (
+        input.itemFingerprint !== createItemUseFingerprint(input.item) ||
+        input.itemFingerprint !== createItemUseFingerprint(input.itemContents.find((item) => item.id === input.item.id) ?? input.item)
+      ) {
+        return { state: "not-usable" };
+      }
+
+      await releaseExpiredUseReservations(tx, character.id, input.item.id, input.now);
+      await lockItemStack(tx, character.id, input.item.id, input.now);
+
+      const [items, equippedItemIds, reservedItemIds] = await Promise.all([
+        getItems(tx, character.id),
+        getEquippedItemIds(tx, character.id),
+        getReservedItemIds(tx, character.id, input.now)
+      ]);
+
+      const stack = items.find((candidate) => candidate.itemId === input.item.id);
+      if (!stack || stack.quantity < 1) {
+        return { state: "not-owned" };
+      }
+
+      if (equippedItemIds.includes(input.item.id) || reservedItemIds.includes(input.item.id)) {
+        return { state: "reserved" };
+      }
+
+      const settlement = getRegeneratedResources(character, input.itemContents, input.now);
+      const hpMax = Math.max(1, Math.floor(settlement.resources.hpMax));
+      const hpBefore = Math.min(hpMax, Math.max(0, Math.floor(settlement.resources.hpCurrent)));
+      const missingHp = Math.max(0, hpMax - hpBefore);
+      const preview = calculateHealingPreview({
+        hpCurrent: settlement.resources.hpCurrent,
+        hpMax,
+        effect
+      });
+
+      if (missingHp <= 0) {
+        await tx.character.update({
+          where: { id: character.id },
+          data: {
+            hpCurrent: settlement.resources.hpCurrent,
+            manaCurrent: settlement.resources.manaCurrent,
+            hpRegenAt: settlement.resources.hpRegenAt,
+            manaRegenAt: settlement.resources.manaRegenAt
+          }
+        });
+        const updated = await tx.character.findUniqueOrThrow({
+          where: { id: character.id },
+          include: characterInclude
+        });
+
+        return {
+          state: "full-hp",
+          character: toCharacterRecord(updated),
+          preview
+        };
+      }
+
+      const neededQuantity = Math.ceil(missingHp / Math.max(1, Math.floor(effect.amount)));
+      if (stack.quantity < neededQuantity) {
+        return {
+          state: "not-enough",
+          character: toCharacterRecord(character),
+          neededQuantity,
+          availableQuantity: stack.quantity,
+          preview
+        };
+      }
+
+      const consumed = await tx.characterItem.updateMany({
+        where: {
+          characterId: character.id,
+          itemId: input.item.id,
+          quantity: { gte: neededQuantity }
+        },
+        data: {
+          quantity: { decrement: neededQuantity }
+        }
+      });
+      if (consumed.count !== 1) {
+        return {
+          state: "not-enough",
+          character: toCharacterRecord(character),
+          neededQuantity,
+          availableQuantity: stack.quantity,
+          preview
+        };
+      }
+
+      await tx.characterItem.deleteMany({
+        where: {
+          characterId: character.id,
+          quantity: { lte: 0 }
+        }
+      });
+
+      await tx.character.update({
+        where: { id: character.id },
+        data: {
+          hpCurrent: hpMax,
+          manaCurrent: settlement.resources.manaCurrent,
+          hpRegenAt: input.now,
+          manaRegenAt: settlement.resources.manaRegenAt
+        }
+      });
+
+      const updated = await tx.character.findUniqueOrThrow({
+        where: { id: character.id },
+        include: characterInclude
+      });
+
+      return {
+        state: "restored",
+        character: toCharacterRecord(updated),
+        result: {
+          rulesVersion: ITEM_USE_RULES_VERSION,
+          itemId: input.item.id,
+          itemName: input.item.name,
+          quantity: neededQuantity,
+          hpBefore,
+          hpMax,
+          healAmount: missingHp,
+          hpAfter: hpMax
+        }
+      };
     });
   }
 }

@@ -17,6 +17,12 @@ export interface ItemUseResult extends ItemUsePreview {
   itemName: string;
 }
 
+export interface ItemUseRestoreToFullResult extends ItemUsePreview {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+}
+
 export interface ItemUseOrderRecord {
   id: string;
   token: string;
@@ -63,6 +69,22 @@ export type ItemUseCancelRepositoryResult =
   | { state: "stale-selection"; order: ItemUseOrderRecord }
   | { state: "cancelled" | "expired" | "completed" | "replayed"; order: ItemUseOrderRecord };
 
+export type ItemUseRestoreToFullRepositoryResult =
+  | { state: "no-character" }
+  | { state: "not-owned" }
+  | { state: "not-usable" }
+  | { state: "combat-locked" }
+  | { state: "reserved" }
+  | { state: "full-hp"; character: CharacterRecord; preview: ItemUsePreview }
+  | {
+      state: "not-enough";
+      character: CharacterRecord;
+      neededQuantity: number;
+      availableQuantity: number;
+      preview: ItemUsePreview;
+    }
+  | { state: "restored"; character: CharacterRecord; result: ItemUseRestoreToFullResult };
+
 export interface ItemUseRepository {
   createPreviewForTelegramUser(
     telegramUserId: bigint,
@@ -92,4 +114,14 @@ export interface ItemUseRepository {
       now: Date;
     }
   ): Promise<ItemUseCancelRepositoryResult>;
+
+  restoreToFullForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      item: ItemContent;
+      itemContents: readonly ItemContent[];
+      itemFingerprint: string;
+      now: Date;
+    }
+  ): Promise<ItemUseRestoreToFullRepositoryResult>;
 }

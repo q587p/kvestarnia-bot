@@ -3,6 +3,7 @@ import {
   makeItemUseCancelCallbackData,
   makeItemUseConfirmCallbackData,
   makeItemUsePreviewCallbackData,
+  makeItemUseRestoreToFullCallbackData,
   parseItemUseCallbackData
 } from "../../src/bot/callbacks/itemUseCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -12,6 +13,7 @@ describe("item use callback data", () => {
     const token = "123e4567-e89b-12d3-a456-426614174000";
     const callbacks = [
       makeItemUsePreviewCallbackData("item.responsible-panic-bandage"),
+      makeItemUseRestoreToFullCallbackData("item.responsible-panic-bandage"),
       makeItemUseConfirmCallbackData(token),
       makeItemUseCancelCallbackData(token)
     ];
@@ -27,9 +29,13 @@ describe("item use callback data", () => {
     });
     expect(parseItemUseCallbackData(callbacks[1])).toEqual({
       ok: true,
-      value: { type: "confirm", token }
+      value: { type: "restore-to-full", itemId: "item.responsible-panic-bandage" }
     });
     expect(parseItemUseCallbackData(callbacks[2])).toEqual({
+      ok: true,
+      value: { type: "confirm", token }
+    });
+    expect(parseItemUseCallbackData(callbacks[3])).toEqual({
       ok: true,
       value: { type: "cancel", token }
     });
@@ -38,5 +44,6 @@ describe("item use callback data", () => {
   it("rejects malformed tokens and unknown item ids", () => {
     expect(parseItemUseCallbackData("v1:use:ok:not-a-token")).toEqual({ ok: false });
     expect(parseItemUseCallbackData("v1:use:p:bad")).toEqual({ ok: false });
+    expect(parseItemUseCallbackData("v1:use:full:bad")).toEqual({ ok: false });
   });
 });
