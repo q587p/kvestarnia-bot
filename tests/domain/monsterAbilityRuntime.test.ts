@@ -15,6 +15,7 @@ import {
   consumeMonsterRuntimeDirectHitModifiers,
   deriveMonsterCombatStats,
   isHeroClassSkillLockedByMonster,
+  presentActiveMonsterRuntimeEffectNotices,
   resolveMonsterShieldDamage,
   resolveCombatTurn,
   resolveMonsterLoadoutIds,
@@ -948,6 +949,19 @@ describe("monster ability runtime", () => {
 
     expect(result.effectText).toBe(
       "якщо повторите попередню дію, шкода просяде на 20%, спаде після 2 ваших дій, ще 1 спрацювання"
+    );
+  });
+
+  it("explains confusion as the temporary outgoing damage penalty it applies", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.false-exit"),
+      hero,
+      monster: taxDragon,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(presentActiveMonsterRuntimeEffectNotices(result.state.monsterRuntime)).toContain(
+      "ваша шкода просіла на 10%, спаде після 2 ваших дій"
     );
   });
 

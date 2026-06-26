@@ -2286,7 +2286,7 @@ function presentRuntimeEffectApplied(effect: MonsterAbilityRuntimeEffect): strin
     case "slow":
       return withDuration(`темп просів на ${formatPercentPoints(effect.value)}`);
     case "confusion":
-      return withDuration("ціль збилася");
+      return withDuration("ваша шкода просіла на 10%");
     case "cooldown-pressure":
       return withDuration("відсап здібності розтягнувся");
     case "next-attack-bonus":
