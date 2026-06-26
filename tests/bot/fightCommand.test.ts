@@ -499,6 +499,47 @@ describe("fight command", () => {
     });
   });
 
+  it("hides the descent search button on monster-rest cards while the node cooldown is active", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const fightService = {
+      getFightOverviewForTelegramUser: () =>
+        Promise.resolve({
+          state: "monster-rest",
+          character: {
+            ...character,
+            level: 3
+          },
+          questProgress: questProgress(0),
+          availableAt: new Date("2026-06-27T09:13:00.000Z"),
+          now: new Date("2026-06-27T09:00:00.000Z")
+        })
+    } as unknown as FightService;
+    const passageSearch = {
+      getNodeAvailability: vi.fn().mockResolvedValue({
+        "location:descent-to-nyz": {
+          searchAvailable: false,
+          availableAt: new Date("2026-06-27T09:13:00.000Z")
+        }
+      })
+    };
+
+    await sendFight(makeContext(replies), fightService, "reply", {
+      passageSearch: passageSearch as never
+    });
+
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(replies[0]?.text).toContain("Низ просить тихіше");
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard).toEqual([
+      [{ text: "🪜 Спуск до Низу", callback_data: makePlaceCallbackData("deep") }],
+      [{ text: "📋 До справ", callback_data: makePlaceCallbackData("quest-table") }]
+    ]);
+  });
+
   it("offers three Nyz passages after descending", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     let startCount = 0;

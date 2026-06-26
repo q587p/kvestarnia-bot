@@ -93,6 +93,48 @@ describe("PrismaPassageSearchRepository integration", () => {
     });
   });
 
+  it("records notification target, lists due running searches and reads cooldowns", async () => {
+    await seedCharacter();
+    const now = new Date("2026-06-26T10:00:00.000Z");
+    await startSearch("notifytoken1", now, new Date("2026-06-26T10:13:00.000Z"));
+
+    await expect(repository.recordNotificationTargetForTelegramUser(
+      telegramUserId,
+      "notifytoken1",
+      { chatId: "42587" }
+    )).resolves.toMatchObject({
+      state: "found",
+      action: {
+        payload: {
+          notification: { chatId: "42587" }
+        }
+      }
+    });
+    await expect(repository.listDueRunning({
+      now: new Date("2026-06-26T10:00:41.000Z")
+    })).resolves.toHaveLength(0);
+    await expect(repository.listDueRunning({
+      now: new Date("2026-06-26T10:00:42.000Z")
+    })).resolves.toMatchObject([{
+      telegramUserId,
+      action: {
+        token: "notifytoken1",
+        payload: {
+          notification: { chatId: "42587" }
+        }
+      }
+    }]);
+    await expect(repository.findCooldownsForTelegramUser(telegramUserId, [
+      "passage-search:passage:deep-straight"
+    ])).resolves.toMatchObject({
+      state: "found",
+      cooldowns: [{
+        key: "passage-search:passage:deep-straight",
+        availableAt: new Date("2026-06-26T10:13:00.000Z")
+      }]
+    });
+  });
+
   it("grants loot once and replays duplicate resolution without a second mutation", async () => {
     await seedCharacter();
     const now = new Date("2026-06-26T10:00:00.000Z");

@@ -18,6 +18,7 @@ import {
   buildPersistentFightDifficultyKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightKeyboard,
+  buildPersistentFightPassagePreviewKeyboard,
   buildPersistentFightPassageRestKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
@@ -318,6 +319,36 @@ describe("main menu and scene keyboards", () => {
       "v1:place:deep-right",
       "v1:search:start:l1",
       "v1:place:deep"
+    ]);
+  });
+
+  it("hides safe location search buttons while their node is on cooldown", () => {
+    expect(flatInlineButtonTexts(buildPersistentFightDifficultyKeyboard({ searchAvailable: false }))).toEqual([
+      "⬅️ Лівий прохід",
+      "🚪 Прямий прохід",
+      "➡️ Правий прохід",
+      "⬆️ Піднятися назад"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ searchAvailable: false }))).toEqual([
+      "⬆️ Повернутися до зали",
+      "⬇️ Спуститися"
+    ]);
+  });
+
+  it("hides passage search buttons while their node is on cooldown", () => {
+    expect(flatInlineButtonTexts(buildPersistentFightPassagePreviewKeyboard({
+      passage: "deep-left",
+      encounterToken: "token13",
+      searchAvailable: false
+    }))).toEqual([
+      "⚔️ Атакувати",
+      "↩️ Повернутися до Сутеренів"
+    ]);
+    expect(flatInlineButtonTexts(buildPersistentFightPassageRestKeyboard({
+      passage: "deep-left",
+      searchAvailable: false
+    }))).toEqual([
+      "↩️ Повернутися до Сутеренів"
     ]);
   });
 

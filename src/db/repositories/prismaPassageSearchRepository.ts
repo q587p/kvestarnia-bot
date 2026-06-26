@@ -4,8 +4,10 @@ import type { PassageSearchLoot, PassageSearchSnapshot } from "../../domain/pass
 import type { CharacterRecord } from "./characterRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import type {
+  DuePassageSearchActionRecord,
   PassageSearchActionRecord,
   PassageSearchActionStatus,
+  PassageSearchCooldownRecord,
   PassageSearchLookupResult,
   PassageSearchRepository,
   PassageSearchResolutionResult,
@@ -157,6 +159,112 @@ export class PrismaPassageSearchRepository implements PassageSearchRepository {
     telegramUserId: bigint
   ): Promise<PassageSearchLookupResult> {
     return this.findActiveForTelegramUser(telegramUserId);
+  }
+
+  async listDueRunning(
+    input: { now: Date; limit?: number }
+  ): Promise<DuePassageSearchActionRecord[]> {
+    const actions = await this.prisma.passageSearchAction.findMany({
+      where: {
+        status: "running",
+        endsAt: { lte: input.now }
+      },
+      include: {
+        character: {
+          include: { user: true }
+        }
+      },
+      orderBy: { endsAt: "asc" },
+      ...(input.limit === undefined ? {} : { take: input.limit })
+    });
+
+    return actions
+      .map((record) => {
+        const action = mapAction(record);
+
+        return action
+          ? { telegramUserId: record.character.user.telegramUserId, action }
+          : null;
+      })
+      .filter((record): record is DuePassageSearchActionRecord => record !== null);
+  }
+
+  async findCooldownsForTelegramUser(
+    telegramUserId: bigint,
+    keys: readonly string[]
+  ): Promise<
+    { state: "found"; character: CharacterRecord; cooldowns: PassageSearchCooldownRecord[] } |
+    { state: "no-character" }
+  > {
+    const character = await this.prisma.character.findFirst({
+      where: { user: { telegramUserId } },
+      include: remortCountInclude
+    });
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const cooldowns = await this.prisma.characterCooldown.findMany({
+      where: {
+        characterId: character.id,
+        key: { in: [...keys] }
+      },
+      select: {
+        key: true,
+        availableAt: true
+      }
+    });
+
+    return {
+      state: "found",
+      character: toCharacterRecord(character),
+      cooldowns
+    };
+  }
+
+  async recordNotificationTargetForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    input: { chatId: string }
+  ): Promise<PassageSearchLookupResult> {
+    const character = await this.prisma.character.findFirst({
+      where: { user: { telegramUserId } },
+      include: remortCountInclude
+    });
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const action = await this.prisma.passageSearchAction.findFirst({
+      where: {
+        token,
+        characterId: character.id,
+        status: "running"
+      }
+    });
+    const mapped = mapAction(action);
+
+    if (!action || !mapped) {
+      return { state: "not-found", character: toCharacterRecord(character) };
+    }
+
+    const updated = await this.prisma.passageSearchAction.update({
+      where: { id: action.id },
+      data: {
+        payloadJson: {
+          ...mapped.payload,
+          notification: { chatId: input.chatId }
+        }
+      }
+    });
+
+    return {
+      state: "found",
+      character: toCharacterRecord(character),
+      action: mapAction(updated)!
+    };
   }
 
   async cancelByTokenForTelegramUser(

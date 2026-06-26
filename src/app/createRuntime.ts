@@ -4,6 +4,7 @@ import { getTelegramMenuCommands } from "../bot/botCommandCatalog";
 import { createCombatTurnTimeoutScheduler } from "../bot/combatTurnTimeoutScheduler";
 import { createBot } from "../bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "../bot/duelTurnTimeoutScheduler";
+import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
 import type { AppConfig } from "../config/env";
 import { startHealthServer } from "../health/server";
 import type { ApplicationServices } from "./createServices";
@@ -19,6 +20,7 @@ interface RuntimeDependencies {
   createBot: typeof createBot;
   createCombatTurnTimeoutScheduler: typeof createCombatTurnTimeoutScheduler;
   createDuelTurnTimeoutScheduler: typeof createDuelTurnTimeoutScheduler;
+  createPassageSearchCompletionScheduler: typeof createPassageSearchCompletionScheduler;
   getTelegramMenuCommands: typeof getTelegramMenuCommands;
   startHealthServer: typeof startHealthServer;
 }
@@ -34,6 +36,7 @@ export function createRuntime(input: {
     createBot,
     createCombatTurnTimeoutScheduler,
     createDuelTurnTimeoutScheduler,
+    createPassageSearchCompletionScheduler,
     getTelegramMenuCommands,
     startHealthServer,
     ...input.dependencies
@@ -51,6 +54,7 @@ export function createRuntime(input: {
   let healthServer: ReturnType<typeof startHealthServer> | null = null;
   let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
   let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
+  let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
 
   return {
     start() {
@@ -87,6 +91,13 @@ export function createRuntime(input: {
         bot
       );
       combatTurnTimeoutScheduler.start();
+      if (services.passageSearch) {
+        passageSearchCompletionScheduler = dependencies.createPassageSearchCompletionScheduler({
+          passageSearch: services.passageSearch,
+          fight: services.fight
+        }, bot);
+        passageSearchCompletionScheduler.start();
+      }
 
       void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
         console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);
@@ -118,6 +129,7 @@ export function createRuntime(input: {
 
         combatTurnTimeoutScheduler?.stop();
         duelTurnTimeoutScheduler?.stop();
+        passageSearchCompletionScheduler?.stop();
 
         try {
           if (bot) {

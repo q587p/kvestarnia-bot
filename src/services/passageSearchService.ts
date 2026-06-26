@@ -25,6 +25,16 @@ import {
 import { SeededRandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 
+export const PASSAGE_SEARCH_NODE_DESCENT = "location:descent-to-nyz";
+export const PASSAGE_SEARCH_NODE_DEEP_LEVEL1 = "location:deep-level1";
+
+export type PassageSearchNodeKey =
+  | typeof PASSAGE_SEARCH_NODE_DESCENT
+  | typeof PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+  | `passage:deep-left`
+  | `passage:deep-straight`
+  | `passage:deep-right`;
+
 export type PassageSearchStartResult =
   | { state: "started"; character: CharacterSummary; action: PassageSearchActionRecord }
   | { state: "running"; character: CharacterSummary; action: PassageSearchActionRecord; remainingSeconds: number }
@@ -51,6 +61,11 @@ export interface PresentedPassageSearchLoot {
   gold: number;
   itemGrants: RewardItemGrant[];
 }
+
+export type PassageSearchNodeAvailability = Record<
+  PassageSearchNodeKey,
+  { searchAvailable: boolean; availableAt?: Date }
+>;
 
 export class PassageSearchService {
   constructor(
@@ -100,7 +115,7 @@ export class PassageSearchService {
     const now = this.clock();
     const snapshot = buildSnapshot({
       now,
-      nodeKey: `passage:${input.passage}`,
+      nodeKey: getPassageSearchNodeKey(input.passage),
       nodeKind: "passage",
       originLocationId: passage.locationId,
       passage: input.passage,
@@ -151,7 +166,7 @@ export class PassageSearchService {
     const now = this.clock();
     const snapshot = buildSnapshot({
       now,
-      nodeKey: `passage:${input.passage}`,
+      nodeKey: getPassageSearchNodeKey(input.passage),
       nodeKind: "passage",
       originLocationId: passage.locationId,
       passage: input.passage,
@@ -190,7 +205,7 @@ export class PassageSearchService {
     const now = this.clock();
     const snapshot = buildSnapshot({
       now,
-      nodeKey: "location:descent-to-nyz",
+      nodeKey: PASSAGE_SEARCH_NODE_DESCENT,
       nodeKind: "location",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP,
       durationMs: DESCENT_SEARCH_DURATION_MS,
@@ -228,7 +243,7 @@ export class PassageSearchService {
     const now = this.clock();
     const snapshot = buildSnapshot({
       now,
-      nodeKey: "location:deep-level1",
+      nodeKey: PASSAGE_SEARCH_NODE_DEEP_LEVEL1,
       nodeKind: "location",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
       durationMs: DESCENT_SEARCH_DURATION_MS,
@@ -239,6 +254,68 @@ export class PassageSearchService {
     });
 
     return this.startWithSnapshot(telegramUserId, snapshot);
+  }
+
+  async getNodeAvailability(
+    telegramUserId: bigint,
+    nodeKeys: readonly PassageSearchNodeKey[]
+  ): Promise<Partial<PassageSearchNodeAvailability>> {
+    const keys = [...new Set(nodeKeys)];
+    const result = await this.searches.findCooldownsForTelegramUser(
+      telegramUserId,
+      keys.map((nodeKey) => getCooldownKey(nodeKey))
+    );
+
+    const now = this.clock();
+    const availability: Partial<PassageSearchNodeAvailability> = {};
+
+    for (const nodeKey of keys) {
+      availability[nodeKey] = { searchAvailable: true };
+    }
+
+    if (result.state === "no-character") {
+      return availability;
+    }
+
+    for (const cooldown of result.cooldowns) {
+      const nodeKey = parseCooldownNodeKey(cooldown.key);
+      if (!nodeKey || !keys.includes(nodeKey)) {
+        continue;
+      }
+
+      if (cooldown.availableAt > now) {
+        availability[nodeKey] = {
+          searchAvailable: false,
+          availableAt: cooldown.availableAt
+        };
+      }
+    }
+
+    return availability;
+  }
+
+  async recordNotificationTarget(
+    telegramUserId: bigint,
+    token: string,
+    input: { chatId: string }
+  ): Promise<void> {
+    await this.searches.recordNotificationTargetForTelegramUser(telegramUserId, token, input);
+  }
+
+  async listDueRunningSearches(
+    options: { limit?: number } = {}
+  ): Promise<Awaited<ReturnType<PassageSearchRepository["listDueRunning"]>>> {
+    return this.searches.listDueRunning({
+      now: this.clock(),
+      ...(options.limit === undefined ? {} : { limit: options.limit })
+    });
+  }
+
+  async resolveDueSearch(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<PassageSearchCheckResult> {
+    return this.checkSearch(telegramUserId, token);
   }
 
   async checkSearch(
@@ -409,7 +486,7 @@ export class PassageSearchService {
       token: createSearchToken(),
       nodeKey: snapshot.nodeKey,
       nodeKind: snapshot.nodeKind,
-      cooldownKey: `passage-search:${snapshot.nodeKey}`,
+      cooldownKey: getCooldownKey(snapshot.nodeKey as PassageSearchNodeKey),
       cooldownAvailableAt: new Date(now.getTime() + SEARCH_NODE_COOLDOWN_MS),
       snapshot
     });
@@ -516,6 +593,36 @@ function buildSnapshot(input: Omit<PassageSearchSnapshot, "startedAt" | "endsAt"
     startedAt: input.now.toISOString(),
     endsAt: new Date(input.now.getTime() + input.durationMs).toISOString()
   };
+}
+
+export function getPassageSearchNodeKey(
+  passage: "deep-left" | "deep-straight" | "deep-right"
+): PassageSearchNodeKey {
+  return `passage:${passage}`;
+}
+
+export function getCooldownKey(nodeKey: PassageSearchNodeKey): string {
+  return `passage-search:${nodeKey}`;
+}
+
+function parseCooldownNodeKey(key: string): PassageSearchNodeKey | null {
+  if (!key.startsWith("passage-search:")) {
+    return null;
+  }
+
+  const nodeKey = key.slice("passage-search:".length);
+
+  return isPassageSearchNodeKey(nodeKey) ? nodeKey : null;
+}
+
+function isPassageSearchNodeKey(nodeKey: string): nodeKey is PassageSearchNodeKey {
+  return (
+    nodeKey === PASSAGE_SEARCH_NODE_DESCENT ||
+    nodeKey === PASSAGE_SEARCH_NODE_DEEP_LEVEL1 ||
+    nodeKey === "passage:deep-left" ||
+    nodeKey === "passage:deep-straight" ||
+    nodeKey === "passage:deep-right"
+  );
 }
 
 function resolvePassage(passage: "deep-left" | "deep-straight" | "deep-right"): {

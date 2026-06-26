@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   PassageSearchActionRecord,
+  DuePassageSearchActionRecord,
   PassageSearchLookupResult,
   PassageSearchRepository,
   PassageSearchResolutionResult,
@@ -9,7 +10,11 @@ import type {
 } from "../../src/db/repositories/passageSearchRepository";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type { PassageSearchLoot, PassageSearchSnapshot } from "../../src/domain/passageSearch";
-import { PassageSearchService } from "../../src/services/passageSearchService";
+import {
+  getCooldownKey,
+  PASSAGE_SEARCH_NODE_DEEP_LEVEL1,
+  PassageSearchService
+} from "../../src/services/passageSearchService";
 import {
   PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
@@ -113,6 +118,25 @@ describe("PassageSearchService", () => {
     expect(repo.action?.endsAt.getTime() - repo.action!.startedAt.getTime()).toBe(42_000);
   });
 
+  it("reports node search availability from cooldown state", async () => {
+    const repo = new FakePassageSearchRepository();
+    const fight = new FakeFightService();
+    const service = new PassageSearchService(repo, fight as never, () => now);
+    repo.cooldowns.set(
+      getCooldownKey(PASSAGE_SEARCH_NODE_DEEP_LEVEL1),
+      new Date(now.getTime() + 60_000)
+    );
+    repo.cooldowns.set("passage-search:passage:deep-left", new Date(now.getTime() - 1));
+
+    await expect(service.getNodeAvailability(telegramUserId, [
+      PASSAGE_SEARCH_NODE_DEEP_LEVEL1,
+      "passage:deep-left"
+    ])).resolves.toMatchObject({
+      [PASSAGE_SEARCH_NODE_DEEP_LEVEL1]: { searchAvailable: false },
+      "passage:deep-left": { searchAvailable: true }
+    });
+  });
+
   it("keeps a safe passage-rest search safe even when the danger seed would hit", async () => {
     const repo = new FakePassageSearchRepository();
     const fight = new FakeFightService();
@@ -184,6 +208,7 @@ describe("PassageSearchService", () => {
 class FakePassageSearchRepository implements PassageSearchRepository {
   character = makeCharacter();
   action: PassageSearchActionRecord | null = null;
+  cooldowns = new Map<string, Date>();
   startCalls = 0;
 
   startForTelegramUser(
@@ -219,6 +244,45 @@ class FakePassageSearchRepository implements PassageSearchRepository {
     return Promise.resolve(this.action?.status === "running"
       ? { state: "found", character: this.character, action: this.action }
       : { state: "not-found", character: this.character });
+  }
+
+  listDueRunning(): Promise<DuePassageSearchActionRecord[]> {
+    return Promise.resolve(this.action?.status === "running" && this.action.endsAt <= now
+      ? [{ telegramUserId, action: this.action }]
+      : []);
+  }
+
+  findCooldownsForTelegramUser(
+    _telegramUserId: bigint,
+    keys: readonly string[]
+  ): Promise<Awaited<ReturnType<PassageSearchRepository["findCooldownsForTelegramUser"]>>> {
+    return Promise.resolve({
+      state: "found",
+      character: this.character,
+      cooldowns: keys
+        .filter((key) => this.cooldowns.has(key))
+        .map((key) => ({ key, availableAt: this.cooldowns.get(key)! }))
+    });
+  }
+
+  recordNotificationTargetForTelegramUser(
+    _telegramUserId: bigint,
+    _token: string,
+    input: { chatId: string }
+  ): Promise<PassageSearchLookupResult> {
+    if (!this.action) {
+      return Promise.resolve({ state: "not-found", character: this.character });
+    }
+
+    this.action = {
+      ...this.action,
+      payload: {
+        ...this.action.payload,
+        notification: { chatId: input.chatId }
+      }
+    };
+
+    return Promise.resolve({ state: "found", character: this.character, action: this.action });
   }
 
   async cancelByTokenForTelegramUser(): Promise<PassageSearchResolutionResult> {

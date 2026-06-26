@@ -273,47 +273,65 @@ function getPersistentFightPassagePlace(session: SoloCombatSessionRecord): Place
   return "deep-straight";
 }
 
-export function buildPersistentFightReadyKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildPersistentFightReadyKeyboard(
+  options: { descentSearchAvailable?: boolean } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
     .text("🪜 Спуск до Низу", makePlaceCallbackData("deep"))
-    .row()
-    .text("🔎 Пошукати", makeDescentSearchStartCallbackData())
-    .row()
-    .text("📋 До справ", makePlaceCallbackData("quest-table"));
+    .row();
+
+  if (options.descentSearchAvailable !== false) {
+    keyboard.text("🔎 Пошукати", makeDescentSearchStartCallbackData()).row();
+  }
+
+  return keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
-export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildPersistentFightDifficultyKeyboard(
+  options: { searchAvailable?: boolean } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
     .text("⬅️ Лівий прохід", makePlaceCallbackData("deep-left"))
     .row()
     .text("🚪 Прямий прохід", makePlaceCallbackData("deep-straight"))
     .row()
     .text("➡️ Правий прохід", makePlaceCallbackData("deep-right"))
-    .row()
-    .text("🔎 Пошукати", makeDeepLevelOneSearchStartCallbackData())
-    .row()
-    .text("⬆️ Піднятися назад", makePlaceCallbackData("deep"));
+    .row();
+
+  if (options.searchAvailable !== false) {
+    keyboard.text("🔎 Пошукати", makeDeepLevelOneSearchStartCallbackData()).row();
+  }
+
+  return keyboard.text("⬆️ Піднятися назад", makePlaceCallbackData("deep"));
 }
 
 export function buildPersistentFightPassagePreviewKeyboard(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
   encounterToken: string;
+  searchAvailable?: boolean;
 }): InlineKeyboard {
-  return new InlineKeyboard()
+  const keyboard = new InlineKeyboard()
     .text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input))
-    .row()
-    .text("🔎 Пошукати", makePassageSearchStartCallbackData(input))
-    .row()
-    .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
+    .row();
+
+  if (input.searchAvailable !== false) {
+    keyboard.text("🔎 Пошукати", makePassageSearchStartCallbackData(input)).row();
+  }
+
+  return keyboard.text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
 }
 
 export function buildPersistentFightPassageRestKeyboard(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+  searchAvailable?: boolean;
 }): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("🔎 Пошукати", makeSafePassageSearchStartCallbackData(input))
-    .row()
-    .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
+  const keyboard = new InlineKeyboard();
+
+  if (input.searchAvailable !== false) {
+    keyboard.text("🔎 Пошукати", makeSafePassageSearchStartCallbackData(input)).row();
+  }
+
+  return keyboard.text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
 }
 
 export function buildPassageSearchRunningKeyboard(token: string): InlineKeyboard {

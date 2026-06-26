@@ -250,6 +250,7 @@ async function handleQuestCallback(
       });
       await sendFight(ctx, services.fight, "reply", {
         presence: services.presence,
+        passageSearch: services.passageSearch,
         requireKorchmaInterior: false,
         ...(action === "fight-descend" ? { openDifficulty: true } : {}),
         ...(fightDifficulty ? { difficulty: fightDifficulty, originLocationId: targetLocationId } : {})
@@ -261,6 +262,7 @@ async function handleQuestCallback(
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: true,
       ...(action === "fight-descend" ? { openDifficulty: true } : {}),
       ...(fightDifficulty ? { difficulty: fightDifficulty, originLocationId: targetLocationId } : {})

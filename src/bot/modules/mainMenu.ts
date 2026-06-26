@@ -404,7 +404,9 @@ async function sendCurrentPresenceLocation(
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP) {
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
+      passageSearch: services.passageSearch
+    });
     return;
   }
 
@@ -412,6 +414,7 @@ async function sendCurrentPresenceLocation(
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: true,
       openDifficulty: true
     });

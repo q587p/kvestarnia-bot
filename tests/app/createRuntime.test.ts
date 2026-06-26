@@ -37,7 +37,8 @@ describe("createRuntime", () => {
     const bot = botFixture.bot;
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
-    const servicesFixture = makeServices();
+    const passageSearchScheduler = makeScheduler();
+    const servicesFixture = makeServices({ passageSearch: true });
     const services = servicesFixture.services;
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token", botUsername: "kvestarnia_bot" }),
@@ -47,6 +48,7 @@ describe("createRuntime", () => {
         createBot: vi.fn(() => bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createPassageSearchCompletionScheduler: vi.fn(() => passageSearchScheduler),
         getTelegramMenuCommands: vi.fn(() => [{ command: "start", description: "start" }]),
         startHealthServer: vi.fn(() => ({ close }) as never)
       }
@@ -61,8 +63,10 @@ describe("createRuntime", () => {
     expect(servicesFixture.announceIfNeeded).toHaveBeenCalledWith(bot);
     expect(duelScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.start).toHaveBeenCalledTimes(1);
+    expect(passageSearchScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(passageSearchScheduler.stop).toHaveBeenCalledTimes(1);
     expect(botFixture.stop).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledTimes(1);
@@ -183,7 +187,7 @@ function makeConfig(overrides: Partial<AppConfig>): AppConfig {
   };
 }
 
-function makeServices(options: { duel?: boolean; trainingDoppelganger?: boolean } = {}): {
+function makeServices(options: { duel?: boolean; passageSearch?: boolean; trainingDoppelganger?: boolean } = {}): {
   services: ApplicationServices;
   cleanupExpiredPendingRuns: ReturnType<typeof vi.fn>;
   announceIfNeeded: ReturnType<typeof vi.fn>;
@@ -196,6 +200,7 @@ function makeServices(options: { duel?: boolean; trainingDoppelganger?: boolean 
     ...(options.duel === false ? {} : { duel: {} }),
     fight: {},
     mantokChest: { cleanupExpiredPendingRuns },
+    ...(options.passageSearch ? { passageSearch: {} } : {}),
     presence: {},
     ...(options.trainingDoppelganger === false ? {} : { trainingDoppelganger: {} }),
     deployNotifications: { announceIfNeeded }

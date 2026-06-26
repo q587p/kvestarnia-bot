@@ -702,7 +702,9 @@ async function handlePlaceCallback(
 
   if (action === "deep") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP);
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
+      passageSearch: services.passageSearch
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -725,6 +727,7 @@ async function handlePlaceCallback(
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: true,
       openDifficulty: true
     });

@@ -162,7 +162,7 @@ export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaDeepKeyboard(
-  options: { munchkinLocation?: MunchkinLocation } = {}
+  options: { munchkinLocation?: MunchkinLocation; searchAvailable?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("⬆️ Повернутися до зали", makePlaceCallbackData("hall"))
@@ -172,10 +172,11 @@ export function buildKorchmaDeepKeyboard(
     keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData()).row();
   }
 
-  return keyboard
-    .text("🔎 Пошукати", makeDescentSearchStartCallbackData())
-    .row()
-    .text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
+  if (options.searchAvailable !== false) {
+    keyboard.text("🔎 Пошукати", makeDescentSearchStartCallbackData()).row();
+  }
+
+  return keyboard.text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
 }
 
 export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {

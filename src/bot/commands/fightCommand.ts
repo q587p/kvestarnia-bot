@@ -3,6 +3,11 @@ import type { CharacterSummary } from "../../domain/characters/characterSummary"
 import type { FightService } from "../../services/fightService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
+  PASSAGE_SEARCH_NODE_DEEP_LEVEL1,
+  PASSAGE_SEARCH_NODE_DESCENT,
+  type PassageSearchService
+} from "../../services/passageSearchService";
+import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP,
@@ -45,6 +50,7 @@ import {
 } from "../presenters/resourceRecoveryPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { isPassageSearchAvailable } from "../passageSearchAvailability";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import type { PersistentFightDifficultyId } from "../../services/fightService";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
@@ -55,6 +61,7 @@ type ReplyOptions = Parameters<Context["reply"]>[1];
 export interface FightCommandOptions {
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
+  passageSearch?: PassageSearchService | undefined;
 }
 
 export function registerFightCommand(
@@ -142,7 +149,15 @@ export async function sendFight(
   }
 
   if (result.state === "monster-rest") {
-    await sendResultText(presentFightMonsterRest(result), "persistent-ready");
+    const searchAvailable = await isPassageSearchAvailable(
+      options?.passageSearch,
+      telegramUserId,
+      PASSAGE_SEARCH_NODE_DESCENT
+    );
+    await sendResultText(
+      presentFightMonsterRest(result),
+      { type: "persistent-ready", descentSearchAvailable: searchAvailable }
+    );
     return;
   }
 
@@ -208,16 +223,26 @@ export async function sendFight(
   if (result.state === "persistent-ready") {
     if (!options?.openDifficulty) {
       const munchkinLocation = getMunchkinLocationAt(options?.now ?? systemClock());
+      const searchAvailable = await isPassageSearchAvailable(
+        options?.passageSearch,
+        telegramUserId,
+        PASSAGE_SEARCH_NODE_DESCENT
+      );
       await sendResultText(
         presentKorchmaDeepClosed(result.character, { munchkinLocation }),
-        { type: "deep", munchkinLocation }
+        { type: "deep", munchkinLocation, searchAvailable }
       );
       return;
     }
 
+    const searchAvailable = await isPassageSearchAvailable(
+      options?.passageSearch,
+      telegramUserId,
+      PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+    );
     await sendResultText(
       presentPersistentFightDifficultyChoice(result),
-      "persistent-difficulty"
+      { type: "persistent-difficulty", searchAvailable }
     );
     return;
   }
@@ -343,9 +368,11 @@ async function sendText(
     | false
     | "enter-korchma"
     | "deep"
-    | { type: "deep"; munchkinLocation?: MunchkinLocation }
+    | { type: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
     | "persistent-difficulty"
+    | { type: "persistent-difficulty"; searchAvailable?: boolean }
     | "persistent-ready"
+    | { type: "persistent-ready"; descentSearchAvailable?: boolean }
     | "problem-not-issued"
     | {
         type: "training-active";
@@ -369,14 +396,31 @@ async function sendText(
               ? buildKorchmaDeepKeyboard()
             : typeof keyboard === "object" && keyboard.type === "deep"
               ? buildKorchmaDeepKeyboard(
-                  keyboard.munchkinLocation === undefined
-                    ? {}
-                    : { munchkinLocation: keyboard.munchkinLocation }
+                  {
+                    ...(keyboard.munchkinLocation === undefined
+                      ? {}
+                      : { munchkinLocation: keyboard.munchkinLocation }),
+                    ...(keyboard.searchAvailable === undefined
+                      ? {}
+                      : { searchAvailable: keyboard.searchAvailable })
+                  }
                 )
             : keyboard === "persistent-difficulty"
               ? buildPersistentFightDifficultyKeyboard()
+            : typeof keyboard === "object" && keyboard.type === "persistent-difficulty"
+              ? buildPersistentFightDifficultyKeyboard(
+                  keyboard.searchAvailable === undefined
+                    ? {}
+                    : { searchAvailable: keyboard.searchAvailable }
+                )
             : keyboard === "persistent-ready"
               ? buildPersistentFightReadyKeyboard()
+            : typeof keyboard === "object" && keyboard.type === "persistent-ready"
+              ? buildPersistentFightReadyKeyboard(
+                  keyboard.descentSearchAvailable === undefined
+                    ? {}
+                    : { descentSearchAvailable: keyboard.descentSearchAvailable }
+                )
               : keyboard === "problem-not-issued"
               ? {
                   inline_keyboard: [

@@ -19,6 +19,16 @@ export interface PassageSearchActionRecord {
   updatedAt: Date;
 }
 
+export interface DuePassageSearchActionRecord {
+  telegramUserId: bigint;
+  action: PassageSearchActionRecord;
+}
+
+export interface PassageSearchCooldownRecord {
+  key: string;
+  availableAt: Date;
+}
+
 export type PassageSearchStoredResult =
   | { outcome: "loot"; loot: PassageSearchLoot }
   | { outcome: "nothing"; loot: PassageSearchLoot }
@@ -70,6 +80,21 @@ export interface PassageSearchRepository {
 
   findRunningForTelegramUser(
     telegramUserId: bigint
+  ): Promise<PassageSearchLookupResult>;
+
+  listDueRunning(
+    input: { now: Date; limit?: number }
+  ): Promise<DuePassageSearchActionRecord[]>;
+
+  findCooldownsForTelegramUser(
+    telegramUserId: bigint,
+    keys: readonly string[]
+  ): Promise<{ state: "found"; character: CharacterRecord; cooldowns: PassageSearchCooldownRecord[] } | { state: "no-character" }>;
+
+  recordNotificationTargetForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    input: { chatId: string }
   ): Promise<PassageSearchLookupResult>;
 
   cancelByTokenForTelegramUser(

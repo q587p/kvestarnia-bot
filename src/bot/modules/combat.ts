@@ -12,6 +12,10 @@ PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
 } from "../../services/presenceService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
+import {
+  getPassageSearchNodeKey,
+  PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+} from "../../services/passageSearchService";
 import type { BotServices } from "../botServices";
 import { parseFightCallbackData,type FightCallback } from "../callbacks/fightCallbackData";
 import { parsePassageSearchCallbackData, type PassageSearchCallback } from "../callbacks/passageSearchCallbackData";
@@ -72,6 +76,7 @@ presentTrainingDoppelgangerTurn
 } from "../presenters/trainingDoppelgangerPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { isPassageSearchAvailable } from "../passageSearchAvailability";
 
 import { sendLevelUpCelebration } from "./levelUp";
 import { refreshCurrentMainMenuLocationKeyboard } from "./mainMenu";
@@ -93,7 +98,8 @@ export function registerCombatBotModule(
 ): void {
   registerFightCommand(bot, services.fight, {
     presence: services.presence,
-    tavernRaid: services.tavern
+    tavernRaid: services.tavern,
+    passageSearch: services.passageSearch
   });
   if (services.trainingDoppelganger) {
     registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
@@ -169,6 +175,7 @@ async function handleTrainingDoppelgangerCallback(
         await sendFight(ctx, services.fight, "reply", {
           presence: services.presence,
           tavernRaid: services.tavern,
+          passageSearch: services.passageSearch,
           requireKorchmaInterior: false,
           suppressStartIntro: true
         });
@@ -261,6 +268,7 @@ async function handleFightCallback(
         await sendFight(ctx, services.fight, "reply", {
           presence: services.presence,
           tavernRaid: services.tavern,
+          passageSearch: services.passageSearch,
           requireKorchmaInterior: false,
           suppressStartIntro: true
         });
@@ -304,13 +312,20 @@ async function handleFightCallback(
       if (gate.state === "persistent-ready") {
         await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightDifficultyKeyboard()
+          reply_markup: buildPersistentFightDifficultyKeyboard({
+            searchAvailable: await isPassageSearchAvailable(
+              services.passageSearch,
+              telegramUserId,
+              PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+            )
+          })
         });
         return;
       }
       await sendFight(ctx, services.fight, "reply", {
         presence: services.presence,
         tavernRaid: services.tavern,
+        passageSearch: services.passageSearch,
         requireKorchmaInterior: false
       });
       return;
@@ -332,7 +347,12 @@ async function handleFightCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightPassagePreviewKeyboard({
           passage: resultPassage.passage,
-          encounterToken: result.encounterToken
+          encounterToken: result.encounterToken,
+          searchAvailable: await isPassageSearchAvailable(
+            services.passageSearch,
+            telegramUserId,
+            getPassageSearchNodeKey(resultPassage.passage)
+          )
         })
       });
       return;
@@ -347,13 +367,20 @@ async function handleFightCallback(
       if (gate.state === "persistent-ready") {
         await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightDifficultyKeyboard()
+          reply_markup: buildPersistentFightDifficultyKeyboard({
+            searchAvailable: await isPassageSearchAvailable(
+              services.passageSearch,
+              telegramUserId,
+              PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+            )
+          })
         });
         return;
       }
       await sendFight(ctx, services.fight, "reply", {
         presence: services.presence,
         tavernRaid: services.tavern,
+        passageSearch: services.passageSearch,
         requireKorchmaInterior: false
       });
       return;
@@ -372,6 +399,7 @@ async function handleFightCallback(
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: false,
       suppressStartIntro: Boolean(result.state === "persistent-active" && result.started)
     });
@@ -542,15 +570,32 @@ async function handlePassageSearchCallback(
     ...HTML_MESSAGE_OPTIONS,
     ...(replyMarkup ? { reply_markup: replyMarkup } : {})
   });
+  if (result.state === "started" || result.state === "running") {
+    const chatId = getSearchNotificationChatId(ctx);
+    if (chatId) {
+      await services.passageSearch.recordNotificationTarget(
+        telegramUserId,
+        result.action.token,
+        { chatId }
+      );
+    }
+  }
 
   if (result.state === "monster-attack") {
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: false,
       suppressStartIntro: true
     });
   }
+}
+
+function getSearchNotificationChatId(ctx: Context): string | null {
+  const chatId = ctx.chat?.id ?? ctx.callbackQuery?.message?.chat.id;
+
+  return chatId === undefined ? null : chatId.toString();
 }
 
 async function handlePassageSearchAction(

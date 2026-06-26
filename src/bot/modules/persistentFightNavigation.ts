@@ -27,6 +27,8 @@ presentPersistentFightPassagePreview
 import {
 presentKorchmaDeepLevelLocked
 } from "../presenters/tavernPresenter";
+import { getPassageSearchNodeKey } from "../../services/passageSearchService";
+import { isPassageSearchAvailable } from "../passageSearchAvailability";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 import { markScenePresence } from "./scenePresence";
@@ -95,7 +97,12 @@ export async function sendPersistentFightPassagePreview(
       await safeEditOrReply(ctx, mode, presentFightMonsterRest(restWindow), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightPassageRestKeyboard({
-          passage: passageFight.passage
+          passage: passageFight.passage,
+          searchAvailable: await isPassageSearchAvailable(
+            services.passageSearch,
+            telegramUserId,
+            getPassageSearchNodeKey(passageFight.passage)
+          )
         })
       });
       return;
@@ -119,6 +126,7 @@ export async function sendPersistentFightPassagePreview(
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: false
     });
     return;
@@ -133,7 +141,12 @@ export async function sendPersistentFightPassagePreview(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildPersistentFightPassagePreviewKeyboard({
       passage: passageFight.passage,
-      encounterToken: preview.encounterToken
+      encounterToken: preview.encounterToken,
+      searchAvailable: await isPassageSearchAvailable(
+        services.passageSearch,
+        telegramUserId,
+        getPassageSearchNodeKey(passageFight.passage)
+      )
     })
   });
 }

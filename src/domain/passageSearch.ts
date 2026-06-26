@@ -21,6 +21,9 @@ export interface PassageSearchSnapshot {
   monsterNameAtStart?: string;
   monsterLevelAtStart?: number;
   playerLuckSnapshot: number;
+  notification?: {
+    chatId: string;
+  };
   startedAt: string;
   endsAt: string;
 }
