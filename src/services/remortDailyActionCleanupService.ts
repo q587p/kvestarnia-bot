@@ -1,5 +1,3 @@
-import { REMORT_RESET_DAILY_ACTION_KEYS } from "./dailyActionKeys";
-
 export interface RemortCleanupDailyAction {
   id: string;
   key: string;
@@ -17,7 +15,7 @@ export interface RemortCleanupCharacter {
 
 export interface RemortDailyActionCleanupStore {
   listRemortedCharactersWithDailyActions(
-    keys: readonly string[]
+    keys?: readonly string[]
   ): Promise<RemortCleanupCharacter[]>;
   deleteDailyActionsByIds(ids: readonly string[]): Promise<number>;
 }
@@ -45,8 +43,7 @@ export async function runRemortDailyActionCleanup(input: {
   apply: boolean;
   keys?: readonly string[];
 }): Promise<RemortDailyActionCleanupSummary> {
-  const keys = input.keys ?? REMORT_RESET_DAILY_ACTION_KEYS;
-  const characters = await input.store.listRemortedCharactersWithDailyActions(keys);
+  const characters = await input.store.listRemortedCharactersWithDailyActions(input.keys);
   const entries = characters
     .map((character) => {
       const staleActions = character.dailyActions.filter(

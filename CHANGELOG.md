@@ -32,7 +32,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Combat item-use now honors the active `solo-combat` lease when consuming a bandage, so healing applies during live persistent PvE turns instead of replaying the current turn card.
 - Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.
 - Remort cancels live pending/processing item-use orders without consuming their reserved stack.
-- Remort resets both the first 5-target and the second 17-target Єгер unquiet board keys so a new life starts the Єгер quest chain from zero.
+- Remort resets all current-life daily-action rows, cooldowns, hunt contracts and Barrel raid notification rows, so paid Єгер bandage purchase counts, once-per-life Єгер boards and other current-life quest/cooldown gates start from zero after remort.
+- The remort daily-action maintenance cleanup now defaults to all stale pre-remort daily-action rows while keeping `--yeger-only` as a narrow audit mode.
 - Shynok manatka sales now round the basket-level 42% payout up to the nearest whole gold instead of truncating fractional gold down.
 - Lost multi-enemy persistent fights now grant half of normal XP for each enemy defeated before the loss, while still granting no gold, no items and no quest progress for the failed fight.
 - The task, roadmap, phase-2, balance, security, technical, playtesting and compact Codex context docs now distinguish this shipped bandage slice from broader shops, food, action catalogs, race abilities, achievements, titles and signature techniques.

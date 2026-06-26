@@ -14,19 +14,22 @@ class PrismaRemortDailyActionCleanupStore implements RemortDailyActionCleanupSto
   constructor(private readonly prisma: PrismaClient) {}
 
   async listRemortedCharactersWithDailyActions(
-    keys: readonly string[]
+    keys?: readonly string[]
   ): Promise<RemortCleanupCharacter[]> {
+    const dailyActionWhere = keys?.length
+      ? {
+          key: {
+            in: [...keys]
+          }
+        }
+      : {};
     const characters = await this.prisma.character.findMany({
       where: {
         remorts: {
           some: {}
         },
         dailyActions: {
-          some: {
-            key: {
-              in: [...keys]
-            }
-          }
+          some: dailyActionWhere
         }
       },
       select: {
@@ -43,11 +46,7 @@ class PrismaRemortDailyActionCleanupStore implements RemortDailyActionCleanupSto
           }
         },
         dailyActions: {
-          where: {
-            key: {
-              in: [...keys]
-            }
-          },
+          where: dailyActionWhere,
           select: {
             id: true,
             key: true,

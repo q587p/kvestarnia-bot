@@ -53,7 +53,6 @@ export interface RemortSnapshot {
 export interface RemortCompletionInput {
   token: string;
   now: Date;
-  resetDailyActionKeys?: readonly string[];
   validate: (snapshot: RemortSnapshot) =>
     | {
         state: "ready";
