@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.6] - 12026-06-26 - Passage Search MVP
+
+### Added
+- Added timed `🔎 Пошукати` actions for the `Спуск до Низу` surface and all three first-tier Nyz passages.
+- Added durable `passage_search_actions` persistence with one running search per character, replay-safe terminal results, server-owned tokens and active-action locking.
+- Added per-node search cooldowns through existing character cooldown storage, so searching one passage does not consume the cooldown for another passage or the descent surface.
+- Added a small deterministic passage-search loot roll with gold and the existing `Бинт відповідальної паніки`; `Спуск до Низу` uses a separate tiny safe table.
+- Added danger resolution for risky passage searches: if the stored monster reacts, the search grants no reward, starts the existing passage combat from the frozen encounter token and skips the first hero turn.
+- Added `v1:search:*` callbacks, running/check/cancel keyboards, Ukrainian search result cards and local `/dev_reset_passage_search` for manual timer/cooldown QA.
+- Added focused domain and callback tests for search constants, danger/loot behavior and callback parser limits.
+
+### Changed
+- Nyz passage preview cards now include `🔎 Пошукати` beside `⚔️ Атакувати`; the descent surface also offers a safe search button.
+- Active search now blocks old fight/place/reply-keyboard actions with a confirm-cancel card instead of letting stale buttons start movement or combat over the timer.
+- Search cooldown is consumed at start and is not refunded by cancel, empty results or monster attacks.
+
+### Unchanged
+- No broad loot table, new item catalog, race/class/title search bonuses, party search, market, crafting, Mini App UI or new combat damage formula ships in this slice.
+- Passage monsters still use existing pending passage encounter and persistent fight machinery; search does not introduce a second monster-state system.
+
 ## [0.2.5] - 12026-06-26 - Bard Performance MVP
 
 ### Added

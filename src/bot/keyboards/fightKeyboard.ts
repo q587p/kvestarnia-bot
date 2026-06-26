@@ -27,6 +27,14 @@ import {
   makeFightTurnCallbackData,
   makeFightViewCallbackData
 } from "../callbacks/fightCallbackData";
+import {
+  makeDescentSearchStartCallbackData,
+  makePassageSearchAskCancelCallbackData,
+  makePassageSearchCancelCallbackData,
+  makePassageSearchCheckCallbackData,
+  makePassageSearchKeepCallbackData,
+  makePassageSearchStartCallbackData
+} from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
@@ -267,6 +275,8 @@ export function buildPersistentFightReadyKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("🪜 Спуск до Низу", makePlaceCallbackData("deep"))
     .row()
+    .text("🔎 Пошукати", makeDescentSearchStartCallbackData())
+    .row()
     .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
 
@@ -288,7 +298,23 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
   return new InlineKeyboard()
     .text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input))
     .row()
+    .text("🔎 Пошукати", makePassageSearchStartCallbackData(input))
+    .row()
     .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
+}
+
+export function buildPassageSearchRunningKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔎 Перевірити", makePassageSearchCheckCallbackData(token))
+    .row()
+    .text("✋ Збити пошук", makePassageSearchAskCancelCallbackData(token));
+}
+
+export function buildPassageSearchCancelKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("✅ Збити", makePassageSearchCancelCallbackData(token))
+    .row()
+    .text("↩️ Шукати далі", makePassageSearchKeepCallbackData(token));
 }
 
 function getFightActionLabels(character?: CharacterSummary): {

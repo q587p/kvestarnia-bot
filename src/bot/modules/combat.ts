@@ -14,6 +14,7 @@ import type { YegerQuestService } from "../../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
 import type { BotServices } from "../botServices";
 import { parseFightCallbackData,type FightCallback } from "../callbacks/fightCallbackData";
+import { parsePassageSearchCallbackData, type PassageSearchCallback } from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
 makeQuestCallbackData
@@ -32,6 +33,8 @@ import {
 buildFightResultKeyboard,
 buildPersistentFightDifficultyKeyboard,
 buildPersistentFightJournalKeyboard,
+buildPassageSearchCancelKeyboard,
+buildPassageSearchRunningKeyboard,
 buildPersistentFightPassagePreviewKeyboard,
 buildPersistentFightResultKeyboard,
 resolvePersistentFightPresenceLocation
@@ -55,6 +58,7 @@ presentPersistentFightTurn,
 presentQuestProgressAfterFight,
 type QuestProgressAfterFightEntry
 } from "../presenters/fightPresenter";
+import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
@@ -119,6 +123,17 @@ export function registerCombatBotModule(
 
     await handleFightCallback(ctx, parsed.value, services);
   });
+
+  bot.callbackQuery(/^v1:search:/, async (ctx) => {
+    const parsed = parsePassageSearchCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.passageSearch) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handlePassageSearchCallback(ctx, parsed.value, services);
+  });
 }
 
 async function handleTrainingDoppelgangerCallback(
@@ -135,6 +150,31 @@ async function handleTrainingDoppelgangerCallback(
 
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
     return;
+  }
+
+  if (services.passageSearch) {
+    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
+    if (activeSearch) {
+      await safeAnswerCallbackQuery(ctx);
+      const replyMarkup = activeSearch.state === "confirm-cancel"
+        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
+        : activeSearch.state === "running"
+          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
+          : undefined;
+      await safeEditMessageText(ctx, presentPassageSearch(activeSearch), {
+        ...HTML_MESSAGE_OPTIONS,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+      });
+      if (activeSearch.state === "monster-attack") {
+        await sendFight(ctx, services.fight, "reply", {
+          presence: services.presence,
+          tavernRaid: services.tavern,
+          requireKorchmaInterior: false,
+          suppressStartIntro: true
+        });
+      }
+      return;
+    }
   }
 
   if (callback.type === "turn") {
@@ -202,6 +242,31 @@ async function handleFightCallback(
 
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
     return;
+  }
+
+  if (services.passageSearch) {
+    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
+    if (activeSearch) {
+      await safeAnswerCallbackQuery(ctx);
+      const replyMarkup = activeSearch.state === "confirm-cancel"
+        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
+        : activeSearch.state === "running"
+          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
+          : undefined;
+      await safeEditMessageText(ctx, presentPassageSearch(activeSearch), {
+        ...HTML_MESSAGE_OPTIONS,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+      });
+      if (activeSearch.state === "monster-attack") {
+        await sendFight(ctx, services.fight, "reply", {
+          presence: services.presence,
+          tavernRaid: services.tavern,
+          requireKorchmaInterior: false,
+          suppressStartIntro: true
+        });
+      }
+      return;
+    }
   }
 
   if (callback.type === "passage") {
@@ -446,6 +511,57 @@ async function handleFightCallback(
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
+  }
+}
+
+async function handlePassageSearchCallback(
+  ctx: Context,
+  callback: PassageSearchCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId || !services.passageSearch) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  const result =
+    callback.type === "start-passage"
+      ? await services.passageSearch.startPassageSearch(telegramUserId, {
+          passage: callback.passage,
+          encounterToken: callback.encounterToken
+        })
+      : callback.type === "start-descent"
+        ? await services.passageSearch.startDescentSearch(telegramUserId)
+      : callback.type === "check" || callback.type === "keep"
+        ? await services.passageSearch.checkSearch(telegramUserId, callback.token)
+      : callback.type === "ask-cancel"
+        ? await services.passageSearch.previewCancel(telegramUserId, callback.token)
+      : await services.passageSearch.cancelSearch(telegramUserId, callback.token);
+
+  await safeAnswerCallbackQuery(ctx);
+  const replyMarkup = result.state === "started" || result.state === "running"
+    ? buildPassageSearchRunningKeyboard(result.action.token)
+    : result.state === "confirm-cancel"
+      ? buildPassageSearchCancelKeyboard(result.action.token)
+      : undefined;
+  await safeEditMessageText(ctx, presentPassageSearch(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+  });
+
+  if (result.state === "monster-attack") {
+    await sendFight(ctx, services.fight, "reply", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      requireKorchmaInterior: false,
+      suppressStartIntro: true
+    });
   }
 }
 

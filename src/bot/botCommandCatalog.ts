@@ -305,6 +305,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "скинути бардівський виступ локально",
     includeInMenu: false,
     devOnly: "grant"
+  },
+  {
+    command: "dev_reset_passage_search",
+    icon: "🔎",
+    description: "скинути пошук у проходах локально",
+    includeInMenu: false,
+    devOnly: "grant"
   }
 ];
 

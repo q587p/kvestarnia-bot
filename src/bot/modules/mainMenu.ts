@@ -50,7 +50,12 @@ getMainMenuLocationButtonText,
 mainMenuButtons,
 mainMenuLocationButtonTexts
 } from "../keyboards/mainMenuKeyboard";
+import {
+buildPassageSearchCancelKeyboard,
+buildPassageSearchRunningKeyboard
+} from "../keyboards/fightKeyboard";
 import { presentHelp } from "../presenters/helpPresenter";
+import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 
 import {
 presenceLocationToPersistentFightPassage,
@@ -309,6 +314,22 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
     await sendTavern(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
+  }
+
+  if (services.passageSearch) {
+    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
+    if (activeSearch) {
+      const replyMarkup = activeSearch.state === "confirm-cancel"
+        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
+        : activeSearch.state === "running"
+          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
+          : undefined;
+      await ctx.reply(presentPassageSearch(activeSearch), {
+        parse_mode: "HTML",
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+      });
+      return;
+    }
   }
 
   await sendCurrentPresenceLocation(

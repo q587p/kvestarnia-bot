@@ -58,6 +58,10 @@ buildCellarParticipantsKeyboard,
 buildCellarResultKeyboard
 } from "../keyboards/cellarKeyboard";
 import {
+buildPassageSearchCancelKeyboard,
+buildPassageSearchRunningKeyboard
+} from "../keyboards/fightKeyboard";
+import {
 buildBardPerformanceResponseKeyboard,
 buildBardPerformanceRespondResultKeyboard,
 buildBackToCurrentPlaceKeyboard,
@@ -98,6 +102,7 @@ import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
 import { presentParticipants } from "../presenters/presencePresenter";
+import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentBardPerformanceAudienceNotification,
 presentBardPerformancePerformerFeedback,
@@ -158,6 +163,7 @@ export function registerTavernBotModule(
   );
   registerTavernCommand(bot, services.tavern, services.presence);
   registerBardPerformanceDevResetHandler(bot, services);
+  registerPassageSearchDevResetHandler(bot, services);
 
   bot.callbackQuery(/^v1:sh:/, async (ctx) => {
     const parsed = parseShynokCallbackData(ctx.callbackQuery.data);
@@ -525,6 +531,39 @@ function registerBardPerformanceDevResetHandler(bot: Bot, services: BotServices)
   });
 }
 
+function registerPassageSearchDevResetHandler(bot: Bot, services: BotServices): void {
+  bot.command("dev_reset_passage_search", async (ctx) => {
+    if (!services.devGrant?.isEnabled()) {
+      await ctx.reply(presentDevGrantDisabled());
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (!telegramUserId) {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (!services.passageSearch) {
+      await ctx.reply("Dev-скидання пошуку в проходах недоступне.");
+      return;
+    }
+
+    const result = await services.passageSearch.devReset(telegramUserId);
+    if (result.state === "no-character") {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (result.state === "disabled") {
+      await ctx.reply("Dev-скидання пошуку в проходах недоступне.");
+      return;
+    }
+
+    await ctx.reply(`🔎 Пошук у проходах скинуто локально. Збито пошуків: ${result.actions}. Cooldown-ів прибрано: ${result.cooldowns}.`);
+  });
+}
+
 async function handlePlaceCallback(
   ctx: Context,
   action: PlaceCallback,
@@ -542,6 +581,23 @@ async function handlePlaceCallback(
     (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
   ) {
     return;
+  }
+
+  if (services.passageSearch) {
+    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
+    if (activeSearch) {
+      await safeAnswerCallbackQuery(ctx);
+      const replyMarkup = activeSearch.state === "confirm-cancel"
+        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
+        : activeSearch.state === "running"
+          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
+          : undefined;
+      await safeEditMessageText(ctx, presentPassageSearch(activeSearch), {
+        ...HTML_MESSAGE_OPTIONS,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+      });
+      return;
+    }
   }
 
   await safeAnswerCallbackQuery(ctx);

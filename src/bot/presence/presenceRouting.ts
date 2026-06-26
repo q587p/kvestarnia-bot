@@ -303,7 +303,8 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_add_bandage" ||
     command === "dev_reset_yeger_bandage" ||
     command === "dev_reset_yeger_bandage_day" ||
-    command === "dev_reset_bard_performance"
+    command === "dev_reset_bard_performance" ||
+    command === "dev_reset_passage_search"
   ) {
     return {};
   }

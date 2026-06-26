@@ -10,6 +10,21 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.6 — Passage Search smoke
+
+Use one level 3+ account with local dev commands enabled where helpful.
+
+1. Open `🪜 Спуск до Низу`, press `🔎 Пошукати`, check before 23 seconds and verify no reward is granted early.
+2. Check after the timer; verify the safe tiny result replays without a second reward.
+3. Start search in one passage with a visible monster; verify the running card shows check and cancel controls.
+4. While it runs, press an old `⚔️ Атакувати` passage button; verify confirm-cancel appears instead of starting combat.
+5. While it runs, press an old `↩️ Повернутися до Сутеренів` or place button; verify confirm-cancel appears instead of moving.
+6. Confirm cancel; verify no reward and that the same node is on cooldown.
+7. Search a different passage immediately after cancel/resolution; verify the first node cooldown does not block the second node.
+8. Repeat passage search until danger occurs; verify no search reward appears and the existing passage combat opens with the first hero turn skipped.
+9. Repeat old check/cancel/result callbacks after terminal state; verify no duplicate reward.
+10. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
+
 ## 0.2.5 — Bard Performance smoke
 
 Use two accounts in Shynok and another shared location with local dev commands enabled where helpful.

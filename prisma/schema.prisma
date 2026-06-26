@@ -49,6 +49,7 @@ model Character {
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
   pendingPassageEncounters PendingPassageEncounter[]
+  passageSearchActions PassageSearchAction[]
   combatBalanceBattles CombatBalanceBattle[]
   barrelRaidNotifications BarrelRaidNotification[]
   bardPerformances BardPerformance[]
@@ -135,6 +136,27 @@ model PendingPassageEncounter {
   @@index([monsterId])
   @@index([combatSessionId])
   @@map("pending_passage_encounters")
+}
+
+model PassageSearchAction {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  characterId String    @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  nodeKey     String    @map("node_key")
+  nodeKind    String    @map("node_kind")
+  status      String    @default("running")
+  activeKey   String?   @unique @map("active_key")
+  startedAt   DateTime  @map("started_at")
+  endsAt      DateTime  @map("ends_at")
+  payloadJson Json      @map("payload_json")
+  resultJson  Json?     @map("result_json")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([characterId, status, endsAt])
+  @@index([nodeKey])
+  @@map("passage_search_actions")
 }
 
 model CombatBalanceBattle {
