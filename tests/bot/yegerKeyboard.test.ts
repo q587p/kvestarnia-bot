@@ -67,7 +67,7 @@ describe("Yeger keyboard", () => {
       callback_data: makeYegerQuestCallbackData()
     });
     expect(flatButtons(keyboard)).toContainEqual({
-      text: "🏹 Єгерський бинт",
+      text: "🧰 Єгерський бинт",
       callback_data: makeYegerFreeBandageCallbackData()
     });
   });

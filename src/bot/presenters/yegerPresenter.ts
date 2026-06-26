@@ -232,7 +232,7 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
 
   if (result.state === "class-locked") {
     return [
-      "🏹 Єгерський бинт",
+      "🧰 Єгерський бинт",
       presentCharacterHeader(result.character),
       "",
       "Єгер ховає безкоштовну пачку під карту.",
@@ -242,7 +242,7 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
 
   if (result.state === "on-cooldown") {
     return [
-      "🏹 Єгерський бинт",
+      "🧰 Єгерський бинт",
       presentCharacterHeader(result.character),
       "",
       `Безкоштовний бинт буде знову ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
@@ -251,7 +251,7 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
   }
 
   return [
-    "🏹 Єгерський бинт",
+    "🧰 Єгерський бинт",
     presentCharacterHeader(result.character),
     "",
     `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
