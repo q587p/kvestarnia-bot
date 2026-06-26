@@ -566,6 +566,9 @@ function groupPeople(records: PresenceRecord[], now: Date): PresenceGroup {
       return {
         telegramUserId: record.telegramUserId,
         name: getPresenceName(record),
+        ...(record.characterClassId === null || record.characterClassId === undefined
+          ? {}
+          : { classId: record.characterClassId }),
         ...(record.characterLevel === null || record.characterLevel === undefined
           ? {}
           : { level: record.characterLevel }),

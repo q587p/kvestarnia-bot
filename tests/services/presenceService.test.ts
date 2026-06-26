@@ -227,6 +227,42 @@ describe("PresenceService", () => {
     );
   });
 
+  it("keeps class and level metadata on same-location presence people", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "Shannar", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BAR, {
+        characterClassId: "class.bard",
+        characterLevel: 3
+      }),
+      player(2n, "BooksDragon", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_BAR, {
+        characterClassId: "class.mage",
+        characterLevel: 4
+      })
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const snapshot = await service.getOnlineForTelegramUser(1n);
+
+    expect(snapshot).toMatchObject({
+      state: "ready",
+      location: {
+        people: {
+          active: [
+            {
+              telegramUserId: 2n,
+              classId: "class.mage",
+              level: 4
+            },
+            {
+              telegramUserId: 1n,
+              classId: "class.bard",
+              level: 3
+            }
+          ]
+        }
+      }
+    });
+  });
+
   it("lists only active nearby duel candidates at the current location", async () => {
     const repository = new FakePresenceRepository([
       player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
