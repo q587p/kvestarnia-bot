@@ -65,6 +65,7 @@ import {
   selectPersistentFightMonsterLevel,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
+import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
 import {
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -1993,7 +1994,15 @@ describe("FightService", () => {
       });
       expect(typeof result.fightReward?.reward.xp).toBe("number");
       expect(typeof result.fightReward?.reward.gold).toBe("number");
-      expect(result.fightReward?.reward.itemGrants.length).toBeLessThanOrEqual(1);
+      expect(
+        result.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+          .length
+      ).toBeLessThanOrEqual(1);
+      expect(result.fightReward?.reward.itemGrants).toContainEqual({
+        itemId: BANDAGE_ITEM_ID,
+        name: "Бинт відповідальної паніки",
+        quantity: 1
+      });
       expect(result.questProgress).toMatchObject({
         wins: 1,
         target: 13,
@@ -2509,7 +2518,14 @@ describe("FightService", () => {
     }
 
     expect(recovered.fightReward?.reward.gold).toBe(0);
-    expect(recovered.fightReward?.reward.itemGrants.length).toBe(1);
+    expect(
+      recovered.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+    ).toHaveLength(1);
+    expect(recovered.fightReward?.reward.itemGrants).toContainEqual({
+      itemId: BANDAGE_ITEM_ID,
+      name: "Бинт відповідальної паніки",
+      quantity: 1
+    });
 
     const replayed = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2560,7 +2576,14 @@ describe("FightService", () => {
       throw new Error("Expected terminal reward recovery.");
     }
     expect(recovered.fightReward?.reward.gold).toBe(0);
-    expect(recovered.fightReward?.reward.itemGrants).toEqual([]);
+    expect(
+      recovered.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+    ).toEqual([]);
+    expect(recovered.fightReward?.reward.itemGrants).toContainEqual({
+      itemId: BANDAGE_ITEM_ID,
+      name: "Бинт відповідальної паніки",
+      quantity: 1
+    });
   });
 
   it("scales recovered persistent fight rewards by stored difficulty", async () => {

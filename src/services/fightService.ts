@@ -64,7 +64,7 @@ import {
   type MonsterCombatStats
 } from "../domain/combat";
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
-import { getItemDropChance, rollMonsterLoot } from "../domain/loot";
+import { getItemDropChance, rollBandageDropQuantity, rollMonsterLoot } from "../domain/loot";
 import {
   CURRENT_GAME_LEVEL_CAP,
   isWithinActivityMaxLevel,
@@ -108,6 +108,7 @@ import {
 } from "../domain/trainingDoppelganger";
 import {
   APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID,
+  BANDAGE_ITEM_ID,
   BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
@@ -4075,17 +4076,28 @@ function buildPersistentFightReward(
     sourceTags: monster.tags
   });
 
+  const xp = buildPersistentFightWinXp({
+    characterLevel: character.level,
+    luck: character.stats.luck,
+    baseMonsterLevel,
+    effectiveMonsterLevel,
+    difficulty,
+    rng
+  });
+  const itemGrants = loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : [];
+  const bandageQuantity = rollBandageDropQuantity({
+    luck: character.stats.luck,
+    rng
+  });
+
+  if (bandageQuantity > 0) {
+    itemGrants.push({ itemId: BANDAGE_ITEM_ID, quantity: bandageQuantity });
+  }
+
   return {
-    xp: buildPersistentFightWinXp({
-      characterLevel: character.level,
-      luck: character.stats.luck,
-      baseMonsterLevel,
-      effectiveMonsterLevel,
-      difficulty,
-      rng
-    }),
+    xp,
     gold,
-    itemGrants: loot.state === "dropped" ? [{ itemId: loot.item.id, quantity: 1 }] : []
+    itemGrants
   };
 }
 
