@@ -221,13 +221,6 @@ export type YegerBandageSupplyResult =
       spentGold: number;
       itemGrants: RewardItemGrant[];
     }
-  | {
-      state: "target-reached";
-      character: CharacterSummary;
-      targetQuantity: YegerBandagePurchaseTarget;
-      purchasedToday: number;
-      dailyLimit: number;
-    }
   | { state: "daily-limit"; character: CharacterSummary; purchasedToday: number; dailyLimit: number }
   | { state: "cancelled"; character: CharacterSummary }
   | { state: "invalid-token" }
@@ -551,7 +544,7 @@ export class YegerQuestService {
     const now = this.now();
     const purchaseDay = toIsoDate(now);
     const purchasedToday = await this.countPaidBandagesPurchasedToday(telegramUserId, purchaseDay);
-    const normalizedTarget = normalizeBandagePurchaseTarget(targetQuantity);
+    const requestedQuantity = normalizeBandagePurchaseTarget(targetQuantity);
     if (purchasedToday >= YEGER_BANDAGE_PURCHASE_DAILY_LIMIT) {
       return {
         state: "daily-limit",
@@ -561,19 +554,9 @@ export class YegerQuestService {
       };
     }
 
-    if (purchasedToday >= normalizedTarget) {
-      return {
-        state: "target-reached",
-        character: summary,
-        targetQuantity: normalizedTarget,
-        purchasedToday,
-        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
-      };
-    }
-
     const unitPrice = getYegerBandagePrice(summary);
     const purchaseQuantity = Math.min(
-      normalizedTarget - purchasedToday,
+      requestedQuantity,
       YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday
     );
     const price = unitPrice * purchaseQuantity;
@@ -591,7 +574,7 @@ export class YegerQuestService {
         kind: "yeger-bandage-purchase-preview",
         rulesVersion: "yeger-bandage-purchase-v1",
         token,
-        targetQuantity: normalizedTarget,
+        targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
         purchaseQuantity,
         purchasedToday,
         dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
@@ -613,7 +596,7 @@ export class YegerQuestService {
       state: "preview",
       character: summarizeCharacter(preview.character),
       token,
-      targetQuantity: normalizedTarget,
+      targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
       purchaseQuantity,
       purchasedToday,
       dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
@@ -685,11 +668,10 @@ export class YegerQuestService {
         { state: "stale-token", character: summary };
     }
 
-    const expectedQuantity = Math.min(
-      snapshot.targetQuantity - purchasedToday,
-      YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday
-    );
-    if (expectedQuantity !== snapshot.purchaseQuantity || expectedQuantity <= 0) {
+    if (
+      snapshot.purchaseQuantity > YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday ||
+      snapshot.purchaseQuantity <= 0
+    ) {
       return await this.replayBandagePurchaseDecision(telegramUserId, token, summary) ??
         { state: "stale-token", character: summary };
     }

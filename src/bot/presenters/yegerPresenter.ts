@@ -166,16 +166,6 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
     ].join("\n");
   }
 
-  if (result.state === "target-reached") {
-    return [
-      "🩹 Бинти Єгеря",
-      presentCharacterHeader(result.character),
-      "",
-      `До планки <b>${result.targetQuantity}</b> уже докуплено: <b>${result.purchasedToday}</b>.`,
-      "Єгер показує на більшу планку й мовчки пропонує не сваритися з арифметикою."
-    ].join("\n");
-  }
-
   if (result.state === "cancelled") {
     return [
       "🩹 Бинти Єгеря",

@@ -617,7 +617,7 @@ describe("paid Prisma claim repositories", () => {
       });
   });
 
-  it("keeps concurrent Yeger top-ups capped at the paid daily limit", async () => {
+  it("keeps concurrent Yeger bundles capped at the paid daily limit", async () => {
     await seedCharacter(prisma, {
       userId: "user-yeger-topup-race",
       characterId: "character-yeger-topup-race",
@@ -639,7 +639,7 @@ describe("paid Prisma claim repositories", () => {
     await expectBandageQuantity(prisma, "character-yeger-topup-race", YEGER_BANDAGE_PURCHASE_DAILY_LIMIT);
   });
 
-  it("rolls back the losing Yeger top-up when 5 and 93 targets confirm concurrently", async () => {
+  it("rolls back the losing Yeger bundle when 5 and 93 quantities confirm concurrently", async () => {
     await seedCharacter(prisma, {
       userId: "user-yeger-mixed-topup-race",
       characterId: "character-yeger-mixed-topup-race",
@@ -667,7 +667,7 @@ describe("paid Prisma claim repositories", () => {
     expect(results.filter((result) => result.state === "stale-token")).toHaveLength(1);
   });
 
-  it("keeps cancel-vs-confirm top-up races canonical without paid overflow", async () => {
+  it("keeps cancel-vs-confirm bundle races canonical without paid overflow", async () => {
     await seedCharacter(prisma, {
       userId: "user-yeger-topup-cancel-race",
       characterId: "character-yeger-topup-cancel-race",
@@ -699,7 +699,7 @@ describe("paid Prisma claim repositories", () => {
     }
   });
 
-  it("uses the shared UTC purchase-day boundary for paid Yeger top-ups", async () => {
+  it("uses the shared UTC purchase-day boundary for paid Yeger bundles", async () => {
     await seedCharacter(prisma, {
       userId: "user-yeger-utc-day",
       characterId: "character-yeger-utc-day",

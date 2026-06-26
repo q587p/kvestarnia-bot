@@ -813,7 +813,7 @@ async function handleYegerCallback(
       ctx,
       result.state === "preview"
         ? { text: "Єгер показав ціну." }
-        : { show_alert: result.state === "insufficient-gold" || result.state === "daily-limit" || result.state === "target-reached" }
+        : { show_alert: result.state === "insufficient-gold" || result.state === "daily-limit" }
     );
     await markYegerCornerPresence(ctx, services.presence);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);

@@ -29,7 +29,7 @@ describe("Yeger keyboard", () => {
     });
   });
 
-  it("offers paid Yeger bandages as one item and daily top-up targets", () => {
+  it("offers paid Yeger bandages as fixed bundle quantities", () => {
     const keyboard = buildYegerCornerKeyboard({
       state: "completed",
       character,
@@ -39,10 +39,14 @@ describe("Yeger keyboard", () => {
 
     expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
       { text: "🩹 1 бинт", callback_data: makeYegerBuyBandageCallbackData(1) },
-      { text: "🧷 До 5 бинтів", callback_data: makeYegerBuyBandageCallbackData(5) },
-      { text: "🧷 До 17 бинтів", callback_data: makeYegerBuyBandageCallbackData(17) },
-      { text: "🧷 До 93 бинтів", callback_data: makeYegerBuyBandageCallbackData(93) }
+      { text: "🩹 5 бинтів", callback_data: makeYegerBuyBandageCallbackData(5) },
+      { text: "🩹 17 бинтів", callback_data: makeYegerBuyBandageCallbackData(17) },
+      { text: "🩹 93 бинти", callback_data: makeYegerBuyBandageCallbackData(93) }
     ]));
+    expect(keyboard.inline_keyboard.slice(1, 3).map((row) => row.map((button) => button.text))).toEqual([
+      ["🩹 1 бинт", "🩹 5 бинтів"],
+      ["🩹 17 бинтів", "🩹 93 бинти"]
+    ]);
   });
 
   it("links the completed Yeger keepsake from the quest screen", () => {

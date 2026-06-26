@@ -309,7 +309,7 @@ describe("Yeger presenter", () => {
     }
   });
 
-  it("renders paid bandage top-up copy with target and current gold", () => {
+  it("renders paid bandage bundle copy with the daily cap and current gold", () => {
     const text = presentYegerBandageBuy({
       state: "preview",
       character: { ...character, gold: 700 },
@@ -334,25 +334,16 @@ describe("Yeger presenter", () => {
     expect(text).toContain("ящик першої підозрілої допомоги");
   });
 
-  it("renders paid bandage daily cap and reached target states", () => {
+  it("renders the paid bandage daily cap state", () => {
     const capped = presentYegerBandageBuy({
       state: "daily-limit",
       character,
       purchasedToday: 93,
       dailyLimit: 93
     });
-    const reached = presentYegerBandageBuy({
-      state: "target-reached",
-      character,
-      targetQuantity: 5,
-      purchasedToday: 5,
-      dailyLimit: 93
-    });
 
     expect(capped).toContain("Сьогодні куплено: <b>93/93</b>.");
     expect(capped).toContain("Бинти теж мають робочий день");
-    expect(reached).toContain("До планки <b>5</b> уже докуплено: <b>5</b>.");
-    expect(reached).toContain("не сваритися з арифметикою");
   });
 });
 

@@ -603,7 +603,7 @@ describe("YegerQuestService", () => {
     expect(world.itemGrants).toEqual([]);
   });
 
-  it("previews paid Yeger bandage bundles as top-up targets", async () => {
+  it("previews paid Yeger bandage bundles as fixed quantities", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 200, classId: "class.warrior" });
 
@@ -611,7 +611,7 @@ describe("YegerQuestService", () => {
 
     expect(result).toMatchObject({
       state: "preview",
-      targetQuantity: 17,
+      targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
       purchaseQuantity: 17,
       purchasedToday: 0,
       dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
@@ -641,7 +641,7 @@ describe("YegerQuestService", () => {
     expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
   });
 
-  it("tops up to the 93 paid bandage daily limit after an earlier purchase", async () => {
+  it("buys another fixed bundle after an earlier purchase", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 700, classId: "class.warrior" });
     const service = world.service();
@@ -656,25 +656,37 @@ describe("YegerQuestService", () => {
         spentGold: YEGER_BANDAGE_PRICE * 5,
         itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
       });
-    const ninetyThree = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 93);
-    if (ninetyThree.state !== "preview") {
-      throw new Error("Expected top-up preview.");
+    const secondFive = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
+    if (secondFive.state !== "preview") {
+      throw new Error("Expected second bundle preview.");
     }
 
-    expect(ninetyThree).toMatchObject({
-      targetQuantity: 93,
-      purchaseQuantity: 88,
+    expect(secondFive).toMatchObject({
+      targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      purchaseQuantity: 5,
       purchasedToday: 5,
-      priceGold: YEGER_BANDAGE_PRICE * 88,
-      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 88 }]
+      priceGold: YEGER_BANDAGE_PRICE * 5,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
     });
-    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, ninetyThree.token))
+    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, secondFive.token))
       .resolves.toMatchObject({
         state: "bought",
-        spentGold: YEGER_BANDAGE_PRICE * 88,
-        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 88 }]
+        spentGold: YEGER_BANDAGE_PRICE * 5,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
       });
-    await expect(service.previewBandagePurchaseForTelegramUser(telegramUserId, 93))
+    const remaining = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 93);
+    expect(remaining).toMatchObject({
+      state: "preview",
+      targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      purchaseQuantity: 83,
+      purchasedToday: 10,
+      dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+    });
+    if (remaining.state !== "preview") {
+      throw new Error("Expected remaining bundle preview.");
+    }
+    await service.confirmBandagePurchaseForTelegramUser(telegramUserId, remaining.token);
+    await expect(service.previewBandagePurchaseForTelegramUser(telegramUserId, 1))
       .resolves.toMatchObject({
         state: "daily-limit",
         purchasedToday: 93,
@@ -683,7 +695,8 @@ describe("YegerQuestService", () => {
     expect(world.character?.gold).toBe(49);
     expect(world.itemGrants).toEqual([
       { itemId: "item.responsible-panic-bandage", quantity: 5 },
-      { itemId: "item.responsible-panic-bandage", quantity: 88 }
+      { itemId: "item.responsible-panic-bandage", quantity: 5 },
+      { itemId: "item.responsible-panic-bandage", quantity: 83 }
     ]);
   });
 
