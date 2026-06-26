@@ -483,6 +483,19 @@ model BarrelRaidNotification {
   @@map("barrel_raid_notifications")
 }
 
+model PlayerHintReceipt {
+  id             String   @id @default(uuid())
+  telegramUserId BigInt   @map("telegram_user_id")
+  key            String
+  shownAt        DateTime @map("shown_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([telegramUserId, key])
+  @@index([key])
+  @@map("player_hint_receipts")
+}
+
 model LevelBarterExchange {
   id                 String    @id @default(uuid())
   characterId        String    @map("character_id")

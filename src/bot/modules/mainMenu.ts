@@ -324,7 +324,9 @@ async function sendCurrentPresenceLocation(
   services: BotServices
 ): Promise<void> {
   if (locationId === PRESENCE_LOCATION_KORCHMA_FRONT) {
-    await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger);
+    await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
+      playerHintService: services.playerHints
+    });
     return;
   }
 

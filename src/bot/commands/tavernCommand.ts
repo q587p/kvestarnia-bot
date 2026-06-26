@@ -1,5 +1,6 @@
 import type { Bot, Context } from "grammy";
 import type { PresenceService } from "../../services/presenceService";
+import type { PlayerHintService } from "../../services/playerHintService";
 import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_BAR,
@@ -138,7 +139,7 @@ export async function sendKorchmaFront(
   presenceService: PresenceService,
   mode: "reply" | "edit",
   yegerQuestService?: Pick<YegerQuestService, "getForTelegramUser">,
-  options: { now?: Date } = {}
+  options: { now?: Date; playerHintService?: Pick<PlayerHintService, "claimKorchmaFrontEntryHint"> } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -169,8 +170,12 @@ export async function sendKorchmaFront(
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FRONT);
   const yegerAction = await getFrontYegerAction(yegerQuestService, telegramUserId);
   const munchkinLocation = getMunchkinLocationAt(options.now ?? systemClock());
+  const entryHint = await options.playerHintService?.claimKorchmaFrontEntryHint(telegramUserId);
 
-  await sendText(ctx, mode, presentKorchmaFront(result.character, { munchkinLocation }), {
+  await sendText(ctx, mode, presentKorchmaFront(result.character, {
+    munchkinLocation,
+    showEntryHint: entryHint?.shouldShow ?? true
+  }), {
     state: "front",
     yegerAction,
     munchkinLocation

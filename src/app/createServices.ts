@@ -20,6 +20,7 @@ import { LevelBarterService } from "../services/levelBarterService";
 import { LevelMilestoneService } from "../services/levelMilestoneService";
 import { MantokChestService } from "../services/mantokChestService";
 import { OnboardingService } from "../services/onboardingService";
+import { PlayerHintService } from "../services/playerHintService";
 import { PresenceService } from "../services/presenceService";
 import { RemortService } from "../services/remortService";
 import { RestartService } from "../services/restartService";
@@ -112,6 +113,7 @@ export function createServices(
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
     mantokChest: new MantokChestService(repositories.mantokChestRuns),
     onboarding: new OnboardingService(repositories.users, repositories.characters),
+    playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
     remort: new RemortService(repositories.remorts),
     restart: new RestartService(repositories.characters),

@@ -16,6 +16,7 @@ import type { LevelBarterService } from "../services/levelBarterService";
 import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
 import type { OnboardingService } from "../services/onboardingService";
+import type { PlayerHintService } from "../services/playerHintService";
 import type { PresenceService } from "../services/presenceService";
 import type { RemortService } from "../services/remortService";
 import type { RestartService } from "../services/restartService";
@@ -33,6 +34,7 @@ export interface BotServices {
   hunt: HuntService;
   yeger: YegerQuestService;
   onboarding: OnboardingService;
+  playerHints: PlayerHintService;
   hero: HeroService;
   equipment: EquipmentService;
   inventory: InventoryService;
