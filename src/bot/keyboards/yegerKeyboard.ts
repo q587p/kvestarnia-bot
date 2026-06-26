@@ -90,9 +90,12 @@ export function buildYegerCornerKeyboard(
     .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildYegerBandagePurchaseKeyboard(token: string): InlineKeyboard {
+export function buildYegerBandagePurchaseKeyboard(
+  token: string,
+  options: { confirmLabel?: string } = {}
+): InlineKeyboard {
   return new InlineKeyboard()
-    .text("✅ Купити", makeYegerConfirmBandagePurchaseCallbackData(token))
+    .text(options.confirmLabel ?? "✅ Купити", makeYegerConfirmBandagePurchaseCallbackData(token))
     .text("✖️ Скасувати", makeYegerCancelBandagePurchaseCallbackData(token))
     .row()
     .text("⬅️ До Єгеря", makeYegerOpenCallbackData());

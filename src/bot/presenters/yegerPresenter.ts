@@ -197,12 +197,26 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
   }
 
   if (result.state === "insufficient-gold") {
+    const affordable = result.affordablePreview;
+    const fallbackLines = affordable
+      ? [
+          "",
+          `На всю обрану пачку не стане, але гаманець ще дихає на <b>${affordable.purchaseQuantity}</b> ${formatBandageUnit(affordable.purchaseQuantity)}.`,
+          `Це буде <b>${affordable.priceGold} золота</b>. У вас: <b>${affordable.currentGold} золота</b>.`,
+          affordable.unitPriceGold < 7
+            ? "Єгерська знижка вже в ціні. Єгер кивнув так, ніби це офіційний штамп."
+            : "Єгер підсунув менший згорток і зробив вигляд, що це фінансова стратегія.",
+          "Купити стільки, на скільки вистачає?"
+        ]
+      : [];
+
     return [
       "🩹 Бинти Єгеря",
       presentCharacterHeader(result.character),
       "",
       `Єгер показує ціну: <b>${result.requiredGold} золота</b>.`,
-      "У торбі лунає фінансова тиша."
+      "У торбі лунає фінансова тиша.",
+      ...fallbackLines
     ].join("\n");
   }
 
@@ -223,6 +237,21 @@ function presentPendingBandagePurchaseGrant(input: { name: string; quantity: num
     name: escapeHtml(input.name),
     quantity: input.quantity
   })}</i>`;
+}
+
+function formatBandageUnit(quantity: number): string {
+  const mod10 = quantity % 10;
+  const mod100 = quantity % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return "бинт";
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return "бинти";
+  }
+
+  return "бинтів";
 }
 
 export function presentYegerRangerBandage(result: YegerRangerBandageResult): string {

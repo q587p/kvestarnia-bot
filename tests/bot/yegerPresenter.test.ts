@@ -347,6 +347,54 @@ describe("Yeger presenter", () => {
     expect(capped).toContain("Сьогодні куплено: <b>93/93</b>.");
     expect(capped).toContain("Бинти теж мають робочий день");
   });
+
+  it("renders an affordable paid bandage fallback after insufficient gold", () => {
+    const text = presentYegerBandageBuy({
+      state: "insufficient-gold",
+      character: { ...character, gold: 20 },
+      requiredGold: 119,
+      affordablePreview: {
+        token: "123e4567-e89b-42d3-a456-426614174000",
+        purchaseQuantity: 2,
+        purchasedToday: 0,
+        dailyLimit: 93,
+        priceGold: 14,
+        unitPriceGold: 7,
+        currentGold: 20,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 2 }],
+        expiresAt: new Date("2026-06-15T10:28:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+
+    expect(text).toContain("Єгер показує ціну: <b>119 золота</b>.");
+    expect(text).toContain("гаманець ще дихає на <b>2</b> бинти");
+    expect(text).toContain("Це буде <b>14 золота</b>. У вас: <b>20 золота</b>.");
+    expect(text).toContain("Купити стільки, на скільки вистачає?");
+  });
+
+  it("mentions the ranger discount in the affordable paid bandage fallback", () => {
+    const text = presentYegerBandageBuy({
+      state: "insufficient-gold",
+      character: { ...character, classId: "class.ranger", gold: 20 },
+      requiredGold: 68,
+      affordablePreview: {
+        token: "123e4567-e89b-42d3-a456-426614174000",
+        purchaseQuantity: 5,
+        purchasedToday: 0,
+        dailyLimit: 93,
+        priceGold: 20,
+        unitPriceGold: 4,
+        currentGold: 20,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 5 }],
+        expiresAt: new Date("2026-06-15T10:28:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+
+    expect(text).toContain("гаманець ще дихає на <b>5</b> бинтів");
+    expect(text).toContain("Єгерська знижка вже в ціні");
+  });
 });
 
 const character: CharacterSummary = {

@@ -39,7 +39,7 @@ Use two accounts in Shynok and another shared location with local dev commands e
 6. Open a preview, then change inventory/equipment/reservation state before confirm: confirm must fail stale without healing or consuming.
 7. While a bandage use preview is pending, try gift/sale/chest/barter of the same `itemId`: the stack should be reserved.
 8. Remort with a pending use order: remort should cancel the use reservation without consuming the bandage.
-9. At the Єгер surface, open paid bandage purchase, verify exact price/current gold, confirm once, replay confirm, cancel a fresh preview, intentionally buy again with a new token, and repeat with insufficient gold.
+9. At the Єгер surface, open paid bandage purchase, verify exact price/current gold, confirm once, replay confirm, cancel a fresh preview, intentionally buy again with a new token, and repeat with insufficient gold; if the wallet can still afford a smaller bundle, the stale-free fallback should offer the maximum affordable count and only spend gold after confirming that new token.
 10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the wait and confirm a fresh claim can be tested without changing production rules.
 11. For Yeger trail QA, use `/dev_reset_yeger_trail` after taking a trail to make `🔎 Перевірити слід` available immediately without weakening production timers.
 12. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.

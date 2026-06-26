@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeItemDetailCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import {
+  buildYegerBandagePurchaseKeyboard,
   buildYegerCornerKeyboard,
   buildYegerHuntKeyboard,
   buildYegerKeyboard,
@@ -9,6 +10,7 @@ import {
 } from "../../src/bot/keyboards/yegerKeyboard";
 import {
   makeYegerBuyBandageCallbackData,
+  makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData
@@ -48,6 +50,16 @@ describe("Yeger keyboard", () => {
       ["🩹 1 бинт", "🩹 5 бинтів"],
       ["🩹 17 бинтів", "🩹 93 бинти"]
     ]);
+  });
+
+  it("can label an affordable paid-bandage confirmation quantity", () => {
+    const token = "123e4567-e89b-42d3-a456-426614174000";
+    const keyboard = buildYegerBandagePurchaseKeyboard(token, { confirmLabel: "✅ Купити 5" });
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "✅ Купити 5",
+      callback_data: makeYegerConfirmBandagePurchaseCallbackData(token)
+    });
   });
 
   it("keeps the free ranger bandage available before the Yeger quest level gate", () => {

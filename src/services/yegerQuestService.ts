@@ -225,7 +225,25 @@ export type YegerBandageSupplyResult =
   | { state: "cancelled"; character: CharacterSummary }
   | { state: "invalid-token" }
   | { state: "stale-token"; character: CharacterSummary }
-  | { state: "insufficient-gold"; character: CharacterSummary; requiredGold: number };
+  | {
+      state: "insufficient-gold";
+      character: CharacterSummary;
+      requiredGold: number;
+      affordablePreview?: YegerBandageAffordablePreview;
+    };
+
+export interface YegerBandageAffordablePreview {
+  token: string;
+  purchaseQuantity: number;
+  purchasedToday: number;
+  dailyLimit: number;
+  priceGold: number;
+  unitPriceGold: number;
+  currentGold: number;
+  itemGrants: RewardItemGrant[];
+  expiresAt: Date;
+  now: Date;
+}
 
 export type YegerRangerBandageResult =
   | { state: "no-character" }
@@ -559,33 +577,13 @@ export class YegerQuestService {
       requestedQuantity,
       YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday
     );
-    const price = unitPrice * purchaseQuantity;
-    const token = randomUUID();
-    const expiresAt = addMinutes(now, YEGER_BANDAGE_PURCHASE_TTL_MINUTES);
-    const preview = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
-      localDate: token,
-      rewardXp: 0,
-      rewardGold: 0,
-      expectedLife: {
-        remortCount: summary.remortCount ?? 0
-      },
-      resultJson: {
-        kind: "yeger-bandage-purchase-preview",
-        rulesVersion: "yeger-bandage-purchase-v1",
-        token,
-        targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
-        purchaseQuantity,
-        purchasedToday,
-        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
-        purchaseDay,
-        unitPrice,
-        price,
-        classId: summary.classId,
-        itemId: BANDAGE_ITEM_ID,
-        remortCount: summary.remortCount ?? 0,
-        expiresAt: expiresAt.toISOString()
-      }
+    const preview = await this.createBandagePurchasePreview(telegramUserId, {
+      summary,
+      purchaseQuantity,
+      purchasedToday,
+      purchaseDay,
+      unitPrice,
+      now
     });
 
     if (!preview) {
@@ -594,18 +592,18 @@ export class YegerQuestService {
 
     return {
       state: "preview",
-      character: summarizeCharacter(preview.character),
-      token,
+      character: preview.character,
+      token: preview.token,
       targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
-      purchaseQuantity,
-      purchasedToday,
+      purchaseQuantity: preview.purchaseQuantity,
+      purchasedToday: preview.purchasedToday,
       dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
-      priceGold: price,
-      unitPriceGold: unitPrice,
-      currentGold: summary.gold,
-      itemGrants: enrichRewardItemGrants([{ itemId: BANDAGE_ITEM_ID, quantity: purchaseQuantity }]),
-      expiresAt,
-      now
+      priceGold: preview.priceGold,
+      unitPriceGold: preview.unitPriceGold,
+      currentGold: preview.currentGold,
+      itemGrants: preview.itemGrants,
+      expiresAt: preview.expiresAt,
+      now: preview.now
     };
   }
 
@@ -693,10 +691,27 @@ export class YegerQuestService {
     }
 
     if (claim.state === "insufficient-gold") {
+      const remainingDailyLimit = YEGER_BANDAGE_PURCHASE_DAILY_LIMIT - purchasedToday;
+      const affordableQuantity = Math.min(
+        remainingDailyLimit,
+        Math.floor(summary.gold / unitPrice)
+      );
+      const affordablePreview = affordableQuantity > 0
+        ? await this.createBandagePurchasePreview(telegramUserId, {
+            summary,
+            purchaseQuantity: affordableQuantity,
+            purchasedToday,
+            purchaseDay,
+            unitPrice,
+            now
+          })
+        : null;
+
       return {
         state: "insufficient-gold",
         character: summarizeCharacter(claim.character),
-        requiredGold: claim.requiredGold
+        requiredGold: claim.requiredGold,
+        ...(affordablePreview ? { affordablePreview } : {})
       };
     }
 
@@ -894,6 +909,65 @@ export class YegerQuestService {
     });
 
     return decision ? mapPurchaseDecision(character, decision, "replayed") : null;
+  }
+
+  private async createBandagePurchasePreview(
+    telegramUserId: bigint,
+    input: {
+      summary: CharacterSummary;
+      purchaseQuantity: number;
+      purchasedToday: number;
+      purchaseDay: string;
+      unitPrice: number;
+      now: Date;
+    }
+  ): Promise<(YegerBandageAffordablePreview & { character: CharacterSummary }) | null> {
+    const token = randomUUID();
+    const expiresAt = addMinutes(input.now, YEGER_BANDAGE_PURCHASE_TTL_MINUTES);
+    const price = input.unitPrice * input.purchaseQuantity;
+    const preview = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
+      localDate: token,
+      rewardXp: 0,
+      rewardGold: 0,
+      expectedLife: {
+        remortCount: input.summary.remortCount ?? 0
+      },
+      resultJson: {
+        kind: "yeger-bandage-purchase-preview",
+        rulesVersion: "yeger-bandage-purchase-v1",
+        token,
+        targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+        purchaseQuantity: input.purchaseQuantity,
+        purchasedToday: input.purchasedToday,
+        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+        purchaseDay: input.purchaseDay,
+        unitPrice: input.unitPrice,
+        price,
+        classId: input.summary.classId,
+        itemId: BANDAGE_ITEM_ID,
+        remortCount: input.summary.remortCount ?? 0,
+        expiresAt: expiresAt.toISOString()
+      }
+    });
+
+    if (!preview) {
+      return null;
+    }
+
+    return {
+      character: summarizeCharacter(preview.character),
+      token,
+      purchaseQuantity: input.purchaseQuantity,
+      purchasedToday: input.purchasedToday,
+      dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      priceGold: price,
+      unitPriceGold: input.unitPrice,
+      currentGold: input.summary.gold,
+      itemGrants: enrichRewardItemGrants([{ itemId: BANDAGE_ITEM_ID, quantity: input.purchaseQuantity }]),
+      expiresAt,
+      now: input.now
+    };
   }
 
   private async claimBandagePurchase(
