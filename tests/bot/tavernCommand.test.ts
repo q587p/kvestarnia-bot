@@ -469,7 +469,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaBar(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 2 }),
       capturingPresenceService(),
       "reply",
       undefined,
@@ -494,7 +494,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaBar(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 2 }),
       capturingPresenceService(),
       "reply",
       undefined,
@@ -514,12 +514,28 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("does not offer taking the first problem quest from the Шинок at level 1", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 1 }),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      unissuedProblemQuestFightService()
+    );
+
+    expect(replies[0]?.text).not.toContain("можна взяти як нову справу");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain(makeQuestCallbackData("problem-next"));
+  });
+
   it("offers the next problem quest from the Шинок after turn-in", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaBar(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 2 }),
       capturingPresenceService(),
       "reply",
       undefined,
@@ -544,7 +560,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaBar(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 2 }),
       capturingPresenceService(),
       "reply",
       undefined,
@@ -569,7 +585,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaBar(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 2 }),
       capturingPresenceService(),
       "reply",
       undefined,
@@ -594,7 +610,7 @@ describe("tavern command screens", () => {
 
     await sendKorchmaBar(
       makeContext(replies),
-      readyTavernService(),
+      readyTavernService({ ...character, level: 2 }),
       capturingPresenceService(),
       "reply",
       undefined,

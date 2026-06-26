@@ -15,7 +15,11 @@ import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
-import type { FightService, ProblemQuestProgress } from "../../services/fightService";
+import {
+  PROBLEM_QUEST_REQUIRED_LEVEL,
+  type FightService,
+  type ProblemQuestProgress
+} from "../../services/fightService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import { systemClock } from "../../shared/time";
@@ -488,7 +492,7 @@ export async function sendKorchmaBar(
     ? await fightService.getProblemQuestProgressForTelegramUser(telegramUserId)
     : null;
   const problemQuestAction =
-    problemQuest?.state === "ready"
+    problemQuest?.state === "ready" && result.character.level >= PROBLEM_QUEST_REQUIRED_LEVEL
       ? getProblemQuestBarActionFromProgress(problemQuest.progress)
       : undefined;
   const barOptions = {

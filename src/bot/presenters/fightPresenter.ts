@@ -1000,6 +1000,15 @@ export function presentProblemQuestTurnIn(result: Exclude<ProblemQuestTurnInLook
 export function presentProblemQuestIssueNext(
   result: Exclude<ProblemQuestIssueNextLookupResult, { state: "no-character" }>
 ): string {
+  if (result.state === "level-locked") {
+    return [
+      "🍺 <b>Корчмар притримує папірець</b>",
+      presentCharacterHeader(result.character),
+      "",
+      `Цю справу можна взяти з ${result.requiredLevel} рівня. Спершу доростіть до проблем, які вже вміють рахувати до тринадцяти.`
+    ].join("\n");
+  }
+
   if (result.state === "branch-complete") {
     return [
       "🍺 <b>Корчмар ховає чисті бланки</b>",
