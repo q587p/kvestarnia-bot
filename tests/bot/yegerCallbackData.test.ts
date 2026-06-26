@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  makeYegerBuyBandageCallbackData,
+  makeYegerCancelBandagePurchaseCallbackData,
+  makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
@@ -41,6 +44,31 @@ describe("Yeger callback data", () => {
       ok: true,
       value: { type: "help" }
     });
+    expect(parseYegerCallbackData(makeYegerBuyBandageCallbackData())).toEqual({
+      ok: true,
+      value: { type: "buy-bandage-preview", targetQuantity: 1 }
+    });
+    expect(parseYegerCallbackData(makeYegerBuyBandageCallbackData(93))).toEqual({
+      ok: true,
+      value: { type: "buy-bandage-preview", targetQuantity: 93 }
+    });
+    expect(parseYegerCallbackData("v1:ygr:buy:bdg")).toEqual({
+      ok: true,
+      value: { type: "buy-bandage-preview", targetQuantity: 1 }
+    });
+  });
+
+  it("parses opaque bandage purchase confirm and cancel tokens", () => {
+    const token = "123e4567-e89b-42d3-a456-426614174000";
+
+    expect(parseYegerCallbackData(makeYegerConfirmBandagePurchaseCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "buy-bandage-confirm", token }
+    });
+    expect(parseYegerCallbackData(makeYegerCancelBandagePurchaseCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "buy-bandage-cancel", token }
+    });
   });
 
   it("keeps generated callbacks within the Telegram limit", () => {
@@ -51,7 +79,13 @@ describe("Yeger callback data", () => {
       makeYegerStartCallbackData(),
       makeYegerTrackCallbackData(),
       makeYegerTurnInCallbackData(),
-      makeYegerHelpCallbackData()
+      makeYegerHelpCallbackData(),
+      makeYegerBuyBandageCallbackData(),
+      makeYegerBuyBandageCallbackData(5),
+      makeYegerBuyBandageCallbackData(17),
+      makeYegerBuyBandageCallbackData(93),
+      makeYegerConfirmBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000"),
+      makeYegerCancelBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000")
     ]) {
       expect(Buffer.byteLength(callback, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     }

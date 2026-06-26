@@ -27,9 +27,13 @@ import {
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
+import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import type {
   AdoptLegacySoloCombatSettlementInput,
   AdoptLegacySoloCombatSettlementResult,
+  ApplyCombatItemTurnInput,
+  ApplyCombatItemTurnResult,
   ApplyTerminalResourcesInput,
   ApplyTerminalResourcesResult,
   ApplyTrainingCooldownInput,
@@ -63,6 +67,12 @@ const RECENT_ORDINARY_PAGE_SIZE = 50;
 const RECENT_ORDINARY_SCAN_CAP = 200;
 const RETRY_SOLO_COMBAT_CREATE = Symbol("retry-solo-combat-create");
 const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
+
+class CombatItemTurnRollback extends Error {
+  constructor(readonly outcome: Extract<ApplyCombatItemTurnResult["outcome"], "not-owned">) {
+    super("Combat item turn rolled back.");
+  }
+}
 
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -735,6 +745,126 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
 
     return mapSoloCombatSessionRecord(record);
+  }
+
+  async applyCombatItemTurnById(
+    sessionId: string,
+    expectedTurn: number,
+    input: ApplyCombatItemTurnInput
+  ): Promise<ApplyCombatItemTurnResult> {
+    const result = await this.prisma.$transaction(async (tx): Promise<ApplyCombatItemTurnResult> => {
+      const character = await tx.character.findFirst({
+        where: {
+          id: input.characterId,
+          user: { telegramUserId: input.telegramUserId }
+        },
+        select: { id: true }
+      });
+
+      if (!character) {
+        return { outcome: "stale-turn", session: null };
+      }
+
+      const lease = await tx.activeCombatLease.findUnique({
+        where: { characterId: input.characterId },
+        select: { kind: true, referenceId: true }
+      });
+      if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== sessionId) {
+        return { outcome: "stale-turn", session: null };
+      }
+
+      await tx.characterItem.updateMany({
+        where: { characterId: input.characterId, itemId: input.itemId },
+        data: { updatedAt: input.now }
+      });
+
+      const [stack, equipped, reservedItemIds] = await Promise.all([
+        tx.characterItem.findUnique({
+          where: {
+            characterId_itemId: {
+              characterId: input.characterId,
+              itemId: input.itemId
+            }
+          }
+        }),
+        tx.characterEquipment.findFirst({
+          where: { characterId: input.characterId, itemId: input.itemId },
+          select: { id: true }
+        }),
+        getCombatItemReservedItemIds(tx, input.characterId, input.now)
+      ]);
+
+      if (!stack || stack.quantity < 1) {
+        return { outcome: "not-owned", session: null };
+      }
+
+      if (equipped || reservedItemIds.includes(input.itemId)) {
+        return { outcome: "reserved", session: null };
+      }
+
+      const updated = await tx.soloCombatSession.updateMany({
+        where: {
+          id: sessionId,
+          characterId: input.characterId,
+          status: "active",
+          turn: expectedTurn
+        },
+        data: {
+          stateJson: input.state as unknown as Prisma.InputJsonValue,
+          status: input.status,
+          turn: input.state.turn,
+          ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+        }
+      });
+
+      if (updated.count !== 1) {
+        return { outcome: "stale-turn", session: null };
+      }
+
+      const consumed = await tx.characterItem.updateMany({
+        where: {
+          characterId: input.characterId,
+          itemId: input.itemId,
+          quantity: { gte: 1 }
+        },
+        data: {
+          quantity: { decrement: 1 }
+        }
+      });
+
+      if (consumed.count !== 1) {
+        throw new CombatItemTurnRollback("not-owned");
+      }
+
+      await tx.characterItem.deleteMany({
+        where: {
+          characterId: input.characterId,
+          quantity: { lte: 0 }
+        }
+      });
+
+      if (input.status !== "active" && input.releaseLease) {
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            referenceId: sessionId
+          }
+        });
+      }
+
+      const session = await tx.soloCombatSession.findUnique({
+        where: { id: sessionId }
+      });
+
+      return { outcome: "updated", session: mapSoloCombatSessionRecord(session) };
+    }).catch((error: unknown) => {
+      if (error instanceof CombatItemTurnRollback) {
+        return { outcome: error.outcome, session: null };
+      }
+
+      throw error;
+    });
+
+    return result;
   }
 
   async recordRewardById(
@@ -2269,6 +2399,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const monsterDamage = intOrNull(value.monsterDamage);
   const manaSpent = intOrNull(value.manaSpent);
   const heroCounterDamage = intOrNull(value.heroCounterDamage);
+  const heroHealing = intOrNull(value.heroHealing);
   const damageKind = parseDamageKind(value.damageKind);
   const monsterDamageKind = parseDamageKind(value.monsterDamageKind);
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
@@ -2306,6 +2437,9 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(typeof value.simultaneousFinalResponse === "boolean" ? { simultaneousFinalResponse: value.simultaneousFinalResponse } : {}),
     ...(heroCounterDamage !== null ? { heroCounterDamage } : {}),
     ...(typeof value.monsterBarkId === "string" ? { monsterBarkId: value.monsterBarkId } : {}),
+    ...(typeof value.itemId === "string" ? { itemId: value.itemId } : {}),
+    ...(typeof value.itemName === "string" ? { itemName: value.itemName } : {}),
+    ...(heroHealing !== null ? { heroHealing } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(debugTrace ? { debugTrace } : {})
   };
@@ -2432,7 +2566,7 @@ function parseTurnLogMonster(value: unknown): CombatTurnLogEntry["monster"] | nu
 }
 
 function parseCombatAction(value: unknown): CombatActionType | null {
-  return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip"
+  return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip" || value === "item"
     ? value
     : null;
 }
@@ -2460,6 +2594,7 @@ function parseTurnOutcome(value: unknown): CombatTurnOutcome | null {
     value === "defended" ||
     value === "not-enough-mana" ||
     value === "skill-on-cooldown" ||
+    value === "item-used" ||
     value === "inactive" ||
     value === "fled" ||
     value === "flee-failed" ||
@@ -2474,6 +2609,70 @@ function parseDamageKind(value: unknown): CombatDamageKind | null {
   return value === "physical" || value === "spell" || value === "social" || value === "trick"
     ? value
     : null;
+}
+
+async function getCombatItemReservedItemIds(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<string[]> {
+  const [pendingChestRuns, pendingLevelBarters, pendingSales, pendingTransfers, pendingUses] = await Promise.all([
+    tx.mantokChestRun.findMany({
+      where: { characterId, status: "pending" },
+      select: { inputItemsJson: true }
+    }),
+    tx.levelBarterExchange.findMany({
+      where: { characterId, status: "pending" },
+      select: { inputItemsJson: true }
+    }),
+    tx.korchmaMantokSale.findMany({
+      where: { characterId, status: { in: ["pending", "processing"] } },
+      select: { selectionJson: true }
+    }),
+    findActiveTransferReservedItems(tx, { senderCharacterId: characterId, now }),
+    findActiveItemUseReservedItems(tx, { characterId, now })
+  ]);
+  const reserved = new Set<string>();
+
+  for (const run of pendingChestRuns) {
+    for (const item of parseCombatReservedItems(run.inputItemsJson)) {
+      reserved.add(item.itemId);
+    }
+  }
+  for (const exchange of pendingLevelBarters) {
+    for (const item of parseCombatReservedItems(exchange.inputItemsJson)) {
+      reserved.add(item.itemId);
+    }
+  }
+  for (const sale of pendingSales) {
+    for (const item of parseCombatReservedItems(sale.selectionJson)) {
+      reserved.add(item.itemId);
+    }
+  }
+  for (const transfer of pendingTransfers) {
+    reserved.add(transfer.itemId);
+  }
+  for (const use of pendingUses) {
+    reserved.add(use.itemId);
+  }
+
+  return [...reserved];
+}
+
+function parseCombatReservedItems(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.itemId !== "string") {
+      return [];
+    }
+
+    const quantity = intOrNull(entry.quantity);
+
+    return quantity === null || quantity <= 0 ? [] : [{ itemId: entry.itemId, quantity }];
+  });
 }
 
 function parseGuardState(value: unknown): CombatState["guard"] | null {

@@ -102,6 +102,30 @@ describe("HeroService", () => {
     expect(characters.resourceUpdateCount).toBe(1);
   });
 
+  it("offers restore-to-full from hero lookup only when bandages cover the missing HP", async () => {
+    const enough = new HeroService(
+      new FakeCharacterRepository(buildCharacter({ hpCurrent: 8, hpMax: 22 })),
+      new FakeInventoryRepository([
+        buildItem({ itemId: "item.responsible-panic-bandage", quantity: 2 })
+      ])
+    );
+    const notEnough = new HeroService(
+      new FakeCharacterRepository(buildCharacter({ hpCurrent: 8, hpMax: 22 })),
+      new FakeInventoryRepository([
+        buildItem({ itemId: "item.responsible-panic-bandage", quantity: 1 })
+      ])
+    );
+
+    await expect(enough.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      restoreToFullItemId: "item.responsible-panic-bandage"
+    });
+    await expect(notEnough.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      restoreToFullItemId: null
+    });
+  });
+
   it("returns the current Shynok drink for hero presentation", async () => {
     const activeDrink = buildDrinkState({
       drinkKey: "drink.pepper-vodka",

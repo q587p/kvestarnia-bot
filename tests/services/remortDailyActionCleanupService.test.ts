@@ -84,7 +84,7 @@ describe("runRemortDailyActionCleanup", () => {
     expect(store.deletedIds).toEqual(["old-problem"]);
   });
 
-  it("includes stale Yeger quest rows in the default remort cleanup keys", async () => {
+  it("includes every stale daily action row by default", async () => {
     const store = new FakeRemortDailyActionCleanupStore([
       {
         id: "character-1",
@@ -103,6 +103,12 @@ describe("runRemortDailyActionCleanup", () => {
             key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
             localDate: "once",
             createdAt: new Date("2026-06-17T23:00:01.000Z")
+          },
+          {
+            id: "old-bandage-purchase",
+            key: "yeger.bandage.purchase.confirm",
+            localDate: "2026-06-17",
+            createdAt: new Date("2026-06-17T23:00:02.000Z")
           }
         ]
       }
@@ -113,31 +119,27 @@ describe("runRemortDailyActionCleanup", () => {
       apply: false
     });
 
-    expect(store.lastKeys).toEqual(
-      expect.arrayContaining([
-        YEGER_UNQUIET_TRIAL_STARTED_KEY,
-        YEGER_UNQUIET_TRIAL_COMPLETED_KEY
-      ])
-    );
+    expect(store.lastKeys).toBeUndefined();
     expect(summary).toMatchObject({
       charactersAffected: 1,
-      actionsMatched: 2,
+      actionsMatched: 3,
       actionsDeleted: 0
     });
     expect(summary.entries[0]?.actionIds).toEqual([
       "old-yeger-started",
-      "old-yeger-completed"
+      "old-yeger-completed",
+      "old-bandage-purchase"
     ]);
   });
 });
 
 class FakeRemortDailyActionCleanupStore implements RemortDailyActionCleanupStore {
   readonly deletedIds: string[] = [];
-  lastKeys: readonly string[] = [];
+  lastKeys: readonly string[] | undefined;
 
   constructor(private readonly characters: RemortCleanupCharacter[]) {}
 
-  listRemortedCharactersWithDailyActions(keys: readonly string[]): Promise<RemortCleanupCharacter[]> {
+  listRemortedCharactersWithDailyActions(keys?: readonly string[]): Promise<RemortCleanupCharacter[]> {
     this.lastKeys = keys;
     return Promise.resolve(this.characters);
   }

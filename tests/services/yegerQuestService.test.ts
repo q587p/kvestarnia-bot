@@ -11,11 +11,12 @@ import type {
   ClaimCooldownRewardResult,
   CooldownRepository
 } from "../../src/db/repositories/cooldownRepository";
-import type {
-  ClaimDailyActionInput,
-  ClaimDailyActionResult,
-  DailyActionRecord,
-  DailyActionRepository
+import {
+  DailyActionQuantityLimitExceededError,
+  type ClaimDailyActionInput,
+  type ClaimDailyActionResult,
+  type DailyActionRecord,
+  type DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
 import type { SoloCombatSessionRepository } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
@@ -26,10 +27,17 @@ import { FakeRandomSource } from "../../src/shared/random";
 import type { FightLookupResult, FightService, PersistentFightStartOptions } from "../../src/services/fightService";
 import {
   getYegerUnquietTrialTurnInXp,
+  getYegerBandagePrice,
   getYegerTrackingExactChance,
   isYegerUnquietTarget,
+  YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+  YEGER_BANDAGE_PRICE,
+  YEGER_RANGER_BANDAGE_PRICE,
+  YEGER_RANGER_FREE_BANDAGE_KEY,
   YEGER_TRACKING_COOLDOWN_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
   YEGER_UNQUIET_TRIAL_REWARD,
   YEGER_UNQUIET_TRIAL_STARTED_KEY,
   YegerQuestService
@@ -72,6 +80,26 @@ describe("YegerQuestService", () => {
     expect(world.actions.filter((action) => action.key === YEGER_UNQUIET_TRIAL_STARTED_KEY)).toHaveLength(1);
   });
 
+  it("offers the next 17 unquiet targets after the first board is complete", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 6, xp: 170 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
+      rewardXp: 42,
+      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+    });
+    const service = world.service();
+
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "offered",
+      progress: { wins: 0, target: 17, stageId: "second" }
+    });
+    await expect(service.startForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "in-progress",
+      progress: { wins: 0, target: 17, stageId: "second" }
+    });
+    expect(world.actions.filter((action) => action.key === YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY)).toHaveLength(1);
+  });
+
   it("counts only won unquiet sessions after quest start", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 5, xp: 110 });
@@ -87,6 +115,26 @@ describe("YegerQuestService", () => {
     await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "in-progress",
       progress: { wins: 2, target: 5 }
+    });
+  });
+
+  it("counts the second Yeger board from its own start time", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 8, xp: 320 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, new Date("2026-06-15T09:00:00.000Z"), {
+      rewardXp: 42,
+      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+    });
+    world.addAction(YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY, startedAt);
+    world.sessions.push(
+      { monsterId: "monster.stamp-doorkeeper-skeleton", status: "won", createdAt: new Date(startedAt.getTime() - 1) },
+      { monsterId: "monster.stamp-doorkeeper-skeleton", status: "won", createdAt: startedAt },
+      { monsterId: "monster.unread-rules-ghost", status: "won", createdAt: new Date(startedAt.getTime() + 1) }
+    );
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "in-progress",
+      progress: { wins: 2, target: 17, stageId: "second" }
     });
   });
 
@@ -173,7 +221,7 @@ describe("YegerQuestService", () => {
     expect(world.character?.xp).toBe(97);
   });
 
-  it("keeps old completed Yeger turn-in XP replaying from the stored ledger", async () => {
+  it("keeps stale first-board turn-in callbacks replaying from the stored ledger", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 5, xp: 190, gold: 120 });
     world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
@@ -182,10 +230,38 @@ describe("YegerQuestService", () => {
     });
 
     await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
-      state: "completed",
+      state: "offered",
+      progress: { wins: 0, target: 17, stageId: "second" }
+    });
+    await expect(world.service().turnInForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      progress: { wins: 5, target: 5, stageId: "first" },
       reward: {
         xp: 80,
         gold: 120
+      }
+    });
+  });
+
+  it("replays completed second Yeger board without first-board keepsake fallback", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 8, xp: 320, gold: 290 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
+      rewardXp: 42,
+      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+    });
+    world.addAction(YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY, startedAt, {
+      rewardXp: 56,
+      rewardGold: 170
+    });
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "completed",
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 56,
+        gold: 170,
+        itemGrants: []
       }
     });
   });
@@ -494,6 +570,220 @@ describe("YegerQuestService", () => {
     expect(getYegerTrackingExactChance(ranger)).toBeGreaterThan(getYegerTrackingExactChance(ordinary));
     expect(getYegerTrackingExactChance(sharpRanger)).toBeLessThanOrEqual(0.95);
   });
+
+  it("lets Yeger sell bandages with a ranger discount", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+
+    const result = await world.service().buyBandageForTelegramUser(telegramUserId);
+
+    expect(getYegerBandagePrice(world.characterSummary())).toBe(YEGER_RANGER_BANDAGE_PRICE);
+    expect(result).toMatchObject({
+      state: "bought",
+      spentGold: YEGER_RANGER_BANDAGE_PRICE,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+    });
+    expect(world.character?.gold).toBe(16);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+  });
+
+  it("previews Yeger bandage purchase before spending gold", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+
+    const result = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "preview",
+      priceGold: YEGER_RANGER_BANDAGE_PRICE,
+      currentGold: 20,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+    });
+    expect(world.character?.gold).toBe(20);
+    expect(world.itemGrants).toEqual([]);
+  });
+
+  it("previews paid Yeger bandage bundles as fixed quantities", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 200, classId: "class.warrior" });
+
+    const result = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId, 17);
+
+    expect(result).toMatchObject({
+      state: "preview",
+      targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      purchaseQuantity: 17,
+      purchasedToday: 0,
+      dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      unitPriceGold: YEGER_BANDAGE_PRICE,
+      priceGold: YEGER_BANDAGE_PRICE * 17,
+      currentGold: 200,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 17 }]
+    });
+    expect(world.character?.gold).toBe(200);
+    expect(world.itemGrants).toEqual([]);
+  });
+
+  it("confirms a Yeger bandage purchase token at most once", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+    const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    const first = await world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token);
+    const replay = await world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token);
+
+    expect(first).toMatchObject({ state: "bought", spentGold: YEGER_RANGER_BANDAGE_PRICE });
+    expect(replay).toMatchObject({ state: "replayed", spentGold: YEGER_RANGER_BANDAGE_PRICE });
+    expect(world.character?.gold).toBe(16);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+  });
+
+  it("buys another fixed bundle after an earlier purchase", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 700, classId: "class.warrior" });
+    const service = world.service();
+    const five = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
+    if (five.state !== "preview") {
+      throw new Error("Expected first preview.");
+    }
+
+    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, five.token))
+      .resolves.toMatchObject({
+        state: "bought",
+        spentGold: YEGER_BANDAGE_PRICE * 5,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
+      });
+    const secondFive = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
+    if (secondFive.state !== "preview") {
+      throw new Error("Expected second bundle preview.");
+    }
+
+    expect(secondFive).toMatchObject({
+      targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      purchaseQuantity: 5,
+      purchasedToday: 5,
+      priceGold: YEGER_BANDAGE_PRICE * 5,
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
+    });
+    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, secondFive.token))
+      .resolves.toMatchObject({
+        state: "bought",
+        spentGold: YEGER_BANDAGE_PRICE * 5,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
+      });
+    const remaining = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 93);
+    expect(remaining).toMatchObject({
+      state: "preview",
+      targetQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      purchaseQuantity: 83,
+      purchasedToday: 10,
+      dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+    });
+    if (remaining.state !== "preview") {
+      throw new Error("Expected remaining bundle preview.");
+    }
+    await service.confirmBandagePurchaseForTelegramUser(telegramUserId, remaining.token);
+    await expect(service.previewBandagePurchaseForTelegramUser(telegramUserId, 1))
+      .resolves.toMatchObject({
+        state: "daily-limit",
+        purchasedToday: 93,
+        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+      });
+    expect(world.character?.gold).toBe(49);
+    expect(world.itemGrants).toEqual([
+      { itemId: "item.responsible-panic-bandage", quantity: 5 },
+      { itemId: "item.responsible-panic-bandage", quantity: 5 },
+      { itemId: "item.responsible-panic-bandage", quantity: 83 }
+    ]);
+  });
+
+  it("stales a bundle confirmation when another receipt changes the same daily target", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 200, classId: "class.warrior" });
+    const service = world.service();
+    const first = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
+    const second = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
+    if (first.state !== "preview" || second.state !== "preview") {
+      throw new Error("Expected previews.");
+    }
+
+    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, first.token))
+      .resolves.toMatchObject({ state: "bought", itemGrants: [{ quantity: 5 }] });
+    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, second.token))
+      .resolves.toMatchObject({ state: "stale-token" });
+    expect(world.character?.gold).toBe(165);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 5 }]);
+  });
+
+  it("cancels a Yeger bandage purchase token before spend", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.warrior" });
+    const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    await expect(world.service().cancelBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({ state: "cancelled" });
+    await expect(world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({ state: "cancelled" });
+    expect(world.character?.gold).toBe(20);
+    expect(world.itemGrants).toEqual([]);
+  });
+
+  it("replays the canonical Yeger receipt when cancel loses to confirm", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+    const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    await expect(world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({ state: "bought", spentGold: YEGER_RANGER_BANDAGE_PRICE });
+    await expect(world.service().cancelBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({
+        state: "replayed",
+        spentGold: YEGER_RANGER_BANDAGE_PRICE,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+      });
+    expect(world.character?.gold).toBe(16);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+  });
+
+  it("blocks Yeger bandage purchase without enough gold", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 0, classId: "class.warrior" });
+
+    await expect(world.service().buyBandageForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "insufficient-gold",
+      requiredGold: YEGER_BANDAGE_PRICE
+    });
+    expect(world.character?.gold).toBe(0);
+    expect(world.itemGrants).toEqual([]);
+  });
+
+  it("gives rangers one free bandage on a 93-minute cooldown", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ classId: "class.ranger" });
+
+    const first = await world.service().claimRangerBandageForTelegramUser(telegramUserId);
+    const second = await world.service().claimRangerBandageForTelegramUser(telegramUserId);
+
+    expect(first).toMatchObject({
+      state: "claimed",
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+    });
+    expect(second).toMatchObject({
+      state: "on-cooldown",
+      nextAvailableAt: new Date("2026-06-15T11:38:00.000Z")
+    });
+    expect(world.cooldowns.find((cooldown) => cooldown.key === YEGER_RANGER_FREE_BANDAGE_KEY)?.availableAt)
+      .toEqual(new Date("2026-06-15T11:38:00.000Z"));
+  });
 });
 
 class FakeWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository, CooldownRepository {
@@ -601,6 +891,8 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       localDate: "once",
       rewardXp: reward.rewardXp ?? 0,
       rewardGold: reward.rewardGold ?? 0,
+      spentGold: 0,
+      resultJson: null,
       createdAt
     });
   }
@@ -655,6 +947,15 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       });
     }
 
+    const spentGold = input.spentGold ?? 0;
+    if (spentGold > 0 && this.character.gold < spentGold) {
+      return Promise.resolve({
+        state: "insufficient-gold",
+        character: { ...this.character },
+        requiredGold: spentGold
+      });
+    }
+
     const cooldown: CharacterCooldownRecord = existing ?? {
       id: `cooldown-${this.cooldowns.length + 1}`,
       characterId: this.character.id,
@@ -672,8 +973,10 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     this.character = {
       ...this.character,
       xp: this.character.xp + input.rewardXp,
-      gold: this.character.gold + input.rewardGold
+      gold: this.character.gold + input.rewardGold - spentGold
     };
+    const itemGrants = input.itemGrants?.map((grant) => ({ itemId: grant.itemId, quantity: grant.quantity })) ?? [];
+    this.itemGrants.push(...itemGrants);
 
     return Promise.resolve({
       state: "completed",
@@ -684,7 +987,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
         newLevel: this.character.level,
         leveledUp: false
       },
-      itemGrants: input.itemGrants ?? []
+      itemGrants
     });
   }
 
@@ -714,16 +1017,59 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       localDate: input.localDate,
       rewardXp: input.rewardXp,
       rewardGold: input.rewardGold,
+      spentGold: input.spentGold ?? 0,
+      resultJson: input.resultJson as DailyActionRecord["resultJson"] ?? null,
       createdAt: startedAt
     };
+    const spentGold = input.spentGold ?? 0;
+    if (input.quantityLimit) {
+      const currentQuantity = this.actions
+        .filter((existingAction) => existingAction.key === input.quantityLimit?.key)
+        .filter((existingAction) => {
+          const result = existingAction.resultJson as { kind?: unknown; purchaseDay?: unknown } | null;
+
+          return result?.kind === input.quantityLimit?.resultKind &&
+            (result.purchaseDay ?? existingAction.createdAt.toISOString().slice(0, 10)) === input.quantityLimit?.purchaseDay;
+        })
+        .flatMap((existingAction) => {
+          const result = existingAction.resultJson as {
+            reward?: { appliedItemGrants?: Array<{ itemId: string; quantity: number }> };
+          } | null;
+
+          return result?.reward?.appliedItemGrants ?? [{ itemId: input.quantityLimit?.itemId, quantity: 1 }];
+        })
+        .filter((grant) => grant.itemId === input.quantityLimit?.itemId)
+        .reduce((sum, grant) => sum + grant.quantity, 0);
+
+      if (currentQuantity + input.quantityLimit.quantity > input.quantityLimit.maxQuantity) {
+        throw new DailyActionQuantityLimitExceededError(currentQuantity, input.quantityLimit.maxQuantity);
+      }
+    }
+    if (spentGold > 0 && this.character.gold < spentGold) {
+      return Promise.resolve({
+        state: "insufficient-gold",
+        character: { ...this.character },
+        requiredGold: spentGold
+      });
+    }
     this.actions.push(action);
     this.character = {
       ...this.character,
       xp: this.character.xp + input.rewardXp,
-      gold: this.character.gold + input.rewardGold
+      gold: this.character.gold + input.rewardGold - spentGold
     };
     const itemGrants = input.itemGrants?.map((grant) => ({ itemId: grant.itemId, quantity: grant.quantity })) ?? [];
     this.itemGrants.push(...itemGrants);
+    if (itemGrants.length > 0) {
+      action.resultJson = {
+        ...(action.resultJson && typeof action.resultJson === "object" && !Array.isArray(action.resultJson)
+          ? action.resultJson
+          : {}),
+        reward: {
+          appliedItemGrants: itemGrants
+        }
+      };
+    }
 
     return Promise.resolve({
       state: "created",
@@ -736,6 +1082,17 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       },
       itemGrants
     });
+  }
+
+  listForTelegramUser(
+    _telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord[] | null> {
+    if (!this.character) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(this.actions.filter((action) => action.key === input.key));
   }
 
   listCompletedByTelegramUserIdSince(_telegramUserId: bigint, since: Date) {

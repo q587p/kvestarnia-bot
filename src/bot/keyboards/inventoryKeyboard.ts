@@ -6,6 +6,13 @@ import {
   makeItemDetailCallbackData,
   makeUnequipSlotCallbackData
 } from "../callbacks/itemCallbackData";
+import {
+  makeItemUseCancelCallbackData,
+  makeItemUseConfirmCallbackData,
+  makeItemUsePreviewCallbackData,
+  makeItemUseRestoreToFullCallbackData
+} from "../callbacks/itemUseCallbackData";
+import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentService";
@@ -69,7 +76,15 @@ export function buildItemDetailKeyboard(
   result: InventoryItemDetailResult,
   equippedSlot: EquipmentSlot | null = null,
   page = 0,
-  slotFilter: InventorySlotFilter = null
+  slotFilter: InventorySlotFilter = null,
+  options: {
+    canUse?: boolean;
+    combatUse?: {
+      sessionId: string;
+      turn: number;
+      itemKey: string;
+    };
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -85,11 +100,46 @@ export function buildItemDetailKeyboard(
     }
   }
 
+  if (result.state === "found" && options.canUse === true) {
+    if (options.combatUse) {
+      keyboard.text("⚔️ Використати у бою", makeFightItemUseCallbackData(options.combatUse)).row();
+    } else {
+      keyboard.text("🩹 Використати", makeItemUsePreviewCallbackData(result.item.itemId)).row();
+    }
+  }
+
   return keyboard
     .text(
       slotFilter ? "⬅️ До списку слота" : "⬅️ До манаток",
       makeInventoryCallbackData(page, slotFilter)
     )
+    .row()
+    .text("🛡️ Спорядження", makeEquipmentCallbackData());
+}
+
+export function buildItemUsePreviewKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("✅ Використати", makeItemUseConfirmCallbackData(token))
+    .text("✖️ Скасувати", makeItemUseCancelCallbackData(token))
+    .row()
+    .text("⬅️ До манаток", makeInventoryCallbackData());
+}
+
+export function buildItemUseResultKeyboard(
+  options: { repeatItemId?: string | null; restoreToFullItemId?: string | null } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (options.repeatItemId) {
+    keyboard.text("🩹 Ще один", makeItemUsePreviewCallbackData(options.repeatItemId));
+    if (options.restoreToFullItemId) {
+      keyboard.text("❤️ До відновлення", makeItemUseRestoreToFullCallbackData(options.restoreToFullItemId));
+    }
+    keyboard.row();
+  }
+
+  return keyboard
+    .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
 }

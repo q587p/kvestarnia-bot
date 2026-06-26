@@ -49,6 +49,23 @@ export interface ClaimDailyActionInput {
   expectedLife?: {
     remortCount: number;
   };
+  quantityLimit?: {
+    key: string;
+    purchaseDay: string;
+    itemId: string;
+    resultKind: string;
+    quantity: number;
+    maxQuantity: number;
+  };
+}
+
+export class DailyActionQuantityLimitExceededError extends Error {
+  constructor(
+    readonly currentQuantity: number,
+    readonly maxQuantity: number
+  ) {
+    super("Daily action quantity limit exceeded.");
+  }
 }
 
 export interface DailyActionClaimIdentity {
@@ -107,4 +124,9 @@ export interface DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string; localDatePrefix: string }
   ): Promise<number | null>;
+
+  listForTelegramUser?(
+    telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord[] | null>;
 }

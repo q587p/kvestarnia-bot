@@ -27,7 +27,7 @@ import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule
 
 export function presentKorchmaFront(
   character: CharacterSummary,
-  options: { munchkinLocation?: MunchkinLocation } = {}
+  options: { munchkinLocation?: MunchkinLocation; showEntryHint?: boolean } = {}
 ): string {
   return [
     "🚪 Перед корчмою",
@@ -39,8 +39,12 @@ export function presentKorchmaFront(
     "",
     "Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
     ...presentFrontMunchkinLines(options.munchkinLocation ?? "front"),
-    "",
-    "Натисніть «🚪 Зайти в корчму» або відкрийте двері через /tavern."
+    ...(options.showEntryHint === false
+      ? []
+      : [
+          "",
+          "Натисніть «🚪 Зайти в корчму» або відкрийте двері через /tavern."
+        ])
   ].join("\n");
 }
 

@@ -10,11 +10,6 @@ import type {
   RemortSnapshot
 } from "../../src/db/repositories/remortRepository";
 import { buildRemortKeyboard } from "../../src/bot/keyboards/remortKeyboard";
-import {
-  REMORT_RESET_DAILY_ACTION_KEYS,
-  YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
-  YEGER_UNQUIET_TRIAL_STARTED_KEY
-} from "../../src/services/dailyActionKeys";
 import { makeRemortItemSelectionKey, RemortService } from "../../src/services/remortService";
 
 const telegramUserId = 42n;
@@ -111,7 +106,6 @@ describe("RemortService", () => {
 
     expect(first.state).toBe("completed");
     expect(second.state).toBe("replayed");
-    expect(repository.lastResetDailyActionKeys).toEqual([...REMORT_RESET_DAILY_ACTION_KEYS]);
     if (first.state === "completed") {
       expect(first.character.level).toBe(1);
       expect(first.character.xp).toBe(0);
@@ -135,15 +129,6 @@ describe("RemortService", () => {
       expect(first.preservedItems.map((row) => row.itemId)).not.toContain("item.archived-old-ladle");
     }
     expect(repository.completedCount).toBe(1);
-  });
-
-  it("resets the Yeger once-per-life quest keys on remort", () => {
-    expect(REMORT_RESET_DAILY_ACTION_KEYS).toEqual(
-      expect.arrayContaining([
-        YEGER_UNQUIET_TRIAL_STARTED_KEY,
-        YEGER_UNQUIET_TRIAL_COMPLETED_KEY
-      ])
-    );
   });
 
   it("fails confirm when a selected item disappeared before confirmation", async () => {
@@ -366,7 +351,6 @@ describe("RemortService", () => {
 class FakeRemortRepository implements RemortRepository {
   draft: RemortDraftRecord | null = null;
   completedCount = 0;
-  lastResetDailyActionKeys: string[] = [];
   private remort: RemortCompletionResult | null = null;
 
   constructor(private snapshotValue: RemortSnapshot | null) {}
@@ -425,7 +409,6 @@ class FakeRemortRepository implements RemortRepository {
       return Promise.resolve({ state: "no-character" });
     }
 
-    this.lastResetDailyActionKeys = [...(input.resetDailyActionKeys ?? [])];
     const validation = input.validate({
       ...this.snapshotValue,
       draft: this.draft

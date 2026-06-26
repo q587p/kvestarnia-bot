@@ -130,8 +130,8 @@ Canonical docs:
 Closeout cutline:
 - `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
 - `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
-- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation. Broader trading, item tags/equipment and party/raid runtime stay in later `0.2.x+` slices.
-- The next implementation prompt should be chosen from the current `0.2.x` task docs, with item tags / one-use manatky remaining the next near evidence-gated follow-up.
+- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice. Broader trading, equipment rebalance, in-combat item actions and party/raid runtime stay in later `0.2.x+` slices.
+- The next implementation prompt should be chosen from the current `0.2.x` task docs, with race abilities, achievements/cosmetic titles and selected signature techniques split into separate evidence-gated follow-ups.
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
@@ -141,6 +141,7 @@ Deliverables:
 - `0.2.1` Multi-Enemy Foundation: persistent PvE combat can store and resolve exactly two enemies behind a dev-only route while production starts remain one-enemy and rewards stay single-encounter.
 - `0.2.2` Architecture Stabilization: shipped real vertical bot modules, extracted cross-cutting middleware, explicit composition root/runtime lifecycle and architecture boundary tests without gameplay, schema, callback or copy changes.
 - `0.2.3` Threat Escalation MVP: three consecutive eligible one-enemy ordinary wins make the next eligible ordinary fight start with exactly two enemies, with stored stable escalation copy and no reward multiplication.
+- `0.2.4` Item Tags and One-use Bandages: shipped a narrow item tag contract, one out-of-combat one-use bandage with replay-safe confirmation, Єгер bandage supply and a small authored monster-loot entry.
 - Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.

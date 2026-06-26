@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { checkLootExpansionEquipRequirement } from "../../src/content/lootExpansionV1";
 import type { ItemContent } from "../../src/content/schema";
 import {
+  BANDAGE_DROP_QUANTITY_WEIGHTS,
   getItemDropChance,
   getLootExpansionCandidates,
   getLootCandidates,
   getLuckUpgradeChance,
+  rollBandageDropQuantity,
   rollLootExpansionItem,
   rollLootRarity,
   rollMonsterLoot
@@ -81,6 +83,36 @@ describe("loot engine", () => {
     expect(getItemDropChance(999)).toBeCloseTo(0.45);
     expect(getLuckUpgradeChance(999)).toBe(0.1);
     expect(getLuckUpgradeChance(6)).toBe(0);
+  });
+
+  it("keeps the base post-fight bandage quantity table explicit", () => {
+    expect(BANDAGE_DROP_QUANTITY_WEIGHTS).toEqual([
+      { quantity: 0, weight: 0.5 },
+      { quantity: 1, weight: 0.25 },
+      { quantity: 2, weight: 0.13 },
+      { quantity: 3, weight: 0.08 },
+      { quantity: 4, weight: 0.03 },
+      { quantity: 5, weight: 0.01 }
+    ]);
+  });
+
+  it("rolls base post-fight bandage quantities from the requested thresholds", () => {
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.499_999]) })).toBe(0);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.5]) })).toBe(1);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.749_999]) })).toBe(1);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.75]) })).toBe(2);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.879_999]) })).toBe(2);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.88]) })).toBe(3);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.959_999]) })).toBe(3);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.96]) })).toBe(4);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.989_999]) })).toBe(4);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.99]) })).toBe(5);
+  });
+
+  it("lets LUCK improve post-fight bandages without exceeding five", () => {
+    expect(rollBandageDropQuantity({ luck: 16, rng: new FakeRandomSource([0.49, 0]) })).toBe(1);
+    expect(rollBandageDropQuantity({ luck: 16, rng: new FakeRandomSource([0.99, 0]) })).toBe(5);
+    expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.49, 0]) })).toBe(0);
   });
 
   it("does not make rare or epic mandatory with high LUCK", () => {

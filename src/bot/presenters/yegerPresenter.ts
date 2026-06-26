@@ -3,11 +3,14 @@ import type {
   YegerQuestLookupResult,
   YegerQuestStartResult,
   YegerTrackingResult,
-  YegerQuestTurnInResult
+  YegerQuestTurnInResult,
+  YegerBandageSupplyResult,
+  YegerRangerBandageResult
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
+import { presentItemNameWithQuantity } from "./itemStackPresenter";
 
 export function presentYegerQuest(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
@@ -33,9 +36,13 @@ export function presentYegerQuest(
       "Доступна справа:",
       "<b>Неспокійні справи</b>",
       "",
-      "Переможіть 5 неупокоєних проблем, які не зрозуміли, що робочий день скінчився.",
+      result.progress.target === 17
+        ? "Перша дощечка закрита. Тепер Єгер просить наступні 17 неупокоєних проблем, бо хтось необережно сказав слово «серія»."
+        : "Переможіть 5 неупокоєних проблем, які не зрозуміли, що робочий день скінчився.",
       "",
-      "Нагорода: XP, золото на якісне пиво, єгерська риска в журналі."
+      result.progress.target === 17
+        ? "Нагорода: XP і золото на дуже переконливу паузу біля Бочки."
+        : "Нагорода: XP, золото на якісне пиво, єгерська риска в журналі."
     ].join("\n");
   }
 
@@ -43,6 +50,7 @@ export function presentYegerQuest(
     return presentYegerCompleted({
       character: result.character,
       reward: result.reward,
+      progress: result.progress,
       replay: true
     });
   }
@@ -125,6 +133,134 @@ export function presentYegerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Єгер не видає сліди порожнім чоботам.";
 }
 
+export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "invalid-token") {
+    return [
+      "🩹 Бинти Єгеря",
+      "",
+      "Цей папірець уже не схожий на єгерський. Краще відкрити купівлю наново."
+    ].join("\n");
+  }
+
+  if (result.state === "stale-token") {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      "Єгер перерахував ціну й підозріло глянув на стару кнопочку.",
+      "Краще відкрити купівлю наново."
+    ].join("\n");
+  }
+
+  if (result.state === "daily-limit") {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      `Сьогодні куплено: <b>${result.purchasedToday}/${result.dailyLimit}</b>.`,
+      "Єгер закрив ящик ліктем.",
+      "«Бинти теж мають робочий день. Дуже малий, але гордий»."
+    ].join("\n");
+  }
+
+  if (result.state === "cancelled") {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      "Купівлю скасовано. Єгер сховав бинти так, ніби вони теж мають право на приватність."
+    ].join("\n");
+  }
+
+  if (result.state === "preview") {
+    const discountLine = result.unitPriceGold < 7
+      ? "Єгерська знижка для єгерів уже врахована."
+      : "Ціна звичайна, без таємних стежок у бухгалтерії.";
+
+    return [
+      "🩹 Купити бинти",
+      presentCharacterHeader(result.character),
+      "",
+      `Планка на сьогодні: <b>${result.targetQuantity}</b>. Уже куплено: <b>${result.purchasedToday}</b>.`,
+      `Єгер докладе: <b>${result.purchaseQuantity}</b>.`,
+      `${result.itemGrants.map(presentPendingBandagePurchaseGrant).join(", ")}.`,
+      `Ціна: <b>${result.priceGold} золота</b>.`,
+      `У вас: <b>${result.currentGold} золота</b>.`,
+      discountLine,
+      "",
+      "Єгер чекає підтвердження й робить вигляд, що це не ящик першої підозрілої допомоги."
+    ].join("\n");
+  }
+
+  if (result.state === "insufficient-gold") {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      `Єгер показує ціну: <b>${result.requiredGold} золота</b>.`,
+      "У торбі лунає фінансова тиша."
+    ].join("\n");
+  }
+
+  return [
+    "🩹 Бинти Єгеря",
+    presentCharacterHeader(result.character),
+    "",
+    `Куплено: ${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
+    `Витрачено: <b>${result.spentGold} золота</b>.`,
+    result.state === "replayed" ? "Цей чек уже проведено. Другий раз золото не зникло." : "",
+    "",
+    "Єгер сказав: «Не наклеюйте на гордість. На гордість не тримається. Я перевіряв»."
+  ].filter((line, index, lines) => line !== "" || lines[index - 1] !== "").join("\n");
+}
+
+function presentPendingBandagePurchaseGrant(input: { name: string; quantity: number }): string {
+  return `Після купівлі: <i>${presentItemNameWithQuantity({
+    name: escapeHtml(input.name),
+    quantity: input.quantity
+  })}</i>`;
+}
+
+export function presentYegerRangerBandage(result: YegerRangerBandageResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "class-locked") {
+    return [
+      "🧰 Єгерський бинт",
+      presentCharacterHeader(result.character),
+      "",
+      "Єгер ховає безкоштовну пачку під карту.",
+      "«Це для єгерів. Іншим продаю, бо виховання теж має бюджет»."
+    ].join("\n");
+  }
+
+  if (result.state === "on-cooldown") {
+    return [
+      "🧰 Єгерський бинт",
+      presentCharacterHeader(result.character),
+      "",
+      `Безкоштовний бинт буде знову ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+      "Єгер каже, що запас теж має сліди."
+    ].join("\n");
+  }
+
+  return [
+    "🧰 Єгерський бинт",
+    presentCharacterHeader(result.character),
+    "",
+    `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
+    `Наступний безкоштовний бинт ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+    "",
+    "Єгер кивнув так, ніби це не доброта, а техніка виживання."
+  ].join("\n");
+}
+
 export function presentYegerStart(result: YegerQuestStartResult): string {
   if (result.state === "no-character") {
     return presentYegerNoCharacter();
@@ -138,6 +274,7 @@ export function presentYegerStart(result: YegerQuestStartResult): string {
     return presentYegerCompleted({
       character: result.character,
       reward: result.reward,
+      progress: result.progress,
       replay: true
     });
   }
@@ -270,12 +407,14 @@ export function presentYegerTurnIn(result: YegerQuestTurnInResult): string {
   return presentYegerCompleted({
     character: result.character,
     reward: result.reward,
+    progress: result.progress,
     replay: result.state === "already-completed"
   });
 }
 
 function presentYegerCompleted(input: {
   character: { name: string; title: string };
+  progress: { target: number };
   reward: {
     xp: number;
     gold: number;
@@ -288,7 +427,9 @@ function presentYegerCompleted(input: {
     "🏹 Неспокійні справи закрито",
     `<b>${escapeHtml(input.character.name)}</b> · <i>${escapeHtml(input.character.title)}</i>`,
     "",
-    "П’ята неупокоєна проблема нарешті лягла в журнал.",
+    input.progress.target === 17
+      ? "Сімнадцята наступна неупокоєна проблема нарешті лягла в журнал і попросила не нумерувати її родичів."
+      : "П’ята неупокоєна проблема нарешті лягла в журнал.",
     "",
     "Журнал тихо зрадів і попросив не робити з цього традицію."
   ];
@@ -348,7 +489,7 @@ function formatTrackingWait(availableAt: Date, now: Date): string {
 
   const minutes = Math.max(1, Math.ceil(diffMs / 60_000));
 
-  return `приблизно за ${minutes} хв.`;
+  return `приблизно за ${minutes} хв`;
 }
 
 function presentTrackingQuestLines(input?: {

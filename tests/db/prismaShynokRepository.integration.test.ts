@@ -888,12 +888,12 @@ describe("PrismaShynokRepository integration", () => {
 
     expect(results.map((result) => result.state).sort()).toEqual(["replayed", "sold"]);
     await expect(prisma.character.findUnique({ where: { id: "character-sale" } })).resolves.toMatchObject({
-      gold: 18
+      gold: 19
     });
     await expect(prisma.characterItem.count({ where: { characterId: "character-sale" } })).resolves.toBe(0);
     await expect(prisma.korchmaMantokSale.findUnique({
       where: { token: "12345678-1234-4234-9234-000000000901" }
-    })).resolves.toMatchObject({ status: "completed", payoutGold: 8 });
+    })).resolves.toMatchObject({ status: "completed", payoutGold: 9 });
   });
 
   it("blocks Mantok sale confirmation when an active combat lease appears after preview", async () => {
@@ -1498,6 +1498,27 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       expires_at DATETIME NOT NULL,
       completed_at DATETIME,
       responded_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE item_use_orders (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      token TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL,
+      telegram_user_id BIGINT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_fingerprint TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      effect_kind TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT UNIQUE,
+      preview_json JSONB NOT NULL,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      cancelled_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`

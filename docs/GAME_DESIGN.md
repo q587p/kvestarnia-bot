@@ -150,10 +150,12 @@ Same-turn combat exchange лишається одночасним для attack/
 `0.0.28` робить `/hunt` першим квестом Єгеря:
 - `Неспокійні справи` відкриваються з 4 рівня.
 - Старт і completion зберігаються в `daily_actions` як `quest.yeger.unquiet-trial.started` і `quest.yeger.unquiet-trial.completed` з `localDate: once`.
+- Після першої закритої дощечки на `5` цілей Єгер пропонує другу дощечку на `17` цілей. Вона має окремі once-per-life keys: `quest.yeger.unquiet-trial.second.started` і `quest.yeger.unquiet-trial.second.completed`, тому replay старої першої здачі не дублює нову нагороду.
 - Прогрес рахується за won `solo_combat_sessions` після старту справи, де монстр має тег `undead`, `ghost`, `cursed` або `unquiet`.
 - `0.0.29` додає перед боєм короткий пошук сліду через existing `character_cooldowns`: `👣 Вийти на слід` ставить timed tracking state, `/hunt` показує pending/ready стан, а `🔎 Перевірити слід` або запускає targeted persistent solo fight через `FightService`, або повертає no-fight результат без прогресу.
 - Пошук сліду deterministic/testable: єгері, інтелект і вдача допомагають у межах safe cap, але player-facing текст не показує точні формули чи шанси.
-- Нагорода за turn-in: `+80 XP`, `+120 золота`, `Єгерська риска на дощечці`; claim ідемпотентний і не дублює items.
+- Нагорода першої дощечки за turn-in: `+80 XP`, `+120 золота`, `Єгерська риска на дощечці`; claim ідемпотентний і не дублює items. Друга дощечка дає власну XP/золоту подяку без повторної сувенірної риски.
+- Реморт очищає обидві once-per-life Єгерські дошки, тож нове життя починає ланцюжок з `0/5`, а не з післяремортового хвоста `0/17`.
 - Старі `v1:hunt:*` callback-и лишаються compatibility-refresh до Єгерської дошки, а не reward claim.
 
 `0.0.18` harden-ить contract identity і відкриває read-only бестіарій у Telegram:
@@ -298,6 +300,7 @@ Same-turn combat exchange лишається одночасним для attack/
 - `0.2.0` додає першу безпечну передачу: один гравець може запропонувати іншому одну придатну манатку як подарунок, а отримувач явно приймає або відмовляється. Це не trade loop, не ринок і не золото між гаманцями.
 - `0.2.1` не змінює economy surface: multi-enemy dev fights використовують один encounter reward contract, а production one-enemy fights не отримують нового faucet.
 - `0.2.3` так само не додає reward faucet: ordinary escalated two-enemy fights видають одну existing encounter reward/settlement, без per-enemy XP/gold/item multiplier.
+- `0.2.4` додає перший явний one-use предмет: `Бинт відповідальної паніки`. Поза боєм його можна використати з detail-картки інвентаря після preview і confirmation. Confirm перечитує ownership/equipment/reservation/content state, осідає пасивне відновлення, списує одну одиницю і лікує HP тільки до поточного effective max. Під час активного persistent PvE бою detail-картка веде в бойову item action: придатна одноразова манатка списується, змінює `CombatState`, витрачає поточний хід і дає монстрам відповісти; невдала/stale/full-HP спроба не списує річ і не просуває хід. Єгер може постачати бинти окремою вузькою дією, а клас Єгер має свою перевагу; це не broad shop, не food system і не широкий damage/buff/debuff catalog.
 - Перед продажем, обміном або item-to-level sink треба переглянути зв’язок спорядження з інвентарем: `0.0.14` зберігає equipped content `itemId`, а не конкретний `character_item.id`, бо зараз немає instance/stack mutation.
 - Більшість манаток має мати номінальну вартість у золоті; окремі трофеї можуть бути явно `безцінні`, тобто не продаються і не рахуються як валюта для sinks.
 - Майбутній beer sink може приймати манатки як оплату замість золота, але з корчмарським курсом `×5`: речей на `50+` золота вистачає на простий раунд, `500+` — на якісний. Це має бути окрема дія з явним вибором предметів і підтвердженням, не автоматичне списання з торби.

@@ -450,6 +450,31 @@ describe("Prisma schema", () => {
     expect(reservationMigration).toContain("item_transfers_reservation_key_key");
   });
 
+  it("stores item use orders for replay-safe one-use items", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260625120000_item_use_orders",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model ItemUseOrder");
+    expect(schema).toContain("itemUseOrders ItemUseOrder[]");
+    expect(schema).toContain("@map(\"telegram_user_id\")");
+    expect(schema).toContain("@map(\"item_fingerprint\")");
+    expect(schema).toContain("@map(\"reservation_key\")");
+    expect(schema).toContain("@@map(\"item_use_orders\")");
+    expect(migration).toContain("CREATE TABLE \"item_use_orders\"");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"item_use_orders_token_key\"");
+    expect(migration).toContain("item_use_orders_character_id_status_expires_at_idx");
+    expect(migration).toContain("item_use_orders_item_id_status_idx");
+  });
+
   it("stores remort drafts and completed remort history", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(

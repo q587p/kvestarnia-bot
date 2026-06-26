@@ -85,6 +85,38 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("hides the front-of-korchma entry hint after the player has seen it once", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFront(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      {
+        now: dayInKyiv,
+        playerHintService: {
+          claimKorchmaFrontEntryHint: () => Promise.resolve({ shouldShow: false })
+        }
+      }
+    );
+
+    expect(replies[0]?.text).toContain("За дверима гуде <b>Корчма Квестарні</b>");
+    expect(replies[0]?.text).not.toContain(
+      "Натисніть «🚪 Зайти в корчму» або відкрийте двері через /tavern."
+    );
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard[0]).toContainEqual({
+      text: "🚪 Зайти в корчму",
+      callback_data: makePlaceCallbackData("hall")
+    });
+  });
+
   it("sends active Yeger quests to outdoor hunting from the front door", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 

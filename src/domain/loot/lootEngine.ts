@@ -53,6 +53,15 @@ export const LOOT_RARITY_WEIGHTS: Record<LootRarity, number> = {
 
 export const BASE_ITEM_DROP_CHANCE = 0.35;
 
+export const BANDAGE_DROP_QUANTITY_WEIGHTS: ReadonlyArray<{ quantity: number; weight: number }> = [
+  { quantity: 0, weight: 0.5 },
+  { quantity: 1, weight: 0.25 },
+  { quantity: 2, weight: 0.13 },
+  { quantity: 3, weight: 0.08 },
+  { quantity: 4, weight: 0.03 },
+  { quantity: 5, weight: 0.01 }
+];
+
 const rarityOrder: LootRarity[] = ["common", "uncommon", "rare", "epic"];
 
 export function rollMonsterLoot(input: LootRollInput): LootRollResult {
@@ -191,6 +200,36 @@ export function getItemDropChance(luck: number): number {
 
 export function getLuckUpgradeChance(luck: number): number {
   return getBoundedLuckBonus(luck);
+}
+
+export function rollBandageDropQuantity(input: {
+  luck: number;
+  rng: RandomSource;
+}): number {
+  const quantity = rollBaseBandageDropQuantity(input.rng.nextFloat());
+  const upgradeChance = getLuckUpgradeChance(input.luck);
+
+  if (quantity >= 5 || upgradeChance <= 0) {
+    return quantity;
+  }
+
+  return input.rng.nextFloat() < upgradeChance ? quantity + 1 : quantity;
+}
+
+function rollBaseBandageDropQuantity(roll: number): number {
+  const bounded = clamp(roll, 0, 0.999_999);
+  const totalWeight = BANDAGE_DROP_QUANTITY_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
+  let cursor = 0;
+
+  for (const entry of BANDAGE_DROP_QUANTITY_WEIGHTS) {
+    cursor += entry.weight / totalWeight;
+
+    if (bounded < cursor) {
+      return entry.quantity;
+    }
+  }
+
+  return 5;
 }
 
 function getBoundedLuckBonus(luck: number): number {

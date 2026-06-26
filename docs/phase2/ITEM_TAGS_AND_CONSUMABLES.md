@@ -2,6 +2,19 @@
 
 Phase 1 equipment effects are intentionally small. Phase 2 can make манатки more expressive by adding item tags, combat actions and explicit one-use effects.
 
+## Shipped slice
+
+`0.2.4` ships the first narrow runtime slice:
+
+- supported tags are validated in item content, but legacy items do not need tags until they opt in;
+- `Бинт відповідальної паніки` is the first `consumable` + `one-use` item;
+- use is out-of-combat only, starts from item detail, shows exact current HP recovery, asks for confirmation, reserves the stack and replays terminal results;
+- confirmation settles passive recovery, consumes one unit and applies capped HP healing in one transaction;
+- Єгер can supply bandages, with a class-specific ranger advantage, without turning this into a broad shop;
+- the bandage can appear through existing monster loot by being authored onto a low-level monster loot list.
+
+This does not ship in-combat item actions, food, potions, a general shop, duel/raid item actions, item instances or broad tag-weighted loot formulas.
+
 ## Goals
 
 - Items unlock or shape actions through data, not presenter hacks.

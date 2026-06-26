@@ -70,6 +70,24 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
     ].join("\n");
   }
 
+  if (result.kind === "yeger-bandage-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: таймер безкоштовного бинта Єгеря скинуто."
+      : "🧪 Dev: безкоштовний бинт Єгеря і так доступний.";
+  }
+
+  if (result.kind === "yeger-tracking-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: очікування Єгерського сліду завершено."
+      : "🧪 Dev: Єгерський слід уже готовий або ще не взятий.";
+  }
+
+  if (result.kind === "yeger-bandage-day") {
+    return result.deleted > 0
+      ? `🧪 Dev: день купівлі бинтів Єгеря скинуто. Прибрано ${result.deleted} ${formatUnit(result.deleted, ["запис", "записи", "записів"])}.`
+      : "🧪 Dev: день купівлі бинтів Єгеря і так чистий.";
+  }
+
   if (result.kind === "items") {
     const itemLines = result.itemGrants.map((grant) =>
       grant.quantity === 1 ? `• ${grant.name}` : `• ${grant.name} ×${grant.quantity}`

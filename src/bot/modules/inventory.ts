@@ -1,5 +1,8 @@
 import { type Bot,type Context } from "grammy";
+import { items } from "../../content";
+import { getItemUseEffect } from "../../domain/itemUse";
 import { getMunchkinLocationAt } from "../../domain/levelBarter/munchkinSchedule";
+import { getCombatUsableItem } from "../../services/combatItemUse";
 import type { BotServices } from "../botServices";
 import {
 parseEquipmentCallbackData,
@@ -7,6 +10,10 @@ parseItemCallbackData,
 type EquipmentCallback,
 type ItemCallback
 } from "../callbacks/itemCallbackData";
+import {
+parseItemUseCallbackData,
+type ItemUseCallback
+} from "../callbacks/itemUseCallbackData";
 import {
 parseLevelBarterCallbackData,
 type LevelBarterCallback
@@ -21,7 +28,9 @@ import { playerFromContext } from "../context";
 import {
 buildEquipItemResultKeyboard,
 buildEquipmentKeyboard,
-buildItemDetailKeyboard
+buildItemDetailKeyboard,
+buildItemUsePreviewKeyboard,
+buildItemUseResultKeyboard
 } from "../keyboards/inventoryKeyboard";
 import {
 buildLevelBarterOfferKeyboard,
@@ -42,6 +51,12 @@ presentEquipment,
 presentUnequipSlotResult
 } from "../presenters/equipmentPresenter";
 import { presentItemDetail } from "../presenters/itemDetailPresenter";
+import {
+presentItemUseCancel,
+presentItemUseConfirm,
+presentItemUsePreview,
+presentItemUseRestoreToFull
+} from "../presenters/itemUsePresenter";
 import {
 presentLevelBarterConfirmResult,
 presentLevelBarterOffer,
@@ -95,6 +110,17 @@ export function registerInventoryBotModule(
     await handleItemCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:use:/, async (ctx) => {
+    const parsed = parseItemUseCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleItemUseCallback(ctx, parsed.value, services);
+  });
+
   bot.callbackQuery(/^v1:chest:/, async (ctx) => {
     const parsed = parseMantokChestCallbackData(ctx.callbackQuery.data);
 
@@ -146,12 +172,178 @@ async function handleItemCallback(
     equipment.state === "ready"
       ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
       : null;
+  const itemUse = result.state === "found"
+    ? services.itemUse.getAvailability(result.item.content)
+    : null;
+  const combatUse = result.state === "found" && itemUse?.state === "usable"
+    ? await getCombatUseActionForItem(services, telegramUserId, result.item.content)
+    : null;
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview }), {
+  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview, itemUse }), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot)
+    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
+      canUse: itemUse?.state === "usable",
+      ...(combatUse ? { combatUse } : {})
+    })
   });
+}
+
+async function getCombatUseActionForItem(
+  services: BotServices,
+  telegramUserId: bigint,
+  item: Parameters<typeof getCombatUsableItem>[0]
+): Promise<{ sessionId: string; turn: number; itemKey: string } | null> {
+  const combatItem = getCombatUsableItem(item);
+  if (!combatItem || typeof services.fight.getFightOverviewForTelegramUser !== "function") {
+    return null;
+  }
+
+  const fight = await services.fight.getFightOverviewForTelegramUser(telegramUserId);
+  if (fight.state !== "persistent-active" || fight.session.state?.status !== "active") {
+    return null;
+  }
+
+  return {
+    sessionId: fight.session.id,
+    turn: fight.session.state.turn,
+    itemKey: combatItem.key
+  };
+}
+
+async function handleItemUseCallback(
+  ctx: Context,
+  action: ItemUseCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action.type === "preview") {
+    const result = await services.itemUse.createPreviewForTelegramUser(telegramUserId, action.itemId);
+
+    await safeAnswerCallbackQuery(ctx, {
+      show_alert:
+        result.state === "combat-locked" ||
+        result.state === "full-hp" ||
+        result.state === "reserved"
+    });
+    await safeEditMessageText(ctx, presentItemUsePreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "preview-created" || result.state === "preview-replayed"
+          ? buildItemUsePreviewKeyboard(result.order.token)
+          : buildItemUseResultKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "cancel") {
+    const result = await services.itemUse.cancelForTelegramUser(telegramUserId, action.token);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "cancelled" || result.state === "replayed"
+        ? { text: "Скасовано." }
+        : { show_alert: result.state === "invalid-token" || result.state === "stale-selection" }
+    );
+    await safeEditMessageText(ctx, presentItemUseCancel(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUseResultKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "restore-to-full") {
+    const result = await services.itemUse.restoreToFullForTelegramUser(telegramUserId, action.itemId);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "preview-created" || result.state === "preview-replayed"
+        ? undefined
+        : {
+            show_alert:
+              result.state === "not-owned" ||
+              result.state === "not-usable" ||
+              result.state === "reserved" ||
+              result.state === "not-enough" ||
+              result.state === "combat-locked"
+          }
+    );
+    await safeEditMessageText(ctx, presentItemUseRestoreToFull(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "preview-created" || result.state === "preview-replayed"
+          ? buildItemUsePreviewKeyboard(result.order.token)
+          : buildItemUseResultKeyboard()
+    });
+    return;
+  }
+
+  const result = await services.itemUse.confirmForTelegramUser(telegramUserId, action.token);
+  const repeat = await getRepeatItemUseOptions(services, telegramUserId, result);
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "used"
+      ? { text: "Бинт використано." }
+      : result.state === "replayed"
+        ? { text: "Уже записано." }
+        : {
+            show_alert:
+              result.state === "invalid-token" ||
+              result.state === "stale-selection" ||
+              result.state === "combat-locked" ||
+              result.state === "full-hp" ||
+              result.state === "expired"
+          }
+  );
+  await safeEditMessageText(ctx, presentItemUseConfirm(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildItemUseResultKeyboard(repeat)
+  });
+}
+
+async function getRepeatItemUseOptions(
+  services: BotServices,
+  telegramUserId: bigint,
+  result: Awaited<ReturnType<BotServices["itemUse"]["confirmForTelegramUser"]>>
+): Promise<{ repeatItemId?: string | null; restoreToFullItemId?: string | null }> {
+  if (result.state !== "used" && result.state !== "replayed") {
+    return {};
+  }
+
+  const outcome = result.order.result ?? result.order.preview;
+  if (outcome.hpAfter >= outcome.hpMax) {
+    return {};
+  }
+
+  const inventory = await services.inventory.listForTelegramUser(telegramUserId);
+  if (inventory.state !== "found") {
+    return {};
+  }
+
+  const itemId = result.order.itemId;
+  const stack = inventory.items.find((item) => item.itemId === itemId);
+  if (!stack || stack.quantity <= 0) {
+    return {};
+  }
+
+  const item = items.find((candidate) => candidate.id === itemId);
+  const effect = item ? getItemUseEffect(item) : null;
+  const missingHp = Math.max(0, outcome.hpMax - outcome.hpAfter);
+  const neededQuantity = effect && effect.amount > 0
+    ? Math.ceil(missingHp / Math.max(1, Math.floor(effect.amount)))
+    : Number.POSITIVE_INFINITY;
+
+  return {
+    repeatItemId: itemId,
+    ...(stack.quantity >= neededQuantity ? { restoreToFullItemId: itemId } : {})
+  };
 }
 
 async function handleEquipmentCallback(

@@ -14,11 +14,13 @@ import { FightService } from "../services/fightService";
 import { HeroService } from "../services/heroService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
+import { ItemUseService } from "../services/itemUseService";
 import { ItemTransferService } from "../services/itemTransferService";
 import { LevelBarterService } from "../services/levelBarterService";
 import { LevelMilestoneService } from "../services/levelMilestoneService";
 import { MantokChestService } from "../services/mantokChestService";
 import { OnboardingService } from "../services/onboardingService";
+import { PlayerHintService } from "../services/playerHintService";
 import { PresenceService } from "../services/presenceService";
 import { RemortService } from "../services/remortService";
 import { RestartService } from "../services/restartService";
@@ -105,11 +107,13 @@ export function createServices(
       repositories.huntContracts
     ),
     inventory: new InventoryService(repositories.inventory),
+    itemUse: new ItemUseService(repositories.itemUse),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter),
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
     mantokChest: new MantokChestService(repositories.mantokChestRuns),
     onboarding: new OnboardingService(repositories.users, repositories.characters),
+    playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
     remort: new RemortService(repositories.remorts),
     restart: new RestartService(repositories.characters),

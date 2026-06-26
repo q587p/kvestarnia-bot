@@ -1,5 +1,6 @@
-import type { Bot, Context, Keyboard } from "grammy";
+import { InlineKeyboard, type Bot, type Context, type Keyboard } from "grammy";
 import type { HeroService } from "../../services/heroService";
+import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallbackData";
 import { telegramUserIdFromContext } from "../context";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
@@ -56,6 +57,10 @@ export async function sendHero(
       await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
     }
 
+    const restoreKeyboard = result.restoreToFullItemId
+      ? buildHeroRestoreToFullKeyboard(result.restoreToFullItemId)
+      : undefined;
+
     await sendText(
       ctx,
       mode,
@@ -63,7 +68,7 @@ export async function sendHero(
         ? prefixResourceRecoveryNotice(heroText, result.recoveryNotice)
         : heroText,
       true,
-      options.mainMenuKeyboard
+      restoreKeyboard ?? options.mainMenuKeyboard
     );
     return;
   }
@@ -71,22 +76,28 @@ export async function sendHero(
   await sendText(ctx, mode, presentHeroMissing(), false);
 }
 
+function buildHeroRestoreToFullKeyboard(itemId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("❤️ До відновлення", makeItemUseRestoreToFullCallbackData(itemId));
+}
+
 async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
   includeMenu = false,
-  mainMenuKeyboard?: Keyboard
+  replyMarkup?: InlineKeyboard | Keyboard
 ): Promise<void> {
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
-      parse_mode: "HTML" as const
+      parse_mode: "HTML" as const,
+      ...(replyMarkup instanceof InlineKeyboard ? { reply_markup: replyMarkup } : {})
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    ...(includeMenu ? { reply_markup: mainMenuKeyboard ?? buildMainMenuKeyboard() } : {})
+    ...(includeMenu ? { reply_markup: replyMarkup ?? buildMainMenuKeyboard() } : {})
   });
 }

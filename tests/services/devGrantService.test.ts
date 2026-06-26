@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type {
   DevGrantCharacterResult,
+  DevGrantCooldownResult,
+  DevGrantDailyActionResetResult,
   DevGrantItemResult,
   DevGrantProgressResult,
   DevGrantRepository
@@ -9,6 +11,13 @@ import type {
 import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository";
 import { items } from "../../src/content";
 import { DevGrantService } from "../../src/services/devGrantService";
+import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
+import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
+import {
+  YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
+  YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+  YEGER_BANDAGE_PURCHASE_PREVIEW_KEY
+} from "../../src/services/dailyActionKeys";
 import { FakeRandomSource } from "../../src/shared/random";
 
 describe("DevGrantService", () => {
@@ -165,6 +174,84 @@ describe("DevGrantService", () => {
     });
   });
 
+  it("adds responsible panic bandages directly for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addBandages(42n, 5)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 5,
+      itemGrants: [
+        {
+          itemId: BANDAGE_ITEM_ID,
+          name: "Бинт відповідальної паніки",
+          quantity: 5
+        }
+      ]
+    });
+    expect(repository.calls).toContain(`items:42:${BANDAGE_ITEM_ID}:5`);
+  });
+
+  it("resets the Yeger free bandage cooldown for the current character", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.resetYegerBandageCooldown(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "yeger-bandage-cooldown",
+      cleared: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    expect(repository.calls).toContain(`cooldown:42:${YEGER_RANGER_FREE_BANDAGE_KEY}`);
+  });
+
+  it("finishes the Yeger trail wait for the current character", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.resetYegerTrackingCooldown(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "yeger-tracking-cooldown",
+      cleared: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    expect(repository.calls).toContain(`cooldown-ready:42:${YEGER_TRACKING_COOLDOWN_KEY}`);
+  });
+
+  it("resets the Yeger paid bandage purchase day for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.resetYegerBandageDay(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "yeger-bandage-day",
+      deleted: 3,
+      character: {
+        id: "character-42"
+      }
+    });
+    expect(repository.calls).toContain(
+      `daily-actions:42:${[
+        YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
+        YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+        YEGER_BANDAGE_PURCHASE_CANCEL_KEY
+      ].join(",")}`
+    );
+  });
+
+  it("does not reset the Yeger paid bandage day when dev grants are disabled", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", false, new FakeRandomSource([0]));
+
+    await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
+    expect(repository.calls).toEqual([]);
+  });
+
   it("returns no-character when the repository cannot find a character", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -288,7 +375,9 @@ class FakeDevGrantRepository implements DevGrantRepository {
     telegramUserId: bigint,
     itemGrants: ItemGrant[]
   ): Promise<DevGrantItemResult | null> {
-    this.calls.push(`items:${telegramUserId.toString()}`);
+    this.calls.push(
+      `items:${telegramUserId.toString()}:${itemGrants.map((grant) => `${grant.itemId}:${grant.quantity}`).join(",")}`
+    );
 
     if (telegramUserId !== 42n) {
       return Promise.resolve(null);
@@ -309,6 +398,54 @@ class FakeDevGrantRepository implements DevGrantRepository {
         itemId,
         quantity
       }))
+    });
+  }
+
+  clearCooldownForTelegramUser(
+    telegramUserId: bigint,
+    key: string
+  ): Promise<DevGrantCooldownResult | null> {
+    this.calls.push(`cooldown:${telegramUserId.toString()}:${key}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      character: this.character,
+      cleared: true
+    });
+  }
+
+  finishCooldownForTelegramUser(
+    telegramUserId: bigint,
+    key: string
+  ): Promise<DevGrantCooldownResult | null> {
+    this.calls.push(`cooldown-ready:${telegramUserId.toString()}:${key}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      character: this.character,
+      cleared: true
+    });
+  }
+
+  deleteDailyActionsForTelegramUser(
+    telegramUserId: bigint,
+    keys: readonly string[]
+  ): Promise<DevGrantDailyActionResetResult | null> {
+    this.calls.push(`daily-actions:${telegramUserId.toString()}:${keys.join(",")}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      character: this.character,
+      deleted: keys.length
     });
   }
 }

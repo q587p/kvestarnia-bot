@@ -13,8 +13,8 @@ import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
-export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip";
-export type PlayerCombatActionType = Exclude<CombatActionType, "skip">;
+export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip" | "item";
+export type PlayerCombatActionType = Exclude<CombatActionType, "skip" | "item">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
 export type CombatTimeoutMode = "auto-attack" | "auto-defend" | "skip";
 export type CombatSettlementStatus = "pending" | "completed" | "forfeited-by-remort";
@@ -30,6 +30,7 @@ export type CombatTurnOutcome =
   | "defended"
   | "not-enough-mana"
   | "skill-on-cooldown"
+  | "item-used"
   | "inactive"
   | "fled"
   | "flee-failed"
@@ -280,6 +281,9 @@ export interface CombatTurnSummary {
   simultaneousFinalResponse?: boolean;
   heroCounterDamage?: number;
   monsterBarkId?: string;
+  itemId?: string;
+  itemName?: string;
+  heroHealing?: number;
   enemyActions?: CombatEnemyTurnSummary[];
   debugTrace?: CombatDebugTrace;
 }

@@ -119,9 +119,10 @@ After closing a versioned task:
 19. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Do not reuse a location/surface icon for a quest row or action shown in the same UI; for example, the quest table and Korchmar quest rows need different icons. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
 20. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs.
 21. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
-22. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, consider adding a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules.
-23. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
-24. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
+22. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, add a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules. If a dev command is unsafe or not useful for that specific gate, explicitly document why in the task doc or PR body before calling the task complete.
+23. When adding new quests, counters, daily/periodic ledgers, purchase limits, cooldowns, pending sessions, sales, statistics, or similar player/character state, explicitly cover remort/reset behavior in code and tests. Default to resetting this state on remort and relevant reset flows unless the task explicitly says it is eternal/player-level history; if it should persist, document that exception in the task doc or PR body.
+24. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
+25. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
 
 ## Release and PR rules
 

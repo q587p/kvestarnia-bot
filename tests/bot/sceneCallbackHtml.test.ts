@@ -1105,6 +1105,84 @@ describe("scene callback HTML options", () => {
     expect(movement).toBeUndefined();
   });
 
+  it("does not send a Yeger corner movement notice after a persistent skill turn", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.ranger_corner");
+    const getCurrentPlaceForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "ready" as const,
+        locationId: "location.korchma.front",
+        locationName: "Надворі біля корчми",
+        insideKorchma: false
+      })
+      .mockResolvedValue({
+        state: "ready" as const,
+        locationId: "location.korchma.ranger_corner",
+        locationName: "Єгерський куток",
+        insideKorchma: true
+      });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        action: "skill"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn: () =>
+            Promise.resolve({
+              state: "updated" as const,
+              character,
+              session: {
+                ...session,
+                turn: 2,
+                state: {
+                  ...session.state,
+                  turn: 2,
+                  lastTurn: {
+                    action: "skill" as const,
+                    heroOutcome: "miss" as const,
+                    heroDamage: 0,
+                    monsterDamage: 7,
+                    manaSpent: 2,
+                    critical: false,
+                    skillId: "skill.hot-spell"
+                  }
+                }
+              },
+              monster: {
+                id: "monster.foam-auditor-boots",
+                name: "Пінний ревізор у чоботях",
+                description: "Тестовий неупокоєний ревізор.",
+                level: 8,
+                tags: ["unquiet"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser
+        }
+      })
+    );
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви підійшли до єгерського кутка.")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.ranger_corner",
+        currentRaidId: null,
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+    expect(movement).toBeUndefined();
+  });
+
   it("refreshes the location keyboard after a non-passage fight callback changes place", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");

@@ -170,6 +170,43 @@ describe("PrismaRemortRepository integration", () => {
         expiresAt: new Date(now.getTime() + 5 * 60_000)
       }
     });
+    await prisma.$executeRaw`
+      INSERT INTO daily_actions (id, character_id, key, value_json, created_at, updated_at)
+      VALUES ('daily-remort-bandage', 'character-remort-solo', 'yeger.bandage.purchase.confirm', '{}', ${new Date(now.getTime() - 60_000)}, ${new Date(now.getTime() - 60_000)})
+    `;
+    await prisma.characterCooldown.create({
+      data: {
+        id: "cooldown-remort-training",
+        characterId: "character-remort-solo",
+        key: "training.doppelganger.spar",
+        availableAt: new Date(now.getTime() + 60 * 60_000),
+        resultJson: { kind: "old-life-cooldown" }
+      }
+    });
+    await prisma.huntContract.create({
+      data: {
+        id: "hunt-remort-contract",
+        characterId: "character-remort-solo",
+        localPeriodId: "2026-06-22",
+        monsterId: "monster.deadline-spider",
+        contractToken: "hunt-remort-token",
+        status: "completed",
+        completedAction: "attack",
+        completedAt: new Date(now.getTime() - 60_000)
+      }
+    });
+    await prisma.barrelRaidNotification.create({
+      data: {
+        id: "barrel-remort-notification",
+        characterId: "character-remort-solo",
+        telegramUserId: 9301n,
+        chatId: 9301n,
+        periodId: "2026-06-22:barrel",
+        availableAt: new Date(now.getTime() + 60_000),
+        status: "sent",
+        sentAt: new Date(now.getTime() - 30_000)
+      }
+    });
 
     const result = await repository.completeDraftForTelegramUser(
       9301n,
@@ -247,6 +284,18 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.korchmaMantokSale.findUnique({
       where: { id: "sale-remort-pending" }
     })).resolves.toMatchObject({ status: "cancelled" });
+    await expect(prisma.dailyAction.count({
+      where: { characterId: "character-remort-solo" }
+    })).resolves.toBe(0);
+    await expect(prisma.characterCooldown.count({
+      where: { characterId: "character-remort-solo" }
+    })).resolves.toBe(0);
+    await expect(prisma.huntContract.count({
+      where: { characterId: "character-remort-solo" }
+    })).resolves.toBe(0);
+    await expect(prisma.barrelRaidNotification.count({
+      where: { characterId: "character-remort-solo" }
+    })).resolves.toBe(0);
 
     await repository.completeDraftForTelegramUser(9301n, makeCompletionInput("token-remort-solo", now));
     const replayedSession = await prisma.soloCombatSession.findUnique({ where: { id: "session-remort-solo" } });
@@ -529,6 +578,39 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(character_id, key)
     )`,
+    `CREATE TABLE hunt_contracts (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      local_period_id TEXT NOT NULL,
+      monster_id TEXT NOT NULL,
+      contract_token TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'posted',
+      completed_action TEXT,
+      reward_xp INTEGER,
+      reward_gold INTEGER,
+      reward_items_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, local_period_id)
+    )`,
+    `CREATE TABLE barrel_raid_notifications (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      telegram_user_id BIGINT NOT NULL,
+      chat_id BIGINT NOT NULL,
+      period_id TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      processing_started_at DATETIME,
+      reward_claimed_at DATETIME,
+      sent_at DATETIME,
+      skipped_at DATETIME,
+      last_error TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(telegram_user_id, period_id)
+    )`,
     `CREATE TABLE character_drink_states (
       id TEXT PRIMARY KEY,
       activation_id TEXT NOT NULL UNIQUE,
@@ -626,6 +708,27 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       expires_at DATETIME NOT NULL,
       completed_at DATETIME,
       responded_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE item_use_orders (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL,
+      telegram_user_id BIGINT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_fingerprint TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      effect_kind TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT UNIQUE,
+      preview_json JSONB NOT NULL,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      cancelled_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

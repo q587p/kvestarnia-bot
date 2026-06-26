@@ -1,4 +1,8 @@
 import { err, ok, type Result } from "../../shared/result";
+import {
+  YEGER_BANDAGE_PURCHASE_TARGETS,
+  type YegerBandagePurchaseTarget
+} from "../../services/yegerQuestService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type YegerCallback =
@@ -8,6 +12,10 @@ export type YegerCallback =
   | { type: "start"; questId: "u1" }
   | { type: "track"; questId: "u1" }
   | { type: "turn-in"; questId: "u1" }
+  | { type: "buy-bandage-preview"; targetQuantity: YegerBandagePurchaseTarget }
+  | { type: "buy-bandage-confirm"; token: string }
+  | { type: "buy-bandage-cancel"; token: string }
+  | { type: "free-bandage" }
   | { type: "help" };
 
 export type YegerCallbackError =
@@ -48,6 +56,22 @@ export function makeYegerHelpCallbackData(): string {
   return assertYegerCallbackData(`${PREFIX}:help`);
 }
 
+export function makeYegerBuyBandageCallbackData(targetQuantity: YegerBandagePurchaseTarget = 1): string {
+  return assertYegerCallbackData(`${PREFIX}:buy:${targetQuantity}`);
+}
+
+export function makeYegerConfirmBandagePurchaseCallbackData(token: string): string {
+  return assertYegerCallbackData(`${PREFIX}:bc:${token}`);
+}
+
+export function makeYegerCancelBandagePurchaseCallbackData(token: string): string {
+  return assertYegerCallbackData(`${PREFIX}:bx:${token}`);
+}
+
+export function makeYegerFreeBandageCallbackData(): string {
+  return assertYegerCallbackData(`${PREFIX}:free:bdg`);
+}
+
 export function parseYegerCallbackData(
   data: string | undefined
 ): Result<YegerCallback, YegerCallbackError> {
@@ -75,6 +99,26 @@ export function parseYegerCallbackData(
 
   if (action === "help") {
     return questId ? err("invalid-prefix") : ok({ type: "help" });
+  }
+
+  if (action === "buy") {
+    if (questId === "bdg") {
+      return ok({ type: "buy-bandage-preview", targetQuantity: 1 });
+    }
+
+    const target = parseBandagePurchaseTarget(questId);
+
+    return target ? ok({ type: "buy-bandage-preview", targetQuantity: target }) : err("invalid-prefix");
+  }
+
+  if (action === "bc" || action === "bx") {
+    return questId && rest.length === 0 && isPurchaseToken(questId)
+      ? ok({ type: action === "bc" ? "buy-bandage-confirm" : "buy-bandage-cancel", token: questId })
+      : err("invalid-prefix");
+  }
+
+  if (action === "free") {
+    return questId === "bdg" ? ok({ type: "free-bandage" }) : err("invalid-prefix");
   }
 
   if (questId !== UNQUIET_TRIAL_ID) {
@@ -110,4 +154,16 @@ function assertYegerCallbackData(data: string): string {
   }
 
   return data;
+}
+
+function isPurchaseToken(token: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token);
+}
+
+function parseBandagePurchaseTarget(value: string | undefined): YegerBandagePurchaseTarget | null {
+  const numeric = Number(value);
+
+  return YEGER_BANDAGE_PURCHASE_TARGETS.includes(numeric as YegerBandagePurchaseTarget)
+    ? numeric as YegerBandagePurchaseTarget
+    : null;
 }

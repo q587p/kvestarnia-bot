@@ -126,7 +126,10 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
       return;
     }
     const fightCallback = parseFightCallbackData(ctx.callbackQuery.data);
-    const suppressMovementNotice = fightCallback.ok && fightCallback.value.type === "passage";
+    const suppressMovementNotice = fightCallback.ok &&
+      (fightCallback.value.type === "passage" ||
+        fightCallback.value.type === "turn" ||
+        fightCallback.value.type === "item");
 
     const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
 
@@ -321,7 +324,9 @@ async function sendCurrentPresenceLocation(
   services: BotServices
 ): Promise<void> {
   if (locationId === PRESENCE_LOCATION_KORCHMA_FRONT) {
-    await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger);
+    await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
+      playerHintService: services.playerHints
+    });
     return;
   }
 

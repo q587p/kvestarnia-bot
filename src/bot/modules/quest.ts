@@ -60,6 +60,8 @@ buildKorchmaBarKeyboard
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import {
 buildYegerHelpKeyboard,
+buildYegerBandagePurchaseKeyboard,
+buildYegerCornerKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
 buildYegerTurnInKeyboard
@@ -89,9 +91,11 @@ presentInvalidCallback
 import { presentParticipants } from "../presenters/presencePresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
+presentYegerBandageBuy,
 presentYegerHelp,
 presentYegerNoCharacter,
 presentYegerQuest,
+presentYegerRangerBandage,
 presentYegerStart,
 presentYegerTrackingBlockedByOtherFight,
 presentYegerTrackingNone,
@@ -796,6 +800,66 @@ async function handleYegerCallback(
     await safeEditMessageText(ctx, presentYegerHelp(), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildYegerHelpKeyboard()
+    });
+    return;
+  }
+
+  if (callback.type === "buy-bandage-preview") {
+    const result = await services.yeger.previewBandagePurchaseForTelegramUser(
+      telegramUserId,
+      callback.targetQuantity
+    );
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "preview"
+        ? { text: "Єгер показав ціну." }
+        : { show_alert: result.state === "insufficient-gold" || result.state === "daily-limit" }
+    );
+    await markYegerCornerPresence(ctx, services.presence);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: result.state === "preview"
+        ? buildYegerBandagePurchaseKeyboard(result.token)
+        : quest.state === "no-character"
+          ? buildYegerHelpKeyboard()
+          : buildYegerCornerKeyboard(quest)
+    });
+    return;
+  }
+
+  if (callback.type === "buy-bandage-confirm" || callback.type === "buy-bandage-cancel") {
+    const result = callback.type === "buy-bandage-confirm"
+      ? await services.yeger.confirmBandagePurchaseForTelegramUser(telegramUserId, callback.token)
+      : await services.yeger.cancelBandagePurchaseForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "bought" || result.state === "replayed"
+        ? { text: result.state === "bought" ? "Бинти у торбі." : "Чек уже проведено." }
+        : { show_alert: result.state === "insufficient-gold" || result.state === "invalid-token" || result.state === "stale-token" }
+    );
+    await markYegerCornerPresence(ctx, services.presence);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
+    });
+    return;
+  }
+
+  if (callback.type === "free-bandage") {
+    const result = await services.yeger.claimRangerBandageForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "claimed"
+        ? { text: "Єгер видав бинт." }
+        : { show_alert: result.state === "class-locked" || result.state === "on-cooldown" }
+    );
+    await markYegerCornerPresence(ctx, services.presence);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentYegerRangerBandage(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
     });
     return;
   }

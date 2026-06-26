@@ -338,6 +338,19 @@ export function presentPersistentFightTurn(
         : "Мани не стало навіть на драматичний жест. Корчма показує поточний стан без зайвого удару.";
     }
 
+    if (result.state === "item-unavailable") {
+      switch (result.reason) {
+        case "not-owned":
+          return "Цієї манатки в торбі вже немає. Корчма показує поточний стан без витрачання ходу.";
+        case "reserved":
+          return "Ця манатка вже зайнята іншою дією. Корчма показує поточний стан без витрачання ходу.";
+        case "full-hp":
+          return "HP уже повні. Корчма не дозволила витрачати манатку для красивого жесту.";
+        case "not-usable":
+          return "Цю манатку зараз не можна застосувати в бою. Корчма показує поточний стан.";
+      }
+    }
+
     if (result.state === "terminal") {
       return "Цей бій уже завершився. Повторні натискання не переписують історію.";
     }
@@ -1071,6 +1084,20 @@ function presentTurnSummary(
       summary.heroCounterDamage
         ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
         : ""
+    ].filter(Boolean));
+  }
+
+  if (summary.heroOutcome === "item-used") {
+    const itemName = escapeHtml(summary.itemName ?? "манатку");
+    const healing = summary.heroHealing
+      ? ` HP підросли на ${summary.heroHealing}.`
+      : "";
+
+    return withMonsterBark(summary, [
+      ...heading,
+      `Ви використали <b>${itemName}</b>.${healing}`,
+      heroEffectResponse,
+      enemyResponses || monsterResponse || "Монстр відреагував паузою, яка майже виглядала професійно."
     ].filter(Boolean));
   }
 

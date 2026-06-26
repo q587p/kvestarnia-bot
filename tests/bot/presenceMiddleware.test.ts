@@ -220,6 +220,51 @@ describe("presence middleware", () => {
     });
   });
 
+  it.each([
+    ["/dev_heal 7", "heal"],
+    ["/dev_add_bandage 5", "addBandages"]
+  ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
+    const presence = new CapturingPresenceService();
+    const calls: string[] = [];
+    const bot = createTestBot(presence, {
+      fight: activePersistentFightService(),
+      devGrant: {
+        isEnabled: () => true,
+        heal: () => {
+          calls.push("heal");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "heal" as const,
+            amount: 7,
+            character: characterRecord()
+          });
+        },
+        addBandages: () => {
+          calls.push("addBandages");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "items" as const,
+            amount: 5,
+            character: characterRecord(),
+            itemGrants: [{
+              itemId: "item.responsible-panic-bandage",
+              name: "Бинт відповідальної паніки",
+              quantity: 5
+            }]
+          });
+        }
+      } as unknown as BotServices["devGrant"]
+    });
+    await bot.init();
+
+    await bot.handleUpdate(commandUpdate(command));
+
+    expect(calls).toContain(methodName);
+    expect(presence.marks).not.toContainEqual(expect.objectContaining({
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    }));
+  });
+
   it("keeps active training combat presence instead of stamping blocked tavern destination", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence, {
@@ -807,6 +852,28 @@ const character: CharacterSummary = {
   }
 };
 
+function characterRecord() {
+  return {
+    id: "character-42",
+    userId: "user-42",
+    name: character.name,
+    pronoun: character.pronoun,
+    path: character.path,
+    raceId: character.raceId,
+    classId: character.classId,
+    level: character.level,
+    xp: character.xp,
+    gold: character.gold,
+    hpCurrent: character.hpCurrent,
+    hpMax: character.hpMax,
+    hpRegenAt: null,
+    manaCurrent: character.manaCurrent,
+    manaMax: character.manaMax,
+    manaRegenAt: null,
+    statsJson: character.stats
+  };
+}
+
 function readyTavernService() {
   return {
     getTavernForTelegramUser: () =>
@@ -1078,6 +1145,7 @@ function messageUpdate(text: string) {
 
 function commandUpdate(text: string) {
   const update = messageUpdate(text);
+  const commandLength = text.split(" ", 1)[0]?.length ?? text.length;
 
   return {
     ...update,
@@ -1087,7 +1155,7 @@ function commandUpdate(text: string) {
         {
           type: "bot_command" as const,
           offset: 0,
-          length: text.length
+          length: commandLength
         }
       ]
     }

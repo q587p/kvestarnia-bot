@@ -270,6 +270,34 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "додати випадкові манатки локально",
     includeInMenu: false,
     devOnly: "grant"
+  },
+  {
+    command: "dev_add_bandage",
+    icon: "🧻",
+    description: "додати бинти локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_reset_yeger_bandage",
+    icon: "🧷",
+    description: "скинути таймер бинта Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_reset_yeger_bandage_day",
+    icon: "📆",
+    description: "скинути денний ліміт купівлі бинтів Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_reset_yeger_trail",
+    icon: "👣",
+    description: "завершити очікування сліду Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
   }
 ];
 

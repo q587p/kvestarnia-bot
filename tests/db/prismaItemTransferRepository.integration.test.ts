@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { items } from "../../src/content";
 import type { ItemContent } from "../../src/content/schema";
 import { PrismaItemTransferRepository } from "../../src/db/repositories/prismaItemTransferRepository";
 import { createItemGiftFingerprint } from "../../src/domain/itemTransfers";
@@ -15,6 +16,11 @@ const item: ItemContent = {
   slot: "junk",
   goldValue: 13
 };
+const bandage = items.find((candidate) => candidate.id === "item.responsible-panic-bandage");
+
+if (!bandage) {
+  throw new Error("Bandage content is missing.");
+}
 
 describe("PrismaItemTransferRepository integration", () => {
   let dir: string;
@@ -360,6 +366,32 @@ describe("PrismaItemTransferRepository integration", () => {
     await expectQuantities({ sender: 1, receiver: 0 });
   });
 
+  it("rejects an old rendered gift selection when tags now block transfer", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedItem("sender", 1, bandage.id);
+
+    const result = await repository.createGiftForTelegramUser(1n, {
+      token: "gift-token-1",
+      receiverTelegramUserId: 2n,
+      item: bandage,
+      itemFingerprint: createItemGiftFingerprint(bandage),
+      now: now(),
+      expiresAt: future()
+    });
+
+    expect(result.state).toBe("stale-selection");
+    await expect(prisma.itemTransfer.count()).resolves.toBe(0);
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: "sender",
+          itemId: bandage.id
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 1 });
+  });
+
   it("fails safely when item content changes before accept", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
@@ -515,11 +547,11 @@ describe("PrismaItemTransferRepository integration", () => {
     });
   }
 
-  async function seedItem(characterId: string, quantity: number) {
+  async function seedItem(characterId: string, quantity: number, itemId = item.id) {
     await prisma.characterItem.create({
       data: {
         characterId,
-        itemId: item.id,
+        itemId,
         quantity
       }
     });
@@ -698,6 +730,27 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "expires_at" DATETIME NOT NULL,
       "completed_at" DATETIME,
       "responded_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE "item_use_orders" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "token" TEXT NOT NULL UNIQUE,
+      "character_id" TEXT NOT NULL,
+      "telegram_user_id" BIGINT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "item_id" TEXT NOT NULL,
+      "item_name" TEXT NOT NULL,
+      "item_fingerprint" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      "effect_kind" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "reservation_key" TEXT UNIQUE,
+      "preview_json" JSONB NOT NULL,
+      "result_json" JSONB,
+      "expires_at" DATETIME NOT NULL,
+      "completed_at" DATETIME,
+      "cancelled_at" DATETIME,
       "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`

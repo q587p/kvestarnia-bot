@@ -29,18 +29,52 @@ describe("deploy notification service", () => {
 
     expect(text).toContain("Квестарня оновилась");
     expect(text).toContain("0.0.4");
-    expect(text).toContain("<b>0.0.4 — 12026-06-12 — Перша пригода</b>");
+    expect(text).toContain("<b>Перша пригода</b>");
+    expect(text).toContain("Шаурма знову підозріла.");
+    expect(text).not.toContain("Остання новина: <b>0.0.4");
     expect(text).toContain("https://t.me/kvestarnia");
   });
 
-  it("escapes the latest news title for Telegram HTML", () => {
+  it("escapes the latest news title and first paragraph for Telegram HTML", () => {
     const text = renderDeployNotification(
       "0.0.4",
-      makeNewsEntry("0.0.4 — 12026-06-12 — A < B")
+      makeNewsEntry("0.0.4 — 12026-06-12 — A < B", "Корчмар має <план> & кухоль.")
     );
 
-    expect(text).toContain("<b>0.0.4 — 12026-06-12 — A &lt; B</b>");
+    expect(text).toContain("<b>A &lt; B</b>");
+    expect(text).toContain("Корчмар має &lt;план&gt; &amp; кухоль.");
     expect(text).not.toContain("A < B");
+    expect(text).not.toContain("<план>");
+  });
+
+  it("keeps deploy notification safe when latest news has no paragraph", () => {
+    const text = renderDeployNotification("0.0.4", {
+      ...makeNewsEntry(),
+      body: "",
+      raw: "## 0.0.4 — 12026-06-12 — Перша пригода"
+    });
+
+    expect(text).toContain("<b>Перша пригода</b>");
+    expect(text).toContain("Деталі й архів: /news");
+  });
+
+  it("uses only the first narrative paragraph from release news", () => {
+    const text = renderDeployNotification(
+      "0.0.4",
+      makeNewsEntry(
+        "0.0.4 — 12026-06-12 — Перша пригода",
+        [
+          "Корчмар нарешті поставив шаховий годинник.",
+          "",
+          "У грі вже:",
+          "- Дуель чекає вашого ходу."
+        ].join("\r\n")
+      )
+    );
+
+    expect(text).toContain("Корчмар нарешті поставив шаховий годинник.");
+    expect(text).not.toContain("У грі вже");
+    expect(text).not.toContain("Дуель чекає вашого ходу");
   });
 
   it("does nothing when deploy notifications are disabled", async () => {
@@ -171,12 +205,15 @@ async function makeSqliteUrl(): Promise<string> {
   return `file:${join(dir, "dev.db")}`;
 }
 
-function makeNewsEntry(title = "0.0.4 — 12026-06-12 — Перша пригода"): NewsEntry {
+function makeNewsEntry(
+  title = "0.0.4 — 12026-06-12 — Перша пригода",
+  body = "Шаурма знову підозріла."
+): NewsEntry {
   return {
     index: 0,
     title,
-    body: "Шаурма знову підозріла.",
-    raw: `## ${title}\n\nШаурма знову підозріла.`,
+    body,
+    raw: `## ${title}\n\n${body}`,
     version: "0.0.4",
     contentHash: "hash"
   };

@@ -29,6 +29,7 @@ import {
 } from "../../domain/shynokDrinks";
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { findActiveItemUseReservedItems } from "./itemUseReservations";
 
 type TxClient = Prisma.TransactionClient;
 const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
@@ -1115,7 +1116,7 @@ async function getInventorySnapshot(
     return null;
   }
 
-  const [items, equipment, pendingChestRuns, pendingLevelBarters, pendingTransfers] = await Promise.all([
+  const [items, equipment, pendingChestRuns, pendingLevelBarters, pendingTransfers, pendingUses] = await Promise.all([
     tx.characterItem.findMany({
       where: { characterId: character.id },
       orderBy: [{ createdAt: "asc" }, { itemId: "asc" }]
@@ -1135,6 +1136,10 @@ async function getInventorySnapshot(
     findActiveTransferReservedItems(tx, {
       senderCharacterId: character.id,
       now
+    }),
+    findActiveItemUseReservedItems(tx, {
+      characterId: character.id,
+      now
     })
   ]);
   const reservedItemIds = new Set<string>();
@@ -1150,6 +1155,9 @@ async function getInventorySnapshot(
   }
   for (const transfer of pendingTransfers) {
     reservedItemIds.add(transfer.itemId);
+  }
+  for (const use of pendingUses) {
+    reservedItemIds.add(use.itemId);
   }
 
   return {

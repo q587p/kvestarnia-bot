@@ -46,6 +46,8 @@ describe("help presenter", () => {
     expect(text).not.toContain("/dev_heal");
     expect(text).not.toContain("/dev_restore_mana");
     expect(text).not.toContain("/dev_add_random_item");
+    expect(text).not.toContain("/dev_add_bandage");
+    expect(text).not.toContain("/dev_reset_yeger_bandage");
     expect(text).toContain("👤 /hero, /profile, /me — персонаж і прогрес");
     expect(text).toContain("🍺 /tavern, /raid — корчма й рейд на бочку");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
@@ -91,6 +93,9 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🩹 /dev_heal");
     expect(resetOnly).not.toContain("🔮 /dev_restore_mana");
     expect(resetOnly).not.toContain("🎲 /dev_add_random_item");
+    expect(resetOnly).not.toContain("🧻 /dev_add_bandage");
+    expect(resetOnly).not.toContain("🧷 /dev_reset_yeger_bandage");
+    expect(resetOnly).not.toContain("/dev_reset_yeger_bandage_day");
     expect(resetOnly).toContain("допомога\n\n🧪");
 
     expect(grantsEnabled).toContain("🧪 /dev_help");
@@ -104,6 +109,9 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🩹 /dev_heal");
     expect(grantsEnabled).toContain("🔮 /dev_restore_mana");
     expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
+    expect(grantsEnabled).toContain("🧻 /dev_add_bandage");
+    expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
+    expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
   });
 
   it("renders a compact dev-only help screen from available dev commands", () => {
@@ -121,6 +129,9 @@ describe("help presenter", () => {
 
     expect(grantsEnabled).toContain("🔢 /dev_add_xp");
     expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
+    expect(grantsEnabled).toContain("🧻 /dev_add_bandage");
+    expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
+    expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
     expect(disabled).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
   });
 });

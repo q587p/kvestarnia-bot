@@ -7,7 +7,12 @@ import {
   buildYegerKeyboard,
   buildYegerTurnInKeyboard
 } from "../../src/bot/keyboards/yegerKeyboard";
-import { makeYegerOutsideCallbackData, makeYegerQuestCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
+import {
+  makeYegerBuyBandageCallbackData,
+  makeYegerFreeBandageCallbackData,
+  makeYegerOutsideCallbackData,
+  makeYegerQuestCallbackData
+} from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("Yeger keyboard", () => {
@@ -22,6 +27,48 @@ describe("Yeger keyboard", () => {
     expect(flatButtons(keyboard)[0]).toEqual({
       text: "🏹 Неспокійні справи",
       callback_data: makeYegerQuestCallbackData()
+    });
+  });
+
+  it("offers paid Yeger bandages as fixed bundle quantities", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "completed",
+      character,
+      progress: { wins: 5, target: 5 },
+      reward
+    });
+
+    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+      { text: "🩹 1 бинт", callback_data: makeYegerBuyBandageCallbackData(1) },
+      { text: "🩹 5 бинтів", callback_data: makeYegerBuyBandageCallbackData(5) },
+      { text: "🩹 17 бинтів", callback_data: makeYegerBuyBandageCallbackData(17) },
+      { text: "🩹 93 бинти", callback_data: makeYegerBuyBandageCallbackData(93) }
+    ]));
+    expect(keyboard.inline_keyboard.slice(1, 3).map((row) => row.map((button) => button.text))).toEqual([
+      ["🩹 1 бинт", "🩹 5 бинтів"],
+      ["🩹 17 бинтів", "🩹 93 бинти"]
+    ]);
+  });
+
+  it("keeps the free ranger bandage available before the Yeger quest level gate", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "level-locked",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Єгер",
+        level: 1
+      },
+      requiredLevel: 4
+    });
+
+    expect(flatButtons(keyboard)).not.toContainEqual({
+      text: "🏹 Неспокійні справи",
+      callback_data: makeYegerQuestCallbackData()
+    });
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🧰 Єгерський бинт",
+      callback_data: makeYegerFreeBandageCallbackData()
     });
   });
 

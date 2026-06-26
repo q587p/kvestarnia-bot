@@ -293,16 +293,7 @@ export class PrismaRemortRepository implements RemortRepository {
         }
       });
 
-      if (input.resetDailyActionKeys?.length) {
-        await tx.dailyAction.deleteMany({
-          where: {
-            characterId: character.id,
-            key: {
-              in: [...input.resetDailyActionKeys]
-            }
-          }
-        });
-      }
+      await resetCurrentLifeStateForRemort(tx, character.id);
 
       for (const item of validation.keptItems) {
         await tx.characterItem.create({
@@ -676,6 +667,41 @@ async function cancelShynokLifecycleForRemort(
       }
     }
   });
+
+  await tx.itemUseOrder.updateMany({
+    where: {
+      characterId,
+      status: {
+        in: ["pending", "processing"]
+      }
+    },
+    data: {
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: now,
+      updatedAt: now,
+      resultJson: {
+        kind: "remort-cancelled-item-use"
+      }
+    }
+  });
+}
+
+async function resetCurrentLifeStateForRemort(tx: TxClient, characterId: string): Promise<void> {
+  await Promise.all([
+    tx.dailyAction.deleteMany({
+      where: { characterId }
+    }),
+    tx.characterCooldown.deleteMany({
+      where: { characterId }
+    }),
+    tx.huntContract.deleteMany({
+      where: { characterId }
+    }),
+    tx.barrelRaidNotification.deleteMany({
+      where: { characterId }
+    })
+  ]);
 }
 
 async function getSnapshot(

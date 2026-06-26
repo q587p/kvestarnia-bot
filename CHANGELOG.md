@@ -7,6 +7,43 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.4] - 12026-06-26 - Item Tags and One-use Bandages
+
+### Added
+- Added a narrow validated item tag contract for consumable/use/trade/duel/raid safety: `consumable`, `one-use`, `tradeable`, `trade-blocked`, `duel-blocked`, `raid-blocked`, `story`, `memory`, `sentimental` and `soulbound`.
+- Added the first explicit one-use healing item, `Бинт відповідальної паніки`, with a capped out-of-combat `heal-hp` use effect.
+- Added replay-safe `item_use_orders` persistence for item-use preview, reservation, confirmation, cancellation, expiry and terminal-result replay.
+- Added item-use reservation checks to Shynok sales, safe gifting, Mantok Chest, Munchkin barter and remort cleanup so a live use order cannot race another item-spending flow.
+- Added inventory item-detail use buttons, exact current heal previews, confirmation/cancel callbacks and result cards for usable one-use items.
+- Added `До відновлення` shortcuts after out-of-combat bandage use and on the hero card when the remaining stack can fully restore HP; they consume exactly the number of bandages needed to reach full HP.
+- Added a narrow Єгер supply path: any eligible hero can preview the exact bandage price/current gold, then confirm or cancel a tokenized purchase for 1, 5, 17 or 93 paid bandages, capped at 93 paid bandages per day; `class.ranger` gets a lower price and a replay-safe periodic free bandage claim.
+- Added `Бинт відповідальної паніки` to the basement mouse authored loot list so ordinary monster loot can occasionally grant it through the existing persistent-fight loot path.
+- Added a second Єгер unquiet board: after the first 5-monster board is completed, Єгер offers the next 17 unquiet targets with its own start/completion keys and replay-safe turn-in.
+- Added local `/dev_reset_yeger_trail` to finish the pending Єгер trail wait for manual QA.
+- Added local `/dev_add_bandage [count]` for manual bandage QA and allowed local `/dev_heal [HP]` during active combat.
+- Added local `/dev_reset_yeger_bandage_day` to clear the Єгер paid-bandage purchase ledger for manual same-day purchase-limit QA.
+
+### Changed
+- Item content validation now rejects unknown or duplicate tags, contradictory `tradeable` + `trade-blocked`, contradictory `soulbound` + `tradeable`, `one-use` without `consumable`, and use effects that are not explicit one-use consumables.
+- Safe Gifting now treats `trade-blocked` and `soulbound` as transfer-blocking tags while preserving legacy untagged priced item eligibility; gift fingerprints include tags so tag/content edits between preview and create/accept stale out safely.
+- Bandage confirmation now settles HP/mana once through the canonical passive recovery math with Shynok recovery windows, then applies capped HP healing without wiping fractional mana recovery progress.
+- Єгер paid bandage purchase now uses preview/confirm/cancel callbacks backed by the existing daily-action audit boundary, so duplicate confirms replay the same receipt instead of debiting/granting again; bundle buttons buy the selected quantity and cannot exceed 93 paid bandages for the day.
+- The free class-ranger Єгер bandage button now remains available before the level-4 Єгер quest gate; the quest itself stays level-gated.
+- Єгер paid bandage previews now say `Після купівлі` instead of `Здобуто`, so the receipt does not imply the item was granted before confirmation.
+- Out-of-combat item use blocks at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry; active persistent PvE combat routes eligible one-use manatky through the turn-bound combat item-use path instead.
+- Combat item-use now honors the active `solo-combat` lease when consuming a bandage, so healing applies during live persistent PvE turns instead of replaying the current turn card.
+- Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.
+- Remort cancels live pending/processing item-use orders without consuming their reserved stack.
+- Remort resets all current-life daily-action rows, cooldowns, hunt contracts and Barrel raid notification rows, so paid Єгер bandage purchase counts, once-per-life Єгер boards and other current-life quest/cooldown gates start from zero after remort.
+- The remort daily-action maintenance cleanup now defaults to all stale pre-remort daily-action rows while keeping `--yeger-only` as a narrow audit mode.
+- Shynok manatka sales now round the basket-level 42% payout up to the nearest whole gold instead of truncating fractional gold down.
+- Lost multi-enemy persistent fights now grant half of normal XP for each enemy defeated before the loss, while still granting no gold, no items and no quest progress for the failed fight.
+- The task, roadmap, phase-2, balance, security, technical, playtesting and compact Codex context docs now distinguish this shipped bandage slice from broader shops, food, action catalogs, race abilities, achievements, titles and signature techniques.
+
+### Unchanged
+- No mana restore, damage item, buff/debuff item, broad action catalog, food, coffee, crafting, market, buyback, item-instance rewrite, duel item action, raid item action, race ability, achievement, title or signature-technique runtime ships in this slice.
+- The bandage drop uses existing monster loot/reward machinery; no new broad loot weighting engine, reward multiplier or per-monster drop formula ships here.
+
 ## [0.2.3] - 12026-06-25 - Threat Escalation MVP
 
 ### Added

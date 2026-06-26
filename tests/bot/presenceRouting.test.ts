@@ -196,6 +196,9 @@ describe("presence routing", () => {
     ["restart", {}],
     ["dev_raid_stop", {}],
     ["dev_reset_monster_rest", {}],
+    ["dev_add_bandage", {}],
+    ["dev_reset_yeger_bandage", {}],
+    ["dev_reset_yeger_bandage_day", {}],
     ["dev_help", {}]
   ])("routes command /%s", (command, expected) => {
     expect(getCommandPresenceContext(command)).toEqual(expected);

@@ -13,6 +13,7 @@ import type {
   LevelBarterSnapshot
 } from "./levelBarterRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
@@ -284,7 +285,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     return null;
   }
 
-  const [items, equipment, pendingTransfers] = await Promise.all([
+  const [items, equipment, pendingTransfers, pendingUses] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: character.id
@@ -309,6 +310,10 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     findActiveTransferReservedItems(tx, {
       senderCharacterId: character.id,
       now
+    }),
+    findActiveItemUseReservedItems(tx, {
+      characterId: character.id,
+      now
     })
   ]);
 
@@ -317,7 +322,10 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     remortCount: getIncludedRemortCount(character),
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
-    reservedItemIds: pendingTransfers.map((row) => row.itemId)
+    reservedItemIds: [
+      ...pendingTransfers.map((row) => row.itemId),
+      ...pendingUses.map((row) => row.itemId)
+    ]
   };
 }
 

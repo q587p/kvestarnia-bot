@@ -83,6 +83,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
   if (data) {
     return (
       !data.startsWith("v1:fight:turn:") &&
+      !data.startsWith("v1:fight:item:") &&
       !data.startsWith("v1:spar:turn:") &&
       !data.startsWith("v1:duel:t:") &&
       !data.startsWith("v1:fight:mimic:") &&
@@ -106,6 +107,7 @@ function isCombatLockSafeCallback(data: string): boolean {
     data === "v1:menu:help" ||
     data === "v1:menu:inventory" ||
     data.startsWith("v1:item:") ||
+    data.startsWith("v1:use:") ||
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:restart:") ||
     data.startsWith("v1:rm:")
@@ -133,6 +135,8 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "equipment" ||
     command === "gear" ||
     command === "equip" ||
+    command === "dev_heal" ||
+    command === "dev_add_bandage" ||
     command === "online" ||
     command === "look" ||
     command === "restart" ||

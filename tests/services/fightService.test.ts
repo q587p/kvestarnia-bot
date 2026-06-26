@@ -12,6 +12,8 @@ import type {
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
 import type {
+  ApplyCombatItemTurnInput,
+  ApplyCombatItemTurnResult,
   CreateSoloCombatSessionInput,
   DueSoloCombatSessionRecord,
   SoloCombatSessionRecord,
@@ -63,11 +65,13 @@ import {
   selectPersistentFightMonsterLevel,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
+import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
 import {
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 } from "../../src/services/presenceService";
+import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 
 const telegramUserId = 42n;
 
@@ -1879,6 +1883,47 @@ describe("FightService", () => {
     }
   });
 
+  it("uses a one-use manatka as the current persistent fight action", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.combatItemStacks.set("item.responsible-panic-bandage", 1);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    );
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 10);
+
+    const result = await service.resolvePersistentFightItemTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey("item.responsible-panic-bandage")
+    });
+
+    expect(result.state).toBe("updated");
+    expect(sessions.consumedCombatItems).toEqual(["item.responsible-panic-bandage"]);
+    expect(sessions.combatItemStacks.get("item.responsible-panic-bandage")).toBe(0);
+    if (result.state === "updated") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "item",
+        heroOutcome: "item-used",
+        itemId: "item.responsible-panic-bandage",
+        heroHealing: 7
+      });
+      expect(result.session.state?.turnLog?.at(-1)?.summary.action).toBe("item");
+    }
+  });
+
   it("expires an active persistent fight with a missing monster instead of returning a dead-end", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -1949,7 +1994,15 @@ describe("FightService", () => {
       });
       expect(typeof result.fightReward?.reward.xp).toBe("number");
       expect(typeof result.fightReward?.reward.gold).toBe("number");
-      expect(result.fightReward?.reward.itemGrants.length).toBeLessThanOrEqual(1);
+      expect(
+        result.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+          .length
+      ).toBeLessThanOrEqual(1);
+      expect(result.fightReward?.reward.itemGrants).toContainEqual({
+        itemId: BANDAGE_ITEM_ID,
+        name: "Бинт відповідальної паніки",
+        quantity: 1
+      });
       expect(result.questProgress).toMatchObject({
         wins: 1,
         target: 13,
@@ -2465,7 +2518,14 @@ describe("FightService", () => {
     }
 
     expect(recovered.fightReward?.reward.gold).toBe(0);
-    expect(recovered.fightReward?.reward.itemGrants.length).toBe(1);
+    expect(
+      recovered.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+    ).toHaveLength(1);
+    expect(recovered.fightReward?.reward.itemGrants).toContainEqual({
+      itemId: BANDAGE_ITEM_ID,
+      name: "Бинт відповідальної паніки",
+      quantity: 1
+    });
 
     const replayed = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2516,7 +2576,14 @@ describe("FightService", () => {
       throw new Error("Expected terminal reward recovery.");
     }
     expect(recovered.fightReward?.reward.gold).toBe(0);
-    expect(recovered.fightReward?.reward.itemGrants).toEqual([]);
+    expect(
+      recovered.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+    ).toEqual([]);
+    expect(recovered.fightReward?.reward.itemGrants).toContainEqual({
+      itemId: BANDAGE_ITEM_ID,
+      name: "Бинт відповідальної паніки",
+      quantity: 1
+    });
   });
 
   it("scales recovered persistent fight rewards by stored difficulty", async () => {
@@ -2933,6 +3000,120 @@ describe("FightService", () => {
       });
     }
     expect(rewardRecords).toHaveLength(1);
+  });
+
+  it("grants half XP for defeated enemies when a multi-enemy persistent fight is lost", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110, hpCurrent: 1 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9, 0.2, 0.1, 0.9, 0.2])
+    );
+
+    for (const [index, completedAt] of [
+      new Date("2026-06-12T10:29:40.000Z"),
+      new Date("2026-06-12T10:29:41.000Z"),
+      new Date("2026-06-12T10:29:42.000Z")
+    ].entries()) {
+      sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-partial-loss-${index + 1}`, {
+        completedAt
+      }));
+    }
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+
+    const postPrimaryDeath = moveSessionToPostPrimaryDeath(sessions, started.session.id);
+    const defeatedEnemy = postPrimaryDeath.enemies?.find((enemy) => enemy.hp <= 0);
+    const livingEnemy = postPrimaryDeath.enemies?.find((enemy) => enemy.hp > 0);
+    expect(defeatedEnemy).toBeDefined();
+    expect(livingEnemy).toBeDefined();
+    if (!defeatedEnemy || !livingEnemy) {
+      return;
+    }
+    livingEnemy.hp = 999;
+    livingEnemy.hpMax = 999;
+    postPrimaryDeath.monster = {
+      ...postPrimaryDeath.monster,
+      hp: 999,
+      hpMax: 999
+    };
+    postPrimaryDeath.hero = {
+      ...postPrimaryDeath.hero,
+      hp: 1
+    };
+    const defeatedContent = monsters.find((monster) => monster.id === defeatedEnemy.id);
+    const defeatedLevel = defeatedEnemy.level ?? defeatedContent?.level ?? 1;
+    const expectedPartialXp = Math.ceil(
+      buildCenterBaselinePersistentFightWinXp({
+        characterLevel: 6,
+        baseMonsterLevel: defeatedLevel
+      }) * 0.5
+    );
+    await sessions.updateById(started.session.id, {
+      status: "active",
+      state: postPrimaryDeath
+    });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 2,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.status).toBe("lost");
+      expect(result.fightReward).toMatchObject({
+        state: "claimed",
+        reward: {
+          xp: expectedPartialXp,
+          gold: 0,
+          localDate: started.session.id,
+          itemGrants: []
+        }
+      });
+      expect(result.fightReward?.reward.xp).toBeGreaterThan(1);
+      expect(result.questProgress).toMatchObject({ wins: 3, completed: false });
+    }
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
+    expect(rewardRecords[0]).toMatchObject({
+      key: PERSISTENT_SOLO_FIGHT_REWARD_KEY,
+      localDate: started.session.id,
+      rewardXp: expectedPartialXp,
+      rewardGold: 0
+    });
+    expect(dailyActions.grantedItems).toEqual([]);
+
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 2,
+      action: "attack"
+    });
+
+    expect(repeated.state).toBe("terminal");
+    if (repeated.state === "terminal") {
+      expect(repeated.fightReward).toMatchObject({
+        state: "replayed",
+        reward: {
+          xp: expectedPartialXp,
+          gold: 0,
+          localDate: started.session.id,
+          itemGrants: []
+        }
+      });
+    }
   });
 
   it("does not grant persistent fight rewards for flee or expired sessions", async () => {
@@ -5732,6 +5913,8 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   activeSessionToReturnOnCreate: SoloCombatSessionRecord | null = null;
   createCount = 0;
   updateCount = 0;
+  readonly combatItemStacks = new Map<string, number>();
+  readonly consumedCombatItems: string[] = [];
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -5980,6 +6163,27 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     }
 
     return this.updateById(sessionId, input);
+  }
+
+  async applyCombatItemTurnById(
+    sessionId: string,
+    expectedTurn: number,
+    input: ApplyCombatItemTurnInput
+  ): Promise<ApplyCombatItemTurnResult> {
+    const quantity = this.combatItemStacks.get(input.itemId) ?? 0;
+    if (quantity < 1) {
+      return { outcome: "not-owned", session: null };
+    }
+
+    const updated = await this.updateByIdIfActiveTurn(sessionId, expectedTurn, input);
+    if (!updated) {
+      return { outcome: "stale-turn", session: null };
+    }
+
+    this.combatItemStacks.set(input.itemId, quantity - 1);
+    this.consumedCombatItems.push(input.itemId);
+
+    return { outcome: "updated", session: updated };
   }
 
   applyTerminalResourcesById(

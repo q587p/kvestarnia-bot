@@ -10,12 +10,14 @@ import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChal
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRepository";
+import { PrismaItemUseRepository } from "../db/repositories/prismaItemUseRepository";
 import { PrismaItemTransferRepository } from "../db/repositories/prismaItemTransferRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "../db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaLevelBarterRepository } from "../db/repositories/prismaLevelBarterRepository";
 import { PrismaLevelMilestoneRepository } from "../db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "../db/repositories/prismaMantokChestRepository";
 import { PrismaPendingPassageEncounterRepository } from "../db/repositories/prismaPendingPassageEncounterRepository";
+import { PrismaPlayerHintReceiptRepository } from "../db/repositories/prismaPlayerHintReceiptRepository";
 import { PrismaPresenceRepository } from "../db/repositories/prismaPresenceRepository";
 import { PrismaRemortRepository } from "../db/repositories/prismaRemortRepository";
 import { PrismaShynokRepository } from "../db/repositories/prismaShynokRepository";
@@ -36,11 +38,13 @@ export function createRepositories(prisma: PrismaClient) {
     equipment: new PrismaEquipmentRepository(prisma),
     huntContracts: new PrismaHuntContractRepository(prisma),
     inventory: new PrismaInventoryRepository(prisma),
+    itemUse: new PrismaItemUseRepository(prisma),
     itemTransfers: new PrismaItemTransferRepository(prisma),
     levelBarter: new PrismaLevelBarterRepository(prisma),
     levelMilestones: new PrismaLevelMilestoneRepository(prisma),
     mantokChestRuns: new PrismaMantokChestRepository(prisma),
     pendingPassageEncounters: new PrismaPendingPassageEncounterRepository(prisma),
+    playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
     presence: new PrismaPresenceRepository(prisma),
     remorts: new PrismaRemortRepository(prisma),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),

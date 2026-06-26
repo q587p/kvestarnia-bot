@@ -21,6 +21,7 @@ export interface TelegramMessageSender {
 }
 
 const NEWS_CHANNEL_URL = "https://t.me/kvestarnia";
+const NEWS_EXCERPT_MAX_LENGTH = 700;
 const DEPLOY_NOTIFICATION_OPTIONS = {
   parse_mode: "HTML" as const
 };
@@ -66,10 +67,18 @@ export class DeployNotificationService {
 }
 
 export function renderDeployNotification(version: string, latestNews: NewsEntry | null): string {
+  const latestNewsLines = latestNews
+    ? [
+      "",
+      `Остання новина: <b>${escapeHtml(formatLatestNewsTitle(latestNews.title))}</b>`,
+      ...formatLatestNewsExcerpt(latestNews).map((paragraph) => escapeHtml(paragraph))
+    ]
+    : [];
+
   return [
     "🛠️ Квестарня оновилась.",
     `Версія: ${escapeHtml(version)}`,
-    ...(latestNews ? ["", `Остання новина: <b>${escapeHtml(latestNews.title)}</b>`] : []),
+    ...latestNewsLines,
     "",
     "Деталі й архів: /news",
     `Канал: ${NEWS_CHANNEL_URL}`
@@ -129,6 +138,53 @@ function isTelegramBlockedByUserError(error: unknown): boolean {
   return maybeTelegramError.error_code === 403
     && typeof maybeTelegramError.description === "string"
     && maybeTelegramError.description.includes("bot was blocked by the user");
+}
+
+function formatLatestNewsTitle(title: string): string {
+  return title.replace(/^\d+\.\d+\.\d+\s+—\s+1\d{4}-\d{2}-\d{2}\s+—\s+/, "").trim() || title;
+}
+
+function formatLatestNewsExcerpt(news: NewsEntry): string[] {
+  const paragraphLines: string[] = [];
+
+  for (const line of news.body.replace(/\r\n/g, "\n").split("\n")) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      if (paragraphLines.length > 0) {
+        break;
+      }
+
+      continue;
+    }
+
+    if (
+      trimmed.startsWith("#")
+      || trimmed === "У грі вже:"
+      || trimmed === "У грі має лишитися:"
+      || trimmed.startsWith("- ")
+    ) {
+      break;
+    }
+
+    paragraphLines.push(trimmed);
+  }
+
+  const paragraph = paragraphLines.join(" ");
+
+  if (!paragraph) {
+    return [];
+  }
+
+  return [truncateText(paragraph.replace(/\s+/g, " "), NEWS_EXCERPT_MAX_LENGTH)];
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function escapeHtml(value: string): string {
