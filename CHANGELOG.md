@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Bandage confirmation now settles HP/mana once through the canonical passive recovery math with Shynok recovery windows, then applies capped HP healing without wiping fractional mana recovery progress.
 - Єгер paid bandage purchase now uses preview/confirm/cancel callbacks backed by the existing daily-action audit boundary, so duplicate confirms replay the same receipt instead of debiting/granting again; bundle buttons buy the selected quantity and cannot exceed 93 paid bandages for the day.
 - Out-of-combat item use blocks at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry; active persistent PvE combat routes eligible one-use manatky through the turn-bound combat item-use path instead.
+- Combat item-use now honors the active `solo-combat` lease when consuming a bandage, so healing applies during live persistent PvE turns instead of replaying the current turn card.
 - Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.
 - Remort cancels live pending/processing item-use orders without consuming their reserved stack.
 - Remort resets both the first 5-target and the second 17-target Єгер unquiet board keys so a new life starts the Єгер quest chain from zero.

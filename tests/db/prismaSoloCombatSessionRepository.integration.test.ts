@@ -1496,6 +1496,90 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toMatchObject({ turn: 1, status: "active" });
   });
 
+  it("applies and consumes a combat item through the active solo lease in a multi-enemy fight", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-combat-item-lease",
+      characterId: "character-combat-item-lease",
+      telegramUserId: 9402n
+    });
+    const state = makeCombatState("combat-item-lease", "monster.deadline-spider");
+    state.hero.hp = 10;
+    state.enemies = [
+      {
+        enemyId: "enemy:1",
+        id: "monster.deadline-spider",
+        hp: 18,
+        hpMax: 18
+      },
+      {
+        enemyId: "enemy:2",
+        id: "monster.preapproval-dragonling",
+        hp: 20,
+        hpMax: 20
+      }
+    ];
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "combat-item-lease",
+        characterId: "character-combat-item-lease",
+        monsterId: "monster.deadline-spider",
+        stateJson: state,
+        status: "active",
+        turn: 1,
+        expiresAt: new Date("2026-06-24T14:30:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-combat-item-lease",
+        characterId: "character-combat-item-lease",
+        kind: "solo-combat",
+        referenceId: "combat-item-lease"
+      }
+    });
+    await prisma.characterItem.create({
+      data: {
+        id: "stack-combat-item-lease",
+        characterId: "character-combat-item-lease",
+        itemId: "item.responsible-panic-bandage",
+        quantity: 2
+      }
+    });
+
+    await expect(repository.applyCombatItemTurnById("combat-item-lease", 1, {
+      telegramUserId: 9402n,
+      characterId: "character-combat-item-lease",
+      itemId: "item.responsible-panic-bandage",
+      now: new Date("2026-06-24T14:00:00.000Z"),
+      state: {
+        ...state,
+        turn: 2,
+        hero: {
+          ...state.hero,
+          hp: 17
+        }
+      },
+      status: "active",
+      expiresAt: new Date("2026-06-24T14:23:00.000Z")
+    })).resolves.toMatchObject({
+      outcome: "updated",
+      session: {
+        id: "combat-item-lease",
+        turn: 2,
+        status: "active"
+      }
+    });
+
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: "character-combat-item-lease",
+          itemId: "item.responsible-panic-bandage"
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 1 });
+  });
+
   it("scans past newer active and non-ordinary sessions for recent ordinary monsters", async () => {
     await seedCharacter(prisma, {
       userId: "user-history",
@@ -1620,6 +1704,121 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       character_id TEXT NOT NULL UNIQUE,
       kind TEXT NOT NULL,
       reference_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_equipment (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, slot)
+    )`,
+    `CREATE TABLE character_items (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, item_id)
+    )`,
+    `CREATE TABLE mantok_chest_runs (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      input_items_json JSONB NOT NULL,
+      output_items_json JSONB,
+      average_input_score INTEGER NOT NULL DEFAULT 0,
+      minimum_output_score INTEGER NOT NULL DEFAULT 0,
+      output_score INTEGER,
+      completed_at DATETIME,
+      expired_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE level_barter_exchanges (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      token TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'completed',
+      input_items_json JSONB NOT NULL,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      level_before INTEGER NOT NULL DEFAULT 1,
+      level_after INTEGER NOT NULL DEFAULT 1,
+      xp_before INTEGER NOT NULL DEFAULT 0,
+      xp_after INTEGER NOT NULL DEFAULT 0,
+      xp_carry INTEGER NOT NULL DEFAULT 0,
+      item_total_value INTEGER NOT NULL DEFAULT 0,
+      selected_total_value INTEGER NOT NULL DEFAULT 0,
+      overpay INTEGER NOT NULL DEFAULT 0,
+      completed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, token)
+    )`,
+    `CREATE TABLE korchma_mantok_sales (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      selection_json JSONB NOT NULL,
+      selection_fingerprint TEXT NOT NULL DEFAULT '',
+      nominal_value INTEGER NOT NULL DEFAULT 0,
+      payout_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE item_transfers (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      sender_character_id TEXT NOT NULL,
+      receiver_character_id TEXT NOT NULL,
+      sender_telegram_user_id BIGINT NOT NULL,
+      receiver_telegram_user_id BIGINT NOT NULL,
+      sender_name TEXT NOT NULL,
+      receiver_name TEXT NOT NULL,
+      sender_remort_count INTEGER NOT NULL DEFAULT 0,
+      receiver_remort_count INTEGER NOT NULL DEFAULT 0,
+      location_id TEXT,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_fingerprint TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT UNIQUE,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      responded_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE item_use_orders (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      character_id TEXT NOT NULL,
+      telegram_user_id BIGINT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_fingerprint TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      effect_kind TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT UNIQUE,
+      preview_json JSONB NOT NULL,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      cancelled_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

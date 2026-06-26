@@ -769,7 +769,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         where: { characterId: input.characterId },
         select: { kind: true, referenceId: true }
       });
-      if (!lease || lease.kind !== "solo" || lease.referenceId !== sessionId) {
+      if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== sessionId) {
         return { outcome: "stale-turn", session: null };
       }
 
