@@ -579,6 +579,23 @@ describe("PrismaItemUseRepository integration", () => {
     expect(order.reservationKey).toBe(`use:${characterId}:${bandage.id}`);
   });
 
+  it("recovers the canonical restore-to-full preview after duplicate reservation races", async () => {
+    await seedCharacter({ hpCurrent: 20, hpMax: 25 });
+    await seedBandages(3);
+
+    const results = await Promise.all([
+      restoreToFull("restore-token-race-1"),
+      restoreToFull("restore-token-race-2")
+    ]);
+
+    expect(results.map((result) => result.state).sort()).toEqual(["preview-created", "preview-replayed"]);
+    expect(await prisma.itemUseOrder.count()).toBe(1);
+    const order = await prisma.itemUseOrder.findFirstOrThrow();
+    expect(order.status).toBe("pending");
+    expect(order.quantity).toBe(3);
+    expect(order.reservationKey).toBe(`use:${characterId}:${bandage.id}`);
+  });
+
   it("does not replay a live preview after the stack becomes reserved by equipment", async () => {
     await seedCharacter({ hpCurrent: 10, hpMax: 25 });
     await seedBandages(1);

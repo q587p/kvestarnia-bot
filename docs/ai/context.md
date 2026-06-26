@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.2.5`.
+- Current package version in this repository snapshot: `0.2.6`.
 
 ## Language split
 
@@ -114,6 +114,7 @@ For Telegram/gameplay changes, always consider:
 - short Ukrainian Telegram messages
 - distinct icons for distinct rows/actions in the same message; do not reuse a location/surface icon for a separate quest row.
 - starter/onboarding paths when replacing older flows; level 1-2 starter mimic-shawarma must remain reachable before level 3 adventure choice.
+- `0.2.6` Passage Search: `Спуск до Низу`, `Ярус I: Сутерени Корчми` and first-tier passage cards can start timed searches with per-node cooldowns, one active search per character, automatic due-result messages and cooldown-hidden fresh search buttons; risky passage danger preserves the normal new-fight intro, pressure lines, full opponent names and start tip while skipping the first hero turn. The same follow-up keeps restore-to-full bandage duplicate reservation races on the canonical live confirmation card instead of surfacing a false reserved-item block.
 - `0.2.3` ordinary threat escalation: dev-forced `/dev_two_enemies` sessions persist `threatExclusion.reason = "dev-forced-two-enemies"` and are skipped, while ordinary two-enemy history rows without valid current-version known-line `threat` metadata reset to base threat; monster runtime effects name the effect, remaining actions/charges and separate ongoing tick damage from direct monster responses; combat turn logs preserve active effect notices and skill cooldown snapshots for battle-journal replay; hero attack/class-skill turns still resolve same-turn monster response when the target is dropped to 0 HP by that action, and final-enemy mutual KO resolves as a hero win.
 - `0.2.5` Bard Performance: level 3+ Bards can start `technique.class.bard.shynok-performance` solo in Shynok or in any other current location with another active same-location character, with a 93-minute per-location cooldown, 13-minute audience window, frozen effective CHA/LUCK/level plus injected RNG, Shynok-only capped 23-gold Kyiv-day house payout and voluntary same-location applause/tips (`1/3/5/13`). It grants no XP/items/buffs/achievements/quest progress; concurrent same-Bard/location starts are guarded to one live performance/house payout; tip debit/credit and reaction completion are one transaction, with audience and performer remort/location/combat/raid/expiry/balance rechecks. Insufficient-gold tip attempts report the selected amount while leaving the offered reaction unchanged; live cards label audience as the start snapshot and show response time left separately from cooldown.
 - Korchmar problem-chain issuing (`Тринадцять дрібних проблем` and later folders) is gated to level 2+ in service and Shynok UI; level 1 old callbacks must not create the issue daily-action row.

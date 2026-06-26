@@ -614,7 +614,11 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       });
     } catch (error) {
       if (isLiveReservationConflict(error)) {
-        return { state: "reserved" };
+        return await recoverLiveRestoreToFullAfterReservationConflict(this.prisma, telegramUserId, {
+          itemId: input.item.id,
+          itemContents: input.itemContents,
+          now: input.now
+        }) ?? { state: "reserved" };
       }
 
       throw error;
@@ -941,6 +945,62 @@ async function recoverLivePreviewAfterReservationConflict(
       state: "preview-replayed",
       character: toCharacterRecord(character),
       order: await refreshPendingPreview(tx, existing, validation.preview, input.now)
+    };
+  });
+}
+
+async function recoverLiveRestoreToFullAfterReservationConflict(
+  prisma: PrismaClient,
+  telegramUserId: bigint,
+  input: {
+    itemId: string;
+    itemContents: readonly ItemContent[];
+    now: Date;
+  }
+): Promise<ItemUseRestoreToFullRepositoryResult | null> {
+  return prisma.$transaction(async (tx) => {
+    const character = await findCharacter(tx, telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const item = input.itemContents.find((candidate) => candidate.id === input.itemId);
+    const effect = item ? getItemUseEffect(item) : null;
+    if (!item || !effect || blocksAccidentalItemUse(item) || effect.amount <= 0) {
+      return null;
+    }
+
+    const existing = mapOrder(await tx.itemUseOrder.findFirst({
+      where: {
+        characterId: character.id,
+        itemId: input.itemId,
+        status: "pending",
+        expiresAt: { gt: input.now }
+      },
+      orderBy: { createdAt: "desc" }
+    }));
+
+    if (!existing || !isRestoreToFullOrder(existing)) {
+      return null;
+    }
+
+    const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
+      item,
+      itemContents: input.itemContents,
+      itemFingerprint: createItemUseFingerprint(item),
+      now: input.now,
+      effect
+    });
+    if (validation.state !== "valid") {
+      return null;
+    }
+
+    return {
+      state: "preview-replayed",
+      character: toCharacterRecord(character),
+      order: await refreshPendingPreview(tx, existing, validation.preview, input.now),
+      neededQuantity: validation.neededQuantity,
+      availableQuantity: validation.availableQuantity
     };
   });
 }
