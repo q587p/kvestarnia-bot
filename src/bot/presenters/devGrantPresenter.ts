@@ -82,6 +82,12 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: Єгерський слід уже готовий або ще не взятий.";
   }
 
+  if (result.kind === "yeger-bandage-day") {
+    return result.deleted > 0
+      ? `🧪 Dev: день купівлі бинтів Єгеря скинуто. Прибрано ${result.deleted} ${formatUnit(result.deleted, ["запис", "записи", "записів"])}.`
+      : "🧪 Dev: день купівлі бинтів Єгеря і так чистий.";
+  }
+
   if (result.kind === "items") {
     const itemLines = result.itemGrants.map((grant) =>
       grant.quantity === 1 ? `• ${grant.name}` : `• ${grant.name} ×${grant.quantity}`

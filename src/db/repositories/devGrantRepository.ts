@@ -20,6 +20,11 @@ export type DevGrantCooldownResult = {
   cleared: boolean;
 };
 
+export type DevGrantDailyActionResetResult = {
+  character: CharacterRecord;
+  deleted: number;
+};
+
 export interface DevGrantRepository {
   addLevelForTelegramUser(
     telegramUserId: bigint,
@@ -61,4 +66,9 @@ export interface DevGrantRepository {
     key: string,
     now: Date
   ): Promise<DevGrantCooldownResult | null>;
+
+  deleteDailyActionsForTelegramUser(
+    telegramUserId: bigint,
+    keys: readonly string[]
+  ): Promise<DevGrantDailyActionResetResult | null>;
 }

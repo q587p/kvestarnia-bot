@@ -74,6 +74,10 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
     await handleDevResetYegerBandageCommand(ctx, devGrantService);
   });
 
+  bot.command("dev_reset_yeger_bandage_day", async (ctx) => {
+    await handleDevResetYegerBandageDayCommand(ctx, devGrantService);
+  });
+
   bot.command("dev_reset_yeger_trail", async (ctx) => {
     await handleDevResetYegerTrailCommand(ctx, devGrantService);
   });
@@ -206,6 +210,27 @@ async function handleDevResetYegerTrailCommand(
   }
 
   const result = await devGrantService.resetYegerTrackingCooldown(telegramUserId);
+
+  await ctx.reply(presentDevGrantResult(result));
+}
+
+async function handleDevResetYegerBandageDayCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.resetYegerBandageDay(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result));
 }

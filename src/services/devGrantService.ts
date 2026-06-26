@@ -5,6 +5,11 @@ import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActio
 import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
+import {
+  YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
+  YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+  YEGER_BANDAGE_PURCHASE_PREVIEW_KEY
+} from "./dailyActionKeys";
 
 export type DevGrantResult =
   | { state: "disabled" }
@@ -21,6 +26,12 @@ export type DevGrantResult =
       kind: "yeger-bandage-cooldown" | "yeger-tracking-cooldown";
       character: CharacterRecord;
       cleared: boolean;
+    }
+  | {
+      state: "updated";
+      kind: "yeger-bandage-day";
+      character: CharacterRecord;
+      deleted: number;
     };
 
 export type DevGrantItemsResult =
@@ -210,6 +221,27 @@ export class DevGrantService {
           kind: "yeger-tracking-cooldown",
           character: result.character,
           cleared: result.cleared
+        }
+      : { state: "no-character" };
+  }
+
+  async resetYegerBandageDay(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.deleteDailyActionsForTelegramUser(telegramUserId, [
+      YEGER_BANDAGE_PURCHASE_PREVIEW_KEY,
+      YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      YEGER_BANDAGE_PURCHASE_CANCEL_KEY
+    ]);
+
+    return result
+      ? {
+          state: "updated",
+          kind: "yeger-bandage-day",
+          character: result.character,
+          deleted: result.deleted
         }
       : { state: "no-character" };
   }

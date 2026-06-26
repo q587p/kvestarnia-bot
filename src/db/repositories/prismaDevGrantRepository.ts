@@ -6,6 +6,7 @@ import type { CharacterRecord } from "./characterRepository";
 import type {
   DevGrantCharacterResult,
   DevGrantCooldownResult,
+  DevGrantDailyActionResetResult,
   DevGrantItemResult,
   DevGrantProgressResult,
   DevGrantRepository
@@ -298,6 +299,33 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
       return {
         character: toCharacterRecord(character),
         cleared: updated.count > 0
+      };
+    });
+  }
+
+  async deleteDailyActionsForTelegramUser(
+    telegramUserId: bigint,
+    keys: readonly string[]
+  ): Promise<DevGrantDailyActionResetResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const deleted = await tx.dailyAction.deleteMany({
+        where: {
+          characterId: character.id,
+          key: {
+            in: [...keys]
+          }
+        }
+      });
+
+      return {
+        character: toCharacterRecord(character),
+        deleted: deleted.count
       };
     });
   }

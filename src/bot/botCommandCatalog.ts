@@ -286,6 +286,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_reset_yeger_bandage_day",
+    icon: "📆",
+    description: "скинути денний ліміт купівлі бинтів Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_yeger_trail",
     icon: "👣",
     description: "завершити очікування сліду Єгеря локально",

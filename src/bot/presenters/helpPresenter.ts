@@ -159,9 +159,9 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     devOnly: "grant"
   },
   {
-    commands: ["dev_reset_yeger_bandage", "dev_reset_yeger_trail"],
+    commands: ["dev_reset_yeger_bandage", "dev_reset_yeger_bandage_day", "dev_reset_yeger_trail"],
     icon: "🧷",
-    description: "скинути таймери Єгеря локально",
+    description: "скинути таймери й ліміти Єгеря локально",
     devOnly: "grant"
   }
 ];

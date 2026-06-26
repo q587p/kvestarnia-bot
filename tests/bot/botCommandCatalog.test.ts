@@ -63,6 +63,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_add_random_item")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage_day")).toBe(false);
   });
 
   it("keeps local dev commands in help but not in the side menu", () => {
@@ -102,7 +103,8 @@ describe("bot command catalog", () => {
       "dev_restore_mana",
       "dev_add_random_item",
       "dev_add_bandage",
-      "dev_reset_yeger_bandage"
+      "dev_reset_yeger_bandage",
+      "dev_reset_yeger_bandage_day"
     ]) {
       expect(
         getHelpCommandEntries({ includeDevReset: true, includeDevGrant: false })

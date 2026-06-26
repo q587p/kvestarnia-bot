@@ -95,6 +95,7 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🎲 /dev_add_random_item");
     expect(resetOnly).not.toContain("🧻 /dev_add_bandage");
     expect(resetOnly).not.toContain("🧷 /dev_reset_yeger_bandage");
+    expect(resetOnly).not.toContain("/dev_reset_yeger_bandage_day");
     expect(resetOnly).toContain("допомога\n\n🧪");
 
     expect(grantsEnabled).toContain("🧪 /dev_help");
@@ -110,6 +111,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
     expect(grantsEnabled).toContain("🧻 /dev_add_bandage");
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
+    expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
   });
 
   it("renders a compact dev-only help screen from available dev commands", () => {
@@ -129,6 +131,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
     expect(grantsEnabled).toContain("🧻 /dev_add_bandage");
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
+    expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
     expect(disabled).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
   });
 });
