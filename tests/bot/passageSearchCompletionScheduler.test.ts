@@ -2,6 +2,7 @@ import type { Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { createPassageSearchCompletionScheduler } from "../../src/bot/passageSearchCompletionScheduler";
 import type { PassageSearchActionRecord } from "../../src/db/repositories/passageSearchRepository";
+import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { PassageSearchCheckResult } from "../../src/services/passageSearchService";
 
@@ -54,6 +55,46 @@ describe("passage search completion scheduler", () => {
     expect(passageSearch.resolveDueSearch).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
   });
+
+  it("sends the fight intro before a monster-attack fight card", async () => {
+    const action = makeAction({ chatId: "42" });
+    const result = monsterAttackResult(action);
+    const passageSearch = {
+      listDueRunningSearches: vi.fn()
+        .mockResolvedValueOnce([{ telegramUserId: 42587n, action }])
+        .mockResolvedValue([]),
+      resolveDueSearch: vi.fn().mockResolvedValue(result)
+    };
+    const fight = {
+      recordPersistentFightMessageReference: vi.fn().mockResolvedValue(undefined)
+    };
+    const { bot, sendMessage } = fakeBot();
+    const scheduler = createPassageSearchCompletionScheduler(
+      { passageSearch: passageSearch as never, fight: fight as never },
+      bot,
+      { intervalMs: 60_000 }
+    );
+
+    scheduler.start();
+
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
+    scheduler.stop();
+
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Пошук образив місцевого мешканця");
+    expect(sendMessage.mock.calls[1]?.[1]).toContain("Хтось у Низу сказав «та він один»");
+    expect(sendMessage.mock.calls[1]?.[1]).toContain("Натиск Низу:");
+    expect(sendMessage.mock.calls[1]?.[1]).toContain("Перший Довжелезний Мешканець");
+    expect(sendMessage.mock.calls[1]?.[1]).toContain("Другий Капосний Мешканець");
+    expect(sendMessage.mock.calls[1]?.[1]).toContain("<i>Порада дня:");
+    expect(sendMessage.mock.calls[2]?.[1]).toContain("що робимо?");
+    expect(sendMessage.mock.calls[2]?.[2] as { parse_mode?: string }).toMatchObject({ parse_mode: "HTML" });
+    expect(sendMessage.mock.calls[2]?.[2]).toHaveProperty("reply_markup");
+    expect(fight.recordPersistentFightMessageReference).toHaveBeenCalledWith(
+      42587n,
+      "session-danger",
+      { chatId: "42", messageId: 587 }
+    );
+  });
 });
 
 function fakeBot(): { bot: Bot; sendMessage: ReturnType<typeof vi.fn> } {
@@ -76,6 +117,95 @@ function completedResult(action: PassageSearchActionRecord): PassageSearchCheckR
       gold: 1,
       itemGrants: []
     }
+  };
+}
+
+function monsterAttackResult(action: PassageSearchActionRecord): PassageSearchCheckResult {
+  return {
+    state: "monster-attack",
+    character,
+    action,
+    fight: {
+      state: "persistent-active",
+      started: true,
+      character,
+      session: persistentSession(),
+      monster: {
+        id: "monster.first",
+        name: "Перший Довжелезний Мешканець",
+        description: "Тестовий мешканець Низу.",
+        level: 4,
+        tags: ["test"]
+      },
+      questProgress: null
+    }
+  };
+}
+
+function persistentSession(): SoloCombatSessionRecord {
+  return {
+    id: "session-danger",
+    characterId: "character-1",
+    monsterId: "monster.first",
+    status: "active",
+    turn: 2,
+    state: {
+      id: "session-danger",
+      turn: 2,
+      status: "active",
+      hero: {
+        hp: 21,
+        hpMax: 23,
+        mana: 10,
+        manaMax: 10
+      },
+      monster: {
+        id: "monster.first",
+        name: "Перший Довжелезний Мешканець",
+        level: 4,
+        hp: 18,
+        hpMax: 18
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          monsterId: "monster.first",
+          name: "Перший Довжелезний Мешканець",
+          level: 4,
+          hp: 18,
+          hpMax: 18
+        },
+        {
+          enemyId: "enemy:2",
+          monsterId: "monster.second",
+          name: "Другий Капосний Мешканець",
+          level: 6,
+          hp: 20,
+          hpMax: 20
+        }
+      ],
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        lineId: "one-hero-invitation",
+        lineVersion: "threat-escalation-v1",
+        pressure: {
+          version: 1,
+          consecutiveWonEscalatedFights: 1,
+          requestedSecondEnemyLevelBonus: 2,
+          appliedSecondEnemyLevelBonus: 2,
+          boostedEnemyId: "enemy:2",
+          boostedEnemyEffectiveLevel: 6,
+          levelCap: 23
+        }
+      }
+    },
+    reward: null,
+    createdAt: new Date("2026-06-27T09:00:42.000Z"),
+    updatedAt: new Date("2026-06-27T09:00:42.000Z"),
+    expiresAt: new Date("2026-06-27T09:23:42.000Z")
   };
 }
 

@@ -5,7 +5,7 @@ import type {
   PassageSearchService
 } from "../services/passageSearchService";
 import { buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
-import { presentPersistentFight } from "./presenters/fightPresenter";
+import { presentPersistentFight, presentPersistentFightIntro } from "./presenters/fightPresenter";
 import { presentPassageSearch } from "./presenters/passageSearchPresenter";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -99,6 +99,10 @@ async function sendPassageAttackFightCard(
 ): Promise<void> {
   if (result.fight.state !== "persistent-active" && result.fight.state !== "persistent-terminal") {
     return;
+  }
+
+  if (result.fight.state === "persistent-active" && result.fight.started) {
+    await bot.api.sendMessage(chatId, presentPersistentFightIntro(result.fight), HTML_MESSAGE_OPTIONS);
   }
 
   const sent = await bot.api.sendMessage(chatId, presentPersistentFight(result.fight), {

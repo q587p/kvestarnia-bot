@@ -14,7 +14,8 @@ import type { YegerQuestService } from "../../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
 import {
   getPassageSearchNodeKey,
-  PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+  PASSAGE_SEARCH_NODE_DEEP_LEVEL1,
+  type PassageSearchCheckResult
 } from "../../services/passageSearchService";
 import type { BotServices } from "../botServices";
 import { parseFightCallbackData,type FightCallback } from "../callbacks/fightCallbackData";
@@ -172,13 +173,7 @@ async function handleTrainingDoppelgangerCallback(
         ...(replyMarkup ? { reply_markup: replyMarkup } : {})
       });
       if (activeSearch.state === "monster-attack") {
-        await sendFight(ctx, services.fight, "reply", {
-          presence: services.presence,
-          tavernRaid: services.tavern,
-          passageSearch: services.passageSearch,
-          requireKorchmaInterior: false,
-          suppressStartIntro: true
-        });
+        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
       }
       return;
     }
@@ -265,13 +260,7 @@ async function handleFightCallback(
         ...(replyMarkup ? { reply_markup: replyMarkup } : {})
       });
       if (activeSearch.state === "monster-attack") {
-        await sendFight(ctx, services.fight, "reply", {
-          presence: services.presence,
-          tavernRaid: services.tavern,
-          passageSearch: services.passageSearch,
-          requireKorchmaInterior: false,
-          suppressStartIntro: true
-        });
+        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
       }
       return;
     }
@@ -582,14 +571,28 @@ async function handlePassageSearchCallback(
   }
 
   if (result.state === "monster-attack") {
-    await sendFight(ctx, services.fight, "reply", {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      passageSearch: services.passageSearch,
-      requireKorchmaInterior: false,
-      suppressStartIntro: true
-    });
+    await sendPassageSearchMonsterAttackFight(ctx, services, result);
   }
+}
+
+async function sendPassageSearchMonsterAttackFight(
+  ctx: Context,
+  services: BotServices,
+  result: Extract<PassageSearchCheckResult, { state: "monster-attack" }>
+): Promise<void> {
+  const shouldSendStartIntro = result.fight.state === "persistent-active" && result.fight.started === true;
+
+  if (result.fight.state === "persistent-active" && result.fight.started === true) {
+    await ctx.reply(presentPersistentFightIntro(result.fight), HTML_MESSAGE_OPTIONS);
+  }
+
+  await sendFight(ctx, services.fight, "reply", {
+    presence: services.presence,
+    tavernRaid: services.tavern,
+    passageSearch: services.passageSearch,
+    requireKorchmaInterior: false,
+    suppressStartIntro: shouldSendStartIntro
+  });
 }
 
 function getSearchNotificationChatId(ctx: Context): string | null {
