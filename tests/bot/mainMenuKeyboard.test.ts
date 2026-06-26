@@ -17,6 +17,7 @@ import {
   buildFightResultKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightKeyboard,
+  buildPersistentFightPassageRestKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
 import { buildDuelResultKeyboard, buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
@@ -284,6 +285,19 @@ describe("main menu and scene keyboards", () => {
       "v1:spar:mode:copy-target",
       "v1:spar:mode:random-build",
       "v1:place:fighting-corner"
+    ]);
+  });
+
+  it("offers safe passage search during a passage monster-rest card", () => {
+    const keyboard = buildPersistentFightPassageRestKeyboard({ passage: "deep-left" });
+
+    expect(inlineButtonRows(keyboard)).toEqual([
+      ["🔎 Пошукати"],
+      ["↩️ Повернутися до Сутеренів"]
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:search:start:ps:deep-left",
+      "v1:place:deep-level1"
     ]);
   });
 

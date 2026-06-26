@@ -8,6 +8,10 @@ export type PassageSearchCallback =
       passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
       encounterToken: string;
     }
+  | {
+      type: "start-safe-passage";
+      passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+    }
   | { type: "start-descent" }
   | { type: "check"; token: string }
   | { type: "ask-cancel"; token: string }
@@ -29,6 +33,12 @@ export function makePassageSearchStartCallbackData(input: {
   encounterToken: string;
 }): string {
   return `${PREFIX}:start:p:${input.passage}:${input.encounterToken}`;
+}
+
+export function makeSafePassageSearchStartCallbackData(input: {
+  passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+}): string {
+  return `${PREFIX}:start:ps:${input.passage}`;
 }
 
 export function makeDescentSearchStartCallbackData(): string {
@@ -78,6 +88,21 @@ export function parsePassageSearchCallbackData(
       type: "start-passage",
       passage: passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">,
       encounterToken
+    });
+  }
+
+  if (data.startsWith(`${PREFIX}:start:ps:`)) {
+    const [, section, action, kind, passage, ...rest] = data.split(":");
+    if (section !== "search" || action !== "start" || kind !== "ps" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+    if (!passageActions.has(passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">)) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "start-safe-passage",
+      passage: passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">
     });
   }
 

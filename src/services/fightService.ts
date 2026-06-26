@@ -583,6 +583,10 @@ export type PersistentFightPassageAttackResult =
   | (Extract<PersistentFightPreviewResult, { state: "persistent-preview" }> & { refreshed: "expired" | "missing-monster" | "stale" })
   | { state: "invalid-preview" };
 
+export type PassageSearchRestWindowResult =
+  | Extract<FightLookupResult, { state: "no-character" | "needs-rest" | "combat-blocked" | "training-active" | "persistent-active" | "persistent-terminal" | "persistent-not-issued" | "level-retired" | "ready" | "already-completed" }>
+  | Extract<FightLookupResult, { state: "persistent-ready" | "monster-rest" }>;
+
 export class FightService {
   constructor(
     private readonly characters: CharacterRepository,
@@ -822,6 +826,31 @@ export class FightService {
       expiresAt: encounter.expiresAt,
       ...(recoveredEncounter?.monsterHp ? { monsterHp: recoveredEncounter.monsterHp } : {}),
       ...(options.refreshed ? { refreshed: options.refreshed } : {})
+    };
+  }
+
+  async getPassageSearchRestWindowForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<PassageSearchRestWindowResult> {
+    const overview = await this.getFightOverviewForTelegramUser(telegramUserId);
+
+    if (overview.state !== "persistent-ready") {
+      return overview;
+    }
+
+    const cooldown = await this.getMonsterRestCooldown(telegramUserId, "normal");
+
+    if (!cooldown) {
+      return overview;
+    }
+
+    return {
+      state: "monster-rest",
+      character: overview.character,
+      questProgress: overview.questProgress,
+      availableAt: cooldown.availableAt,
+      now: cooldown.now,
+      ...(overview.recoveryNotice ? { recoveryNotice: overview.recoveryNotice } : {})
     };
   }
 

@@ -84,7 +84,9 @@ export function presentPassageSearch(result: SearchResult): string {
           : "Старий пошуковий слід уже розсипався."
       ].join("\n");
     case "blocked":
-      return "Низ переклав цей папірець в іншу шухляду. Оновіть місце й спробуйте ще раз.";
+      return result.reason === "stale-location"
+        ? "Низ дозволяє порпатись, але не дозволяє порпатись здалеку. Оновіть поточне місце й спробуйте ще раз."
+        : "Низ переклав цей папірець в іншу шухляду. Оновіть місце й спробуйте ще раз.";
     case "not-found":
       return "Цей пошук уже не знайшовся. Можливо, його прибрали разом із пилом.";
     case "no-character":
@@ -92,9 +94,13 @@ export function presentPassageSearch(result: SearchResult): string {
   }
 }
 
-function presentNodeLine(snapshot: { nodeKind: "passage" | "location"; monsterNameAtStart?: string; monsterLevelAtStart?: number }): string {
+function presentNodeLine(snapshot: { nodeKind: "passage" | "location"; safeAtStart?: boolean; monsterNameAtStart?: string; monsterLevelAtStart?: number }): string {
   if (snapshot.nodeKind === "location") {
     return "Спуск до Низу сьогодні виглядає майже безпечним.";
+  }
+
+  if (snapshot.safeAtStart && !snapshot.monsterNameAtStart) {
+    return "Прохід затих: монстри на перерві, пил тимчасово без охорони.";
   }
 
   const monster = snapshot.monsterNameAtStart

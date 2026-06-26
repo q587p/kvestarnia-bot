@@ -530,19 +530,7 @@ async function handlePassageSearchCallback(
     return;
   }
 
-  const result =
-    callback.type === "start-passage"
-      ? await services.passageSearch.startPassageSearch(telegramUserId, {
-          passage: callback.passage,
-          encounterToken: callback.encounterToken
-        })
-      : callback.type === "start-descent"
-        ? await services.passageSearch.startDescentSearch(telegramUserId)
-      : callback.type === "check" || callback.type === "keep"
-        ? await services.passageSearch.checkSearch(telegramUserId, callback.token)
-      : callback.type === "ask-cancel"
-        ? await services.passageSearch.previewCancel(telegramUserId, callback.token)
-      : await services.passageSearch.cancelSearch(telegramUserId, callback.token);
+  const result = await handlePassageSearchAction(telegramUserId, callback, services);
 
   await safeAnswerCallbackQuery(ctx);
   const replyMarkup = result.state === "started" || result.state === "running"
@@ -563,6 +551,62 @@ async function handlePassageSearchCallback(
       suppressStartIntro: true
     });
   }
+}
+
+async function handlePassageSearchAction(
+  telegramUserId: bigint,
+  callback: PassageSearchCallback,
+  services: BotServices
+) {
+  if (!services.passageSearch) {
+    return { state: "no-character" as const };
+  }
+
+  if (callback.type === "start-passage") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startPassageSearch(telegramUserId, {
+      passage: callback.passage,
+      encounterToken: callback.encounterToken,
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
+  if (callback.type === "start-safe-passage") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startSafePassageRestSearch(telegramUserId, {
+      passage: callback.passage,
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
+  if (callback.type === "start-descent") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startDescentSearch(telegramUserId, {
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
+  if (callback.type === "check" || callback.type === "keep") {
+    return services.passageSearch.checkSearch(telegramUserId, callback.token);
+  }
+
+  if (callback.type === "ask-cancel") {
+    return services.passageSearch.previewCancel(telegramUserId, callback.token);
+  }
+
+  return services.passageSearch.cancelSearch(telegramUserId, callback.token);
+}
+
+async function getCurrentLocationId(
+  services: BotServices,
+  telegramUserId: bigint
+): Promise<string | undefined> {
+  const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+  return place.state === "ready" ? place.locationId : undefined;
 }
 
 type YegerProgressSnapshot = { wins: number; target: number } | null;

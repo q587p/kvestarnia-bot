@@ -6,6 +6,7 @@ import {
   makePassageSearchCheckCallbackData,
   makePassageSearchKeepCallbackData,
   makePassageSearchStartCallbackData,
+  makeSafePassageSearchStartCallbackData,
   parsePassageSearchCallbackData
 } from "../../src/bot/callbacks/passageSearchCallbackData";
 
@@ -23,6 +24,21 @@ describe("passage search callback data", () => {
         type: "start-passage",
         passage: "deep-straight",
         encounterToken: "token13"
+      }
+    });
+  });
+
+  it("round-trips safe passage-rest search start data", () => {
+    const data = makeSafePassageSearchStartCallbackData({
+      passage: "deep-left"
+    });
+
+    expect(data.length).toBeLessThanOrEqual(64);
+    expect(parsePassageSearchCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "start-safe-passage",
+        passage: "deep-left"
       }
     });
   });

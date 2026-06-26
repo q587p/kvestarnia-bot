@@ -15,11 +15,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added per-node search cooldowns through existing character cooldown storage, so searching one passage does not consume the cooldown for another passage or the descent surface.
 - Added a small deterministic passage-search loot roll with gold and the existing `Бинт відповідальної паніки`; `Спуск до Низу` uses a separate tiny safe table.
 - Added danger resolution for risky passage searches: if the stored monster reacts, the search grants no reward, starts the existing passage combat from the frozen encounter token and skips the first hero turn.
+- Added safe passage-rest searches during the short monster-rest window: passage cards can offer `🔎 Пошукати` without creating or refreshing a pending monster preview, and the search stays danger-free even if a new monster would appear later.
 - Added `v1:search:*` callbacks, running/check/cancel keyboards, Ukrainian search result cards and local `/dev_reset_passage_search` for manual timer/cooldown QA.
 - Added focused domain and callback tests for search constants, danger/loot behavior and callback parser limits.
 
 ### Changed
 - Nyz passage preview cards now include `🔎 Пошукати` beside `⚔️ Атакувати`; the descent surface also offers a safe search button.
+- Search start callbacks now re-read current presence server-side: descent search only starts from `Низ`, passage search only from the matching passage, and stale remote buttons do not spend cooldown, create search rows, refresh encounters or start combat.
 - Active search now blocks old fight/place/reply-keyboard actions with a confirm-cancel card instead of letting stale buttons start movement or combat over the timer.
 - Search cooldown is consumed at start and is not refunded by cancel, empty results or monster attacks.
 

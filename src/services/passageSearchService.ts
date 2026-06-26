@@ -18,7 +18,8 @@ import {
   PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
-  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
+  normalizePresenceLocationId
 } from "./presenceService";
 import { SeededRandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
@@ -28,7 +29,7 @@ export type PassageSearchStartResult =
   | { state: "running"; character: CharacterSummary; action: PassageSearchActionRecord; remainingSeconds: number }
   | { state: "cooldown"; character: CharacterSummary; availableAt: Date; now: Date }
   | { state: "needs-rest"; character: CharacterSummary }
-  | { state: "blocked"; reason: "not-ready" | "invalid-node" }
+  | { state: "blocked"; reason: "not-ready" | "invalid-node" | "stale-location" }
   | { state: "no-character" };
 
 export type PassageSearchCheckResult =
@@ -62,11 +63,16 @@ export class PassageSearchService {
     input: {
       passage: "deep-left" | "deep-straight" | "deep-right";
       encounterToken: string;
+      currentLocationId?: string;
     }
   ): Promise<PassageSearchStartResult> {
     const passage = resolvePassage(input.passage);
     if (!passage) {
       return { state: "blocked", reason: "invalid-node" };
+    }
+
+    if (!isCurrentLocation(input.currentLocationId, passage.locationId)) {
+      return { state: "blocked", reason: "stale-location" };
     }
 
     const preview = await this.fights.previewPersistentFightForTelegramUser(telegramUserId, {
@@ -111,7 +117,61 @@ export class PassageSearchService {
     return this.startWithSnapshot(telegramUserId, snapshot);
   }
 
-  async startDescentSearch(telegramUserId: bigint): Promise<PassageSearchStartResult> {
+  async startSafePassageRestSearch(
+    telegramUserId: bigint,
+    input: {
+      passage: "deep-left" | "deep-straight" | "deep-right";
+      currentLocationId?: string;
+    }
+  ): Promise<PassageSearchStartResult> {
+    const passage = resolvePassage(input.passage);
+    if (!passage) {
+      return { state: "blocked", reason: "invalid-node" };
+    }
+
+    if (!isCurrentLocation(input.currentLocationId, passage.locationId)) {
+      return { state: "blocked", reason: "stale-location" };
+    }
+
+    const restWindow = await this.fights.getPassageSearchRestWindowForTelegramUser(telegramUserId);
+
+    if (restWindow.state === "no-character") {
+      return { state: "no-character" };
+    }
+
+    if (restWindow.state === "needs-rest") {
+      return { state: "needs-rest", character: restWindow.character };
+    }
+
+    if (restWindow.state !== "monster-rest") {
+      return { state: "blocked", reason: "not-ready" };
+    }
+
+    const now = this.clock();
+    const snapshot = buildSnapshot({
+      now,
+      nodeKey: `passage:${input.passage}`,
+      nodeKind: "passage",
+      originLocationId: passage.locationId,
+      passage: input.passage,
+      durationMs: PASSAGE_SEARCH_DURATION_MS,
+      safeAtStart: true,
+      dangerTier: 0,
+      searchTier: getSafeRestSearchTier(passage.difficulty),
+      playerLuckSnapshot: restWindow.character.stats.luck
+    });
+
+    return this.startWithSnapshot(telegramUserId, snapshot);
+  }
+
+  async startDescentSearch(
+    telegramUserId: bigint,
+    input: { currentLocationId?: string } = {}
+  ): Promise<PassageSearchStartResult> {
+    if (!isCurrentLocation(input.currentLocationId, PRESENCE_LOCATION_KORCHMA_DEEP)) {
+      return { state: "blocked", reason: "stale-location" };
+    }
+
     const overview = await this.fights.getFightOverviewForTelegramUser(telegramUserId);
 
     if (overview.state === "no-character") {
@@ -448,6 +508,23 @@ function getSearchTier(monsterLevel: number, difficulty: PersistentFightDifficul
   const difficultyBonus = difficulty === "hard" ? 2 : difficulty === "easy" ? -1 : 0;
 
   return Math.max(1, Math.min(10, Math.floor(monsterLevel / 2) + difficultyBonus));
+}
+
+function getSafeRestSearchTier(difficulty: PersistentFightDifficultyId): number {
+  if (difficulty === "hard") {
+    return 3;
+  }
+
+  if (difficulty === "normal") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function isCurrentLocation(currentLocationId: string | undefined, expectedLocationId: string): boolean {
+  return currentLocationId !== undefined &&
+    normalizePresenceLocationId(currentLocationId) === normalizePresenceLocationId(expectedLocationId);
 }
 
 function getRemainingSeconds(endsAt: Date, now: Date): number {

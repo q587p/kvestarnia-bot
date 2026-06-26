@@ -23,7 +23,9 @@ Use one level 3+ account with local dev commands enabled where helpful.
 7. Search a different passage immediately after cancel/resolution; verify the first node cooldown does not block the second node.
 8. Repeat passage search until danger occurs; verify no search reward appears and the existing passage combat opens with the first hero turn skipped.
 9. Repeat old check/cancel/result callbacks after terminal state; verify no duplicate reward.
-10. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
+10. Move to another location, press an old descent or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
+11. Defeat ordinary Nyz monsters until the short monster-rest window appears, reopen a first-tier passage and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
+12. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
 
 ## 0.2.5 — Bard Performance smoke
 

@@ -13,13 +13,15 @@ import { type PlaceCallback } from "../callbacks/placeCallbackData";
 import { sendFight } from "../commands/fightCommand";
 import { playerFromContext } from "../context";
 import {
-buildPersistentFightPassagePreviewKeyboard
+buildPersistentFightPassagePreviewKeyboard,
+buildPersistentFightPassageRestKeyboard
 } from "../keyboards/fightKeyboard";
 import {
 buildBackToKorchmaHallKeyboard
 } from "../keyboards/tavernKeyboard";
 import {
 presentFightNoCharacter,
+presentFightMonsterRest,
 presentPersistentFightPassagePreview
 } from "../presenters/fightPresenter";
 import {
@@ -80,6 +82,24 @@ export async function sendPersistentFightPassagePreview(
   if (!telegramUserId) {
     await safeEditOrReply(ctx, mode, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);
     return;
+  }
+
+  if (typeof services.fight.getPassageSearchRestWindowForTelegramUser === "function") {
+    const restWindow = await services.fight.getPassageSearchRestWindowForTelegramUser(telegramUserId);
+    if (restWindow.state === "monster-rest") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: passageFight.locationId,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+      await safeEditOrReply(ctx, mode, presentFightMonsterRest(restWindow), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightPassageRestKeyboard({
+          passage: passageFight.passage
+        })
+      });
+      return;
+    }
   }
 
   const preview = await services.fight.previewPersistentFightForTelegramUser(telegramUserId, {

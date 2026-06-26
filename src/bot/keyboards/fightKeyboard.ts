@@ -33,7 +33,8 @@ import {
   makePassageSearchCancelCallbackData,
   makePassageSearchCheckCallbackData,
   makePassageSearchKeepCallbackData,
-  makePassageSearchStartCallbackData
+  makePassageSearchStartCallbackData,
+  makeSafePassageSearchStartCallbackData
 } from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
 
@@ -299,6 +300,15 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
     .text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input))
     .row()
     .text("🔎 Пошукати", makePassageSearchStartCallbackData(input))
+    .row()
+    .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
+}
+
+export function buildPersistentFightPassageRestKeyboard(input: {
+  passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
+}): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔎 Пошукати", makeSafePassageSearchStartCallbackData(input))
     .row()
     .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"));
 }
