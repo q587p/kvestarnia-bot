@@ -461,7 +461,7 @@ Pending + completed sale ledger:
 3. recovery і combat modifiers мають чисті deterministic tests;
 4. `Всім пива` створює opt-in recipient offers і зберігає рейтинг щедрости;
 5. продаж дозволяє одну/кілька/всі придатні одиниці;
-6. payout дорівнює рівно 42% сумарної оцінки з округленням униз;
+6. payout дорівнює рівно 42% сумарної оцінки з округленням вгору;
 7. equipped/protected/priceless/unknown не продаються;
 8. duplicate/stale callbacks не дублюють золото, ефекти чи списання;
 9. міграція, focused tests, full check і ручний Telegram smoke пройдені;
