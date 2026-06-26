@@ -84,6 +84,7 @@ export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void 
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {
     await sendOnline(ctx, services.presence, {
+      bardPerformanceEnabled: Boolean(services.bardPerformance),
       duelEnabled: Boolean(services.duel),
       itemGiftEnabled: Boolean(services.itemTransfers)
     });

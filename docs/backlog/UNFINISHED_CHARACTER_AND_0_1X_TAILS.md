@@ -1,6 +1,6 @@
 # Unfinished Character and 0.1.x Tails
 
-This backlog separates the shipped `0.2.4` item-use slice from older character/identity ideas that should not be treated as already implemented.
+This backlog separates the shipped `0.2.4` item-use and `0.2.5` Bard Performance slices from older character/identity ideas that should not be treated as already implemented.
 
 ## Shipped In `0.2.4`
 
@@ -10,10 +10,17 @@ This backlog separates the shipped `0.2.4` item-use slice from older character/i
 - Єгер bandage supply with a ranger-specific advantage.
 - A small authored monster-loot entry for bandages through existing loot flow.
 
+## Shipped In `0.2.5`
+
+- Shynok-only level 3+ Bard Performance.
+- Frozen CHA/LUCK/level check, 93-minute cooldown and 13-minute audience window.
+- Capped house gold and voluntary same-location applause/tips.
+- No XP, instruments, buffs, achievements, title power or broad profession engine.
+
 ## Recommended Next Runtime Order
 
-1. `0.2.5` - Race Abilities MVP.
-2. `0.2.6` - Achievements and Cosmetic Titles.
+1. Next free `0.2.x` - Race Abilities MVP.
+2. Later `0.2.x` - Achievements and Cosmetic Titles.
 3. Later - Selected Signature Techniques.
 
 ## Deferred Tails

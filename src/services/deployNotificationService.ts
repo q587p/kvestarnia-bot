@@ -71,6 +71,7 @@ export function renderDeployNotification(version: string, latestNews: NewsEntry 
     ? [
       "",
       `Остання новина: <b>${escapeHtml(formatLatestNewsTitle(latestNews.title))}</b>`,
+      "",
       ...formatLatestNewsExcerpt(latestNews).map((paragraph) => escapeHtml(paragraph))
     ]
     : [];

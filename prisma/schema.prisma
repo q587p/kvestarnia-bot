@@ -51,6 +51,8 @@ model Character {
   pendingPassageEncounters PendingPassageEncounter[]
   combatBalanceBattles CombatBalanceBattle[]
   barrelRaidNotifications BarrelRaidNotification[]
+  bardPerformances BardPerformance[]
+  bardPerformanceReactions BardPerformanceReaction[]
   mantokChestRuns MantokChestRun[]
   levelBarterExchanges LevelBarterExchange[]
   remortDrafts CharacterRemortDraft[]
@@ -397,6 +399,64 @@ model KorchmaMantokSale {
 
   @@index([characterId, status, expiresAt])
   @@map("korchma_mantok_sales")
+}
+
+model BardPerformance {
+  id                  String    @id @default(uuid())
+  token               String    @unique
+  characterId          String    @map("character_id")
+  character            Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  telegramUserId       BigInt    @map("telegram_user_id")
+  performerName        String    @map("performer_name")
+  remortCount          Int       @default(0) @map("remort_count")
+  techniqueId          String    @map("technique_id")
+  rulesVersion         String    @map("rules_version")
+  locationId           String    @map("location_id")
+  localDate            String    @map("local_date")
+  status               String    @default("active")
+  liveGuard            String?   @unique @map("live_guard")
+  grade                String
+  power                Int
+  housePayoutGold      Int       @default(0) @map("house_payout_gold")
+  roleActionXp         Int       @default(0) @map("role_action_xp")
+  audienceCount        Int       @default(0) @map("audience_count")
+  statSnapshotJson     Json      @map("stat_snapshot_json")
+  resultJson           Json?     @map("result_json")
+  startedAt            DateTime  @map("started_at")
+  expiresAt            DateTime  @map("expires_at")
+  cooldownAvailableAt  DateTime  @map("cooldown_available_at")
+  completedAt          DateTime? @map("completed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  reactions            BardPerformanceReaction[]
+
+  @@index([characterId, status, expiresAt])
+  @@index([characterId, cooldownAvailableAt])
+  @@index([localDate])
+  @@map("bard_performances")
+}
+
+model BardPerformanceReaction {
+  id             String    @id @default(uuid())
+  performanceId  String    @map("performance_id")
+  performance    BardPerformance @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+  characterId    String    @map("character_id")
+  character      Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  telegramUserId BigInt    @map("telegram_user_id")
+  audienceName   String    @map("audience_name")
+  remortCount    Int       @default(0) @map("remort_count")
+  status         String    @default("offered")
+  tipGold        Int       @default(0) @map("tip_gold")
+  resultJson     Json?     @map("result_json")
+  offeredAt      DateTime  @map("offered_at")
+  expiresAt      DateTime  @map("expires_at")
+  respondedAt    DateTime? @map("responded_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([performanceId, characterId])
+  @@index([characterId, status, expiresAt])
+  @@map("bard_performance_reactions")
 }
 
 model ItemTransfer {

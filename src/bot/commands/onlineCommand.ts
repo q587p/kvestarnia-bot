@@ -3,6 +3,7 @@ import type { PresenceService } from "../../services/presenceService";
 import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeNearbyDuelOpenCallbackData } from "../callbacks/nearbyDuelCallbackData";
+import { makeShynokBardPerformanceStartCallbackData } from "../callbacks/shynokCallbackData";
 import { presentOnline } from "../presenters/presencePresenter";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -10,6 +11,7 @@ const HTML_MESSAGE_OPTIONS = {
 };
 
 export interface OnlineCommandOptions {
+  bardPerformanceEnabled?: boolean;
   duelEnabled?: boolean;
   itemGiftEnabled?: boolean;
 }
@@ -64,12 +66,31 @@ function buildNearbyActionsKeyboard(
     hasActions = true;
   }
 
+  if (options.bardPerformanceEnabled && isEligibleNearbyBard(snapshot, telegramUserId)) {
+    keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
+    hasActions = true;
+  }
+
   if (options.itemGiftEnabled) {
     keyboard.text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData()).row();
     hasActions = true;
   }
 
   return hasActions ? keyboard : null;
+}
+
+function isEligibleNearbyBard(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+): boolean {
+  if (snapshot.state !== "ready") {
+    return false;
+  }
+
+  const self = [...snapshot.location.people.active, ...snapshot.location.people.idle]
+    .find((person) => person.telegramUserId === telegramUserId);
+
+  return self?.classId === "class.bard" && (self.level ?? 0) >= 3;
 }
 
 function hasOtherActiveNearby(

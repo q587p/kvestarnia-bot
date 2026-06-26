@@ -61,14 +61,16 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 - [0.2.2-architecture-stabilization.md](0.2.2-architecture-stabilization.md) — shipped behavior-preserving architecture stabilization before threat escalation.
 - [0.2.3-threat-escalation.md](0.2.3-threat-escalation.md) — ordinary three-win threat escalation MVP using the existing two-enemy foundation.
 - [0.2.4-item-tags-one-use-manatka.md](0.2.4-item-tags-one-use-manatka.md) — shipped narrow item tag contract, one-use bandage flow and Єгер bandage supply.
+- [0.2.5-bard-performance-mvp.md](0.2.5-bard-performance-mvp.md) — shipped narrow Shynok Bard Performance slice with capped house gold and voluntary audience responses.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-senior-barrel-brother-group-raid.md](0.2.x-senior-barrel-brother-group-raid.md) — draft future Senior Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
 - [0.2.x-postal-mantok-delivery.md](0.2.x-postal-mantok-delivery.md) — draft future paid postal/courier delivery for sending one eligible manatka to a known non-nearby recipient.
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
+- [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — draft future daily `Корчмарський обхід` route backed by [../DAILY_KORCHMA_ROUNDS.md](../DAILY_KORCHMA_ROUNDS.md).
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
-- [0.2.x-bard-performance-mvp.md](0.2.x-bard-performance-mvp.md) — draft future non-combat Bard Performance slice with small role-action XP and voluntary Shynok audience responses.
+- [0.2.x-bard-performance-mvp.md](0.2.x-bard-performance-mvp.md) — archived draft that was activated as `0.2.5`; future non-combat XP needs a separate task.
 
 ## Closeout
 

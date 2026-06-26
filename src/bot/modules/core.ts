@@ -29,6 +29,7 @@ export function registerCoreBotModule(
   { services, options }: BotModuleDependencies
 ): void {
   registerOnlineCommand(bot, services.presence, {
+    bardPerformanceEnabled: Boolean(services.bardPerformance),
     duelEnabled: Boolean(services.duel),
     itemGiftEnabled: Boolean(services.itemTransfers)
   });

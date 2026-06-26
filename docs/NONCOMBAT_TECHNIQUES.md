@@ -1,6 +1,6 @@
 # Non-Combat Techniques Planning
 
-This is a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. It does not implement runtime code, Prisma schema, callbacks, rewards, or content data. Use it as planning input for a future narrow `0.2.x+` task after the current branch is merged and `main` is refreshed.
+This started as a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. `0.2.5` now ships the first narrow runtime proof: Bard Performance solo in Shynok or in any other current location with another active same-location character, plus Shynok-only house payout. Keep the rest as planning input for future narrow `0.2.x+` tasks after the current branch is merged and `main` is refreshed.
 
 ## Product Goal
 
@@ -43,7 +43,7 @@ A technique is not:
 
 ## Reward Rule
 
-Non-combat techniques are real role-play actions: the player spends attention, the character spends time, and the world changes. They should usually be allowed to grant a small role-action XP amount when they complete successfully or meaningfully fail.
+Non-combat techniques are real role-play actions: the player spends attention, the character spends time, and the world changes. They may grant a small role-action XP amount when a specific task asks for it, but XP is not automatic.
 
 Guardrails:
 
@@ -54,7 +54,7 @@ Guardrails:
 - Failed, declined, stale, expired or no-op actions can grant zero XP unless the specific task defines a tiny participation result.
 - Exact XP numbers belong in the implementation task and balance review, not in pre-commit player-facing copy.
 
-This replaces the older archive direction that treated first slices as zero-XP actions. The safer direction is **small XP, not zero XP**, because the action is direct character activity.
+`0.2.5` intentionally ships Bard Performance with `0` XP because the activated version task narrowed the MVP to gold/audience safety only. Future techniques can revisit small XP with a separate balance/security review.
 
 ## Technique Types
 
@@ -87,7 +87,7 @@ Example: a Priest offers a blessing or heal to a nearby player.
 
 ### Performance / Local Event
 
-Example: a Bard performs in Shynok.
+Example: a Bard performs for active nearby characters in the current location.
 
 - actor starts the event;
 - active same-location audience gets best-effort prompts;
@@ -172,12 +172,12 @@ XP is neither faucet gold nor player transfer. It marks role activity. Keep it t
 
 Goal:
 
-> A level 3+ Bard can perform in Shynok once per cooldown. The tavern pays a small daily-capped amount, the performance grants small role-action XP, and active same-location players may applaud for free or explicitly tip small gold during a short window.
+> A level 3+ Bard can perform in Shynok even without a live audience, or in any other current location with another active same-location character once per location cooldown. Shynok can pay a small daily-capped tavern amount, and active same-location players may applaud for free or explicitly tip small gold during a short window.
 
 Why first:
 
 - class fantasy is obvious;
-- Shynok already exists;
+- presence already makes current-location audiences visible;
 - presence exists;
 - social offer and transfer patterns are proven nearby;
 - tips are voluntary, not forced PvP;
@@ -187,7 +187,7 @@ Why first:
 Suggested constants for the future task:
 
 ```text
-BARD_PERFORMANCE_COOLDOWN = 93 minutes
+BARD_PERFORMANCE_COOLDOWN = 93 minutes per location
 BARD_PERFORMANCE_WINDOW = 13 minutes
 BARD_PERFORMANCE_MIN_LEVEL = 3
 BARD_PERFORMANCE_DAILY_HOUSE_CAP = 23 gold
@@ -212,14 +212,19 @@ power = 2 * effective CHA
       + bounded random [-6; +6]
 ```
 
-Requirements:
+Shipped in `0.2.5`:
 
 - injected RNG;
 - frozen effective stat snapshot;
-- stored grade, payout and role-action XP;
+- stored grade, payout and `roleActionXp: 0`;
 - no reroll on refresh/replay;
-- daily house cap by Kyiv date;
+- Shynok start may have zero active audience characters;
+- non-Shynok start requires at least one active same-location audience character;
+- Shynok-only house payout with daily cap by Kyiv date;
+- per-location cooldown;
 - tips do not count toward house cap;
+- tip debit/credit and reaction completion happen in one transaction;
+- wrong location, remort-life drift, active combat, pending raid, expiry and insufficient balance are rechecked before mutation;
 - no item, buff, achievement, reputation or quest progress in the first slice;
 - no exact chance math in player-facing copy.
 
@@ -366,17 +371,17 @@ Privacy rules:
 6. Opt-in risky social tricks after security/economy review.
 7. Food, enchantment and crafting-related techniques after item tags and one-use manatky are stable.
 
-## Future Task Acceptance Notes
+## Shipped Bard Task Acceptance Notes
 
-A future Bard implementation task should cover:
+The `0.2.5` Bard implementation covers:
 
-- class/level/location gates;
+- class/level/location/audience gates;
 - active combat and pending raid gates;
 - cooldown;
-- one live performance;
+- one live performance per location;
 - frozen effective stats;
-- house payout once;
-- role-action XP once;
+- Shynok house payout once;
+- stored `roleActionXp: 0`;
 - daily cap;
 - audience filtering;
 - applause;
@@ -392,4 +397,4 @@ A future Bard implementation task should cover:
 - Ukrainian escaped presenter copy;
 - architecture prefix ownership.
 
-Do not update release/news/version files until a runtime slice actually ships.
+Future non-combat tasks may reuse these notes, but XP, instruments, buffs and broader profession/catalog mechanics need their own explicit task and balance review.

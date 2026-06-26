@@ -15,7 +15,11 @@ import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
-import type { FightService, ProblemQuestProgress } from "../../services/fightService";
+import {
+  PROBLEM_QUEST_REQUIRED_LEVEL,
+  type FightService,
+  type ProblemQuestProgress
+} from "../../services/fightService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import { systemClock } from "../../shared/time";
@@ -59,7 +63,12 @@ type TavernCommandKeyboard =
   | boolean
   | "hall"
   | { state: "hall"; characterLevel?: number }
-  | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
+  | {
+      state: "bar";
+      includeBottleTurnIn?: boolean;
+      problemQuestAction?: "turn-in" | "take" | "next";
+      bardPerformance?: boolean;
+    }
   | "front"
   | { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation }
   | "fighting-corner"
@@ -483,13 +492,14 @@ export async function sendKorchmaBar(
     ? await fightService.getProblemQuestProgressForTelegramUser(telegramUserId)
     : null;
   const problemQuestAction =
-    problemQuest?.state === "ready"
+    problemQuest?.state === "ready" && result.character.level >= PROBLEM_QUEST_REQUIRED_LEVEL
       ? getProblemQuestBarActionFromProgress(problemQuest.progress)
       : undefined;
   const barOptions = {
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
+    bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
     ...(problemQuestAction ? { problemQuestAction } : {})
   } as const;
 
@@ -583,6 +593,7 @@ async function sendText(
             : isBarKeyboard(keyboard)
               ? buildKorchmaBarKeyboard({
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn),
+                  bardPerformance: Boolean(keyboard.bardPerformance),
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })
             : keyboard === "fighting-corner"
@@ -640,9 +651,7 @@ function isFrontKeyboard(
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
 }
 
-function isBarKeyboard(
-  keyboard: TavernCommandKeyboard
-): keyboard is { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" } {
+function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "bar" }> {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
 }
 

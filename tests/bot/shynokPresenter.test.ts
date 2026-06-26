@@ -8,7 +8,9 @@ import {
   presentShynokRoundOfferNotification,
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
-  presentShynokSaleSelection
+  presentShynokSaleSelection,
+  presentBardPerformanceResponseResult,
+  presentBardPerformanceStartResult
 } from "../../src/bot/presenters/shynokPresenter";
 import type {
   ShynokDrinkConfirmResult,
@@ -18,6 +20,12 @@ import type {
   ShynokRoundPreviewResult,
   ShynokSaleSelectionResult
 } from "../../src/services/shynokService";
+import type {
+  BardPerformanceRespondResult,
+  BardPerformanceStartResult,
+  PresentedBardPerformance,
+  PresentedBardPerformanceReaction
+} from "../../src/services/bardPerformanceService";
 import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 import type { KorchmaRoundLeaderboard } from "../../src/db/repositories/korchmaRoundPurchaseRepository";
 
@@ -337,4 +345,134 @@ describe("shynokPresenter", () => {
       vi.useRealTimers();
     }
   });
+
+  it("shows the attempted amount when Bard tips are blocked by insufficient gold", () => {
+    const html = presentBardPerformanceResponseResult({
+      state: "insufficient-gold",
+      reaction: bardReaction({ tipGold: 0 }),
+      performance: bardPerformance(),
+      character,
+      attemptedTipGold: 13
+    });
+
+    expect(html).toContain("<b>13 золота</b>");
+    expect(html).not.toContain("<b>0 золота</b>");
+  });
+
+  it("labels Bard live audience as a start snapshot and shows response time left", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T10:05:00.000Z"));
+
+    try {
+      const result: BardPerformanceStartResult = {
+        state: "live",
+        character,
+        performance: bardPerformance({
+          audienceCount: 0,
+          expiresAt: new Date("2026-06-26T10:13:00.000Z"),
+          cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z")
+        })
+      };
+
+      const html = presentBardPerformanceStartResult(result);
+
+      expect(html).toContain("🎶 Виступ уже триває.");
+      expect(html).toContain("Місцина: <b>Шинок</b>.");
+      expect(html).toContain("Слухачів на старті: <b>0</b>.");
+      expect(html).toContain("Реакції на цей виступ: ще 8 хв.");
+      expect(html).toContain("Публіка поки складається з корчмаря й дуже критичної полиці.");
+      expect(html).toContain("Нові слухачі зможуть застати вже наступний виступ.");
+      expect(html).toContain("Наступний новий виступ: 88 хв.");
+      expect(html).not.toContain("Слухачів поруч");
+      expect(html).not.toContain("Наступний виступ: 93 хв.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("omits tavern payout copy for off-Shynok Bard performances", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T10:05:00.000Z"));
+
+    try {
+      const result: BardPerformanceStartResult = {
+        state: "started",
+        character,
+        performance: bardPerformance({
+          housePayoutGold: 0,
+          audienceCount: 1,
+          locationId: "location.korchma.front"
+        }),
+        audience: []
+      };
+
+      const html = presentBardPerformanceStartResult(result);
+
+      expect(html).toContain("Місцина: <b>Перед корчмою</b>.");
+      expect(html).toContain("Слухачів на старті: <b>1</b>.");
+      expect(html).not.toContain("Корчмарська виплата");
+      expect(html).not.toContain("критичної полиці");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("explains that Bard performances require another active listener", () => {
+    const html = presentBardPerformanceStartResult({
+      state: "no-audience",
+      character
+    });
+
+    expect(html).toContain("замало живих слухачів");
+    expect(html).toContain("ще хоча б один активний пригодник поруч");
+    expect(html).not.toContain("критичної полиці");
+  });
+
+  it.each([
+    ["performer-wrong-place", "Бард уже не на місці виступу"],
+    ["performer-active-combat", "Бард уже зайнятий боєм"],
+    ["performer-pending-raid", "Бард уже біля Бочки"],
+    ["performer-remorted", "попередньому житті"]
+  ] satisfies Array<[BardPerformanceRespondResult["state"], string]>)(
+    "uses short stale performer copy for %s",
+    (state, expected) => {
+      const html = presentBardPerformanceResponseResult({
+        state,
+        reaction: bardReaction(),
+        performance: bardPerformance()
+      });
+
+      expect(html).toContain(expected);
+      expect(html).toContain("без списань");
+    }
+  );
 });
+
+function bardPerformance(overrides: Partial<PresentedBardPerformance> = {}): PresentedBardPerformance {
+  return {
+    id: "performance-1",
+    token: "12345678-1234-4234-9234-000000000111",
+    performerName: "Лірник",
+    grade: "pleasant",
+    housePayoutGold: 0,
+    audienceCount: 1,
+    locationId: "location.korchma.bar",
+    startedAt: new Date("2026-06-26T10:00:00.000Z"),
+    expiresAt: new Date("2026-06-26T10:13:00.000Z"),
+    cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z"),
+    ...overrides
+  };
+}
+
+function bardReaction(
+  overrides: Partial<PresentedBardPerformanceReaction> = {}
+): PresentedBardPerformanceReaction {
+  return {
+    id: "12345678-1234-4234-9234-123456789abc",
+    audienceName: "Слухач",
+    status: "offered",
+    tipGold: 0,
+    expiresAt: new Date("2026-06-26T10:13:00.000Z"),
+    ...overrides
+  };
+}

@@ -766,6 +766,70 @@ describe("YegerQuestService", () => {
     expect(world.itemGrants).toEqual([]);
   });
 
+  it("offers an affordable paid bandage preview when a bundle is too expensive", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.warrior" });
+    const service = world.service();
+    const preview = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 17);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    const result = await service.confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token);
+
+    expect(result).toMatchObject({
+      state: "insufficient-gold",
+      requiredGold: YEGER_BANDAGE_PRICE * 17,
+      affordablePreview: {
+        purchaseQuantity: 2,
+        priceGold: YEGER_BANDAGE_PRICE * 2,
+        unitPriceGold: YEGER_BANDAGE_PRICE,
+        currentGold: 20,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 2 }]
+      }
+    });
+    expect(world.character?.gold).toBe(20);
+    expect(world.itemGrants).toEqual([]);
+    if (result.state !== "insufficient-gold" || !result.affordablePreview) {
+      throw new Error("Expected affordable preview.");
+    }
+
+    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, result.affordablePreview.token))
+      .resolves.toMatchObject({
+        state: "bought",
+        spentGold: YEGER_BANDAGE_PRICE * 2,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 2 }]
+      });
+    expect(world.character?.gold).toBe(6);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 2 }]);
+  });
+
+  it("uses the ranger discount when offering an affordable paid bandage preview", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+    const service = world.service();
+    const preview = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 17);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    const result = await service.confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token);
+
+    expect(result).toMatchObject({
+      state: "insufficient-gold",
+      requiredGold: YEGER_RANGER_BANDAGE_PRICE * 17,
+      affordablePreview: {
+        purchaseQuantity: 5,
+        priceGold: YEGER_RANGER_BANDAGE_PRICE * 5,
+        unitPriceGold: YEGER_RANGER_BANDAGE_PRICE,
+        currentGold: 20,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
+      }
+    });
+    expect(world.character?.gold).toBe(20);
+    expect(world.itemGrants).toEqual([]);
+  });
+
   it("gives rangers one free bandage on a 93-minute cooldown", async () => {
     const world = new FakeWorld();
     world.addCharacter({ classId: "class.ranger" });

@@ -10,6 +10,10 @@ const tokenPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 export type ShynokCallback =
   | { type: "overview" }
+  | { type: "bard-performance-start" }
+  | { type: "bard-performance-applaud"; reactionId: string }
+  | { type: "bard-performance-decline"; reactionId: string }
+  | { type: "bard-performance-tip"; reactionId: string; tipGold: 1 | 3 | 5 | 13 }
   | { type: "drinks" }
   | { type: "drink-preview"; drinkKey: ShynokDrinkKey }
   | { type: "drink-confirm"; token: string }
@@ -34,6 +38,22 @@ export function makeShynokOverviewCallbackData(): string {
 
 export function makeShynokDrinksCallbackData(): string {
   return assertData(`${PREFIX}:dr`);
+}
+
+export function makeShynokBardPerformanceStartCallbackData(): string {
+  return assertData(`${PREFIX}:bp`);
+}
+
+export function makeShynokBardPerformanceApplaudCallbackData(reactionId: string): string {
+  return assertData(`${PREFIX}:ba:${reactionId}`);
+}
+
+export function makeShynokBardPerformanceDeclineCallbackData(reactionId: string): string {
+  return assertData(`${PREFIX}:bd:${reactionId}`);
+}
+
+export function makeShynokBardPerformanceTipCallbackData(reactionId: string, tipGold: 1 | 3 | 5 | 13): string {
+  return assertData(`${PREFIX}:bt:${reactionId}:${tipGold}`);
 }
 
 export function makeShynokDrinkPreviewCallbackData(drinkKey: ShynokDrinkKey): string {
@@ -116,6 +136,28 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   }
   if (action === "dr" && first === undefined) {
     return { ok: true, value: { type: "drinks" } };
+  }
+  if (action === "bp" && first === undefined) {
+    return { ok: true, value: { type: "bard-performance-start" } };
+  }
+  if ((action === "ba" || action === "bd") && isToken(first) && second === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: action === "ba" ? "bard-performance-applaud" : "bard-performance-decline",
+        reactionId: first ?? ""
+      }
+    };
+  }
+  if (action === "bt" && isToken(first) && isTipGold(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "bard-performance-tip",
+        reactionId: first ?? "",
+        tipGold: Number(second) as 1 | 3 | 5 | 13
+      }
+    };
   }
   if (action === "dp" && first && isShynokDrinkKey(first) && second === undefined) {
     return { ok: true, value: { type: "drink-preview", drinkKey: first } };
@@ -219,4 +261,8 @@ function isSafeIndex(value: string | undefined): boolean {
 
 function isTier(value: string | undefined): value is "simple" | "fine" {
   return value === "simple" || value === "fine";
+}
+
+function isTipGold(value: string | undefined): value is "1" | "3" | "5" | "13" {
+  return value === "1" || value === "3" || value === "5" || value === "13";
 }

@@ -61,6 +61,7 @@ import {
   PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
   PROBLEM_QUEST_BUCKET,
+  PROBLEM_QUEST_REQUIRED_LEVEL,
   PROBLEM_QUEST_STAGES,
   selectPersistentFightMonsterLevel,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
@@ -415,6 +416,32 @@ describe("FightService", () => {
         target: 13
       }
     });
+  });
+
+  it("does not issue the first problem paper before level 2", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 0 });
+    const dailyActions = new FakeDailyActionRepository(characters, {
+      autoIssueFirstProblemStage: false
+    });
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      new FakeSoloCombatSessionRepository(characters),
+      new FakeRandomSource([0.1])
+    );
+
+    const result = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "level-locked",
+      requiredLevel: PROBLEM_QUEST_REQUIRED_LEVEL,
+      character: {
+        level: 1
+      }
+    });
+    expect(dailyActions.records).toHaveLength(0);
   });
 
   it("recovers old completed first-problem progress only after the first paper is taken", async () => {

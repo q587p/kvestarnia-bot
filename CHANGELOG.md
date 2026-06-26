@@ -7,6 +7,31 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.5] - 12026-06-26 - Bard Performance MVP
+
+### Added
+- Added a narrow Bard-only non-combat performance for `class.bard` characters at level 3+ using stable technique id `technique.class.bard.shynok-performance`; it can start solo in Shynok or in any other current location with another active same-location character.
+- Added persisted `bard_performances` and `bard_performance_reactions` rows with frozen effective CHA/LUCK/level snapshots, injected-RNG grade resolution, house payout replay data, a 93-minute per-location cooldown and a 13-minute audience response window.
+- Added a small Shynok-only house gold faucet by grade (`1/3/5/13`) capped at 23 gold per Bard per Kyiv day; tips are separate voluntary player transfers and do not count toward the house cap.
+- Added explicit same-location audience reactions: applause, decline, or voluntary tips of `1`, `3`, `5` or `13` gold, with one response per active audience character.
+- Added Bard performance nearby/Shynok buttons, short Ukrainian result/audience/feedback cards, callback parsing under the Shynok namespace and local `/dev_reset_bard_performance` for manual cooldown/day-cap QA.
+- Added focused domain, service, Prisma repository, bot callback/keyboard/help/presence and migration tests for the performance flow.
+
+### Changed
+- Shynok now shows the Bard performance action for eligible Bards even without live listeners; `👀 Хто поруч` still shows the action only with another active character in the same non-Shynok location.
+- The tavern module keeps ownership of Bard performance callbacks and the dev helper, preserving the `0.2.2` vertical bot-module and composition-root boundaries.
+- Audience responses now re-check the performer before mutation, so applause, declines and tips do not settle if the Bard left the performance location, entered combat, joined a pending Barrel raid or remorted after starting the performance.
+- Insufficient-gold tip responses now report the selected tip amount while leaving the offered reaction unchanged for a different response.
+- Bard performance cards now label audience count as the start snapshot, show the remaining response window separately from cooldown and clarify that new listeners join the next performance instead of being added mid-song.
+- Bard performance starts now use a database live guard so concurrent start callbacks for the same Bard/location replay the live performance instead of creating duplicate rows or duplicate Shynok house payout.
+- The Korchmar problem-chain paper is now server-gated to level 2+, so level 1 characters cannot take it through the Shynok button or old callbacks.
+- Mantok Chest auto-pick now skips consumable/one-use manatky such as `Бинт відповідальної паніки`; manual selection can still explicitly feed them to the chest.
+- The non-combat techniques docs now record this shipped MVP as a no-XP first implementation, overriding the older planning note that expected small role-action XP.
+
+### Unchanged
+- No XP, items, buffs, achievements, forced audience charges, instruments, Priest/Rogue runtime, generic profession engine, title-power mechanic, crafting, public feed or broad non-combat action catalog ships in this slice.
+- Telegram delivery remains best effort only; database transactions are the authority for house payouts, tips and response completion.
+
 ## [0.2.4] - 12026-06-26 - Item Tags and One-use Bandages
 
 ### Added
@@ -30,6 +55,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Єгер paid bandage purchase now uses preview/confirm/cancel callbacks backed by the existing daily-action audit boundary, so duplicate confirms replay the same receipt instead of debiting/granting again; bundle buttons buy the selected quantity and cannot exceed 93 paid bandages for the day.
 - The free class-ranger Єгер bandage button now remains available before the level-4 Єгер quest gate; the quest itself stays level-gated.
 - Єгер paid bandage previews now say `Після купівлі` instead of `Здобуто`, so the receipt does not imply the item was granted before confirmation.
+- Єгер paid bandage confirms that are too expensive now offer a tokenized smaller bundle for the maximum currently affordable quantity, respecting the class-ranger discount and the daily paid cap without spending gold until the player confirms that fallback.
 - Out-of-combat item use blocks at full effective HP, on equipped/unknown/drifted/reserved stacks, across remort-life changes and after token expiry; active persistent PvE combat routes eligible one-use manatky through the turn-bound combat item-use path instead.
 - Combat item-use now honors the active `solo-combat` lease when consuming a bandage, so healing applies during live persistent PvE turns instead of replaying the current turn card.
 - Confirmation settles passive HP/mana recovery at confirmation time, consumes exactly one item unit, caps healing to the current effective max HP, stores the canonical result and replays duplicate/concurrent confirms without another consume.

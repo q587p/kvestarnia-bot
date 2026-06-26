@@ -54,7 +54,7 @@ export function buildMantokChestEligibleStacks(input: {
       return [];
     }
 
-    const manualOnly = isProtectedMantokChestItem(content);
+    const manualOnly = isProtectedMantokChestItem(content) || isConsumableMantokChestItem(content);
 
     if (mode === "auto" && manualOnly) {
       return [];
@@ -142,4 +142,10 @@ export function summarizeMantokChestUnits(
   return [...counts.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([itemId, quantity]) => ({ itemId, quantity }));
+}
+
+function isConsumableMantokChestItem(item: ItemContent): boolean {
+  const tags = item.tags ?? [];
+
+  return item.slot === "consumable" || tags.includes("consumable") || tags.includes("one-use");
 }

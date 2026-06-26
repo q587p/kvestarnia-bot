@@ -238,6 +238,7 @@ export function presentKorchmaBar(
   options: {
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
+    bardPerformance?: boolean;
   } = {}
 ): string {
   const actionLines = presentKorchmaBarActionLines(options);
@@ -258,8 +259,13 @@ export function presentKorchmaBar(
 function presentKorchmaBarActionLines(options: {
   includeBottleTurnIn?: boolean;
   problemQuestAction?: "turn-in" | "take" | "next";
+  bardPerformance?: boolean;
 }): string[] {
   const lines: string[] = [];
+
+  if (options.bardPerformance) {
+    lines.push("Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує.");
+  }
 
   if (options.problemQuestAction === "take") {
     lines.push("На краю стійки лежить чистий корчмарський папірець: його можна взяти як нову справу.");

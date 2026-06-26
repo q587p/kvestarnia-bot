@@ -840,9 +840,17 @@ async function handleYegerCallback(
     );
     await markYegerCornerPresence(ctx, services.presence);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    const affordablePreview = result.state === "insufficient-gold" ? result.affordablePreview : undefined;
     await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
+      reply_markup: affordablePreview
+        ? buildYegerBandagePurchaseKeyboard(
+            affordablePreview.token,
+            { confirmLabel: `✅ Купити ${affordablePreview.purchaseQuantity}` }
+          )
+        : quest.state === "no-character"
+          ? buildYegerHelpKeyboard()
+          : buildYegerCornerKeyboard(quest)
     });
     return;
   }

@@ -10,6 +10,25 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.5 — Bard Performance smoke
+
+Use two accounts in Shynok and another shared location with local dev commands enabled where helpful.
+
+1. Make one account a level 3+ Bard; verify the Bard performance button appears inside `🍻 Шинок` even when nobody else is nearby, and not for non-Bards or under-level heroes.
+2. Verify `👀 Хто поруч` shows the Bard performance button only when another active character is in the same non-Shynok location.
+3. Start a solo performance in `🍻 Шинок`; verify the result card is stable on refresh, the house payout is not rerolled by old callbacks and the zero-audience copy is Shynok-specific.
+4. Start a fresh performance with another active same-location account and confirm that account receives one private audience prompt.
+5. Press applause; the audience wallet stays unchanged and repeated applause does not create a second response.
+6. Start a fresh performance after `/dev_reset_bard_performance`; tip `3` gold from the audience account and verify the audience wallet decreases once, the Bard wallet increases once and repeated tip callbacks replay safely.
+7. Try each tip amount (`1`, `3`, `5`, `13`) across fresh performances or reset windows.
+8. Move the audience character away before responding; the response should stale without gold movement.
+9. Put the audience character in active combat or a pending Barrel raid before responding; mutation should be blocked.
+10. Remort either side before an old response; remort-life drift should block mutation.
+11. Start in another shared location after resetting cooldown; verify there is no house payout, no Shynok-only shelf/корчмар audience copy, and Shynok cooldown does not block that location.
+12. Exhaust the Bard's Kyiv-day Shynok house cap; further Shynok performances can still resolve but house payout clips to `0`.
+13. Simulate blocked DM/notification failure: the stored performance and reaction rows remain authoritative.
+14. `/help`, `/dev_help`, `/version`, `/news`, `👀 Хто поруч` and Shynok navigation still render normally.
+
 ## 0.2.4 — Item tags and bandage smoke
 
 1. Give a wounded out-of-combat hero `Бинт відповідальної паніки`; open `/inventory`, item detail and `🩹 Використати`.
@@ -20,7 +39,7 @@
 6. Open a preview, then change inventory/equipment/reservation state before confirm: confirm must fail stale without healing or consuming.
 7. While a bandage use preview is pending, try gift/sale/chest/barter of the same `itemId`: the stack should be reserved.
 8. Remort with a pending use order: remort should cancel the use reservation without consuming the bandage.
-9. At the Єгер surface, open paid bandage purchase, verify exact price/current gold, confirm once, replay confirm, cancel a fresh preview, intentionally buy again with a new token, and repeat with insufficient gold.
+9. At the Єгер surface, open paid bandage purchase, verify exact price/current gold, confirm once, replay confirm, cancel a fresh preview, intentionally buy again with a new token, and repeat with insufficient gold; if the wallet can still afford a smaller bundle, the stale-free fallback should offer the maximum affordable count and only spend gold after confirming that new token.
 10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the wait and confirm a fresh claim can be tested without changing production rules.
 11. For Yeger trail QA, use `/dev_reset_yeger_trail` after taking a trail to make `🔎 Перевірити слід` available immediately without weakening production timers.
 12. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.
@@ -244,7 +263,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 19. Очікування: бот показує той самий підсумок винагороди й не дублює XP, золото, item або level-up.
 20. Loss/flee/expired не видають full victory reward і не збільшують видимий progress Korchmar problem chain.
 21. Якщо перший problem-chain етап ще не взято, Стіл зі справами має показувати маршрут `🍻 До шинку`, а `/fight` має просити спершу взяти справу без `0/13` лічильника.
-22. У шинку `📋 Взяти справу` відкриває перший етап; тільки після цього звичайна старша перемога збільшує видимий прогрес поточного problem-chain етапу, якщо це не `/spar`.
+22. На 1 рівні Шинок не показує `📋 Взяти справу`, а старий callback не видає папірець; з 2 рівня у шинку `📋 Взяти справу` відкриває перший етап. Тільки після цього звичайна старша перемога збільшує видимий прогрес поточного problem-chain етапу, якщо це не `/spar`.
 23. Коли поточний етап готовий, бій не має auto-claim reward: Стіл зі справами показує `🍻 До шинку`, у шинку `📋 Здати справу` видає одноразову нагороду, а `📋 Взяти наступну справу` окремо відкриває наступний етап зі свіжим лічильником.
 24. На герої 7-8 рівня старший бій має брати найближчого доступного звичайного монстра, а не випадкову дрібноту 1-2 рівня; якщо контентного рівня ще бракує, XP/золото мають лишатися малими через рівень самого монстра, а не через окремий штраф за рівень героя.
 25. У `Ярус I: Сутерени Корчми` перевір лівий/прямий/правий проходи: повторне відкриття того самого проходу до протермінування має показати того самого монстра, інший прохід може мати власну підозрілу тінь, preview copy має не вгадувати стать монстра, `Атакувати` має почати саме показаного монстра, а стара/протермінована кнопка має оновити preview з коротким поясненням замість мовчазного старту іншого бою.

@@ -381,6 +381,38 @@ describe("MantokChestService", () => {
     }
   });
 
+  it("keeps consumables out of auto-pick while allowing explicit manual selection", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.responsible-panic-bandage", 5),
+      item("item.suspicious-shawarma-wrapper", 4)
+    ]));
+    const service = new MantokChestService(repository, () => fixedNow);
+
+    await expect(service.createAutoPickPreviewForTelegramUser(telegramUserId)).resolves.toEqual({
+      state: "not-enough-items",
+      eligibleCount: 4
+    });
+
+    const selection = await service.startManualSelectionForTelegramUser(telegramUserId);
+
+    expect(selection.state).toBe("selection");
+    if (selection.state === "selection") {
+      expect(selection.eligibleCount).toBe(9);
+      expect(selection.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            itemId: "item.responsible-panic-bandage",
+            manualOnly: true
+          }),
+          expect.objectContaining({
+            itemId: "item.suspicious-shawarma-wrapper",
+            manualOnly: false
+          })
+        ])
+      );
+    }
+  });
+
   it("can recycle manual-only priceless items after explicit manual selection", async () => {
     const repository = new FakeMantokChestRepository(snapshot([
       item("item.wet-hero-ticket", 5),

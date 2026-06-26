@@ -163,6 +163,12 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     icon: "🧷",
     description: "скинути таймери й ліміти Єгеря локально",
     devOnly: "grant"
+  },
+  {
+    commands: ["dev_reset_bard_performance"],
+    icon: "🎶",
+    description: "скинути бардівський виступ локально",
+    devOnly: "grant"
   }
 ];
 

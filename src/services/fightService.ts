@@ -170,6 +170,7 @@ export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
   xp: 35,
   gold: 10
 };
+export const PROBLEM_QUEST_REQUIRED_LEVEL = 2;
 export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
 // Storage scan bound for ordinary threat history. Excluded rows inside this
@@ -302,6 +303,7 @@ export type ProblemQuestTurnInLookupResult =
 
 export type ProblemQuestIssueNextLookupResult =
   | { state: "no-character" }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "not-available"; character: CharacterSummary; progress: ProblemQuestProgress }
   | { state: "branch-complete"; character: CharacterSummary; progress: ProblemQuestProgress }
   | {
@@ -2759,6 +2761,14 @@ export class FightService {
     }
 
     const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    if (characterSummary.level < PROBLEM_QUEST_REQUIRED_LEVEL) {
+      return {
+        state: "level-locked",
+        character: characterSummary,
+        requiredLevel: PROBLEM_QUEST_REQUIRED_LEVEL
+      };
+    }
+
     const progress = await this.getThirteenSmallProblemsProgress(telegramUserId);
 
     if (progress.branchComplete) {
