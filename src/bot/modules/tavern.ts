@@ -58,6 +58,8 @@ buildCellarParticipantsKeyboard,
 buildCellarResultKeyboard
 } from "../keyboards/cellarKeyboard";
 import {
+buildBardPerformanceResponseKeyboard,
+buildBardPerformanceRespondResultKeyboard,
 buildBackToShynokKeyboard,
 buildShynokDrinkMenuKeyboard,
 buildShynokDrinkPreviewKeyboard,
@@ -88,10 +90,18 @@ presentCellarNoCharacter,
 presentCellarResult
 } from "../presenters/cellarPresenter";
 import {
+presentDevGrantDisabled,
+presentDevGrantNoCharacter
+} from "../presenters/devGrantPresenter";
+import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
 import { presentParticipants } from "../presenters/presencePresenter";
 import {
+presentBardPerformanceAudienceNotification,
+presentBardPerformancePerformerFeedback,
+presentBardPerformanceResponseResult,
+presentBardPerformanceStartResult,
 presentShynokDrinkConfirmResult,
 presentShynokDrinkMenu,
 presentShynokDrinkPreview,
@@ -146,6 +156,7 @@ export function registerTavernBotModule(
     services.cellarGrownup
   );
   registerTavernCommand(bot, services.tavern, services.presence);
+  registerBardPerformanceDevResetHandler(bot, services);
 
   bot.callbackQuery(/^v1:sh:/, async (ctx) => {
     const parsed = parseShynokCallbackData(ctx.callbackQuery.data);
@@ -240,6 +251,60 @@ async function handleShynokCallback(
     await safeEditMessageText(ctx, presentShynokDrinkMenu(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready" ? buildShynokDrinkMenuKeyboard() : buildBackToShynokKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "bard-performance-start") {
+    if (!services.bardPerformance) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await services.bardPerformance.startForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx, result.state === "started"
+      ? { text: "Виступ почався.", show_alert: false }
+      : { show_alert: result.state !== "live" });
+    if (result.state === "started") {
+      await notifyBardPerformanceAudience(ctx, result.character.name, result.audience);
+    }
+    await safeEditMessageText(ctx, presentBardPerformanceStartResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildBackToShynokKeyboard()
+    });
+    return;
+  }
+
+  if (
+    action.type === "bard-performance-applaud" ||
+    action.type === "bard-performance-decline" ||
+    action.type === "bard-performance-tip"
+  ) {
+    if (!services.bardPerformance) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await services.bardPerformance.respondForTelegramUser(telegramUserId, {
+      reactionId: action.reactionId,
+      action: action.type === "bard-performance-applaud"
+        ? "applaud"
+        : action.type === "bard-performance-decline"
+          ? "decline"
+          : "tip",
+      ...(action.type === "bard-performance-tip" ? { tipGold: action.tipGold } : {})
+    });
+    await safeAnswerCallbackQuery(ctx, result.state === "applauded" || result.state === "tipped"
+      ? { text: result.state === "tipped" ? "Чайові перекинуто." : "Оплески зараховано.", show_alert: false }
+      : { show_alert: result.state !== "declined" && result.state !== "replayed" });
+    const performerFeedback = presentBardPerformancePerformerFeedback(result);
+    if (performerFeedback && "performerTelegramUserId" in result) {
+      await ctx.api.sendMessage(Number(result.performerTelegramUserId), performerFeedback, HTML_MESSAGE_OPTIONS)
+        .catch(() => undefined);
+    }
+    await safeEditMessageText(ctx, presentBardPerformanceResponseResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildBardPerformanceRespondResultKeyboard(result)
     });
     return;
   }
@@ -406,6 +471,55 @@ async function notifyShynokRoundRecipients(
       }
     )
   ));
+}
+
+async function notifyBardPerformanceAudience(
+  ctx: Context,
+  performerName: string,
+  audience: Array<{
+    telegramUserId: bigint;
+    name: string;
+    reaction: { id: string; audienceName: string; status: string; tipGold: number; expiresAt: Date };
+  }>
+): Promise<void> {
+  await Promise.allSettled(audience.map((notice) =>
+    ctx.api.sendMessage(
+      Number(notice.telegramUserId),
+      presentBardPerformanceAudienceNotification(performerName, notice),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildBardPerformanceResponseKeyboard(notice.reaction.id)
+      }
+    )
+  ));
+}
+
+function registerBardPerformanceDevResetHandler(bot: Bot, services: BotServices): void {
+  bot.command("dev_reset_bard_performance", async (ctx) => {
+    if (!services.devGrant?.isEnabled()) {
+      await ctx.reply(presentDevGrantDisabled());
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (!telegramUserId) {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (!services.bardPerformance) {
+      await ctx.reply("Dev-скидання бардівського виступу недоступне.");
+      return;
+    }
+
+    const result = await services.bardPerformance.resetForDev(telegramUserId);
+    if (result.state === "no-character") {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    await ctx.reply(`🎶 Бардівський cooldown скинуто локально. Прибрано записів: ${result.deleted}.`);
+  });
 }
 
 async function handlePlaceCallback(

@@ -7,6 +7,25 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.5] - 12026-06-26 - Bard Performance MVP
+
+### Added
+- Added a narrow Bard-only non-combat performance in Shynok for `class.bard` characters at level 3+ using stable technique id `technique.class.bard.shynok-performance`.
+- Added persisted `bard_performances` and `bard_performance_reactions` rows with frozen effective CHA/LUCK/level snapshots, injected-RNG grade resolution, house payout replay data, a 93-minute cooldown and a 13-minute audience response window.
+- Added a small house gold faucet by grade (`1/3/5/13`) capped at 23 gold per Bard per Kyiv day; tips are separate voluntary player transfers and do not count toward the house cap.
+- Added explicit same-location audience reactions: applause, decline, or voluntary tips of `1`, `3`, `5` or `13` gold, with one response per active audience character.
+- Added Bard performance Shynok buttons, short Ukrainian result/audience/feedback cards, callback parsing under the Shynok namespace and local `/dev_reset_bard_performance` for manual cooldown/day-cap QA.
+- Added focused domain, service, Prisma repository, bot callback/keyboard/help/presence and migration tests for the performance flow.
+
+### Changed
+- Shynok now shows the Bard performance action only when the current character is an eligible Bard in the bar surface.
+- The tavern module keeps ownership of Bard performance callbacks and the dev helper, preserving the `0.2.2` vertical bot-module and composition-root boundaries.
+- The non-combat techniques docs now record this shipped MVP as a no-XP first implementation, overriding the older planning note that expected small role-action XP.
+
+### Unchanged
+- No XP, items, buffs, achievements, forced audience charges, instruments, Priest/Rogue runtime, generic profession engine, title-power mechanic, crafting, public feed or broad non-combat action catalog ships in this slice.
+- Telegram delivery remains best effort only; database transactions are the authority for house payouts, tips and response completion.
+
 ## [0.2.4] - 12026-06-26 - Item Tags and One-use Bandages
 
 ### Added

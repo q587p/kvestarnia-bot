@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  makeShynokBardPerformanceApplaudCallbackData,
+  makeShynokBardPerformanceStartCallbackData,
+  makeShynokBardPerformanceTipCallbackData,
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
   makeShynokRoundConfirmCallbackData,
@@ -38,17 +41,32 @@ describe("shynokCallbackData", () => {
       ok: true,
       value: { type: "sale-confirm", token }
     });
+    expect(parseShynokCallbackData(makeShynokBardPerformanceStartCallbackData())).toEqual({
+      ok: true,
+      value: { type: "bard-performance-start" }
+    });
+    expect(parseShynokCallbackData(makeShynokBardPerformanceApplaudCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "bard-performance-applaud", reactionId: token }
+    });
+    expect(parseShynokCallbackData(makeShynokBardPerformanceTipCallbackData(token, 13))).toEqual({
+      ok: true,
+      value: { type: "bard-performance-tip", reactionId: token, tipGold: 13 }
+    });
   });
 
   it("rejects invalid or oversized callbacks", () => {
     expect(parseShynokCallbackData("v1:sh:dp:not-a-drink").ok).toBe(false);
     expect(parseShynokCallbackData("v1:sh:dc:not-a-token").ok).toBe(false);
     expect(parseShynokCallbackData(`v1:sh:rr:${token}:not-a-guard`).ok).toBe(false);
+    expect(parseShynokCallbackData(`v1:sh:bt:${token}:2`).ok).toBe(false);
     expect(parseShynokCallbackData(`v1:sh:dc:${"a".repeat(80)}`).ok).toBe(false);
   });
 
   it("keeps round replacement confirmation callbacks below Telegram limits", () => {
     expect(Buffer.byteLength(makeShynokRoundReplacementConfirmCallbackData(token, "abcdef1234567890"), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokBardPerformanceTipCallbackData(token, 13), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 });

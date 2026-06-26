@@ -7,6 +7,10 @@ import type {
   ShynokRoundPreviewResult,
   ShynokSaleSelectionResult
 } from "../../services/shynokService";
+import {
+  listBardPerformanceTipOptions,
+  type BardPerformanceRespondResult
+} from "../../services/bardPerformanceService";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
@@ -14,6 +18,10 @@ import {
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
   makeShynokDrinksCallbackData,
+  makeShynokBardPerformanceApplaudCallbackData,
+  makeShynokBardPerformanceDeclineCallbackData,
+  makeShynokBardPerformanceStartCallbackData,
+  makeShynokBardPerformanceTipCallbackData,
   makeShynokOverviewCallbackData,
   makeShynokRoundAcceptCallbackData,
   makeShynokRoundConfirmCallbackData,
@@ -41,6 +49,10 @@ export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): Inli
     .row()
     .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
+
+  if (result?.state === "ready" && result.character.classId === "class.bard" && result.character.level >= 3) {
+    keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
+  }
 
   if (result?.state === "ready") {
     for (const offer of result.openRoundOffers) {
@@ -125,6 +137,29 @@ export function buildShynokRoundOfferNotificationKeyboard(offerId: string): Inli
     .text("Ні, дякую", makeShynokRoundDeclineCallbackData(offerId))
     .row()
     .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+}
+
+export function buildBardPerformanceResponseKeyboard(reactionId: string): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
+    .text("👏 Аплодувати", makeShynokBardPerformanceApplaudCallbackData(reactionId))
+    .text("Ні, дякую", makeShynokBardPerformanceDeclineCallbackData(reactionId))
+    .row();
+
+  for (const tip of listBardPerformanceTipOptions()) {
+    keyboard.text(`🪙 ${tip}`, makeShynokBardPerformanceTipCallbackData(reactionId, tip));
+  }
+
+  return keyboard
+    .row()
+    .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
+}
+
+export function buildBardPerformanceRespondResultKeyboard(result: BardPerformanceRespondResult): InlineKeyboard {
+  if (result.state === "insufficient-gold") {
+    return buildBardPerformanceResponseKeyboard(result.reaction.id);
+  }
+
+  return buildBackToShynokKeyboard();
 }
 
 export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResult): InlineKeyboard {

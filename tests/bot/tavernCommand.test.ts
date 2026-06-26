@@ -257,6 +257,28 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("shows the Bard performance action only for level 3+ Bards in Shynok", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService({
+        ...character,
+        classId: "class.bard",
+        className: "Бард",
+        level: 3
+      }),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("Бардівський кут");
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    expect(options.reply_markup.inline_keyboard).toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
+  });
+
   it("shows the fighting corner as a menu with training, duel modes and winners", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 

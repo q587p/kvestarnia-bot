@@ -1,0 +1,313 @@
+import { randomUUID } from "node:crypto";
+import { items } from "../content";
+import type {
+  BardPerformanceAudienceNotice,
+  BardPerformanceReactionRecord,
+  BardPerformanceRecord,
+  BardPerformanceRepository,
+  BardPerformanceRespondResult as RepositoryRespondResult,
+  BardPerformanceStartResult as RepositoryStartResult
+} from "../db/repositories/bardPerformanceRepository";
+import {
+  BARD_PERFORMANCE_COOLDOWN_MINUTES,
+  BARD_PERFORMANCE_MIN_LEVEL,
+  BARD_PERFORMANCE_RULES_VERSION,
+  BARD_PERFORMANCE_TECHNIQUE_ID,
+  BARD_PERFORMANCE_TIP_OPTIONS,
+  BARD_PERFORMANCE_WINDOW_MINUTES,
+  isBardPerformanceTipAmount,
+  rollBardPerformanceCheck,
+  type BardPerformanceGrade,
+  type BardPerformanceTipAmount
+} from "../domain/noncombat/bardPerformance";
+import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { CryptoRandomSource, type RandomSource } from "../shared/random";
+import { systemClock, type Clock } from "../shared/time";
+import { PRESENCE_ACTIVE_MS, PRESENCE_LOCATION_KORCHMA_BAR } from "./presenceService";
+import { toKorchmaLocalDate } from "./tavernRaidService";
+
+export type BardPerformanceGateState =
+  | "no-character"
+  | "wrong-place"
+  | "active-combat"
+  | "pending-raid"
+  | "not-bard"
+  | "level-locked";
+
+export type BardPerformanceStartResult =
+  | { state: BardPerformanceGateState; character?: CharacterSummary; requiredLevel?: number }
+  | { state: "cooldown"; character: CharacterSummary; availableAt: Date }
+  | { state: "live"; character: CharacterSummary; performance: PresentedBardPerformance }
+  | {
+      state: "started";
+      character: CharacterSummary;
+      performance: PresentedBardPerformance;
+      audience: PresentedBardPerformanceAudienceNotice[];
+    };
+
+export type BardPerformanceRespondResult =
+  | { state: "no-character" | "invalid-reaction" }
+  | {
+      state:
+        | "expired"
+        | "declined"
+        | "replayed"
+        | "wrong-place"
+        | "active-combat"
+        | "pending-raid"
+        | "remort-mismatch"
+        | "performer-remorted";
+      reaction: PresentedBardPerformanceReaction;
+      performance: PresentedBardPerformance;
+    }
+  | {
+      state: "insufficient-gold";
+      reaction: PresentedBardPerformanceReaction;
+      performance: PresentedBardPerformance;
+      character: CharacterSummary;
+    }
+  | {
+      state: "applauded" | "tipped";
+      reaction: PresentedBardPerformanceReaction;
+      performance: PresentedBardPerformance;
+      character: CharacterSummary;
+      performerTelegramUserId: bigint;
+    };
+
+export interface PresentedBardPerformance {
+  id: string;
+  token: string;
+  performerName: string;
+  grade: BardPerformanceGrade;
+  housePayoutGold: number;
+  audienceCount: number;
+  startedAt: Date;
+  expiresAt: Date;
+  cooldownAvailableAt: Date;
+}
+
+export interface PresentedBardPerformanceReaction {
+  id: string;
+  audienceName: string;
+  status: string;
+  tipGold: number;
+  expiresAt: Date;
+}
+
+export interface PresentedBardPerformanceAudienceNotice {
+  telegramUserId: bigint;
+  name: string;
+  reaction: PresentedBardPerformanceReaction;
+}
+
+export class BardPerformanceService {
+  constructor(
+    private readonly performances: BardPerformanceRepository,
+    private readonly clock: Clock = systemClock,
+    private readonly rng: RandomSource = new CryptoRandomSource()
+  ) {}
+
+  async startForTelegramUser(telegramUserId: bigint): Promise<BardPerformanceStartResult> {
+    const snapshot = await this.performances.getStartSnapshotForTelegramUser(telegramUserId);
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+
+    const equippedItems = snapshot.equippedItemIds.flatMap((itemId) => {
+      const item = items.find((candidate) => candidate.id === itemId);
+      return item ? [item] : [];
+    });
+    const character = summarizeCharacter(snapshot.character, { equippedItems });
+
+    if (snapshot.character.currentLocationId !== PRESENCE_LOCATION_KORCHMA_BAR) {
+      return { state: "wrong-place", character };
+    }
+    if (snapshot.activeCombatLease) {
+      return { state: "active-combat", character };
+    }
+    if (snapshot.currentRaidId) {
+      return { state: "pending-raid", character };
+    }
+    if (character.classId !== "class.bard") {
+      return { state: "not-bard", character };
+    }
+    if (character.level < BARD_PERFORMANCE_MIN_LEVEL) {
+      return { state: "level-locked", character, requiredLevel: BARD_PERFORMANCE_MIN_LEVEL };
+    }
+
+    const now = this.clock();
+    const plan = rollBardPerformanceCheck({
+      charisma: character.stats.charisma,
+      luck: character.stats.luck,
+      level: character.level
+    }, this.rng);
+    const result = await this.performances.startPerformanceForTelegramUser(telegramUserId, {
+      token: randomUUID(),
+      techniqueId: BARD_PERFORMANCE_TECHNIQUE_ID,
+      rulesVersion: BARD_PERFORMANCE_RULES_VERSION,
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+      localDate: toKorchmaLocalDate(now),
+      grade: plan.grade,
+      power: plan.power,
+      rawHousePayoutGold: plan.rawHousePayoutGold,
+      roleActionXp: plan.roleActionXp,
+      statSnapshot: {
+        level: character.level,
+        charisma: character.stats.charisma,
+        luck: character.stats.luck,
+        equipmentItemIds: snapshot.equippedItemIds
+      },
+      result: {
+        techniqueId: plan.techniqueId,
+        rulesVersion: plan.rulesVersion,
+        grade: plan.grade,
+        power: plan.power,
+        rawHousePayoutGold: plan.rawHousePayoutGold,
+        roleActionXp: 0
+      },
+      now,
+      expiresAt: new Date(now.getTime() + BARD_PERFORMANCE_WINDOW_MINUTES * 60_000),
+      cooldownAvailableAt: new Date(now.getTime() + BARD_PERFORMANCE_COOLDOWN_MINUTES * 60_000),
+      activeAudienceSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
+      requiredLevel: BARD_PERFORMANCE_MIN_LEVEL
+    });
+
+    return presentStartResult(result);
+  }
+
+  async respondForTelegramUser(
+    telegramUserId: bigint,
+    input: { reactionId: string; action: "applaud" | "decline" | "tip"; tipGold?: number }
+  ): Promise<BardPerformanceRespondResult> {
+    if (input.action === "tip" && !isBardPerformanceTipAmount(input.tipGold ?? 0)) {
+      return { state: "invalid-reaction" };
+    }
+
+    const result = await this.performances.respondToPerformanceForTelegramUser(telegramUserId, {
+      reactionId: input.reactionId,
+      action: input.action,
+      ...(input.action === "tip" ? { tipGold: input.tipGold } : {}),
+      now: this.clock(),
+      result: {
+        action: input.action,
+        tipGold: input.action === "tip" ? input.tipGold : 0
+      }
+    });
+
+    return presentRespondResult(result);
+  }
+
+  async resetForDev(telegramUserId: bigint): Promise<
+    | { state: "no-character" }
+    | { state: "reset"; character: CharacterSummary; deleted: number }
+  > {
+    const result = await this.performances.resetForTelegramUser(telegramUserId, this.clock());
+
+    return result
+      ? { state: "reset", character: summarizeCharacter(result.character), deleted: result.deleted }
+      : { state: "no-character" };
+  }
+}
+
+export function listBardPerformanceTipOptions(): readonly BardPerformanceTipAmount[] {
+  return BARD_PERFORMANCE_TIP_OPTIONS;
+}
+
+function presentStartResult(result: RepositoryStartResult): BardPerformanceStartResult {
+  switch (result.state) {
+    case "no-character":
+      return { state: "no-character" };
+    case "wrong-place":
+    case "active-combat":
+    case "pending-raid":
+    case "not-bard":
+      return { state: result.state, character: summarizeCharacter(result.character) };
+    case "level-locked":
+      return {
+        state: "level-locked",
+        character: summarizeCharacter(result.character),
+        requiredLevel: result.requiredLevel
+      };
+    case "cooldown":
+      return {
+        state: "cooldown",
+        character: summarizeCharacter(result.character),
+        availableAt: result.availableAt
+      };
+    case "live":
+      return {
+        state: "live",
+        character: summarizeCharacter(result.character),
+        performance: presentPerformance(result.performance)
+      };
+    case "started":
+      return {
+        state: "started",
+        character: summarizeCharacter(result.character),
+        performance: presentPerformance(result.performance),
+        audience: result.audience.map(presentAudienceNotice)
+      };
+  }
+}
+
+function presentRespondResult(result: RepositoryRespondResult): BardPerformanceRespondResult {
+  switch (result.state) {
+    case "no-character":
+    case "invalid-reaction":
+      return { state: result.state };
+    case "insufficient-gold":
+      return {
+        state: "insufficient-gold",
+        reaction: presentReaction(result.reaction),
+        performance: presentPerformance(result.performance),
+        character: summarizeCharacter(result.character)
+      };
+    case "applauded":
+    case "tipped":
+      return {
+        state: result.state,
+        reaction: presentReaction(result.reaction),
+        performance: presentPerformance(result.performance),
+        character: summarizeCharacter(result.character),
+        performerTelegramUserId: result.performerTelegramUserId
+      };
+    default:
+      return {
+        state: result.state,
+        reaction: presentReaction(result.reaction),
+        performance: presentPerformance(result.performance)
+      };
+  }
+}
+
+function presentAudienceNotice(notice: BardPerformanceAudienceNotice): PresentedBardPerformanceAudienceNotice {
+  return {
+    telegramUserId: notice.telegramUserId,
+    name: notice.name,
+    reaction: presentReaction(notice.reaction)
+  };
+}
+
+function presentPerformance(performance: BardPerformanceRecord): PresentedBardPerformance {
+  return {
+    id: performance.id,
+    token: performance.token,
+    performerName: performance.performerName,
+    grade: performance.grade as BardPerformanceGrade,
+    housePayoutGold: performance.housePayoutGold,
+    audienceCount: performance.audienceCount,
+    startedAt: performance.startedAt,
+    expiresAt: performance.expiresAt,
+    cooldownAvailableAt: performance.cooldownAvailableAt
+  };
+}
+
+function presentReaction(reaction: BardPerformanceReactionRecord): PresentedBardPerformanceReaction {
+  return {
+    id: reaction.id,
+    audienceName: reaction.audienceName,
+    status: reaction.status,
+    tipGold: reaction.tipGold,
+    expiresAt: reaction.expiresAt
+  };
+}

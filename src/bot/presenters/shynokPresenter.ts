@@ -13,6 +13,12 @@ import type {
   ShynokSaleSelectionResult
 } from "../../services/shynokService";
 import type {
+  BardPerformanceRespondResult,
+  BardPerformanceStartResult,
+  PresentedBardPerformance,
+  PresentedBardPerformanceAudienceNotice
+} from "../../services/bardPerformanceService";
+import type {
   KorchmaRoundLeaderboard,
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
@@ -44,6 +50,9 @@ export function presentShynokOverview(result: ShynokOverviewResult): string {
     presentCharacterHeader(result.character),
     "",
     "Корчмар виставив напої, рахівницю й табличку «манатки приймаємо не всі, бо маємо очі».",
+    ...(result.character.classId === "class.bard" && result.character.level >= 3
+      ? ["Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує."]
+      : []),
     "",
     ...presentActiveDrinkLines(result.activeDrink),
     ...presentRoundOfferLines(result),
@@ -192,6 +201,128 @@ export function presentShynokRoundOfferNotification(
   ].join("\n");
 }
 
+export function presentBardPerformanceStartResult(result: BardPerformanceStartResult): string {
+  if (result.state === "started" || result.state === "live") {
+    const performance = result.performance;
+
+    return [
+      result.state === "live" ? "🎶 Виступ уже триває." : "🎶 Бардський виступ",
+      presentCharacterHeader(result.character),
+      "",
+      presentBardPerformanceGradeLine(performance),
+      `Корчмарська виплата: <b>${performance.housePayoutGold} золота</b>.`,
+      `Слухачів поруч: <b>${performance.audienceCount}</b>.`,
+      "",
+      performance.audienceCount > 0
+        ? "Кожен отримав окрему записку: аплодувати, пригостити монетою або чемно втекти очима."
+        : "Публіка поки складається з корчмаря й дуже критичної полиці.",
+      "",
+      `Наступний виступ: ${formatRemainingMinutes(performance.cooldownAvailableAt)}.`
+    ].join("\n");
+  }
+
+  if (result.state === "cooldown") {
+    return [
+      "🎶 Корчмар прикрив табличку сцени.",
+      "",
+      `Голос, публіка й рахівниця повернуться приблизно за ${formatRemainingMinutes(result.availableAt)}.`
+    ].join("\n");
+  }
+
+  if (result.state === "not-bard") {
+    return "🎶 Корчмар показує на сцену: сьогодні це робоче місце бардів. Інші пригодники можуть плескати з повагою.";
+  }
+
+  if (result.state === "level-locked") {
+    return `🎶 Сцена ще сувора. Бардівський виступ відкривається з <b>${result.requiredLevel ?? 3} рівня</b>.`;
+  }
+
+  return presentShynokGate(result);
+}
+
+export function presentBardPerformanceAudienceNotification(
+  performerName: string,
+  notice: PresentedBardPerformanceAudienceNotice
+): string {
+  void notice;
+
+  return [
+    `🎶 <b>${escapeHtml(performerName)}</b> починає виступ у шинку.`,
+    "",
+    "Можна аплодувати безкоштовно або добровільно кинути дрібну монету. Корчмар пильно дивиться, щоб ніхто не назвав це податком."
+  ].join("\n");
+}
+
+export function presentBardPerformanceResponseResult(result: BardPerformanceRespondResult): string {
+  if (result.state === "applauded") {
+    return [
+      "👏 Аплодисменти зараховано.",
+      "",
+      "Долоні цілі. Бардові приємно. Корчмар записав це як «нематеріяльний, але чутний внесок»."
+    ].join("\n");
+  }
+
+  if (result.state === "tipped") {
+    return [
+      "🪙 Чайові перекинуто.",
+      "",
+      `Ви дали <b>${result.reaction.tipGold} золота</b>. Бард почув дзвін і зробив вигляд, що саме так планував фінал.`
+    ].join("\n");
+  }
+
+  if (result.state === "replayed") {
+    return result.reaction.tipGold > 0
+      ? `🪙 Ці чайові вже записано: <b>${result.reaction.tipGold} золота</b>. Другий раз рахівниця не кліпає.`
+      : "👏 Цю реакцію вже записано. Другий оплеск моральний, не бухгалтерський.";
+  }
+
+  if (result.state === "declined") {
+    return "🎶 Ви чемно відступили від сцени. Це теж мистецтво.";
+  }
+
+  if (result.state === "insufficient-gold") {
+    return [
+      "🪙 Монети не зійшлися.",
+      "",
+      `Для цих чайових треба <b>${result.reaction.tipGold} золота</b>. Корчмар не бере майбутні овації в заставу.`
+    ].join("\n");
+  }
+
+  if (result.state === "expired") {
+    return "🎶 Виступ уже стих. Корчмар прибрав табличку, а останній акорд удає, що був навмисним.";
+  }
+
+  if (result.state === "wrong-place") {
+    return "🎶 Сцена лишилась у шинку. Поверніться до Шинку, якщо хочете реагувати на виступ.";
+  }
+
+  if (result.state === "active-combat") {
+    return "🎶 Спершу завершіть бій. Аплодувати зі зброєю в руках корчмар не радить.";
+  }
+
+  if (result.state === "pending-raid") {
+    return "🎶 Спершу завершіть рейд на Бочку. Вона ревниво ставиться до овацій.";
+  }
+
+  if (result.state === "remort-mismatch" || result.state === "performer-remorted") {
+    return "🎶 Цей виступ лишився в попередньому житті. Корчмар закрив запис без списань.";
+  }
+
+  return presentShynokGate(result);
+}
+
+export function presentBardPerformancePerformerFeedback(result: BardPerformanceRespondResult): string | null {
+  if (result.state === "applauded") {
+    return `👏 <b>${escapeHtml(result.reaction.audienceName)}</b> аплодує вашому виступу в шинку.`;
+  }
+
+  if (result.state === "tipped") {
+    return `🪙 <b>${escapeHtml(result.reaction.audienceName)}</b> дає вам <b>${result.reaction.tipGold} золота</b> за виступ у шинку.`;
+  }
+
+  return null;
+}
+
 export function presentShynokRoundOfferResponse(result: ShynokRoundOfferRespondResult): string {
   if (result.state === "replacement-preview") {
     return [
@@ -332,6 +463,19 @@ function presentReplacementWarning(
     "",
     `На вас іще діє ${activeDrink.emoji} <b>${escapeHtml(activeDrink.name)}</b>. ${drink.emoji} <b>${escapeHtml(drink.name)}</b> замінить цей ефект. Перелити долю в інший кухоль?`
   ];
+}
+
+function presentBardPerformanceGradeLine(performance: PresentedBardPerformance): string {
+  switch (performance.grade) {
+    case "legendary":
+      return "Легендарний номер. Навіть піна на кухлях стоїть рівніше.";
+    case "memorable":
+      return "Памʼятний виступ. Хтось уже переказує приспів неточно, але з почуттям.";
+    case "pleasant":
+      return "Приємний виступ. Стійка перестала скрипіти з осудом.";
+    case "rough":
+      return "Шорсткий виступ. Корчмар каже, що це жанр, і платить за сміливість.";
+  }
 }
 
 function presentDrinkEffectLine(drink: PresentedDrinkDefinition): string {

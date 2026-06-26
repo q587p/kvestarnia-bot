@@ -199,6 +199,7 @@ describe("presence routing", () => {
     ["dev_add_bandage", {}],
     ["dev_reset_yeger_bandage", {}],
     ["dev_reset_yeger_bandage_day", {}],
+    ["dev_reset_bard_performance", {}],
     ["dev_help", {}]
   ])("routes command /%s", (command, expected) => {
     expect(getCommandPresenceContext(command)).toEqual(expected);

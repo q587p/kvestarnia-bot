@@ -96,7 +96,7 @@ Current repeatable slice:
 Status:
 - Closed by `0.1.25 — Phase 2 MVP Closeout`.
 - `0.1.x` should receive only emergency hotfixes after this closeout.
-- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, multi-enemy foundation shipped in `0.2.1`, architecture stabilization shipped in `0.2.2`, and ordinary threat escalation shipped in `0.2.3`.
+- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, multi-enemy foundation shipped in `0.2.1`, architecture stabilization shipped in `0.2.2`, ordinary threat escalation shipped in `0.2.3`, item tags/one-use bandages shipped in `0.2.4`, and Bard Performance shipped in `0.2.5`.
 
 Current order:
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
@@ -130,7 +130,7 @@ Canonical docs:
 Closeout cutline:
 - `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
 - `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
-- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice. Broader trading, equipment rebalance, in-combat item actions and party/raid runtime stay in later `0.2.x+` slices.
+- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice; `0.2.5` shipped the first no-XP Bard Performance social technique. Broader trading, equipment rebalance, profession engines, in-combat item catalogs and party/raid runtime stay in later `0.2.x+` slices.
 - The next implementation prompt should be chosen from the current `0.2.x` task docs, with race abilities, achievements/cosmetic titles and selected signature techniques split into separate evidence-gated follow-ups.
 
 Deliverables:
@@ -142,6 +142,7 @@ Deliverables:
 - `0.2.2` Architecture Stabilization: shipped real vertical bot modules, extracted cross-cutting middleware, explicit composition root/runtime lifecycle and architecture boundary tests without gameplay, schema, callback or copy changes.
 - `0.2.3` Threat Escalation MVP: three consecutive eligible one-enemy ordinary wins make the next eligible ordinary fight start with exactly two enemies, with stored stable escalation copy and no reward multiplication.
 - `0.2.4` Item Tags and One-use Bandages: shipped a narrow item tag contract, one out-of-combat one-use bandage with replay-safe confirmation, Єгер bandage supply and a small authored monster-loot entry.
+- `0.2.5` Bard Performance MVP: shipped a Shynok-only level 3+ Bard performance with frozen CHA/LUCK/level check, 93-minute cooldown, 13-minute audience window, capped house gold, voluntary same-location applause/tips and no XP/items/buffs/profession engine.
 - Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
@@ -245,7 +246,7 @@ Very-later platform note:
 - Daily tavern rumor.
 - Корчемне соціяльне частування: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
 - Їжа в `🍻 Шинку` як gold sink із короткими бафами: один активний харчовий баф, підтвердження покупки, гумористичне меню, без stacking-а й без shortcuts до XP/loot.
-- Бардівський виступ у `🍻 Шинку`: `93` хвилини або інший явно збалансований cooldown, перевірка харизми/вдачі, малий capped gold payout, малий role-action XP без quest/problem progress, voluntary applause/tips, bonus від музичних манаток і starter pack інструментів у loot pool. Канонічний planning doc: `docs/NONCOMBAT_TECHNIQUES.md`.
+- Бардівський виступ у `🍻 Шинку` shipped in `0.2.5`: `93` хвилини cooldown, перевірка харизми/вдачі/рівня, малий capped house gold payout, voluntary applause/tips and no XP/items/buffs/profession engine. Future musical manatky or XP variants need their own task.
 - Календарні корчемні дні: недільні/святкові гуляння, малі не-FOMO бонуси, київський час і середові жаби як власний квестарнянський мемний мотив.
 - Player titles.
 - Seasonal boss.

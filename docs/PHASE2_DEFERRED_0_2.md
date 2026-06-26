@@ -56,17 +56,21 @@ First candidate: a narrow bandage-like one-use manatka, if the item-tag contract
 
 Status: shipped in `0.2.4` as `Бинт відповідальної паніки`: item tags, out-of-combat item-use orders, inventory preview/confirm/replay, Єгер bandage supply with a ranger advantage, and a small authored monster-loot entry. Broad shops, food, in-combat consumables, duel/raid item actions and tag-weighted loot formulas remain later work.
 
-### `0.2.5` - Race Abilities MVP
+### `0.2.5` - Bard Performance MVP
+
+Status: shipped in `0.2.5` as a Shynok-only level 3+ Bard performance with frozen CHA/LUCK/level check, `93` minute cooldown, `13` minute audience window, capped house gold and voluntary same-location applause/tips. No XP, items, buffs, achievements, instruments, broad profession engine or generic title power shipped.
+
+### Next free `0.2.x` - Race Abilities MVP
 
 Recommended next runtime slice after the bandage contract. Add one conservative, testable race ability surface that uses existing combat/action boundaries and does not require achievements, signature techniques or a broad item-action catalog.
 
 Status: proposed next.
 
-### `0.2.6` - Achievements and Cosmetic Titles
+### Later `0.2.x` - Achievements and Cosmetic Titles
 
 Add rewardless achievements/cosmetic title records and player-facing browsing/unlock copy after the race-ability slice clarifies current identity hooks.
 
-Status: proposed after `0.2.5`.
+Status: proposed after race abilities.
 
 ### Later - Selected Signature Techniques
 

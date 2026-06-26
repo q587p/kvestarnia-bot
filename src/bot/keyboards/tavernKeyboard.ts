@@ -8,6 +8,7 @@ import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import {
   makeShynokBarrelRoundPreviewCallbackData,
+  makeShynokBardPerformanceStartCallbackData,
   makeShynokDrinksCallbackData,
   makeShynokRoundPreviewCallbackData,
   makeShynokSaleOpenCallbackData
@@ -117,6 +118,7 @@ export function buildKorchmaBarKeyboard(
   options: {
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
+    bardPerformance?: boolean;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
@@ -129,6 +131,10 @@ export function buildKorchmaBarKeyboard(
     .row()
     .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
+
+  if (options.bardPerformance) {
+    keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
+  }
 
   if (options.problemQuestAction === "turn-in") {
     keyboard.text("📋 Здати справу", makeQuestCallbackData("problem")).row();

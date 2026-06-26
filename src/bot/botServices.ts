@@ -1,5 +1,6 @@
 import type { BarrelRaidNotificationRepository } from "../db/repositories/barrelRaidNotificationRepository";
 import type { AdventureService } from "../services/adventureService";
+import type { BardPerformanceService } from "../services/bardPerformanceService";
 import type { CellarErrandService } from "../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import type { DevGrantService } from "../services/devGrantService";
@@ -27,6 +28,7 @@ import type { YegerQuestService } from "../services/yegerQuestService";
 
 export interface BotServices {
   adventure: AdventureService;
+  bardPerformance?: BardPerformanceService;
   barrelRaidNotifications?: BarrelRaidNotificationRepository;
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;

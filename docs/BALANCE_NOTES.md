@@ -67,6 +67,8 @@ Equipment effects для атак мають заходити через оди�
 
 `0.2.4` keeps one-use healing deliberately small: `Бинт відповідальної паніки` restores a capped fixed HP amount, consumes exactly one item on confirmed use and cannot be used at full HP. In persistent PvE combat it costs the current turn and lets monsters respond, so the heal is a survival tradeoff rather than free throughput. Єгер supply is a narrow gold sink / class-flavor perk, not a broad shop or free power faucet; ranger's advantage is convenience around the same low-power item. Monster-side bandage acquisition uses existing loot/drop mechanics and one authored low-level loot entry rather than a new high-volume reward formula.
 
+`0.2.5` Bard Performance is a tiny social faucet, not a progression engine. A level 3+ Bard in Shynok rolls one frozen result from `2 * effective CHA + effective LUCK + level + bounded RNG[-6,+6]`; grades pay house gold `1/3/5/13`, clipped by a per-Bard Kyiv-day cap of `23`. The cooldown is `93` minutes and the audience response window is `13` minutes. Voluntary tips of `1/3/5/13` gold move existing player gold only after explicit audience choice and never count toward the house cap. This slice grants no XP, items, buffs, achievements, quest progress or combat advantage.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 

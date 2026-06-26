@@ -298,6 +298,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "завершити очікування сліду Єгеря локально",
     includeInMenu: false,
     devOnly: "grant"
+  },
+  {
+    command: "dev_reset_bard_performance",
+    icon: "🎶",
+    description: "скинути бардівський виступ локально",
+    includeInMenu: false,
+    devOnly: "grant"
   }
 ];
 

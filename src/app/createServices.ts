@@ -2,6 +2,7 @@ import type { BotServices } from "../bot/botServices";
 import type { AppConfig } from "../config/env";
 import { readAppVersion } from "../shared/appVersion";
 import { AdventureService } from "../services/adventureService";
+import { BardPerformanceService } from "../services/bardPerformanceService";
 import { CellarErrandService } from "../services/cellarErrandService";
 import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import { CombatBalanceAnalyticsService } from "../services/combatBalanceAnalyticsService";
@@ -63,6 +64,7 @@ export function createServices(
       repositories.soloCombatSessions,
       repositories.equipment
     ),
+    bardPerformance: new BardPerformanceService(repositories.bardPerformances),
     barrelRaidNotifications: repositories.barrelRaidNotifications,
     cellarErrand: new CellarErrandService(repositories.cooldowns, undefined, repositories.equipment),
     cellarGrownup: new CellarGrownupQuestService(

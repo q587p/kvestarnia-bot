@@ -59,7 +59,12 @@ type TavernCommandKeyboard =
   | boolean
   | "hall"
   | { state: "hall"; characterLevel?: number }
-  | { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" }
+  | {
+      state: "bar";
+      includeBottleTurnIn?: boolean;
+      problemQuestAction?: "turn-in" | "take" | "next";
+      bardPerformance?: boolean;
+    }
   | "front"
   | { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation }
   | "fighting-corner"
@@ -490,6 +495,7 @@ export async function sendKorchmaBar(
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
+    bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
     ...(problemQuestAction ? { problemQuestAction } : {})
   } as const;
 
@@ -583,6 +589,7 @@ async function sendText(
             : isBarKeyboard(keyboard)
               ? buildKorchmaBarKeyboard({
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn),
+                  bardPerformance: Boolean(keyboard.bardPerformance),
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })
             : keyboard === "fighting-corner"
@@ -640,9 +647,7 @@ function isFrontKeyboard(
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
 }
 
-function isBarKeyboard(
-  keyboard: TavernCommandKeyboard
-): keyboard is { state: "bar"; includeBottleTurnIn?: boolean; problemQuestAction?: "turn-in" | "take" | "next" } {
+function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "bar" }> {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
 }
 

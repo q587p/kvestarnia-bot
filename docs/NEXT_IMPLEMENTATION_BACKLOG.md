@@ -391,10 +391,10 @@ Canonical design doc: [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md).
 - `/hero` або окрема деталь показує активний харчовий баф без технічних id;
 - tests cover insufficient gold, five-buff limit, replace/refresh flow, stale confirm, HP/mana edge cases, fight consumption, coffee 75/60/50% positive scaling, 150/200/400% rebound scaling, and coffee blocking during negative phase.
 
-## Later — Шинок Bard Performance
+## Shipped in `0.2.5` — Шинок Bard Performance
 
 **Objective**
-Додати в `🍻 Шинок` бардівський виступ як малу культурну дію: бард раз на `93` хвилини або інший явно збалансований cooldown може спробувати заспівати, заграти або скласти сатиричний куплет, отримати трохи золота від закладу, малий role-action XP і добровільні реакції від присутніх. Може й не отримати золота, бо корчма має право на художню критику.
+Додано в `🍻 Шинок` бардівський виступ як малу культурну дію: Бард 3+ раз на `93` хвилини може спробувати заспівати, заграти або скласти сатиричний куплет, отримати трохи capped house gold і добровільні реакції від присутніх. Це shipped no-XP MVP; майбутні XP або інструментальні варіянти потребують окремого task.
 
 **Design source**
 
@@ -402,16 +402,16 @@ Canonical design doc: [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md).
 
 **Rules**
 
-- Почати з класового доступу: тільки `Бард` бачить дію `🎶 Виступити` у `🍻 Шинку`.
-- Кулдаун: рекомендований перший варіянт із design pack — `93` хвилини, з Kyiv-day cap для house payout і replay-safe результатом.
-- Результат залежить від `charisma` і `luck`, із bounded randomness і без показу точних шансів.
-- Музична манатка дає суттєвий бонус до перевірки або payout. Якщо манатка bard-only, бонус для барда більший; якщо universal, інші класи можуть отримати дрібний flavor/майбутній bonus, але не цю дію.
-- Результати: провал із жартом і `0` золота, скромні оплески з малим золотом, добрий виступ із кращим золотом, рідкісний великий успіх із записом на дошці або короткою реплікою корчмаря.
-- Давати малий role-action XP за завершений виступ, бо це реальна рольова дія гравця й персонажа. XP має бути capped, replay-safe, без problem-chain/quest/hunt/combat progress і не має перетворювати виступ на основний grind.
-- Не давати лут, бойовий баф, achievement power або прихований progression gate у першому slice. Це мале золото, малий XP і соціяльний flavor.
-- Не дозволяти виступ під час pending raid або інших станів, де пригодові дії заблоковані.
+- Тільки `Бард` 3+ бачить дію `🎶 Виступити` у `🍻 Шинку`.
+- Кулдаун: `93` хвилини, з Kyiv-day cap `23` gold для house payout і replay-safe результатом.
+- Результат залежить від effective `charisma`, `luck`, рівня і injected bounded randomness, без показу точних шансів.
+- Музичні манатки не входять у shipped MVP; вони лишаються future content/metadata task.
+- Результати: rough/pleasant/memorable/legendary із малим house payout `1/3/5/13`, clipped by cap.
+- No XP in the shipped MVP: `roleActionXp` is stored as `0`.
+- Не давати лут, бойовий баф, achievement power або прихований progression gate у першому slice. Це мале золото і соціяльний flavor.
+- Не дозволяти виступ під час pending raid, active combat або інших станів, де пригодові дії заблоковані.
 
-**Musical manatky starter pack**
+**Future musical manatky starter pack**
 
 Додати в loot/content pool кілька музичних манаток перед або разом із runtime-дією, бо зараз у контенті є бардівський flavor, але майже немає dedicated інструментів:
 
@@ -429,11 +429,10 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - `🍻 Шинок` shows `🎶 Виступити` only for bards with an eligible character state;
 - cooldown and Kyiv-day payout cap are idempotent;
 - payout is deterministic for a claimed action and replay does not reroll gold;
-- small role-action XP is granted at most once and does not count as combat/quest/problem progress;
+- no XP is granted in the shipped MVP;
 - charisma/luck influence the result within tested caps;
-- equipped or carried musical manatky affect performance according to clear metadata;
-- generated musical manatky appear in loot/content pool and item detail does not leak internal ids;
-- tests cover no-character, non-bard locked state, bard without instrument, bard with universal instrument, bard with bard-preferred/bard-only instrument, cooldown replay, and reward idempotency.
+- musical manatky remain future work with clear metadata before runtime use;
+- tests cover no-character, non-bard locked state, location/combat/raid/remort gates, cooldown replay, house cap, audience responses and reward idempotency.
 
 ## Later — Calendar Korchma Revels and Wednesday Frogs
 
