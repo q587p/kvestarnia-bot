@@ -291,6 +291,97 @@ describe("PrismaBardPerformanceRepository integration", () => {
     })).resolves.toMatchObject({ status: "offered", tipGold: 0 });
   });
 
+  it("blocks tip mutation after audience enters combat", async () => {
+    await seedRespondablePerformance();
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: "character-audience",
+        kind: "fight",
+        referenceId: "fight-audience"
+      }
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "tip",
+      tipGold: 5,
+      now: now(),
+      result: { action: "tip" }
+    });
+
+    expect(result.state).toBe("active-combat");
+    await expectOfferedReactionAndBalances("12345678-1234-4234-9234-000000000502");
+  });
+
+  it("blocks tip mutation after audience enters a pending Barrel raid", async () => {
+    await seedRespondablePerformance();
+    await prisma.user.update({
+      where: { id: "user-audience" },
+      data: { currentRaidId: "raid-barrel" }
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "tip",
+      tipGold: 5,
+      now: now(),
+      result: { action: "tip" }
+    });
+
+    expect(result.state).toBe("pending-raid");
+    await expectOfferedReactionAndBalances("12345678-1234-4234-9234-000000000502");
+  });
+
+  it("blocks tip mutation after audience remorts", async () => {
+    await seedRespondablePerformance();
+    await prisma.characterRemort.create({
+      data: {
+        characterId: "character-audience",
+        token: "remort-audience-1",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 25,
+        previousGold: 8,
+        displayNameSnapshot: "character-audience",
+        preservedPayloadJson: {}
+      }
+    });
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "tip",
+      tipGold: 5,
+      now: now(),
+      result: { action: "tip" }
+    });
+
+    expect(result.state).toBe("remort-mismatch");
+    await expectOfferedReactionAndBalances("12345678-1234-4234-9234-000000000502");
+  });
+
+  it("expires stale audience reactions without moving gold", async () => {
+    await seedRespondablePerformance();
+
+    const result = await repository.respondToPerformanceForTelegramUser(502n, {
+      reactionId: "12345678-1234-4234-9234-000000000502",
+      action: "tip",
+      tipGold: 5,
+      now: new Date("2026-06-26T10:14:00.000Z"),
+      result: { action: "tip" }
+    });
+
+    expect(result.state).toBe("expired");
+    await expect(prisma.character.findUnique({ where: { id: "character-audience" } })).resolves.toMatchObject({
+      gold: 8
+    });
+    await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
+      gold: 0
+    });
+    await expect(prisma.bardPerformanceReaction.findUnique({
+      where: { id: "12345678-1234-4234-9234-000000000502" }
+    })).resolves.toMatchObject({ status: "expired", tipGold: 0 });
+  });
+
   it("returns attempted tip amount without mutating when audience lacks gold", async () => {
     await seedCharacter({ telegramUserId: 401n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3, gold: 0 });
     await seedCharacter({ telegramUserId: 402n, userId: "user-audience", characterId: "character-audience", gold: 3 });
