@@ -263,6 +263,73 @@ describe("combat domain engine", () => {
     expect(result.state.hero.hp).toBeGreaterThanOrEqual(10);
   });
 
+  it("applies hero-side activation effects during a two-enemy item turn", () => {
+    const state = startCombat({ hero: warrior, monster: { ...monster, attack: 6 }, enemies: [monster, secondMonster] });
+    state.hero.hp = 10;
+    state.cooldowns = {
+      skill: {
+        id: "skill.forceful-strike",
+        remainingTurns: 2
+      }
+    };
+    state.monsterRuntime = makeHeroBurnRuntime(2);
+
+    const result = resolveCombatItemTurn({
+      state,
+      item: {
+        id: "item.test-combat-bandage",
+        name: "Тестовий бойовий бинт",
+        effect: { kind: "heal-hp", amount: 2 }
+      },
+      hero: warrior,
+      monster: { ...monster, attack: 6 },
+      enemies: [{ ...monster, attack: 6 }, secondMonster],
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toMatchObject({
+      action: "item",
+      heroHealing: 2,
+      heroEffectDamage: 3
+    });
+    expect(result.summary.enemyActions).toHaveLength(2);
+    expect(result.state.cooldowns?.skill?.remainingTurns).toBe(1);
+    expect(result.state.lastTurn?.heroEffectDamage).toBe(3);
+    expect(result.state.turnLog?.at(-1)?.summary.heroEffectDamage).toBe(3);
+  });
+
+  it("does not let enemies act when a two-enemy item activation effect defeats the hero", () => {
+    const state = startCombat({ hero: warrior, monster: { ...monster, attack: 6 }, enemies: [monster, secondMonster] });
+    state.hero.hp = 1;
+    state.monsterRuntime = makeHeroBurnRuntime(1);
+
+    const result = resolveCombatItemTurn({
+      state,
+      item: {
+        id: "item.test-combat-bandage",
+        name: "Тестовий бойовий бинт",
+        effect: { kind: "heal-hp", amount: 1 }
+      },
+      hero: warrior,
+      monster: { ...monster, attack: 6 },
+      enemies: [{ ...monster, attack: 6 }, secondMonster],
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("lost");
+    expect(result.summary).toMatchObject({
+      action: "item",
+      heroHealing: 1,
+      heroEffectDamage: 3,
+      monsterDamage: 3,
+      monsterOutcome: "lost"
+    });
+    expect(result.summary.enemyActions).toBeUndefined();
+    expect(result.state.hero.hp).toBe(0);
+  });
+
   it("counts a final-enemy same-turn response KO as a hero win", () => {
     const result = resolveCombatTurn({
       state: {
@@ -1759,6 +1826,30 @@ function makeStateAfterPrimaryEnemyDeath(): CombatState {
   }
 
   return result.state;
+}
+
+function makeHeroBurnRuntime(remainingTargetActivations: number): NonNullable<CombatState["monsterRuntime"]> {
+  return {
+    version: 1,
+    rulesVersion: "monster-abilities-v1",
+    aiProfile: "skirmisher",
+    loadoutIds: ["monster.test-burn"],
+    cooldowns: {},
+    onceUsedAbilityIds: [],
+    consecutiveAbilityUses: 0,
+    effects: [{
+      id: "burn:test",
+      sourceAbilityId: "monster.test-burn",
+      sourceActor: "monster",
+      target: "hero",
+      kind: "burn",
+      value: 0.5,
+      polarity: "harmful",
+      removable: true,
+      remainingTargetActivations
+    }],
+    ownActionCount: 0
+  };
 }
 
 function expectPrimaryEnemyMirror(state: CombatState, enemyId: string): void {

@@ -60,6 +60,7 @@ export type ItemUseConfirmRepositoryResult =
 export type ItemUseCancelRepositoryResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
+  | { state: "stale-selection"; order: ItemUseOrderRecord }
   | { state: "cancelled" | "expired" | "completed" | "replayed"; order: ItemUseOrderRecord };
 
 export interface ItemUseRepository {

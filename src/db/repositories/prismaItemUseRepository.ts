@@ -64,10 +64,15 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
+          const effect = getItemUseEffect(input.item);
+          if (!effect || blocksAccidentalItemUse(input.item)) {
+            return { state: "not-usable" };
+          }
+          const refreshed = await refreshPendingPreview(tx, existing, character, input.itemContents, input.now, effect);
           return {
             state: "preview-replayed",
             character: toCharacterRecord(character),
-            order: existing
+            order: refreshed
           };
         }
 
@@ -138,7 +143,11 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       });
     } catch (error) {
       if (isLiveReservationConflict(error)) {
-        return { state: "reserved" };
+        return await recoverLivePreviewAfterReservationConflict(this.prisma, telegramUserId, {
+          itemId: input.item.id,
+          itemContents: input.itemContents,
+          now: input.now
+        }) ?? { state: "reserved" };
       }
 
       throw error;
@@ -177,14 +186,18 @@ export class PrismaItemUseRepository implements ItemUseRepository {
             itemId: order.itemId,
             itemName: order.itemName
           }, "pending");
-          return { state: "expired", order: expired };
+          return mapCanonicalConfirmResult(expired.order, character, expired.changed ? "expired" : undefined);
         }
 
         if (character.activeCombatLease) {
           return { state: "combat-locked", order };
         }
 
-        if (getIncludedRemortCount(character) !== order.remortCount) {
+        if (
+          getIncludedRemortCount(character) !== order.remortCount ||
+          order.preview.rulesVersion !== ITEM_USE_RULES_VERSION ||
+          order.quantity !== 1
+        ) {
           return { state: "stale-selection", order };
         }
 
@@ -196,7 +209,8 @@ export class PrismaItemUseRepository implements ItemUseRepository {
 
         if (
           item.name !== order.itemName ||
-          createItemUseFingerprint(item) !== order.itemFingerprint
+          createItemUseFingerprint(item) !== order.itemFingerprint ||
+          effect.kind !== order.effectKind
         ) {
           return { state: "stale-selection", order };
         }
@@ -259,10 +273,18 @@ export class PrismaItemUseRepository implements ItemUseRepository {
             itemId: order.itemId,
             itemName: order.itemName
           }, "processing");
+          const updated = await tx.character.findUniqueOrThrow({
+            where: { id: character.id },
+            include: characterInclude
+          });
+          const canonical = mapCanonicalConfirmResult(full.order, updated, full.changed ? "full-hp" : undefined);
+          if (canonical.state !== "full-hp") {
+            return canonical;
+          }
           return {
             state: "full-hp",
-            character: toCharacterRecord(character),
-            order: full
+            character: toCharacterRecord(updated),
+            order: full.order
           };
         }
 
@@ -308,11 +330,8 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           include: characterInclude
         });
 
-        return {
-          state: "used",
-          character: toCharacterRecord(updated),
-          order: completed
-        };
+        const canonical = mapCanonicalConfirmResult(completed.order, updated, completed.changed ? "used" : undefined);
+        return canonical;
       });
     } catch (error) {
       if (error instanceof StaleItemUseRollback) {
@@ -358,7 +377,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           itemId: order.itemId,
           itemName: order.itemName
         }, "pending");
-        return { state: "expired", order: expired };
+        return mapCanonicalCancelResult(expired.order, expired.changed ? "expired" : undefined);
       }
 
       const cancelled = await setTerminalOrder(tx, order.id, "cancelled", input.now, {
@@ -367,7 +386,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         itemId: order.itemId,
         itemName: order.itemName
       }, "pending");
-      return { state: "cancelled", order: cancelled };
+      return mapCanonicalCancelResult(cancelled.order, cancelled.changed ? "cancelled" : undefined);
     });
   }
 }
@@ -470,6 +489,76 @@ async function getReservedItemIds(
   }
 
   return [...reserved];
+}
+
+async function refreshPendingPreview(
+  tx: TxClient,
+  order: ItemUseOrderRecord,
+  character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
+  itemContents: readonly ItemContent[],
+  now: Date,
+  effect: NonNullable<ReturnType<typeof getItemUseEffect>>
+): Promise<ItemUseOrderRecord> {
+  const preview = buildPreview(character, itemContents, now, effect);
+  const updated = await tx.itemUseOrder.updateMany({
+    where: {
+      id: order.id,
+      status: "pending"
+    },
+    data: {
+      previewJson: preview as unknown as Prisma.InputJsonValue,
+      updatedAt: now
+    }
+  });
+
+  if (updated.count !== 1) {
+    return mapOrder(await tx.itemUseOrder.findUnique({ where: { id: order.id } })) ?? order;
+  }
+
+  return mapOrder(await tx.itemUseOrder.findUnique({ where: { id: order.id } })) ?? order;
+}
+
+async function recoverLivePreviewAfterReservationConflict(
+  prisma: PrismaClient,
+  telegramUserId: bigint,
+  input: {
+    itemId: string;
+    itemContents: readonly ItemContent[];
+    now: Date;
+  }
+): Promise<ItemUsePreviewRepositoryResult | null> {
+  return prisma.$transaction(async (tx) => {
+    const character = await findCharacter(tx, telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const item = input.itemContents.find((candidate) => candidate.id === input.itemId);
+    const effect = item ? getItemUseEffect(item) : null;
+    if (!item || !effect || blocksAccidentalItemUse(item)) {
+      return null;
+    }
+
+    const existing = mapOrder(await tx.itemUseOrder.findFirst({
+      where: {
+        characterId: character.id,
+        itemId: input.itemId,
+        status: "pending",
+        expiresAt: { gt: input.now }
+      },
+      orderBy: { createdAt: "desc" }
+    }));
+
+    if (!existing) {
+      return null;
+    }
+
+    return {
+      state: "preview-replayed",
+      character: toCharacterRecord(character),
+      order: await refreshPendingPreview(tx, existing, character, input.itemContents, input.now, effect)
+    };
+  });
 }
 
 function buildPreview(
@@ -608,6 +697,53 @@ async function replayTerminalConfirm(
   return { state: "stale-selection", order: current };
 }
 
+function mapCanonicalConfirmResult(
+  order: ItemUseOrderRecord,
+  character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
+  preferredState?: "used" | "full-hp" | "expired"
+): ItemUseConfirmRepositoryResult {
+  if (order.status === "completed") {
+    if (order.result?.kind === "full-hp") {
+      return { state: "full-hp", character: toCharacterRecord(character), order };
+    }
+
+    return {
+      state: preferredState === "used" ? "used" : "replayed",
+      character: toCharacterRecord(character),
+      order
+    };
+  }
+
+  if (order.status === "cancelled") {
+    return { state: "cancelled", order };
+  }
+
+  if (order.status === "expired") {
+    return { state: "expired", order };
+  }
+
+  return { state: "stale-selection", order };
+}
+
+function mapCanonicalCancelResult(
+  order: ItemUseOrderRecord,
+  preferredState?: "cancelled" | "expired"
+): ItemUseCancelRepositoryResult {
+  if (order.status === "completed") {
+    return { state: "completed", order };
+  }
+
+  if (order.status === "cancelled") {
+    return { state: preferredState === "cancelled" ? "cancelled" : "replayed", order };
+  }
+
+  if (order.status === "expired") {
+    return { state: "expired", order };
+  }
+
+  return { state: "stale-selection", order };
+}
+
 async function setTerminalOrder(
   tx: TxClient,
   orderId: string,
@@ -615,8 +751,8 @@ async function setTerminalOrder(
   now: Date,
   result: ItemUseResult,
   expectedStatus: "pending" | "processing"
-): Promise<ItemUseOrderRecord> {
-  await tx.itemUseOrder.updateMany({
+): Promise<{ order: ItemUseOrderRecord; changed: boolean }> {
+  const updatedRows = await tx.itemUseOrder.updateMany({
     where: {
       id: orderId,
       status: expectedStatus
@@ -634,7 +770,10 @@ async function setTerminalOrder(
     throw new Error("Item use order disappeared during terminal update.");
   }
 
-  return updated;
+  return {
+    order: updated,
+    changed: updatedRows.count === 1
+  };
 }
 
 function mapOrder(record: ItemUseOrder | null): ItemUseOrderRecord | null {

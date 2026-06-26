@@ -109,5 +109,9 @@ export function presentItemUseCancel(result: ItemUseCancelRepositoryResult): str
     return "Підтвердження вже прострочилось. Бинт не витрачено.";
   }
 
+  if (result.state === "stale-selection") {
+    return "Бинт зараз завершує іншу дію. Відкрийте манатку ще раз.";
+  }
+
   return "Використання скасовано. Бинт лишився в торбі.";
 }

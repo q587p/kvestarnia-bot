@@ -1452,6 +1452,50 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(recent.map((session) => session.monsterId)).toEqual(["monster.deadline-spider"]);
   });
 
+  it("does not consume a combat item when the active solo lease is missing", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-combat-item-missing-lease",
+      characterId: "character-combat-item-missing-lease",
+      telegramUserId: 9401n
+    });
+    const state = makeCombatState("combat-item-missing-lease", "monster.deadline-spider");
+    state.hero.hp = 10;
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "combat-item-missing-lease",
+        characterId: "character-combat-item-missing-lease",
+        monsterId: "monster.deadline-spider",
+        stateJson: state,
+        status: "active",
+        turn: 1,
+        expiresAt: new Date("2026-06-24T14:30:00.000Z")
+      }
+    });
+    await expect(repository.applyCombatItemTurnById("combat-item-missing-lease", 1, {
+      telegramUserId: 9401n,
+      characterId: "character-combat-item-missing-lease",
+      itemId: "item.responsible-panic-bandage",
+      now: new Date("2026-06-24T14:00:00.000Z"),
+      state: {
+        ...state,
+        turn: 2,
+        hero: {
+          ...state.hero,
+          hp: 17
+        }
+      },
+      status: "active",
+      expiresAt: new Date("2026-06-24T14:23:00.000Z")
+    })).resolves.toMatchObject({
+      outcome: "stale-turn",
+      session: null
+    });
+
+    await expect(prisma.soloCombatSession.findUnique({
+      where: { id: "combat-item-missing-lease" }
+    })).resolves.toMatchObject({ turn: 1, status: "active" });
+  });
+
   it("scans past newer active and non-ordinary sessions for recent ordinary monsters", async () => {
     await seedCharacter(prisma, {
       userId: "user-history",

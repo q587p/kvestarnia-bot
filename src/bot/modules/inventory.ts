@@ -246,7 +246,7 @@ async function handleItemUseCallback(
       ctx,
       result.state === "cancelled" || result.state === "replayed"
         ? { text: "Скасовано." }
-        : { show_alert: result.state === "invalid-token" }
+        : { show_alert: result.state === "invalid-token" || result.state === "stale-selection" }
     );
     await safeEditMessageText(ctx, presentItemUseCancel(result), {
       ...HTML_MESSAGE_OPTIONS,

@@ -634,6 +634,26 @@ describe("YegerQuestService", () => {
     expect(world.itemGrants).toEqual([]);
   });
 
+  it("replays the canonical Yeger receipt when cancel loses to confirm", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 20, classId: "class.ranger" });
+    const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    await expect(world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({ state: "bought", spentGold: YEGER_RANGER_BANDAGE_PRICE });
+    await expect(world.service().cancelBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({
+        state: "replayed",
+        spentGold: YEGER_RANGER_BANDAGE_PRICE,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+      });
+    expect(world.character?.gold).toBe(16);
+    expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+  });
+
   it("blocks Yeger bandage purchase without enough gold", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 0, classId: "class.warrior" });

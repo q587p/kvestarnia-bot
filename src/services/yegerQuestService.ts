@@ -575,11 +575,28 @@ export class YegerQuestService {
     }
 
     const summary = summarizeCharacter(character);
-    const cancelled = await this.dailyActions.findForTelegramUser(telegramUserId, {
+    const decision = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      localDate: token
+    });
+    if (decision) {
+      if (getPurchaseDecisionKind(decision.resultJson) === "cancel") {
+        return { state: "cancelled", character: summary };
+      }
+
+      return {
+        state: "replayed",
+        character: summary,
+        spentGold: decision.spentGold,
+        itemGrants: enrichRewardItemGrants(readAppliedItemGrants(decision.resultJson))
+      };
+    }
+
+    const legacyCancelled = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
       localDate: token
     });
-    if (cancelled) {
+    if (legacyCancelled) {
       return { state: "cancelled", character: summary };
     }
 
@@ -617,8 +634,10 @@ export class YegerQuestService {
       },
       resultJson: {
         kind: "yeger-bandage-purchase-confirm",
+        rulesVersion: "yeger-bandage-purchase-v1",
         token,
         price,
+        classId: summary.classId,
         itemId: BANDAGE_ITEM_ID
       }
     });
@@ -661,6 +680,10 @@ export class YegerQuestService {
       localDate: token
     });
     if (completed) {
+      if (getPurchaseDecisionKind(completed.resultJson) === "cancel") {
+        return { state: "cancelled", character: summarizeCharacter(character) };
+      }
+
       return {
         state: "replayed",
         character: summarizeCharacter(character),
@@ -678,7 +701,7 @@ export class YegerQuestService {
     }
 
     const cancel = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
       localDate: token,
       rewardXp: 0,
       rewardGold: 0,
@@ -687,13 +710,29 @@ export class YegerQuestService {
       },
       resultJson: {
         kind: "yeger-bandage-purchase-cancel",
+        rulesVersion: "yeger-bandage-purchase-v1",
         token
       }
     });
 
-    return cancel
-      ? { state: "cancelled", character: summarizeCharacter(cancel.character) }
-      : { state: "no-character" };
+    if (!cancel) {
+      return { state: "no-character" };
+    }
+
+    if (cancel.state === "insufficient-gold") {
+      throw new Error("Yeger bandage cancel unexpectedly required gold.");
+    }
+
+    if (getPurchaseDecisionKind(cancel.action.resultJson) === "confirm") {
+      return {
+        state: "replayed",
+        character: summarizeCharacter(cancel.character),
+        spentGold: cancel.action.spentGold,
+        itemGrants: enrichRewardItemGrants(readAppliedItemGrants(cancel.action.resultJson))
+      };
+    }
+
+    return { state: "cancelled", character: summarizeCharacter(cancel.character) };
   }
 
   async buyBandageForTelegramUser(telegramUserId: bigint): Promise<YegerBandageSupplyResult> {
@@ -892,6 +931,23 @@ function parsePurchasePreview(value: unknown): {
         expiresAt
       }
     : null;
+}
+
+function getPurchaseDecisionKind(value: unknown): "confirm" | "cancel" | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const kind = (value as { kind?: unknown }).kind;
+  if (kind === "yeger-bandage-purchase-confirm") {
+    return "confirm";
+  }
+
+  if (kind === "yeger-bandage-purchase-cancel") {
+    return "cancel";
+  }
+
+  return null;
 }
 
 function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity: number }> {

@@ -765,6 +765,14 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return { outcome: "stale-turn", session: null };
       }
 
+      const lease = await tx.activeCombatLease.findUnique({
+        where: { characterId: input.characterId },
+        select: { kind: true, referenceId: true }
+      });
+      if (!lease || lease.kind !== "solo" || lease.referenceId !== sessionId) {
+        return { outcome: "stale-turn", session: null };
+      }
+
       await tx.characterItem.updateMany({
         where: { characterId: input.characterId, itemId: input.itemId },
         data: { updatedAt: input.now }

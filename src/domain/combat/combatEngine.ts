@@ -490,7 +490,8 @@ function resolveMultiEnemyCombatItemTurn(
   const heroHealing = resolveCombatItemHealing(nextState, item);
   nextState.hero.hp = Math.min(nextState.hero.hpMax, nextState.hero.hp + heroHealing);
 
-  const enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
+  const activationPhase = resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
+  const { enemyPhase, heroEffectDamage } = activationPhase;
   nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
   syncPrimaryCombatEnemy(nextState);
@@ -499,7 +500,8 @@ function resolveMultiEnemyCombatItemTurn(
     heroOutcome: "item-used",
     monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
     heroDamage: 0,
-    monsterDamage: enemyPhase.monsterDamage,
+    monsterDamage: activationPhase.monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     item,
@@ -815,7 +817,8 @@ function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombat
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
 
-  const enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
+  const activationPhase = resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
+  const { enemyPhase, heroEffectDamage } = activationPhase;
   nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
   syncPrimaryCombatEnemy(nextState);
@@ -825,7 +828,8 @@ function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombat
     heroOutcome: "inactive",
     monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
     heroDamage: 0,
-    monsterDamage: enemyPhase.monsterDamage,
+    monsterDamage: activationPhase.monsterDamage,
+    heroEffectDamage,
     manaSpent: 0,
     critical: false,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
@@ -906,16 +910,15 @@ function resolveMultiEnemyHeroAttack(
   if (nextState.hero.hp <= 0) {
     nextState.status = getLivingCombatEnemies(nextState).length === 0 ? "won" : "lost";
   } else {
-    const heroEffect = applyHeroActivationMonsterEffects(nextState);
-    heroEffectDamage = heroEffect.damage;
-    monsterDamage += heroEffectDamage;
-    const enemyPhase = resolveLivingEnemyPhase(
+    const activationPhase = resolveHeroActivationAndLivingEnemyPhase(
       nextState,
       input,
       skill?.monsterDamageReduction ?? 0,
       enemyPhaseParticipants
     );
-    monsterDamage += enemyPhase.monsterDamage;
+    heroEffectDamage = activationPhase.heroEffectDamage;
+    monsterDamage += activationPhase.monsterDamage;
+    const enemyPhase = activationPhase.enemyPhase;
     if (nextState.hero.hp > 0 && enemyPhase.defendCounter && monsterDamage > 0) {
       counterDamage = rollDefendCounterDamage(input.hero, primaryStats, input.rng);
       const counterTarget = getPrimaryCombatEnemy(nextState);
@@ -1007,10 +1010,10 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
   if (fled) {
     nextState.status = "fled";
   } else {
-    const heroEffect = applyHeroActivationMonsterEffects(nextState);
-    heroEffectDamage = heroEffect.damage;
-    enemyPhase = resolveLivingEnemyPhase(nextState, input, 0);
-    enemyPhase.monsterDamage += heroEffectDamage;
+    const activationPhase = resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
+    heroEffectDamage = activationPhase.heroEffectDamage;
+    enemyPhase = activationPhase.enemyPhase;
+    enemyPhase.monsterDamage = activationPhase.monsterDamage;
     nextState.status = nextState.hero.hp <= 0 ? "lost" : "active";
   }
 
@@ -1302,6 +1305,33 @@ function buildSummary(input: {
     ...(input.heroHealing ? { heroHealing: input.heroHealing } : {}),
     ...(input.enemyActions ? { enemyActions: input.enemyActions } : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
+  };
+}
+
+function resolveHeroActivationAndLivingEnemyPhase(
+  state: CombatState,
+  input: ResolveCombatTurnInput,
+  damageReduction: number,
+  participants?: readonly CombatEnemyState[]
+): {
+  heroEffectDamage: number;
+  monsterDamage: number;
+  enemyPhase: ReturnType<typeof resolveLivingEnemyPhase>;
+} {
+  const heroEffect = applyHeroActivationMonsterEffects(state);
+  const heroEffectDamage = heroEffect.damage;
+  const enemyPhase = state.hero.hp > 0
+    ? resolveLivingEnemyPhase(state, input, damageReduction, participants)
+    : {
+        monsterDamage: 0,
+        enemyActions: [],
+        defendCounter: false
+      };
+
+  return {
+    heroEffectDamage,
+    monsterDamage: heroEffectDamage + enemyPhase.monsterDamage,
+    enemyPhase
   };
 }
 

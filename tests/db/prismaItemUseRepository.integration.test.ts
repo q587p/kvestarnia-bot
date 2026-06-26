@@ -136,6 +136,107 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(17);
   });
 
+  it("refreshes a replayed live preview with the current recovery snapshot", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+
+    await expect(createPreview("use-token-refresh-1")).resolves.toMatchObject({
+      state: "preview-created",
+      order: {
+        preview: {
+          hpBefore: 10,
+          hpAfter: 17
+        }
+      }
+    });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { hpCurrent: 14 }
+    });
+
+    await expect(createPreview("use-token-refresh-2")).resolves.toMatchObject({
+      state: "preview-replayed",
+      order: {
+        token: "use-token-refresh-1",
+        preview: {
+          hpBefore: 14,
+          hpAfter: 21
+        }
+      }
+    });
+  });
+
+  it("recovers the canonical live preview after duplicate preview reservation races", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+
+    const results = await Promise.all([
+      createPreview("use-token-race-1"),
+      createPreview("use-token-race-2")
+    ]);
+
+    expect(results.map((result) => result.state).sort()).toEqual(["preview-created", "preview-replayed"]);
+    expect(await prisma.itemUseOrder.count()).toBe(1);
+  });
+
+  it("reports the canonical completed order when cancel races behind confirm", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+    await createPreview("use-token-cancel-after-complete");
+    await repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-cancel-after-complete",
+      itemContents: items,
+      now: now()
+    });
+
+    await expect(repository.cancelForTelegramUser(telegramUserId, {
+      token: "use-token-cancel-after-complete",
+      now: now()
+    })).resolves.toMatchObject({
+      state: "completed",
+      order: {
+        status: "completed",
+        result: {
+          kind: "heal-hp"
+        }
+      }
+    });
+    await expectBandageQuantity(0);
+    await expectCharacterHp(17);
+  });
+
+  it("does not fabricate cancel or expiry for a processing order", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+    await createPreview("use-token-processing");
+    await prisma.itemUseOrder.update({
+      where: { token: "use-token-processing" },
+      data: { status: "processing" }
+    });
+
+    await expect(repository.cancelForTelegramUser(telegramUserId, {
+      token: "use-token-processing",
+      now: new Date("2026-06-25T09:30:00.000Z")
+    })).resolves.toMatchObject({
+      state: "stale-selection",
+      order: {
+        status: "processing"
+      }
+    });
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-processing",
+      itemContents: items,
+      now: new Date("2026-06-25T09:30:00.000Z")
+    })).resolves.toMatchObject({
+      state: "stale-selection",
+      order: {
+        status: "processing"
+      }
+    });
+    await expectBandageQuantity(1);
+    await expectCharacterHp(10);
+  });
+
   it("blocks full HP without consuming a bandage", async () => {
     await seedCharacter({ hpCurrent: 41, hpMax: 25 });
     await seedBandages(1);
