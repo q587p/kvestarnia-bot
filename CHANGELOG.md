@@ -7,10 +7,10 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.6] - 12026-06-26 - Passage Search MVP
+## [0.2.6] - 12026-06-27 - Passage Search MVP
 
 ### Added
-- Added timed `🔎 Пошукати` actions for the `Спуск до Низу` surface and all three first-tier Nyz passages.
+- Added timed `🔎 Пошукати` actions for the `Спуск до Низу` surface, the `Ярус I: Сутерени Корчми` choice card and all three first-tier Nyz passages.
 - Added durable `passage_search_actions` persistence with one running search per character, replay-safe terminal results, server-owned tokens and active-action locking.
 - Added per-node search cooldowns through existing character cooldown storage, so searching one passage does not consume the cooldown for another passage or the descent surface.
 - Added a small deterministic passage-search loot roll with gold and the existing `Бинт відповідальної паніки`; `Спуск до Низу` uses a separate tiny safe table.
@@ -20,8 +20,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused domain and callback tests for search constants, danger/loot behavior and callback parser limits.
 
 ### Changed
-- Nyz passage preview cards now include `🔎 Пошукати` beside `⚔️ Атакувати`; the descent surface also offers a safe search button.
-- Search start callbacks now re-read current presence server-side: descent search only starts from `Низ`, passage search only from the matching passage, and stale remote buttons do not spend cooldown, create search rows, refresh encounters or start combat.
+- Nyz passage preview cards now include `🔎 Пошукати` beside `⚔️ Атакувати`; the actual `Спуск до Низу` and `Ярус I: Сутерени Корчми` cards also offer safe search buttons.
+- Search start callbacks now re-read current presence server-side: descent search only starts from `Низ`, the `Ярус I` safe search only starts from `Сутерени Корчми`, passage search only from the matching passage, and stale remote buttons do not spend cooldown, create search rows, refresh encounters or start combat.
 - Active search now blocks old fight/place/reply-keyboard actions with a confirm-cancel card instead of letting stale buttons start movement or combat over the timer.
 - Search cooldown is consumed at start and is not refunded by cancel, empty results or monster attacks.
 

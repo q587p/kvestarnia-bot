@@ -4,6 +4,7 @@ import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbac
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeDescentSearchStartCallbackData } from "../callbacks/passageSearchCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import {
@@ -171,7 +172,10 @@ export function buildKorchmaDeepKeyboard(
     keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData()).row();
   }
 
-  return keyboard.text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
+  return keyboard
+    .text("🔎 Пошукати", makeDescentSearchStartCallbackData())
+    .row()
+    .text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
 }
 
 export function buildKorchmaArrivalBoardKeyboard(): InlineKeyboard {

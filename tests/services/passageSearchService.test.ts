@@ -12,6 +12,7 @@ import type { PassageSearchLoot, PassageSearchSnapshot } from "../../src/domain/
 import { PassageSearchService } from "../../src/services/passageSearchService";
 import {
   PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_HALL
 } from "../../src/services/presenceService";
@@ -30,6 +31,44 @@ describe("PassageSearchService", () => {
     })).resolves.toEqual({ state: "blocked", reason: "stale-location" });
     expect(repo.startCalls).toBe(0);
     expect(fight.overviewCalls).toBe(0);
+  });
+
+  it("rejects stale deep level choice searches before cooldown or action mutation", async () => {
+    const repo = new FakePassageSearchRepository();
+    const fight = new FakeFightService();
+    const service = new PassageSearchService(repo, fight as never, () => now);
+
+    await expect(service.startDeepLevelOneSearch(telegramUserId, {
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP
+    })).resolves.toEqual({ state: "blocked", reason: "stale-location" });
+    expect(repo.startCalls).toBe(0);
+    expect(fight.overviewCalls).toBe(0);
+  });
+
+  it("starts safe deep level choice search without creating or refreshing a monster preview", async () => {
+    const repo = new FakePassageSearchRepository();
+    const fight = new FakeFightService();
+    const service = new PassageSearchService(repo, fight as never, () => now);
+
+    const result = await service.startDeepLevelOneSearch(telegramUserId, {
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
+    });
+
+    expect(result.state).toBe("started");
+    expect(repo.startCalls).toBe(1);
+    expect(fight.overviewCalls).toBe(1);
+    expect(fight.previewCalls).toBe(0);
+    expect(repo.action?.payload).toMatchObject({
+      nodeKey: "location:deep-level1",
+      nodeKind: "location",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      safeAtStart: true,
+      dangerTier: 0,
+      searchTier: 0
+    });
+    expect(repo.action?.payload.encounterToken).toBeUndefined();
+    expect(repo.action?.payload.passage).toBeUndefined();
+    expect(repo.action?.endsAt.getTime() - repo.action!.startedAt.getTime()).toBe(23_000);
   });
 
   it("rejects stale passage starts before previewing or spending cooldown", async () => {

@@ -3,6 +3,7 @@ import type {
   PassageSearchCheckResult,
   PassageSearchStartResult
 } from "../../services/passageSearchService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1 } from "../../services/presenceService";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 type SearchResult = PassageSearchStartResult | PassageSearchCheckResult | PassageSearchCancelPreviewResult;
@@ -94,8 +95,18 @@ export function presentPassageSearch(result: SearchResult): string {
   }
 }
 
-function presentNodeLine(snapshot: { nodeKind: "passage" | "location"; safeAtStart?: boolean; monsterNameAtStart?: string; monsterLevelAtStart?: number }): string {
+function presentNodeLine(snapshot: {
+  nodeKind: "passage" | "location";
+  originLocationId?: string;
+  safeAtStart?: boolean;
+  monsterNameAtStart?: string;
+  monsterLevelAtStart?: number;
+}): string {
   if (snapshot.nodeKind === "location") {
+    if (snapshot.originLocationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1) {
+      return "Сутерени Корчми сьогодні шурхотять дрібним пилом.";
+    }
+
     return "Спуск до Низу сьогодні виглядає майже безпечним.";
   }
 

@@ -16,6 +16,7 @@ import type { PersistentFightDifficultyId, PersistentFightPassageAttackResult, F
 import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import {
   PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
@@ -192,6 +193,44 @@ export class PassageSearchService {
       nodeKey: "location:descent-to-nyz",
       nodeKind: "location",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP,
+      durationMs: DESCENT_SEARCH_DURATION_MS,
+      safeAtStart: true,
+      dangerTier: 0,
+      searchTier: 0,
+      playerLuckSnapshot: overview.character.stats.luck
+    });
+
+    return this.startWithSnapshot(telegramUserId, snapshot);
+  }
+
+  async startDeepLevelOneSearch(
+    telegramUserId: bigint,
+    input: { currentLocationId?: string } = {}
+  ): Promise<PassageSearchStartResult> {
+    if (!isCurrentLocation(input.currentLocationId, PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1)) {
+      return { state: "blocked", reason: "stale-location" };
+    }
+
+    const overview = await this.fights.getFightOverviewForTelegramUser(telegramUserId);
+
+    if (overview.state === "no-character") {
+      return { state: "no-character" };
+    }
+
+    if (overview.state === "needs-rest") {
+      return { state: "needs-rest", character: overview.character };
+    }
+
+    if (overview.state !== "persistent-ready") {
+      return { state: "blocked", reason: "not-ready" };
+    }
+
+    const now = this.clock();
+    const snapshot = buildSnapshot({
+      now,
+      nodeKey: "location:deep-level1",
+      nodeKind: "location",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
       durationMs: DESCENT_SEARCH_DURATION_MS,
       safeAtStart: true,
       dangerTier: 0,

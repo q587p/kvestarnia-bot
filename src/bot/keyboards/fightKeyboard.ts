@@ -29,6 +29,7 @@ import {
 } from "../callbacks/fightCallbackData";
 import {
   makeDescentSearchStartCallbackData,
+  makeDeepLevelOneSearchStartCallbackData,
   makePassageSearchAskCancelCallbackData,
   makePassageSearchCancelCallbackData,
   makePassageSearchCheckCallbackData,
@@ -288,6 +289,8 @@ export function buildPersistentFightDifficultyKeyboard(): InlineKeyboard {
     .text("🚪 Прямий прохід", makePlaceCallbackData("deep-straight"))
     .row()
     .text("➡️ Правий прохід", makePlaceCallbackData("deep-right"))
+    .row()
+    .text("🔎 Пошукати", makeDeepLevelOneSearchStartCallbackData())
     .row()
     .text("⬆️ Піднятися назад", makePlaceCallbackData("deep"));
 }

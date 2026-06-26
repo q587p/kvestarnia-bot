@@ -2,6 +2,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import {
+  makeDeepLevelOneSearchStartCallbackData,
+  makeDescentSearchStartCallbackData
+} from "../../src/bot/callbacks/passageSearchCallbackData";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -480,6 +484,12 @@ describe("fight command", () => {
           ],
           [
             {
+              text: "🔎 Пошукати",
+              callback_data: makeDescentSearchStartCallbackData()
+            }
+          ],
+          [
+            {
               text: "⬇️ Спуститися",
               callback_data: makePlaceCallbackData("deep-level1")
             }
@@ -541,6 +551,12 @@ describe("fight command", () => {
           ],
           [
             {
+              text: "🔎 Пошукати",
+              callback_data: makeDeepLevelOneSearchStartCallbackData()
+            }
+          ],
+          [
+            {
               text: "⬆️ Піднятися назад",
               callback_data: makePlaceCallbackData("deep")
             }
@@ -588,6 +604,7 @@ describe("fight command", () => {
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup.inline_keyboard).toEqual([
       [{ text: "⬆️ Повернутися до зали", callback_data: makePlaceCallbackData("hall") }],
+      [{ text: "🔎 Пошукати", callback_data: makeDescentSearchStartCallbackData() }],
       [{ text: "⬇️ Спуститися", callback_data: makePlaceCallbackData("deep-level1") }]
     ]);
   });

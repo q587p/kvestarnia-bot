@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeDescentSearchStartCallbackData,
+  makeDeepLevelOneSearchStartCallbackData,
   makePassageSearchAskCancelCallbackData,
   makePassageSearchCancelCallbackData,
   makePassageSearchCheckCallbackData,
@@ -47,6 +48,10 @@ describe("passage search callback data", () => {
     expect(parsePassageSearchCallbackData(makeDescentSearchStartCallbackData())).toEqual({
       ok: true,
       value: { type: "start-descent" }
+    });
+    expect(parsePassageSearchCallbackData(makeDeepLevelOneSearchStartCallbackData())).toEqual({
+      ok: true,
+      value: { type: "start-deep-level-one" }
     });
     expect(parsePassageSearchCallbackData(makePassageSearchCheckCallbackData("abc123"))).toEqual({
       ok: true,

@@ -15,6 +15,7 @@ import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloComb
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightDifficultyKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightKeyboard,
   buildPersistentFightPassageRestKeyboard,
@@ -298,6 +299,25 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:search:start:ps:deep-left",
       "v1:place:deep-level1"
+    ]);
+  });
+
+  it("offers safe location search from the deep level choice card", () => {
+    const keyboard = buildPersistentFightDifficultyKeyboard();
+
+    expect(inlineButtonRows(keyboard)).toEqual([
+      ["⬅️ Лівий прохід"],
+      ["🚪 Прямий прохід"],
+      ["➡️ Правий прохід"],
+      ["🔎 Пошукати"],
+      ["⬆️ Піднятися назад"]
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:place:deep-left",
+      "v1:place:deep-straight",
+      "v1:place:deep-right",
+      "v1:search:start:l1",
+      "v1:place:deep"
     ]);
   });
 
@@ -693,20 +713,24 @@ describe("main menu and scene keyboards", () => {
     );
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
       "⬆️ Повернутися до зали",
+      "🔎 Пошукати",
       "⬇️ Спуститися"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
       "v1:place:hall",
+      "v1:search:start:d",
       "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "⬆️ Повернутися до зали",
       "🎒 Манчкін-скупник",
+      "🔎 Пошукати",
       "⬇️ Спуститися"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "v1:place:hall",
       "v1:lvlx:open",
+      "v1:search:start:d",
       "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([

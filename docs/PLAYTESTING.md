@@ -16,16 +16,17 @@ Use one level 3+ account with local dev commands enabled where helpful.
 
 1. Open `🪜 Спуск до Низу`, press `🔎 Пошукати`, check before 23 seconds and verify no reward is granted early.
 2. Check after the timer; verify the safe tiny result replays without a second reward.
-3. Start search in one passage with a visible monster; verify the running card shows check and cancel controls.
-4. While it runs, press an old `⚔️ Атакувати` passage button; verify confirm-cancel appears instead of starting combat.
-5. While it runs, press an old `↩️ Повернутися до Сутеренів` or place button; verify confirm-cancel appears instead of moving.
-6. Confirm cancel; verify no reward and that the same node is on cooldown.
-7. Search a different passage immediately after cancel/resolution; verify the first node cooldown does not block the second node.
-8. Repeat passage search until danger occurs; verify no search reward appears and the existing passage combat opens with the first hero turn skipped.
-9. Repeat old check/cancel/result callbacks after terminal state; verify no duplicate reward.
-10. Move to another location, press an old descent or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
-11. Defeat ordinary Nyz monsters until the short monster-rest window appears, reopen a first-tier passage and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
-12. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
+3. Open `🧱 Ярус I: Сутерени Корчми`, press `🔎 Пошукати`, and verify it starts a safe 23-second location search.
+4. Start search in one passage with a visible monster; verify the running card shows check and cancel controls.
+5. While it runs, press an old `⚔️ Атакувати` passage button; verify confirm-cancel appears instead of starting combat.
+6. While it runs, press an old `↩️ Повернутися до Сутеренів` or place button; verify confirm-cancel appears instead of moving.
+7. Confirm cancel; verify no reward and that the same node is on cooldown.
+8. Search a different passage immediately after cancel/resolution; verify the first node cooldown does not block the second node.
+9. Repeat passage search until danger occurs; verify no search reward appears and the existing passage combat opens with the first hero turn skipped.
+10. Repeat old check/cancel/result callbacks after terminal state; verify no duplicate reward.
+11. Move to another location, press an old descent, `Ярус I` or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
+12. Defeat ordinary Nyz monsters until the short monster-rest window appears, reopen a first-tier passage and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
+13. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
 
 ## 0.2.5 — Bard Performance smoke
 

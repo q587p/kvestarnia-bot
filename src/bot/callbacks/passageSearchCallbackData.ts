@@ -13,6 +13,7 @@ export type PassageSearchCallback =
       passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
     }
   | { type: "start-descent" }
+  | { type: "start-deep-level-one" }
   | { type: "check"; token: string }
   | { type: "ask-cancel"; token: string }
   | { type: "cancel"; token: string }
@@ -43,6 +44,10 @@ export function makeSafePassageSearchStartCallbackData(input: {
 
 export function makeDescentSearchStartCallbackData(): string {
   return `${PREFIX}:start:d`;
+}
+
+export function makeDeepLevelOneSearchStartCallbackData(): string {
+  return `${PREFIX}:start:l1`;
 }
 
 export function makePassageSearchCheckCallbackData(token: string): string {
@@ -108,6 +113,10 @@ export function parsePassageSearchCallbackData(
 
   if (data === `${PREFIX}:start:d`) {
     return ok({ type: "start-descent" });
+  }
+
+  if (data === `${PREFIX}:start:l1`) {
+    return ok({ type: "start-deep-level-one" });
   }
 
   for (const [action, type] of [

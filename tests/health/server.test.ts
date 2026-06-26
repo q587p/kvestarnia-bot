@@ -81,7 +81,7 @@ describe("health server", () => {
     expect(text).toContain("Низ дозволив пошук, але залишив собі право обуритись");
     expect(text).toContain("У проходах Низу тепер можна не лише одразу лізти в бій");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("на поверхні <code>Спуск до Низу</code> є короткий безпечний пошук");
+    expect(text).toContain("на поверхні <code>Спуск до Низу</code> і в <code>Ярус I: Сутерени Корчми</code> є короткий безпечний пошук");
     expect(text).toContain("ризикований пошук поруч із поточним мешканцем");
     expect(text).toContain("расові, класові й титульні хитрощі пошуку");
     expect(text).toContain("У грі зараз: 4");

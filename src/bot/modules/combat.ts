@@ -589,6 +589,14 @@ async function handlePassageSearchAction(
     });
   }
 
+  if (callback.type === "start-deep-level-one") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startDeepLevelOneSearch(telegramUserId, {
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
   if (callback.type === "check" || callback.type === "keep") {
     return services.passageSearch.checkSearch(telegramUserId, callback.token);
   }
