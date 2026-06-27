@@ -471,7 +471,11 @@ async function getReservedItemIds(
       select: { inputItemsJson: true }
     }),
     tx.korchmaMantokSale.findMany({
-      where: { characterId, status: { in: ["pending", "processing"] } },
+      where: {
+        characterId,
+        status: { in: ["pending", "processing"] },
+        expiresAt: { gt: now }
+      },
       select: { selectionJson: true }
     }),
     findActiveTransferReservedItems(tx, {

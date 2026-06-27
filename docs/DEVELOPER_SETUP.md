@@ -165,6 +165,8 @@ npm run check
 - `npm run db:validate` — перевірка Prisma schema.
 - `npm run db:migrate` — локальні міграції Prisma.
 - `npm run db:deploy` — застосування закомічених migrations для Render/CI; якщо Render уже має failed migration record для `0.0.25`, скрипт спершу безпечно розрулює цей known state, а потім продовжує deploy.
+- `npm run maintenance:repair-character-resources` — dry-run перевірка over-max `hpCurrent`/`manaCurrent` у таблиці `characters` для БД з поточного `DATABASE_URL`.
+- `npm run maintenance:repair-character-resources -- --apply` — застосувати repair і clamp over-max ресурсів до поточних максимумів після перевіреного dry-run.
 
 Recovery note for an already-failed Render DB after the fixed branch is deployed:
 
@@ -174,6 +176,25 @@ npm run db:deploy
 ```
 
 - `npm run db:studio` — Prisma Studio.
+
+## Maintenance repair scripts
+
+`npm run maintenance:repair-character-resources` безпечний за замовчуванням: він лише показує персонажів, у яких `hpCurrent > hpMax` або `manaCurrent > manaMax`, і не змінює БД без `-- --apply`.
+
+Скрипт читає той `DATABASE_URL`, який активний для процесу. Для основного локального checkout-а це зазвичай `.env` з `DATABASE_URL=file:./dev.db`. Для ізольованого manual-test runtime передай точний шлях до його snapshot БД:
+
+```powershell
+$env:DATABASE_URL="file:$env:LOCALAPPDATA/Kvestarnia/local-bot/<snapshot>/prisma/dev.db"
+npm run maintenance:repair-character-resources
+```
+
+Якщо dry-run показує очікувані рядки, застосуй repair тією самою змінною:
+
+```powershell
+npm run maintenance:repair-character-resources -- --apply
+```
+
+Цей скрипт виправляє тільки over-max HP/mana. Стара pending-продажа в `Шинку`, строк якої вже минув, не ремонтується скриптом: runtime-рівень має ігнорувати expired sale selections під час перевірки reserved manatky.
 
 ## Render setup
 
@@ -192,6 +213,13 @@ DEPLOY_NOTIFICATIONS_ENABLED=false
 Render сам передає `PORT`. Якщо `PORT` немає, healthcheck server слухає `10000` на `0.0.0.0`.
 
 SQLite файл має лежати на Persistent Disk, змонтованому в `/var/data`. Без persistent disk дані можуть зникати між деплоями.
+
+Якщо потрібно почистити вже зіпсовані ресурсні рядки у production SQLite, спочатку зупини bot процес або scale down сервіс, зроби backup persistent DB, запусти repair у dry-run, переглянь список рядків і лише після цього повтори з `--apply`:
+
+```bash
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:repair-character-resources
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:repair-character-resources -- --apply
+```
 
 Build command:
 

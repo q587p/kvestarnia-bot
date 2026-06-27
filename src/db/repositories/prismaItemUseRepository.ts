@@ -67,12 +67,11 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         if (existing) {
           await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
           if (existing.status === "processing") {
-            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
-              ...existing.preview,
-              kind: "cancelled",
-              itemId: existing.itemId,
-              itemName: existing.itemName
-            }, expectedTerminalOrderStatus(existing));
+            return {
+              state: "preview-replayed",
+              character: toCharacterRecord(character),
+              order: existing
+            };
           } else if (isRestoreToFullOrder(existing)) {
             await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
               ...existing.preview,
@@ -493,12 +492,13 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         if (existing) {
           await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
           if (existing.status === "processing") {
-            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
-              ...existing.preview,
-              kind: "cancelled",
-              itemId: existing.itemId,
-              itemName: existing.itemName
-            }, expectedTerminalOrderStatus(existing));
+            return {
+              state: "preview-replayed",
+              character: toCharacterRecord(character),
+              order: existing,
+              neededQuantity: existing.quantity,
+              availableQuantity: existing.quantity
+            };
           } else if (!isRestoreToFullOrder(existing)) {
             await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
               ...existing.preview,
@@ -715,7 +715,11 @@ async function getReservedItemIds(
       select: { inputItemsJson: true }
     }),
     tx.korchmaMantokSale.findMany({
-      where: { characterId, status: { in: ["pending", "processing"] } },
+      where: {
+        characterId,
+        status: { in: ["pending", "processing"] },
+        expiresAt: { gt: now }
+      },
       select: { selectionJson: true }
     }),
     findActiveTransferReservedItems(tx, { senderCharacterId: characterId, now }),
@@ -946,7 +950,7 @@ async function recoverLivePreviewAfterReservationConflict(
       where: {
         characterId: character.id,
         itemId: input.itemId,
-        status: "pending",
+        status: { in: ["pending", "processing"] },
         expiresAt: { gt: input.now }
       },
       orderBy: { createdAt: "desc" }
@@ -954,6 +958,14 @@ async function recoverLivePreviewAfterReservationConflict(
 
     if (!existing) {
       return null;
+    }
+
+    if (existing.status === "processing") {
+      return {
+        state: "preview-replayed",
+        character: toCharacterRecord(character),
+        order: existing
+      };
     }
 
     const validation = await validatePendingPreviewRefresh(tx, existing, character, {
@@ -1008,6 +1020,16 @@ async function recoverLiveRestoreToFullAfterReservationConflict(
 
     if (!existing || !isRestoreToFullOrder(existing)) {
       return null;
+    }
+
+    if (existing.status === "processing") {
+      return {
+        state: "preview-replayed",
+        character: toCharacterRecord(character),
+        order: existing,
+        neededQuantity: existing.quantity,
+        availableQuantity: existing.quantity
+      };
     }
 
     const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {

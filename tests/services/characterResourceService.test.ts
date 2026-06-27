@@ -35,6 +35,51 @@ describe("summarizeAndSyncCharacterResources", () => {
     });
   });
 
+  it("clamps an over-max character snapshot before persisting passive regeneration", async () => {
+    const now = new Date("2026-06-15T12:00:00.000Z");
+    const marker = new Date("2026-06-15T11:50:00.000Z");
+    const character = createCharacter({
+      hpCurrent: 46,
+      hpMax: 32,
+      manaCurrent: 21,
+      manaMax: 16,
+      hpRegenAt: marker,
+      manaRegenAt: marker
+    });
+    const repository = new FakeCharacterRepository(character);
+
+    const result = await summarizeAndSyncCharacterResources({
+      characters: repository,
+      telegramUserId: 42n,
+      character,
+      now
+    });
+
+    expect(repository.resourceUpdates).toHaveLength(1);
+    expect(repository.resourceUpdates[0]).toMatchObject({
+      hpCurrent: 52,
+      manaCurrent: 26,
+      expected: {
+        hpCurrent: 46,
+        manaCurrent: 21,
+        hpRegenAt: marker,
+        manaRegenAt: marker
+      }
+    });
+    expect(repository.resourceUpdates[0]?.expected).toEqual({
+      hpCurrent: 46,
+      manaCurrent: 21,
+      hpRegenAt: marker,
+      manaRegenAt: marker
+    });
+    expect(result.character).toMatchObject({
+      hpCurrent: 52,
+      hpMax: 52,
+      manaCurrent: 26,
+      manaMax: 26
+    });
+  });
+
   it("does not overwrite a fresher resource row when passive regeneration loses the update race", async () => {
     const now = new Date("2026-06-15T12:00:00.000Z");
     const marker = new Date("2026-06-15T11:50:00.000Z");

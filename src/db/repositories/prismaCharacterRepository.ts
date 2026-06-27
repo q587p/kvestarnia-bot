@@ -75,24 +75,27 @@ export class PrismaCharacterRepository implements CharacterRepository {
     telegramUserId: bigint,
     input: UpdateCharacterResourcesInput
   ): Promise<CharacterRecord | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      include: {
+        ...characterRecordInclude
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    const current = toCharacterRecord(character);
+    const data = normalizeCharacterResourceUpdate(current, input);
+
     if (input.expectedLife) {
       const expectedLife = input.expectedLife;
       return this.prisma.$transaction(async (tx) => {
-        const character = await tx.character.findFirst({
-          where: {
-            user: {
-              telegramUserId
-            }
-          },
-          select: {
-            id: true
-          }
-        });
-
-        if (!character) {
-          return null;
-        }
-
         const remortCount = await countCharacterRemorts(tx, character.id);
         if (remortCount !== expectedLife.remortCount) {
           return null;
@@ -115,8 +118,8 @@ export class PrismaCharacterRepository implements CharacterRepository {
               : {})
           },
           data: {
-            hpCurrent: input.hpCurrent,
-            manaCurrent: input.manaCurrent,
+            hpCurrent: data.hpCurrent,
+            manaCurrent: data.manaCurrent,
             hpRegenAt: input.hpRegenAt,
             manaRegenAt: input.manaRegenAt
           }
@@ -153,8 +156,8 @@ export class PrismaCharacterRepository implements CharacterRepository {
             : { manaRegenAt: input.expected.manaRegenAt })
         },
         data: {
-          hpCurrent: input.hpCurrent,
-          manaCurrent: input.manaCurrent,
+          hpCurrent: data.hpCurrent,
+          manaCurrent: data.manaCurrent,
           hpRegenAt: input.hpRegenAt,
           manaRegenAt: input.manaRegenAt
         }
@@ -163,28 +166,13 @@ export class PrismaCharacterRepository implements CharacterRepository {
       return updated.count > 0 ? this.findByTelegramUserId(telegramUserId) : null;
     }
 
-    const character = await this.prisma.character.findFirst({
-      where: {
-        user: {
-          telegramUserId
-        }
-      },
-      select: {
-        id: true
-      }
-    });
-
-    if (!character) {
-      return null;
-    }
-
     const updated = await this.prisma.character.update({
       where: {
         id: character.id
       },
       data: {
-        hpCurrent: input.hpCurrent,
-        manaCurrent: input.manaCurrent,
+        hpCurrent: data.hpCurrent,
+        manaCurrent: data.manaCurrent,
         hpRegenAt: input.hpRegenAt,
         manaRegenAt: input.manaRegenAt
       },
@@ -335,4 +323,19 @@ function toCharacterRecord(
     currentLocationId: user.lastSeenLocationId,
     remortCount: getIncludedRemortCount(character)
   };
+}
+
+function normalizeCharacterResourceUpdate(
+  character: CharacterRecord,
+  input: UpdateCharacterResourcesInput
+): { hpCurrent: number; manaCurrent: number } {
+  return {
+    hpCurrent: clampResourceValue(input.hpCurrent, character.hpMax),
+    manaCurrent: clampResourceValue(input.manaCurrent, character.manaMax)
+  };
+}
+
+function clampResourceValue(current: number, max: number): number {
+  const normalizedMax = Math.max(0, Math.floor(max));
+  return Math.min(normalizedMax, Math.max(0, Math.floor(current)));
 }

@@ -597,7 +597,7 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(10);
   });
 
-  it("lets restore-to-full clear older own processing bandage previews before reservation checks", async () => {
+  it("replays the player's own processing restore-to-full preview before reservation checks", async () => {
     await seedCharacter({ hpCurrent: 0, hpMax: 31 });
     await seedBandages(9);
     await restoreToFull("restore-token-old-own-processing-preview");
@@ -605,13 +605,17 @@ describe("PrismaItemUseRepository integration", () => {
       where: { token: "restore-token-old-own-processing-preview" },
       data: { status: "processing" }
     });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { hpCurrent: 7 }
+    });
 
     await expect(restoreToFull("restore-token-processing-priority")).resolves.toMatchObject({
-      state: "preview-created",
+      state: "preview-replayed",
       neededQuantity: 7,
-      availableQuantity: 9,
+      availableQuantity: 7,
       order: {
-        token: "restore-token-processing-priority",
+        token: "restore-token-old-own-processing-preview",
         preview: {
           mode: "restore-to-full",
           hpBefore: 0,
@@ -620,14 +624,14 @@ describe("PrismaItemUseRepository integration", () => {
       }
     });
     await expect(readUseOrder("restore-token-old-own-processing-preview")).resolves.toMatchObject({
-      status: "cancelled",
-      reservationKey: null
+      status: "processing",
+      reservationKey: `use:${characterId}:${bandage.id}`
     });
     await expectBandageQuantity(9);
-    await expectCharacterHp(0);
+    await expectCharacterHp(7);
   });
 
-  it("lets ordinary inventory bandage use clear older own processing previews before reservation checks", async () => {
+  it("replays the player's own processing bandage preview before reservation checks", async () => {
     await seedCharacter({ hpCurrent: 10, hpMax: 25 });
     await seedBandages(3);
     await createPreview("use-token-old-own-processing-preview");
@@ -637,9 +641,9 @@ describe("PrismaItemUseRepository integration", () => {
     });
 
     await expect(createPreview("use-token-processing-priority")).resolves.toMatchObject({
-      state: "preview-created",
+      state: "preview-replayed",
       order: {
-        token: "use-token-processing-priority",
+        token: "use-token-old-own-processing-preview",
         preview: {
           hpBefore: 10,
           hpAfter: 17
@@ -647,8 +651,8 @@ describe("PrismaItemUseRepository integration", () => {
       }
     });
     await expect(readUseOrder("use-token-old-own-processing-preview")).resolves.toMatchObject({
-      status: "cancelled",
-      reservationKey: null
+      status: "processing",
+      reservationKey: `use:${characterId}:${bandage.id}`
     });
     await expectBandageQuantity(3);
     await expectCharacterHp(10);
@@ -900,6 +904,28 @@ describe("PrismaItemUseRepository integration", () => {
     const order = await readUseOrder("use-token-refresh-reserved");
     expect(order.status).toBe("expired");
     expect(order.reservationKey).toBeNull();
+  });
+
+  it("ignores expired Shynok sale selections when checking item use reservations", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(1);
+    await prisma.korchmaMantokSale.create({
+      data: {
+        id: "expired-sale-bandage",
+        token: "expired-sale-bandage",
+        characterId,
+        status: "pending",
+        selectionJson: [{ itemId: bandage.id, quantity: 1 }],
+        selectionFingerprint: "expired-sale-bandage",
+        nominalValue: 1,
+        payoutGold: 1,
+        expiresAt: new Date("2026-06-25T08:59:00.000Z")
+      }
+    });
+
+    await expect(createPreview("use-token-expired-sale")).resolves.toMatchObject({
+      state: "preview-created"
+    });
   });
 
   it("reports the canonical completed order when cancel races behind confirm", async () => {
