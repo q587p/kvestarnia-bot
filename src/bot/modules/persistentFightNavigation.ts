@@ -87,7 +87,9 @@ export async function sendPersistentFightPassagePreview(
   }
 
   if (typeof services.fight.getPassageSearchRestWindowForTelegramUser === "function") {
-    const restWindow = await services.fight.getPassageSearchRestWindowForTelegramUser(telegramUserId);
+    const restWindow = await services.fight.getPassageSearchRestWindowForTelegramUser(telegramUserId, {
+      originLocationId: passageFight.locationId
+    });
     if (restWindow.state === "monster-rest") {
       await markScenePresence(ctx, services.presence, {
         locationId: passageFight.locationId,

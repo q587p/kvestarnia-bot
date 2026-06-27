@@ -853,8 +853,7 @@ export class FightService {
 
     const now = this.clock();
     const cooldown = options.originLocationId
-      ? await this.getPassageMonsterRestCooldown(telegramUserId, options.originLocationId, now) ??
-        await this.getMonsterRestCooldown(telegramUserId, "normal")
+      ? await this.getPassageMonsterRestCooldown(telegramUserId, options.originLocationId, now)
       : await this.getMonsterRestCooldown(telegramUserId, "normal");
 
     if (!cooldown) {

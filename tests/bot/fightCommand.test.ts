@@ -4,8 +4,11 @@ import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import {
   makeDeepLevelOneSearchStartCallbackData,
-  makeDescentSearchStartCallbackData
+  makeDescentSearchStartCallbackData,
+  makePassageSearchStartCallbackData,
+  makeSafePassageSearchStartCallbackData
 } from "../../src/bot/callbacks/passageSearchCallbackData";
+import { sendPersistentFightPassagePreview } from "../../src/bot/modules/persistentFightNavigation";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -605,6 +608,135 @@ describe("fight command", () => {
         ]
       }
     });
+  });
+
+  it("renders passage-rest search only for the same resting passage", async () => {
+    const straightReplies: Array<{ text: string; options: unknown }> = [];
+    const leftReplies: Array<{ text: string; options: unknown }> = [];
+    const restCalls: Array<{ originLocationId?: string }> = [];
+    const previewCalls: Array<{ originLocationId?: string }> = [];
+    const fightService = {
+      getPassageSearchRestWindowForTelegramUser: (
+        _telegramUserId: bigint,
+        options: { originLocationId?: string } = {}
+      ) => {
+        restCalls.push(options);
+        if (options.originLocationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT) {
+          return Promise.resolve({
+            state: "monster-rest",
+            character: {
+              ...character,
+              level: 3
+            },
+            questProgress: questProgress(0),
+            availableAt: new Date("2026-06-27T09:03:00.000Z"),
+            now: new Date("2026-06-27T09:00:00.000Z")
+          });
+        }
+
+        return Promise.resolve({
+          state: "persistent-ready",
+          character: {
+            ...character,
+            level: 3
+          },
+          questProgress: questProgress(0)
+        });
+      },
+      previewPersistentFightForTelegramUser: (
+        _telegramUserId: bigint,
+        options: { difficulty?: string; originLocationId?: string }
+      ) => {
+        previewCalls.push(options);
+        return Promise.resolve({
+          state: "persistent-preview",
+          character: {
+            ...character,
+            level: 3
+          },
+          questProgress: questProgress(0),
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "",
+            level: 3,
+            tags: []
+          },
+          difficulty: options.difficulty ?? "hard",
+          originLocationId: options.originLocationId,
+          encounterToken: "left13",
+          expiresAt: new Date("2026-06-27T10:33:00.000Z")
+        });
+      }
+    } as unknown as FightService;
+
+    await sendPersistentFightPassagePreview(
+      makeContext(straightReplies),
+      {
+        fight: fightService,
+        presence: new CapturingPresenceService({
+          locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
+          insideKorchma: true
+        })
+      } as never,
+      {
+        difficulty: "normal",
+        locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
+        passage: "deep-straight"
+      },
+      "reply"
+    );
+    await sendPersistentFightPassagePreview(
+      makeContext(leftReplies),
+      {
+        fight: fightService,
+        presence: new CapturingPresenceService({
+          locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+          insideKorchma: true
+        })
+      } as never,
+      {
+        difficulty: "hard",
+        locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        passage: "deep-left"
+      },
+      "reply"
+    );
+
+    const straightOptions = straightReplies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    const leftOptions = leftReplies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(restCalls).toEqual([
+      { originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT },
+      { originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    ]);
+    expect(previewCalls).toEqual([
+      {
+        difficulty: "hard",
+        originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+      }
+    ]);
+    expect(straightReplies[0]?.text).toContain("Низ просить тихіше");
+    expect(straightOptions.reply_markup.inline_keyboard).toEqual([
+      [
+        {
+          text: "🔎 Пошукати",
+          callback_data: makeSafePassageSearchStartCallbackData({ passage: "deep-straight" })
+        }
+      ],
+      [{ text: "↩️ Повернутися до Сутеренів", callback_data: makePlaceCallbackData("deep-level1") }]
+    ]);
+    expect(leftReplies[0]?.text).toContain("Павук дедлайнів");
+    expect(leftOptions.reply_markup.inline_keyboard.flat().map((button) => button.callback_data)).toContain(
+      makePassageSearchStartCallbackData({ passage: "deep-left", encounterToken: "left13" })
+    );
+    expect(leftOptions.reply_markup.inline_keyboard.flat().map((button) => button.callback_data)).not.toContain(
+      makeSafePassageSearchStartCallbackData({ passage: "deep-left" })
+    );
   });
 
   it("sends a recovery notice before fight options when HP just refilled", async () => {

@@ -19,6 +19,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
   PRESENCE_LOCATION_KORCHMA_HALL
 } from "../../src/services/presenceService";
 
@@ -103,6 +104,9 @@ describe("PassageSearchService", () => {
 
     expect(result.state).toBe("started");
     expect(repo.startCalls).toBe(1);
+    expect(fight.restWindowCalls).toEqual([
+      { originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    ]);
     expect(fight.previewCalls).toBe(0);
     expect(repo.action?.payload).toMatchObject({
       nodeKey: "passage:deep-left",
@@ -116,6 +120,21 @@ describe("PassageSearchService", () => {
     expect(repo.action?.payload.encounterToken).toBeUndefined();
     expect(repo.action?.payload.monsterIdAtStart).toBeUndefined();
     expect(repo.action?.endsAt.getTime() - repo.action!.startedAt.getTime()).toBe(42_000);
+  });
+
+  it("rejects stale passage-rest starts before rest-window lookup or action mutation", async () => {
+    const repo = new FakePassageSearchRepository();
+    const fight = new FakeFightService();
+    fight.restWindowState = "monster-rest";
+    const service = new PassageSearchService(repo, fight as never, () => now);
+
+    await expect(service.startSafePassageRestSearch(telegramUserId, {
+      passage: "deep-left",
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT
+    })).resolves.toEqual({ state: "blocked", reason: "stale-location" });
+    expect(repo.startCalls).toBe(0);
+    expect(fight.restWindowCalls).toEqual([]);
+    expect(fight.previewCalls).toBe(0);
   });
 
   it("reports node search availability from cooldown state", async () => {
@@ -330,6 +349,7 @@ class FakeFightService {
     currentLocationId?: string;
   }> = [];
   turnCalls: Array<{ sessionId: string; turn: number; action: string }> = [];
+  restWindowCalls: Array<{ originLocationId?: string }> = [];
   restWindowState: "persistent-ready" | "monster-rest" = "persistent-ready";
 
   getFightOverviewForTelegramUser() {
@@ -361,7 +381,11 @@ class FakeFightService {
     });
   }
 
-  async getPassageSearchRestWindowForTelegramUser() {
+  async getPassageSearchRestWindowForTelegramUser(
+    _telegramUserId: bigint,
+    options: { originLocationId?: string } = {}
+  ) {
+    this.restWindowCalls.push(options);
     if (this.restWindowState === "monster-rest") {
       return {
         state: "monster-rest",

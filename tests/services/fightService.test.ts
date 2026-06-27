@@ -69,6 +69,7 @@ import {
 } from "../../src/services/fightService";
 import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
 import {
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
@@ -1311,11 +1312,20 @@ describe("FightService", () => {
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
     });
 
+    const otherPassage = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+
     expect(reopened.state).toBe("monster-rest");
     if (reopened.state === "monster-rest") {
       expect(reopened.availableAt.getTime()).toBe(fixedClock().getTime() + MONSTER_REST_COOLDOWN_MS);
     }
-    expect(pending.createCount).toBe(1);
+    expect(otherPassage.state).toBe("persistent-preview");
+    if (otherPassage.state === "persistent-preview") {
+      expect(otherPassage.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT);
+    }
+    expect(pending.createCount).toBe(2);
   });
 
   it("refreshes a passage preview and rejects attack tokens after rules-version drift", async () => {
