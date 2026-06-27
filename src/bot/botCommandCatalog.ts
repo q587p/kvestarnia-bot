@@ -315,7 +315,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   },
   {
     command: "dev_reset_doppelganger",
-    icon: "🥊",
+    icon: "🪞",
     description: "скинути cooldown Допельґанґера локально",
     includeInMenu: false,
     devOnly: "grant"
