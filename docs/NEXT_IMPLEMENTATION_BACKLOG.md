@@ -526,13 +526,14 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 ## Later — Monster Grammar Metadata
 
 **Objective**
-Додати до monster content граматичні підказки для українського тексту: стать/рід, істотність і потрібні відмінкові форми, щоб бойові, preview, бестіарійні й майбутні interaction-картки могли казати `вона`, `його/її`, `Льохову Мишу з Титулом` тощо без ручних нейтральних обходів.
+Додати до monster content граматичні підказки для українського тексту: звертання, рід/число, plural-only назви, істотність і потрібні відмінкові форми, щоб бойові, preview, бестіарійні й майбутні interaction-картки могли казати `вона`, `його/її`, `Льохову Мишу з Титулом`, `Злидні стають у захист` тощо без ручних нейтральних обходів.
 
 **Scope**
 
-- Спроєктувати невеликий typed grammar block для monster content: grammatical gender/pronoun, animacy and at least nominative/accusative display forms.
+- Спроєктувати невеликий typed grammar block для monster content: grammatical gender/number, pronoun/addressing, animacy and at least nominative/accusative display forms.
+- Позначити plural-only monster names and verb-agreement hints so combat lines can choose `стає` / `стають`, `атакує` / `атакують`, `завдає` / `завдають` without guessing from the display name.
 - Додати validation, що активні monster ids або мають повний grammar block, або явно використовують neutral-safe presenter path.
-- Оновити passage previews, combat intro/result copy, bestiary snippets and monster interaction copy to use the grammar helper where available.
+- Оновити passage previews, combat intro/result copy, monster ability/effect summaries, bestiary snippets and monster interaction copy to use the grammar helper where available.
 - Keep authored monster names as source of truth; generated case forms are allowed only if covered by tests and easy rollback.
 
 **Non-goals**
@@ -545,7 +546,8 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 
 - `Льохова Миша з Титулом` can render in nominative and accusative contexts without awkward fallback text;
 - preview and combat copy chooses `він` / `вона` / neutral wording from content metadata instead of guessing from the name;
-- tests cover at least feminine, masculine, neuter/neutral and multi-word monster names.
+- plural-only names such as `Злидні` render combat actions with plural agreement, for example `стають у захист` instead of `стає в захист`;
+- tests cover at least feminine, masculine, neuter/neutral, plural-only and multi-word monster names.
 
 ## Later — Глибка Dungeon Location
 
