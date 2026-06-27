@@ -1,19 +1,16 @@
 import { type Bot } from "grammy";
+import { type CallbackParseResult, registerParsedCallbackRoute } from "../callbackRoute";
 import { parseDuelCallbackData } from "../callbacks/duelCallbackData";
 import { parseItemGiftCallbackData } from "../callbacks/itemGiftCallbackData";
 import { parseNearbyDuelCallbackData } from "../callbacks/nearbyDuelCallbackData";
-import { handleDuelCallback,registerDuelCommand } from "../commands/duelCommand";
+import { handleDuelCallback, registerDuelCommand } from "../commands/duelCommand";
 import { handleItemGiftCallback } from "../commands/itemGiftCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
 import { playerFromContext } from "../context";
-import {
-presentInvalidCallback
-} from "../presenters/onboardingPresenter";
-import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 
 import {
-guardActivePassageSearchCommand,
-showActivePassageSearchIfNeeded
+  guardActivePassageSearchCommand,
+  showActivePassageSearchIfNeeded
 } from "./passageSearchGuard";
 import type { BotModuleDependencies } from "./types";
 
@@ -33,59 +30,66 @@ export function registerSocialBotModule(
     });
   }
 
-  bot.callbackQuery(/^v1:gift:/, async (ctx) => {
-    const parsed = parseItemGiftCallbackData(ctx.callbackQuery.data);
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:gift:/,
+    (data) => parseWhenAvailable(data, parseItemGiftCallbackData, services.itemTransfers),
+    async (ctx, { callback, service }) => {
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+        return;
+      }
 
-    if (!parsed.ok || !services.itemTransfers) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
+      await handleItemGiftCallback(ctx, callback, service);
     }
+  );
 
-    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
-    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
-      return;
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:duel:/,
+    (data) => parseWhenAvailable(data, parseDuelCallbackData, services.duel),
+    async (ctx, { callback, service }) => {
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+        return;
+      }
+
+      await handleDuelCallback(ctx, callback, service, {
+        presence: services.presence,
+        tavernRaid: services.tavern,
+        botUsername: options.botUsername
+      });
     }
+  );
 
-    await handleItemGiftCallback(ctx, parsed.value, services.itemTransfers);
-  });
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:nd:/,
+    (data) => parseWhenAvailable(data, parseNearbyDuelCallbackData, services.duel),
+    async (ctx, { callback, service }) => {
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+        return;
+      }
 
-  bot.callbackQuery(/^v1:duel:/, async (ctx) => {
-    const parsed = parseDuelCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok || !services.duel) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
+      await handleNearbyDuelCallback(ctx, callback, {
+        presence: services.presence,
+        duel: service,
+        tavernRaid: services.tavern
+      });
     }
+  );
+}
 
-    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
-    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
-      return;
-    }
+function parseWhenAvailable<TCallback, TService>(
+  data: string,
+  parse: (data: string) => CallbackParseResult<TCallback>,
+  service: TService | null | undefined
+): CallbackParseResult<{ callback: TCallback; service: TService }> {
+  if (!service) {
+    return { ok: false };
+  }
 
-    await handleDuelCallback(ctx, parsed.value, services.duel, {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      botUsername: options.botUsername
-    });
-  });
-
-  bot.callbackQuery(/^v1:nd:/, async (ctx) => {
-    const parsed = parseNearbyDuelCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok || !services.duel) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
-    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
-      return;
-    }
-
-    await handleNearbyDuelCallback(ctx, parsed.value, {
-      presence: services.presence,
-      duel: services.duel,
-      tavernRaid: services.tavern
-    });
-  });
+  const parsed = parse(data);
+  return parsed.ok ? { ok: true, value: { callback: parsed.value, service } } : parsed;
 }

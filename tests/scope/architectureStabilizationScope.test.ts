@@ -203,7 +203,10 @@ function read(path: string): string {
 }
 
 function callbackPrefixes(source: string): string[] {
-  return [...source.matchAll(/bot\.callbackQuery\(\s*(\/\^[^/]+\/)/g)].map((match) => match[1]);
+  return [
+    ...source.matchAll(/bot\.callbackQuery\(\s*(\/\^[^/]+\/)/g),
+    ...source.matchAll(/registerParsedCallbackRoute\(\s*bot,\s*(\/\^[^/]+\/)/g)
+  ].map((match) => match[1]);
 }
 
 function commandAliases(source: string): string[] {
