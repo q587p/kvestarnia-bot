@@ -58,6 +58,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/QUEST_RESOLUTION_VARIETY.md` — authored quest method contract, grade consequences and ledger rules.
 - `docs/QUEST_SKILLS_AND_CHECKS.md` — deterministic quest check math and technique vocabulary.
 - `docs/QUEST_RESOLUTION_CONTENT_SEEDS.md` — authored scene/method content seeds.
+- `docs/PLAYER_IDENTITY_ABILITIES.md` — current/planned race, class and title combat/social ability registry.
 - `docs/SECURITY_AND_FAIR_PLAY.md` — privacy, anti-abuse, idempotency.
 - `docs/DEVELOPER_SETUP.md` — local setup and deployment notes.
 - `docs/PLAYTESTING.md` — manual smoke tests.

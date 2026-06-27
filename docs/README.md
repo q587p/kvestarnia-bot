@@ -32,6 +32,7 @@
 - [QUEST_SKILLS_AND_CHECKS.md](QUEST_SKILLS_AND_CHECKS.md) — deterministic quest-resolution check math, technique vocabulary and qualitative chance bands.
 - [QUEST_RESOLUTION_CONTENT_SEEDS.md](QUEST_RESOLUTION_CONTENT_SEEDS.md) — minimum authored content direction for general, generated and starter quest-resolution scenes.
 - [NONCOMBAT_TECHNIQUES.md](NONCOMBAT_TECHNIQUES.md) — class/race/signature non-combat technique planning plus the shipped `0.2.5` Bard Performance proof in Shynok.
+- [PLAYER_IDENTITY_ABILITIES.md](PLAYER_IDENTITY_ABILITIES.md) — реєстр current/planned расових, класових і титульних бойових та соціяльних абілок.
 - [DAILY_KORCHMA_ROUNDS.md](DAILY_KORCHMA_ROUNDS.md) — canonical future design for the daily `Корчмарський обхід` route; not shipped until its task is activated.
 - [LOOT_EXPANSION_CANONICAL_IDS.md](LOOT_EXPANSION_CANONICAL_IDS.md) — adapter boundary для generated loot: canonical class/race ids, title-gate surrogates і equipability filtering.
 - [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md) — внутрішні reference notes для корчмарського ланцюжка `13 -> 23 -> 42 -> 93`.
