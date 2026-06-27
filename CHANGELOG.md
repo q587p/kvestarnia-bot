@@ -27,7 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Active search now blocks old fight/place/reply-keyboard actions with a confirm-cancel card instead of letting stale buttons start movement or combat over the timer.
 - Search buttons now disappear from fresh Nyz surface/passage cards while that node cooldown is still active.
 - Passage-search danger handoffs now keep the normal new-fight intro before the active fight card, including threat escalation lines, `Натиск Низу`, full opponent names and the battle start tip even though the first hero turn is skipped; due dangerous searches resolved from current-location or place actions also send the canonical fight card immediately.
-- Bandage reservation recovery now avoids false reserved-item blocks: duplicate restore-to-full races replay the canonical live confirmation card, and an ordinary one-bandage use can replace the player's own pending restore-to-full preview.
+- Bandage reservation recovery now avoids false reserved-item blocks: duplicate restore-to-full races replay the canonical live confirmation card, and ordinary one-bandage use plus restore-to-full can replace each other's own pending previews.
 - Search cooldown is consumed at start and is not refunded by cancel, empty results or monster attacks.
 
 ### Unchanged

@@ -484,60 +484,65 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }));
         if (existing) {
           if (!isRestoreToFullOrder(existing)) {
-            return { state: "reserved" };
-          }
+            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
+              ...existing.preview,
+              kind: "cancelled",
+              itemId: existing.itemId,
+              itemName: existing.itemName
+            }, "pending");
+          } else {
+            const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
+              item: input.item,
+              itemContents: input.itemContents,
+              itemFingerprint: input.itemFingerprint,
+              now: input.now,
+              effect
+            });
+            if (validation.state === "valid") {
+              const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
+              return {
+                state: "preview-replayed",
+                character: toCharacterRecord(character),
+                order: refreshed,
+                neededQuantity: validation.neededQuantity,
+                availableQuantity: validation.availableQuantity
+              };
+            }
 
-          const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
-            item: input.item,
-            itemContents: input.itemContents,
-            itemFingerprint: input.itemFingerprint,
-            now: input.now,
-            effect
-          });
-          if (validation.state === "valid") {
-            const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
-            return {
-              state: "preview-replayed",
-              character: toCharacterRecord(character),
-              order: refreshed,
-              neededQuantity: validation.neededQuantity,
-              availableQuantity: validation.availableQuantity
-            };
-          }
+            await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
+              ? {
+                  ...validation.preview,
+                  kind: "full-hp",
+                  itemId: existing.itemId,
+                  itemName: existing.itemName
+                }
+              : {
+                  ...existing.preview,
+                  kind: "expired",
+                  itemId: existing.itemId,
+                  itemName: existing.itemName
+                },
+              validation.state === "full-hp" ? "completed" : "expired");
 
-          await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
-            ? {
-                ...validation.preview,
-                kind: "full-hp",
-                itemId: existing.itemId,
-                itemName: existing.itemName
-              }
-            : {
-                ...existing.preview,
-                kind: "expired",
-                itemId: existing.itemId,
-                itemName: existing.itemName
-              },
-            validation.state === "full-hp" ? "completed" : "expired");
+            if (validation.state === "full-hp") {
+              return {
+                state: "full-hp",
+                character: toCharacterRecord(character),
+                preview: validation.preview
+              };
+            }
+            if (validation.state === "not-enough") {
+              return {
+                state: "not-enough",
+                character: toCharacterRecord(character),
+                neededQuantity: validation.neededQuantity,
+                availableQuantity: validation.availableQuantity,
+                preview: validation.preview
+              };
+            }
 
-          if (validation.state === "full-hp") {
-            return {
-              state: "full-hp",
-              character: toCharacterRecord(character),
-              preview: validation.preview
-            };
+            return { state: validation.state };
           }
-          if (validation.state === "not-enough") {
-            return {
-              state: "not-enough",
-              character: toCharacterRecord(character),
-              neededQuantity: validation.neededQuantity,
-              availableQuantity: validation.availableQuantity,
-              preview: validation.preview
-            };
-          }
-
-          return { state: validation.state };
         }
 
         const [items, equippedItemIds, reservedItemIds] = await Promise.all([

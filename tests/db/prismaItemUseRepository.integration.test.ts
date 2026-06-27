@@ -357,14 +357,28 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(30);
   });
 
-  it("blocks restore-to-full while the same item is reserved by another use order", async () => {
+  it("lets restore-to-full replace a pending ordinary healing preview", async () => {
     await seedCharacter({ hpCurrent: 30, hpMax: 25 });
     await seedBandages(3);
     await createPreview("use-token-reserves-restore");
 
     await expect(restoreToFull("restore-token-reserved-by-use")).resolves.toMatchObject({
-      state: "reserved"
+      state: "preview-created",
+      neededQuantity: 2,
+      availableQuantity: 3,
+      order: {
+        token: "restore-token-reserved-by-use",
+        quantity: 2,
+        preview: {
+          mode: "restore-to-full",
+          hpBefore: 30,
+          hpAfter: 41
+        }
+      }
     });
+    const oldOrder = await readUseOrder("use-token-reserves-restore");
+    expect(oldOrder.status).toBe("cancelled");
+    expect(oldOrder.reservationKey).toBeNull();
     await expectBandageQuantity(3);
     await expectCharacterHp(30);
   });
@@ -390,6 +404,41 @@ describe("PrismaItemUseRepository integration", () => {
     expect(oldOrder.status).toBe("cancelled");
     expect(oldOrder.reservationKey).toBeNull();
     await expectBandageQuantity(7);
+    await expectCharacterHp(0);
+  });
+
+  it("never reports reserved for the player's own pending bandage healing choices", async () => {
+    await seedCharacter({ hpCurrent: 0, hpMax: 31 });
+    await seedBandages(9);
+
+    const restoreFirst = await restoreToFull("restore-token-choice-1");
+    const useAfterRestore = await createPreview("use-token-choice-2");
+    const restoreAfterUse = await restoreToFull("restore-token-choice-3");
+    const useAfterRestoreAgain = await createPreview("use-token-choice-4");
+
+    expect([
+      restoreFirst.state,
+      useAfterRestore.state,
+      restoreAfterUse.state,
+      useAfterRestoreAgain.state
+    ]).toEqual(["preview-created", "preview-created", "preview-created", "preview-created"]);
+    await expect(readUseOrder("restore-token-choice-1")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expect(readUseOrder("use-token-choice-2")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expect(readUseOrder("restore-token-choice-3")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expect(readUseOrder("use-token-choice-4")).resolves.toMatchObject({
+      status: "pending",
+      reservationKey: `use:${characterId}:${bandage.id}`
+    });
+    await expectBandageQuantity(9);
     await expectCharacterHp(0);
   });
 
