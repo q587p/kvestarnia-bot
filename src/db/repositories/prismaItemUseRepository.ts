@@ -59,20 +59,27 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           where: {
             characterId: character.id,
             itemId: input.item.id,
-            status: "pending",
+            status: { in: ["pending", "processing"] },
             expiresAt: { gt: input.now }
           },
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
           await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
-          if (isRestoreToFullOrder(existing)) {
+          if (existing.status === "processing") {
             await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
               ...existing.preview,
               kind: "cancelled",
               itemId: existing.itemId,
               itemName: existing.itemName
-            }, "pending");
+            }, expectedTerminalOrderStatus(existing));
+          } else if (isRestoreToFullOrder(existing)) {
+            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
+              ...existing.preview,
+              kind: "cancelled",
+              itemId: existing.itemId,
+              itemName: existing.itemName
+            }, expectedTerminalOrderStatus(existing));
           } else {
             const effect = getItemUseEffect(input.item);
             const validation = await validatePendingPreviewRefresh(tx, existing, character, {
@@ -478,20 +485,27 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           where: {
             characterId: character.id,
             itemId: input.item.id,
-            status: "pending",
+            status: { in: ["pending", "processing"] },
             expiresAt: { gt: input.now }
           },
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
           await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
-          if (!isRestoreToFullOrder(existing)) {
+          if (existing.status === "processing") {
             await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
               ...existing.preview,
               kind: "cancelled",
               itemId: existing.itemId,
               itemName: existing.itemName
-            }, "pending");
+            }, expectedTerminalOrderStatus(existing));
+          } else if (!isRestoreToFullOrder(existing)) {
+            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
+              ...existing.preview,
+              kind: "cancelled",
+              itemId: existing.itemId,
+              itemName: existing.itemName
+            }, expectedTerminalOrderStatus(existing));
           } else {
             const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
               item: input.item,
@@ -904,7 +918,7 @@ async function releasePendingOrder(
   result: ItemUseResult,
   status: "completed" | "expired"
 ): Promise<void> {
-  await setTerminalOrder(tx, order.id, status, now, result, "pending");
+  await setTerminalOrder(tx, order.id, status, now, result, expectedTerminalOrderStatus(order));
 }
 
 async function recoverLivePreviewAfterReservationConflict(
@@ -986,7 +1000,7 @@ async function recoverLiveRestoreToFullAfterReservationConflict(
       where: {
         characterId: character.id,
         itemId: input.itemId,
-        status: "pending",
+        status: { in: ["pending", "processing"] },
         expiresAt: { gt: input.now }
       },
       orderBy: { createdAt: "desc" }
@@ -1141,7 +1155,7 @@ async function releaseExpiredUseReservations(
     where: {
       characterId,
       itemId,
-      status: "pending",
+        status: { in: ["pending", "processing"] },
       expiresAt: { lte: now }
     },
     data: {
@@ -1168,7 +1182,7 @@ async function cancelOtherPendingUseOrdersForItem(
       characterId,
       itemId,
       id: { not: exceptOrderId },
-      status: "pending",
+      status: { in: ["pending", "processing"] },
       expiresAt: { gt: now }
     },
     data: {
@@ -1432,6 +1446,10 @@ function createReservationKey(characterId: string, itemId: string): string {
 
 function isRestoreToFullOrder(order: ItemUseOrderRecord): boolean {
   return order.preview.mode === "restore-to-full";
+}
+
+function expectedTerminalOrderStatus(order: ItemUseOrderRecord): "pending" | "processing" {
+  return order.status === "processing" ? "processing" : "pending";
 }
 
 function isLiveReservationConflict(error: unknown): boolean {

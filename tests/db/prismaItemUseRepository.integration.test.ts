@@ -597,6 +597,63 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(10);
   });
 
+  it("lets restore-to-full clear older own processing bandage previews before reservation checks", async () => {
+    await seedCharacter({ hpCurrent: 0, hpMax: 31 });
+    await seedBandages(9);
+    await restoreToFull("restore-token-old-own-processing-preview");
+    await prisma.itemUseOrder.update({
+      where: { token: "restore-token-old-own-processing-preview" },
+      data: { status: "processing" }
+    });
+
+    await expect(restoreToFull("restore-token-processing-priority")).resolves.toMatchObject({
+      state: "preview-created",
+      neededQuantity: 7,
+      availableQuantity: 9,
+      order: {
+        token: "restore-token-processing-priority",
+        preview: {
+          mode: "restore-to-full",
+          hpBefore: 0,
+          hpAfter: 47
+        }
+      }
+    });
+    await expect(readUseOrder("restore-token-old-own-processing-preview")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expectBandageQuantity(9);
+    await expectCharacterHp(0);
+  });
+
+  it("lets ordinary inventory bandage use clear older own processing previews before reservation checks", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(3);
+    await createPreview("use-token-old-own-processing-preview");
+    await prisma.itemUseOrder.update({
+      where: { token: "use-token-old-own-processing-preview" },
+      data: { status: "processing" }
+    });
+
+    await expect(createPreview("use-token-processing-priority")).resolves.toMatchObject({
+      state: "preview-created",
+      order: {
+        token: "use-token-processing-priority",
+        preview: {
+          hpBefore: 10,
+          hpAfter: 17
+        }
+      }
+    });
+    await expect(readUseOrder("use-token-old-own-processing-preview")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expectBandageQuantity(3);
+    await expectCharacterHp(10);
+  });
+
   it("blocks restore-to-full for equipped items", async () => {
     await seedCharacter({ hpCurrent: 30, hpMax: 25 });
     await seedBandages(3);
