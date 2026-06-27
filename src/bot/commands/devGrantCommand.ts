@@ -14,6 +14,9 @@ import {
 
 const DEFAULT_DEV_GRANT_AMOUNT = 1;
 const MAX_DEV_GRANT_AMOUNT = 1_000;
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
 
 type DevGrantCommand =
   | "dev_add_level"
@@ -113,7 +116,7 @@ async function handleDevGrantCommand(
 
   const result = await grant(telegramUserId, amount);
 
-  await ctx.reply(presentDevGrantResult(result));
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
 async function handleDevHealCommand(
@@ -141,7 +144,7 @@ async function handleDevHealCommand(
 
   const result = await devGrantService.heal(telegramUserId, amount);
 
-  await ctx.reply(presentDevGrantResult(result));
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
 async function handleDevRestoreManaCommand(
@@ -169,7 +172,7 @@ async function handleDevRestoreManaCommand(
 
   const result = await devGrantService.restoreMana(telegramUserId, amount);
 
-  await ctx.reply(presentDevGrantResult(result));
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
 async function handleDevResetYegerBandageCommand(
@@ -190,7 +193,7 @@ async function handleDevResetYegerBandageCommand(
 
   const result = await devGrantService.resetYegerBandageCooldown(telegramUserId);
 
-  await ctx.reply(presentDevGrantResult(result));
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
 async function handleDevResetYegerTrailCommand(
@@ -211,7 +214,7 @@ async function handleDevResetYegerTrailCommand(
 
   const result = await devGrantService.resetYegerTrackingCooldown(telegramUserId);
 
-  await ctx.reply(presentDevGrantResult(result));
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
 async function handleDevResetYegerBandageDayCommand(
@@ -232,7 +235,7 @@ async function handleDevResetYegerBandageDayCommand(
 
   const result = await devGrantService.resetYegerBandageDay(telegramUserId);
 
-  await ctx.reply(presentDevGrantResult(result));
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
 function parseDevGrantAmount(raw: string | undefined): number | null {

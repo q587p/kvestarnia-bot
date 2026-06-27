@@ -62,14 +62,14 @@ Hidden `path` може бути внутрішнім selector-ом, але на�
 `0.2.8` відкриває перший rewardless achievement slice. Ачівки — це жартівливі записи й майбутні титульні сліди, а не бойові бонуси.
 
 - Вхід: кнопка `🏅 Ачівки` з екрану персонажа.
-- Перший runtime seed малий: створення персонажа, рівні, бойовий результат, корчмарська справа, отримана манатка й екіпірування.
-- UI показує earned, locked і hidden states, прогрес, дату отримання, титульний запис і пагінацію по 10 рядків.
+- Перший runtime seed охоплює створення персонажа, расу/клас, рівні, бойовий результат, корчмарські справи, манатки, екіпірування, бинти, дуелі, тренування, подарунки, продаж, напої, пошук, полювання, пригодницькі вибори та тиск Низу там, де вже є durable ledger.
+- UI показує all/earned/locked filters, hidden states, прогрес, дату отримання, титульний запис і пагінацію по 10 рядків.
 - Unlock-повідомлення групуються, якщо одна дія відкрила кілька ачівок.
 - Hidden-ачівки не спойлерять умову до відкриття.
 - Persisted cosmetic title grants зберігають provenance для майбутнього вибору титулів, але не змінюють поточний combo-title display.
 - Ачівки не дають XP, золото, предмети, stat effects, loot odds, quest/Yeger/Shynok/remort progress або combat power.
 
-Канонічний контракт: `docs/ACHIEVEMENTS_PHASE1.md`; shipped scope: `docs/tasks/0.2.8-achievements-cosmetic-titles.md`.
+Канонічний контракт і повний каталог: `docs/ACHIEVEMENTS_CATALOG.md`; historical planning note: `docs/ACHIEVEMENTS_PHASE1.md`; shipped scope: `docs/tasks/0.2.8-achievements-cosmetic-titles.md`.
 
 ## Раси MVP
 Не треба одразу 40 рас. Почати з компактного набору, де кожна має механіку й гумор.

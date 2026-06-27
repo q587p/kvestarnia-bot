@@ -83,7 +83,9 @@ export function createServices(
     devGrant: new DevGrantService(
       repositories.devGrants,
       config.nodeEnv,
-      config.devGrantCommandsEnabled
+      config.devGrantCommandsEnabled,
+      undefined,
+      achievements
     ),
     devReset: new DevResetService(repositories.characters, config.nodeEnv),
     duel: new DuelChallengeService(

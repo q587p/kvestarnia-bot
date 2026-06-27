@@ -16,6 +16,9 @@ import type {
 
 export const ACHIEVEMENTS_PAGE_SIZE = 10;
 
+export const achievementListFilters = ["all", "earned", "locked"] as const;
+export type AchievementListFilter = (typeof achievementListFilters)[number];
+
 export type AchievementEvent =
   | {
       type: "character.created";
@@ -54,6 +57,13 @@ export type AchievementEvent =
       sourceId?: string;
     }
   | {
+      type: "item.used";
+      characterId: string;
+      itemId: string;
+      occurredAt: Date;
+      sourceId?: string;
+    }
+  | {
       type: "equipment.item_equipped";
       characterId: string;
       itemId: string;
@@ -86,6 +96,7 @@ export interface AchievementListView {
   entries: AchievementListEntry[];
   earnedCount: number;
   totalCount: number;
+  filter: AchievementListFilter;
   page: number;
   totalPages: number;
 }
@@ -97,16 +108,22 @@ export interface AchievementRecalculationResult {
 export class AchievementService {
   constructor(private readonly achievementsRepository: AchievementRepository) {}
 
-  async listForCharacter(characterId: string, requestedPage = 0): Promise<AchievementListView> {
+  async listForCharacter(
+    characterId: string,
+    requestedPage = 0,
+    filter: AchievementListFilter = "all"
+  ): Promise<AchievementListView> {
     const snapshot = await this.achievementsRepository.listForCharacter(characterId);
-    const entries = buildListEntries(snapshot.achievements, snapshot.progress, snapshot.titleGrants);
+    const allEntries = buildListEntries(snapshot.achievements, snapshot.progress, snapshot.titleGrants);
+    const entries = filterAchievementEntries(allEntries, filter);
     const totalPages = Math.max(1, Math.ceil(entries.length / ACHIEVEMENTS_PAGE_SIZE));
     const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
 
     return {
       entries: entries.slice(page * ACHIEVEMENTS_PAGE_SIZE, (page + 1) * ACHIEVEMENTS_PAGE_SIZE),
-      earnedCount: entries.filter((entry) => entry.earned).length,
-      totalCount: entries.length,
+      earnedCount: allEntries.filter((entry) => entry.earned).length,
+      totalCount: allEntries.length,
+      filter,
       page,
       totalPages
     };
@@ -191,7 +208,7 @@ export class AchievementService {
         achievementId: definition.id,
         source: {
           type: "achievement.recalculate",
-          occurredAt,
+          occurredAt: getRecalculationOccurredAt(definition, snapshot, occurredAt),
           payload: {
             triggerType: definition.trigger.type,
             current,
@@ -217,6 +234,21 @@ export class AchievementService {
   }
 }
 
+function filterAchievementEntries(
+  entries: readonly AchievementListEntry[],
+  filter: AchievementListFilter
+): AchievementListEntry[] {
+  if (filter === "earned") {
+    return entries.filter((entry) => entry.earned);
+  }
+
+  if (filter === "locked") {
+    return entries.filter((entry) => !entry.earned);
+  }
+
+  return [...entries];
+}
+
 function matchesEvent(definition: AchievementDefinition, event: AchievementEvent): boolean {
   if (definition.trigger.type !== event.type) {
     return false;
@@ -232,6 +264,8 @@ function matchesEvent(definition: AchievementDefinition, event: AchievementEvent
       return definition.trigger.itemId
         ? event.itemIds.includes(definition.trigger.itemId)
         : event.itemIds.length > 0;
+    case "item.used":
+      return matchesOptionalValue(definition.trigger.itemId, event.itemId);
     default:
       return true;
   }
@@ -266,6 +300,10 @@ function isThresholdMet(definition: AchievementDefinition, event: AchievementEve
     return event.type === "equipment.item_equipped" && (definition.trigger.threshold ?? 1) <= 1;
   }
 
+  if (definition.trigger.type === "item.used") {
+    return event.type === "item.used" && (definition.trigger.threshold ?? 1) <= 1;
+  }
+
   return definition.trigger.type === event.type;
 }
 
@@ -293,10 +331,109 @@ function getRecalculationProgress(
         : snapshot.inventoryItemQuantity;
     case "equipment.item_equipped":
       return snapshot.equippedItemCount;
+    case "item.used":
+      return getActivityDates(definition, snapshot).length;
+    case "mantok.chest.completed":
+    case "level.barter.completed":
+    case "training.doppelganger.finished":
+    case "duel.quick.resolved":
+    case "duel.turnbased.resolved":
+    case "barrel.raid.claimed":
+    case "korchma.round.purchased":
+    case "item.gift.sent":
+    case "item.gift.received":
+    case "mantok.sale.completed":
+    case "bard.performance.completed":
+    case "yeger.free-bandage.claimed":
+    case "shynok.drink.activated":
+    case "passage.search.completed":
+    case "passage.search.monster-attack":
+    case "passage.search.unique-nodes":
+    case "hunt.contract.completed":
+    case "adventure.choice.completed":
+    case "adventure.choice.complication":
+    case "combat.threat-escalated":
+    case "combat.threat-pressure":
+      return snapshot.activityDates[definition.trigger.type]?.length ?? 0;
     case "future":
     default:
       return 0;
   }
+}
+
+function getRecalculationOccurredAt(
+  definition: AchievementDefinition,
+  snapshot: AchievementRecalculationSnapshot,
+  fallback: Date
+): Date {
+  const threshold = definition.trigger.threshold ?? 1;
+
+  switch (definition.trigger.type) {
+    case "character.created":
+      return snapshot.createdAt;
+    case "level.reached":
+      return snapshot.levelReachedAt[threshold] ?? fallback;
+    case "combat.finished":
+      return getThresholdDate(
+        definition.trigger.outcome ? snapshot.combatFinishedAt[definition.trigger.outcome] : [],
+        threshold
+      ) ?? fallback;
+    case "problem.quest.completed":
+      return getThresholdDate(snapshot.problemQuestCompletedAt, threshold) ?? fallback;
+    case "item.received":
+      if (definition.trigger.itemId) {
+        const row = snapshot.inventoryItemRows[definition.trigger.itemId];
+        return row ? (threshold <= 1 ? row.createdAt : row.updatedAt) : fallback;
+      }
+      return threshold <= 1
+        ? snapshot.firstInventoryItemReceivedAt ?? fallback
+        : snapshot.inventoryObservedAt ?? fallback;
+    case "equipment.item_equipped":
+      return threshold <= 1
+        ? snapshot.firstEquippedItemAt ?? fallback
+        : snapshot.equipmentObservedAt ?? fallback;
+    case "item.used":
+    case "mantok.chest.completed":
+    case "level.barter.completed":
+    case "training.doppelganger.finished":
+    case "duel.quick.resolved":
+    case "duel.turnbased.resolved":
+    case "barrel.raid.claimed":
+    case "korchma.round.purchased":
+    case "item.gift.sent":
+    case "item.gift.received":
+    case "mantok.sale.completed":
+    case "bard.performance.completed":
+    case "yeger.free-bandage.claimed":
+    case "shynok.drink.activated":
+    case "passage.search.completed":
+    case "passage.search.monster-attack":
+    case "passage.search.unique-nodes":
+    case "hunt.contract.completed":
+    case "adventure.choice.completed":
+    case "adventure.choice.complication":
+    case "combat.threat-escalated":
+    case "combat.threat-pressure":
+      return getThresholdDate(getActivityDates(definition, snapshot), threshold) ?? fallback;
+    case "future":
+    default:
+      return fallback;
+  }
+}
+
+function getActivityDates(
+  definition: AchievementDefinition,
+  snapshot: AchievementRecalculationSnapshot
+): readonly Date[] {
+  if (definition.trigger.type === "item.used" && definition.trigger.itemId) {
+    return snapshot.activityDates[`item.used:${definition.trigger.itemId}`] ?? [];
+  }
+
+  return snapshot.activityDates[definition.trigger.type] ?? [];
+}
+
+function getThresholdDate(dates: readonly Date[], threshold: number): Date | null {
+  return dates[Math.max(0, threshold - 1)] ?? null;
 }
 
 function matchesOptionalValue(expected: string | undefined, actual: string | undefined): boolean {
@@ -322,6 +459,8 @@ function eventPayload(event: AchievementEvent): Record<string, unknown> {
       return { stageId: event.stageId };
     case "item.received":
       return { itemIds: [...event.itemIds] };
+    case "item.used":
+      return { itemId: event.itemId };
     case "character.created":
       return {
         ...(event.raceId ? { raceId: event.raceId } : {}),

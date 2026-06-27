@@ -4,6 +4,7 @@ import type { DevGrantRepository } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
+import { AchievementService, type AchievementUnlock } from "./achievementService";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
 import {
   YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
@@ -20,6 +21,7 @@ export type DevGrantResult =
       amount: number;
       character: CharacterRecord;
       levelChange?: RewardLevelChange;
+      achievementUnlocks?: AchievementUnlock[];
     }
   | {
       state: "updated";
@@ -43,6 +45,7 @@ export type DevGrantItemsResult =
       amount: number;
       character: CharacterRecord;
       itemGrants: RewardItemGrant[];
+      achievementUnlocks?: AchievementUnlock[];
     };
 
 export class DevGrantService {
@@ -50,7 +53,8 @@ export class DevGrantService {
     private readonly grants: DevGrantRepository,
     private readonly nodeEnv: string,
     private readonly enabledFlag: boolean,
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly achievements?: AchievementService
   ) {}
 
   isEnabled(): boolean {
@@ -64,15 +68,22 @@ export class DevGrantService {
 
     const result = await this.grants.addLevelForTelegramUser(telegramUserId, amount);
 
-    return result
-      ? {
-          state: "updated",
-          kind: "level",
-          amount,
-          character: result.character,
-          levelChange: result.levelChange
-        }
-      : { state: "no-character" };
+    if (!result) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "updated",
+      kind: "level",
+      amount,
+      character: result.character,
+      levelChange: result.levelChange,
+      achievementUnlocks: await this.trackGrantAchievements({
+        characterId: result.character.id,
+        sourceKind: "dev.add_level",
+        levelChange: result.levelChange
+      })
+    };
   }
 
   async addXp(telegramUserId: bigint, amount = 1): Promise<DevGrantResult> {
@@ -82,15 +93,22 @@ export class DevGrantService {
 
     const result = await this.grants.addXpForTelegramUser(telegramUserId, amount);
 
-    return result
-      ? {
-          state: "updated",
-          kind: "xp",
-          amount,
-          character: result.character,
-          levelChange: result.levelChange
-        }
-      : { state: "no-character" };
+    if (!result) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "updated",
+      kind: "xp",
+      amount,
+      character: result.character,
+      levelChange: result.levelChange,
+      achievementUnlocks: await this.trackGrantAchievements({
+        characterId: result.character.id,
+        sourceKind: "dev.add_xp",
+        levelChange: result.levelChange
+      })
+    };
   }
 
   async addGold(telegramUserId: bigint, amount = 1): Promise<DevGrantResult> {
@@ -152,15 +170,22 @@ export class DevGrantService {
     const itemGrants = this.pickRandomItemGrants(amount);
     const result = await this.grants.addItemsForTelegramUser(telegramUserId, itemGrants);
 
-    return result
-      ? {
-          state: "updated",
-          kind: "items",
-          amount,
-          character: result.character,
-          itemGrants: enrichRewardItemGrants(result.itemGrants)
-        }
-      : { state: "no-character" };
+    if (!result) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "updated",
+      kind: "items",
+      amount,
+      character: result.character,
+      itemGrants: enrichRewardItemGrants(result.itemGrants),
+      achievementUnlocks: await this.trackGrantAchievements({
+        characterId: result.character.id,
+        sourceKind: "dev.add_random_item",
+        itemGrants: result.itemGrants
+      })
+    };
   }
 
   async addBandages(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
@@ -173,15 +198,22 @@ export class DevGrantService {
       quantity: amount
     }]);
 
-    return result
-      ? {
-          state: "updated",
-          kind: "items",
-          amount,
-          character: result.character,
-          itemGrants: enrichRewardItemGrants(result.itemGrants)
-        }
-      : { state: "no-character" };
+    if (!result) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "updated",
+      kind: "items",
+      amount,
+      character: result.character,
+      itemGrants: enrichRewardItemGrants(result.itemGrants),
+      achievementUnlocks: await this.trackGrantAchievements({
+        characterId: result.character.id,
+        sourceKind: "dev.add_bandage",
+        itemGrants: result.itemGrants
+      })
+    };
   }
 
   async resetYegerBandageCooldown(telegramUserId: bigint): Promise<DevGrantResult> {
@@ -266,4 +298,61 @@ export class DevGrantService {
       };
     });
   }
+
+  private async trackGrantAchievements(input: {
+    characterId: string;
+    sourceKind: string;
+    levelChange?: RewardLevelChange;
+    itemGrants?: readonly ItemGrant[];
+  }): Promise<AchievementUnlock[]> {
+    if (!this.achievements) {
+      return [];
+    }
+
+    const occurredAt = new Date();
+    const unlocks: AchievementUnlock[] = [];
+
+    if (input.levelChange) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type: "level.reached",
+          characterId: input.characterId,
+          level: input.levelChange.newLevel,
+          occurredAt,
+          sourceId: `${input.sourceKind}:${input.characterId}:${input.levelChange.oldLevel}->${input.levelChange.newLevel}`
+        }))
+      );
+    }
+
+    if (input.itemGrants && input.itemGrants.length > 0) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type: "item.received",
+          characterId: input.characterId,
+          itemIds: input.itemGrants.map((grant) => grant.itemId),
+          occurredAt,
+          sourceId: `${input.sourceKind}:${input.characterId}`
+        }))
+      );
+    }
+
+    const recalculated = await this.achievements.recalculateForCharacter(input.characterId, occurredAt);
+
+    return uniqueAchievementUnlocks([...unlocks, ...recalculated.unlocks]);
+  }
+}
+
+function uniqueAchievementUnlocks(unlocks: readonly AchievementUnlock[]): AchievementUnlock[] {
+  const seen = new Set<string>();
+  const unique: AchievementUnlock[] = [];
+
+  for (const unlock of unlocks) {
+    if (seen.has(unlock.id)) {
+      continue;
+    }
+    seen.add(unlock.id);
+    unique.push(unlock);
+  }
+
+  return unique;
 }

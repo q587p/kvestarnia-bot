@@ -61,10 +61,12 @@ describe("achievement presenter", () => {
       ],
       earnedCount: 1,
       totalCount: 3,
+      filter: "all",
       page: 0,
       totalPages: 1
     } satisfies AchievementListView);
 
+    expect(text).toContain("Розділ: 📚 Усі");
     expect(text).toContain("Отримано: <b>1/3</b>");
     expect(text).toContain("✅ <b>Де тут вихід?</b>");
     expect(text).toContain("титульний запис");
@@ -110,6 +112,7 @@ function makeEmptyView(): AchievementListView {
     entries: [],
     earnedCount: 0,
     totalCount: 0,
+    filter: "all",
     page: 0,
     totalPages: 1
   };

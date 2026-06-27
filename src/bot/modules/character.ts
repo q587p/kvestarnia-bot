@@ -189,7 +189,10 @@ async function handleAchievementCallback(
   }
 
   if (callback.type === "check") {
-    const result = await heroService.recalculateAchievementsByTelegramUserId(telegramUserId);
+    const result = await heroService.recalculateAchievementsByTelegramUserId(
+      telegramUserId,
+      callback.filter
+    );
 
     if (result.state === "no-character") {
       await safeEditMessageText(ctx, presentInvalidCallback());
@@ -209,7 +212,11 @@ async function handleAchievementCallback(
     return;
   }
 
-  const result = await heroService.listAchievementsByTelegramUserId(telegramUserId, callback.page);
+  const result = await heroService.listAchievementsByTelegramUserId(
+    telegramUserId,
+    callback.page,
+    callback.filter
+  );
 
   if (result.state === "no-character") {
     await safeEditMessageText(ctx, presentInvalidCallback());

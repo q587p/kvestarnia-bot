@@ -15,7 +15,26 @@ describe("achievement callback data", () => {
       ok: true,
       value: {
         type: "list",
+        filter: "all",
         page: 42
+      }
+    });
+  });
+
+  it("parses filtered list and recalculation callbacks", () => {
+    expect(parseAchievementCallbackData(makeAchievementListCallbackData(1, "earned"))).toEqual({
+      ok: true,
+      value: {
+        type: "list",
+        filter: "earned",
+        page: 1
+      }
+    });
+    expect(parseAchievementCallbackData(makeAchievementCheckCallbackData("locked"))).toEqual({
+      ok: true,
+      value: {
+        type: "check",
+        filter: "locked"
       }
     });
   });
@@ -36,7 +55,8 @@ describe("achievement callback data", () => {
     expect(parseAchievementCallbackData(callbackData)).toEqual({
       ok: true,
       value: {
-        type: "check"
+        type: "check",
+        filter: "all"
       }
     });
   });

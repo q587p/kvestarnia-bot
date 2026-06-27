@@ -7,7 +7,7 @@ export function presentAchievements(
 ): string {
   const lines = [
     "🏅 <b>Ачівки</b>",
-    "Розділ: 📚 Усі",
+    `Розділ: ${presentAchievementFilter(view.filter)}`,
     `Отримано: <b>${view.earnedCount}/${view.totalCount}</b>`,
     `Сторінка: <b>${view.page + 1}/${view.totalPages}</b>`,
     ""
@@ -24,6 +24,18 @@ export function presentAchievements(
   }
 
   return lines.join("\n");
+}
+
+function presentAchievementFilter(filter: AchievementListView["filter"]): string {
+  if (filter === "earned") {
+    return "✅ Отримані";
+  }
+
+  if (filter === "locked") {
+    return "🔒 Не отримані";
+  }
+
+  return "📚 Усі";
 }
 
 export function presentAchievementCheckNotice(unlockCount: number): string {

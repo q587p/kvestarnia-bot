@@ -52,16 +52,34 @@ export interface AchievementRecalculationSnapshot {
   raceId: string;
   classId: string;
   createdAt: Date;
+  levelReachedAt: Readonly<Record<number, Date>>;
   combat: {
     won: number;
     lost: number;
     fled: number;
     expired: number;
   };
+  combatFinishedAt: {
+    won: Date[];
+    lost: Date[];
+    fled: Date[];
+    expired: Date[];
+  };
   completedProblemQuestStages: number;
+  problemQuestCompletedAt: Date[];
   inventoryItemQuantity: number;
   inventoryItemQuantities: Readonly<Record<string, number>>;
+  inventoryItemRows: Readonly<Record<string, {
+    quantity: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }>>;
+  firstInventoryItemReceivedAt: Date | null;
+  inventoryObservedAt: Date | null;
   equippedItemCount: number;
+  firstEquippedItemAt: Date | null;
+  equipmentObservedAt: Date | null;
+  activityDates: Readonly<Record<string, readonly Date[]>>;
 }
 
 export interface UnlockAchievementInput {

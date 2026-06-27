@@ -19,6 +19,7 @@ import type { ResourceRecoveryNotice } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 import { calculateInventoryRowsGoldValue } from "./inventoryService";
 import type {
+  AchievementListFilter,
   AchievementListView,
   AchievementRecalculationResult,
   AchievementService
@@ -116,7 +117,8 @@ export class HeroService {
 
   async listAchievementsByTelegramUserId(
     telegramUserId: bigint,
-    page = 0
+    page = 0,
+    filter: AchievementListFilter = "all"
   ): Promise<{ state: "no-character" } | { state: "ready"; view: AchievementListView }> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -126,12 +128,13 @@ export class HeroService {
 
     return {
       state: "ready",
-      view: await this.achievements.listForCharacter(character.id, page)
+      view: await this.achievements.listForCharacter(character.id, page, filter)
     };
   }
 
   async recalculateAchievementsByTelegramUserId(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    filter: AchievementListFilter = "all"
   ): Promise<
     { state: "no-character" } | {
       state: "ready";
@@ -150,7 +153,7 @@ export class HeroService {
     return {
       state: "ready",
       result,
-      view: await this.achievements.listForCharacter(character.id, 0)
+      view: await this.achievements.listForCharacter(character.id, 0, filter)
     };
   }
 }

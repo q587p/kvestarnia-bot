@@ -145,7 +145,7 @@ Deliverables:
 - `0.2.5` Bard Performance MVP: shipped a level 3+ Bard performance solo in Shynok or in any other current location with another active same-location character, frozen CHA/LUCK/level check, 93-minute per-location cooldown, 13-minute audience window, Shynok-only capped house gold, voluntary same-location applause/tips and no XP/items/buffs/profession engine.
 - `0.2.6` Passage Search MVP: shipped `🔎 Пошукати` on `Спуск до Низу` and frozen passage previews, with a short timer, per-node cooldown, replay-safe ledger, tiny no-XP finds and a danger branch that starts the stored passage monster with the monster acting first.
 - `0.2.7` Player Abilities MVP: shipped class/race ability catalogs, race action buttons, group-ready solo fallback and hidden fumble replay for persistent PvE, training and turn-based duels.
-- `0.2.8` Achievements and Cosmetic Title Records: shipped rewardless achievement browsing from `/hero`, first seed unlock hooks and persisted cosmetic title grant provenance with no power effects.
+- `0.2.8` Achievements and Cosmetic Title Records: shipped rewardless achievement browsing from `/hero`, expanded seed unlock hooks, all/earned/locked filters, manual recalculation and persisted cosmetic title grant provenance with no power effects.
 - Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
@@ -234,7 +234,7 @@ Very-later platform note:
 - Повноцінний web-клієнт і боти для інших месенджерів на кшталт WhatsApp/Viber лишаються дуже далеким напрямом після стабілізації core loop, соціяльних систем і adapter boundaries. Це не частина `0.1.x` і не public promise.
 
 ## Backlog фіч
-- Achievements Phase 1: 54 seed definitions, earned/locked/hidden states, paginated `🏅 Ачівки` surface, grouped unlock notifications, no gameplay bonuses. Canonical doc: `docs/ACHIEVEMENTS_PHASE1.md`.
+- Achievement follow-ups: add durable ledgers for bestiary/news/memorial/nearby/location-history/Yeger-trail and lifetime class/race/title ability-use records before adding long-term counters such as 42-use achievements. Shipped catalog: `docs/ACHIEVEMENTS_CATALOG.md`; historical planning note: `docs/ACHIEVEMENTS_PHASE1.md`.
 - Collections: «Бестіарій», «Музей Манаток».
 - Inspiration-backed content packs із `docs/INSPIRATION_CONTENT_BACKLOG.md`: перші 10–15 монстрів, 20–30 манаток і 5–8 quest/adventure seeds у малих PR з тестами.
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.

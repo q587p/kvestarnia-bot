@@ -14,8 +14,8 @@
 
 Use one fresh account plus one existing level 3+ account. Local dev grants are acceptable for level/equipment setup.
 
-1. Open `/hero` and press `🏅 Ачівки`; verify earned, locked and hidden rows render compactly with no hidden criteria spoiler and pagination appears when needed.
-2. Press `🔎 Перевірити` on an existing account; verify provable old race/class, level/combat/problem/inventory/equipment rows appear once, then repeat the press and verify no duplicate unlocks.
+1. Open `/hero` and press `🏅 Ачівки`; verify all, earned, locked and hidden rows render compactly with no hidden criteria spoiler and pagination appears when needed.
+2. Press `🔎 Перевірити` on an existing account; verify provable old race/class, level/combat/problem/inventory/equipment/side-action rows appear once with historical dates where ledgers exist, then repeat the press and verify no duplicate unlocks.
 3. Return from the achievements page to the hero card; repeat old page callbacks and verify views do not mutate rows or create duplicate notifications.
 4. Create a fresh character; verify the first achievement notification appears once, includes the current race/class identity records, and the achievement page shows title-grant record markers.
 5. Trigger level 3 and level 5 through existing XP/dev-grant paths; verify progress moves forward and grouped notifications appear when several unlocks happen together.
