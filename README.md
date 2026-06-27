@@ -154,6 +154,7 @@
 - [`docs/PHASE1_RELEASE_NOTES.md`](docs/PHASE1_RELEASE_NOTES.md) — канонічний підсумок Phase 1 closure у `0.1.0`, відомі обмеження й порядок `0.1.x`.
 - [`docs/PHASE2_MVP_RELEASE_NOTES.md`](docs/PHASE2_MVP_RELEASE_NOTES.md) — канонічний підсумок Phase 2 Social Combat MVP closure у `0.1.25`.
 - [`docs/PHASE2_DEFERRED_0_2.md`](docs/PHASE2_DEFERRED_0_2.md) — що переноситься в `0.2.x`, включно з safe gifting, multi-enemy, item tags і party/raid work.
+- [`docs/phase2-roadmap-audit/README.md`](docs/phase2-roadmap-audit/README.md) — audit/handoff-пакет із рекомендованим post-`0.2.7` порядком, public-surface нотатками, future task docs, prompts і checklists; це planning input, не початок реалізації.
 - [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
 - [`docs/SECURITY_AND_FAIR_PLAY.md`](docs/SECURITY_AND_FAIR_PLAY.md) — антиаб’юз, приватність, idempotency і чесна гра.
 - [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md) — архітектура, домени, дані й майбутні технічні рішення.

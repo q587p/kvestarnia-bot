@@ -57,6 +57,10 @@
 
 - [refactoring-audit/README.md](refactoring-audit/README.md) — imported `12026-06-27` audit package with analysis, docs, prompts, task candidates and a machine-readable Codex task board.
 
+## Phase 2 roadmap audit package
+
+- [phase2-roadmap-audit/README.md](phase2-roadmap-audit/README.md) — imported `12026-06-27` roadmap audit package with post-`0.2.7` ordering, public-surface notes, future task docs, prompts and checklists. Keep it as planning input until a specific next slice is activated.
+
 ## Phase 1 closeout
 
 - [PHASE1_RELEASE_NOTES.md](PHASE1_RELEASE_NOTES.md) — канонічний підсумок `0.1.0`.
