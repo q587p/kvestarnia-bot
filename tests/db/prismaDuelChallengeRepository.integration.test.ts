@@ -143,6 +143,114 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     });
   });
 
+  it("round-trips defended and critical-fumble duel action summaries", async () => {
+    const session = await seedActiveSession("summary-outcomes-json", new Date("2026-06-17T18:00:23.000Z"));
+    const nextState = JSON.parse(JSON.stringify(session.state)) as TurnBasedDuelState;
+
+    nextState.participants.challenger.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 1,
+          triggerAt: 1
+        }
+      }
+    };
+    const defendedAction = {
+      actorCharacterId: session.challengerCharacterId,
+      defenderCharacterId: session.targetCharacterId,
+      action: "defend" as const,
+      outcome: "defended" as const,
+      damage: 0,
+      manaSpent: 0,
+      critical: false
+    };
+    const fumbleAction = {
+      actorCharacterId: session.targetCharacterId,
+      defenderCharacterId: session.challengerCharacterId,
+      action: "skill" as const,
+      outcome: "critical-fumble" as const,
+      damage: 0,
+      manaSpent: 0,
+      critical: false,
+      skillId: "skill.forceful-strike",
+      fumble: {
+        abilityId: "skill.forceful-strike",
+        kind: "self-damage" as const,
+        line: "Тестова невдача.",
+        selfDamage: 3
+      }
+    };
+    nextState.lastAction = fumbleAction;
+    nextState.lastRound = {
+      turn: 1,
+      actions: [defendedAction, fumbleAction]
+    };
+
+    await prisma.duelCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: nextState }
+    });
+
+    const mapped = await repository.findTurnBasedByToken("summary-outcomes-json");
+
+    expect(mapped?.state.participants.challenger.playerAbilityFumbles?.abilities["skill.forceful-strike"]).toEqual({
+      version: 1,
+      cycle: 0,
+      usesInCycle: 1,
+      triggerAt: 1
+    });
+    expect(mapped?.state.lastRound?.actions.map((action) => action.outcome)).toEqual([
+      "defended",
+      "critical-fumble"
+    ]);
+    expect(mapped?.state.lastAction).toMatchObject({
+      outcome: "critical-fumble",
+      fumble: {
+        abilityId: "skill.forceful-strike",
+        kind: "self-damage",
+        selfDamage: 3
+      }
+    });
+  });
+
+  it("treats unknown current duel action outcomes as repairable malformed state", async () => {
+    const session = await seedActiveSession("unknown-outcome-json", new Date("2026-06-17T18:00:23.000Z"));
+    const nextState = JSON.parse(JSON.stringify(session.state)) as unknown as Record<string, unknown>;
+    nextState.lastAction = {
+      actorCharacterId: session.challengerCharacterId,
+      defenderCharacterId: session.targetCharacterId,
+      action: "attack",
+      outcome: "future-outcome",
+      damage: 0,
+      manaSpent: 0,
+      critical: false
+    };
+
+    await prisma.duelCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: nextState }
+    });
+
+    await expect(repository.findTurnBasedByToken("unknown-outcome-json")).resolves.toBeNull();
+    await prisma.duelCombatSession.update({
+      where: { id: session.id },
+      data: {
+        status: "expired",
+        completedAt: new Date("2026-06-17T18:00:24.000Z")
+      }
+    });
+    await prisma.duelChallenge.update({
+      where: { inviteToken: "unknown-outcome-json" },
+      data: { status: "expired" }
+    });
+    await prisma.activeCombatLease.deleteMany({
+      where: { kind: "turn-based-duel", referenceId: session.id }
+    });
+  });
+
   it("starts one turn-based session and two leases under concurrent accept attempts", async () => {
     const seeded = await seedPendingChallenge("start-race");
     const [first, second] = await Promise.all([

@@ -5,6 +5,7 @@ import {
   formatCombatSimulationReport,
   runCombatSimulation,
   summarizeCombatRuns,
+  type CombatOutcomeSummary,
   type CombatSimulationRow,
   type CombatSimulationRunResult
 } from "../../src/tooling/combatSimulation";
@@ -58,6 +59,7 @@ describe("combatSimulation", () => {
       abilityUsage: {},
       classAbilityUsage: {},
       raceAbilityUsage: {},
+      fumbleCount: 0,
       aoeEnemyHits: 0,
       allySupportUses: 0
     });
@@ -79,6 +81,7 @@ describe("combatSimulation", () => {
         abilityUsage: { "monster.paper-rustle": 1 },
         classAbilityUsage: { "skill.hot-spell": 2 },
         raceAbilityUsage: { "ability.race.dry-tide": 1 },
+        fumbleCount: 1,
         aoeEnemyHits: 3,
         allySupportUses: 0
       },
@@ -96,6 +99,7 @@ describe("combatSimulation", () => {
         abilityUsage: {},
         classAbilityUsage: { "skill.hot-spell": 1 },
         raceAbilityUsage: { "ability.race.dry-tide": 1 },
+        fumbleCount: 2,
         aoeEnemyHits: 2,
         allySupportUses: 1
       }
@@ -105,9 +109,23 @@ describe("combatSimulation", () => {
       abilityUsage: { "monster.paper-rustle": 1 },
       classAbilityUsage: { "skill.hot-spell": 3 },
       raceAbilityUsage: { "ability.race.dry-tide": 2 },
+      fumbleCount: 3,
       aoeEnemyHits: 5,
       allySupportUses: 1
     });
+    expect(formatCombatSimulationReport({
+      seed: "summary",
+      policy: "aggressive",
+      raceId: "race.dryland-rusalka",
+      raceName: "Русалка сухопутна",
+      path: "boundary",
+      levels: [3],
+      monsterLevels: "same",
+      runsPerMatchup: 2,
+      maxTurns: 12,
+      rows: [makeRow("class.mage", "Маг", 3, 3, 0.5, summarizeCombatRuns(runs))],
+      warnings: []
+    })).toContain("fumbles 3");
   });
 
   it("flags same-level warning thresholds for weak or extreme fight balance", () => {
@@ -322,7 +340,8 @@ function makeRow(
   className: string,
   heroLevel: number,
   monsterLevel: number,
-  winRate: number
+  winRate: number,
+  summary?: CombatOutcomeSummary
 ): CombatSimulationRow {
   return {
     heroLevel,
@@ -333,7 +352,7 @@ function makeRow(
     raceName: "Людиноподібні",
     monsterId: "monster.test",
     monsterName: "Тестовий монстр",
-    summary: {
+    summary: summary ?? {
       totalRuns: 100,
       wins: Math.round(winRate * 100),
       losses: 100 - Math.round(winRate * 100),
@@ -355,6 +374,7 @@ function makeRow(
       abilityUsage: {},
       classAbilityUsage: {},
       raceAbilityUsage: {},
+      fumbleCount: 0,
       aoeEnemyHits: 0,
       allySupportUses: 0
     },

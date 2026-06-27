@@ -151,6 +151,83 @@ describe("combat balance analytics state", () => {
     });
   });
 
+  it("records class and race fumbles under the committed ability ids", () => {
+    const state: CombatState = {
+      id: "combat-4",
+      turn: 1,
+      status: "active",
+      hero: { hp: 30, hpMax: 40, mana: 8, manaMax: 10 },
+      monster: { id: "monster.rat", hp: 10, hpMax: 20 },
+      analytics: createCombatAnalyticsState({
+        characterId: "character-1",
+        playerAnalysisKey: "analysis-key",
+        character: makeCharacter(),
+        monster: makeMonster(),
+        combatSource: "regular_mob",
+        startedAt: new Date("2026-06-21T10:00:00.000Z")
+      })
+    };
+
+    const withClassFumble = recordCombatAnalyticsTurn(state, {
+      action: "skill",
+      heroOutcome: "critical-fumble",
+      heroDamage: 0,
+      monsterDamage: 3,
+      manaSpent: 4,
+      critical: false,
+      skillId: "skill.strict-blessing",
+      abilitySource: "class",
+      fumble: {
+        abilityId: "skill.strict-blessing",
+        kind: "enemy-heal",
+        line: "Тестова невдача.",
+        enemyHealing: 4
+      }
+    });
+    const updated = recordCombatAnalyticsTurn(withClassFumble, {
+      action: "race",
+      heroOutcome: "critical-fumble",
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 2,
+      critical: false,
+      skillId: "ability.race.dry-tide",
+      abilitySource: "race",
+      fumble: {
+        abilityId: "ability.race.dry-tide",
+        kind: "self-damage",
+        line: "Тестова невдача.",
+        selfDamage: 3
+      }
+    });
+
+    expect(updated.analytics?.abilities["manual:skill.strict-blessing"]).toMatchObject({
+      abilityKey: "skill.strict-blessing",
+      isClassAbility: true,
+      usesCount: 1,
+      successfulUsesCount: 0,
+      fumbleCount: 1,
+      totalDamage: 0,
+      totalHealing: 0,
+      resourceSpent: 4
+    });
+    expect(updated.analytics?.abilities["manual:ability.race.dry-tide"]).toMatchObject({
+      abilityKey: "ability.race.dry-tide",
+      isClassAbility: false,
+      usesCount: 1,
+      successfulUsesCount: 0,
+      fumbleCount: 1,
+      totalDamage: 0,
+      totalHealing: 0,
+      resourceSpent: 2
+    });
+    expect(updated.analytics?.abilities[`manual:${BASIC_ATTACK_ABILITY_ID}`]).toBeUndefined();
+    expect(updated.analytics?.totals).toMatchObject({
+      damageDealt: 0,
+      healingDone: 0
+    });
+  });
+
   it("maps terminal combat statuses to report outcomes", () => {
     expect(mapCombatStatusToAnalyticsOutcome("won")).toBe("win");
     expect(mapCombatStatusToAnalyticsOutcome("lost")).toBe("loss");

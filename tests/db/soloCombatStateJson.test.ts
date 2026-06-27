@@ -22,6 +22,67 @@ describe("solo combat state JSON parser", () => {
     expect(parseCombatState(legacyState)).toEqual(legacyState);
   });
 
+  it("round-trips player ability fumble state and replay summaries", () => {
+    const fumble = {
+      abilityId: "ability.race.dry-tide",
+      kind: "self-damage" as const,
+      line: "Русалка сухопутна урочисто промахнулась припливом.",
+      selfDamage: 5
+    };
+    const state = {
+      ...legacyState,
+      playerAbilityFumbles: {
+        version: 1 as const,
+        abilities: {
+          "ability.race.dry-tide": {
+            version: 1 as const,
+            cycle: 2,
+            usesInCycle: 1,
+            triggerAt: 1
+          }
+        }
+      },
+      lastTurn: {
+        action: "race",
+        heroOutcome: "critical-fumble",
+        heroDamage: 0,
+        monsterDamage: 3,
+        manaSpent: 2,
+        critical: false,
+        skillId: "ability.race.dry-tide",
+        abilitySource: "race",
+        fumble
+      },
+      turnLog: [{
+        turn: 1,
+        summary: {
+          action: "race",
+          heroOutcome: "critical-fumble",
+          heroDamage: 0,
+          monsterDamage: 3,
+          manaSpent: 2,
+          critical: false,
+          skillId: "ability.race.dry-tide",
+          abilitySource: "race",
+          fumble
+        },
+        hero: {
+          hp: 5,
+          mana: 1
+        },
+        monster: {
+          hp: 5
+        }
+      }]
+    };
+
+    const parsed = parseCombatState(JSON.parse(JSON.stringify(state)));
+
+    expect(parsed?.playerAbilityFumbles).toEqual(state.playerAbilityFumbles);
+    expect(parsed?.lastTurn?.fumble).toEqual(fumble);
+    expect(parsed?.turnLog?.[0]?.summary.fumble).toEqual(fumble);
+  });
+
   it("reads a valid two-enemy state with stable identities", () => {
     const state = parseCombatState({
       ...legacyState,

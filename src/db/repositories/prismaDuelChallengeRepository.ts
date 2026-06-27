@@ -1426,16 +1426,26 @@ function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | 
   const guard = parseNonNegativeInt(value.guard);
   const manaSpent = parseNonNegativeInt(value.manaSpent);
   const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
+  const action = isTurnBasedSummaryAction(value.action) ? value.action : null;
+  const outcome = isTurnBasedSummaryOutcome(value.outcome) ? value.outcome : null;
 
-  if (!actorCharacterId || !defenderCharacterId || damage === null || manaSpent === null || fumble === null) {
+  if (
+    !actorCharacterId ||
+    !defenderCharacterId ||
+    !action ||
+    !outcome ||
+    damage === null ||
+    manaSpent === null ||
+    fumble === null
+  ) {
     return null;
   }
 
   return {
     actorCharacterId,
     defenderCharacterId,
-    action: isTurnBasedSummaryAction(value.action) ? value.action : "attack",
-    outcome: isTurnBasedSummaryOutcome(value.outcome) ? value.outcome : "miss",
+    action,
+    outcome,
     damage,
     ...(healing !== null && healing > 0 ? { healing } : {}),
     ...(guard !== null && guard > 0 ? { guard } : {}),
@@ -1517,6 +1527,7 @@ function isTurnBasedSummaryOutcome(value: unknown): value is NonNullable<TurnBas
     value === "hit" ||
     value === "critical-hit" ||
     value === "miss" ||
+    value === "defended" ||
     value === "not-enough-mana" ||
     value === "skill-on-cooldown" ||
     value === "critical-fumble" ||

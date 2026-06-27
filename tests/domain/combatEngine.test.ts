@@ -779,6 +779,180 @@ describe("combat domain engine", () => {
     });
   });
 
+  it("does not apply response mitigation from a fumbled protection ability", () => {
+    const rogue: CombatActorStats = {
+      ...warrior,
+      classId: "class.rogue",
+      dexterity: 14,
+      hpMax: 80
+    };
+    const hardHitter = { ...monster, attack: 9, dexterity: 4 };
+    const state = startCombat({ hero: { ...rogue, hpCurrent: 80 }, monster: hardHitter });
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.shadow-cut": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: rogue,
+      monster: hardHitter,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.summary.monsterDamage).toBe(9);
+  });
+
+  it("does not apply guard or support from a fumbled support race ability", () => {
+    const dwarf: CombatActorStats = {
+      ...warrior,
+      raceId: "race.dwarf"
+    };
+    const state = startCombat({ hero: { ...dwarf, manaCurrent: 12 }, monster });
+    state.monster.hp = 10;
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "ability.race.low-center-of-gravity": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "race",
+      hero: dwarf,
+      monster,
+      rng: new FakeRandomSource([0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toMatchObject({
+      heroOutcome: "critical-fumble",
+      heroDamage: 0,
+      manaSpent: 0
+    });
+    expect(result.summary.heroHealing).toBeUndefined();
+    expect(result.summary.allyResults).toBeUndefined();
+    expect(result.state.guard).toBeUndefined();
+    expect(result.state.monster.hp).toBeGreaterThan(10);
+  });
+
+  it("does not damage any enemy when an AoE class ability fumbles", () => {
+    const mage: CombatActorStats = {
+      ...unarmedMage,
+      manaMax: 20,
+      classId: "class.mage"
+    };
+    const state = startCombat({ hero: { ...mage, manaCurrent: 20 }, monster });
+    state.enemies = [
+      {
+        enemyId: "enemy:1",
+        id: monster.monsterId,
+        hp: 12,
+        hpMax: monster.hpMax
+      },
+      {
+        enemyId: "enemy:2",
+        id: secondMonster.monsterId,
+        hp: 9,
+        hpMax: secondMonster.hpMax
+      }
+    ];
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.hot-spell": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: mage,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.summary.heroDamage).toBe(0);
+    expect(result.summary.enemyResults).toBeUndefined();
+    expect(result.state.enemies?.map((enemy) => [enemy.enemyId, enemy.hp])).toEqual([
+      ["enemy:1", 12],
+      ["enemy:2", 9]
+    ]);
+  });
+
+  it("does not consume monster direct-hit runtime marks when a player ability fumbles", () => {
+    const state = startCombat({ hero: { ...warrior, hpCurrent: 1 }, monster });
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+    state.monsterRuntime = {
+      version: 1,
+      rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+      aiProfile: "boss",
+      loadoutIds: ["monster.asset-freeze"],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 1,
+      effects: [{
+        id: "bonus:test",
+        sourceAbilityId: "monster.no-change",
+        sourceActor: "monster",
+        target: "monster",
+        kind: "next-attack-bonus",
+        value: 1.2,
+        polarity: "beneficial",
+        removable: true,
+        remainingOwnActivations: 2,
+        charges: 1
+      }],
+      ownActionCount: 1
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.state.monsterRuntime?.effects.find((effect) => effect.id === "bonus:test")?.charges).toBe(1);
+  });
+
   it("does not advance fumble state for unavailable ability attempts", () => {
     const state = startCombat({ hero: { ...warrior, manaCurrent: 12 }, monster });
     state.cooldowns = {
@@ -815,6 +989,38 @@ describe("combat domain engine", () => {
 
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("skill-on-cooldown");
+    expect(result.state.playerAbilityFumbles).toEqual(state.playerAbilityFumbles);
+  });
+
+  it("does not advance fumble state for no-mana ability attempts", () => {
+    const priest: CombatActorStats = {
+      ...warrior,
+      classId: "class.priest",
+      manaMax: 20
+    };
+    const state = startCombat({ hero: { ...priest, manaCurrent: 0 }, monster });
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.strict-blessing": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: priest,
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("not-enough-mana");
     expect(result.state.playerAbilityFumbles).toEqual(state.playerAbilityFumbles);
   });
 

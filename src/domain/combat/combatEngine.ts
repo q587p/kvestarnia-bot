@@ -755,14 +755,18 @@ function resolveHeroAttack(
     monsterResponse = resolveMonsterResponse({
       state: nextState,
       input,
-      damageReduction: getAbilityResponseDamageReduction(skill),
+      damageReduction: getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble),
       simultaneousFinalResponse: monsterDefeatedByHeroExchange
     });
     monsterDamage += monsterResponse.damage;
   }
   let counterDamage = 0;
-  if (nextState.hero.hp > 0 && monsterDamage > 0 && (monsterResponse.defendCounter || (skill?.counterDamage ?? 0) > 0)) {
-    counterDamage = skill?.counterDamage
+  if (
+    nextState.hero.hp > 0 &&
+    monsterDamage > 0 &&
+    (monsterResponse.defendCounter || (!actorAction.summary.fumble && (skill?.counterDamage ?? 0) > 0))
+  ) {
+    counterDamage = !actorAction.summary.fumble && skill?.counterDamage
       ? skill.counterDamage
       : rollDefendCounterDamage(input.hero, input.monster, input.rng);
     nextState.monster.hp = Math.max(0, nextState.monster.hp - counterDamage);
@@ -1017,14 +1021,18 @@ function resolveMultiEnemyHeroAttack(
     const activationPhase = resolveHeroActivationAndLivingEnemyPhase(
       nextState,
       input,
-      getAbilityResponseDamageReduction(skill),
+      getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble),
       enemyPhaseParticipants
     );
     heroEffectDamage = activationPhase.heroEffectDamage;
     monsterDamage += activationPhase.monsterDamage;
     const enemyPhase = activationPhase.enemyPhase;
-    if (nextState.hero.hp > 0 && monsterDamage > 0 && (enemyPhase.defendCounter || (skill?.counterDamage ?? 0) > 0)) {
-      counterDamage = skill?.counterDamage
+    if (
+      nextState.hero.hp > 0 &&
+      monsterDamage > 0 &&
+      (enemyPhase.defendCounter || (!actorAction.summary.fumble && (skill?.counterDamage ?? 0) > 0))
+    ) {
+      counterDamage = !actorAction.summary.fumble && skill?.counterDamage
         ? skill.counterDamage
         : rollDefendCounterDamage(input.hero, primaryStats, input.rng);
       const counterTarget = getPrimaryCombatEnemy(nextState);
@@ -1231,6 +1239,22 @@ function resolveActorAttack(
         : {}),
       ...(fumble ? { fumble } : {})
     }
+  };
+}
+
+export function previewPlayerAbilityFumbleCycle(input: {
+  state: PlayerAbilityFumblesState | undefined;
+  abilityId: string;
+  seed: string;
+}): { fumbled: boolean } {
+  const current = normalizePlayerAbilityFumbleState(
+    input.state?.abilities[input.abilityId],
+    input.abilityId,
+    input.seed
+  );
+
+  return {
+    fumbled: current.usesInCycle + 1 === current.triggerAt
   };
 }
 
@@ -1997,6 +2021,13 @@ function getAbilityResponseDamageReduction(ability: CombatPlayerAbilityProfile |
   return ability.guardReduction && ability.guardReduction > 0
     ? 0
     : ability.monsterDamageReduction;
+}
+
+function getCommittedAbilityResponseDamageReduction(
+  ability: CombatPlayerAbilityProfile | undefined,
+  fumble: CombatPlayerAbilityFumbleSummary | undefined
+): number {
+  return fumble ? 0 : getAbilityResponseDamageReduction(ability);
 }
 
 function summaryActionOrigin(input: ResolveCombatTurnInput): { actionOrigin?: CombatActionOrigin } {

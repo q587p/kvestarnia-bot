@@ -83,6 +83,7 @@ export interface CombatOutcomeSummary {
   abilityUsage: Record<string, number>;
   classAbilityUsage: Record<string, number>;
   raceAbilityUsage: Record<string, number>;
+  fumbleCount: number;
   aoeEnemyHits: number;
   allySupportUses: number;
 }
@@ -101,6 +102,7 @@ export interface CombatSimulationRunResult {
   abilityUsage: Record<string, number>;
   classAbilityUsage: Record<string, number>;
   raceAbilityUsage: Record<string, number>;
+  fumbleCount: number;
   aoeEnemyHits: number;
   allySupportUses: number;
 }
@@ -234,9 +236,15 @@ export function formatCombatSimulationReport(report: CombatSimulationReport): st
     }
     const classAbilityUsage = formatAbilityUsage(row.summary.classAbilityUsage);
     const raceAbilityUsage = formatAbilityUsage(row.summary.raceAbilityUsage);
-    if (classAbilityUsage || raceAbilityUsage || row.summary.aoeEnemyHits > 0 || row.summary.allySupportUses > 0) {
+    if (
+      classAbilityUsage ||
+      raceAbilityUsage ||
+      row.summary.fumbleCount > 0 ||
+      row.summary.aoeEnemyHits > 0 ||
+      row.summary.allySupportUses > 0
+    ) {
       lines.push(
-        `  player abilities class ${classAbilityUsage || "none"} | race ${raceAbilityUsage || "none"} | AoE hits ${row.summary.aoeEnemyHits} | ally support ${row.summary.allySupportUses}`
+        `  player abilities class ${classAbilityUsage || "none"} | race ${raceAbilityUsage || "none"} | fumbles ${row.summary.fumbleCount} | AoE hits ${row.summary.aoeEnemyHits} | ally support ${row.summary.allySupportUses}`
       );
     }
 
@@ -304,6 +312,7 @@ export function summarizeCombatRuns(
     abilityUsage,
     classAbilityUsage,
     raceAbilityUsage,
+    fumbleCount: runs.reduce((sum, run) => sum + (run.fumbleCount ?? 0), 0),
     aoeEnemyHits: runs.reduce((sum, run) => sum + (run.aoeEnemyHits ?? 0), 0),
     allySupportUses: runs.reduce((sum, run) => sum + (run.allySupportUses ?? 0), 0)
   };
@@ -423,6 +432,7 @@ function simulateSingleFight(input: {
   let healingUses = 0;
   let aoeEnemyHits = 0;
   let allySupportUses = 0;
+  let fumbleCount = 0;
   const abilityUsage: Record<string, number> = {};
   const classAbilityUsage: Record<string, number> = {};
   const raceAbilityUsage: Record<string, number> = {};
@@ -461,6 +471,9 @@ function simulateSingleFight(input: {
     if (result.summary.skillId && result.summary.abilitySource === "race") {
       raceAbilityUsage[result.summary.skillId] = (raceAbilityUsage[result.summary.skillId] ?? 0) + 1;
     }
+    if (result.summary.heroOutcome === "critical-fumble") {
+      fumbleCount += 1;
+    }
     if ((result.summary.enemyResults?.length ?? 0) > 1) {
       aoeEnemyHits += result.summary.enemyResults?.length ?? 0;
     }
@@ -494,6 +507,7 @@ function simulateSingleFight(input: {
     abilityUsage,
     classAbilityUsage,
     raceAbilityUsage,
+    fumbleCount,
     aoeEnemyHits,
     allySupportUses
   };

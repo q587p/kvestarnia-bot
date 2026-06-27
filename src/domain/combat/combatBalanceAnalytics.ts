@@ -43,6 +43,7 @@ export interface CombatAnalyticsAbilityAccumulatorV1 {
   hitCount: number;
   critCount: number;
   missCount: number;
+  fumbleCount: number;
   totalDamage: number;
   totalHealing: number;
   resourceSpent: number;
@@ -215,6 +216,7 @@ export function recordCombatAnalyticsTurn(
   ability.hitCount += isHeroHit(summary) ? 1 : 0;
   ability.critCount += summary.critical ? 1 : 0;
   ability.missCount += summary.heroOutcome === "miss" ? 1 : 0;
+  ability.fumbleCount += summary.heroOutcome === "critical-fumble" ? 1 : 0;
   ability.totalDamage += heroDamage;
   ability.totalHealing += healing;
   ability.resourceSpent += Math.max(0, summary.manaSpent);
@@ -354,6 +356,7 @@ function emptyAbility(
     hitCount: 0,
     critCount: 0,
     missCount: 0,
+    fumbleCount: 0,
     totalDamage: 0,
     totalHealing: 0,
     resourceSpent: 0
@@ -572,6 +575,7 @@ function parseAbility(value: unknown): CombatAnalyticsAbilityAccumulatorV1 | nul
     hitCount: numbers.hitCount!,
     critCount: numbers.critCount!,
     missCount: numbers.missCount!,
+    fumbleCount: intOrNull(value.fumbleCount) ?? 0,
     totalDamage: numbers.totalDamage!,
     totalHealing: numbers.totalHealing!,
     resourceSpent: numbers.resourceSpent!

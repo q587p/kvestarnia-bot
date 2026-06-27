@@ -23,7 +23,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Class and race cooldowns now coexist in `state.cooldowns.abilities` keyed by ability id. Class skill cooldowns still mirror through `cooldowns.skill` for legacy JSON, old cards and existing class-skill checks; race cooldowns do not collide with class skills.
 - One-enemy combat, two-enemy threat escalation, training doppelganger player actions and turn-based duel actions now share the same pure player ability resolver for direct damage, all-enemy damage, primary-plus-splash, self-heal, ally/self heal, all-ally/self guard, response mitigation and small non-recursive counters.
 - Turn-based duel support abilities now apply their session-only healing/guard summaries instead of spending mana/cooldown for a zero-effect action, and duel JSON preserves race pending actions plus ability-keyed cooldowns.
-- Player ability fumbles consume the committed action's normal mana and cooldown, do not advance on stale/unavailable/no-mana/cooldown attempts, and map support fumbles to enemy healing while damage fumbles can hurt the actor.
+- Player ability fumbles consume the committed action's normal mana and cooldown, do not advance on stale/unavailable/no-mana/cooldown attempts, cancel all normal ability damage/support/guard/response-mitigation/counter/direct-hit runtime effects, and map support fumbles to enemy healing while damage fumbles can hurt the actor.
+- Turn-based duel replay parsing now round-trips stored `defended` and `critical-fumble` action outcomes; unknown current-version outcomes are treated as malformed/repairable state instead of being silently shown as misses.
+- Combat simulation and analytics reports now distinguish class usage, race usage, fumble counts, AoE hits and support counts while keeping fumbled support out of successful healing totals.
 
 ### Unchanged
 - Deprecated hidden `race.kharakternyk` intentionally has no race ability button; old characters rely on the active `class.kharakternyk` class ability.

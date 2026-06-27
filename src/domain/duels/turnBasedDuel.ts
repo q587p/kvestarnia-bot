@@ -7,6 +7,7 @@ import {
   getCombatSkillProfile,
   getDefendStance,
   getNextDefendGuard,
+  previewPlayerAbilityFumbleCycle,
   resolveActorCombatAction,
   type CombatActorStats,
   type CombatPlayerAbilityProfile,
@@ -377,7 +378,7 @@ function resolveQueuedCombatAction(
     actorStats: actor.combatStats,
     defenderStats: buildDefenderStats(defender),
     action,
-    fumbleSeed: `turn-based-duel:${actor.characterId}:${defender.characterId}`,
+    fumbleSeed: buildTurnBasedDuelFumbleSeed(actor, defender),
     rng
   });
 
@@ -443,6 +444,7 @@ function getQueuedIncomingDamageReduction(
   if (!ability) {
     return 0;
   }
+  const defender = state.participants[defenderSideOf(side)];
   const availability = getActorCombatActionAvailability(
     {
       mana: participant.mana,
@@ -451,7 +453,13 @@ function getQueuedIncomingDamageReduction(
     participant.combatStats
   )[queued.action];
 
-  return availability.available
+  const fumblePreview = previewPlayerAbilityFumbleCycle({
+    state: participant.playerAbilityFumbles,
+    abilityId: ability.id,
+    seed: buildTurnBasedDuelFumbleSeed(participant, defender)
+  });
+
+  return availability.available && !fumblePreview.fumbled
     ? Math.max(ability.monsterDamageReduction, ability.guardReduction ?? 0)
     : 0;
 }
@@ -515,6 +523,13 @@ function getQueuedIncomingDamageMultiplier(
 
 function defenderSideOf(side: "challenger" | "target"): "challenger" | "target" {
   return side === "challenger" ? "target" : "challenger";
+}
+
+function buildTurnBasedDuelFumbleSeed(
+  actor: Pick<TurnBasedDuelParticipantSnapshot, "characterId">,
+  defender: Pick<TurnBasedDuelParticipantSnapshot, "characterId">
+): string {
+  return `turn-based-duel:${actor.characterId}:${defender.characterId}`;
 }
 
 export function expireTurnBasedDuel(state: TurnBasedDuelState): TurnBasedDuelState {
