@@ -2807,10 +2807,14 @@ function parseGuardState(value: unknown): CombatState["guard"] | null {
   }
 
   const consecutiveDefends = intOrNull(value.consecutiveDefends);
+  const abilityDamageReduction = intOrNull(value.abilityDamageReduction);
 
   return consecutiveDefends === null || consecutiveDefends < 0
     ? null
-    : { consecutiveDefends };
+    : {
+        consecutiveDefends,
+        ...(abilityDamageReduction !== null && abilityDamageReduction > 0 ? { abilityDamageReduction } : {})
+      };
 }
 
 function parseCopiedEquipment(value: unknown): CombatCopiedEquipment[] | null {

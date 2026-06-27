@@ -591,7 +591,7 @@ Callback data коротка, версіонована.
 - `v1:duel:rematch-risk:{token}`
 - `v1:duel:share:{token}`
 - `v1:duel:view:{token}`
-- `v1:duel:t:{token}:{atk|skl|ff}:{turn36}:{version36}`
+- `v1:duel:t:{token}:{atk|def|skl|rac|ff}:{turn36}:{version36}`
 - `v1:tavern:participants`
 - `v1:tavern:ranger`
 - `v1:tavern:round`

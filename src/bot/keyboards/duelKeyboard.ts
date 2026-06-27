@@ -3,7 +3,11 @@ import type {
   DuelChallengeView,
   DuelCreateResult
 } from "../../services/duelChallengeService";
-import { getActorCombatActionAvailability } from "../../domain/combat";
+import {
+  getActorCombatActionAvailability,
+  getCombatRaceAbilityProfile
+} from "../../domain/combat";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import {
   makeDuelAcceptCallbackData,
   makeDuelAcceptRiskCallbackData,
@@ -100,7 +104,8 @@ export function buildDuelCreateResourceWarningKeyboard(mode: "quick" | "turn-bas
 export function buildTurnBasedDuelKeyboard(
   result: Extract<DuelChallengeView, { state: "active" }>,
   viewerCharacterId: string | null,
-  skillLabel: string
+  skillLabel: string,
+  raceAbilityLabel?: string | null
 ): InlineKeyboard {
   const token = result.challenge.inviteToken;
   const session = result.session;
@@ -124,6 +129,18 @@ export function buildTurnBasedDuelKeyboard(
         viewer.combatStats
       ).skill
     : null;
+  const raceAvailability = viewer
+    ? getActorCombatActionAvailability(
+        {
+          mana: viewer.mana,
+          cooldowns: viewer.cooldowns
+        },
+        viewer.combatStats
+      ).race
+    : null;
+  const resolvedRaceAbilityLabel = raceAbilityLabel === undefined && viewer
+    ? getTurnBasedRaceAbilityButtonLabel(viewer.raceId)
+    : raceAbilityLabel;
   const keyboard = new InlineKeyboard();
 
   if (canAct) {
@@ -139,12 +156,30 @@ export function buildTurnBasedDuelKeyboard(
         .row();
     }
 
+    if (resolvedRaceAbilityLabel && raceAvailability?.available) {
+      keyboard
+        .text(resolvedRaceAbilityLabel, makeDuelTurnCallbackData(token, "race", session.turn, session.version))
+        .row();
+    }
+
     keyboard
       .text("🏳️ Здатися", makeDuelTurnCallbackData(token, "surrender", session.turn, session.version))
       .row();
   }
 
   return keyboard.text("🔎 Оновити", makeDuelViewCallbackData(token));
+}
+
+function getTurnBasedRaceAbilityButtonLabel(raceId: string): string | null {
+  const ability = getCombatRaceAbilityProfile(raceId);
+
+  if (!ability) {
+    return null;
+  }
+
+  const display = getCombatSkillDisplay(ability.id);
+
+  return `${display.icon} ${display.name}`;
 }
 
 export function buildDuelNavigationKeyboard(): InlineKeyboard {

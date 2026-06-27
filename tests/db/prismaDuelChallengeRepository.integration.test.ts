@@ -85,6 +85,64 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect(timeout?.turn).toBe(2);
   });
 
+  it("round-trips race actions, support summaries and ability cooldowns in turn-based state JSON", async () => {
+    const session = await seedActiveSession("race-json", new Date("2026-06-17T18:00:23.000Z"));
+    const nextState = JSON.parse(JSON.stringify(session.state)) as TurnBasedDuelState;
+
+    nextState.pendingActions = {
+      challenger: {
+        actorCharacterId: session.challengerCharacterId,
+        action: "race"
+      }
+    };
+    nextState.participants.challenger.cooldowns = {
+      abilities: {
+        "ability.race.practical-improvisation": {
+          id: "ability.race.practical-improvisation",
+          remainingTurns: 2
+        }
+      }
+    };
+    nextState.lastAction = {
+      actorCharacterId: session.challengerCharacterId,
+      defenderCharacterId: session.targetCharacterId,
+      action: "race",
+      outcome: "hit",
+      damage: 3,
+      healing: 7,
+      guard: 1,
+      manaSpent: 0,
+      critical: false,
+      skillId: "ability.race.practical-improvisation"
+    };
+    nextState.lastRound = {
+      turn: 1,
+      actions: [nextState.lastAction]
+    };
+
+    await prisma.duelCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: nextState }
+    });
+
+    const mapped = await repository.findTurnBasedByToken("race-json");
+
+    expect(mapped?.state.pendingActions?.challenger?.action).toBe("race");
+    expect(mapped?.state.participants.challenger.combatStats.raceId).toBe("race.human-ish");
+    expect(
+      mapped?.state.participants.challenger.cooldowns?.abilities?.["ability.race.practical-improvisation"]
+    ).toEqual({
+      id: "ability.race.practical-improvisation",
+      remainingTurns: 2
+    });
+    expect(mapped?.state.lastAction).toMatchObject({
+      action: "race",
+      healing: 7,
+      guard: 1,
+      skillId: "ability.race.practical-improvisation"
+    });
+  });
+
   it("starts one turn-based session and two leases under concurrent accept attempts", async () => {
     const seeded = await seedPendingChallenge("start-race");
     const [first, second] = await Promise.all([

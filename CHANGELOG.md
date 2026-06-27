@@ -12,20 +12,21 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added typed player ability catalogs in `src/content/playerAbilities.ts` with stable class/race ids, Ukrainian labels, target scopes, recipes, costs, cooldowns and validation-oriented tags.
 - Added one race ability for every active onboarding race: Людисько `ability.race.practical-improvisation` (0 mana, cooldown 3, single-target trick), Гном `ability.race.low-center-of-gravity` (0 mana, cooldown 4, self/all-ally guard fallback), Ельф `ability.race.offended-precision` (0 mana, cooldown 3, accurate single-target trick), Бісини `ability.race.margin-note` (1 mana, cooldown 4, all-enemy social/control), Дрантогор `ability.race.step-through-the-border` (1 mana, cooldown 4, single-target trick plus response mitigation), Домовик `ability.race.under-stove-stash` (0 mana, cooldown 4, lowest-HP ally/self heal and guard), Русалка сухопутна `ability.race.dry-tide` (2 mana, cooldown 4, all-enemy spell plus small self-heal), Орк-інтелігент `ability.race.peer-reviewed-smash` (0 mana, cooldown 4, stronger physical single target) and Мольфарська душа `ability.race.fog-amulet` (1 mana, cooldown 4, all-ally/self ward plus small non-recursive counter).
-- Added the player `race` combat action for persistent fights and training doppelganger turns, with callback parsing, compact keyboard buttons and Telegram-limit coverage.
+- Added the player `race` combat action for persistent fights, training doppelganger turns and turn-based duel turns, with callback parsing, compact keyboard buttons and Telegram-limit coverage.
 - Added combat summaries for ability source, target scopes, per-target enemy results and ally/support results so journals and result cards replay stored group effects.
 - Added focused catalog, callback, keyboard, presenter and combat-domain tests for race/class ability coverage, cooldown independence, support fallback, all-enemy race hits and refreshed labels.
 
 ### Changed
 - Refreshed class abilities through the shared catalog: Warrior keeps `skill.forceful-strike` as a 0-mana single-target physical strike with cooldown 1; Mage `skill.hot-spell` is now all-enemies spell damage at 5 mana/cooldown 2; Varenyk-mancer `skill.boiling-filling` is all-enemies spell damage plus self-heal at 4 mana/cooldown 2 and preserves old hot-spell cooldown compatibility; Bureaucramancer `skill.form-thirteen-b` is all-enemies social/control at 4 mana/cooldown 3; Bard `skill.dangerous-couplet` is all-enemies social damage plus hero guard fallback at 4 mana/cooldown 3; Rogue `skill.shadow-cut` remains single-target trick damage with response mitigation at 0 mana/cooldown 2 and preserves old trick-shot cooldown compatibility; Ranger `skill.trick-shot` is now primary-plus-splash trick damage at 1 mana/cooldown 2; Priest `skill.strict-blessing` is support-first heal/guard with tiny smite fallback at 4 mana/cooldown 3; Kharakternyk class `skill.steppe-side-eye` is all-enemies trick/control at 2 mana/cooldown 2.
-- Persistent fight and training cards now show class and race ability buttons in the same compact row when available; cooldown notices name ability labels from the catalog.
+- Persistent fight, training and turn-based duel cards now show class and race ability buttons when available; cooldown notices name ability labels from the catalog.
 - Class and race cooldowns now coexist in `state.cooldowns.abilities` keyed by ability id. Class skill cooldowns still mirror through `cooldowns.skill` for legacy JSON, old cards and existing class-skill checks; race cooldowns do not collide with class skills.
-- One-enemy combat, two-enemy threat escalation and training doppelganger player actions now share the same pure player ability resolver for direct damage, all-enemy damage, primary-plus-splash, self-heal, ally/self heal, all-ally/self guard, response mitigation and small non-recursive counters.
+- One-enemy combat, two-enemy threat escalation, training doppelganger player actions and turn-based duel actions now share the same pure player ability resolver for direct damage, all-enemy damage, primary-plus-splash, self-heal, ally/self heal, all-ally/self guard, response mitigation and small non-recursive counters.
+- Turn-based duel support abilities now apply their session-only healing/guard summaries instead of spending mana/cooldown for a zero-effect action, and duel JSON preserves race pending actions plus ability-keyed cooldowns.
 
 ### Unchanged
 - Deprecated hidden `race.kharakternyk` intentionally has no race ability button; old characters rely on the active `class.kharakternyk` class ability.
-- No party/raid runtime, PvP ability integration, new monsters, loot/economy/Yeger changes, item expansion, Prisma migration or remort redesign ships in this slice.
-- Doppels keep their existing copied class-skill AI; they do not use race ability AI yet.
+- No party/raid runtime, quick-duel formula rewrite, wagers, ratings, tournaments, new monsters, loot/economy/Yeger changes, item expansion, Prisma migration or remort redesign ships in this slice.
+- Doppels keep their existing copied skill AI; their frozen identity/debug state now records the copied class/race ability ids, but they do not use a new race-ability AI policy yet.
 
 ## [0.2.6] - 12026-06-27 - Passage Search MVP
 

@@ -14,7 +14,7 @@ export type DuelCallback =
   | { type: "rematch-risk"; token: string }
   | { type: "share"; token: string }
   | { type: "invite"; token: string; templateIndex: number }
-  | { type: "turn"; token: string; action: "attack" | "defend" | "skill" | "surrender"; turn: number; version: number }
+  | { type: "turn"; token: string; action: "attack" | "defend" | "skill" | "race" | "surrender"; turn: number; version: number }
   | { type: "view"; token: string };
 
 export type DuelCallbackError =
@@ -82,11 +82,19 @@ export function makeDuelViewCallbackData(token: string): string {
 
 export function makeDuelTurnCallbackData(
   token: string,
-  action: "attack" | "defend" | "skill" | "surrender",
+  action: "attack" | "defend" | "skill" | "race" | "surrender",
   turn: number,
   version: number
 ): string {
-  const actionKey = action === "attack" ? "atk" : action === "defend" ? "def" : action === "skill" ? "skl" : "ff";
+  const actionKey = action === "attack"
+    ? "atk"
+    : action === "defend"
+      ? "def"
+      : action === "skill"
+        ? "skl"
+        : action === "race"
+          ? "rac"
+          : "ff";
 
   return `${PREFIX}:t:${token}:${actionKey}:${turn.toString(36)}:${version.toString(36)}`;
 }
@@ -164,6 +172,7 @@ export function parseDuelCallbackData(
       templateIndex !== "atk" &&
       templateIndex !== "def" &&
       templateIndex !== "skl" &&
+      templateIndex !== "rac" &&
       templateIndex !== "ff"
     ) {
       return err("invalid-action");
@@ -182,6 +191,8 @@ export function parseDuelCallbackData(
           ? "defend"
           : templateIndex === "skl"
             ? "skill"
+            : templateIndex === "rac"
+              ? "race"
             : "surrender",
       turn: Number.parseInt(turnValue, 36),
       version: Number.parseInt(versionValue, 36)

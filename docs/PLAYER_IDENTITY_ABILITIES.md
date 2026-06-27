@@ -11,6 +11,8 @@
 - `бойова` — діє в бою або прямо змінює бойовий хід.
 - `соціяльна` — діє поза боєм, у пригодах, взаємодії, репутації, титулі або корчемній сцені.
 - Ally/group scopes у `0.2.7` поки деградують до самого пригодника, доки немає party runtime.
+- Поточні class/race бойові абілки відображаються в persistent PvE, training doppelganger player turns і turn-based duel turns; quick duel лишається миттєвою формулою без action-кнопок.
+- Title abilities нижче є planned slot: коли окремий slice додасть активну титульну абілку, ті самі turn-based/training/PvE action surfaces мають показувати актуальний набір героя.
 
 ## Раси
 
@@ -119,7 +121,7 @@
 | Achievements Phase 1 | Rewardless achievements can unlock title-like records and future cosmetic titles. | No XP, gold, loot, combat power or pay-to-win advantage. |
 | Active title selection | Later UI may let a player choose a visible active title near the name. | Not part of current runtime; do not key mechanics from localized visible text alone. |
 | Title social hooks | Titles may affect funny adventure outcomes, board-memory lines, reputation scenes or small capped social modifiers. | Keep effects tiny, transparent where needed and replay-safe. |
-| Title combat hooks | Only future scoped slices should add title-linked combat behavior, likely as cosmetic/funny identity first. | No title should become required for PvE/PvP power. |
+| Title combat hooks | Only future scoped slices should add title-linked combat behavior, likely as cosmetic/funny identity first and as a visible action slot on the same current-skill surfaces. | No title should become required for PvE/PvP power; quick duel should not grow hidden title math without a separate balance review. |
 
 ## Planned Ширші Напрями Абілок
 
@@ -127,4 +129,4 @@
 | --- | --- | --- |
 | Race | Milestone race tricks, party-ready guards/heals, bounded control riders. | Race-specific scene tools, movement/inspection flavor, small tavern-problem shortcuts. |
 | Class | Second class techniques at later levels, party support, better role distinction. | Noncombat techniques for more classes after Bard proof, without a universal profession engine in one slice. |
-| Title | Mostly cosmetic; any combat hook must be tiny and separately reviewed. | Achievements, active-title display, reputation and board-memory flavor. |
+| Title | Mostly cosmetic; any combat hook must be tiny, separately reviewed and surfaced explicitly beside current class/race actions when it exists. | Achievements, active-title display, reputation and board-memory flavor. |

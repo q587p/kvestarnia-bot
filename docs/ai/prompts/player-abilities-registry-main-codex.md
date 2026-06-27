@@ -24,8 +24,8 @@ Goal:
 - document current and planned race/class/title ability directions.
 
 Hard scope:
-- persistent PvE and training player class/race actions only;
-- no PvP or duel race-ability runtime;
+- persistent PvE, training and turn-based duel player class/race actions only;
+- no quick-duel formula rewrite, wagers, ratings, tournaments or PvP reward-power expansion;
 - no party/raid runtime;
 - no schema migration;
 - no loot, economy, Yeger, item, remort or monster-system expansion;
@@ -53,7 +53,7 @@ Read first:
 
 Expected checks:
 - focused catalog/domain tests for ability mapping, race coverage and legacy cooldown compatibility;
-- focused persistent fight and training callback/presenter tests;
+- focused persistent fight, training and turn-based duel callback/presenter tests;
 - simulator or targeted combat checks for class/race use, AoE and ally/self fallback;
 - `npm run db:generate`;
 - `npm run db:validate`;

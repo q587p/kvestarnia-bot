@@ -346,6 +346,7 @@ export interface CombatTurnLogEntry {
 
 export interface CombatGuardState {
   consecutiveDefends: number;
+  abilityDamageReduction?: number;
 }
 
 export interface StartCombatInput {

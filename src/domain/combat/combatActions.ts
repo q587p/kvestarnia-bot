@@ -143,7 +143,7 @@ export function getClassCombatAbility(classId: string | undefined): CombatAbilit
     id: skill.id,
     action: "skill",
     source: "class",
-    label: skill.id,
+    label: skill.label,
     manaCost: skill.manaCost,
     cooldownOwnActions: skill.cooldownOwnActions,
     primaryTargetScope: skill.primaryTargetScope,

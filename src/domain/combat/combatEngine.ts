@@ -740,7 +740,7 @@ function resolveHeroAttack(
     monsterResponse = resolveMonsterResponse({
       state: nextState,
       input,
-      damageReduction: skill?.monsterDamageReduction ?? 0,
+      damageReduction: getAbilityResponseDamageReduction(skill),
       simultaneousFinalResponse: monsterDefeatedByHeroExchange
     });
     monsterDamage += monsterResponse.damage;
@@ -994,7 +994,7 @@ function resolveMultiEnemyHeroAttack(
     const activationPhase = resolveHeroActivationAndLivingEnemyPhase(
       nextState,
       input,
-      skill?.monsterDamageReduction ?? 0,
+      getAbilityResponseDamageReduction(skill),
       enemyPhaseParticipants
     );
     heroEffectDamage = activationPhase.heroEffectDamage;
@@ -1212,7 +1212,7 @@ function applyPlayerAbilitySupport(
 
   if (ability.guardReduction && ability.guardReduction > 0) {
     guard = ability.guardReduction;
-    state.guard = getNextDefendGuard(undefined);
+    state.guard = getAbilityGuard(guard);
   }
 
   return heroHealing > 0 || guard > 0
@@ -1759,6 +1759,23 @@ export function getNextDefendGuard(guard: CombatGuardState | undefined): CombatG
   };
 }
 
+function getAbilityGuard(damageReduction: number): CombatGuardState {
+  return {
+    consecutiveDefends: 1,
+    abilityDamageReduction: Math.max(1, Math.floor(damageReduction))
+  };
+}
+
+function getAbilityResponseDamageReduction(ability: CombatPlayerAbilityProfile | undefined): number {
+  if (!ability) {
+    return 0;
+  }
+
+  return ability.guardReduction && ability.guardReduction > 0
+    ? 0
+    : ability.monsterDamageReduction;
+}
+
 function summaryActionOrigin(input: ResolveCombatTurnInput): { actionOrigin?: CombatActionOrigin } {
   return input.actionOrigin && input.actionOrigin !== "manual"
     ? { actionOrigin: input.actionOrigin }
@@ -1779,8 +1796,10 @@ function applyDefendStance(input: {
     return { damage: 0, counter: false };
   }
 
+  const reducedDamage = Math.max(1, Math.floor(input.damage * (1 - stance.damageReduction)));
+
   return {
-    damage: Math.max(1, Math.floor(input.damage * (1 - stance.damageReduction))),
+    damage: Math.max(0, reducedDamage - Math.max(0, input.defenderGuard.abilityDamageReduction ?? 0)),
     counter: stance.counterChance > 0 && input.rng.nextFloat() < stance.counterChance
   };
 }
@@ -1994,7 +2013,7 @@ function buildTurnDebugTrace(
   monster: MonsterCombatStats,
   monsterSkill: ReturnType<typeof getCombatSkillProfile> | null
 ) {
-  const legalAbilityIds = monster.classId ? [getCombatSkillProfile(monster.classId).id] : [];
+  const legalAbilityIds = getMonsterLegalAbilityIds(monster);
 
   if (!monster.debugTrace && legalAbilityIds.length === 0 && !monsterSkill) {
     return undefined;
@@ -2005,4 +2024,13 @@ function buildTurnDebugTrace(
     legalAbilityIds,
     ...(monsterSkill ? { chosenAbilityId: monsterSkill.id } : {})
   };
+}
+
+function getMonsterLegalAbilityIds(monster: MonsterCombatStats): string[] {
+  const raceAbility = getCombatRaceAbilityProfile(monster.raceId);
+
+  return [
+    ...(monster.classId ? [getCombatSkillProfile(monster.classId).id] : []),
+    ...(raceAbility ? [raceAbility.id] : [])
+  ];
 }

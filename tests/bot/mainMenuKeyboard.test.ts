@@ -996,6 +996,7 @@ describe("main menu and scene keyboards", () => {
       "⚔️ Атакувати",
       "🛡 Захищатися",
       "💪 Силовий удар",
+      "🧰 Практична імпровізація",
       "🏳️ Здатися",
       "🔎 Оновити"
     ]);
@@ -1022,6 +1023,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
       "⚔️ Атакувати",
       "🛡 Захищатися",
+      "🧰 Практична імпровізація",
       "🏳️ Здатися",
       "🔎 Оновити"
     ]);
@@ -2095,11 +2097,16 @@ function turnBasedParticipant(
   characterId: string,
   overrides: {
     mana?: number;
-    cooldowns?: { skill: { id: string; remainingTurns: number } };
+    cooldowns?: {
+      skill?: { id: string; remainingTurns: number };
+      abilities?: Record<string, { id: string; remainingTurns: number }>;
+    };
   } = {}
 ) {
   return {
     characterId,
+    raceId: "race.human-ish",
+    classId: "class.warrior",
     hp: 20,
     hpMax: 24,
     mana: overrides.mana ?? 10,
@@ -2110,6 +2117,7 @@ function turnBasedParticipant(
       hpMax: 24,
       manaMax: 10,
       classId: "class.warrior",
+      raceId: "race.human-ish",
       strength: 8,
       dexterity: 6,
       intelligence: 6,
