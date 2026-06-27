@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.7] - 12026-06-27 - Player Abilities MVP
+## [0.2.7] - 12026-06-28 - Player Abilities MVP
 
 ### Added
 - Added typed player ability catalogs in `src/content/playerAbilities.ts` with stable class/race ids, Ukrainian labels, target scopes, recipes, costs, cooldowns and validation-oriented tags.
