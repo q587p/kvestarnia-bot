@@ -91,6 +91,42 @@ describe("PassageSearchService", () => {
     expect(fight.previewCalls).toBe(0);
   });
 
+  it("short-circuits passage starts for an already running search before previewing", async () => {
+    const repo = new FakePassageSearchRepository();
+    repo.runningAction = makeAction({
+      token: "run13",
+      status: "running",
+      endsAt: new Date(now.getTime() + 42_000),
+      payload: {
+        ...makeSnapshot(),
+        nodeKey: "passage:deep-left",
+        nodeKind: "passage",
+        originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        passage: "deep-left",
+        encounterToken: "encounter13",
+        safeAtStart: false,
+        dangerTier: 4,
+        searchTier: 3,
+        monsterIdAtStart: "monster.deadline-spider",
+        monsterNameAtStart: "Павук дедлайнів",
+        monsterLevelAtStart: 3
+      }
+    });
+    const fight = new FakeFightService();
+    const service = new PassageSearchService(repo, fight as never, () => now);
+
+    const result = await service.startPassageSearch(telegramUserId, {
+      passage: "deep-left",
+      encounterToken: "encounter13",
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+
+    expect(result.state).toBe("running");
+    expect(repo.findRunningCalls).toBe(1);
+    expect(repo.startCalls).toBe(0);
+    expect(fight.previewCalls).toBe(0);
+  });
+
   it("starts safe passage-rest search without creating or refreshing a monster preview", async () => {
     const repo = new FakePassageSearchRepository();
     const fight = new FakeFightService();
@@ -120,6 +156,39 @@ describe("PassageSearchService", () => {
     expect(repo.action?.payload.encounterToken).toBeUndefined();
     expect(repo.action?.payload.monsterIdAtStart).toBeUndefined();
     expect(repo.action?.endsAt.getTime() - repo.action!.startedAt.getTime()).toBe(42_000);
+  });
+
+  it("short-circuits safe passage-rest starts for an already running search before rest lookup", async () => {
+    const repo = new FakePassageSearchRepository();
+    repo.runningAction = makeAction({
+      token: "run13",
+      status: "running",
+      endsAt: new Date(now.getTime() + 42_000),
+      payload: {
+        ...makeSnapshot(),
+        nodeKey: "passage:deep-left",
+        nodeKind: "passage",
+        originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        passage: "deep-left",
+        safeAtStart: true,
+        dangerTier: 0,
+        searchTier: 3
+      }
+    });
+    const fight = new FakeFightService();
+    fight.restWindowState = "monster-rest";
+    const service = new PassageSearchService(repo, fight as never, () => now);
+
+    const result = await service.startSafePassageRestSearch(telegramUserId, {
+      passage: "deep-left",
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+
+    expect(result.state).toBe("running");
+    expect(repo.findRunningCalls).toBe(1);
+    expect(repo.startCalls).toBe(0);
+    expect(fight.restWindowCalls).toEqual([]);
+    expect(fight.previewCalls).toBe(0);
   });
 
   it("rejects stale passage-rest starts before rest-window lookup or action mutation", async () => {
@@ -227,8 +296,10 @@ describe("PassageSearchService", () => {
 class FakePassageSearchRepository implements PassageSearchRepository {
   character = makeCharacter();
   action: PassageSearchActionRecord | null = null;
+  runningAction: PassageSearchActionRecord | null = null;
   cooldowns = new Map<string, Date>();
   startCalls = 0;
+  findRunningCalls = 0;
 
   startForTelegramUser(
     _telegramUserId: bigint,
@@ -254,14 +325,19 @@ class FakePassageSearchRepository implements PassageSearchRepository {
   }
 
   findByTokenForTelegramUser(): Promise<PassageSearchLookupResult> {
-    return Promise.resolve(this.action
-      ? { state: "found", character: this.character, action: this.action }
+    const action = this.action ?? this.runningAction;
+
+    return Promise.resolve(action
+      ? { state: "found", character: this.character, action }
       : { state: "not-found", character: this.character });
   }
 
   findRunningForTelegramUser(): Promise<PassageSearchLookupResult> {
-    return Promise.resolve(this.action?.status === "running"
-      ? { state: "found", character: this.character, action: this.action }
+    this.findRunningCalls += 1;
+    const action = this.runningAction ?? (this.action?.status === "running" ? this.action : null);
+
+    return Promise.resolve(action
+      ? { state: "found", character: this.character, action }
       : { state: "not-found", character: this.character });
   }
 

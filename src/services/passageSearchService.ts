@@ -82,6 +82,21 @@ export class PassageSearchService {
       currentLocationId?: string;
     }
   ): Promise<PassageSearchStartResult> {
+    const activeSearch = await this.searches.findRunningForTelegramUser(telegramUserId);
+
+    if (activeSearch.state === "no-character") {
+      return { state: "no-character" };
+    }
+
+    if (activeSearch.state === "found") {
+      return {
+        state: "running",
+        character: summarizeCharacter(activeSearch.character),
+        action: activeSearch.action,
+        remainingSeconds: getRemainingSeconds(activeSearch.action.endsAt, this.clock())
+      };
+    }
+
     const passage = resolvePassage(input.passage);
     if (!passage) {
       return { state: "blocked", reason: "invalid-node" };
@@ -140,6 +155,21 @@ export class PassageSearchService {
       currentLocationId?: string;
     }
   ): Promise<PassageSearchStartResult> {
+    const activeSearch = await this.searches.findRunningForTelegramUser(telegramUserId);
+
+    if (activeSearch.state === "no-character") {
+      return { state: "no-character" };
+    }
+
+    if (activeSearch.state === "found") {
+      return {
+        state: "running",
+        character: summarizeCharacter(activeSearch.character),
+        action: activeSearch.action,
+        remainingSeconds: getRemainingSeconds(activeSearch.action.endsAt, this.clock())
+      };
+    }
+
     const passage = resolvePassage(input.passage);
     if (!passage) {
       return { state: "blocked", reason: "invalid-node" };
