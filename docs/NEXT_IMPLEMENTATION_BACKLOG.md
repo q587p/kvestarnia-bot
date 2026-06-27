@@ -1018,6 +1018,56 @@ Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the
 - Active fight keyboard cleanup: коли persistent fight уже активний, не показувати `⬅️ До столу` поруч із бойовими діями. У бою гравець має або діяти (`Вдарити`, уміння, майбутній `Захист`), або пробувати `Відступити`; вихід до Столу має зʼявлятися тільки в terminal/non-active states або як окрема safe navigation після завершення. Tests should assert active fight keyboards do not include quest-table navigation.
 - Quest journal overview: переробити `Квести` з простого routing hub у компактний журнал поточних справ. Показувати активні/доступні quest lines, короткий опис, checklist кроків, поточний прогрес і куди повернутися; не показувати точні майбутні нагороди, hidden odds, drop names або спойлерні фінали до завершення. Keep icons restrained and readable, with tests for active problem chain, Yeger quest, starter/adventure availability, completed/inactive states and outside gate behavior.
 
+## Later — Player Ability Critical Fumbles
+
+**Objective**
+Додати гумористичну критичну невдачу для кожної player ability: class, race and future title abilities. Це має бути рідкісний корчемний збій, який змінює результат дії й дає бойовому журналу квестарняний характер, але не ламає replay/idempotency і не перетворює бій на прихований хаос.
+
+**Frequency contract**
+
+- Critical fumbles trigger once per 93 committed uses of a specific ability.
+- Use a persisted per-character/per-ability 93-use cycle or shuffled bag, not an independent `1/93` roll, so every 93 committed uses contains exactly one fumble and never more than one.
+- Unavailable attempts, stale callbacks, duplicate turn replays, no-mana/cooldown no-ops and forged actions do not advance the fumble cycle.
+- The selected fumble outcome is stored in the turn summary/journal so replay never rerolls it.
+
+**Runtime shape**
+
+- Every class ability gets an authored critical-fumble recipe and compact Ukrainian line.
+- Every race ability gets an authored critical-fumble recipe and compact Ukrainian line.
+- Future title abilities must join the same contract instead of inventing another failure system.
+- Fumbles still consume the committed action and normal resource/cooldown costs unless the scoped implementation task deliberately chooses and tests a different contract.
+- Support, AoE, self-target, enemy-target and movement/control abilities need different fumble recipes; do not map all failures to plain self-damage.
+- Training doppelganger and turn-based duels should use the same player ability fumble contract when they use the current ability catalog.
+
+**Example directions**
+
+- Жрець замість підтримки героя або союзників ненароком підлатає супротивника.
+- Маг закручує закляття так переконливо, що воно повертається в самого мага.
+- Слідознавець ловить власний рикошет і чесно записує це як «тактичне коліно».
+- Бард надихає не той бік сцени.
+- Бюрокромант заповнює форму настільки правильно, що штраф приходить героєві.
+- Вареник-мант годує проблему, а не розвʼязання.
+- Розбійник ховається так добре, що сам себе не знаходить.
+- Характерник дивиться скоса, але кут повертає погляд назад.
+- Расові здібності мають провалюватися через власний flavor: гномський центр ваги знаходить підлогу, домовик дістає з-під печі не те, русалчина суха хвиля забуває, що вона суха, і так далі.
+
+**Non-goals**
+
+- no reward, XP, gold or loot rebalance in the same slice;
+- no hidden exact odds in player-facing pre-action copy;
+- no broad combat rewrite beyond the minimum fumble state/resolution path;
+- no random fumble on basic attack unless explicitly scoped later;
+- no humiliation of the player; the joke is on the корчемна система, not on the human.
+
+**Acceptance criteria**
+
+- every active class ability and every active onboarding race ability has a critical-fumble recipe and line;
+- fumble tracking is deterministic/replay-safe and guarantees exactly one fumble per 93 committed uses per character+ability;
+- duplicate/stale callbacks and journal/result reopens do not advance or reroll the fumble cycle;
+- persistent fights, training doppelganger and turn-based duels share the same fumble contract for player abilities;
+- support fumbles can help the enemy, damage fumbles can hit the actor or wrong side, and AoE fumbles remain readable with multi-enemy summaries;
+- tests cover the 93-use guarantee, no more than one fumble per cycle, boundary use 92/93/94, duplicate replay, no-op attempts, class examples, race examples and journal rendering.
+
 ## Later — Battle Interventions / Витівка Прилавка
 
 **Objective**
