@@ -83,6 +83,10 @@ describe("duel callback data", () => {
       ok: true,
       value: { type: "turn", token: "abc_DEF12", action: "skill", turn: 42, version: 13 }
     });
+    expect(parseDuelCallbackData(makeDuelTurnCallbackData("abc_DEF12", "race", 42, 13))).toEqual({
+      ok: true,
+      value: { type: "turn", token: "abc_DEF12", action: "race", turn: 42, version: 13 }
+    });
     expect(parseDuelCallbackData(makeDuelTurnCallbackData("abc_DEF12", "surrender", 42, 13))).toEqual({
       ok: true,
       value: { type: "turn", token: "abc_DEF12", action: "surrender", turn: 42, version: 13 }
@@ -95,6 +99,7 @@ describe("duel callback data", () => {
     expect(Buffer.byteLength(makeDuelNewTurnBasedRiskCallbackData(), "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "attack", 42, 13), "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "defend", 42, 13), "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "race", 42, 13), "utf8")).toBeLessThanOrEqual(64);
   });
 
   it("rejects unknown, unsafe and too-long payloads", () => {

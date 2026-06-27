@@ -175,6 +175,12 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     icon: "🔎",
     description: "скинути пошук у проходах локально",
     devOnly: "grant"
+  },
+  {
+    commands: ["dev_reset_doppelganger"],
+    icon: "🥊",
+    description: "скинути cooldown Допельґанґера локально",
+    devOnly: "grant"
   }
 ];
 

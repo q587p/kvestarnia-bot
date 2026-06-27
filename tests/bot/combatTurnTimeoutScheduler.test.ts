@@ -547,13 +547,13 @@ class SchedulerFightWorld implements CharacterRepository, DailyActionRepository,
   }
 
   buildFightService(): FightService {
-    return new FightService(
-      this,
-      this,
-      () => new Date("2026-06-20T00:00:47.000Z"),
-      this,
-      new FakeRandomSource([0.99, 0.9, 0.99, 0.9, 0.99, 0.9])
-    );
+    return new FightService({
+      characters: this,
+      dailyActions: this,
+      clock: () => new Date("2026-06-20T00:00:47.000Z"),
+      combatSessions: this,
+      rng: new FakeRandomSource([0.99, 0.9, 0.99, 0.9, 0.99, 0.9])
+    });
   }
 
   getSession(sessionId: string): SoloCombatSessionRecord | null {

@@ -312,6 +312,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "скинути пошук у проходах локально",
     includeInMenu: false,
     devOnly: "grant"
+  },
+  {
+    command: "dev_reset_doppelganger",
+    icon: "🪞",
+    description: "скинути cooldown Допельґанґера локально",
+    includeInMenu: false,
+    devOnly: "grant"
   }
 ];
 

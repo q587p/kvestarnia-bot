@@ -68,27 +68,40 @@ const secondMonster: MonsterCombatStats = {
   attack: 3
 };
 
-const oldHotSpellNumbers = {
+const aoeHotSpellNumbers = {
   damageKind: "spell",
   stat: "intelligence",
-  manaCost: 3,
-  cooldownOwnActions: 1,
-  baseDamage: 5,
-  multiplier: 1.2,
-  accuracyBonus: 0.06,
+  manaCost: 5,
+  cooldownOwnActions: 2,
+  baseDamage: 3,
+  multiplier: 0.92,
+  accuracyBonus: 0.05,
   critBonus: 0.01,
   monsterDamageReduction: 0
 } as const;
 
-const oldTrickShotNumbers = {
+const rogueShadowCutNumbers = {
   damageKind: "trick",
   stat: "dexterity",
   manaCost: 0,
-  cooldownOwnActions: 1,
+  cooldownOwnActions: 2,
   baseDamage: 4,
   multiplier: 1.15,
   accuracyBonus: 0.06,
   critBonus: 0.08,
+  monsterDamageReduction: 1
+} as const;
+
+const rangerTrickShotNumbers = {
+  damageKind: "trick",
+  stat: "dexterity",
+  manaCost: 1,
+  cooldownOwnActions: 2,
+  baseDamage: 4,
+  multiplier: 1,
+  secondaryMultiplier: 0.45,
+  accuracyBonus: 0.06,
+  critBonus: 0.06,
   monsterDamageReduction: 0
 } as const;
 
@@ -103,44 +116,60 @@ describe("combat domain engine", () => {
       },
       "class.mage": {
         id: "skill.hot-spell",
-        ...oldHotSpellNumbers
+        primaryTargetScope: "all-enemies",
+        ...aoeHotSpellNumbers
       },
       "class.bard": {
         id: "skill.dangerous-couplet",
         damageKind: "social",
-        manaCost: 2,
+        manaCost: 4,
+        cooldownOwnActions: 3,
+        primaryTargetScope: "all-enemies",
         stat: "charisma"
       },
       "class.rogue": {
         id: "skill.shadow-cut",
         legacyCooldownIds: ["skill.trick-shot"],
-        ...oldTrickShotNumbers
+        ...rogueShadowCutNumbers
       },
       "class.priest": {
         id: "skill.strict-blessing",
         damageKind: "spell",
-        manaCost: 2,
+        manaCost: 4,
+        cooldownOwnActions: 3,
+        primaryTargetScope: "lowest-hp-ally",
         stat: "charisma"
       },
       "class.varenyk-mancer": {
         id: "skill.boiling-filling",
         legacyCooldownIds: ["skill.hot-spell"],
-        ...oldHotSpellNumbers
+        primaryTargetScope: "all-enemies",
+        healAmount: 3,
+        ...{
+          ...aoeHotSpellNumbers,
+          manaCost: 4,
+          multiplier: 0.85
+        }
       },
       "class.bureaucramancer": {
         id: "skill.form-thirteen-b",
-        damageKind: "spell",
-        manaCost: 2,
+        damageKind: "social",
+        manaCost: 4,
+        cooldownOwnActions: 3,
+        primaryTargetScope: "all-enemies",
         stat: "intelligence"
       },
       "class.ranger": {
         id: "skill.trick-shot",
-        ...oldTrickShotNumbers
+        primaryTargetScope: "all-enemies",
+        ...rangerTrickShotNumbers
       },
       "class.kharakternyk": {
         id: "skill.steppe-side-eye",
         damageKind: "trick",
-        manaCost: 1,
+        manaCost: 2,
+        cooldownOwnActions: 2,
+        primaryTargetScope: "all-enemies",
         stat: "luck"
       }
     } as const;
@@ -699,6 +728,302 @@ describe("combat domain engine", () => {
     expect(tipsy.summary.heroOutcome).toBe("miss");
   });
 
+  it("turns a committed support ability fumble into an enemy heal and stores replay JSON", () => {
+    const priest: CombatActorStats = {
+      ...warrior,
+      classId: "class.priest",
+      charisma: 10,
+      manaMax: 20
+    };
+    const state = startCombat({ hero: { ...priest, manaCurrent: 20 }, monster });
+    state.monster.hp = 10;
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.strict-blessing": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: priest,
+      monster,
+      rng: new FakeRandomSource([0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.summary.fumble).toMatchObject({
+      abilityId: "skill.strict-blessing",
+      kind: "enemy-heal"
+    });
+    expect(result.summary.heroDamage).toBe(0);
+    expect(result.summary.heroHealing).toBeUndefined();
+    expect(result.state.monster.hp).toBeGreaterThan(10);
+    expect(result.state.hero.mana).toBe(16);
+    expect(result.state.cooldowns?.skill?.id).toBe("skill.strict-blessing");
+    expect(result.state.playerAbilityFumbles?.abilities["skill.strict-blessing"]).toMatchObject({
+      cycle: 0,
+      usesInCycle: 1,
+      triggerAt: 1
+    });
+    expect(parseCombatState(JSON.parse(JSON.stringify(result.state)))?.lastTurn?.fumble).toMatchObject({
+      abilityId: "skill.strict-blessing",
+      kind: "enemy-heal"
+    });
+  });
+
+  it("does not apply response mitigation from a fumbled protection ability", () => {
+    const rogue: CombatActorStats = {
+      ...warrior,
+      classId: "class.rogue",
+      dexterity: 14,
+      hpMax: 80
+    };
+    const hardHitter = { ...monster, attack: 9, dexterity: 4 };
+    const state = startCombat({ hero: { ...rogue, hpCurrent: 80 }, monster: hardHitter });
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.shadow-cut": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: rogue,
+      monster: hardHitter,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.summary.monsterDamage).toBe(9);
+  });
+
+  it("does not apply guard or support from a fumbled support race ability", () => {
+    const dwarf: CombatActorStats = {
+      ...warrior,
+      raceId: "race.dwarf"
+    };
+    const state = startCombat({ hero: { ...dwarf, manaCurrent: 12 }, monster });
+    state.monster.hp = 10;
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "ability.race.low-center-of-gravity": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "race",
+      hero: dwarf,
+      monster,
+      rng: new FakeRandomSource([0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toMatchObject({
+      heroOutcome: "critical-fumble",
+      heroDamage: 0,
+      manaSpent: 0
+    });
+    expect(result.summary.heroHealing).toBeUndefined();
+    expect(result.summary.allyResults).toBeUndefined();
+    expect(result.state.guard).toBeUndefined();
+    expect(result.state.monster.hp).toBeGreaterThan(10);
+  });
+
+  it("does not damage any enemy when an AoE class ability fumbles", () => {
+    const mage: CombatActorStats = {
+      ...unarmedMage,
+      manaMax: 20,
+      classId: "class.mage"
+    };
+    const state = startCombat({ hero: { ...mage, manaCurrent: 20 }, monster });
+    state.enemies = [
+      {
+        enemyId: "enemy:1",
+        id: monster.monsterId,
+        hp: 12,
+        hpMax: monster.hpMax
+      },
+      {
+        enemyId: "enemy:2",
+        id: secondMonster.monsterId,
+        hp: 9,
+        hpMax: secondMonster.hpMax
+      }
+    ];
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.hot-spell": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: mage,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.summary.heroDamage).toBe(0);
+    expect(result.summary.enemyResults).toBeUndefined();
+    expect(result.state.enemies?.map((enemy) => [enemy.enemyId, enemy.hp])).toEqual([
+      ["enemy:1", 12],
+      ["enemy:2", 9]
+    ]);
+  });
+
+  it("does not consume monster direct-hit runtime marks when a player ability fumbles", () => {
+    const state = startCombat({ hero: { ...warrior, hpCurrent: 1 }, monster });
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+    state.monsterRuntime = {
+      version: 1,
+      rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+      aiProfile: "boss",
+      loadoutIds: ["monster.asset-freeze"],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 1,
+      effects: [{
+        id: "bonus:test",
+        sourceAbilityId: "monster.no-change",
+        sourceActor: "monster",
+        target: "monster",
+        kind: "next-attack-bonus",
+        value: 1.2,
+        polarity: "beneficial",
+        removable: true,
+        remainingOwnActivations: 2,
+        charges: 1
+      }],
+      ownActionCount: 1
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.state.monsterRuntime?.effects.find((effect) => effect.id === "bonus:test")?.charges).toBe(1);
+  });
+
+  it("does not advance fumble state for unavailable ability attempts", () => {
+    const state = startCombat({ hero: { ...warrior, manaCurrent: 12 }, monster });
+    state.cooldowns = {
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 2
+        }
+      },
+      skill: {
+        id: "skill.forceful-strike",
+        remainingTurns: 2
+      }
+    };
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("skill-on-cooldown");
+    expect(result.state.playerAbilityFumbles).toEqual(state.playerAbilityFumbles);
+  });
+
+  it("does not advance fumble state for no-mana ability attempts", () => {
+    const priest: CombatActorStats = {
+      ...warrior,
+      classId: "class.priest",
+      manaMax: 20
+    };
+    const state = startCombat({ hero: { ...priest, manaCurrent: 0 }, monster });
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.strict-blessing": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: priest,
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("not-enough-mana");
+    expect(result.state.playerAbilityFumbles).toEqual(state.playerAbilityFumbles);
+  });
+
   it("applies stored pepper-vodka damage modifiers to PvE combat", () => {
     const sturdyMonster = { ...monster, hpMax: 80, attack: 12 };
     const baseline = resolveCombatTurn({
@@ -1003,12 +1328,12 @@ describe("combat domain engine", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.state.hero.mana).toBe(9);
+    expect(result.state.hero.mana).toBe(7);
     expect(result.summary).toMatchObject({
       action: "skill",
       skillId: "skill.hot-spell",
       damageKind: "spell",
-      manaSpent: 3
+      manaSpent: 5
     });
   });
 
@@ -1070,6 +1395,136 @@ describe("combat domain engine", () => {
       reason: "cooldown",
       cooldownRemainingTurns: 3
     });
+  });
+
+  it("stores race ability cooldowns separately from class skill cooldowns", () => {
+    const sturdyMonster = { ...monster, hpMax: 80 };
+    const humanWarrior = {
+      ...warrior,
+      raceId: "race.human-ish"
+    };
+    const raceTurn = resolveCombatTurn({
+      state: startCombat({ hero: humanWarrior, monster: sturdyMonster }),
+      action: "race",
+      hero: humanWarrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.9])
+    });
+
+    expect(raceTurn.ok).toBe(true);
+    if (!raceTurn.ok) {
+      throw new Error("Expected race ability turn to resolve.");
+    }
+    expect(raceTurn.summary).toMatchObject({
+      action: "race",
+      abilitySource: "race",
+      skillId: "ability.race.practical-improvisation"
+    });
+    expect(raceTurn.state.cooldowns?.skill).toBeUndefined();
+    expect(raceTurn.state.cooldowns?.abilities?.["ability.race.practical-improvisation"]).toEqual({
+      id: "ability.race.practical-improvisation",
+      remainingTurns: 3
+    });
+    expect(getCombatActionAvailability(raceTurn.state, humanWarrior).race).toMatchObject({
+      available: false,
+      reason: "cooldown",
+      cooldownRemainingTurns: 3
+    });
+    expect(getCombatActionAvailability(raceTurn.state, humanWarrior).skill).toMatchObject({
+      available: true
+    });
+
+    const skillTurn = resolveCombatTurn({
+      state: raceTurn.state,
+      action: "skill",
+      hero: humanWarrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.9])
+    });
+
+    expect(skillTurn.ok).toBe(true);
+    if (!skillTurn.ok) {
+      throw new Error("Expected class skill to resolve while race ability is cooling down.");
+    }
+    expect(skillTurn.summary.skillId).toBe("skill.forceful-strike");
+    expect(skillTurn.state.cooldowns?.skill).toEqual({
+      id: "skill.forceful-strike",
+      remainingTurns: 1
+    });
+    expect(skillTurn.state.cooldowns?.abilities?.["ability.race.practical-improvisation"]).toEqual({
+      id: "ability.race.practical-improvisation",
+      remainingTurns: 2
+    });
+  });
+
+  it("applies support-only race abilities without direct enemy damage", () => {
+    const dwarfWarrior = {
+      ...warrior,
+      raceId: "race.dwarf"
+    };
+    const state = startCombat({
+      hero: {
+        ...dwarfWarrior,
+        hpCurrent: 12
+      },
+      monster
+    });
+
+    const result = resolveCombatTurn({
+      state,
+      action: "race",
+      hero: dwarfWarrior,
+      monster,
+      rng: new FakeRandomSource([0.9])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected support race ability to resolve.");
+    }
+    expect(result.summary).toMatchObject({
+      action: "race",
+      abilitySource: "race",
+      skillId: "ability.race.low-center-of-gravity",
+      heroDamage: 0,
+      allyResults: [{
+        targetId: "self",
+        label: "Ви",
+        guard: 2
+      }]
+    });
+    expect(result.summary.enemyResults).toBeUndefined();
+    expect(result.state.monster.hp).toBe(monster.hpMax);
+  });
+
+  it("lets race abilities hit every living enemy when their target scope is all enemies", () => {
+    const bisynyMage = {
+      ...unarmedMage,
+      raceId: "race.bisyny",
+      manaCurrent: unarmedMage.manaMax
+    };
+    const result = resolveCombatTurn({
+      state: startCombat({ hero: bisynyMage, monster, enemies: [monster, secondMonster] }),
+      action: "race",
+      hero: bisynyMage,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9, 0.9, 0.9])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected all-enemies race ability to resolve.");
+    }
+    expect(result.summary).toMatchObject({
+      action: "race",
+      abilitySource: "race",
+      targetScope: "all-enemies",
+      skillId: "ability.race.margin-note"
+    });
+    expect(result.summary.enemyResults).toHaveLength(2);
+    expect(result.summary.enemyResults?.map((entry) => entry.enemyId).sort()).toEqual(["enemy:1", "enemy:2"]);
+    expect(normalizeCombatEnemies(result.state).every((enemy) => enemy.hp < enemy.hpMax)).toBe(true);
   });
 
   it("honors legacy cooldown ids for renamed class skills without storing them again", () => {
@@ -1154,11 +1609,11 @@ describe("combat domain engine", () => {
     }
     expect(renamed.state.cooldowns?.skill).toEqual({
       id: "skill.boiling-filling",
-      remainingTurns: 1
+      remainingTurns: 2
     });
     expect(renamed.state.cooldowns?.abilities?.["skill.boiling-filling"]).toEqual({
       id: "skill.boiling-filling",
-      remainingTurns: 1
+      remainingTurns: 2
     });
     expect(renamed.state.cooldowns?.abilities?.["skill.hot-spell"]).toBeUndefined();
   });
@@ -1229,7 +1684,7 @@ describe("combat domain engine", () => {
     }
     expect(skillTurn.state.turnLog?.[0]?.cooldowns?.skill).toEqual({
       id: "skill.hot-spell",
-      remainingTurns: 1
+      remainingTurns: 2
     });
 
     const pressuredState: CombatState = {

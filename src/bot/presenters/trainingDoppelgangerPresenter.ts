@@ -1,12 +1,16 @@
 import {
   buildDoppelgangerCounterFlavor,
   selectDoppelgangerLine,
+  type CombatState,
+  type CombatTurnLogEntry,
   type CombatTurnSummary
 } from "../../domain/combat";
 import type {
   TrainingDoppelgangerLookupResult,
+  TrainingDoppelgangerSnapshotResult,
   TrainingDoppelgangerTurnResult
 } from "../../services/trainingDoppelgangerService";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentLevelUpCelebration } from "./levelGrowthPresenter";
 import { presentRewardAmount } from "./rewardPresenter";
@@ -121,7 +125,9 @@ export function presentTrainingDoppelgangerIntro(
     "",
     escapeHtml(spawnLine.text),
     "",
-    `Проти вас: <b>${escapeHtml(result.doppelganger.name)}</b> · ${escapeHtml(result.doppelganger.raceName)} · ${escapeHtml(result.doppelganger.className)} · рівень ${result.doppelganger.level}`
+    `Проти вас: <b>${escapeHtml(result.doppelganger.name)}</b> · ${escapeHtml(result.doppelganger.raceName)} · ${escapeHtml(result.doppelganger.className)} · рівень ${result.doppelganger.level}`,
+    "",
+    presentBattleStartTip(result.character, result.session.id)
   ].join("\n");
 }
 
@@ -176,13 +182,16 @@ function presentTrainingDoppelgangerState(input: {
 }): string {
   const state = input.session.state;
   const lines = [
+    state?.status === "active"
+      ? `🥊 <b>Бій: ${state.turn} хід</b>`
+      : "🥊 <b>Бій: завершено</b>",
+    "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
-    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
-    `Хід: ${state?.turn ?? "?"}`
+    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`
   ];
 
-  if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
-    lines.push(presentSkillCooldown(state.cooldowns.skill));
+  if (state?.status === "active") {
+    lines.push(...presentAbilityCooldowns(state.cooldowns));
   }
 
   if (input.intro) {
@@ -227,10 +236,58 @@ function presentTrainingDoppelgangerState(input: {
       "XP за прострочене тренування немає."
     );
   } else {
-    lines.push("", `<b>${escapeHtml(input.character.name)}</b>, що робимо?`);
+    lines.push(
+      "",
+      `<b>${escapeHtml(input.character.name)}</b>, що робимо?`,
+      "⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист."
+    );
   }
 
   return lines.join("\n");
+}
+
+export function presentTrainingDoppelgangerJournal(
+  result: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>,
+  requestedPage: number
+): string {
+  const log = result.session.state?.turnLog ?? [];
+
+  if (log.length === 0) {
+    return [
+      "📜 <b>Журнал бою</b>",
+      presentCharacterHeader(result.character),
+      "",
+      "У цьому тренуванні ще немає записаних ходів. Дзеркало називає це підготовчим томом."
+    ].join("\n");
+  }
+
+  const page = Math.max(0, Math.min(Math.floor(requestedPage), log.length - 1));
+  const entry = log[page] ?? log[log.length - 1]!;
+  const state = result.session.state;
+  const lines = [
+    "📜 <b>Журнал бою</b>",
+    presentCharacterHeader(result.character),
+    "",
+    `Хід <b>${entry.turn}</b> · запис ${page + 1}/${log.length}`,
+    `❤️ Ви після ходу: ${entry.hero.hp}/${state?.hero.hpMax ?? "?"} · мана ${entry.hero.mana}/${state?.hero.manaMax ?? "?"}`,
+    `🪞 Копія після ходу: ${entry.monster.hp}/${state?.monster.hpMax ?? "?"}`,
+    "",
+    presentTrainingTurnSummary(entry.summary)
+  ];
+  const notices = presentJournalTurnNotices(entry);
+
+  if (notices.length > 0) {
+    lines.push("", ...notices);
+  }
+
+  return lines.join("\n");
+}
+
+function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
+  return [
+    ...presentAbilityCooldowns(entry.cooldowns),
+    ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`)
+  ];
 }
 
 function presentTrainingReward(
@@ -316,15 +373,12 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
   }
 
   const action =
-    summary.action === "skill"
+    summary.action === "skill" || summary.action === "race"
       ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
         : "Відступ";
-  const hit =
-    summary.heroOutcome === "miss"
-      ? `${action} не влучає.`
-      : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+  const hit = presentHeroActionResult(summary, action);
   const response =
     summary.monsterDamage > 0
       ? summary.monsterAction === "skill" && summary.monsterSkillId
@@ -334,13 +388,90 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
         ? "Копія промахнулась і дуже професійно вдала, що це була демонстрація."
         : "";
 
-  return [hit, response].filter(Boolean).join("\n");
+  return [hit, ...presentAllyAbilityResults(summary), response].filter(Boolean).join("\n");
 }
 
 function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }): string {
   const skill = getCombatSkillDisplay(cooldown.id);
 
   return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+}
+
+function presentAbilityCooldowns(
+  cooldowns: CombatState["cooldowns"] | undefined
+): string[] {
+  const entries: Array<{ id: string; remainingTurns: number }> = [];
+  const seen = new Set<string>();
+
+  if (cooldowns?.skill?.remainingTurns) {
+    entries.push(cooldowns.skill);
+    seen.add(cooldowns.skill.id);
+  }
+
+  for (const cooldown of Object.values(cooldowns?.abilities ?? {})) {
+    if (cooldown.remainingTurns > 0 && !seen.has(cooldown.id)) {
+      entries.push(cooldown);
+      seen.add(cooldown.id);
+    }
+  }
+
+  return entries.map(presentSkillCooldown);
+}
+
+function presentHeroActionResult(summary: CombatTurnSummary, action: string): string {
+  if (summary.fumble) {
+    return presentPlayerAbilityFumble(summary.fumble);
+  }
+
+  if (summary.enemyResults && summary.enemyResults.length > 1) {
+    const results = summary.enemyResults
+      .map((entry) => entry.outcome === "miss"
+        ? `${escapeHtml(entry.monsterName ?? "Копія")} — повз`
+        : `${escapeHtml(entry.monsterName ?? "Копія")} — ${entry.damage}`)
+      .join("; ");
+
+    return `${action} зачіпає цілі: ${results}.`;
+  }
+
+  if (summary.heroOutcome === "miss") {
+    return `${action} не влучає.`;
+  }
+
+  if (summary.heroDamage <= 0 && (summary.allyResults?.length ?? 0) > 0) {
+    return `${action} спрацьовує без прямої шкоди.`;
+  }
+
+  return `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+}
+
+function presentPlayerAbilityFumble(fumble: NonNullable<CombatTurnSummary["fumble"]>): string {
+  const consequence =
+    fumble.kind === "enemy-heal"
+      ? fumble.enemyHealing && fumble.enemyHealing > 0
+        ? ` Копія відновлює ${fumble.enemyHealing} HP.`
+        : " Копія вже ціла, але педагогічно вдячна."
+      : ` Ви отримуєте ${fumble.selfDamage ?? 0} шкоди.`;
+
+  return `Критична невдача: ${escapeHtml(fumble.line)}${consequence}`;
+}
+
+function presentAllyAbilityResults(summary: CombatTurnSummary): string[] {
+  const results = summary.allyResults ?? [];
+
+  if (results.length === 0 && !summary.heroHealing) {
+    return [];
+  }
+
+  return results.length > 0
+    ? results.map((entry) => {
+        const parts = [
+          entry.healing ? `HP підросли на ${entry.healing}` : "",
+          entry.guard ? "захист став міцнішим" : ""
+        ].filter(Boolean);
+
+        return parts.length > 0 ? `Підтримка: ${parts.join(", ")}.` : "";
+      }).filter(Boolean)
+    : [`Підтримка: HP підросли на ${summary.heroHealing}.`];
 }
 
 function presentTrainingCounterFlavor(
@@ -456,6 +587,25 @@ function presentSkillAction(skillId: string | undefined): string {
   const skill = getCombatSkillDisplay(skillId);
 
   return `Вміння ${skill.icon} <i>${escapeHtml(skill.name)}</i>`;
+}
+
+function presentBattleStartTip(
+  character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"],
+  seed: string
+): string {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "quest.start",
+    scene: "fight",
+    seed
+  });
+
+  return flavor
+    ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`
+    : "<i>Порада дня: якщо дзеркало копіює ваш план, змініть хоча б вираз обличчя.</i>";
+}
+
+function trimTerminalPunctuation(value: string): string {
+  return value.trim().replace(/[.!?…]+$/u, "");
 }
 
 function formatTrainingCooldown(availableAt: Date, now: Date): string {

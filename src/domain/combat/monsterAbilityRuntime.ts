@@ -3273,7 +3273,7 @@ function isRuntimeActionKind(value: unknown): value is MonsterAbilityRuntimeActi
 }
 
 function parseCombatAction(value: unknown): CombatActionType | null {
-  return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip"
+  return value === "attack" || value === "defend" || value === "skill" || value === "race" || value === "flee" || value === "skip"
     ? value
     : null;
 }

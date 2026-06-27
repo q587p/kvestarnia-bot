@@ -199,6 +199,28 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.sessions.size).toBe(0);
   });
 
+  it("resets the training doppelganger cooldown for local QA", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    world.cooldowns.set(TRAINING_DOPPELGANGER_COOLDOWN_KEY, {
+      id: "cooldown-1",
+      characterId: "character-42",
+      key: TRAINING_DOPPELGANGER_COOLDOWN_KEY,
+      availableAt: new Date("2026-06-17T09:35:00.000Z"),
+      updatedAt: fixedNow()
+    });
+    const service = buildService(world);
+
+    const result = await service.resetCooldownForDev(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "reset",
+      previousAvailableAt: new Date("2026-06-17T09:35:00.000Z"),
+      availableAt: fixedNow()
+    });
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt).toEqual(fixedNow());
+  });
+
   it("resolves terminal training with XP only and a recovery cooldown", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId, { hpCurrent: 6 });
@@ -1088,6 +1110,40 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     }
 
     return Promise.resolve(this.actions.get(`${input.key}:${input.localDate}`) ?? null);
+  }
+
+  setAvailableAtForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string; availableAt: Date }
+  ) {
+    const character = this.charactersByTelegramUserId.get(userTelegramId);
+
+    if (!character) {
+      return Promise.resolve(null);
+    }
+
+    const cooldown = this.cooldowns.get(input.key);
+
+    if (!cooldown) {
+      return Promise.resolve({
+        state: "not-found" as const,
+        character
+      });
+    }
+
+    const updated = {
+      ...cooldown,
+      availableAt: input.availableAt,
+      updatedAt: input.availableAt
+    };
+
+    this.cooldowns.set(input.key, updated);
+
+    return Promise.resolve({
+      state: "updated" as const,
+      cooldown: updated,
+      character
+    });
   }
 
   findActiveByTelegramUserId(): Promise<SoloCombatSessionRecord | null> {

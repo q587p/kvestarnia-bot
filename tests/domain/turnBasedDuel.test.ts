@@ -125,6 +125,70 @@ describe("turn-based duel domain", () => {
     });
   });
 
+  it("applies a support ability fumble in turn-based duels instead of spending an empty action", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "priest",
+        classId: "class.priest",
+        className: "Жрець",
+        charisma: 10,
+        manaCurrent: 14,
+        manaMax: 14
+      }),
+      target: makeDuelist({ id: "target", hpCurrent: 10, hpMax: 28 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.participants.challenger.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.strict-blessing": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(queued.ok).toBe(true);
+    if (!queued.ok) {
+      throw new Error("Expected queued action.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "priest",
+      action: "skill",
+      rng: new FakeRandomSource([0.99, 0.99])
+    });
+
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected resolved round.");
+    }
+    const priestAction = resolved.round.actions.find((action) => action.actorCharacterId === "priest");
+
+    expect(priestAction).toMatchObject({
+      outcome: "critical-fumble",
+      damage: 0,
+      manaSpent: 4,
+      fumble: {
+        abilityId: "skill.strict-blessing",
+        kind: "enemy-heal"
+      }
+    });
+    expect(resolved.state.participants.target.hp).toBeGreaterThan(10);
+    expect(resolved.state.participants.challenger.cooldowns?.skill?.id).toBe("skill.strict-blessing");
+    expect(resolved.state.participants.challenger.playerAbilityFumbles?.abilities["skill.strict-blessing"]?.usesInCycle).toBe(1);
+  });
+
   it("produces a deterministic draw at the maximum turn safety limit", () => {
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "challenger" }),
@@ -222,7 +286,7 @@ describe("turn-based duel domain", () => {
     }
     expect(firstResolved.state.participants.challenger.cooldowns?.skill).toEqual({
       id: "skill.shadow-cut",
-      remainingTurns: 1
+      remainingTurns: 2
     });
 
     const rejected = resolveTurnBasedDuelAction({
@@ -238,8 +302,95 @@ describe("turn-based duel domain", () => {
     });
     expect(rejected.state.participants.challenger.cooldowns?.skill).toEqual({
       id: "skill.shadow-cut",
-      remainingTurns: 1
+      remainingTurns: 2
     });
+  });
+
+  it("resolves race actions with an ability cooldown separate from class skills", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", raceId: "race.human-ish", dexterity: 14 }),
+      target: makeDuelist({ id: "target", raceId: "race.human-ish" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "race",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) {
+      throw new Error("Expected race action to queue.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected race round to resolve.");
+    }
+
+    expect(resolved.round.actions[0]).toMatchObject({
+      actorCharacterId: "challenger",
+      action: "race",
+      skillId: "ability.race.practical-improvisation"
+    });
+    expect(resolved.state.participants.challenger.cooldowns?.skill).toBeUndefined();
+    expect(
+      resolved.state.participants.challenger.cooldowns?.abilities?.["ability.race.practical-improvisation"]
+    ).toEqual({
+      id: "ability.race.practical-improvisation",
+      remainingTurns: 3
+    });
+  });
+
+  it("applies support-only class action effects in turn-based duel summaries", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "priest",
+        classId: "class.priest",
+        className: "Жрець",
+        charisma: 14,
+        hpCurrent: 10,
+        hpMax: 30
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "priest";
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "priest",
+      action: "skill",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) {
+      throw new Error("Expected priest action to queue.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected priest round to resolve.");
+    }
+
+    expect(resolved.round.actions[0]).toMatchObject({
+      actorCharacterId: "priest",
+      action: "skill",
+      skillId: "skill.strict-blessing",
+      healing: 7,
+      guard: 1
+    });
+    expect(resolved.state.participants.challenger.hp).toBe(17);
   });
 
   it("reduces incoming damage when defend is queued in a hidden round", () => {
@@ -453,7 +604,93 @@ describe("turn-based duel domain", () => {
     )?.damage ?? 0;
 
     expect(baselineWarriorDamage).toBeGreaterThan(0);
-    expect(mitigatedWarriorDamage).toBe(Math.max(0, baselineWarriorDamage - 1));
+    expect(mitigatedWarriorDamage).toBe(Math.max(0, baselineWarriorDamage - 2));
+  });
+
+  it("does not apply queued class mitigation when that queued ability fumbles", () => {
+    const base = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "bureaucramancer",
+        classId: "class.bureaucramancer",
+        intelligence: 12,
+        manaCurrent: 20,
+        manaMax: 20,
+        hpCurrent: 100,
+        hpMax: 100
+      }),
+      target: makeDuelist({
+        id: "warrior",
+        classId: "class.warrior",
+        strength: 12,
+        hpCurrent: 100,
+        hpMax: 100
+      }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    base.actingCharacterId = "warrior";
+
+    const baselineQueued = resolveTurnBasedDuelAction({
+      state: base,
+      actorCharacterId: "warrior",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!baselineQueued.ok) {
+      throw new Error("Expected queued attack.");
+    }
+    const baseline = resolveTurnBasedDuelAction({
+      state: baselineQueued.state,
+      actorCharacterId: "bureaucramancer",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    if (!baseline.ok || baseline.resolution !== "resolved") {
+      throw new Error("Expected baseline round.");
+    }
+    const baselineWarriorDamage = baseline.round.actions.find(
+      (action) => action.actorCharacterId === "warrior"
+    )?.damage ?? 0;
+
+    const fumbleState = JSON.parse(JSON.stringify(base)) as typeof base;
+    fumbleState.participants.challenger.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.form-thirteen-b": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+    const fumbledQueued = resolveTurnBasedDuelAction({
+      state: fumbleState,
+      actorCharacterId: "warrior",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!fumbledQueued.ok) {
+      throw new Error("Expected queued attack against fumble.");
+    }
+    const fumbled = resolveTurnBasedDuelAction({
+      state: fumbledQueued.state,
+      actorCharacterId: "bureaucramancer",
+      action: "skill",
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
+    if (!fumbled.ok || fumbled.resolution !== "resolved") {
+      throw new Error("Expected fumbled round.");
+    }
+    const fumbledWarriorDamage = fumbled.round.actions.find(
+      (action) => action.actorCharacterId === "warrior"
+    )?.damage ?? 0;
+
+    expect(baselineWarriorDamage).toBeGreaterThan(0);
+    expect(fumbledWarriorDamage).toBe(baselineWarriorDamage);
+    expect(fumbled.round.actions.find((action) => action.actorCharacterId === "bureaucramancer")).toMatchObject({
+      outcome: "critical-fumble",
+      skillId: "skill.form-thirteen-b"
+    });
   });
 
   it("rolls small replay-storable XP for terminal wins and losses", () => {

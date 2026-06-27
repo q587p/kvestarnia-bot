@@ -63,6 +63,39 @@ describe("duel presenter", () => {
     expect(text).toContain("Шкода: <b>11</b> · критично");
   });
 
+  it("renders turn-based ability fumbles as a visible consequence", () => {
+    const result = makeTurnBasedDuelView({
+      lastRound: {
+        turn: 2,
+        actions: [
+          {
+            actorCharacterId: "challenger-character",
+            defenderCharacterId: "target-character",
+            action: "skill",
+            outcome: "critical-fumble",
+            damage: 0,
+            manaSpent: 4,
+            critical: false,
+            skillId: "skill.strict-blessing",
+            fumble: {
+              abilityId: "skill.strict-blessing",
+              kind: "enemy-heal",
+              line: "Благословення перечитало адресата й підлатало супротивника з неприємною щирістю.",
+              enemyHealing: 7
+            }
+          }
+        ]
+      }
+    });
+
+    const text = presentTurnBasedDuel(result, { viewerCharacterId: "target-character" });
+
+    expect(text).toContain("Критична невдача:");
+    expect(text).toContain("підлатало супротивника");
+    expect(text).toContain("Супротивник відновлює <b>7</b> HP.");
+    expect(text).not.toContain("Шкода не пройшла.");
+  });
+
   it("shows the viewer's active turn-based skill cooldown", () => {
     const result = makeTurnBasedDuelView({
       participants: {
@@ -93,7 +126,7 @@ describe("duel presenter", () => {
 
     const text = presentTurnBasedDuel(result, { viewerCharacterId: "challenger-character" });
 
-    expect(text).toContain("🫁 💪 Силовий удар відсапується: ще 3 ходи.");
+    expect(text).toContain("🫁 🪓 Силовий замах відсапується: ще 3 ходи.");
     expect(text).not.toContain("🫁 Вміння відсапується");
   });
 

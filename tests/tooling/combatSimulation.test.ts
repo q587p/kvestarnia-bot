@@ -5,6 +5,7 @@ import {
   formatCombatSimulationReport,
   runCombatSimulation,
   summarizeCombatRuns,
+  type CombatOutcomeSummary,
   type CombatSimulationRow,
   type CombatSimulationRunResult
 } from "../../src/tooling/combatSimulation";
@@ -55,8 +56,76 @@ describe("combatSimulation", () => {
       telegraphCount: 0,
       shieldUses: 0,
       healingUses: 0,
-      abilityUsage: {}
+      abilityUsage: {},
+      classAbilityUsage: {},
+      raceAbilityUsage: {},
+      fumbleCount: 0,
+      aoeEnemyHits: 0,
+      allySupportUses: 0
     });
+  });
+
+  it("summarizes player class/race ability usage and group effect counts separately", () => {
+    const runs: CombatSimulationRunResult[] = [
+      {
+        outcome: "won",
+        turns: 4,
+        endingHp: 8,
+        manaSpent: 5,
+        monsterBasicAttacks: 1,
+        monsterDefends: 0,
+        monsterAbilities: 1,
+        monsterTelegraphs: 0,
+        shieldUses: 0,
+        healingUses: 0,
+        abilityUsage: { "monster.paper-rustle": 1 },
+        classAbilityUsage: { "skill.hot-spell": 2 },
+        raceAbilityUsage: { "ability.race.dry-tide": 1 },
+        fumbleCount: 1,
+        aoeEnemyHits: 3,
+        allySupportUses: 0
+      },
+      {
+        outcome: "lost",
+        turns: 5,
+        endingHp: 0,
+        manaSpent: 4,
+        monsterBasicAttacks: 2,
+        monsterDefends: 0,
+        monsterAbilities: 0,
+        monsterTelegraphs: 0,
+        shieldUses: 0,
+        healingUses: 0,
+        abilityUsage: {},
+        classAbilityUsage: { "skill.hot-spell": 1 },
+        raceAbilityUsage: { "ability.race.dry-tide": 1 },
+        fumbleCount: 2,
+        aoeEnemyHits: 2,
+        allySupportUses: 1
+      }
+    ];
+
+    expect(summarizeCombatRuns(runs)).toMatchObject({
+      abilityUsage: { "monster.paper-rustle": 1 },
+      classAbilityUsage: { "skill.hot-spell": 3 },
+      raceAbilityUsage: { "ability.race.dry-tide": 2 },
+      fumbleCount: 3,
+      aoeEnemyHits: 5,
+      allySupportUses: 1
+    });
+    expect(formatCombatSimulationReport({
+      seed: "summary",
+      policy: "aggressive",
+      raceId: "race.dryland-rusalka",
+      raceName: "Русалка сухопутна",
+      path: "boundary",
+      levels: [3],
+      monsterLevels: "same",
+      runsPerMatchup: 2,
+      maxTurns: 12,
+      rows: [makeRow("class.mage", "Маг", 3, 3, 0.5, summarizeCombatRuns(runs))],
+      warnings: []
+    })).toContain("fumbles 3");
   });
 
   it("flags same-level warning thresholds for weak or extreme fight balance", () => {
@@ -242,6 +311,28 @@ describe("combatSimulation", () => {
       boundary.rows[0]?.summary.averageEndingHp ?? 0
     );
   });
+
+  it("can choose race abilities during aggressive simulations", () => {
+    const report = runCombatSimulation({
+      levels: [3],
+      monsterLevels: "same",
+      runsPerMatchup: 20,
+      seed: "race-action-sanity",
+      classIds: ["class.warrior"],
+      raceId: "race.dryland-rusalka",
+      policy: "aggressive",
+      maxTurns: 12
+    });
+
+    const raceUses = report.rows.reduce(
+      (sum, row) =>
+        sum + Object.values(row.summary.raceAbilityUsage).reduce((inner, count) => inner + count, 0),
+      0
+    );
+
+    expect(raceUses).toBeGreaterThan(0);
+    expect(formatCombatSimulationReport(report)).toContain("player abilities class");
+  });
 });
 
 function makeRow(
@@ -249,7 +340,8 @@ function makeRow(
   className: string,
   heroLevel: number,
   monsterLevel: number,
-  winRate: number
+  winRate: number,
+  summary?: CombatOutcomeSummary
 ): CombatSimulationRow {
   return {
     heroLevel,
@@ -260,7 +352,7 @@ function makeRow(
     raceName: "Людиноподібні",
     monsterId: "monster.test",
     monsterName: "Тестовий монстр",
-    summary: {
+    summary: summary ?? {
       totalRuns: 100,
       wins: Math.round(winRate * 100),
       losses: 100 - Math.round(winRate * 100),
@@ -272,7 +364,19 @@ function makeRow(
       expiredRate: 0,
       averageTurns: 3,
       averageEndingHp: 7,
-      averageManaSpent: 4
+      averageManaSpent: 4,
+      basicAttackShare: 0,
+      defendShare: 0,
+      abilityShare: 0,
+      telegraphCount: 0,
+      shieldUses: 0,
+      healingUses: 0,
+      abilityUsage: {},
+      classAbilityUsage: {},
+      raceAbilityUsage: {},
+      fumbleCount: 0,
+      aoeEnemyHits: 0,
+      allySupportUses: 0
     },
     warnings: []
   };

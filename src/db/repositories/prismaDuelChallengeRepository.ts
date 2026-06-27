@@ -1160,6 +1160,9 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   const manaMax = parseNonNegativeInt(value.manaMax);
   const balanceAudit = parseBalanceAudit(value.balanceAudit);
   const cooldowns = hasOwn(value, "cooldowns") ? parseCooldowns(value.cooldowns) : undefined;
+  const playerAbilityFumbles = hasOwn(value, "playerAbilityFumbles")
+    ? parsePlayerAbilityFumbles(value.playerAbilityFumbles)
+    : undefined;
   const equipmentEffects = hasOwn(value, "equipmentEffects")
     ? parseEquipmentEffects(value.equipmentEffects)
     : undefined;
@@ -1182,6 +1185,7 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     manaMax === null ||
     !balanceAudit ||
     cooldowns === null ||
+    playerAbilityFumbles === null ||
     equipmentEffects === null
   ) {
     return null;
@@ -1202,11 +1206,44 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     hpMax,
     mana,
     manaMax,
-    combatStats,
+    combatStats: {
+      ...combatStats,
+      raceId: combatStats.raceId ?? raceId
+    },
     ...(cooldowns ? { cooldowns } : {}),
+    ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
     balanceAudit,
     ...(equipmentEffects ? { equipmentEffects } : {})
   };
+}
+
+function parsePlayerAbilityFumbles(value: unknown): TurnBasedDuelState["participants"]["challenger"]["playerAbilityFumbles"] | null {
+  if (!isRecord(value) || value.version !== 1 || !isRecord(value.abilities)) {
+    return null;
+  }
+
+  const abilities = Object.fromEntries(
+    Object.entries(value.abilities).flatMap(([abilityId, entry]) => {
+      if (!isRecord(entry) || entry.version !== 1 || abilityId.length === 0 || abilityId.length > 128) {
+        return [];
+      }
+      const cycle = parseNonNegativeInt(entry.cycle);
+      const usesInCycle = parseNonNegativeInt(entry.usesInCycle);
+      const triggerAt = parsePositiveInt(entry.triggerAt);
+
+      return cycle === null ||
+        usesInCycle === null ||
+        usesInCycle > 92 ||
+        triggerAt === null ||
+        triggerAt > 93
+        ? []
+        : [[abilityId, { version: 1 as const, cycle, usesInCycle, triggerAt }] as const];
+    })
+  );
+
+  return Object.keys(abilities).length > 0
+    ? { version: 1, abilities }
+    : null;
 }
 
 function parseCombatStats(value: unknown): TurnBasedDuelState["participants"]["challenger"]["combatStats"] | null {
@@ -1218,6 +1255,7 @@ function parseCombatStats(value: unknown): TurnBasedDuelState["participants"]["c
   const hpMax = parsePositiveInt(value.hpMax);
   const manaMax = parseNonNegativeInt(value.manaMax);
   const classId = stringOrNull(value.classId);
+  const raceId = stringOrNull(value.raceId);
 
   if (!stats || level === null || hpMax === null || manaMax === null || !classId) {
     return null;
@@ -1229,6 +1267,7 @@ function parseCombatStats(value: unknown): TurnBasedDuelState["participants"]["c
     hpMax,
     manaMax,
     classId,
+    ...(raceId ? { raceId } : {}),
     armor: intOrZero(value.armor),
     resist: intOrZero(value.resist),
     weaponDamage: intOrZero(value.weaponDamage),
@@ -1260,13 +1299,47 @@ function parseEquipmentEffects(value: unknown): TurnBasedDuelState["participants
 }
 
 function parseCooldowns(value: unknown): TurnBasedDuelState["participants"]["challenger"]["cooldowns"] | null {
-  if (!isRecord(value) || !isRecord(value.skill)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const id = stringOrNull(value.skill.id);
-  const remainingTurns = parseNonNegativeInt(value.skill.remainingTurns);
 
-  return id && remainingTurns !== null ? { skill: { id, remainingTurns } } : null;
+  const abilityEntries = isRecord(value.abilities)
+    ? Object.entries(value.abilities).flatMap(([abilityId, entry]) => {
+        if (!isRecord(entry)) {
+          return [];
+        }
+        const id = stringOrNull(entry.id);
+        const remainingTurns = parseNonNegativeInt(entry.remainingTurns);
+
+        return id && remainingTurns !== null && remainingTurns > 0
+          ? [[abilityId, { id, remainingTurns }] as const]
+          : [];
+      })
+    : [];
+  const skill = parseCooldown(value.skill);
+  const abilities = Object.fromEntries([
+    ...abilityEntries,
+    ...(skill ? [[skill.id, skill] as const] : [])
+  ]);
+
+  return Object.keys(abilities).length > 0
+    ? {
+        abilities,
+        ...(skill ? { skill } : {})
+      }
+    : null;
+}
+
+function parseCooldown(value: unknown): { id: string; remainingTurns: number } | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const id = stringOrNull(value.id);
+  const remainingTurns = parseNonNegativeInt(value.remainingTurns);
+
+  return id && remainingTurns !== null && remainingTurns > 0
+    ? { id, remainingTurns }
+    : null;
 }
 
 function parsePendingActions(
@@ -1310,7 +1383,12 @@ function parseQueuedAction(
   if (!isRecord(value) || value.actorCharacterId !== expectedCharacterId) {
     return null;
   }
-  if (value.action !== "attack" && value.action !== "skill") {
+  if (
+    value.action !== "attack" &&
+    value.action !== "defend" &&
+    value.action !== "skill" &&
+    value.action !== "race"
+  ) {
     return null;
   }
 
@@ -1344,22 +1422,69 @@ function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | 
   const actorCharacterId = stringOrNull(value.actorCharacterId);
   const defenderCharacterId = stringOrNull(value.defenderCharacterId);
   const damage = parseNonNegativeInt(value.damage);
+  const healing = parseNonNegativeInt(value.healing);
+  const guard = parseNonNegativeInt(value.guard);
   const manaSpent = parseNonNegativeInt(value.manaSpent);
+  const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
+  const action = isTurnBasedSummaryAction(value.action) ? value.action : null;
+  const outcome = isTurnBasedSummaryOutcome(value.outcome) ? value.outcome : null;
 
-  if (!actorCharacterId || !defenderCharacterId || damage === null || manaSpent === null) {
+  if (
+    !actorCharacterId ||
+    !defenderCharacterId ||
+    !action ||
+    !outcome ||
+    damage === null ||
+    manaSpent === null ||
+    fumble === null
+  ) {
     return null;
   }
 
   return {
     actorCharacterId,
     defenderCharacterId,
-    action: isTurnBasedSummaryAction(value.action) ? value.action : "attack",
-    outcome: isTurnBasedSummaryOutcome(value.outcome) ? value.outcome : "miss",
+    action,
+    outcome,
     damage,
+    ...(healing !== null && healing > 0 ? { healing } : {}),
+    ...(guard !== null && guard > 0 ? { guard } : {}),
     manaSpent,
     critical: value.critical === true,
-    ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {})
+    ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
+    ...(fumble ? { fumble } : {})
   };
+}
+
+function parsePlayerAbilityFumbleSummary(
+  value: unknown
+): NonNullable<TurnBasedDuelState["lastAction"]>["fumble"] | undefined | null {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const abilityId = stringOrNull(value.abilityId);
+  const line = stringOrNull(value.line);
+  const selfDamage = parseNonNegativeInt(value.selfDamage);
+  const enemyHealing = parseNonNegativeInt(value.enemyHealing);
+
+  if (!abilityId || !line) {
+    return null;
+  }
+
+  if (value.kind === "self-damage" && selfDamage !== null && selfDamage > 0) {
+    return { abilityId, kind: "self-damage", line, selfDamage };
+  }
+
+  if (value.kind === "enemy-heal" && enemyHealing !== null) {
+    return { abilityId, kind: "enemy-heal", line, enemyHealing };
+  }
+
+  return null;
 }
 
 function parseTurnBasedOutcome(value: unknown): TurnBasedDuelState["outcome"] | undefined | null {
@@ -1389,7 +1514,12 @@ function parseTurnBasedOutcome(value: unknown): TurnBasedDuelState["outcome"] | 
 }
 
 function isTurnBasedSummaryAction(value: unknown): value is NonNullable<TurnBasedDuelState["lastAction"]>["action"] {
-  return value === "attack" || value === "skill" || value === "surrender" || value === "timeout-attack";
+  return value === "attack" ||
+    value === "defend" ||
+    value === "skill" ||
+    value === "race" ||
+    value === "surrender" ||
+    value === "timeout-attack";
 }
 
 function isTurnBasedSummaryOutcome(value: unknown): value is NonNullable<TurnBasedDuelState["lastAction"]>["outcome"] {
@@ -1397,8 +1527,10 @@ function isTurnBasedSummaryOutcome(value: unknown): value is NonNullable<TurnBas
     value === "hit" ||
     value === "critical-hit" ||
     value === "miss" ||
+    value === "defended" ||
     value === "not-enough-mana" ||
     value === "skill-on-cooldown" ||
+    value === "critical-fumble" ||
     value === "won" ||
     value === "surrendered" ||
     value === "draw"

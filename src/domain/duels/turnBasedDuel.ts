@@ -1,11 +1,16 @@
 import {
   getActorCombatActionAvailability,
   cloneCombatCooldowns,
+  clonePlayerAbilityFumblesState,
+  getCombatClassAbilityProfile,
+  getCombatRaceAbilityProfile,
   getCombatSkillProfile,
   getDefendStance,
   getNextDefendGuard,
+  previewPlayerAbilityFumbleCycle,
   resolveActorCombatAction,
   type CombatActorStats,
+  type CombatPlayerAbilityProfile,
   type CombatState,
   type CombatTurnSummary
 } from "../combat";
@@ -24,7 +29,7 @@ export const TURN_BASED_DUEL_WIN_XP_RANGE = { min: 4, max: 8 } as const;
 
 export type DuelMode = "quick" | "turn-based";
 export type TurnBasedDuelStatus = "active" | "resolved" | "expired" | "forfeited";
-export type TurnBasedDuelAction = "attack" | "defend" | "skill" | "surrender";
+export type TurnBasedDuelAction = "attack" | "defend" | "skill" | "race" | "surrender";
 
 export interface TurnBasedDuelParticipantSnapshot {
   characterId: string;
@@ -45,6 +50,7 @@ export interface TurnBasedDuelParticipantSnapshot {
   combatStats: CombatActorStats;
   cooldowns?: CombatState["cooldowns"];
   guard?: CombatState["guard"];
+  playerAbilityFumbles?: CombatState["playerAbilityFumbles"];
   balanceAudit: DuelistBalanceAudit;
 }
 
@@ -54,9 +60,12 @@ export interface TurnBasedDuelActionSummary {
   action: TurnBasedDuelAction | "timeout-attack";
   outcome: CombatTurnSummary["heroOutcome"] | "surrendered" | "draw";
   damage: number;
+  healing?: number;
+  guard?: number;
   manaSpent: number;
   critical: boolean;
   skillId?: string;
+  fumble?: CombatTurnSummary["fumble"];
 }
 
 export interface TurnBasedDuelQueuedAction {
@@ -190,14 +199,14 @@ export function resolveTurnBasedDuelAction(input: {
     return { ok: false, reason: "already-acted", state };
   }
 
-  if (input.action === "skill") {
+  if (input.action === "skill" || input.action === "race") {
     const availability = getActorCombatActionAvailability(
       {
         mana: actor.mana,
         cooldowns: actor.cooldowns
       },
       actor.combatStats
-    ).skill;
+    )[input.action];
 
     if (!availability.available) {
       return {
@@ -355,7 +364,8 @@ function resolveQueuedCombatAction(
       mana: actor.mana,
       manaMax: actor.manaMax,
       cooldowns: actor.cooldowns,
-      ...(actor.guard ? { guard: actor.guard } : {})
+      ...(actor.guard ? { guard: actor.guard } : {}),
+      ...(actor.playerAbilityFumbles ? { playerAbilityFumbles: actor.playerAbilityFumbles } : {})
     },
     defenderState: {
       hp: defender.hp,
@@ -368,6 +378,7 @@ function resolveQueuedCombatAction(
     actorStats: actor.combatStats,
     defenderStats: buildDefenderStats(defender),
     action,
+    fumbleSeed: buildTurnBasedDuelFumbleSeed(actor, defender),
     rng
   });
 
@@ -375,6 +386,12 @@ function resolveQueuedCombatAction(
   actor.mana = resolved.actorState.mana;
   actor.cooldowns = resolved.actorState.cooldowns;
   actor.guard = resolved.actorState.guard;
+  actor.playerAbilityFumbles = resolved.actorState.playerAbilityFumbles;
+  const support = (action === "skill" || action === "race") &&
+      isCommittedSkillOutcome(resolved.summary.actorOutcome) &&
+      !resolved.summary.fumble
+    ? applyTurnBasedDuelAbilitySupport(actor, action)
+    : {};
   const reducedDamage = Math.floor(resolved.summary.actorDamage * options.incomingDamageMultiplier);
   const mitigatedDamage = Math.max(0, reducedDamage - options.incomingDamageReduction);
   defender.hp = Math.min(defender.hpMax, resolved.defenderState.hp + (resolved.summary.actorDamage - mitigatedDamage));
@@ -394,12 +411,17 @@ function resolveQueuedCombatAction(
           : "miss" as const
       : resolved.summary.actorOutcome,
     damage: mitigatedDamage,
+    ...support,
     manaSpent: resolved.summary.manaSpent,
     critical: resolved.summary.critical,
-    ...(resolved.summary.skillId ? { skillId: resolved.summary.skillId } : {})
+    ...(resolved.summary.skillId ? { skillId: resolved.summary.skillId } : {}),
+    ...(resolved.summary.fumble ? { fumble: resolved.summary.fumble } : {})
   };
 
-  if (defender.hp <= 0) {
+  if (actor.hp <= 0) {
+    state.status = "resolved";
+    state.outcome = buildOutcome(state, defender.characterId, "defeat");
+  } else if (defender.hp <= 0) {
     state.status = "resolved";
     state.outcome = buildOutcome(state, actor.characterId, "defeat");
   }
@@ -413,21 +435,74 @@ function getQueuedIncomingDamageReduction(
 ): number {
   const queued = state.pendingActions?.[side];
 
-  if (queued?.action !== "skill") {
+  if (queued?.action !== "skill" && queued?.action !== "race") {
     return 0;
   }
 
   const participant = state.participants[side];
-  const skill = getCombatSkillProfile(participant.classId);
+  const ability = getQueuedDuelAbilityProfile(participant, queued.action);
+  if (!ability) {
+    return 0;
+  }
+  const defender = state.participants[defenderSideOf(side)];
   const availability = getActorCombatActionAvailability(
     {
       mana: participant.mana,
       cooldowns: participant.cooldowns
     },
     participant.combatStats
-  ).skill;
+  )[queued.action];
 
-  return availability.available ? skill.monsterDamageReduction : 0;
+  const fumblePreview = previewPlayerAbilityFumbleCycle({
+    state: participant.playerAbilityFumbles,
+    abilityId: ability.id,
+    seed: buildTurnBasedDuelFumbleSeed(participant, defender)
+  });
+
+  return availability.available && !fumblePreview.fumbled
+    ? Math.max(ability.monsterDamageReduction, ability.guardReduction ?? 0)
+    : 0;
+}
+
+function applyTurnBasedDuelAbilitySupport(
+  actor: TurnBasedDuelParticipantSnapshot,
+  action: Extract<TurnBasedDuelAction, "skill" | "race">
+): { healing?: number; guard?: number } {
+  const ability = getQueuedDuelAbilityProfile(actor, action);
+  const healing = ability?.healAmount && ability.healAmount > 0
+    ? applyTurnBasedDuelHealing(actor, ability.healAmount)
+    : 0;
+  const guard = ability?.guardReduction && ability.guardReduction > 0
+    ? Math.floor(ability.guardReduction)
+    : 0;
+
+  return {
+    ...(healing > 0 ? { healing } : {}),
+    ...(guard > 0 ? { guard } : {})
+  };
+}
+
+function isCommittedSkillOutcome(outcome: CombatTurnSummary["heroOutcome"]): boolean {
+  return outcome !== "not-enough-mana" && outcome !== "skill-on-cooldown";
+}
+
+function applyTurnBasedDuelHealing(
+  actor: TurnBasedDuelParticipantSnapshot,
+  amount: number
+): number {
+  const before = actor.hp;
+  actor.hp = Math.min(actor.hpMax, actor.hp + Math.max(0, Math.floor(amount)));
+
+  return actor.hp - before;
+}
+
+function getQueuedDuelAbilityProfile(
+  participant: TurnBasedDuelParticipantSnapshot,
+  action: Extract<TurnBasedDuelAction, "skill" | "race">
+): CombatPlayerAbilityProfile | null {
+  return action === "skill"
+    ? getCombatClassAbilityProfile(participant.classId)
+    : getCombatRaceAbilityProfile(participant.raceId);
 }
 
 function getQueuedIncomingDamageMultiplier(
@@ -448,6 +523,13 @@ function getQueuedIncomingDamageMultiplier(
 
 function defenderSideOf(side: "challenger" | "target"): "challenger" | "target" {
   return side === "challenger" ? "target" : "challenger";
+}
+
+function buildTurnBasedDuelFumbleSeed(
+  actor: Pick<TurnBasedDuelParticipantSnapshot, "characterId">,
+  defender: Pick<TurnBasedDuelParticipantSnapshot, "characterId">
+): string {
+  return `turn-based-duel:${actor.characterId}:${defender.characterId}`;
 }
 
 export function expireTurnBasedDuel(state: TurnBasedDuelState): TurnBasedDuelState {
@@ -512,6 +594,19 @@ export function getTurnBasedDuelSkillLabel(participant: Pick<TurnBasedDuelPartic
   };
 }
 
+export function getTurnBasedDuelRaceAbilityLabel(
+  participant: Pick<TurnBasedDuelParticipantSnapshot, "raceId">
+): { skillId: string; manaCost: number } | null {
+  const ability = getCombatRaceAbilityProfile(participant.raceId);
+
+  return ability
+    ? {
+        skillId: ability.id,
+        manaCost: ability.manaCost
+      }
+    : null;
+}
+
 function buildParticipantSnapshot(
   character: ReturnType<typeof prepareBalancedDuelists>["challenger"]
 ): TurnBasedDuelParticipantSnapshot {
@@ -538,6 +633,7 @@ function buildParticipantSnapshot(
       hpMax: character.hpMax,
       manaMax: character.manaMax,
       classId: character.classId,
+      raceId: character.raceId,
       ...character.stats,
       armor: equipment?.armor ?? 0,
       resist: equipment?.resist ?? 0,
@@ -665,6 +761,9 @@ function cloneParticipant(
       ? { equipmentEffects: { ...participant.equipmentEffects } }
       : {}),
     ...(participant.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.cooldowns) } : {}),
-    ...(participant.guard ? { guard: { ...participant.guard } } : {})
+    ...(participant.guard ? { guard: { ...participant.guard } } : {}),
+    ...(participant.playerAbilityFumbles
+      ? { playerAbilityFumbles: clonePlayerAbilityFumblesState(participant.playerAbilityFumbles) }
+      : {})
   };
 }

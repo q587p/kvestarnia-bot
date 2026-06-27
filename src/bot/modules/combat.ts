@@ -46,8 +46,12 @@ resolvePersistentFightPresenceLocation
 import {
 buildBackToKorchmaHallKeyboard
 } from "../keyboards/tavernKeyboard";
-import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
+import {
+  buildTrainingDoppelgangerJournalKeyboard,
+  buildTrainingDoppelgangerKeyboard
+} from "../keyboards/trainingDoppelgangerKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import { presentDevGrantDisabled, presentDevGrantNoCharacter } from "../presenters/devGrantPresenter";
 import {
 buildProblemQuestProgressAfterFightEntry,
 presentFightLevelRetired,
@@ -70,6 +74,8 @@ import {
 presentKorchmaDeepLevelLocked
 } from "../presenters/tavernPresenter";
 import {
+presentTrainingDoppelganger,
+presentTrainingDoppelgangerJournal,
 presentTrainingDoppelgangerLevelGate,
 presentTrainingDoppelgangerNoCharacter,
 presentTrainingDoppelgangerTurn
@@ -117,6 +123,7 @@ export function registerCombatBotModule(
       presence: services.presence,
       tavernRaid: services.tavern
     });
+    registerTrainingDoppelgangerDevResetHandler(bot, services);
   }
 
   bot.callbackQuery(/^v1:spar:/, async (ctx) => {
@@ -150,6 +157,45 @@ export function registerCombatBotModule(
     }
 
     await handlePassageSearchCallback(ctx, parsed.value, services);
+  });
+}
+
+function registerTrainingDoppelgangerDevResetHandler(bot: Bot, services: BotServices): void {
+  bot.command("dev_reset_doppelganger", async (ctx) => {
+    if (!services.devGrant?.isEnabled()) {
+      await ctx.reply(presentDevGrantDisabled());
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (!telegramUserId) {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (!services.trainingDoppelganger) {
+      await ctx.reply("Dev-скидання Допельґанґера недоступне.");
+      return;
+    }
+
+    const result = await services.trainingDoppelganger.resetCooldownForDev(telegramUserId);
+
+    if (result.state === "no-character") {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (result.state === "disabled") {
+      await ctx.reply("Dev-скидання Допельґанґера недоступне.");
+      return;
+    }
+
+    if (result.state === "no-cooldown") {
+      await ctx.reply("🥊 Cooldown Допельґанґера не знайдено. Він і так готовий до локальної науки.");
+      return;
+    }
+
+    await ctx.reply("🥊 Cooldown Допельґанґера скинуто локально.");
   });
 }
 
@@ -211,6 +257,69 @@ async function handleTrainingDoppelgangerCallback(
         : {
             reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
           })
+    });
+    return;
+  }
+
+  if (callback.type === "view" || callback.type === "journal") {
+    const result = await services.trainingDoppelganger.getTrainingDoppelgangerSnapshotForTelegramUser(
+      telegramUserId,
+      callback.sessionId
+    );
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentTrainingDoppelgangerNoCharacter());
+      return;
+    }
+
+    if (result.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, [
+        "🥊 Тренування не знайшлося.",
+        "",
+        "Можливо, старий бланк уже прибрали зі стійки. Спробуйте /spar ще раз."
+      ].join("\n"));
+      return;
+    }
+
+    if ((result.session.state?.status ?? result.session.status) === "active") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+      });
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+
+    if (callback.type === "journal") {
+      await safeEditMessageText(ctx, presentTrainingDoppelgangerJournal(result, callback.page), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildTrainingDoppelgangerJournalKeyboard(result.session, callback.page)
+      });
+      return;
+    }
+
+    const trainingView =
+      (result.session.state?.status ?? result.session.status) === "active"
+        ? {
+            state: "active" as const,
+            character: result.character,
+            doppelganger: result.doppelganger,
+            session: result.session
+          }
+        : {
+            state: "terminal" as const,
+            character: result.character,
+            doppelganger: result.doppelganger,
+            session: result.session,
+            reward: result.reward
+          };
+
+    await safeEditMessageText(ctx, presentTrainingDoppelganger(trainingView), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
     });
     return;
   }

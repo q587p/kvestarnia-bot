@@ -8,6 +8,7 @@ import {
   deriveMonsterCombatStats,
   expireCombat,
   getActorCombatActionAvailability,
+  getCombatRaceAbilityProfile,
   getCombatSkillProfile,
   resolveCombatTurn,
   startCombat,
@@ -80,6 +81,11 @@ export interface CombatOutcomeSummary {
   shieldUses: number;
   healingUses: number;
   abilityUsage: Record<string, number>;
+  classAbilityUsage: Record<string, number>;
+  raceAbilityUsage: Record<string, number>;
+  fumbleCount: number;
+  aoeEnemyHits: number;
+  allySupportUses: number;
 }
 
 export interface CombatSimulationRunResult {
@@ -94,6 +100,11 @@ export interface CombatSimulationRunResult {
   shieldUses: number;
   healingUses: number;
   abilityUsage: Record<string, number>;
+  classAbilityUsage: Record<string, number>;
+  raceAbilityUsage: Record<string, number>;
+  fumbleCount: number;
+  aoeEnemyHits: number;
+  allySupportUses: number;
 }
 
 export type CombatSimulationHero = CombatActorStats & {
@@ -223,6 +234,19 @@ export function formatCombatSimulationReport(report: CombatSimulationReport): st
     if (abilityUsage) {
       lines.push(`  abilities ${abilityUsage}`);
     }
+    const classAbilityUsage = formatAbilityUsage(row.summary.classAbilityUsage);
+    const raceAbilityUsage = formatAbilityUsage(row.summary.raceAbilityUsage);
+    if (
+      classAbilityUsage ||
+      raceAbilityUsage ||
+      row.summary.fumbleCount > 0 ||
+      row.summary.aoeEnemyHits > 0 ||
+      row.summary.allySupportUses > 0
+    ) {
+      lines.push(
+        `  player abilities class ${classAbilityUsage || "none"} | race ${raceAbilityUsage || "none"} | fumbles ${row.summary.fumbleCount} | AoE hits ${row.summary.aoeEnemyHits} | ally support ${row.summary.allySupportUses}`
+      );
+    }
 
     if (row.warnings.length > 0) {
       for (const warning of row.warnings) {
@@ -263,6 +287,8 @@ export function summarizeCombatRuns(
   const monsterTelegraphs = runs.reduce((sum, run) => sum + (run.monsterTelegraphs ?? 0), 0);
   const totalMonsterActions = monsterBasicAttacks + monsterDefends + monsterAbilities + monsterTelegraphs;
   const abilityUsage = mergeAbilityUsage(runs);
+  const classAbilityUsage = mergeAbilityUsage(runs, "classAbilityUsage");
+  const raceAbilityUsage = mergeAbilityUsage(runs, "raceAbilityUsage");
 
   return {
     totalRuns,
@@ -283,7 +309,12 @@ export function summarizeCombatRuns(
     telegraphCount: monsterTelegraphs,
     shieldUses: runs.reduce((sum, run) => sum + (run.shieldUses ?? 0), 0),
     healingUses: runs.reduce((sum, run) => sum + (run.healingUses ?? 0), 0),
-    abilityUsage
+    abilityUsage,
+    classAbilityUsage,
+    raceAbilityUsage,
+    fumbleCount: runs.reduce((sum, run) => sum + (run.fumbleCount ?? 0), 0),
+    aoeEnemyHits: runs.reduce((sum, run) => sum + (run.aoeEnemyHits ?? 0), 0),
+    allySupportUses: runs.reduce((sum, run) => sum + (run.allySupportUses ?? 0), 0)
   };
 }
 
@@ -399,7 +430,12 @@ function simulateSingleFight(input: {
   let monsterTelegraphs = 0;
   let shieldUses = 0;
   let healingUses = 0;
+  let aoeEnemyHits = 0;
+  let allySupportUses = 0;
+  let fumbleCount = 0;
   const abilityUsage: Record<string, number> = {};
+  const classAbilityUsage: Record<string, number> = {};
+  const raceAbilityUsage: Record<string, number> = {};
 
   while (state.status === "active" && turns < input.maxTurns) {
     const action = chooseAction(state, input.hero, profile, input.policy);
@@ -429,6 +465,21 @@ function simulateSingleFight(input: {
       abilityUsage[result.summary.monsterTelegraphAbilityId] =
         (abilityUsage[result.summary.monsterTelegraphAbilityId] ?? 0) + 1;
     }
+    if (result.summary.skillId && result.summary.abilitySource === "class") {
+      classAbilityUsage[result.summary.skillId] = (classAbilityUsage[result.summary.skillId] ?? 0) + 1;
+    }
+    if (result.summary.skillId && result.summary.abilitySource === "race") {
+      raceAbilityUsage[result.summary.skillId] = (raceAbilityUsage[result.summary.skillId] ?? 0) + 1;
+    }
+    if (result.summary.heroOutcome === "critical-fumble") {
+      fumbleCount += 1;
+    }
+    if ((result.summary.enemyResults?.length ?? 0) > 1) {
+      aoeEnemyHits += result.summary.enemyResults?.length ?? 0;
+    }
+    if ((result.summary.allyResults?.length ?? 0) > 0) {
+      allySupportUses += result.summary.allyResults?.length ?? 0;
+    }
     if (result.summary.monsterEffectText?.includes("щит")) {
       shieldUses += 1;
     }
@@ -453,7 +504,12 @@ function simulateSingleFight(input: {
     monsterTelegraphs,
     shieldUses,
     healingUses,
-    abilityUsage
+    abilityUsage,
+    classAbilityUsage,
+    raceAbilityUsage,
+    fumbleCount,
+    aoeEnemyHits,
+    allySupportUses
   };
 }
 
@@ -462,7 +518,7 @@ function chooseAction(
   hero: CombatSimulationHero,
   profile: ReturnType<typeof getCombatSkillProfile>,
   policy: CombatSimulationPolicy
-): "attack" | "skill" | "flee" {
+): "attack" | "skill" | "race" | "flee" {
   if (policy === "cautious") {
     const fleeThreshold = Math.max(1, Math.floor(hero.hpMax * 0.25));
 
@@ -478,6 +534,11 @@ function chooseAction(
 
   if (state.hero.mana >= profile.manaCost && availability.skill.available) {
     return "skill";
+  }
+
+  const raceProfile = getCombatRaceAbilityProfile(hero.raceId);
+  if (raceProfile && state.hero.mana >= raceProfile.manaCost && availability.race.available) {
+    return "race";
   }
 
   return "attack";
@@ -509,7 +570,8 @@ function buildSimulationHero(input: {
     hpCurrent: effective.hpMax,
     manaCurrent: effective.manaMax,
     ...effective.stats,
-    classId: input.classId
+    classId: input.classId,
+    raceId: input.raceId
   };
 }
 
@@ -533,11 +595,14 @@ function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimu
   };
 }
 
-function mergeAbilityUsage(runs: readonly CombatSimulationRunResult[]): Record<string, number> {
+function mergeAbilityUsage(
+  runs: readonly CombatSimulationRunResult[],
+  field: "abilityUsage" | "classAbilityUsage" | "raceAbilityUsage" = "abilityUsage"
+): Record<string, number> {
   const usage: Record<string, number> = {};
 
   for (const run of runs) {
-    for (const [abilityId, count] of Object.entries(run.abilityUsage ?? {})) {
+    for (const [abilityId, count] of Object.entries(run[field] ?? {})) {
       usage[abilityId] = (usage[abilityId] ?? 0) + count;
     }
   }

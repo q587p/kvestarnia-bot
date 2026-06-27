@@ -307,27 +307,27 @@ describe("main menu and scene keyboards", () => {
     const keyboard = buildPersistentFightDifficultyKeyboard();
 
     expect(inlineButtonRows(keyboard)).toEqual([
+      ["⬆️ Піднятися назад"],
       ["⬅️ Лівий прохід"],
       ["🚪 Прямий прохід"],
       ["➡️ Правий прохід"],
-      ["🔎 Пошукати"],
-      ["⬆️ Піднятися назад"]
+      ["🔎 Пошукати"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:place:deep",
       "v1:place:deep-left",
       "v1:place:deep-straight",
       "v1:place:deep-right",
-      "v1:search:start:l1",
-      "v1:place:deep"
+      "v1:search:start:l1"
     ]);
   });
 
   it("hides safe location search buttons while their node is on cooldown", () => {
     expect(flatInlineButtonTexts(buildPersistentFightDifficultyKeyboard({ searchAvailable: false }))).toEqual([
+      "⬆️ Піднятися назад",
       "⬅️ Лівий прохід",
       "🚪 Прямий прохід",
-      "➡️ Правий прохід",
-      "⬆️ Піднятися назад"
+      "➡️ Правий прохід"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ searchAvailable: false }))).toEqual([
       "⬆️ Повернутися до зали",
@@ -728,19 +728,20 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
       "🛡 Захищатися",
-      "💪 Силовий удар",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
       "🏃 Відступити"
     ]);
     expect(inlineButtonRows(buildPersistentFightKeyboard(session, character))).toEqual([
       ["🗡️ Вдарити", "🛡 Захищатися"],
-      ["💪 Силовий удар"],
+      ["🪓 Силовий замах", "🧰 Практична імпровізація"],
       ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
-      "🥟 Кипляча начинка · 3 мани"
+      "🥟 Кипляча начинка"
     );
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
-      "🌘 Тіньовий різ"
+      "🌘 Тіньовий розтин"
     );
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
       "⬆️ Повернутися до зали",
@@ -768,6 +769,7 @@ describe("main menu and scene keyboards", () => {
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
+      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:race",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
@@ -905,24 +907,26 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
       "🛡 Захищатися",
-      "💪 Силовий удар",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
       "🏃 Відступити"
     ]);
     expect(inlineButtonRows(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       ["🗡️ Вдарити", "🛡 Захищатися"],
-      ["💪 Силовий удар"],
+      ["🪓 Силовий замах", "🧰 Практична імпровізація"],
       ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
-      "🥟 Кипляча начинка · 3 мани"
+      "🥟 Кипляча начинка"
     );
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
-      "🌘 Тіньовий різ"
+      "🌘 Тіньовий розтин"
     );
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:race",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
     ]);
   });
@@ -932,6 +936,49 @@ describe("main menu and scene keyboards", () => {
       "↩️ Повернутися до кутка"
     ]);
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard())).toEqual([
+      "v1:place:fighting-corner"
+    ]);
+  });
+
+  it("offers a journal on terminal training doppelganger screens with logged turns", () => {
+    const session: SoloCombatSessionRecord = {
+      ...persistentFightSession(),
+      monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+      status: "won",
+      state: {
+        ...persistentFightSession().state!,
+        source: "training",
+        status: "won",
+        turnLog: [
+          {
+            eventId: "turn:1",
+            turn: 1,
+            hero: { hp: 17, mana: 5 },
+            monster: { hp: 0 },
+            summary: {
+              action: "attack",
+              heroOutcome: "hit",
+              heroDamage: 18,
+              monsterDamage: 0,
+              manaSpent: 0,
+              critical: false
+            }
+          }
+        ],
+        monster: {
+          id: TRAINING_DOPPELGANGER_MONSTER_ID,
+          hp: 0,
+          hpMax: 18
+        }
+      }
+    };
+
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "📜 Журнал бою",
+      "↩️ Повернутися до кутка"
+    ]);
+    expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "v1:spar:log:123e4567-e89b-12d3-a456-426614174000:0",
       "v1:place:fighting-corner"
     ]);
   });
@@ -992,6 +1039,7 @@ describe("main menu and scene keyboards", () => {
       "⚔️ Атакувати",
       "🛡 Захищатися",
       "💪 Силовий удар",
+      "🧰 Практична імпровізація",
       "🏳️ Здатися",
       "🔎 Оновити"
     ]);
@@ -1018,6 +1066,7 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
       "⚔️ Атакувати",
       "🛡 Захищатися",
+      "🧰 Практична імпровізація",
       "🏳️ Здатися",
       "🔎 Оновити"
     ]);
@@ -1037,7 +1086,7 @@ describe("main menu and scene keyboards", () => {
       "skill.careful-strike"
     ];
     const displays = skillIds.map(getCombatSkillDisplay);
-    const reservedActionIcons = new Set(["🗡️", "🏃", "🕯️", "🎵", "🔥", "🏹", "🧾"]);
+    const reservedActionIcons = new Set(["🗡️", "🛡", "🏃", "🧾"]);
 
     expect(new Set(displays.map((display) => display.icon)).size).toBe(displays.length);
     expect(displays.filter((display) => reservedActionIcons.has(display.icon))).toEqual([]);
@@ -1047,19 +1096,19 @@ describe("main menu and scene keyboards", () => {
     });
     expect(getCombatSkillDisplay("skill.shadow-cut")).toEqual({
       icon: "🌘",
-      name: "Тіньовий різ"
+      name: "Тіньовий розтин"
     });
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.varenyk-mancer" })).toBe(
-      "🥟 Кипляча начинка · 3 мани"
+      "🥟 Кипляча начинка"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.rogue" })).toBe(
-      "🌘 Тіньовий різ"
+      "🌘 Тіньовий розтин"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.ranger" })).toBe(
-      "🎯 Хитрий постріл"
+      "🏹 Рикошетний постріл"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.priest" })).toBe(
-      "🙏 Суворе благословення · 2 мани"
+      "✨ Суворе благословення"
     );
   });
 
@@ -2091,11 +2140,16 @@ function turnBasedParticipant(
   characterId: string,
   overrides: {
     mana?: number;
-    cooldowns?: { skill: { id: string; remainingTurns: number } };
+    cooldowns?: {
+      skill?: { id: string; remainingTurns: number };
+      abilities?: Record<string, { id: string; remainingTurns: number }>;
+    };
   } = {}
 ) {
   return {
     characterId,
+    raceId: "race.human-ish",
+    classId: "class.warrior",
     hp: 20,
     hpMax: 24,
     mana: overrides.mana ?? 10,
@@ -2106,6 +2160,7 @@ function turnBasedParticipant(
       hpMax: 24,
       manaMax: 10,
       classId: "class.warrior",
+      raceId: "race.human-ish",
       strength: 8,
       dexterity: 6,
       intelligence: 6,

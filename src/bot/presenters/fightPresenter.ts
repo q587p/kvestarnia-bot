@@ -419,7 +419,7 @@ export function presentPersistentFightJournal(
 
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
   return [
-    ...(entry.cooldowns?.skill?.remainingTurns ? [presentSkillCooldown(entry.cooldowns.skill)] : []),
+    ...presentAbilityCooldowns(entry.cooldowns),
     ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`)
   ];
 }
@@ -700,8 +700,8 @@ function presentPersistentFightState(input: {
     lines.push("", timeoutNotice);
   }
 
-  if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
-    lines.push(presentSkillCooldown(state.cooldowns.skill));
+  if (state?.status === "active") {
+    lines.push(...presentAbilityCooldowns(state.cooldowns));
   }
 
   if (state?.status === "active") {
@@ -1136,15 +1136,12 @@ function presentTurnSummary(
   }
 
   const action =
-    summary.action === "skill"
+    summary.action === "skill" || summary.action === "race"
       ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
         : "Відступ";
-  const hit =
-    summary.heroOutcome === "miss"
-      ? `${action} не влучає.`
-      : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+  const hit = presentHeroActionResult(summary, action);
   const response =
     enemyResponses ||
     monsterResponse ||
@@ -1152,7 +1149,13 @@ function presentTurnSummary(
       ? "Монстр промахнувся й зробив вигляд, що так і планував."
       : "");
 
-  return withMonsterBark(summary, [...heading, hit, heroEffectResponse, response].filter(Boolean));
+  return withMonsterBark(summary, [
+    ...heading,
+    hit,
+    ...presentAllyAbilityResults(summary),
+    heroEffectResponse,
+    response
+  ].filter(Boolean));
 }
 
 function presentEnemyHpRows(
@@ -1314,6 +1317,87 @@ function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }):
   const skill = getCombatSkillDisplay(cooldown.id);
 
   return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+}
+
+function presentAbilityCooldowns(
+  cooldowns: CombatTurnLogEntry["cooldowns"] | undefined
+): string[] {
+  const entries: Array<{ id: string; remainingTurns: number }> = [];
+  const seen = new Set<string>();
+
+  if (cooldowns?.skill?.remainingTurns) {
+    entries.push(cooldowns.skill);
+    seen.add(cooldowns.skill.id);
+  }
+
+  for (const cooldown of Object.values(cooldowns?.abilities ?? {})) {
+    if (cooldown.remainingTurns > 0 && !seen.has(cooldown.id)) {
+      entries.push(cooldown);
+      seen.add(cooldown.id);
+    }
+  }
+
+  return entries.map(presentSkillCooldown);
+}
+
+function presentHeroActionResult(summary: CombatTurnSummary, action: string): string {
+  if (summary.fumble) {
+    return presentPlayerAbilityFumble(summary.fumble);
+  }
+
+  if (summary.enemyResults && summary.enemyResults.length > 1) {
+    const results = summary.enemyResults
+      .map((entry) => {
+        const name = escapeHtml(getShortMonsterName(entry.monsterName, "Монстр"));
+
+        return entry.outcome === "miss"
+          ? `${name} — повз`
+          : `${name} — ${entry.damage}`;
+      })
+      .join("; ");
+
+    return `${action} зачіпає супротивників: ${results}.`;
+  }
+
+  if (summary.heroOutcome === "miss") {
+    return `${action} не влучає.`;
+  }
+
+  if (summary.heroDamage <= 0 && (summary.allyResults?.length ?? 0) > 0) {
+    return `${action} спрацьовує без прямої шкоди.`;
+  }
+
+  return `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+}
+
+function presentPlayerAbilityFumble(fumble: NonNullable<CombatTurnSummary["fumble"]>): string {
+  const consequence =
+    fumble.kind === "enemy-heal"
+      ? fumble.enemyHealing && fumble.enemyHealing > 0
+        ? ` Супротивник відновлює ${fumble.enemyHealing} HP.`
+        : " Супротивник уже був цілий, але морально вдячний."
+      : ` Ви отримуєте ${fumble.selfDamage ?? 0} шкоди.`;
+
+  return `Критична невдача: ${escapeHtml(fumble.line)}${consequence}`;
+}
+
+function presentAllyAbilityResults(summary: CombatTurnSummary): string[] {
+  const results = summary.allyResults ?? [];
+
+  if (results.length === 0 && !summary.heroHealing) {
+    return [];
+  }
+
+  return results.length > 0
+    ? results.map((entry) => {
+        const parts = [
+          entry.healing ? `HP підросли на ${entry.healing}` : "",
+          entry.guard ? "захист став міцнішим" : ""
+        ].filter(Boolean);
+
+        return parts.length > 0 ? `Підтримка: ${parts.join(", ")}.` : "";
+      }).filter(Boolean)
+    : [`Підтримка: HP підросли на ${summary.heroHealing}.`];
 }
 
 function trimTerminalPunctuation(text: string): string {

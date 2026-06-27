@@ -1618,6 +1618,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const lastTurn = parseTurnSummary(value.lastTurn);
   const turnLog = parseTurnLog(value.turnLog);
   const drinkModifiers = parseDrinkModifiers(value.drinkModifiers);
+  const playerAbilityFumbles = parsePlayerAbilityFumbles(value.playerAbilityFumbles);
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -1650,8 +1651,34 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(drinkModifiers ? { drinkModifiers } : {}),
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(lastTurn ? { lastTurn } : {}),
-    ...(turnLog.length > 0 ? { turnLog } : {})
+    ...(turnLog.length > 0 ? { turnLog } : {}),
+    ...(playerAbilityFumbles ? { playerAbilityFumbles } : {})
   };
+}
+
+function parsePlayerAbilityFumbles(value: unknown): CombatState["playerAbilityFumbles"] | null {
+  if (!isRecord(value) || value.version !== 1 || !isRecord(value.abilities)) {
+    return null;
+  }
+
+  const abilities = Object.fromEntries(
+    Object.entries(value.abilities).flatMap(([abilityId, entry]) => {
+      if (!isRecord(entry) || entry.version !== 1 || abilityId.length === 0 || abilityId.length > 128) {
+        return [];
+      }
+      const cycle = boundedOptionalInt(entry.cycle, 0, 1_000_000);
+      const usesInCycle = boundedOptionalInt(entry.usesInCycle, 0, 92);
+      const triggerAt = boundedOptionalInt(entry.triggerAt, 1, 93);
+
+      return cycle === undefined || usesInCycle === undefined || triggerAt === undefined
+        ? []
+        : [[abilityId, { version: 1 as const, cycle, usesInCycle, triggerAt }] as const];
+    })
+  );
+
+  return Object.keys(abilities).length > 0
+    ? { version: 1, abilities }
+    : null;
 }
 
 function parseCombatThreat(value: unknown): CombatState["threat"] | null {
@@ -2409,6 +2436,12 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
   const actionOrigin = parseActionOrigin(value.actionOrigin);
   const monsterAction = parseMonsterAction(value.monsterAction);
+  const abilitySource = parseAbilitySource(value.abilitySource);
+  const targetScope = parseTargetScope(value.targetScope);
+  const secondaryTargetScope = parseTargetScope(value.secondaryTargetScope);
+  const enemyResults = parseEnemyAbilityResults(value.enemyResults);
+  const allyResults = parseAllyAbilityResults(value.allyResults);
+  const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
 
   if (
@@ -2432,6 +2465,9 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     manaSpent,
     critical: value.critical,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
+    ...(abilitySource ? { abilitySource } : {}),
+    ...(targetScope ? { targetScope } : {}),
+    ...(secondaryTargetScope ? { secondaryTargetScope } : {}),
     ...(damageKind ? { damageKind } : {}),
     ...(monsterAction ? { monsterAction } : {}),
     ...(typeof value.monsterSkillId === "string" ? { monsterSkillId: value.monsterSkillId } : {}),
@@ -2444,9 +2480,98 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(typeof value.itemId === "string" ? { itemId: value.itemId } : {}),
     ...(typeof value.itemName === "string" ? { itemName: value.itemName } : {}),
     ...(heroHealing !== null ? { heroHealing } : {}),
+    ...(enemyResults.length > 0 ? { enemyResults } : {}),
+    ...(allyResults.length > 0 ? { allyResults } : {}),
+    ...(fumble ? { fumble } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(debugTrace ? { debugTrace } : {})
   };
+}
+
+function parsePlayerAbilityFumbleSummary(value: unknown): CombatTurnSummary["fumble"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const abilityId = typeof value.abilityId === "string" && value.abilityId.length > 0 && value.abilityId.length <= 128
+    ? value.abilityId
+    : null;
+  const line = typeof value.line === "string" && value.line.trim().length > 0 && value.line.length <= 240
+    ? value.line
+    : null;
+  const selfDamage = intOrNull(value.selfDamage);
+  const enemyHealing = intOrNull(value.enemyHealing);
+
+  if (!abilityId || !line) {
+    return null;
+  }
+
+  if (value.kind === "self-damage" && selfDamage !== null && selfDamage > 0) {
+    return { abilityId, kind: "self-damage", line, selfDamage };
+  }
+
+  if (value.kind === "enemy-heal" && enemyHealing !== null && enemyHealing >= 0) {
+    return { abilityId, kind: "enemy-heal", line, enemyHealing };
+  }
+
+  return null;
+}
+
+function parseEnemyAbilityResults(value: unknown): NonNullable<CombatTurnSummary["enemyResults"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.enemyId !== "string" || typeof entry.monsterId !== "string") {
+      return [];
+    }
+
+    const damage = intOrNull(entry.damage);
+    const outcome = parseTurnOutcome(entry.outcome);
+
+    if (
+      damage === null ||
+      (outcome !== "hit" && outcome !== "critical-hit" && outcome !== "miss" && outcome !== "won")
+    ) {
+      return [];
+    }
+
+    return [{
+      enemyId: entry.enemyId,
+      monsterId: entry.monsterId,
+      ...(typeof entry.monsterName === "string" ? { monsterName: entry.monsterName } : {}),
+      damage,
+      outcome,
+      ...(entry.critical === true ? { critical: true } : {})
+    }];
+  });
+}
+
+function parseAllyAbilityResults(value: unknown): NonNullable<CombatTurnSummary["allyResults"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.targetId !== "string") {
+      return [];
+    }
+
+    const healing = intOrNull(entry.healing);
+    const guard = intOrNull(entry.guard);
+
+    if ((healing === null || healing <= 0) && (guard === null || guard <= 0)) {
+      return [];
+    }
+
+    return [{
+      targetId: entry.targetId,
+      ...(typeof entry.label === "string" ? { label: entry.label } : {}),
+      ...(healing !== null && healing > 0 ? { healing } : {}),
+      ...(guard !== null && guard > 0 ? { guard } : {})
+    }];
+  });
 }
 
 function parseEnemyTurnSummaries(value: unknown): CombatEnemyTurnSummary[] {
@@ -2570,7 +2695,7 @@ function parseTurnLogMonster(value: unknown): CombatTurnLogEntry["monster"] | nu
 }
 
 function parseCombatAction(value: unknown): CombatActionType | null {
-  return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip" || value === "item"
+  return value === "attack" || value === "defend" || value === "skill" || value === "race" || value === "flee" || value === "skip" || value === "item"
     ? value
     : null;
 }
@@ -2598,6 +2723,7 @@ function parseTurnOutcome(value: unknown): CombatTurnOutcome | null {
     value === "defended" ||
     value === "not-enough-mana" ||
     value === "skill-on-cooldown" ||
+    value === "critical-fumble" ||
     value === "item-used" ||
     value === "inactive" ||
     value === "fled" ||
@@ -2611,6 +2737,28 @@ function parseTurnOutcome(value: unknown): CombatTurnOutcome | null {
 
 function parseDamageKind(value: unknown): CombatDamageKind | null {
   return value === "physical" || value === "spell" || value === "social" || value === "trick"
+    ? value
+    : null;
+}
+
+function parseAbilitySource(value: unknown): CombatTurnSummary["abilitySource"] | null {
+  return value === "basic" ||
+    value === "class" ||
+    value === "race" ||
+    value === "signature" ||
+    value === "monster"
+    ? value
+    : null;
+}
+
+function parseTargetScope(value: unknown): CombatTurnSummary["targetScope"] | null {
+  return value === "self" ||
+    value === "single-enemy" ||
+    value === "lowest-hp-enemy" ||
+    value === "all-enemies" ||
+    value === "single-ally-or-self" ||
+    value === "all-allies-including-self" ||
+    value === "lowest-hp-ally"
     ? value
     : null;
 }
@@ -2718,10 +2866,14 @@ function parseGuardState(value: unknown): CombatState["guard"] | null {
   }
 
   const consecutiveDefends = intOrNull(value.consecutiveDefends);
+  const abilityDamageReduction = intOrNull(value.abilityDamageReduction);
 
   return consecutiveDefends === null || consecutiveDefends < 0
     ? null
-    : { consecutiveDefends };
+    : {
+        consecutiveDefends,
+        ...(abilityDamageReduction !== null && abilityDamageReduction > 0 ? { abilityDamageReduction } : {})
+      };
 }
 
 function parseCopiedEquipment(value: unknown): CombatCopiedEquipment[] | null {

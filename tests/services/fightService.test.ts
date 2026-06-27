@@ -82,7 +82,11 @@ describe("FightService", () => {
   it("returns no-character when user has no character", async () => {
     const characters = new FakeCharacterRepository();
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toEqual({
       state: "no-character"
@@ -96,7 +100,11 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 7 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     const result = await service.completeMimicShawarma(telegramUserId, "attack");
 
@@ -143,7 +151,11 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 15 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     const result = await service.completeMimicShawarma(telegramUserId, "attack");
 
@@ -166,18 +178,18 @@ describe("FightService", () => {
   it("keeps higher-level attack damage at least as high as level 1", async () => {
     const levelOne = new FakeCharacterRepository();
     levelOne.add(telegramUserId);
-    const levelOneService = new FightService(
-      levelOne,
-      new FakeDailyActionRepository(levelOne),
-      fixedClock
-    );
+    const levelOneService = new FightService({
+      characters: levelOne,
+      dailyActions: new FakeDailyActionRepository(levelOne),
+      clock: fixedClock
+    });
     const levelTwo = new FakeCharacterRepository();
     levelTwo.add(telegramUserId, { xp: 15 });
-    const levelTwoService = new FightService(
-      levelTwo,
-      new FakeDailyActionRepository(levelTwo),
-      fixedClock
-    );
+    const levelTwoService = new FightService({
+      characters: levelTwo,
+      dailyActions: new FakeDailyActionRepository(levelTwo),
+      clock: fixedClock
+    });
 
     const first = await levelOneService.completeMimicShawarma(telegramUserId, "attack");
     const second = await levelTwoService.completeMimicShawarma(telegramUserId, "attack");
@@ -193,7 +205,11 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     const first = await service.completeMimicShawarma(telegramUserId, "receipt");
     const repeated = await service.completeMimicShawarma(telegramUserId, "receipt");
@@ -235,7 +251,11 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "level-retired",
@@ -258,7 +278,11 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     await service.completeMimicShawarma(telegramUserId, "attack");
     await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
@@ -278,7 +302,11 @@ describe("FightService", () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     await service.completeMimicShawarma(telegramUserId, "attack");
     const secondOption = await service.completeMimicShawarma(telegramUserId, "flee");
@@ -306,13 +334,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -343,13 +371,13 @@ describe("FightService", () => {
     });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
     const repeated = await service.getFightOverviewForTelegramUser(telegramUserId);
@@ -373,13 +401,13 @@ describe("FightService", () => {
     });
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.addWonSessions("character-42", 3);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
     const startAttempt = await service.getFightForTelegramUser(telegramUserId);
@@ -426,13 +454,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters, {
       autoIssueFirstProblemStage: false
     });
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      new FakeSoloCombatSessionRepository(characters),
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: new FakeSoloCombatSessionRepository(characters),
+      rng: new FakeRandomSource([0.1])
+    });
 
     const result = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -454,13 +482,13 @@ describe("FightService", () => {
     });
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.addWonSessions("character-42", 14);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const prematureTurnIn = await service.turnInProblemQuestForTelegramUser(telegramUserId);
 
@@ -530,13 +558,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { level: 2, xp: 25, remortCount: 1 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -556,13 +584,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.addWonSessions("character-42", 14);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -584,13 +612,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const trainingSession = sessions.addSession(makeActiveTrainingSession());
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
     const problemQuest = await service.getProblemQuestProgressForTelegramUser(telegramUserId);
@@ -627,13 +655,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const trainingSession = sessions.addSession(makeActiveTrainingSession());
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const result = await service.getFightForTelegramUser(telegramUserId);
 
@@ -656,13 +684,13 @@ describe("FightService", () => {
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.addWonSessions("character-42", 12);
     sessions.addWonSessions("character-42", 3, TRAINING_DOPPELGANGER_MONSTER_ID);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -684,13 +712,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.addWonSessions("character-42", 13, TRAINING_DOPPELGANGER_MONSTER_ID);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -711,13 +739,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const first = await service.getFightForTelegramUser(telegramUserId);
     const second = await service.getFightForTelegramUser(telegramUserId);
@@ -748,13 +776,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const started = await service.getFightForTelegramUser(telegramUserId);
 
@@ -802,17 +830,14 @@ describe("FightService", () => {
           metadata: null
         })
     };
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1]),
-      undefined,
-      undefined,
-      undefined,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1]),
       shynok
-    );
+    });
 
     const started = await service.getFightForTelegramUser(telegramUserId);
 
@@ -832,13 +857,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { level: 4, xp: 45 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0])
+    });
 
     const first = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       source: "yeger",
@@ -863,13 +888,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const adventureMonsterId = "monster.borshch-slime";
 
     const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
@@ -898,13 +923,13 @@ describe("FightService", () => {
     });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const started = await service.getFightForTelegramUser(telegramUserId);
 
@@ -943,17 +968,14 @@ describe("FightService", () => {
           metadata: null
         })
     };
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1]),
-      undefined,
-      undefined,
-      undefined,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1]),
       shynok
-    );
+    });
 
     const started = await service.getFightForTelegramUser(telegramUserId);
 
@@ -974,13 +996,13 @@ describe("FightService", () => {
     });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const result = await service.getFightForTelegramUser(telegramUserId);
 
@@ -997,13 +1019,13 @@ describe("FightService", () => {
     });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
@@ -1017,13 +1039,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 225 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const started = await service.getFightForTelegramUser(telegramUserId);
 
@@ -1107,7 +1129,11 @@ describe("FightService", () => {
     const starterXp = buildStarterLevelTwoXpReward({ remortCount: 1 });
     characters.add(telegramUserId, { level: 1, xp: starterXp, remortCount: 1 });
     const dailyActions = new FakeDailyActionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
 
     const result = await service.completeMimicShawarma(telegramUserId, "flee");
 
@@ -1197,13 +1223,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "easy"
@@ -1229,16 +1255,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9]),
+      pendingPassageEncounters: pending
+    });
 
     const first = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
@@ -1267,16 +1291,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9]),
+      pendingPassageEncounters: pending
+    });
 
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
@@ -1334,16 +1356,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2, 0.8]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2, 0.8]),
+      pendingPassageEncounters: pending
+    });
 
     const first = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
@@ -1380,16 +1400,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1]),
+      pendingPassageEncounters: pending
+    });
 
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "easy",
@@ -1425,16 +1443,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
       clock,
-      sessions,
-      new FakeRandomSource([0.1, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.2]),
+      pendingPassageEncounters: pending
+    });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -1503,16 +1519,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
       clock,
-      sessions,
-      new FakeRandomSource([0.1, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.2]),
+      pendingPassageEncounters: pending
+    });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -1577,16 +1591,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
       clock,
-      sessions,
-      new FakeRandomSource([0.1, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.2]),
+      pendingPassageEncounters: pending
+    });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -1634,16 +1646,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.2]),
+      pendingPassageEncounters: pending
+    });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -1689,13 +1699,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { level: 12, xp: 52 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "easy"
@@ -1718,13 +1728,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { level: 29, xp: 130_000 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99])
+    });
 
     const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "easy"
@@ -1747,13 +1757,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       source: "adventure",
@@ -1774,13 +1784,13 @@ describe("FightService", () => {
     characters.add(99n, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const ordinary = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal"
@@ -1805,13 +1815,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     const first = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "easy"
@@ -1841,13 +1851,13 @@ describe("FightService", () => {
       characterId: "character-42",
       monsterId: "monster.deadline-spider"
     });
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99])
+    });
 
     const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "hard"
@@ -1869,14 +1879,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const equipment = new FakeEquipmentRepository({ characterId: "character-42", equipment: [] });
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.9, 0.6, 0.1, 0.1, 0.9, 0.6]),
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.9, 0.6, 0.1, 0.1, 0.9, 0.6]),
       equipment
-    );
+    });
 
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
@@ -1910,14 +1920,14 @@ describe("FightService", () => {
     const withoutEquipment = new FakeCharacterRepository();
     withoutEquipment.add(telegramUserId, { xp: 25 });
     const withoutEquipmentSessions = new FakeSoloCombatSessionRepository(withoutEquipment);
-    const withoutEquipmentService = new FightService(
-      withoutEquipment,
-      new FakeDailyActionRepository(withoutEquipment),
-      fixedClock,
-      withoutEquipmentSessions,
-      new FakeRandomSource([0.1, 0.1, 0.9, 0.6]),
-      new FakeEquipmentRepository({ characterId: "character-42", equipment: [] })
-    );
+    const withoutEquipmentService = new FightService({
+      characters: withoutEquipment,
+      dailyActions: new FakeDailyActionRepository(withoutEquipment),
+      clock: fixedClock,
+      combatSessions: withoutEquipmentSessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.9, 0.6]),
+      equipment: new FakeEquipmentRepository({ characterId: "character-42", equipment: [] })
+    });
     const baselineStarted = await withoutEquipmentService.getFightForTelegramUser(telegramUserId);
     expect(baselineStarted.state).toBe("persistent-active");
     if (baselineStarted.state !== "persistent-active") {
@@ -1945,14 +1955,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const equipment = new FakeEquipmentRepository({ characterId: "character-42", equipment: [] });
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.9, 0.6]),
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.9, 0.6]),
       equipment
-    );
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -1985,13 +1995,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.combatItemStacks.set("item.responsible-panic-bandage", 1);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2025,13 +2035,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2059,13 +2069,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2159,13 +2169,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2212,13 +2222,13 @@ describe("FightService", () => {
           source
         }
       });
-      const service = new FightService(
+      const service = new FightService({
         characters,
         dailyActions,
-        fixedClock,
-        sessions,
-        new FakeRandomSource([0.5, 0.99, 0.1])
-      );
+        clock: fixedClock,
+        combatSessions: sessions,
+        rng: new FakeRandomSource([0.5, 0.99, 0.1])
+      });
 
       const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
         sessionId: wonSession.id,
@@ -2255,13 +2265,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 1300 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2309,13 +2319,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2356,13 +2366,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2440,13 +2450,13 @@ describe("FightService", () => {
             }
           : baseSession.state
       });
-      const service = new FightService(
+      const service = new FightService({
         characters,
         dailyActions,
-        fixedClock,
-        sessions,
-        new FakeRandomSource([0.99])
-      );
+        clock: fixedClock,
+        combatSessions: sessions,
+        rng: new FakeRandomSource([0.99])
+      });
 
       const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
         sessionId: wonSession.id,
@@ -2509,13 +2519,13 @@ describe("FightService", () => {
         }
       }
     });
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.5, 0.99, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.5, 0.99, 0])
+    });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2557,13 +2567,13 @@ describe("FightService", () => {
         }
       }
     });
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.5, 0.99, 0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.5, 0.99, 0.99])
+    });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2594,13 +2604,13 @@ describe("FightService", () => {
         "monster.salted-oath-pretzel"
       )
     );
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0, 0.92, 0, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0, 0.92, 0, 0])
+    });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2653,13 +2663,13 @@ describe("FightService", () => {
         "monster.salted-oath-pretzel"
       )
     );
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0, 0.93, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0, 0.93, 0])
+    });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2717,13 +2727,13 @@ describe("FightService", () => {
             }
           : baseSession.state
       });
-      const service = new FightService(
+      const service = new FightService({
         characters,
         dailyActions,
-        fixedClock,
-        sessions,
-        new FakeRandomSource([0.99])
-      );
+        clock: fixedClock,
+        combatSessions: sessions,
+        rng: new FakeRandomSource([0.99])
+      });
 
       const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
         sessionId: wonSession.id,
@@ -2798,13 +2808,13 @@ describe("FightService", () => {
         }
       }
     });
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0])
+    });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2824,13 +2834,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.dropRewardReplayWrites();
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -2883,13 +2893,13 @@ describe("FightService", () => {
     const wonSession = sessions.addSession(
       makeTerminalSession("won", "session-won-without-reward", `character-${telegramUserId.toString()}`)
     );
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0])
+    });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2953,13 +2963,13 @@ describe("FightService", () => {
         }
       : wonSession.state;
     sessions.addSession(wonSession);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0])
+    });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -2988,13 +2998,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -3025,13 +3035,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25, hpCurrent: 10 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.99, 0.1, 0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.99, 0.1, 0.99])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -3103,13 +3113,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110, hpCurrent: 1 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2, 0.1, 0.9, 0.2])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2, 0.1, 0.9, 0.2])
+    });
 
     for (const [index, completedAt] of [
       new Date("2026-06-12T10:29:40.000Z"),
@@ -3217,13 +3227,13 @@ describe("FightService", () => {
     fledCharacters.add(telegramUserId, { xp: 25 });
     const fledDailyActions = new FakeDailyActionRepository(fledCharacters);
     const fledSessions = new FakeSoloCombatSessionRepository(fledCharacters);
-    const fledService = new FightService(
-      fledCharacters,
-      fledDailyActions,
-      fixedClock,
-      fledSessions,
-      new FakeRandomSource([0.1, 0.01])
-    );
+    const fledService = new FightService({
+      characters: fledCharacters,
+      dailyActions: fledDailyActions,
+      clock: fixedClock,
+      combatSessions: fledSessions,
+      rng: new FakeRandomSource([0.1, 0.01])
+    });
     const started = await fledService.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -3247,13 +3257,13 @@ describe("FightService", () => {
     expiredCharacters.add(telegramUserId, { xp: 25 });
     const expiredDailyActions = new FakeDailyActionRepository(expiredCharacters);
     const expiredSessions = new FakeSoloCombatSessionRepository(expiredCharacters);
-    const expiredService = new FightService(
-      expiredCharacters,
-      expiredDailyActions,
-      fixedClock,
-      expiredSessions,
-      new FakeRandomSource([0.1])
-    );
+    const expiredService = new FightService({
+      characters: expiredCharacters,
+      dailyActions: expiredDailyActions,
+      clock: fixedClock,
+      combatSessions: expiredSessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const expiredStarted = await expiredService.getFightForTelegramUser(telegramUserId);
     expect(expiredStarted.state).toBe("persistent-active");
     if (expiredStarted.state !== "persistent-active") {
@@ -3289,7 +3299,12 @@ describe("FightService", () => {
     sessions.addSession(makeTerminalSession("lost"));
     sessions.addSession(makeTerminalSession("fled", "session-fled"));
     sessions.addSession(makeTerminalSession("expired", "session-expired"));
-    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -3307,13 +3322,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3337,13 +3352,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3378,13 +3393,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3421,13 +3436,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 110 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3468,13 +3483,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { level: 23, xp: 130_000 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.999, 0.999, 0.999])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.999, 0.999, 0.999])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3513,13 +3528,13 @@ describe("FightService", () => {
       characters.add(telegramUserId, { xp: 25 });
       const dailyActions = new FakeDailyActionRepository(characters);
       const sessions = new FakeSoloCombatSessionRepository(characters);
-      const service = new FightService(
+      const service = new FightService({
         characters,
         dailyActions,
-        fixedClock,
-        sessions,
-        new FakeRandomSource([0.1])
-      );
+        clock: fixedClock,
+        combatSessions: sessions,
+        rng: new FakeRandomSource([0.1])
+      });
 
       await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3547,13 +3562,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3575,13 +3590,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3604,13 +3619,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3659,13 +3674,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3698,13 +3713,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3737,13 +3752,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3778,13 +3793,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3827,13 +3842,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
 
     await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -3868,16 +3883,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2]),
+      pendingPassageEncounters: pending
+    });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -3926,16 +3939,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2]),
+      pendingPassageEncounters: pending
+    });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -3981,16 +3992,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2]),
+      pendingPassageEncounters: pending
+    });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
       difficulty: "normal",
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -4042,16 +4051,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.2, 0.3, 0.4]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.2, 0.3, 0.4]),
+      pendingPassageEncounters: pending
+    });
 
     sessions.addSession(makeEligibleOrdinaryThreatSession("won", "passage-threat-base-win-1", {
       completedAt: new Date("2026-06-12T10:29:40.000Z")
@@ -4119,16 +4126,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2]),
+      pendingPassageEncounters: pending
+    });
     for (const [index, completedAt] of [
       new Date("2026-06-12T10:29:40.000Z"),
       new Date("2026-06-12T10:29:41.000Z"),
@@ -4148,16 +4153,14 @@ describe("FightService", () => {
 
     const first = await service.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
     const duplicate = await service.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
-    const reloadedService = new FightService(
+    const reloadedService = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.8]),
-      undefined,
-      undefined,
-      pending
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.8]),
+      pendingPassageEncounters: pending
+    });
     const reloaded = await reloadedService.attackPersistentPassageEncounterForTelegramUser(telegramUserId, preview.encounterToken);
 
     expect(first.state).toBe("persistent-active");
@@ -4182,16 +4185,14 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const pending = new FakePendingPassageEncounterRepository(characters, sessions);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
       clock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.2, 0.3]),
-      undefined,
-      undefined,
-      pending
-    );
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2, 0.3]),
+      pendingPassageEncounters: pending
+    });
     for (const [index, completedAt] of [
       new Date("2026-06-12T10:29:40.000Z"),
       new Date("2026-06-12T10:29:41.000Z"),
@@ -4282,13 +4283,13 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.addWonSessions("character-42", 12);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -4349,7 +4350,12 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.addWonSessions("character-42", 13);
-    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
 
     const first = await service.turnInProblemQuestForTelegramUser(telegramUserId);
 
@@ -4437,7 +4443,12 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     dailyActions.addAction(telegramUserId, THIRTEEN_SMALL_PROBLEMS_QUEST_KEY, PROBLEM_QUEST_BUCKET);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
 
     const result = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -4469,7 +4480,12 @@ describe("FightService", () => {
     dailyActions.addAction(telegramUserId, PROBLEM_QUEST_STAGES[1].issueKey, PROBLEM_QUEST_BUCKET);
     dailyActions.addAction(telegramUserId, PROBLEM_QUEST_STAGES[1].rewardKey, PROBLEM_QUEST_BUCKET);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
 
     const result = await service.issueNextProblemQuestForTelegramUser(telegramUserId);
 
@@ -4511,7 +4527,12 @@ describe("FightService", () => {
     sessions.addWonSessions("character-42", 5, TRAINING_DOPPELGANGER_MONSTER_ID, {
       createdAt: new Date("2026-06-12T11:30:00.000Z")
     });
-    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
 
     const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -4543,7 +4564,12 @@ describe("FightService", () => {
     sessions.addWonSessions("character-42", 23, "monster.deadline-spider", {
       createdAt: new Date("2026-06-12T10:10:00.000Z")
     });
-    const service = new FightService(characters, dailyActions, fixedClock, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
 
     const twentyThree = await service.turnInProblemQuestForTelegramUser(telegramUserId);
     expect(twentyThree.state).toBe("turned-in");
@@ -4681,13 +4707,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -4710,13 +4736,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.6, 0.1, 0.1, 0.6])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.6, 0.1, 0.1, 0.6])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -4760,13 +4786,13 @@ describe("FightService", () => {
     });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.1, 0.9, 0.99, 0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.1, 0.9, 0.99, 0.99])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId, {
       enemyCount: 2,
       devBypassAvailability: true
@@ -4832,13 +4858,13 @@ describe("FightService", () => {
     });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.99, 0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.99, 0.99])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId, {
       enemyCount: 2,
       devBypassAvailability: true
@@ -4882,13 +4908,13 @@ describe("FightService", () => {
     });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId, {
       enemyCount: 2,
       devBypassAvailability: true
@@ -4920,13 +4946,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.1, 0.6])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.6])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -4957,13 +4983,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -4991,13 +5017,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5032,13 +5058,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5071,13 +5097,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5111,13 +5137,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.6])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.6])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5158,13 +5184,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.6])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.6])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5200,13 +5226,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5232,13 +5258,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5272,13 +5298,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5306,13 +5332,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25, classId: "class.mage", manaCurrent: 0, manaMax: 0 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.1])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5335,13 +5361,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {
@@ -5368,13 +5394,13 @@ describe("FightService", () => {
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
-    const service = new FightService(
+    const service = new FightService({
       characters,
       dailyActions,
-      fixedClock,
-      sessions,
-      new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
-    );
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.9, 0.99, 0.9])
+    });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
     if (started.state !== "persistent-active") {

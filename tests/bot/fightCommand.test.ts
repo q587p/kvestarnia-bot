@@ -577,6 +577,12 @@ describe("fight command", () => {
         inline_keyboard: [
           [
             {
+              text: "⬆️ Піднятися назад",
+              callback_data: makePlaceCallbackData("deep")
+            }
+          ],
+          [
+            {
               text: "⬅️ Лівий прохід",
               callback_data: makePlaceCallbackData("deep-left")
             }
@@ -597,12 +603,6 @@ describe("fight command", () => {
             {
               text: "🔎 Пошукати",
               callback_data: makeDeepLevelOneSearchStartCallbackData()
-            }
-          ],
-          [
-            {
-              text: "⬆️ Піднятися назад",
-              callback_data: makePlaceCallbackData("deep")
             }
           ]
         ]

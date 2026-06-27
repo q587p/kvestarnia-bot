@@ -12,6 +12,7 @@
 - [ai/prompts/phase2-closeout-main-codex.md](ai/prompts/phase2-closeout-main-codex.md) — main Codex prompt for the `0.1.25` Phase 2 MVP closeout task.
 - [ai/prompts/phase2-regression-audit.md](ai/prompts/phase2-regression-audit.md) — read-only audit prompt for the Phase 2 regression smoke.
 - [ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md) — first `0.2.x` implementation prompt for Safe Gifting MVP.
+- [ai/prompts/player-abilities-registry-main-codex.md](ai/prompts/player-abilities-registry-main-codex.md) — main Codex prompt for the `0.2.7` Player Abilities Registry / MVP slice.
 - [ai/prompts/daily-korchma-rounds-main-codex.md](ai/prompts/daily-korchma-rounds-main-codex.md) — future implementation prompt for the daily `Корчмарський обхід` route.
 - [ai/prompts/raid-party-session-foundation-main-codex.md](ai/prompts/raid-party-session-foundation-main-codex.md) — future party-session foundation prompt; use only when that docs-only planning slice becomes active.
 - [ai/prompts/senior-barrel-brother-group-raid-main-codex.md](ai/prompts/senior-barrel-brother-group-raid-main-codex.md) — future Senior Barrel Brother group raid prompt after the party-session foundation exists.
@@ -32,6 +33,7 @@
 - [QUEST_SKILLS_AND_CHECKS.md](QUEST_SKILLS_AND_CHECKS.md) — deterministic quest-resolution check math, technique vocabulary and qualitative chance bands.
 - [QUEST_RESOLUTION_CONTENT_SEEDS.md](QUEST_RESOLUTION_CONTENT_SEEDS.md) — minimum authored content direction for general, generated and starter quest-resolution scenes.
 - [NONCOMBAT_TECHNIQUES.md](NONCOMBAT_TECHNIQUES.md) — class/race/signature non-combat technique planning plus the shipped `0.2.5` Bard Performance proof in Shynok.
+- [PLAYER_IDENTITY_ABILITIES.md](PLAYER_IDENTITY_ABILITIES.md) — реєстр current/planned расових, класових і титульних бойових та соціяльних абілок.
 - [DAILY_KORCHMA_ROUNDS.md](DAILY_KORCHMA_ROUNDS.md) — canonical future design for the daily `Корчмарський обхід` route; not shipped until its task is activated.
 - [LOOT_EXPANSION_CANONICAL_IDS.md](LOOT_EXPANSION_CANONICAL_IDS.md) — adapter boundary для generated loot: canonical class/race ids, title-gate surrogates і equipability filtering.
 - [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md) — внутрішні reference notes для корчмарського ланцюжка `13 -> 23 -> 42 -> 93`.
@@ -50,6 +52,14 @@
 - [ai/context.md](ai/context.md) — стислий контекст для нових Codex-сесій.
 - [ai/prompts/](ai/prompts/) — готові prompts для основного агента, QA, review і release handoff.
 - [ai/CODEX_TOKEN_ECONOMY_APPLIED.md](ai/CODEX_TOKEN_ECONOMY_APPLIED.md) — коротка нотатка про практичну економію токенів у workflow.
+
+## Refactoring audit package
+
+- [refactoring-audit/README.md](refactoring-audit/README.md) — imported `12026-06-27` audit package with analysis, docs, prompts, task candidates and a machine-readable Codex task board.
+
+## Phase 2 roadmap audit package
+
+- [phase2-roadmap-audit/README.md](phase2-roadmap-audit/README.md) — imported `12026-06-27` roadmap audit package with post-`0.2.7` ordering, public-surface notes, future task docs, prompts and checklists. Keep it as planning input until a specific next slice is activated.
 
 ## Phase 1 closeout
 

@@ -114,21 +114,19 @@ describe("application factory wiring", () => {
     expect(services.yeger).toBeInstanceOf(YegerQuestService);
   });
 
-  it("pins positional service constructor dependencies", () => {
+  it("pins service constructor dependencies", () => {
     const source = compact(read("src/app/createServices.ts"));
 
     expect(source).toContain(compact(`
-      const fight = new FightService(
-        repositories.characters,
-        repositories.dailyActions,
-        undefined,
-        repositories.soloCombatSessions,
-        undefined,
-        repositories.equipment,
-        combatBalanceAnalytics,
-        repositories.pendingPassageEncounters,
-        repositories.shynok
-      );
+      const fight = new FightService({
+        characters: repositories.characters,
+        dailyActions: repositories.dailyActions,
+        combatSessions: repositories.soloCombatSessions,
+        equipment: repositories.equipment,
+        combatAnalytics: combatBalanceAnalytics,
+        pendingPassageEncounters: repositories.pendingPassageEncounters,
+        shynok: repositories.shynok
+      });
     `));
     expect(source).toContain(compact(`
       adventure: new AdventureService(

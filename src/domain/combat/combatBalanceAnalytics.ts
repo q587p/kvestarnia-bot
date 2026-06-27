@@ -43,6 +43,7 @@ export interface CombatAnalyticsAbilityAccumulatorV1 {
   hitCount: number;
   critCount: number;
   missCount: number;
+  fumbleCount: number;
   totalDamage: number;
   totalHealing: number;
   resourceSpent: number;
@@ -198,7 +199,16 @@ export function recordCombatAnalyticsTurn(
   const actionOrigin = summary.actionOrigin ?? "manual";
   const abilityRecordKey = getAbilityRecordKey(actionOrigin, abilityKey);
   const ability = analytics.abilities[abilityRecordKey] ?? emptyAbility(abilityKey, actionOrigin);
-  const heroDamage = Math.max(0, summary.heroDamage + (summary.heroCounterDamage ?? 0));
+  const directHeroDamage = summary.enemyResults
+    ? summary.enemyResults.reduce((sum, result) => sum + Math.max(0, result.damage), 0)
+    : summary.heroDamage;
+  const heroDamage = Math.max(0, directHeroDamage + (summary.heroCounterDamage ?? 0));
+  const healing = Math.max(
+    0,
+    summary.allyResults?.reduce((sum, result) => sum + Math.max(0, result.healing ?? 0), 0) ??
+      summary.heroHealing ??
+      0
+  );
   const monsterDamage = Math.max(0, summary.monsterDamage);
 
   ability.usesCount += 1;
@@ -206,8 +216,9 @@ export function recordCombatAnalyticsTurn(
   ability.hitCount += isHeroHit(summary) ? 1 : 0;
   ability.critCount += summary.critical ? 1 : 0;
   ability.missCount += summary.heroOutcome === "miss" ? 1 : 0;
+  ability.fumbleCount += summary.heroOutcome === "critical-fumble" ? 1 : 0;
   ability.totalDamage += heroDamage;
-  ability.totalHealing += Math.max(0, summary.heroHealing ?? 0);
+  ability.totalHealing += healing;
   ability.resourceSpent += Math.max(0, summary.manaSpent);
 
   analytics.abilities[abilityRecordKey] = ability;
@@ -222,6 +233,7 @@ export function recordCombatAnalyticsTurn(
   analytics.totals.enemyActionsCount += summary.monsterAction ? 1 : 0;
   analytics.totals.damageDealt += heroDamage;
   analytics.totals.damageTaken += monsterDamage;
+  analytics.totals.healingDone += healing;
   analytics.totals.criticalHits += summary.critical ? 1 : 0;
   analytics.totals.misses += summary.heroOutcome === "miss" ? 1 : 0;
 
@@ -307,7 +319,7 @@ export function parseCombatAnalyticsState(value: unknown): CombatAnalyticsStateV
 }
 
 function getAbilityKey(summary: CombatTurnSummary): string {
-  if (summary.action === "skill" && summary.skillId) {
+  if ((summary.action === "skill" || summary.action === "race") && summary.skillId) {
     return summary.skillId;
   }
 
@@ -344,6 +356,7 @@ function emptyAbility(
     hitCount: 0,
     critCount: 0,
     missCount: 0,
+    fumbleCount: 0,
     totalDamage: 0,
     totalHealing: 0,
     resourceSpent: 0
@@ -562,6 +575,7 @@ function parseAbility(value: unknown): CombatAnalyticsAbilityAccumulatorV1 | nul
     hitCount: numbers.hitCount!,
     critCount: numbers.critCount!,
     missCount: numbers.missCount!,
+    fumbleCount: intOrNull(value.fumbleCount) ?? 0,
     totalDamage: numbers.totalDamage!,
     totalHealing: numbers.totalHealing!,
     resourceSpent: numbers.resourceSpent!

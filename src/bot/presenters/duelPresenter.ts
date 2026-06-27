@@ -386,11 +386,8 @@ export function presentTurnBasedDuel(
     statusLine
   ];
 
-  if (
-    result.session.status === "active" &&
-    viewerParticipant?.cooldowns?.skill?.remainingTurns
-  ) {
-    lines.push(presentSkillCooldown(viewerParticipant.cooldowns.skill));
+  if (result.session.status === "active" && viewerParticipant?.cooldowns) {
+    lines.push(...presentAbilityCooldowns(viewerParticipant.cooldowns));
   }
 
   lines.push(
@@ -541,6 +538,8 @@ function presentTurnBasedRoundState(
 function presentQueuedDuelAction(action: string): string {
   return action === "skill"
     ? "класова дія"
+    : action === "race"
+      ? "расова дія"
     : action === "defend"
       ? "захист"
     : action === "surrender"
@@ -553,8 +552,16 @@ function presentTurnBasedLastAction(action: {
   action: string;
   outcome: string;
   damage: number;
+  healing?: number;
+  guard?: number;
   manaSpent: number;
   critical: boolean;
+  fumble?: {
+    kind: "self-damage" | "enemy-heal";
+    line: string;
+    selfDamage?: number | undefined;
+    enemyHealing?: number | undefined;
+  } | undefined;
 }): string {
   const actionLine =
     action.action === "surrender"
@@ -565,17 +572,44 @@ function presentTurnBasedLastAction(action: {
           ? "🛡 Захист записано в протокол."
         : action.action === "skill"
           ? "✨ Класова дія записана в протокол."
+        : action.action === "race"
+          ? "🧬 Расова дія записана в протокол."
           : "⚔️ Звичайна атака записана в протокол.";
   const hitLine =
-    action.damage > 0
+    action.fumble
+      ? presentTurnBasedDuelFumble(action.fumble)
+      : action.damage > 0
       ? `Шкода: <b>${action.damage}</b>${action.critical ? " · критично" : ""}.`
+      : action.healing || action.guard
+        ? "Шкода не пройшла, але підтримка спрацювала."
       : action.outcome === "not-enough-mana"
         ? "Мани не вистачило, але хід усе одно пішов у протокол."
         : action.outcome === "skill-on-cooldown"
           ? "Дія ще не відлипла від попереднього разу."
           : "Шкода не пройшла.";
 
-  return [actionLine, hitLine].join("\n");
+  const supportLine = [
+    action.healing ? `HP підросли на <b>${action.healing}</b>` : "",
+    action.guard ? `захист тримає <b>${action.guard}</b>` : ""
+  ].filter(Boolean).join("; ");
+
+  return [actionLine, hitLine, supportLine ? `Підтримка: ${supportLine}.` : ""].filter(Boolean).join("\n");
+}
+
+function presentTurnBasedDuelFumble(action: {
+  kind: "self-damage" | "enemy-heal";
+  line: string;
+  selfDamage?: number | undefined;
+  enemyHealing?: number | undefined;
+}): string {
+  const consequence =
+    action.kind === "enemy-heal"
+      ? action.enemyHealing && action.enemyHealing > 0
+        ? ` Супротивник відновлює <b>${action.enemyHealing}</b> HP.`
+        : " Супротивник уже цілий, але дуже вдячний."
+      : ` Автор дії отримує <b>${action.selfDamage ?? 0}</b> шкоди.`;
+
+  return `Критична невдача: ${escapeHtml(action.line)}${consequence}`;
 }
 
 function presentDuelParticipant(label: string, character: CharacterSummary): string {
@@ -739,6 +773,25 @@ function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }):
   const skill = getCombatSkillDisplay(cooldown.id);
 
   return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+}
+
+function presentAbilityCooldowns(cooldowns: {
+  skill?: { id: string; remainingTurns: number };
+  abilities?: Record<string, { id: string; remainingTurns: number }>;
+}): string[] {
+  const uniqueCooldowns = new Map<string, { id: string; remainingTurns: number }>();
+
+  for (const cooldown of Object.values(cooldowns.abilities ?? {})) {
+    if (cooldown.remainingTurns > 0) {
+      uniqueCooldowns.set(cooldown.id, cooldown);
+    }
+  }
+
+  if (cooldowns.skill?.remainingTurns) {
+    uniqueCooldowns.set(cooldowns.skill.id, cooldowns.skill);
+  }
+
+  return [...uniqueCooldowns.values()].map(presentSkillCooldown);
 }
 
 function formatHourMinute(date: Date): string {

@@ -1,7 +1,10 @@
 import type { RandomSource } from "../../shared/random";
 import {
   BASIC_DEFEND_ABILITY_ID,
+  getCombatClassAbilityProfile,
+  getCombatRaceAbilityProfile,
   getCombatSkillProfile,
+  type CombatPlayerAbilityProfile,
   type CombatSkillProfile
 } from "./combatActions";
 import { recordCombatAnalyticsTurn } from "./combatBalanceAnalytics";
@@ -29,6 +32,7 @@ import {
 import {
   clampResource,
   cloneCombatCooldowns,
+  clonePlayerAbilityFumblesState,
   cloneCombatState,
   cloneCombatTurnSummary,
   appendCombatTurnLogEntry,
@@ -41,15 +45,20 @@ import {
   syncPrimaryCombatEnemy,
   turnLogEnemies,
   updateCombatEnemy,
+  PLAYER_ABILITY_FUMBLE_CYCLE_USES,
   type CombatActionOrigin,
   type CombatActionType,
   type CombatActorStats,
+  type CombatAllyAbilityResult,
+  type CombatEnemyAbilityResult,
   type CombatEnemyState,
   type CombatEnemyTurnSummary,
   type CombatGuardState,
+  type CombatPlayerAbilityFumbleSummary,
   type CombatState,
   type CombatTurnSummary,
   type MonsterCombatStats,
+  type PlayerAbilityFumblesState,
   type PlayerCombatActionType
 } from "./combatState";
 
@@ -118,6 +127,12 @@ export interface CombatActionAvailability {
     reason?: "not-enough-mana" | "cooldown";
     cooldownRemainingTurns?: number;
   };
+  race: {
+    available: boolean;
+    ability: ReturnType<typeof getCombatRaceAbilityProfile>;
+    reason?: "not-enough-mana" | "cooldown" | "missing";
+    cooldownRemainingTurns?: number;
+  };
 }
 
 export interface CombatActorResourceState {
@@ -127,6 +142,7 @@ export interface CombatActorResourceState {
   manaMax: number;
   cooldowns?: CombatState["cooldowns"];
   guard?: CombatGuardState;
+  playerAbilityFumbles?: PlayerAbilityFumblesState;
 }
 
 export interface ResolveActorCombatActionInput {
@@ -135,6 +151,7 @@ export interface ResolveActorCombatActionInput {
   actorStats: CombatActorStats;
   defenderStats: MonsterCombatStats;
   action: Exclude<PlayerCombatActionType, "flee">;
+  fumbleSeed?: string;
   rng: RandomSource;
 }
 
@@ -142,13 +159,14 @@ export interface ActorCombatActionSummary {
   action: Exclude<PlayerCombatActionType, "flee">;
   actorOutcome: Extract<
     CombatTurnSummary["heroOutcome"],
-    "hit" | "critical-hit" | "miss" | "defended" | "not-enough-mana" | "skill-on-cooldown" | "won"
+    "hit" | "critical-hit" | "miss" | "defended" | "not-enough-mana" | "skill-on-cooldown" | "critical-fumble" | "won"
   >;
   actorDamage: number;
   manaSpent: number;
   critical: boolean;
   skillId?: string;
   damageKind?: CombatTurnSummary["damageKind"];
+  fumble?: CombatPlayerAbilityFumbleSummary;
 }
 
 export interface ResolveActorCombatActionResult {
@@ -170,50 +188,34 @@ interface MonsterResponseResult {
 
 export function getCombatActionAvailability(
   state: CombatState,
-  hero: Pick<CombatActorStats, "classId">
+  hero: Pick<CombatActorStats, "classId" | "raceId">
 ): CombatActionAvailability {
   return getActorCombatActionAvailability({ ...state.hero, cooldowns: state.cooldowns }, hero);
 }
 
 export function getActorCombatActionAvailability(
   actorState: Pick<CombatActorResourceState, "mana" | "cooldowns">,
-  actor: Pick<CombatActorStats, "classId">
+  actor: Pick<CombatActorStats, "classId" | "raceId">
 ): CombatActionAvailability {
-  const skill = getCombatSkillProfile(actor.classId);
-  const cooldown = getSkillCooldown(actorState.cooldowns, skill);
-
-  if (cooldown && cooldown.remainingTurns > 0) {
-    return {
-      attack: { available: true },
-      defend: { available: true },
-      flee: { available: true },
-      skill: {
-        available: false,
-        skill,
-        reason: "cooldown",
-        cooldownRemainingTurns: cooldown.remainingTurns
-      }
-    };
-  }
-
-  if (actorState.mana < skill.manaCost) {
-    return {
-      attack: { available: true },
-      defend: { available: true },
-      flee: { available: true },
-      skill: {
-        available: false,
-        skill,
-        reason: "not-enough-mana"
-      }
-    };
-  }
+  const skill = getCombatClassAbilityProfile(actor.classId);
+  const raceAbility = getCombatRaceAbilityProfile(actor.raceId);
+  const skillAvailability = getAbilityAvailability(actorState, skill);
+  const raceAvailability = raceAbility
+    ? getAbilityAvailability(actorState, raceAbility)
+    : { available: false as const, reason: "missing" as const };
 
   return {
     attack: { available: true },
     defend: { available: true },
     flee: { available: true },
-    skill: { available: true, skill }
+    skill: {
+      ...skillAvailability,
+      skill
+    },
+    race: {
+      ...raceAvailability,
+      ability: raceAbility
+    }
   };
 }
 
@@ -242,7 +244,7 @@ export function resolveActorCombatAction(
   }
 
   if (input.action === "skill") {
-    const skill = getCombatSkillProfile(input.actorStats.classId);
+    const skill = getCombatClassAbilityProfile(input.actorStats.classId);
     const availability = getActorCombatActionAvailability(actorState, input.actorStats).skill;
 
     if (!availability.available) {
@@ -262,6 +264,28 @@ export function resolveActorCombatAction(
     }
 
     return resolveActorAttack(input, skill);
+  }
+
+  if (input.action === "race") {
+    const ability = getCombatRaceAbilityProfile(input.actorStats.raceId);
+    const availability = getActorCombatActionAvailability(actorState, input.actorStats).race;
+
+    if (!ability || !availability.available) {
+      return {
+        actorState,
+        defenderState,
+        summary: {
+          action: "race",
+          actorOutcome: availability.reason === "not-enough-mana" ? "not-enough-mana" : "skill-on-cooldown",
+          actorDamage: 0,
+          manaSpent: 0,
+          critical: false,
+          ...(ability ? { skillId: ability.id, damageKind: ability.damageKind } : {})
+        }
+      };
+    }
+
+    return resolveActorAttack(input, ability);
   }
 
   return resolveActorAttack(input);
@@ -314,18 +338,20 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
     };
   }
 
-  if (input.action === "skill") {
-    const skill = getCombatSkillProfile(input.hero.classId);
-    if (isHeroClassSkillLockedByMonster(input.state)) {
+  if (input.action === "skill" || input.action === "race") {
+    const ability = input.action === "skill"
+      ? getCombatClassAbilityProfile(input.hero.classId)
+      : getCombatRaceAbilityProfile(input.hero.raceId);
+
+    if (!ability) {
       const summary = buildSummary({
-        action: "skill",
+        action: input.action,
         ...summaryActionOrigin(input),
         heroOutcome: "skill-on-cooldown",
         heroDamage: 0,
         monsterDamage: 0,
         manaSpent: 0,
-        critical: false,
-        skill
+        critical: false
       });
 
       return {
@@ -336,19 +362,41 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
       };
     }
 
-    const availability = getCombatActionAvailability(input.state, input.hero).skill;
-    const manaPressure = getMonsterRuntimeSkillManaCostIncrease(input.state);
-
-    if (!availability.available || input.state.hero.mana < skill.manaCost + manaPressure) {
+    if (input.action === "skill" && isHeroClassSkillLockedByMonster(input.state)) {
       const summary = buildSummary({
-        action: "skill",
+        action: input.action,
+        ...summaryActionOrigin(input),
+        heroOutcome: "skill-on-cooldown",
+        heroDamage: 0,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false,
+        skill: ability
+      });
+
+      return {
+        ok: false,
+        reason: "skill-on-cooldown",
+        state: cloneCombatState(input.state),
+        summary
+      };
+    }
+
+    const availability = input.action === "skill"
+      ? getCombatActionAvailability(input.state, input.hero).skill
+      : getCombatActionAvailability(input.state, input.hero).race;
+    const manaPressure = input.action === "skill" ? getMonsterRuntimeSkillManaCostIncrease(input.state) : 0;
+
+    if (!availability.available || input.state.hero.mana < ability.manaCost + manaPressure) {
+      const summary = buildSummary({
+        action: input.action,
         ...summaryActionOrigin(input),
         heroOutcome: availability.reason === "cooldown" ? "skill-on-cooldown" : "not-enough-mana",
         heroDamage: 0,
         monsterDamage: 0,
         manaSpent: 0,
         critical: false,
-        skill
+        skill: ability
       });
       return {
         ok: false,
@@ -358,7 +406,7 @@ export function resolveCombatTurn(input: ResolveCombatTurnInput): ResolveCombatT
       };
     }
 
-    return resolveHeroAttack(input, skill);
+    return resolveHeroAttack(input, ability);
   }
 
   return resolveHeroAttack(input);
@@ -589,14 +637,14 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
 
 function resolveHeroAttack(
   input: ResolveCombatTurnInput,
-  skill?: ReturnType<typeof getCombatSkillProfile>
+  skill?: CombatPlayerAbilityProfile
 ): ResolveCombatTurnResult {
   if (hasCombatEnemyCollection(input.state)) {
     return resolveMultiEnemyHeroAttack(input, skill);
   }
 
   const nextState = cloneCombatState(input.state);
-  const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
+  const action = skill ? skill.action : input.action === "defend" ? "defend" : "attack";
   const monsterHpBeforeHeroAction = nextState.monster.hp;
   const defenderStats = applyMonsterRuntimeHeroAttackModifiers(
     nextState,
@@ -606,7 +654,8 @@ function resolveHeroAttack(
     actorState: {
       ...nextState.hero,
       cooldowns: nextState.cooldowns,
-      ...(nextState.guard ? { guard: nextState.guard } : {})
+      ...(nextState.guard ? { guard: nextState.guard } : {}),
+      ...(nextState.playerAbilityFumbles ? { playerAbilityFumbles: nextState.playerAbilityFumbles } : {})
     },
     defenderState: {
       hp: nextState.monster.hp,
@@ -617,25 +666,42 @@ function resolveHeroAttack(
     actorStats: input.hero,
     defenderStats,
     action,
+    fumbleSeed: buildPlayerAbilityFumbleSeed(nextState, input.hero),
     rng: input.rng
   });
   nextState.hero.hp = actorAction.actorState.hp;
   nextState.hero.mana = actorAction.actorState.mana;
-  const manaPressure = skill ? getMonsterRuntimeSkillManaCostIncrease(nextState) : 0;
+  const manaPressure = skill?.action === "skill" ? getMonsterRuntimeSkillManaCostIncrease(nextState) : 0;
   if (manaPressure > 0) {
     nextState.hero.mana = clampResource(nextState.hero.mana - manaPressure, nextState.hero.manaMax);
   }
   setStateGuard(nextState, actorAction.actorState.guard);
   setStateCooldowns(nextState, actorAction.actorState.cooldowns);
+  setStatePlayerAbilityFumbles(nextState, actorAction.actorState.playerAbilityFumbles);
+  const support = skill && !actorAction.summary.fumble
+    ? applyPlayerAbilitySupport(nextState, skill)
+    : emptyAbilitySupport();
   nextState.monster.hp = actorAction.defenderState.hp;
-  const runtimeHeroDamage = applyMonsterRuntimeHeroDamage({
-    state: nextState,
-    heroDamage: actorAction.summary.actorDamage,
-    monsterHpBeforeDamage: monsterHpBeforeHeroAction,
-    heroAction: action,
-    rng: input.rng
-  });
+  const runtimeHeroDamage = actorAction.summary.fumble
+    ? { heroDamage: 0, reflectedDamage: 0 }
+    : applyMonsterRuntimeHeroDamage({
+        state: nextState,
+        heroDamage: actorAction.summary.actorDamage,
+        monsterHpBeforeDamage: monsterHpBeforeHeroAction,
+        heroAction: action,
+        rng: input.rng
+      });
   const heroDamage = runtimeHeroDamage.heroDamage;
+  const enemyResults = skill && abilityDealsEnemyDamage(skill) && !actorAction.summary.fumble
+    ? [buildEnemyAbilityResult({
+        enemyId: "enemy:1",
+        monsterId: input.monster.monsterId,
+        ...(input.monster.name ? { monsterName: input.monster.name } : {}),
+        damage: heroDamage,
+        outcome: heroOutcomeFromActor(actorAction.summary.actorOutcome, nextState.monster.hp),
+        critical: actorAction.summary.critical
+      })]
+    : [];
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
   const monsterDefeatedByHeroExchange = monsterHpBeforeHeroAction > 0 &&
     nextState.monster.hp <= 0 &&
@@ -666,6 +732,10 @@ function resolveHeroAttack(
       monsterDamage,
       manaSpent,
       critical: actorAction.summary.critical,
+      heroHealing: support.heroHealing,
+      allyResults: support.allyResults,
+      enemyResults,
+      ...(actorAction.summary.fumble ? { fumble: actorAction.summary.fumble } : {}),
       ...(skill ? { skill } : {})
     });
     nextState.lastTurn = summary;
@@ -685,14 +755,20 @@ function resolveHeroAttack(
     monsterResponse = resolveMonsterResponse({
       state: nextState,
       input,
-      damageReduction: skill?.monsterDamageReduction ?? 0,
+      damageReduction: getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble),
       simultaneousFinalResponse: monsterDefeatedByHeroExchange
     });
     monsterDamage += monsterResponse.damage;
   }
   let counterDamage = 0;
-  if (nextState.hero.hp > 0 && monsterResponse.defendCounter && monsterDamage > 0) {
-    counterDamage = rollDefendCounterDamage(input.hero, input.monster, input.rng);
+  if (
+    nextState.hero.hp > 0 &&
+    monsterDamage > 0 &&
+    (monsterResponse.defendCounter || (!actorAction.summary.fumble && (skill?.counterDamage ?? 0) > 0))
+  ) {
+    counterDamage = !actorAction.summary.fumble && skill?.counterDamage
+      ? skill.counterDamage
+      : rollDefendCounterDamage(input.hero, input.monster, input.rng);
     nextState.monster.hp = Math.max(0, nextState.monster.hp - counterDamage);
   }
   nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
@@ -719,6 +795,10 @@ function resolveHeroAttack(
     heroCounterDamage: counterDamage,
     manaSpent,
     critical: actorAction.summary.critical,
+    heroHealing: support.heroHealing,
+    allyResults: support.allyResults,
+    enemyResults,
+    ...(actorAction.summary.fumble ? { fumble: actorAction.summary.fumble } : {}),
     ...(skill ? { skill } : {}),
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
     ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
@@ -847,11 +927,11 @@ function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombat
 
 function resolveMultiEnemyHeroAttack(
   input: ResolveCombatTurnInput,
-  skill?: ReturnType<typeof getCombatSkillProfile>
+  skill?: CombatPlayerAbilityProfile
 ): ResolveCombatTurnResult {
   const nextState = cloneCombatState(input.state);
   syncPrimaryCombatEnemy(nextState);
-  const action = skill ? "skill" : input.action === "defend" ? "defend" : "attack";
+  const action = skill ? skill.action : input.action === "defend" ? "defend" : "attack";
   const primary = getPrimaryCombatEnemy(nextState);
   const enemyPhaseParticipants = getLivingCombatEnemies(nextState);
   const primaryStats = findEnemyStats(input, primary);
@@ -864,7 +944,8 @@ function resolveMultiEnemyHeroAttack(
     actorState: {
       ...nextState.hero,
       cooldowns: nextState.cooldowns,
-      ...(nextState.guard ? { guard: nextState.guard } : {})
+      ...(nextState.guard ? { guard: nextState.guard } : {}),
+      ...(nextState.playerAbilityFumbles ? { playerAbilityFumbles: nextState.playerAbilityFumbles } : {})
     },
     defenderState: {
       hp: primary.hp,
@@ -875,25 +956,32 @@ function resolveMultiEnemyHeroAttack(
     actorStats: input.hero,
     defenderStats,
     action,
+    fumbleSeed: buildPlayerAbilityFumbleSeed(nextState, input.hero),
     rng: input.rng
   });
   nextState.hero.hp = actorAction.actorState.hp;
   nextState.hero.mana = actorAction.actorState.mana;
-  const manaPressure = skill ? getMonsterRuntimeSkillManaCostIncrease(nextState) : 0;
+  const manaPressure = skill?.action === "skill" ? getMonsterRuntimeSkillManaCostIncrease(nextState) : 0;
   if (manaPressure > 0) {
     nextState.hero.mana = clampResource(nextState.hero.mana - manaPressure, nextState.hero.manaMax);
   }
   setStateGuard(nextState, actorAction.actorState.guard);
   setStateCooldowns(nextState, actorAction.actorState.cooldowns);
+  setStatePlayerAbilityFumbles(nextState, actorAction.actorState.playerAbilityFumbles);
+  const support = skill && !actorAction.summary.fumble
+    ? applyPlayerAbilitySupport(nextState, skill)
+    : emptyAbilitySupport();
   primary.hp = actorAction.defenderState.hp;
   nextState.monster = combatEnemyToMonster(primary);
-  const runtimeHeroDamage = applyMonsterRuntimeHeroDamage({
-    state: nextState,
-    heroDamage: actorAction.summary.actorDamage,
-    monsterHpBeforeDamage: monsterHpBeforeHeroAction,
-    heroAction: action,
-    rng: input.rng
-  });
+  const runtimeHeroDamage = actorAction.summary.fumble
+    ? { heroDamage: 0, reflectedDamage: 0 }
+    : applyMonsterRuntimeHeroDamage({
+        state: nextState,
+        heroDamage: actorAction.summary.actorDamage,
+        monsterHpBeforeDamage: monsterHpBeforeHeroAction,
+        heroAction: action,
+        rng: input.rng
+      });
   primary.hp = nextState.monster.hp;
   if (nextState.monsterRuntime) {
     primary.monsterRuntime = nextState.monsterRuntime;
@@ -901,7 +989,27 @@ function resolveMultiEnemyHeroAttack(
     delete primary.monsterRuntime;
   }
   updateCombatEnemy(nextState, primary.enemyId, primary);
-  const heroDamage = runtimeHeroDamage.heroDamage;
+  let heroDamage = runtimeHeroDamage.heroDamage;
+  const enemyResults: CombatEnemyAbilityResult[] = skill && abilityDealsEnemyDamage(skill) && !actorAction.summary.fumble
+    ? [buildEnemyAbilityResult({
+        enemyId: primary.enemyId,
+        monsterId: primary.id,
+        ...(primary.name ? { monsterName: primary.name } : {}),
+        damage: runtimeHeroDamage.heroDamage,
+        outcome: heroOutcomeFromActor(actorAction.summary.actorOutcome, primary.hp),
+        critical: actorAction.summary.critical
+      })]
+    : [];
+  if (skill && !actorAction.summary.fumble) {
+    const extraDamage = applySecondaryEnemyAbilityDamage({
+      state: nextState,
+      input,
+      ability: skill,
+      primaryEnemyId: primary.enemyId,
+      enemyResults
+    });
+    heroDamage += extraDamage;
+  }
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
   let heroEffectDamage = 0;
@@ -913,14 +1021,20 @@ function resolveMultiEnemyHeroAttack(
     const activationPhase = resolveHeroActivationAndLivingEnemyPhase(
       nextState,
       input,
-      skill?.monsterDamageReduction ?? 0,
+      getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble),
       enemyPhaseParticipants
     );
     heroEffectDamage = activationPhase.heroEffectDamage;
     monsterDamage += activationPhase.monsterDamage;
     const enemyPhase = activationPhase.enemyPhase;
-    if (nextState.hero.hp > 0 && enemyPhase.defendCounter && monsterDamage > 0) {
-      counterDamage = rollDefendCounterDamage(input.hero, primaryStats, input.rng);
+    if (
+      nextState.hero.hp > 0 &&
+      monsterDamage > 0 &&
+      (enemyPhase.defendCounter || (!actorAction.summary.fumble && (skill?.counterDamage ?? 0) > 0))
+    ) {
+      counterDamage = !actorAction.summary.fumble && skill?.counterDamage
+        ? skill.counterDamage
+        : rollDefendCounterDamage(input.hero, primaryStats, input.rng);
       const counterTarget = getPrimaryCombatEnemy(nextState);
       counterTarget.hp = Math.max(0, counterTarget.hp - counterDamage);
       updateCombatEnemy(nextState, counterTarget.enemyId, counterTarget);
@@ -950,6 +1064,10 @@ function resolveMultiEnemyHeroAttack(
       heroCounterDamage: counterDamage,
       manaSpent,
       critical: actorAction.summary.critical,
+      heroHealing: support.heroHealing,
+      allyResults: support.allyResults,
+      enemyResults,
+      ...(actorAction.summary.fumble ? { fumble: actorAction.summary.fumble } : {}),
       ...(skill ? { skill } : {}),
       ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
       ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
@@ -978,6 +1096,10 @@ function resolveMultiEnemyHeroAttack(
     monsterDamage,
     manaSpent,
     critical: actorAction.summary.critical,
+    heroHealing: support.heroHealing,
+    allyResults: support.allyResults,
+    enemyResults,
+    ...(actorAction.summary.fumble ? { fumble: actorAction.summary.fumble } : {}),
     ...(skill ? { skill } : {})
   });
   nextState.lastTurn = summary;
@@ -1046,47 +1168,375 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
 
 function resolveActorAttack(
   input: ResolveActorCombatActionInput,
-  skill?: ReturnType<typeof getCombatSkillProfile>
+  skill?: CombatPlayerAbilityProfile
 ): ResolveActorCombatActionResult {
   const actorState = cloneActorResourceState(input.actorState);
   const defenderState = cloneActorResourceState(input.defenderState);
-  const attack = skill
+  const fumbleAdvance = skill
+    ? advancePlayerAbilityFumbleCycle({
+        state: actorState.playerAbilityFumbles,
+        abilityId: skill.id,
+        seed: input.fumbleSeed ?? `${input.actorStats.classId ?? "unknown"}:${input.actorStats.raceId ?? "unknown"}`
+      })
+    : null;
+  const attack = skill && abilityDealsEnemyDamage(skill)
     ? rollSkillAttack(input.actorStats, input.defenderStats, skill, input.rng)
-    : rollBasicAttack(input.actorStats, input.defenderStats, input.rng);
+    : skill
+      ? { damage: 0, hit: true, critical: false }
+      : rollBasicAttack(input.actorStats, input.defenderStats, input.rng);
   const manaSpent = skill?.manaCost ?? 0;
 
   actorState.mana = clampResource(actorState.mana - manaSpent, actorState.manaMax);
+  if (fumbleAdvance) {
+    actorState.playerAbilityFumbles = fumbleAdvance.state;
+  }
   delete actorState.guard;
-  defenderState.hp = Math.max(0, defenderState.hp - attack.damage);
+  const fumble = fumbleAdvance?.fumbled
+    ? applyPlayerAbilityFumble({
+        ability: skill!,
+        actorState,
+        defenderState,
+        actorStats: input.actorStats,
+        plannedDamage: attack.damage
+      })
+    : null;
+  if (!fumble) {
+    defenderState.hp = Math.max(0, defenderState.hp - attack.damage);
+  }
   const tickedActorState = tickActorCooldowns(actorState);
 
   if (skill) {
-    setActorAbilityCooldown(tickedActorState, skill.id, skill.cooldownOwnActions);
+    setActorAbilityCooldown(
+      tickedActorState,
+      skill.id,
+      skill.cooldownOwnActions,
+      skill.source !== "race"
+    );
   }
 
   return {
     actorState: tickedActorState,
     defenderState,
     summary: {
-      action: skill ? "skill" : "attack",
-      actorOutcome: defenderState.hp <= 0
+      action: skill?.action ?? (skill ? "skill" : "attack"),
+      actorOutcome: fumble
+        ? "critical-fumble"
+        : defenderState.hp <= 0
         ? "won"
         : attack.hit
           ? attack.critical
             ? "critical-hit"
             : "hit"
           : "miss",
-      actorDamage: attack.damage,
+      actorDamage: fumble ? 0 : attack.damage,
       manaSpent,
-      critical: attack.critical,
+      critical: fumble ? false : attack.critical,
       ...(skill
         ? {
             skillId: skill.id,
             damageKind: skill.damageKind
           }
-        : {})
+        : {}),
+      ...(fumble ? { fumble } : {})
     }
   };
+}
+
+export function previewPlayerAbilityFumbleCycle(input: {
+  state: PlayerAbilityFumblesState | undefined;
+  abilityId: string;
+  seed: string;
+}): { fumbled: boolean } {
+  const current = normalizePlayerAbilityFumbleState(
+    input.state?.abilities[input.abilityId],
+    input.abilityId,
+    input.seed
+  );
+
+  return {
+    fumbled: current.usesInCycle + 1 === current.triggerAt
+  };
+}
+
+function advancePlayerAbilityFumbleCycle(input: {
+  state: PlayerAbilityFumblesState | undefined;
+  abilityId: string;
+  seed: string;
+}): { state: PlayerAbilityFumblesState; fumbled: boolean } {
+  const abilities = input.state ? { ...clonePlayerAbilityFumblesState(input.state).abilities } : {};
+  const current = normalizePlayerAbilityFumbleState(
+    abilities[input.abilityId],
+    input.abilityId,
+    input.seed
+  );
+  const nextUsesInCycle = current.usesInCycle + 1;
+  const fumbled = nextUsesInCycle === current.triggerAt;
+  const nextCycle = nextUsesInCycle >= PLAYER_ABILITY_FUMBLE_CYCLE_USES
+    ? current.cycle + 1
+    : current.cycle;
+  const nextEntry = nextUsesInCycle >= PLAYER_ABILITY_FUMBLE_CYCLE_USES
+    ? createPlayerAbilityFumbleState(input.abilityId, input.seed, nextCycle)
+    : {
+        ...current,
+        usesInCycle: nextUsesInCycle
+      };
+
+  return {
+    state: {
+      version: 1,
+      abilities: {
+        ...abilities,
+        [input.abilityId]: nextEntry
+      }
+    },
+    fumbled
+  };
+}
+
+function normalizePlayerAbilityFumbleState(
+  state: PlayerAbilityFumblesState["abilities"][string] | undefined,
+  abilityId: string,
+  seed: string
+): PlayerAbilityFumblesState["abilities"][string] {
+  if (
+    state?.version === 1 &&
+    state.cycle >= 0 &&
+    state.usesInCycle >= 0 &&
+    state.usesInCycle < PLAYER_ABILITY_FUMBLE_CYCLE_USES &&
+    state.triggerAt >= 1 &&
+    state.triggerAt <= PLAYER_ABILITY_FUMBLE_CYCLE_USES
+  ) {
+    return { ...state };
+  }
+
+  return createPlayerAbilityFumbleState(abilityId, seed, 0);
+}
+
+function createPlayerAbilityFumbleState(
+  abilityId: string,
+  seed: string,
+  cycle: number
+): PlayerAbilityFumblesState["abilities"][string] {
+  return {
+    version: 1,
+    cycle,
+    usesInCycle: 0,
+    triggerAt: 1 + (stablePositiveHash(`${seed}:${abilityId}:${cycle}`) % PLAYER_ABILITY_FUMBLE_CYCLE_USES)
+  };
+}
+
+function applyPlayerAbilityFumble(input: {
+  ability: CombatPlayerAbilityProfile;
+  actorState: CombatActorResourceState;
+  defenderState: CombatActorResourceState;
+  actorStats: CombatActorStats;
+  plannedDamage: number;
+}): CombatPlayerAbilityFumbleSummary {
+  const kind = getPlayerAbilityFumbleKind(input.ability);
+  if (kind === "enemy-heal") {
+    const healing = getPlayerAbilityFumbleHealing(input.ability, input.actorStats);
+    const before = input.defenderState.hp;
+    input.defenderState.hp = Math.min(input.defenderState.hpMax, input.defenderState.hp + healing);
+
+    return {
+      abilityId: input.ability.id,
+      kind,
+      line: input.ability.criticalFumbleLine,
+      enemyHealing: input.defenderState.hp - before
+    };
+  }
+
+  const damage = getPlayerAbilityFumbleSelfDamage(input.ability, input.actorStats, input.plannedDamage);
+  input.actorState.hp = Math.max(0, input.actorState.hp - damage);
+
+  return {
+    abilityId: input.ability.id,
+    kind,
+    line: input.ability.criticalFumbleLine,
+    selfDamage: damage
+  };
+}
+
+function getPlayerAbilityFumbleKind(
+  ability: CombatPlayerAbilityProfile
+): CombatPlayerAbilityFumbleSummary["kind"] {
+  const hasHealing = ability.recipe.some((kind) => kind === "self-heal" || kind === "ally-heal");
+  const allySupport = ability.secondaryTargetScope === "single-ally-or-self" ||
+    ability.secondaryTargetScope === "all-allies-including-self" ||
+    ability.primaryTargetScope === "lowest-hp-ally" ||
+    ability.primaryTargetScope === "all-allies-including-self";
+
+  return !abilityDealsEnemyDamage(ability) || hasHealing || allySupport
+    ? "enemy-heal"
+    : "self-damage";
+}
+
+function getPlayerAbilityFumbleSelfDamage(
+  ability: CombatPlayerAbilityProfile,
+  actor: CombatActorStats,
+  plannedDamage: number
+): number {
+  const statValue = actor[ability.stat] ?? 0;
+  const fallbackDamage = Math.floor(Math.max(1, ability.baseDamage + statValue * Math.max(0.2, ability.multiplier / 2)));
+
+  return Math.max(1, Math.max(plannedDamage, fallbackDamage));
+}
+
+function getPlayerAbilityFumbleHealing(
+  ability: CombatPlayerAbilityProfile,
+  actor: CombatActorStats
+): number {
+  const statValue = actor[ability.stat] ?? 0;
+  const supportAmount = Math.max(
+    ability.healAmount ?? 0,
+    ability.guardReduction ?? 0,
+    ability.monsterDamageReduction ?? 0,
+    ability.counterDamage ?? 0
+  );
+
+  return Math.max(1, Math.floor(supportAmount + Math.max(1, ability.baseDamage + statValue * 0.15)));
+}
+
+function buildPlayerAbilityFumbleSeed(
+  state: CombatState,
+  hero: Pick<CombatActorStats, "classId" | "raceId">
+): string {
+  return `${state.id ?? "combat"}:${hero.classId ?? "unknown-class"}:${hero.raceId ?? "unknown-race"}`;
+}
+
+function stablePositiveHash(value: string): number {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function abilityDealsEnemyDamage(ability: Pick<CombatPlayerAbilityProfile, "recipe">): boolean {
+  return ability.recipe.some((kind) =>
+    kind === "direct-damage" ||
+    kind === "all-enemies-damage" ||
+    kind === "primary-plus-splash"
+  );
+}
+
+function emptyAbilitySupport(): { heroHealing: number; allyResults: CombatAllyAbilityResult[] } {
+  return { heroHealing: 0, allyResults: [] };
+}
+
+function applyPlayerAbilitySupport(
+  state: CombatState,
+  ability: CombatPlayerAbilityProfile
+): { heroHealing: number; allyResults: CombatAllyAbilityResult[] } {
+  let heroHealing = 0;
+  let guard = 0;
+
+  if (ability.healAmount && ability.healAmount > 0) {
+    const before = state.hero.hp;
+    state.hero.hp = Math.min(state.hero.hpMax, state.hero.hp + ability.healAmount);
+    heroHealing = state.hero.hp - before;
+  }
+
+  if (ability.guardReduction && ability.guardReduction > 0) {
+    guard = ability.guardReduction;
+    state.guard = getAbilityGuard(guard);
+  }
+
+  return heroHealing > 0 || guard > 0
+    ? {
+        heroHealing,
+        allyResults: [{
+          targetId: "self",
+          label: "Ви",
+          ...(heroHealing > 0 ? { healing: heroHealing } : {}),
+          ...(guard > 0 ? { guard } : {})
+        }]
+      }
+    : emptyAbilitySupport();
+}
+
+function applySecondaryEnemyAbilityDamage(input: {
+  state: CombatState;
+  input: ResolveCombatTurnInput;
+  ability: CombatPlayerAbilityProfile;
+  primaryEnemyId: string;
+  enemyResults: CombatEnemyAbilityResult[];
+}): number {
+  if (
+    input.ability.primaryTargetScope !== "all-enemies" ||
+    !input.ability.recipe.some((kind) => kind === "all-enemies-damage" || kind === "primary-plus-splash")
+  ) {
+    return 0;
+  }
+
+  let totalDamage = 0;
+  const enemies = normalizeCombatEnemies(input.state).filter((enemy) =>
+    enemy.enemyId !== input.primaryEnemyId && enemy.hp > 0
+  );
+
+  for (const enemy of enemies) {
+    const stats = applyDrinkHeroAttackModifiers(
+      input.input.state,
+      findEnemyStats(input.input, enemy)
+    );
+    const secondaryAbility = input.ability.recipe.includes("primary-plus-splash")
+      ? {
+          ...input.ability,
+          multiplier: input.ability.multiplier * (input.ability.secondaryMultiplier ?? 0.5),
+          critBonus: Math.min(input.ability.critBonus, 0.02)
+        }
+      : input.ability;
+    const roll = rollSkillAttack(input.input.hero, stats, secondaryAbility, input.input.rng);
+    enemy.hp = Math.max(0, enemy.hp - roll.damage);
+    updateCombatEnemy(input.state, enemy.enemyId, enemy);
+    totalDamage += roll.damage;
+    input.enemyResults.push(buildEnemyAbilityResult({
+      enemyId: enemy.enemyId,
+      monsterId: enemy.id,
+      ...(enemy.name ? { monsterName: enemy.name } : {}),
+      damage: roll.damage,
+      outcome: enemy.hp <= 0 && roll.damage > 0 ? "won" : roll.hit ? roll.critical ? "critical-hit" : "hit" : "miss",
+      critical: roll.critical
+    }));
+  }
+
+  return totalDamage;
+}
+
+function buildEnemyAbilityResult(input: {
+  enemyId: string;
+  monsterId: string;
+  monsterName?: string;
+  damage: number;
+  outcome: CombatEnemyAbilityResult["outcome"];
+  critical?: boolean;
+}): CombatEnemyAbilityResult {
+  return {
+    enemyId: input.enemyId,
+    monsterId: input.monsterId,
+    ...(input.monsterName ? { monsterName: input.monsterName } : {}),
+    damage: Math.max(0, input.damage),
+    outcome: input.outcome,
+    ...(input.critical ? { critical: true } : {})
+  };
+}
+
+function heroOutcomeFromActor(
+  outcome: ActorCombatActionSummary["actorOutcome"],
+  targetHp: number
+): CombatEnemyAbilityResult["outcome"] {
+  if (targetHp <= 0 && outcome !== "miss") {
+    return "won";
+  }
+
+  if (outcome === "critical-hit") {
+    return "critical-hit";
+  }
+
+  return outcome === "miss" ? "miss" : "hit";
 }
 
 function appendCombatTurnLog(
@@ -1178,10 +1628,23 @@ function setStateGuard(
   delete state.guard;
 }
 
+function setStatePlayerAbilityFumbles(
+  state: { playerAbilityFumbles?: PlayerAbilityFumblesState },
+  fumbles: PlayerAbilityFumblesState | undefined
+): void {
+  if (fumbles) {
+    state.playerAbilityFumbles = fumbles;
+    return;
+  }
+
+  delete state.playerAbilityFumbles;
+}
+
 function setActorAbilityCooldown(
   state: { cooldowns?: CombatState["cooldowns"] },
   abilityId: string,
-  remainingTurns: number
+  remainingTurns: number,
+  mirrorSkill = true
 ): void {
   if (remainingTurns <= 0) {
     return;
@@ -1196,10 +1659,14 @@ function setActorAbilityCooldown(
         remainingTurns
       }
     },
-    skill: {
-      id: abilityId,
-      remainingTurns
-    }
+    ...(mirrorSkill
+      ? {
+          skill: {
+            id: abilityId,
+            remainingTurns
+          }
+        }
+      : state.cooldowns?.skill ? { skill: state.cooldowns.skill } : {})
   };
 }
 
@@ -1240,7 +1707,10 @@ function cloneActorResourceState(state: CombatActorResourceState): CombatActorRe
     mana: state.mana,
     manaMax: state.manaMax,
     ...(state.cooldowns ? { cooldowns: cloneCombatCooldowns(state.cooldowns) } : {}),
-    ...(state.guard ? { guard: { ...state.guard } } : {})
+    ...(state.guard ? { guard: { ...state.guard } } : {}),
+    ...(state.playerAbilityFumbles
+      ? { playerAbilityFumbles: clonePlayerAbilityFumblesState(state.playerAbilityFumbles) }
+      : {})
   };
 }
 
@@ -1264,6 +1734,9 @@ function buildSummary(input: {
   heroHealing?: number;
   skill?: CombatSkillProfile;
   monsterSkill?: CombatSkillProfile;
+  enemyResults?: CombatEnemyAbilityResult[];
+  allyResults?: CombatAllyAbilityResult[];
+  fumble?: CombatPlayerAbilityFumbleSummary;
   enemyActions?: CombatEnemyTurnSummary[];
   debugTrace?: ReturnType<typeof buildTurnDebugTrace>;
 }): CombatTurnSummary {
@@ -1280,6 +1753,9 @@ function buildSummary(input: {
     ...(input.skill
       ? {
           skillId: input.skill.id,
+          ...(input.skill.source ? { abilitySource: input.skill.source } : {}),
+          ...(input.skill.primaryTargetScope ? { targetScope: input.skill.primaryTargetScope } : {}),
+          ...(input.skill.secondaryTargetScope ? { secondaryTargetScope: input.skill.secondaryTargetScope } : {}),
           damageKind: input.skill.damageKind
         }
       : {}),
@@ -1303,6 +1779,9 @@ function buildSummary(input: {
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
     ...(input.item ? { itemId: input.item.id, itemName: input.item.name } : {}),
     ...(input.heroHealing ? { heroHealing: input.heroHealing } : {}),
+    ...(input.enemyResults && input.enemyResults.length > 0 ? { enemyResults: input.enemyResults } : {}),
+    ...(input.allyResults && input.allyResults.length > 0 ? { allyResults: input.allyResults } : {}),
+    ...(input.fumble ? { fumble: input.fumble } : {}),
     ...(input.enemyActions ? { enemyActions: input.enemyActions } : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
   };
@@ -1466,6 +1945,34 @@ function getSkillCooldown(
     .find((cooldown) => cooldown !== undefined);
 }
 
+function getAbilityAvailability(
+  actorState: Pick<CombatActorResourceState, "mana" | "cooldowns">,
+  ability: CombatSkillProfile
+): {
+  available: boolean;
+  reason?: "not-enough-mana" | "cooldown";
+  cooldownRemainingTurns?: number;
+} {
+  const cooldown = getSkillCooldown(actorState.cooldowns, ability);
+
+  if (cooldown && cooldown.remainingTurns > 0) {
+    return {
+      available: false,
+      reason: "cooldown",
+      cooldownRemainingTurns: cooldown.remainingTurns
+    };
+  }
+
+  if (actorState.mana < ability.manaCost) {
+    return {
+      available: false,
+      reason: "not-enough-mana"
+    };
+  }
+
+  return { available: true };
+}
+
 function normalizeCooldownAbilities(
   cooldowns: CombatState["cooldowns"] | undefined
 ): Record<string, { id: string; remainingTurns: number }> {
@@ -1499,6 +2006,30 @@ export function getNextDefendGuard(guard: CombatGuardState | undefined): CombatG
   };
 }
 
+function getAbilityGuard(damageReduction: number): CombatGuardState {
+  return {
+    consecutiveDefends: 1,
+    abilityDamageReduction: Math.max(1, Math.floor(damageReduction))
+  };
+}
+
+function getAbilityResponseDamageReduction(ability: CombatPlayerAbilityProfile | undefined): number {
+  if (!ability) {
+    return 0;
+  }
+
+  return ability.guardReduction && ability.guardReduction > 0
+    ? 0
+    : ability.monsterDamageReduction;
+}
+
+function getCommittedAbilityResponseDamageReduction(
+  ability: CombatPlayerAbilityProfile | undefined,
+  fumble: CombatPlayerAbilityFumbleSummary | undefined
+): number {
+  return fumble ? 0 : getAbilityResponseDamageReduction(ability);
+}
+
 function summaryActionOrigin(input: ResolveCombatTurnInput): { actionOrigin?: CombatActionOrigin } {
   return input.actionOrigin && input.actionOrigin !== "manual"
     ? { actionOrigin: input.actionOrigin }
@@ -1519,8 +2050,10 @@ function applyDefendStance(input: {
     return { damage: 0, counter: false };
   }
 
+  const reducedDamage = Math.max(1, Math.floor(input.damage * (1 - stance.damageReduction)));
+
   return {
-    damage: Math.max(1, Math.floor(input.damage * (1 - stance.damageReduction))),
+    damage: Math.max(0, reducedDamage - Math.max(0, input.defenderGuard.abilityDamageReduction ?? 0)),
     counter: stance.counterChance > 0 && input.rng.nextFloat() < stance.counterChance
   };
 }
@@ -1734,7 +2267,7 @@ function buildTurnDebugTrace(
   monster: MonsterCombatStats,
   monsterSkill: ReturnType<typeof getCombatSkillProfile> | null
 ) {
-  const legalAbilityIds = monster.classId ? [getCombatSkillProfile(monster.classId).id] : [];
+  const legalAbilityIds = getMonsterLegalAbilityIds(monster);
 
   if (!monster.debugTrace && legalAbilityIds.length === 0 && !monsterSkill) {
     return undefined;
@@ -1745,4 +2278,13 @@ function buildTurnDebugTrace(
     legalAbilityIds,
     ...(monsterSkill ? { chosenAbilityId: monsterSkill.id } : {})
   };
+}
+
+function getMonsterLegalAbilityIds(monster: MonsterCombatStats): string[] {
+  const raceAbility = getCombatRaceAbilityProfile(monster.raceId);
+
+  return [
+    ...(monster.classId ? [getCombatSkillProfile(monster.classId).id] : []),
+    ...(raceAbility ? [raceAbility.id] : [])
+  ];
 }

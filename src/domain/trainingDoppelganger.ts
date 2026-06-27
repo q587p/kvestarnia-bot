@@ -6,7 +6,13 @@ import { isClassAvailableForChoice } from "../content/characterOptions";
 import type { CharacterSummary } from "./characters/characterSummary";
 import { summarizeCharacter } from "./characters/characterSummary";
 import { buildStarterStats } from "./characters/starterStats";
-import { getCombatSkillProfile, type CombatCopiedEquipment, type CombatState, type MonsterCombatStats } from "./combat";
+import {
+  getCombatRaceAbilityProfile,
+  getCombatSkillProfile,
+  type CombatCopiedEquipment,
+  type CombatState,
+  type MonsterCombatStats
+} from "./combat";
 import { getHpFullRegenSeconds } from "./resources/resourceRegeneration";
 import type { RandomSource } from "../shared/random";
 
@@ -131,6 +137,7 @@ function buildTrainingDoppelgangerMonsterStats(
   const effects = character.equipmentEffects;
   const copiedEquipment = buildCopiedEquipmentSummary(options.equippedItems);
   const appliedEffectKeys = [...new Set(copiedEquipment.flatMap((item) => item.effectKeys))].sort();
+  const raceAbility = getCombatRaceAbilityProfile(character.raceId);
 
   return {
     monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
@@ -159,7 +166,10 @@ function buildTrainingDoppelgangerMonsterStats(
       ...(options.championName ? { championName: options.championName } : {}),
       copiedEquipmentCount: copiedEquipment.length,
       appliedEffectKeys,
-      legalAbilityIds: [getCombatSkillProfile(character.classId).id]
+      legalAbilityIds: [
+        getCombatSkillProfile(character.classId).id,
+        ...(raceAbility ? [raceAbility.id] : [])
+      ]
     },
     tags: ["training", "doppelganger"]
   };

@@ -71,6 +71,8 @@ Equipment effects для атак мають заходити через оди�
 
 `0.2.6` Passage Search is a tiny optional side roll, not a primary XP path. Each node has a `13` minute start cooldown; `Спуск до Низу` and `Ярус I: Сутерени Корчми` use `23` second safe searches, while passage cards use a `42` second risky search tied to the frozen passage monster preview. During the short monster-rest window, including the same-passage 3-minute rest after defeating a pending passage monster, a passage can instead start a safe 42-second search with no encounter token and a small passage-tier floor (`left > straight > right`). Search grants no XP, quest progress, buffs, titles or hidden odds preview. Safe location searches find at most tiny gold or one low-power bandage chance; passage searches scale only small gold/bandage odds by passage tier and LUCK. Danger on a risky passage replaces the reward with the stored monster attack, so risk never pays and attacks on the same completion.
 
+`0.2.7` Player Abilities keeps class/race power bounded inside existing combat action surfaces. Race abilities are identity buttons with modest damage or small hero-only support fallback; they use their own cooldowns and should not outpace class skills. Refreshed class AoE skills trade lower per-target damage for hitting every living enemy once, while support-ready ally scopes degrade to the acting hero until party runtime exists. Persistent PvE, training doppelganger player turns and turn-based duel turns use the same current class/race action catalog; quick duel remains its instant formula. Ability costs currently stay in `0..5` mana and `1..4` own-action cooldowns; broader balance tuning should use simulator/playtest results rather than hidden per-class exceptions. Race/class abilities do not alter rewards, Yeger progress, loot, monster selection, quick-duel scoring, remort math or economy.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 
@@ -405,6 +407,20 @@ Balance rules:
 - same-location targeted invites from `👀 Хто поруч` only change invitation routing; they do not add gold/item rewards, rating, wager or combat-power modifiers.
 
 Player-facing copy may say that the Корчмар keeps the fight moving, but must not print hidden hit/critical/cooldown formulas or exact chances.
+
+### `0.2.7` player ability critical fumbles
+
+Class/race ability fumbles are a hidden humor-and-replay mechanic, not a reward or power economy.
+
+Balance rules:
+- only committed player class/race ability uses advance the fumble cycle; stale callbacks, unavailable actions, no-mana/cooldown no-ops and journal/result reopens do not;
+- the active combat or turn-based duel JSON stores a deterministic 93-use cycle per ability and stores the selected fumble in the turn summary, so replay never rerolls it;
+- this no-migration MVP scopes the cycle to the stored active combat/duel state. A durable per-character/per-ability lifetime counter would need a separate persistence task if global cross-session tracking becomes important;
+- fumbles consume the action's normal mana and cooldown, because the player did attempt the ability;
+- support-oriented fumbles can heal the enemy, while damage-oriented fumbles can hurt the actor; avoid mapping every future ability to plain self-damage;
+- fumble copy should be funny and screenshot-worthy without humiliating the human player.
+
+Do not expose the exact fumble contract, seed, trigger position or authored punchlines in player-facing pre-action copy or `news.md` by default.
 
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.

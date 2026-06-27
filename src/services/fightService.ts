@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { items, monsterLoot } from "../content";
 import { findMonsterAbility } from "../content/monsterAbilities";
+import { findPlayerAbility, findRaceAbility } from "../content/playerAbilities";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { LootExpansionSourceId } from "../content/lootExpansionV1";
@@ -92,39 +93,51 @@ import {
 import {
   MIMIC_SHAWARMA_ADVENTURE_KEY,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
-  PERSISTENT_SOLO_FIGHT_REWARD_KEY,
-  PROBLEM_QUEST_13_ISSUED_KEY,
-  PROBLEM_QUEST_13_REWARD_KEY,
-  PROBLEM_QUEST_23_ISSUED_KEY,
-  PROBLEM_QUEST_23_REWARD_KEY,
-  PROBLEM_QUEST_42_ISSUED_KEY,
-  PROBLEM_QUEST_42_REWARD_KEY,
-  PROBLEM_QUEST_93_ISSUED_KEY,
-  PROBLEM_QUEST_93_REWARD_KEY
+  PERSISTENT_SOLO_FIGHT_REWARD_KEY
 } from "./dailyActionKeys";
 import {
   isTrainingDoppelgangerMonsterId,
   TRAINING_DOPPELGANGER_MONSTER_ID
 } from "../domain/trainingDoppelganger";
 import {
-  APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID,
   BANDAGE_ITEM_ID,
-  BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID,
   enrichRewardItemGrants,
   PAN_OF_PERSUASION_ITEM_ID,
-  POSTER_OF_NINETY_THREE_PROBLEM_WILLS_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   starterEquipmentGrant,
   STAMP_OF_MINOR_AUTHORITY_ITEM_ID,
   SUSPICIOUS_SHAWARMA_WRAPPER_ITEM_ID,
-  TOWEL_OF_FORTY_TWO_ANSWERS_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
 import { getEquippedItemContents } from "./equipmentService";
 import { findCombatUsableItemByKey } from "./combatItemUse";
+import {
+  buildCompletedProblemQuestBranchProgress,
+  buildCompletedProblemQuestProgress,
+  buildProblemQuestProgress,
+  getProblemQuestStage,
+  PROBLEM_QUEST_BUCKET,
+  PROBLEM_QUEST_REQUIRED_LEVEL,
+  PROBLEM_QUEST_STAGES,
+  resolveCurrentProblemQuestStage,
+  type ProblemQuestProgress,
+  type ProblemQuestStage,
+  type ProblemQuestStageRecord
+} from "./fight/problemQuest";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export { PERSISTENT_SOLO_FIGHT_REWARD_KEY } from "./dailyActionKeys";
+export {
+  PROBLEM_QUEST_BUCKET,
+  PROBLEM_QUEST_REQUIRED_LEVEL,
+  PROBLEM_QUEST_STAGES,
+  THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
+} from "./fight/problemQuest";
+export type {
+  ProblemQuestProgress,
+  ProblemQuestStage,
+  ProblemQuestStageId
+} from "./fight/problemQuest";
 export type FightAction = CombatProbeAction;
 
 interface RecoveryNoticeField {
@@ -163,14 +176,6 @@ export const MIMIC_SHAWARMA_COMBAT_REWARDS = {
   }
 } satisfies Record<FightAction, { xp: number; gold: number }>;
 
-export const THIRTEEN_SMALL_PROBLEMS_QUEST_KEY = PROBLEM_QUEST_13_REWARD_KEY;
-export const THIRTEEN_SMALL_PROBLEMS_QUEST_BUCKET = "once";
-export const THIRTEEN_SMALL_PROBLEMS_TARGET_WINS = 13;
-export const THIRTEEN_SMALL_PROBLEMS_REWARD = {
-  xp: 35,
-  gold: 10
-};
-export const PROBLEM_QUEST_REQUIRED_LEVEL = 2;
 export const MONSTER_REST_ELIGIBLE_FIGHT_COUNT = 3;
 export const MONSTER_REST_COOLDOWN_MS = 3 * 60 * 1000;
 // Storage scan bound for ordinary threat history. Excluded rows inside this
@@ -180,89 +185,6 @@ export const PERSISTENT_FIGHT_TURN_SECONDS = 23;
 export const PENDING_PASSAGE_ENCOUNTER_TTL_MS = 93 * 60 * 1000;
 export const PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS = HP_BASE_FULL_REGEN_SECONDS;
 export const PENDING_PASSAGE_ENCOUNTER_RULES_VERSION = "nyz-passage-preview-v1";
-
-export type ProblemQuestStageId = "13" | "23" | "42" | "93";
-
-export interface ProblemQuestStage {
-  id: ProblemQuestStageId;
-  title: string;
-  target: number;
-  reward: {
-    xp: number;
-    gold: number;
-    itemId: string;
-  };
-  issueKey: string;
-  rewardKey: string;
-  nextStageId: ProblemQuestStageId | null;
-}
-
-export const PROBLEM_QUEST_STAGES: ProblemQuestStage[] = [
-  {
-    id: "13",
-    title: "Тринадцять дрібних проблем",
-    target: THIRTEEN_SMALL_PROBLEMS_TARGET_WINS,
-    reward: {
-      ...THIRTEEN_SMALL_PROBLEMS_REWARD,
-      itemId: BADGE_OF_THIRTEEN_SMALL_PROBLEMS_ITEM_ID
-    },
-    issueKey: PROBLEM_QUEST_13_ISSUED_KEY,
-    rewardKey: PROBLEM_QUEST_13_REWARD_KEY,
-    nextStageId: "23"
-  },
-  {
-    id: "23",
-    title: "Двадцять три підозрілі проблеми",
-    target: 23,
-    reward: {
-      xp: 55,
-      gold: 18,
-      itemId: APOPHENIA_RECEIPT_OF_TWENTY_THREE_ITEM_ID
-    },
-    issueKey: PROBLEM_QUEST_23_ISSUED_KEY,
-    rewardKey: PROBLEM_QUEST_23_REWARD_KEY,
-    nextStageId: "42"
-  },
-  {
-    id: "42",
-    title: "Сорок дві відповіді на проблеми",
-    target: 42,
-    reward: {
-      xp: 90,
-      gold: 30,
-      itemId: TOWEL_OF_FORTY_TWO_ANSWERS_ITEM_ID
-    },
-    issueKey: PROBLEM_QUEST_42_ISSUED_KEY,
-    rewardKey: PROBLEM_QUEST_42_REWARD_KEY,
-    nextStageId: "93"
-  },
-  {
-    id: "93",
-    title: "Девʼяносто три волі до проблем",
-    target: 93,
-    reward: {
-      xp: 140,
-      gold: 45,
-      itemId: POSTER_OF_NINETY_THREE_PROBLEM_WILLS_ITEM_ID
-    },
-    issueKey: PROBLEM_QUEST_93_ISSUED_KEY,
-    rewardKey: PROBLEM_QUEST_93_REWARD_KEY,
-    nextStageId: null
-  }
-];
-
-export const PROBLEM_QUEST_BUCKET = "once";
-
-export interface ProblemQuestProgress {
-  stageId: ProblemQuestStageId;
-  title: string;
-  wins: number;
-  target: number;
-  completed: boolean;
-  rewardClaimed: boolean;
-  issued: boolean;
-  branchComplete: boolean;
-}
 
 export interface ProblemQuestTurnInResult {
   state: "claimed" | "already-claimed";
@@ -587,18 +509,50 @@ export type PassageSearchRestWindowResult =
   | Extract<FightLookupResult, { state: "no-character" | "needs-rest" | "combat-blocked" | "training-active" | "persistent-active" | "persistent-terminal" | "persistent-not-issued" | "level-retired" | "ready" | "already-completed" }>
   | Extract<FightLookupResult, { state: "persistent-ready" | "monster-rest" }>;
 
+export interface FightServiceDependencies {
+  characters: CharacterRepository;
+  dailyActions: DailyActionRepository;
+  clock?: Clock;
+  combatSessions?: SoloCombatSessionRepository;
+  rng?: RandomSource;
+  equipment?: EquipmentRepository;
+  combatAnalytics?: CombatBalanceAnalyticsService;
+  pendingPassageEncounters?: PendingPassageEncounterRepository;
+  shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
+}
+
 export class FightService {
-  constructor(
-    private readonly characters: CharacterRepository,
-    private readonly dailyActions: DailyActionRepository,
-    private readonly clock: Clock = systemClock,
-    private readonly combatSessions?: SoloCombatSessionRepository,
-    private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly equipment?: EquipmentRepository,
-    private readonly combatAnalytics?: CombatBalanceAnalyticsService,
-    private readonly pendingPassageEncounters?: PendingPassageEncounterRepository,
-    private readonly shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
-  ) {}
+  private readonly characters: CharacterRepository;
+  private readonly dailyActions: DailyActionRepository;
+  private readonly clock: Clock;
+  private readonly combatSessions: SoloCombatSessionRepository | undefined;
+  private readonly rng: RandomSource;
+  private readonly equipment: EquipmentRepository | undefined;
+  private readonly combatAnalytics: CombatBalanceAnalyticsService | undefined;
+  private readonly pendingPassageEncounters: PendingPassageEncounterRepository | undefined;
+  private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
+
+  constructor({
+    characters,
+    dailyActions,
+    clock = systemClock,
+    combatSessions,
+    rng = new CryptoRandomSource(),
+    equipment,
+    combatAnalytics,
+    pendingPassageEncounters,
+    shynok
+  }: FightServiceDependencies) {
+    this.characters = characters;
+    this.dailyActions = dailyActions;
+    this.clock = clock;
+    this.combatSessions = combatSessions;
+    this.rng = rng;
+    this.equipment = equipment;
+    this.combatAnalytics = combatAnalytics;
+    this.pendingPassageEncounters = pendingPassageEncounters;
+    this.shynok = shynok;
+  }
 
   private async advanceExpiredPersistentTurn(
     telegramUserId: bigint,
@@ -2965,18 +2919,7 @@ export class FightService {
     const stageState = await this.getCurrentProblemQuestStage(telegramUserId);
 
     if (stageState.branchComplete) {
-      const finalStage = getProblemQuestStage("93");
-
-      return {
-        stageId: finalStage.id,
-        title: finalStage.title,
-        wins: finalStage.target,
-        target: finalStage.target,
-        completed: true,
-        rewardClaimed: true,
-        issued: true,
-        branchComplete: true
-      };
+      return buildCompletedProblemQuestBranchProgress();
     }
 
     const countSinceIssue = stageState.stage.id !== "13";
@@ -2991,16 +2934,12 @@ export class FightService {
       localDate: PROBLEM_QUEST_BUCKET
     });
 
-    return {
-      stageId: stageState.stage.id,
-      title: stageState.stage.title,
+    return buildProblemQuestProgress({
+      stage: stageState.stage,
       wins,
-      target: stageState.stage.target,
-      completed: rewardClaim !== null || wins >= stageState.stage.target,
       rewardClaimed: rewardClaim !== null,
-      issued: stageState.issuedAt !== null || rewardClaim !== null,
-      branchComplete: false
-    };
+      issued: stageState.issuedAt !== null
+    });
   }
 
   private async getProblemQuestArchiveProgress(
@@ -3024,16 +2963,7 @@ export class FightService {
         continue;
       }
 
-      rows.push({
-        stageId: stage.id,
-        title: stage.title,
-        wins: stage.target,
-        target: stage.target,
-        completed: true,
-        rewardClaimed: true,
-        issued: true,
-        branchComplete: false
-      });
+      rows.push(buildCompletedProblemQuestProgress(stage));
     }
 
     if (
@@ -3184,11 +3114,7 @@ export class FightService {
     | { branchComplete: true }
     | { branchComplete: false; stage: ProblemQuestStage; issuedAt: Date | null }
   > {
-    const stageRecords: Array<{
-      stage: ProblemQuestStage;
-      issuedAt: Date | null;
-      rewarded: boolean;
-    }> = [];
+    const stageRecords: ProblemQuestStageRecord[] = [];
 
     for (const stage of PROBLEM_QUEST_STAGES) {
       const issued = await this.dailyActions.findForTelegramUser(telegramUserId, {
@@ -3207,40 +3133,7 @@ export class FightService {
       });
     }
 
-    if (stageRecords.at(-1)?.rewarded) {
-      return { branchComplete: true };
-    }
-
-    const activeStage = stageRecords.find(({ issuedAt, rewarded }) => issuedAt && !rewarded);
-
-    if (activeStage) {
-      return {
-        branchComplete: false,
-        stage: activeStage.stage,
-        issuedAt: activeStage.issuedAt
-      };
-    }
-
-    for (let index = stageRecords.length - 1; index >= 0; index -= 1) {
-      const record = stageRecords[index];
-      if (!record?.rewarded || !record.stage.nextStageId) {
-        continue;
-      }
-
-      const nextRecord = stageRecords.find(
-        (candidate) => candidate.stage.id === record.stage.nextStageId
-      );
-
-      if (!nextRecord?.issuedAt) {
-        return {
-          branchComplete: false,
-          stage: record.stage,
-          issuedAt: record.issuedAt
-        };
-      }
-    }
-
-    return { branchComplete: false, stage: getProblemQuestStage("13"), issuedAt: null };
+    return resolveCurrentProblemQuestStage(stageRecords);
   }
 
   private async summarizeCharacterWithEquipment(
@@ -3982,7 +3875,6 @@ export class FightService {
     );
   }
 }
-
 function toThreatEscalationHistoryEntry(
   session: SoloCombatSessionCompletionRecord
 ): Parameters<typeof decideThreatEscalation>[0][number] {
@@ -4388,16 +4280,6 @@ function buildPersistentFightRewardReplay(
   };
 }
 
-function getProblemQuestStage(stageId: ProblemQuestStageId): ProblemQuestStage {
-  const stage = PROBLEM_QUEST_STAGES.find((candidate) => candidate.id === stageId);
-
-  if (!stage) {
-    throw new Error(`Unknown problem quest stage: ${stageId}`);
-  }
-
-  return stage;
-}
-
 function buildFightItemGrants(action: FightAction): Array<{ itemId: string; quantity: number }> {
   if (action === "attack") {
     return [
@@ -4433,6 +4315,7 @@ function buildHeroCombatStats(
     manaMax: character.manaMax,
     hpCurrent: character.hpCurrent,
     manaCurrent: character.manaCurrent,
+    raceId: character.raceId,
     classId: character.classId,
     ...character.stats,
     armor: equipment.armor,
@@ -5049,13 +4932,19 @@ function selectHighestAvailableMonsterLevel(monstersByLevel: MonsterContent[]): 
 export function getPersistentFightSkillLabel(character: CharacterSummary): string {
   const skill = getCombatSkillProfile(character.classId);
   const display = getCombatSkillDisplay(skill.id);
-  const label = `${display.icon} ${display.name}`;
 
-  if (skill.manaCost === 0) {
-    return label;
+  return `${display.icon} ${display.name}`;
+}
+export function getPersistentFightRaceAbilityLabel(character: CharacterSummary): string | null {
+  const ability = findRaceAbility(character.raceId);
+
+  if (!ability) {
+    return null;
   }
 
-  return `${label} · ${skill.manaCost} ${pluralize(skill.manaCost, "мана", "мани", "мани")}`;
+  const display = getCombatSkillDisplay(ability.id);
+
+  return `${display.icon} ${display.name}`;
 }
 
 export interface CombatSkillDisplay {
@@ -5064,6 +4953,15 @@ export interface CombatSkillDisplay {
 }
 
 export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillDisplay {
+  const playerAbility = findPlayerAbility(skillId);
+  if (playerAbility) {
+    const [icon, ...nameParts] = playerAbility.label.split(" ");
+    return {
+      icon: icon ?? "🪓",
+      name: nameParts.join(" ") || playerAbility.label
+    };
+  }
+
   const monsterAbility = skillId ? findMonsterAbility(skillId) : null;
   if (monsterAbility) {
     const [icon, ...nameParts] = monsterAbility.label.split(" ");
@@ -5095,19 +4993,4 @@ export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillD
     default:
       return { icon: "🪓", name: "Обережний удар" };
   }
-}
-
-function pluralize(count: number, one: string, few: string, many: string): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-
-  if (mod10 === 1 && mod100 !== 11) {
-    return one;
-  }
-
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return few;
-  }
-
-  return many;
 }

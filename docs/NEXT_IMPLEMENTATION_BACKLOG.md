@@ -73,6 +73,36 @@ Each slice below should be independently testable. If a PR starts turning into s
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
+## Later — Quest Offer Rotation Memory
+
+**Objective**
+Зробити `🪧 Три справи на найближчий час` менш повторюваними: Стіл зі справами має памʼятати, які Adventure Choice справи вже були запропоновані конкретному персонажу в поточному циклі, і не показувати їх знову, доки є ще принаймні три небачені в цьому циклі справи.
+
+**Runtime shape**
+
+- Store a per-character quest-offer cycle for the level-eligible `Три справи на найближчий час` pool.
+- When opening the quest table, choose three random eligible problems from the unseen-in-cycle pool while at least three unseen problems remain.
+- Mark the offered problem ids as seen for that cycle when the offer set is created, not only when the player accepts one.
+- When the unseen pool shrinks to three or fewer problems, reset the cycle and start a fresh random pass through the full eligible pool.
+- After a reset, avoid immediately repeating the problem accepted or offered in the previous roll when the pool size allows it; if the pool is too small, fall back deterministically instead of hiding the quest table.
+- Keep completed, locked, level-gated and retired quest rules separate from this visibility cycle.
+
+**Non-goals**
+
+- no new quest content in this slice;
+- no reward, XP, gold, item or cooldown rebalance;
+- no broad quest table redesign;
+- no global player-facing stats or popularity weighting.
+
+**Acceptance criteria**
+
+- Opening `Три справи на найближчий час` repeatedly rotates through unseen eligible problems before repeating old offers;
+- accepted and merely offered problems both count as seen for the current offer cycle;
+- when only three or fewer unseen eligible problems remain, the cycle resets and the next offer set is random from the refreshed pool;
+- the first offer after reset avoids the immediately previous accepted/offered problem when alternatives exist;
+- stale or duplicate offer callbacks do not create duplicate cycle entries or mutate unrelated quest progress;
+- tests cover per-character isolation, level-gated pools, reset threshold, immediate-repeat avoidance, tiny-pool fallback and replay-safe callbacks.
+
 ## Implemented in `0.1.2` — `/remort` After Level 13
 
 **Objective**
@@ -163,6 +193,50 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - власна позиція показується окремо; поза top 42 вона рендериться як `Ваша позиція: 42+`;
 - ties стабільні між переглядами;
 - tests cover score calculation, pagination, own-rank outside top 42, privacy-safe names, no exact timestamps, and Telegram message length guard.
+
+## Later — Admin Demographics and Balance Reports
+
+**Objective**
+Додати внутрішню адмінську/owner-only поверхню, яка показує поточний склад Квестарні: скільки персонажів має кожне звертання, расу й клас, де є перекоси, а також які класи/раси реально виживають або просідають у боях. Це інструмент для балансу й контентних рішень, не публічний рейтинг.
+
+**Surface**
+
+- Адмінська кнопка або команда на кшталт `📊 Демографія`.
+- Перші вкладки/кнопки: `Звертання`, `Раси`, `Класи`.
+- Другий зріз: `Бої`, якщо combat analytics collection is available/enabled.
+- Повідомлення короткі: counts, percentages and top/bottom highlights, with pagination only if needed.
+
+**Demographic stats**
+
+- Aggregate active-character counts by addressing/pronoun choice, race and class.
+- Show total active characters, created characters and optionally remort lives as separate numbers so rerolls do not silently distort the picture.
+- Include unknown/legacy buckets explicitly instead of dropping old rows.
+- Do not show Telegram ids, usernames, private names, exact creation timestamps or tiny cohort member lists.
+
+**Combat stats**
+
+- Reuse or extend existing combat balance analytics before adding new tables.
+- Aggregate by class, race, level band, remort count, combat source and monster level/difficulty.
+- Track completed outcomes: wins, losses, flees, expiries/timeouts, average turn count, damage dealt/taken, healing, manual vs timeout actions, XP gained and gold gained.
+- Keep reward/resource settlement separate from reporting: analytics must never grant, revoke or replay rewards.
+- Reports should make skew visible without exposing hidden formulas or turning the data into player-facing odds.
+
+**Non-goals**
+
+- no public leaderboard or player comparison in this slice;
+- no player-identifying analytics;
+- no balance changes based only on adding the report;
+- no broad event pipeline or external analytics vendor;
+- no promise that every historical combat can be reconstructed if old rows lack frozen analytics snapshots.
+
+**Acceptance criteria**
+
+- Owner/admin can open a demographics report with counts by звертання, race and class;
+- unknown/legacy/null values are visible as explicit buckets;
+- combat report, when analytics is enabled, shows win/loss/flee/expiry totals and XP/gold aggregates by at least class and race;
+- disabled or unavailable combat analytics renders a clear internal note instead of failing;
+- reports use aggregate counts only and do not expose Telegram ids, usernames, display names or tiny cohort lists;
+- tests cover permission gating, aggregate queries, unknown buckets, disabled analytics, privacy-safe rendering and message-length guardrails.
 
 ## Very later — Web and Multi-Messenger Play Surfaces
 
@@ -526,13 +600,14 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 ## Later — Monster Grammar Metadata
 
 **Objective**
-Додати до monster content граматичні підказки для українського тексту: стать/рід, істотність і потрібні відмінкові форми, щоб бойові, preview, бестіарійні й майбутні interaction-картки могли казати `вона`, `його/її`, `Льохову Мишу з Титулом` тощо без ручних нейтральних обходів.
+Додати до monster content граматичні підказки для українського тексту: звертання, рід/число, plural-only назви, істотність і потрібні відмінкові форми, щоб бойові, preview, бестіарійні й майбутні interaction-картки могли казати `вона`, `його/її`, `Льохову Мишу з Титулом`, `Злидні стають у захист` тощо без ручних нейтральних обходів.
 
 **Scope**
 
-- Спроєктувати невеликий typed grammar block для monster content: grammatical gender/pronoun, animacy and at least nominative/accusative display forms.
+- Спроєктувати невеликий typed grammar block для monster content: grammatical gender/number, pronoun/addressing, animacy and at least nominative/accusative display forms.
+- Позначити plural-only monster names and verb-agreement hints so combat lines can choose `стає` / `стають`, `атакує` / `атакують`, `завдає` / `завдають` without guessing from the display name.
 - Додати validation, що активні monster ids або мають повний grammar block, або явно використовують neutral-safe presenter path.
-- Оновити passage previews, combat intro/result copy, bestiary snippets and monster interaction copy to use the grammar helper where available.
+- Оновити passage previews, combat intro/result copy, monster ability/effect summaries, bestiary snippets and monster interaction copy to use the grammar helper where available.
 - Keep authored monster names as source of truth; generated case forms are allowed only if covered by tests and easy rollback.
 
 **Non-goals**
@@ -545,7 +620,8 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 
 - `Льохова Миша з Титулом` can render in nominative and accusative contexts without awkward fallback text;
 - preview and combat copy chooses `він` / `вона` / neutral wording from content metadata instead of guessing from the name;
-- tests cover at least feminine, masculine, neuter/neutral and multi-word monster names.
+- plural-only names such as `Злидні` render combat actions with plural agreement, for example `стають у захист` instead of `стає в захист`;
+- tests cover at least feminine, masculine, neuter/neutral, plural-only and multi-word monster names.
 
 ## Later — Глибка Dungeon Location
 
@@ -941,6 +1017,25 @@ Closed by `0.1.0`; remaining polish belongs to the explicit `0.1.x` order at the
 - Split persistent monster fight UX into two messages, matching the Допельґанґер training shape: one static intro card with `⚔️ Бій`, character header and `Проти вас`, then one edited state/action card with HP/mana, turn number, action log, no `Останній хід` label and a named `що робимо?` prompt before the keyboard.
 - Active fight keyboard cleanup: коли persistent fight уже активний, не показувати `⬅️ До столу` поруч із бойовими діями. У бою гравець має або діяти (`Вдарити`, уміння, майбутній `Захист`), або пробувати `Відступити`; вихід до Столу має зʼявлятися тільки в terminal/non-active states або як окрема safe navigation після завершення. Tests should assert active fight keyboards do not include quest-table navigation.
 - Quest journal overview: переробити `Квести` з простого routing hub у компактний журнал поточних справ. Показувати активні/доступні quest lines, короткий опис, checklist кроків, поточний прогрес і куди повернутися; не показувати точні майбутні нагороди, hidden odds, drop names або спойлерні фінали до завершення. Keep icons restrained and readable, with tests for active problem chain, Yeger quest, starter/adventure availability, completed/inactive states and outside gate behavior.
+
+## Implemented in `0.2.7` — Player Ability Critical Fumbles
+
+`0.2.7` now ships a hidden critical-fumble MVP for current class/race player abilities in persistent PvE, training doppelganger player turns and turn-based duels.
+
+Current contract:
+- every active class ability and every active onboarding race ability has an authored compact Ukrainian fumble line;
+- only committed player class/race ability uses advance the fumble cycle;
+- stale callbacks, unavailable actions, no-mana/cooldown no-ops and journal/result reopens do not advance or reroll the fumble cycle;
+- the active combat/duel JSON stores a deterministic 93-use cycle per ability and the selected fumble outcome in the turn summary;
+- support fumbles can heal the enemy, while damage fumbles can hurt the actor;
+- fumbles consume the committed action's normal mana/cooldown;
+- no basic-attack fumbles, reward rebalance, loot/economy changes, schema migration or player-news spoiler ships here.
+
+Future hardening, only if needed:
+- Move from active combat/duel JSON to a durable per-character/per-ability lifetime 93-use cycle or shuffled bag, so the guarantee spans separate sessions.
+- Add title ability fumbles when active title abilities ship.
+- Add broader boundary tests for use 92/93/94 if the lifetime tracker is introduced.
+- Keep this mechanic out of `news.md` by default; it is intended to create funny discovered moments and screenshots, not a spoiled release bullet.
 
 ## Later — Battle Interventions / Витівка Прилавка
 
