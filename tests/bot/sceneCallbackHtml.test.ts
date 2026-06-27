@@ -22,6 +22,7 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
+import { makeItemUsePreviewCallbackData } from "../../src/bot/callbacks/itemUseCallbackData";
 import {
   makeLevelBarterAutoCallbackData,
   makeLevelBarterOpenCallbackData
@@ -2056,6 +2057,183 @@ describe("scene callback HTML options", () => {
     expect(recordPersistentFightMessageReference.mock.calls[0]?.[1]).toBe(searchResult.fight.session.id);
     expect(recordPersistentFightMessageReference.mock.calls[0]?.[2].chatId).toBe("42");
     expect(typeof recordPersistentFightMessageReference.mock.calls[0]?.[2].messageId).toBe("number");
+  });
+
+  it("blocks a main-menu quest button with the active passage search card", async () => {
+    const getProblemQuestProgressForTelegramUser = vi.fn();
+    const markAction = vi.fn(() => Promise.resolve());
+    const getCurrentPlaceForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        locationId: "location.korchma.hall",
+        locationName: "Зала корчми",
+        insideKorchma: true
+      })
+    );
+    const calls = await captureTextApiCalls(
+      mainMenuButtons.quest,
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(passageSearchRunningResult()))
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(reply?.payload.text)).toContain("🔎 <b>Пошук триває</b>");
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain("v1:search:check:searchtok13");
+    expect(getProblemQuestProgressForTelegramUser).not.toHaveBeenCalled();
+    expect(getCurrentPlaceForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("blocks /fight with the active passage search card before fight lookup", async () => {
+    const getFightOverviewForTelegramUser = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const calls = await captureTextApiCalls(
+      "/fight",
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(passageSearchRunningResult()))
+        },
+        fight: {
+          getFightOverviewForTelegramUser
+        }
+      }),
+      { asCommand: true }
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(reply?.payload.text)).toContain("🔎 <b>Пошук триває</b>");
+    expect(getFightOverviewForTelegramUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks quest fight descent while a passage search is running", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getCurrentPlaceForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        locationId: "location.korchma.hall",
+        locationName: "Зала корчми",
+        insideKorchma: true
+      })
+    );
+    const getFightOverviewForTelegramUser = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("fight-descend"),
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(passageSearchRunningResult()))
+        },
+        fight: {
+          getFightOverviewForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🔎 <b>Пошук триває</b>");
+    expect(markAction.mock.calls.some(([input]) => input.locationId === "location.korchma.deep.level1")).toBe(false);
+    expect(getFightOverviewForTelegramUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("replays a due passage search result before quest callbacks and does not descend", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getCurrentPlaceForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        locationId: "location.korchma.hall",
+        locationName: "Зала корчми",
+        insideKorchma: true
+      })
+    );
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("fight-descend"),
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(passageSearchCompletedResult()))
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🎒 <b>Щось знайшлося</b>");
+    expect(markAction.mock.calls.some(([input]) => input.locationId === "location.korchma.deep.level1")).toBe(false);
+  });
+
+  it("blocks item-use preview creation while a passage search is running", async () => {
+    const createPreviewForTelegramUser = vi.fn();
+    const calls = await captureApiCalls(
+      makeItemUsePreviewCallbackData("item.responsible-panic-bandage"),
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(passageSearchRunningResult()))
+        },
+        itemUse: {
+          createPreviewForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🔎 <b>Пошук триває</b>");
+    expect(createPreviewForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("replays a dangerous passage search through quest callbacks with the canonical fight handoff", async () => {
+    const searchResult = passageSearchMonsterAttackResult();
+    const markAction = vi.fn(() => Promise.resolve());
+    const getFightOverviewForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "persistent-ready" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null
+      })
+      .mockResolvedValue(searchResult.fight);
+    const recordPersistentFightMessageReference =
+      vi.fn<RecordPersistentFightMessageReferenceMock>(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("fight-descend"),
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(searchResult))
+        },
+        fight: {
+          getFightOverviewForTelegramUser,
+          recordPersistentFightMessageReference
+        },
+        presence: {
+          markAction
+        }
+      }),
+      { messageResults: true }
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const messages = calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text));
+
+    expect(String(edit?.payload.text)).toContain("⚔️ <b>Пошук образив місцевого мешканця</b>");
+    expect(messages).toEqual([
+      expect.stringContaining("Проти вас: <b>Павук дедлайнів</b>"),
+      expect.stringContaining("❤️ Ви:")
+    ]);
+    expect(markAction.mock.calls.some(([input]) => input.locationId === "location.korchma.deep.level1")).toBe(false);
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledTimes(1);
   });
 
   it("uses an outdoor movement notice when leaving the korchma", async () => {
@@ -4642,6 +4820,77 @@ function passageSearchMonsterAttackResult() {
       },
       questProgress: null
     }
+  };
+}
+
+function passageSearchRunningResult() {
+  return {
+    state: "running" as const,
+    character: {
+      ...character,
+      level: 3
+    },
+    action: passageSearchAction("running"),
+    remainingSeconds: 23
+  };
+}
+
+function passageSearchCompletedResult() {
+  return {
+    state: "completed" as const,
+    character: {
+      ...character,
+      level: 3
+    },
+    action: passageSearchAction("resolved", {
+      outcome: "loot" as const,
+      loot: {
+        gold: 3,
+        itemGrants: []
+      }
+    }),
+    loot: {
+      gold: 3,
+      itemGrants: []
+    }
+  };
+}
+
+function passageSearchAction(
+  status: "running" | "resolved",
+  result: { outcome: "loot"; loot: { gold: number; itemGrants: [] } } | null = null
+) {
+  const now = new Date("2026-06-27T09:00:00.000Z");
+
+  return {
+    id: "search-action-1",
+    token: "searchtok13",
+    characterId: "character-1",
+    nodeKey: "passage:deep-straight",
+    nodeKind: "passage" as const,
+    status,
+    startedAt: now,
+    endsAt: new Date(now.getTime() + 42_000),
+    createdAt: now,
+    updatedAt: now,
+    payload: {
+      nodeKey: "passage:deep-straight",
+      nodeKind: "passage" as const,
+      originLocationId: "location.korchma.deep.level1.straight",
+      passage: "deep-straight" as const,
+      encounterToken: "token13",
+      durationMs: 42_000,
+      safeAtStart: false,
+      dangerTier: 1,
+      searchTier: 1,
+      monsterIdAtStart: "monster.deadline-spider",
+      monsterNameAtStart: "Павук дедлайнів",
+      monsterLevelAtStart: 2,
+      playerLuckSnapshot: 6,
+      startedAt: now.toISOString(),
+      endsAt: new Date(now.getTime() + 42_000).toISOString()
+    },
+    result
   };
 }
 

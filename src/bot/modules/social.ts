@@ -5,11 +5,16 @@ import { parseNearbyDuelCallbackData } from "../callbacks/nearbyDuelCallbackData
 import { handleDuelCallback,registerDuelCommand } from "../commands/duelCommand";
 import { handleItemGiftCallback } from "../commands/itemGiftCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
+import { playerFromContext } from "../context";
 import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 
+import {
+guardActivePassageSearchCommand,
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
 import type { BotModuleDependencies } from "./types";
 
 export function registerSocialBotModule(
@@ -17,6 +22,10 @@ export function registerSocialBotModule(
   { services, options }: BotModuleDependencies
 ): void {
   if (services.duel) {
+    bot.command("duel", async (ctx, next) => {
+      await guardActivePassageSearchCommand(ctx, services, next);
+    });
+
     registerDuelCommand(bot, services.duel, {
       presence: services.presence,
       tavernRaid: services.tavern,
@@ -32,6 +41,11 @@ export function registerSocialBotModule(
       return;
     }
 
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+      return;
+    }
+
     await handleItemGiftCallback(ctx, parsed.value, services.itemTransfers);
   });
 
@@ -40,6 +54,11 @@ export function registerSocialBotModule(
 
     if (!parsed.ok || !services.duel) {
       await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
       return;
     }
 
@@ -55,6 +74,11 @@ export function registerSocialBotModule(
 
     if (!parsed.ok || !services.duel) {
       await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
       return;
     }
 

@@ -58,10 +58,6 @@ buildCellarParticipantsKeyboard,
 buildCellarResultKeyboard
 } from "../keyboards/cellarKeyboard";
 import {
-buildPassageSearchCancelKeyboard,
-buildPassageSearchRunningKeyboard
-} from "../keyboards/fightKeyboard";
-import {
 buildBardPerformanceResponseKeyboard,
 buildBardPerformanceRespondResultKeyboard,
 buildBackToCurrentPlaceKeyboard,
@@ -102,7 +98,6 @@ import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
 import { presentParticipants } from "../presenters/presencePresenter";
-import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentBardPerformanceAudienceNotification,
 presentBardPerformancePerformerFeedback,
@@ -136,9 +131,12 @@ import { sendLevelUpCelebration } from "./levelUp";
 import {
 refreshCurrentMainMenuLocationKeyboard,
 sendCurrentLocation,
-sendPassageSearchMonsterAttackFight,
 sendPlaceMovementNotice
 } from "./mainMenu";
+import {
+guardActivePassageSearchCommand,
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
 import {
 placeCallbackToPersistentFightPassage,
 sendPersistentFightPassagePreview
@@ -155,6 +153,9 @@ export function registerTavernBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
+  bot.command(["tavern", "raid", "cellar"], async (ctx, next) => {
+    await guardActivePassageSearchCommand(ctx, services, next);
+  });
   registerCellarCommand(
     bot,
     services.cellarErrand,
@@ -240,6 +241,10 @@ async function handleShynokCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildBackToShynokKeyboard()
     });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -577,31 +582,15 @@ async function handlePlaceCallback(
     return;
   }
 
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
   if (
     action !== "barrel" &&
     (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
   ) {
     return;
-  }
-
-  if (services.passageSearch) {
-    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
-    if (activeSearch) {
-      await safeAnswerCallbackQuery(ctx);
-      const replyMarkup = activeSearch.state === "confirm-cancel"
-        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
-        : activeSearch.state === "running"
-          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
-          : undefined;
-      await safeEditMessageText(ctx, presentPassageSearch(activeSearch), {
-        ...HTML_MESSAGE_OPTIONS,
-        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-      });
-      if (activeSearch.state === "monster-attack") {
-        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
-      }
-      return;
-    }
   }
 
   await safeAnswerCallbackQuery(ctx);
@@ -818,6 +807,10 @@ async function handleTavernCallback(
     return;
   }
 
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
   if (action === "raid-news") {
     await safeAnswerCallbackQuery(ctx);
     await sendNewsList(ctx, 0, "edit", { source: "raid" });
@@ -958,6 +951,10 @@ async function handleCellarCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 

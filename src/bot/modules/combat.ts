@@ -80,9 +80,13 @@ import { isPassageSearchAvailable } from "../passageSearchAvailability";
 
 import { sendLevelUpCelebration } from "./levelUp";
 import {
-refreshCurrentMainMenuLocationKeyboard,
-sendPassageSearchMonsterAttackFight
+refreshCurrentMainMenuLocationKeyboard
 } from "./mainMenu";
+import {
+guardActivePassageSearchCommand,
+sendPassageSearchMonsterAttackFight,
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
 import {
 placeCallbackToPersistentFightPassage,
 presenceLocationToPersistentFightPassage,
@@ -99,6 +103,10 @@ export function registerCombatBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
+  bot.command("fight", async (ctx, next) => {
+    await guardActivePassageSearchCommand(ctx, services, next);
+  });
+
   registerFightCommand(bot, services.fight, {
     presence: services.presence,
     tavernRaid: services.tavern,
@@ -157,28 +165,12 @@ async function handleTrainingDoppelgangerCallback(
     return;
   }
 
-  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
-  if (services.passageSearch) {
-    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
-    if (activeSearch) {
-      await safeAnswerCallbackQuery(ctx);
-      const replyMarkup = activeSearch.state === "confirm-cancel"
-        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
-        : activeSearch.state === "running"
-          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
-          : undefined;
-      await safeEditMessageText(ctx, presentPassageSearch(activeSearch), {
-        ...HTML_MESSAGE_OPTIONS,
-        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-      });
-      if (activeSearch.state === "monster-attack") {
-        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
-      }
-      return;
-    }
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
   }
 
   if (callback.type === "turn") {
@@ -244,28 +236,12 @@ async function handleFightCallback(
     return;
   }
 
-  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
-  if (services.passageSearch) {
-    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
-    if (activeSearch) {
-      await safeAnswerCallbackQuery(ctx);
-      const replyMarkup = activeSearch.state === "confirm-cancel"
-        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
-        : activeSearch.state === "running"
-          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
-          : undefined;
-      await safeEditMessageText(ctx, presentPassageSearch(activeSearch), {
-        ...HTML_MESSAGE_OPTIONS,
-        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-      });
-      if (activeSearch.state === "monster-attack") {
-        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
-      }
-      return;
-    }
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
   }
 
   if (callback.type === "passage") {

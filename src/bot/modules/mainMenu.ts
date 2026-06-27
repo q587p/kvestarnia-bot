@@ -17,7 +17,6 @@ PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
 normalizePresenceLocationId,
 type PresenceService
 } from "../../services/presenceService";
-import type { PassageSearchCheckResult } from "../../services/passageSearchService";
 import type { BotServices } from "../botServices";
 import { parsePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
@@ -51,14 +50,11 @@ getMainMenuLocationButtonText,
 mainMenuButtons,
 mainMenuLocationButtonTexts
 } from "../keyboards/mainMenuKeyboard";
-import {
-buildPassageSearchCancelKeyboard,
-buildPassageSearchRunningKeyboard
-} from "../keyboards/fightKeyboard";
 import { presentHelp } from "../presenters/helpPresenter";
-import { presentPassageSearch } from "../presenters/passageSearchPresenter";
-import { presentPersistentFightIntro } from "../presenters/fightPresenter";
 
+import {
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
 import {
 presenceLocationToPersistentFightPassage,
 sendPersistentFightPassagePreview
@@ -68,6 +64,11 @@ import { markScenePresence } from "./scenePresence";
 
 export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
   bot.hears(mainMenuButtons.hero, async (ctx) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
+      return;
+    }
+
     await sendHero(ctx, services.hero, "reply", {
       mainMenuKeyboard: await buildCurrentMainMenuKeyboard(ctx, services.presence)
     });
@@ -78,6 +79,11 @@ export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void 
   });
 
   bot.hears([mainMenuButtons.quest, "🗺️ Квест"], async (ctx) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
+      return;
+    }
+
     await sendQuestHub(
       ctx,
       buildQuestHubCommandOptions(services),
@@ -86,10 +92,20 @@ export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void 
   });
 
   bot.hears(mainMenuButtons.inventory, async (ctx) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
+      return;
+    }
+
     await sendInventory(ctx, services.inventory, "reply");
   });
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
+      return;
+    }
+
     await sendOnline(ctx, services.presence, {
       bardPerformanceEnabled: Boolean(services.bardPerformance),
       duelEnabled: Boolean(services.duel),
@@ -98,6 +114,11 @@ export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void 
   });
 
   bot.hears(mainMenuButtons.help, async (ctx) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
+      return;
+    }
+
     const replyMarkup = await buildCurrentMainMenuKeyboard(ctx, services.presence);
 
     await ctx.reply(presentHelp({
@@ -318,23 +339,8 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
     return;
   }
 
-  if (services.passageSearch) {
-    const activeSearch = await services.passageSearch.getActiveSearch(telegramUserId);
-    if (activeSearch) {
-      const replyMarkup = activeSearch.state === "confirm-cancel"
-        ? buildPassageSearchCancelKeyboard(activeSearch.action.token)
-        : activeSearch.state === "running"
-          ? buildPassageSearchRunningKeyboard(activeSearch.action.token)
-          : undefined;
-      await ctx.reply(presentPassageSearch(activeSearch), {
-        parse_mode: "HTML",
-        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-      });
-      if (activeSearch.state === "monster-attack") {
-        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
-      }
-      return;
-    }
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply")) {
+    return;
   }
 
   await sendCurrentPresenceLocation(
@@ -343,28 +349,6 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
     services
   );
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
-}
-
-export async function sendPassageSearchMonsterAttackFight(
-  ctx: Context,
-  services: BotServices,
-  result: Extract<PassageSearchCheckResult, { state: "monster-attack" }>
-): Promise<void> {
-  const shouldSendStartIntro = result.fight.state === "persistent-active" && result.fight.started === true;
-
-  if (result.fight.state === "persistent-active" && result.fight.started === true) {
-    await ctx.reply(presentPersistentFightIntro(result.fight), {
-      parse_mode: "HTML"
-    });
-  }
-
-  await sendFight(ctx, services.fight, "reply", {
-    presence: services.presence,
-    tavernRaid: services.tavern,
-    passageSearch: services.passageSearch,
-    requireKorchmaInterior: false,
-    suppressStartIntro: shouldSendStartIntro
-  });
 }
 
 async function sendCurrentPresenceLocation(

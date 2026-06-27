@@ -111,6 +111,10 @@ import {
 refreshCurrentMainMenuLocationKeyboard,
 refreshMainMenuLocationKeyboard
 } from "./mainMenu";
+import {
+guardActivePassageSearchCommand,
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
 import { persistentFightDifficultyToPassageLocationId } from "./persistentFightNavigation";
 import { buildQuestHubCommandOptions } from "./questHubOptions";
 import { markScenePresence } from "./scenePresence";
@@ -124,6 +128,10 @@ export function registerQuestBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
+  bot.command(["adventure", "hunt", "quest"], async (ctx, next) => {
+    await guardActivePassageSearchCommand(ctx, services, next);
+  });
+
   registerAdventureCommand(bot, services.adventure, {
     cellarErrand: services.cellarErrand,
     presence: services.presence,
@@ -185,12 +193,17 @@ async function handleQuestCallback(
   action: QuestCallback,
   services: BotServices
 ): Promise<void> {
-  await safeAnswerCallbackQuery(ctx);
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+    return;
+  }
 
   if (telegramUserId && (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))) {
     return;
   }
+
+  await safeAnswerCallbackQuery(ctx);
 
   if (action === "archive" || action === "list") {
     await sendQuestHub(
@@ -399,6 +412,10 @@ async function handleAdventureCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -715,6 +732,10 @@ async function handleHuntCallback(
     return;
   }
 
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
     return;
   }
@@ -736,6 +757,10 @@ async function handleYegerCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 

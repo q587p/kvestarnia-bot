@@ -143,6 +143,7 @@ describe("0.2.2 architecture stabilization scope", () => {
       "levelUp.ts",
       "mainMenu.ts",
       "notifications.ts",
+      "passageSearchGuard.ts",
       "persistentFightNavigation.ts",
       "quest.ts",
       "questHubOptions.ts",

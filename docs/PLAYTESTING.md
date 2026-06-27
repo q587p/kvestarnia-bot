@@ -25,10 +25,12 @@ Use one level 3+ account with local dev commands enabled where helpful.
 9. Confirm cancel; verify no reward and that the same node is on cooldown.
 10. Search a different passage immediately after cancel/resolution; verify the first node cooldown does not block the second node.
 11. Repeat passage search until danger occurs; verify no search reward appears, the existing passage combat opens with the first hero turn skipped, and any second-monster/`Натиск Низу`/full-opponent/tip context appears before the active card.
-12. Repeat old check/cancel/result callbacks after terminal state; verify no duplicate reward.
-13. Move to another location, press an old descent, `Ярус I` or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
-14. Defeat a pending monster in a first-tier passage, reopen that same passage before 3 minutes and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
-15. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
+12. Let a dangerous search become due, then press a current-location reply button or an old place/quest button; verify the danger result is followed by the canonical fight intro/card and the attempted action does not also run.
+13. While a search is active, press old quest/fight/inventory/Yeger/Shynok/social buttons and `/fight`; verify the search card/result appears and the attempted action does not move presence, spend resources, create orders or start another activity.
+14. Repeat old check/cancel/result callbacks after terminal state; verify no duplicate reward.
+15. Move to another location, press an old descent, `Ярус I` or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
+16. Defeat a pending monster in a first-tier passage, reopen that same passage before 3 minutes and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
+17. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
 
 ## 0.2.5 — Bard Performance smoke
 
