@@ -408,6 +408,20 @@ Balance rules:
 
 Player-facing copy may say that the Корчмар keeps the fight moving, but must not print hidden hit/critical/cooldown formulas or exact chances.
 
+### `0.2.7` player ability critical fumbles
+
+Class/race ability fumbles are a hidden humor-and-replay mechanic, not a reward or power economy.
+
+Balance rules:
+- only committed player class/race ability uses advance the fumble cycle; stale callbacks, unavailable actions, no-mana/cooldown no-ops and journal/result reopens do not;
+- the active combat or turn-based duel JSON stores a deterministic 93-use cycle per ability and stores the selected fumble in the turn summary, so replay never rerolls it;
+- this no-migration MVP scopes the cycle to the stored active combat/duel state. A durable per-character/per-ability lifetime counter would need a separate persistence task if global cross-session tracking becomes important;
+- fumbles consume the action's normal mana and cooldown, because the player did attempt the ability;
+- support-oriented fumbles can heal the enemy, while damage-oriented fumbles can hurt the actor; avoid mapping every future ability to plain self-damage;
+- fumble copy should be funny and screenshot-worthy without humiliating the human player.
+
+Do not expose the exact fumble contract, seed, trigger position or authored punchlines in player-facing pre-action copy or `news.md` by default.
+
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.

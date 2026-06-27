@@ -728,6 +728,96 @@ describe("combat domain engine", () => {
     expect(tipsy.summary.heroOutcome).toBe("miss");
   });
 
+  it("turns a committed support ability fumble into an enemy heal and stores replay JSON", () => {
+    const priest: CombatActorStats = {
+      ...warrior,
+      classId: "class.priest",
+      charisma: 10,
+      manaMax: 20
+    };
+    const state = startCombat({ hero: { ...priest, manaCurrent: 20 }, monster });
+    state.monster.hp = 10;
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.strict-blessing": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: priest,
+      monster,
+      rng: new FakeRandomSource([0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.heroOutcome).toBe("critical-fumble");
+    expect(result.summary.fumble).toMatchObject({
+      abilityId: "skill.strict-blessing",
+      kind: "enemy-heal"
+    });
+    expect(result.summary.heroDamage).toBe(0);
+    expect(result.summary.heroHealing).toBeUndefined();
+    expect(result.state.monster.hp).toBeGreaterThan(10);
+    expect(result.state.hero.mana).toBe(16);
+    expect(result.state.cooldowns?.skill?.id).toBe("skill.strict-blessing");
+    expect(result.state.playerAbilityFumbles?.abilities["skill.strict-blessing"]).toMatchObject({
+      cycle: 0,
+      usesInCycle: 1,
+      triggerAt: 1
+    });
+    expect(parseCombatState(JSON.parse(JSON.stringify(result.state)))?.lastTurn?.fumble).toMatchObject({
+      abilityId: "skill.strict-blessing",
+      kind: "enemy-heal"
+    });
+  });
+
+  it("does not advance fumble state for unavailable ability attempts", () => {
+    const state = startCombat({ hero: { ...warrior, manaCurrent: 12 }, monster });
+    state.cooldowns = {
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 2
+        }
+      },
+      skill: {
+        id: "skill.forceful-strike",
+        remainingTurns: 2
+      }
+    };
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("skill-on-cooldown");
+    expect(result.state.playerAbilityFumbles).toEqual(state.playerAbilityFumbles);
+  });
+
   it("applies stored pepper-vodka damage modifiers to PvE combat", () => {
     const sturdyMonster = { ...monster, hpMax: 80, attack: 12 };
     const baseline = resolveCombatTurn({

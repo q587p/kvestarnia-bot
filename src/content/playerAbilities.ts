@@ -40,6 +40,7 @@ export interface PlayerAbilityDefinition {
   guardReduction?: number;
   counterDamage?: number;
   legacyCooldownIds?: readonly string[];
+  criticalFumbleLine: string;
   recipe: readonly PlayerAbilityRecipeKind[];
   tags: readonly string[];
 }
@@ -62,6 +63,7 @@ export const classAbilities = [
     accuracyBonus: 0.03,
     critBonus: 0.02,
     monsterDamageReduction: 0,
+    criticalFumbleLine: "Замах переконав підлогу раніше, ніж проблему. Підлога не вражена, але пригодник так.",
     recipe: ["direct-damage"],
     tags: ["direct", "physical", "class"]
   },
@@ -82,6 +84,7 @@ export const classAbilities = [
     accuracyBonus: 0.05,
     critBonus: 0.01,
     monsterDamageReduction: 0,
+    criticalFumbleLine: "Закляття розвернулося в повітрі й чемно влучило туди, звідки його випустили.",
     recipe: ["all-enemies-damage"],
     tags: ["aoe", "spell", "class"]
   },
@@ -90,7 +93,7 @@ export const classAbilities = [
     source: "class",
     classId: "class.varenyk-mancer",
     label: "🥟 Кипляча начинка",
-    description: "Начинка бризкає по ворогах, а пара трохи підлатує пригодника.",
+    description: "Начинка бризкає по ворогах, а пара трохи зцілює пригодника.",
     action: "skill",
     primaryTargetScope: "all-enemies",
     secondaryTargetScope: "single-ally-or-self",
@@ -104,6 +107,7 @@ export const classAbilities = [
     critBonus: 0.01,
     healAmount: 3,
     legacyCooldownIds: ["skill.hot-spell"],
+    criticalFumbleLine: "Начинка вирішила, що проблема виглядає голодною, і підгодувала не той бік бою.",
     recipe: ["all-enemies-damage", "self-heal"],
     tags: ["aoe", "spell", "support", "ally-scope", "class"]
   },
@@ -124,6 +128,7 @@ export const classAbilities = [
     accuracyBonus: 0.07,
     critBonus: 0,
     monsterDamageReduction: 2,
+    criticalFumbleLine: "Форма 13-Б повернулася з печаткою «сам винен» і службово боляче клацнула по пригоднику.",
     recipe: ["all-enemies-damage", "response-mitigation"],
     tags: ["aoe", "control", "social", "class"]
   },
@@ -146,6 +151,7 @@ export const classAbilities = [
     critBonus: 0.02,
     monsterDamageReduction: 1,
     guardReduction: 1,
+    criticalFumbleLine: "Куплет надихнув не той бік сцени. Супротивник аж випростався від мистецтва.",
     recipe: ["all-enemies-damage", "ally-guard"],
     tags: ["aoe", "social", "support", "ally-scope", "class"]
   },
@@ -167,6 +173,7 @@ export const classAbilities = [
     critBonus: 0.08,
     monsterDamageReduction: 1,
     legacyCooldownIds: ["skill.trick-shot"],
+    criticalFumbleLine: "Тінь сховалась разом із планом, а лезо знайшло пригодника без зайвої драматургії.",
     recipe: ["direct-damage", "response-mitigation"],
     tags: ["direct", "trick", "class"]
   },
@@ -187,6 +194,7 @@ export const classAbilities = [
     secondaryMultiplier: 0.45,
     accuracyBonus: 0.06,
     critBonus: 0.06,
+    criticalFumbleLine: "Рикошет чесно знайшов тактичне коліно. На жаль, своє.",
     recipe: ["primary-plus-splash"],
     tags: ["aoe", "splash", "trick", "class"]
   },
@@ -210,6 +218,7 @@ export const classAbilities = [
     monsterDamageReduction: 2,
     healAmount: 7,
     guardReduction: 1,
+    criticalFumbleLine: "Благословення перечитало адресата й підлатало супротивника з неприємною щирістю.",
     recipe: ["ally-heal", "ally-guard", "response-mitigation"],
     tags: ["heal", "support", "ally-scope", "class"]
   },
@@ -230,6 +239,7 @@ export const classAbilities = [
     accuracyBonus: 0.05,
     critBonus: 0.05,
     monsterDamageReduction: 1,
+    criticalFumbleLine: "Косий погляд відбився від степової логіки назад. Логіка перемогла.",
     recipe: ["all-enemies-damage", "response-mitigation"],
     tags: ["aoe", "control", "trick", "class"]
   }
@@ -251,6 +261,7 @@ export const fallbackClassAbility = {
   accuracyBonus: 0.04,
   critBonus: 0.02,
   monsterDamageReduction: 0,
+  criticalFumbleLine: "Обережний удар був настільки обережний, що обійшов супротивника й знайшов пригодника.",
   recipe: ["direct-damage"],
   tags: ["direct", "physical", "fallback", "class"]
 } as const satisfies PlayerAbilityDefinition;
@@ -272,6 +283,7 @@ export const raceAbilities = [
     multiplier: 0.92,
     accuracyBonus: 0.07,
     critBonus: 0.02,
+    criticalFumbleLine: "Імпровізація знайшла під рукою не той кінець. Практично, але боляче.",
     recipe: ["direct-damage"],
     tags: ["direct", "race"]
   },
@@ -287,6 +299,7 @@ export const raceAbilities = [
     cooldownOwnActions: 4,
     monsterDamageReduction: 2,
     guardReduction: 2,
+    criticalFumbleLine: "Центр ваги знайшов підлогу раніше за план. Супротивник використав паузу для самоповаги.",
     recipe: ["ally-guard", "response-mitigation"],
     tags: ["support", "ally-scope", "race"]
   },
@@ -306,6 +319,7 @@ export const raceAbilities = [
     multiplier: 0.9,
     accuracyBonus: 0.12,
     critBonus: 0.05,
+    criticalFumbleLine: "Точність образилася й влучила в самооцінку. Самооцінка попросила броню.",
     recipe: ["direct-damage"],
     tags: ["direct", "precision", "race"]
   },
@@ -326,6 +340,7 @@ export const raceAbilities = [
     accuracyBonus: 0.07,
     critBonus: 0,
     monsterDamageReduction: 1,
+    criticalFumbleLine: "Правка на полях повернулася червоним по герою. Редактура буває сувора.",
     recipe: ["all-enemies-damage", "response-mitigation"],
     tags: ["aoe", "control", "race"]
   },
@@ -346,6 +361,7 @@ export const raceAbilities = [
     accuracyBonus: 0.05,
     critBonus: 0.04,
     monsterDamageReduction: 2,
+    criticalFumbleLine: "Межа відкрилася не з того боку, і крок вийшов у власну незручність.",
     recipe: ["direct-damage", "response-mitigation"],
     tags: ["direct", "guard", "race"]
   },
@@ -361,6 +377,7 @@ export const raceAbilities = [
     cooldownOwnActions: 4,
     healAmount: 5,
     guardReduction: 1,
+    criticalFumbleLine: "Запас під піччю виявився гостинцем для проблеми. Домовитість має межі.",
     recipe: ["ally-heal", "ally-guard"],
     tags: ["heal", "ally-scope", "race"]
   },
@@ -382,6 +399,7 @@ export const raceAbilities = [
     accuracyBonus: 0.05,
     critBonus: 0.01,
     healAmount: 2,
+    criticalFumbleLine: "Сухий приплив забув, що він сухий, і розлився під ногами пригодника.",
     recipe: ["all-enemies-damage", "self-heal"],
     tags: ["aoe", "self-heal", "race"]
   },
@@ -401,6 +419,7 @@ export const raceAbilities = [
     multiplier: 1.02,
     accuracyBonus: 0.02,
     critBonus: 0.01,
+    criticalFumbleLine: "Рецензія схвалила удар, але не напрям. Аргумент повернувся авторові.",
     recipe: ["direct-damage"],
     tags: ["direct", "physical", "race"]
   },
@@ -417,6 +436,7 @@ export const raceAbilities = [
     monsterDamageReduction: 2,
     guardReduction: 1,
     counterDamage: 2,
+    criticalFumbleLine: "Оберіг поставив туман між пригодником і здоровим глуздом. Супротивнику стало легше дихати.",
     recipe: ["ally-guard", "response-mitigation", "counter"],
     tags: ["support", "ally-scope", "counter", "race"]
   }

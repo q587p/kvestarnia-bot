@@ -125,6 +125,70 @@ describe("turn-based duel domain", () => {
     });
   });
 
+  it("applies a support ability fumble in turn-based duels instead of spending an empty action", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "priest",
+        classId: "class.priest",
+        className: "Жрець",
+        charisma: 10,
+        manaCurrent: 14,
+        manaMax: 14
+      }),
+      target: makeDuelist({ id: "target", hpCurrent: 10, hpMax: 28 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.participants.challenger.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.strict-blessing": {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(queued.ok).toBe(true);
+    if (!queued.ok) {
+      throw new Error("Expected queued action.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "priest",
+      action: "skill",
+      rng: new FakeRandomSource([0.99, 0.99])
+    });
+
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected resolved round.");
+    }
+    const priestAction = resolved.round.actions.find((action) => action.actorCharacterId === "priest");
+
+    expect(priestAction).toMatchObject({
+      outcome: "critical-fumble",
+      damage: 0,
+      manaSpent: 4,
+      fumble: {
+        abilityId: "skill.strict-blessing",
+        kind: "enemy-heal"
+      }
+    });
+    expect(resolved.state.participants.target.hp).toBeGreaterThan(10);
+    expect(resolved.state.participants.challenger.cooldowns?.skill?.id).toBe("skill.strict-blessing");
+    expect(resolved.state.participants.challenger.playerAbilityFumbles?.abilities["skill.strict-blessing"]?.usesInCycle).toBe(1);
+  });
+
   it("produces a deterministic draw at the maximum turn safety limit", () => {
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "challenger" }),

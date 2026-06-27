@@ -26,6 +26,7 @@ Use one level 3+ account with local dev commands enabled where helpful. Use mult
 10. Use `/spar`; verify player class and race abilities work in training, while the doppelganger keeps existing copied skill behavior and stores the copied race/class ability ids in debug state.
 11. Open combat journal pages after class/race ability turns; verify stored ability names, cooldown notices and per-target summaries replay without rerolling.
 12. Open quick and turn-based duel screens; verify quick duel remains instant without turn-action buttons, while turn-based duel shows available class/race actions and hides them on mana/cooldown.
+13. In focused seeded-state QA or automated tests, force a class/race critical fumble and verify it consumes normal mana/cooldown, shows the stored funny line, applies the stored consequence and replays without rerolling. Do not add this as a player-facing news/manual spoiler path.
 
 ## 0.2.6 — Passage Search smoke
 

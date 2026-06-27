@@ -556,6 +556,12 @@ function presentTurnBasedLastAction(action: {
   guard?: number;
   manaSpent: number;
   critical: boolean;
+  fumble?: {
+    kind: "self-damage" | "enemy-heal";
+    line: string;
+    selfDamage?: number | undefined;
+    enemyHealing?: number | undefined;
+  } | undefined;
 }): string {
   const actionLine =
     action.action === "surrender"
@@ -570,7 +576,9 @@ function presentTurnBasedLastAction(action: {
           ? "🧬 Расова дія записана в протокол."
           : "⚔️ Звичайна атака записана в протокол.";
   const hitLine =
-    action.damage > 0
+    action.fumble
+      ? presentTurnBasedDuelFumble(action.fumble)
+      : action.damage > 0
       ? `Шкода: <b>${action.damage}</b>${action.critical ? " · критично" : ""}.`
       : action.healing || action.guard
         ? "Шкода не пройшла, але підтримка спрацювала."
@@ -586,6 +594,22 @@ function presentTurnBasedLastAction(action: {
   ].filter(Boolean).join("; ");
 
   return [actionLine, hitLine, supportLine ? `Підтримка: ${supportLine}.` : ""].filter(Boolean).join("\n");
+}
+
+function presentTurnBasedDuelFumble(action: {
+  kind: "self-damage" | "enemy-heal";
+  line: string;
+  selfDamage?: number | undefined;
+  enemyHealing?: number | undefined;
+}): string {
+  const consequence =
+    action.kind === "enemy-heal"
+      ? action.enemyHealing && action.enemyHealing > 0
+        ? ` Супротивник відновлює <b>${action.enemyHealing}</b> HP.`
+        : " Супротивник уже цілий, але дуже вдячний."
+      : ` Автор дії отримує <b>${action.selfDamage ?? 0}</b> шкоди.`;
+
+  return `Критична невдача: ${escapeHtml(action.line)}${consequence}`;
 }
 
 function presentDuelParticipant(label: string, character: CharacterSummary): string {

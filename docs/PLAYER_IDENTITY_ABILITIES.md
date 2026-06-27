@@ -12,6 +12,7 @@
 - `соціяльна` — діє поза боєм, у пригодах, взаємодії, репутації, титулі або корчемній сцені.
 - Ally/group scopes у `0.2.7` поки деградують до самого пригодника, доки немає party runtime.
 - Поточні class/race бойові абілки відображаються в persistent PvE, training doppelganger player turns і turn-based duel turns; quick duel лишається миттєвою формулою без action-кнопок.
+- Поточні class/race бойові абілки мають приховану критичну невдачу: active combat/duel JSON веде 93-use cycle per ability, committed фейл витрачає звичайні ресурс/cooldown, а outcome зберігається в summary для replay. Це внутрішній сюрпризний контракт, не player-news обіцянка.
 - Title abilities нижче є planned slot: коли окремий slice додасть активну титульну абілку, ті самі turn-based/training/PvE action surfaces мають показувати актуальний набір героя.
 
 ## Раси

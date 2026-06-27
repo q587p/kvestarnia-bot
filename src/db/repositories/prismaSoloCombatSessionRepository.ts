@@ -1618,6 +1618,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const lastTurn = parseTurnSummary(value.lastTurn);
   const turnLog = parseTurnLog(value.turnLog);
   const drinkModifiers = parseDrinkModifiers(value.drinkModifiers);
+  const playerAbilityFumbles = parsePlayerAbilityFumbles(value.playerAbilityFumbles);
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -1650,8 +1651,34 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(drinkModifiers ? { drinkModifiers } : {}),
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(lastTurn ? { lastTurn } : {}),
-    ...(turnLog.length > 0 ? { turnLog } : {})
+    ...(turnLog.length > 0 ? { turnLog } : {}),
+    ...(playerAbilityFumbles ? { playerAbilityFumbles } : {})
   };
+}
+
+function parsePlayerAbilityFumbles(value: unknown): CombatState["playerAbilityFumbles"] | null {
+  if (!isRecord(value) || value.version !== 1 || !isRecord(value.abilities)) {
+    return null;
+  }
+
+  const abilities = Object.fromEntries(
+    Object.entries(value.abilities).flatMap(([abilityId, entry]) => {
+      if (!isRecord(entry) || entry.version !== 1 || abilityId.length === 0 || abilityId.length > 128) {
+        return [];
+      }
+      const cycle = boundedOptionalInt(entry.cycle, 0, 1_000_000);
+      const usesInCycle = boundedOptionalInt(entry.usesInCycle, 0, 92);
+      const triggerAt = boundedOptionalInt(entry.triggerAt, 1, 93);
+
+      return cycle === undefined || usesInCycle === undefined || triggerAt === undefined
+        ? []
+        : [[abilityId, { version: 1 as const, cycle, usesInCycle, triggerAt }] as const];
+    })
+  );
+
+  return Object.keys(abilities).length > 0
+    ? { version: 1, abilities }
+    : null;
 }
 
 function parseCombatThreat(value: unknown): CombatState["threat"] | null {
@@ -2414,6 +2441,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const secondaryTargetScope = parseTargetScope(value.secondaryTargetScope);
   const enemyResults = parseEnemyAbilityResults(value.enemyResults);
   const allyResults = parseAllyAbilityResults(value.allyResults);
+  const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
 
   if (
@@ -2454,9 +2482,39 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(heroHealing !== null ? { heroHealing } : {}),
     ...(enemyResults.length > 0 ? { enemyResults } : {}),
     ...(allyResults.length > 0 ? { allyResults } : {}),
+    ...(fumble ? { fumble } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(debugTrace ? { debugTrace } : {})
   };
+}
+
+function parsePlayerAbilityFumbleSummary(value: unknown): CombatTurnSummary["fumble"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const abilityId = typeof value.abilityId === "string" && value.abilityId.length > 0 && value.abilityId.length <= 128
+    ? value.abilityId
+    : null;
+  const line = typeof value.line === "string" && value.line.trim().length > 0 && value.line.length <= 240
+    ? value.line
+    : null;
+  const selfDamage = intOrNull(value.selfDamage);
+  const enemyHealing = intOrNull(value.enemyHealing);
+
+  if (!abilityId || !line) {
+    return null;
+  }
+
+  if (value.kind === "self-damage" && selfDamage !== null && selfDamage > 0) {
+    return { abilityId, kind: "self-damage", line, selfDamage };
+  }
+
+  if (value.kind === "enemy-heal" && enemyHealing !== null && enemyHealing >= 0) {
+    return { abilityId, kind: "enemy-heal", line, enemyHealing };
+  }
+
+  return null;
 }
 
 function parseEnemyAbilityResults(value: unknown): NonNullable<CombatTurnSummary["enemyResults"]> {
@@ -2665,6 +2723,7 @@ function parseTurnOutcome(value: unknown): CombatTurnOutcome | null {
     value === "defended" ||
     value === "not-enough-mana" ||
     value === "skill-on-cooldown" ||
+    value === "critical-fumble" ||
     value === "item-used" ||
     value === "inactive" ||
     value === "fled" ||

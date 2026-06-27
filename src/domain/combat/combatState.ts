@@ -14,6 +14,7 @@ import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
+export const PLAYER_ABILITY_FUMBLE_CYCLE_USES = 93;
 export type CombatActionType = "attack" | "defend" | "skill" | "race" | "flee" | "skip" | "item";
 export type PlayerCombatActionType = Exclude<CombatActionType, "skip" | "item">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
@@ -31,6 +32,7 @@ export type CombatTurnOutcome =
   | "defended"
   | "not-enough-mana"
   | "skill-on-cooldown"
+  | "critical-fumble"
   | "item-used"
   | "inactive"
   | "fled"
@@ -182,6 +184,27 @@ export interface CombatState {
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
+  playerAbilityFumbles?: PlayerAbilityFumblesState;
+}
+
+export interface PlayerAbilityFumblesState {
+  version: 1;
+  abilities: Record<string, PlayerAbilityFumbleState>;
+}
+
+export interface PlayerAbilityFumbleState {
+  version: 1;
+  cycle: number;
+  usesInCycle: number;
+  triggerAt: number;
+}
+
+export interface CombatPlayerAbilityFumbleSummary {
+  abilityId: string;
+  kind: "self-damage" | "enemy-heal";
+  line: string;
+  selfDamage?: number;
+  enemyHealing?: number;
 }
 
 export interface CombatThreatState {
@@ -291,6 +314,7 @@ export interface CombatTurnSummary {
   heroHealing?: number;
   enemyResults?: CombatEnemyAbilityResult[];
   allyResults?: CombatAllyAbilityResult[];
+  fumble?: CombatPlayerAbilityFumbleSummary;
   enemyActions?: CombatEnemyTurnSummary[];
   debugTrace?: CombatDebugTrace;
 }
@@ -446,7 +470,10 @@ export function cloneCombatState(state: CombatState): CombatState {
           lastTurn: cloneCombatTurnSummary(state.lastTurn)
         }
       : {}),
-    ...(state.turnLog ? { turnLog: state.turnLog.map(cloneCombatTurnLogEntry) } : {})
+    ...(state.turnLog ? { turnLog: state.turnLog.map(cloneCombatTurnLogEntry) } : {}),
+    ...(state.playerAbilityFumbles
+      ? { playerAbilityFumbles: clonePlayerAbilityFumblesState(state.playerAbilityFumbles) }
+      : {})
   };
 }
 
@@ -752,7 +779,22 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
     ...(summary.allyResults
       ? { allyResults: summary.allyResults.map((entry) => ({ ...entry })) }
       : {}),
+    ...(summary.fumble ? { fumble: { ...summary.fumble } } : {}),
     ...(summary.debugTrace ? { debugTrace: { ...summary.debugTrace } } : {})
+  };
+}
+
+export function clonePlayerAbilityFumblesState(
+  state: PlayerAbilityFumblesState
+): PlayerAbilityFumblesState {
+  return {
+    version: 1,
+    abilities: Object.fromEntries(
+      Object.entries(state.abilities).map(([abilityId, entry]) => [
+        abilityId,
+        { ...entry }
+      ])
+    )
   };
 }
 

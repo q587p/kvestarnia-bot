@@ -50,6 +50,7 @@ export interface CombatSkillProfile {
   healAmount?: number;
   guardReduction?: number;
   counterDamage?: number;
+  criticalFumbleLine?: string;
   recipe?: PlayerAbilityDefinition["recipe"];
   tags?: readonly string[];
 }
@@ -61,6 +62,7 @@ export type CombatPlayerAbilityProfile = CombatSkillProfile & {
   description: string;
   primaryTargetScope: CombatTargetScope;
   secondaryTargetScope?: CombatTargetScope;
+  criticalFumbleLine: string;
   recipe: PlayerAbilityDefinition["recipe"];
   tags: readonly string[];
 };
@@ -102,6 +104,7 @@ function playerAbilityToSkillProfile(ability: PlayerAbilityDefinition): CombatPl
     ...(ability.healAmount ? { healAmount: ability.healAmount } : {}),
     ...(ability.guardReduction ? { guardReduction: ability.guardReduction } : {}),
     ...(ability.counterDamage ? { counterDamage: ability.counterDamage } : {}),
+    criticalFumbleLine: ability.criticalFumbleLine,
     recipe: ability.recipe,
     tags: ability.tags
   };

@@ -363,6 +363,10 @@ function presentAbilityCooldowns(
 }
 
 function presentHeroActionResult(summary: CombatTurnSummary, action: string): string {
+  if (summary.fumble) {
+    return presentPlayerAbilityFumble(summary.fumble);
+  }
+
   if (summary.enemyResults && summary.enemyResults.length > 1) {
     const results = summary.enemyResults
       .map((entry) => entry.outcome === "miss"
@@ -382,6 +386,17 @@ function presentHeroActionResult(summary: CombatTurnSummary, action: string): st
   }
 
   return `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+}
+
+function presentPlayerAbilityFumble(fumble: NonNullable<CombatTurnSummary["fumble"]>): string {
+  const consequence =
+    fumble.kind === "enemy-heal"
+      ? fumble.enemyHealing && fumble.enemyHealing > 0
+        ? ` Копія відновлює ${fumble.enemyHealing} HP.`
+        : " Копія вже ціла, але педагогічно вдячна."
+      : ` Ви отримуєте ${fumble.selfDamage ?? 0} шкоди.`;
+
+  return `Критична невдача: ${escapeHtml(fumble.line)}${consequence}`;
 }
 
 function presentAllyAbilityResults(summary: CombatTurnSummary): string[] {
