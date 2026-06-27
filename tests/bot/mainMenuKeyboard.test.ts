@@ -738,7 +738,7 @@ describe("main menu and scene keyboards", () => {
       ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
-      "🥟 Кипляча начинка · 4 мани"
+      "🥟 Кипляча начинка"
     );
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
       "🌘 Тіньовий розтин"
@@ -917,7 +917,7 @@ describe("main menu and scene keyboards", () => {
       ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
-      "🥟 Кипляча начинка · 4 мани"
+      "🥟 Кипляча начинка"
     );
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
       "🌘 Тіньовий розтин"
@@ -1056,16 +1056,16 @@ describe("main menu and scene keyboards", () => {
       name: "Тіньовий розтин"
     });
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.varenyk-mancer" })).toBe(
-      "🥟 Кипляча начинка · 4 мани"
+      "🥟 Кипляча начинка"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.rogue" })).toBe(
       "🌘 Тіньовий розтин"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.ranger" })).toBe(
-      "🏹 Рикошетний постріл · 1 мана"
+      "🏹 Рикошетний постріл"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.priest" })).toBe(
-      "✨ Суворе благословення · 4 мани"
+      "✨ Суворе благословення"
     );
   });
 

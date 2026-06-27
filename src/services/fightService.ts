@@ -3983,7 +3983,6 @@ export class FightService {
     );
   }
 }
-
 function toThreatEscalationHistoryEntry(
   session: SoloCombatSessionCompletionRecord
 ): Parameters<typeof decideThreatEscalation>[0][number] {
@@ -5051,15 +5050,9 @@ function selectHighestAvailableMonsterLevel(monstersByLevel: MonsterContent[]): 
 export function getPersistentFightSkillLabel(character: CharacterSummary): string {
   const skill = getCombatSkillProfile(character.classId);
   const display = getCombatSkillDisplay(skill.id);
-  const label = `${display.icon} ${display.name}`;
 
-  if (skill.manaCost === 0) {
-    return label;
-  }
-
-  return `${label} · ${skill.manaCost} ${pluralize(skill.manaCost, "мана", "мани", "мани")}`;
+  return `${display.icon} ${display.name}`;
 }
-
 export function getPersistentFightRaceAbilityLabel(character: CharacterSummary): string | null {
   const ability = findRaceAbility(character.raceId);
 
@@ -5068,13 +5061,8 @@ export function getPersistentFightRaceAbilityLabel(character: CharacterSummary):
   }
 
   const display = getCombatSkillDisplay(ability.id);
-  const label = `${display.icon} ${display.name}`;
 
-  if (ability.manaCost === 0) {
-    return label;
-  }
-
-  return `${label} · ${ability.manaCost} ${pluralize(ability.manaCost, "мана", "мани", "мани")}`;
+  return `${display.icon} ${display.name}`;
 }
 
 export interface CombatSkillDisplay {
@@ -5123,19 +5111,4 @@ export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillD
     default:
       return { icon: "🪓", name: "Обережний удар" };
   }
-}
-
-function pluralize(count: number, one: string, few: string, many: string): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-
-  if (mod10 === 1 && mod100 !== 11) {
-    return one;
-  }
-
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return few;
-  }
-
-  return many;
 }
