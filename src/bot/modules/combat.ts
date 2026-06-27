@@ -14,8 +14,7 @@ import type { YegerQuestService } from "../../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
 import {
   getPassageSearchNodeKey,
-  PASSAGE_SEARCH_NODE_DEEP_LEVEL1,
-  type PassageSearchCheckResult
+  PASSAGE_SEARCH_NODE_DEEP_LEVEL1
 } from "../../services/passageSearchService";
 import type { BotServices } from "../botServices";
 import { parseFightCallbackData,type FightCallback } from "../callbacks/fightCallbackData";
@@ -80,7 +79,10 @@ import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
 
 import { sendLevelUpCelebration } from "./levelUp";
-import { refreshCurrentMainMenuLocationKeyboard } from "./mainMenu";
+import {
+refreshCurrentMainMenuLocationKeyboard,
+sendPassageSearchMonsterAttackFight
+} from "./mainMenu";
 import {
 placeCallbackToPersistentFightPassage,
 presenceLocationToPersistentFightPassage,
@@ -573,26 +575,6 @@ async function handlePassageSearchCallback(
   if (result.state === "monster-attack") {
     await sendPassageSearchMonsterAttackFight(ctx, services, result);
   }
-}
-
-async function sendPassageSearchMonsterAttackFight(
-  ctx: Context,
-  services: BotServices,
-  result: Extract<PassageSearchCheckResult, { state: "monster-attack" }>
-): Promise<void> {
-  const shouldSendStartIntro = result.fight.state === "persistent-active" && result.fight.started === true;
-
-  if (result.fight.state === "persistent-active" && result.fight.started === true) {
-    await ctx.reply(presentPersistentFightIntro(result.fight), HTML_MESSAGE_OPTIONS);
-  }
-
-  await sendFight(ctx, services.fight, "reply", {
-    presence: services.presence,
-    tavernRaid: services.tavern,
-    passageSearch: services.passageSearch,
-    requireKorchmaInterior: false,
-    suppressStartIntro: shouldSendStartIntro
-  });
 }
 
 function getSearchNotificationChatId(ctx: Context): string | null {

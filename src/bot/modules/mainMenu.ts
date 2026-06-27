@@ -17,6 +17,7 @@ PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
 normalizePresenceLocationId,
 type PresenceService
 } from "../../services/presenceService";
+import type { PassageSearchCheckResult } from "../../services/passageSearchService";
 import type { BotServices } from "../botServices";
 import { parsePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
@@ -56,6 +57,7 @@ buildPassageSearchRunningKeyboard
 } from "../keyboards/fightKeyboard";
 import { presentHelp } from "../presenters/helpPresenter";
 import { presentPassageSearch } from "../presenters/passageSearchPresenter";
+import { presentPersistentFightIntro } from "../presenters/fightPresenter";
 
 import {
 presenceLocationToPersistentFightPassage,
@@ -328,6 +330,9 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
         parse_mode: "HTML",
         ...(replyMarkup ? { reply_markup: replyMarkup } : {})
       });
+      if (activeSearch.state === "monster-attack") {
+        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
+      }
       return;
     }
   }
@@ -338,6 +343,28 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
     services
   );
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+}
+
+export async function sendPassageSearchMonsterAttackFight(
+  ctx: Context,
+  services: BotServices,
+  result: Extract<PassageSearchCheckResult, { state: "monster-attack" }>
+): Promise<void> {
+  const shouldSendStartIntro = result.fight.state === "persistent-active" && result.fight.started === true;
+
+  if (result.fight.state === "persistent-active" && result.fight.started === true) {
+    await ctx.reply(presentPersistentFightIntro(result.fight), {
+      parse_mode: "HTML"
+    });
+  }
+
+  await sendFight(ctx, services.fight, "reply", {
+    presence: services.presence,
+    tavernRaid: services.tavern,
+    passageSearch: services.passageSearch,
+    requireKorchmaInterior: false,
+    suppressStartIntro: shouldSendStartIntro
+  });
 }
 
 async function sendCurrentPresenceLocation(

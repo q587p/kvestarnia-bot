@@ -43,6 +43,11 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
 type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAction"]>[0];
+type RecordPersistentFightMessageReferenceMock = (
+  telegramUserId: bigint,
+  sessionId: string,
+  reference: { chatId: string; messageId: number }
+) => Promise<void>;
 
 describe("scene callback HTML options", () => {
   afterEach(() => {
@@ -2001,6 +2006,58 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).not.toContain("📋 Стіл зі справами");
   });
 
+  it("sends the fight card when current-location text resolves a due dangerous search", async () => {
+    const searchResult = passageSearchMonsterAttackResult();
+    const getFightOverviewForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "persistent-ready" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null
+      })
+      .mockResolvedValue(searchResult.fight);
+    const recordPersistentFightMessageReference =
+      vi.fn<RecordPersistentFightMessageReferenceMock>(() => Promise.resolve());
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.deepStraight,
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(searchResult))
+        },
+        fight: {
+          getFightOverviewForTelegramUser,
+          recordPersistentFightMessageReference
+        },
+        presence: {
+          markAction: vi.fn(() => Promise.resolve()),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.deep.level1.straight",
+              locationName: "Прямий прохід",
+              insideKorchma: true
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+    const messages = calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text));
+
+    expect(messages).toEqual([
+      expect.stringContaining("⚔️ <b>Пошук образив місцевого мешканця</b>"),
+      expect.stringContaining("Проти вас: <b>Павук дедлайнів</b>"),
+      expect.stringContaining("❤️ Ви:")
+    ]);
+    expect(messages[2]).not.toContain("Проти вас:");
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledTimes(1);
+    expect(recordPersistentFightMessageReference.mock.calls[0]?.[0]).toBe(42n);
+    expect(recordPersistentFightMessageReference.mock.calls[0]?.[1]).toBe(searchResult.fight.session.id);
+    expect(recordPersistentFightMessageReference.mock.calls[0]?.[2].chatId).toBe("42");
+    expect(typeof recordPersistentFightMessageReference.mock.calls[0]?.[2].messageId).toBe("number");
+  });
+
   it("uses an outdoor movement notice when leaving the korchma", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const calls = await captureApiCalls(
@@ -2928,6 +2985,49 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(tier?.payload.reply_markup)).toContain("🚪 Прямий прохід");
     expect(String(movement?.payload.text)).not.toContain("Тепер");
     expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.deepLevel1);
+  });
+
+  it("sends the fight card when a place callback resolves a due dangerous search", async () => {
+    const searchResult = passageSearchMonsterAttackResult();
+    const getFightOverviewForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "persistent-ready" as const,
+        character: {
+          ...character,
+          level: 3
+        },
+        questProgress: null
+      })
+      .mockResolvedValue(searchResult.fight);
+    const recordPersistentFightMessageReference =
+      vi.fn<RecordPersistentFightMessageReferenceMock>(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("hall"),
+      servicesWith({
+        passageSearch: {
+          getActiveSearch: vi.fn(() => Promise.resolve(searchResult))
+        },
+        fight: {
+          getFightOverviewForTelegramUser,
+          recordPersistentFightMessageReference
+        }
+      }),
+      { messageResults: true }
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const messages = calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text));
+
+    expect(String(edit?.payload.text)).toContain("⚔️ <b>Пошук образив місцевого мешканця</b>");
+    expect(messages).toEqual([
+      expect.stringContaining("Проти вас: <b>Павук дедлайнів</b>"),
+      expect.stringContaining("❤️ Ви:")
+    ]);
+    expect(messages[1]).not.toContain("Проти вас:");
+    expect(recordPersistentFightMessageReference).toHaveBeenCalledTimes(1);
+    expect(recordPersistentFightMessageReference.mock.calls[0]?.[0]).toBe(42n);
+    expect(recordPersistentFightMessageReference.mock.calls[0]?.[1]).toBe(searchResult.fight.session.id);
+    expect(recordPersistentFightMessageReference.mock.calls[0]?.[2].chatId).toBe("42");
+    expect(typeof recordPersistentFightMessageReference.mock.calls[0]?.[2].messageId).toBe("number");
   });
 
   it("uses an ascent movement notice when returning from a Nyz tier to the descent", async () => {
@@ -4477,6 +4577,70 @@ function persistentSessionWithOrigin(originLocationId: string) {
           }
         }
       ]
+    }
+  };
+}
+
+function passageSearchMonsterAttackResult() {
+  const now = new Date("2026-06-27T09:00:00.000Z");
+  const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+
+  return {
+    state: "monster-attack" as const,
+    character: {
+      ...character,
+      level: 3
+    },
+    action: {
+      id: "search-action-1",
+      token: "searchtok13",
+      characterId: "character-1",
+      nodeKey: "passage:deep-straight",
+      nodeKind: "passage" as const,
+      status: "resolved" as const,
+      startedAt: now,
+      endsAt: new Date(now.getTime() + 42_000),
+      createdAt: now,
+      updatedAt: now,
+      payload: {
+        nodeKey: "passage:deep-straight",
+        nodeKind: "passage" as const,
+        originLocationId: "location.korchma.deep.level1.straight",
+        passage: "deep-straight" as const,
+        encounterToken: "token13",
+        durationMs: 42_000,
+        safeAtStart: false,
+        dangerTier: 1,
+        searchTier: 1,
+        monsterIdAtStart: "monster.deadline-spider",
+        monsterNameAtStart: "Павук дедлайнів",
+        monsterLevelAtStart: 2,
+        playerLuckSnapshot: 6,
+        startedAt: now.toISOString(),
+        endsAt: new Date(now.getTime() + 42_000).toISOString()
+      },
+      result: {
+        outcome: "monster-attack" as const,
+        encounterToken: "token13",
+        passage: "deep-straight" as const
+      }
+    },
+    fight: {
+      state: "persistent-active" as const,
+      started: true,
+      character: {
+        ...character,
+        level: 3
+      },
+      session,
+      monster: {
+        id: "monster.deadline-spider",
+        name: "Павук дедлайнів",
+        description: "Плете павутину з «сьогодні швиденько».",
+        level: 2,
+        tags: ["beast", "time", "web"]
+      },
+      questProgress: null
     }
   };
 }

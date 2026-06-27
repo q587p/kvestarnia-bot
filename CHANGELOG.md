@@ -25,7 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Search start callbacks now re-read current presence server-side: descent search only starts from `Низ`, the `Ярус I` safe search only starts from `Сутерени Корчми`, passage search only from the matching passage, and stale remote buttons do not spend cooldown, create search rows, refresh encounters or start combat.
 - Active search now blocks old fight/place/reply-keyboard actions with a confirm-cancel card instead of letting stale buttons start movement or combat over the timer.
 - Search buttons now disappear from fresh Nyz surface/passage cards while that node cooldown is still active.
-- Passage-search danger handoffs now keep the normal new-fight intro before the active fight card, including threat escalation lines, `Натиск Низу`, full opponent names and the battle start tip even though the first hero turn is skipped.
+- Passage-search danger handoffs now keep the normal new-fight intro before the active fight card, including threat escalation lines, `Натиск Низу`, full opponent names and the battle start tip even though the first hero turn is skipped; due dangerous searches resolved from current-location or place actions also send the canonical fight card immediately.
 - Restore-to-full bandage reservation races now replay the canonical live confirmation card instead of returning a misleading reserved-item result.
 - Search cooldown is consumed at start and is not refunded by cancel, empty results or monster attacks.
 

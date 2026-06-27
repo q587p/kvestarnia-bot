@@ -136,6 +136,7 @@ import { sendLevelUpCelebration } from "./levelUp";
 import {
 refreshCurrentMainMenuLocationKeyboard,
 sendCurrentLocation,
+sendPassageSearchMonsterAttackFight,
 sendPlaceMovementNotice
 } from "./mainMenu";
 import {
@@ -596,6 +597,9 @@ async function handlePlaceCallback(
         ...HTML_MESSAGE_OPTIONS,
         ...(replyMarkup ? { reply_markup: replyMarkup } : {})
       });
+      if (activeSearch.state === "monster-attack") {
+        await sendPassageSearchMonsterAttackFight(ctx, services, activeSearch);
+      }
       return;
     }
   }
