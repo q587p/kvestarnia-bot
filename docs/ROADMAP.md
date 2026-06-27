@@ -234,7 +234,7 @@ Very-later platform note:
 - Повноцінний web-клієнт і боти для інших месенджерів на кшталт WhatsApp/Viber лишаються дуже далеким напрямом після стабілізації core loop, соціяльних систем і adapter boundaries. Це не частина `0.1.x` і не public promise.
 
 ## Backlog фіч
-- Achievement follow-ups: add durable ledgers for bestiary/news/memorial/nearby/location-history/Yeger-trail and lifetime class/race/title ability-use records before adding long-term counters such as 42-use achievements. Shipped catalog: `docs/ACHIEVEMENTS_CATALOG.md`; historical planning note: `docs/ACHIEVEMENTS_PHASE1.md`.
+- Achievement follow-ups: add durable ledgers for bestiary/news/memorial/nearby/location-history/Yeger-trail and lifetime class/race/title ability-use records before adding long-term counters such as 42-use achievements; add internal aggregate achievement statistics so admins can see completion counts/percentages like level 10 reached by 5% of characters and level 23 by 0%, without exposing personal data or adding rewards. Shipped catalog: `docs/ACHIEVEMENTS_CATALOG.md`; historical planning note: `docs/ACHIEVEMENTS_PHASE1.md`.
 - Collections: «Бестіарій», «Музей Манаток».
 - Inspiration-backed content packs із `docs/INSPIRATION_CONTENT_BACKLOG.md`: перші 10–15 монстрів, 20–30 манаток і 5–8 quest/adventure seeds у малих PR з тестами.
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.

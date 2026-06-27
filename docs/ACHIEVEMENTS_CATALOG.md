@@ -113,3 +113,14 @@ These are good future achievements, but current persisted state cannot honestly 
 - Location visit history, visiting every current place and first visits to Nyz; current presence stores where a character is now, not a durable route diary.
 - Yeger trail attempts, failed trails and repeated trail outcomes; current cooldown state only preserves the latest trail, not the historical series.
 - Class/race ability lifetime-use achievements such as 42 uses; current fumble cycles live in active combat/duel JSON, not a durable per-character counter.
+
+## Future Achievement Analytics
+
+A later internal analytics slice should expose aggregate achievement statistics without adding player power:
+
+- per-achievement earned character count and percentage, for example level 10 reached by 5% of characters and level 23 reached by 0%;
+- filterable views by active characters, all characters, remort generation or release window if those cohorts are useful;
+- no public personal data, Telegram ids, private names or exact individual histories in aggregate views;
+- no gameplay rewards, leader pressure or monetization advantage from completion percentages.
+
+This should be implemented as a separate admin/analytics surface or report, not as part of the player achievement journal.
