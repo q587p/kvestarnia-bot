@@ -306,6 +306,8 @@ export function buildPersistentFightDifficultyKeyboard(
   options: { searchAvailable?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
+    .text("⬆️ Піднятися назад", makePlaceCallbackData("deep"))
+    .row()
     .text("⬅️ Лівий прохід", makePlaceCallbackData("deep-left"))
     .row()
     .text("🚪 Прямий прохід", makePlaceCallbackData("deep-straight"))
@@ -314,10 +316,10 @@ export function buildPersistentFightDifficultyKeyboard(
     .row();
 
   if (options.searchAvailable !== false) {
-    keyboard.text("🔎 Пошукати", makeDeepLevelOneSearchStartCallbackData()).row();
+    keyboard.text("🔎 Пошукати", makeDeepLevelOneSearchStartCallbackData());
   }
 
-  return keyboard.text("⬆️ Піднятися назад", makePlaceCallbackData("deep"));
+  return keyboard;
 }
 
 export function buildPersistentFightPassagePreviewKeyboard(input: {

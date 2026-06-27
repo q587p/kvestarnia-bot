@@ -307,27 +307,27 @@ describe("main menu and scene keyboards", () => {
     const keyboard = buildPersistentFightDifficultyKeyboard();
 
     expect(inlineButtonRows(keyboard)).toEqual([
+      ["⬆️ Піднятися назад"],
       ["⬅️ Лівий прохід"],
       ["🚪 Прямий прохід"],
       ["➡️ Правий прохід"],
-      ["🔎 Пошукати"],
-      ["⬆️ Піднятися назад"]
+      ["🔎 Пошукати"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:place:deep",
       "v1:place:deep-left",
       "v1:place:deep-straight",
       "v1:place:deep-right",
-      "v1:search:start:l1",
-      "v1:place:deep"
+      "v1:search:start:l1"
     ]);
   });
 
   it("hides safe location search buttons while their node is on cooldown", () => {
     expect(flatInlineButtonTexts(buildPersistentFightDifficultyKeyboard({ searchAvailable: false }))).toEqual([
+      "⬆️ Піднятися назад",
       "⬅️ Лівий прохід",
       "🚪 Прямий прохід",
-      "➡️ Правий прохід",
-      "⬆️ Піднятися назад"
+      "➡️ Правий прохід"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ searchAvailable: false }))).toEqual([
       "⬆️ Повернутися до зали",
