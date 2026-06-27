@@ -164,6 +164,50 @@ persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/
 - ties стабільні між переглядами;
 - tests cover score calculation, pagination, own-rank outside top 42, privacy-safe names, no exact timestamps, and Telegram message length guard.
 
+## Later — Admin Demographics and Balance Reports
+
+**Objective**
+Додати внутрішню адмінську/owner-only поверхню, яка показує поточний склад Квестарні: скільки персонажів має кожне звертання, расу й клас, де є перекоси, а також які класи/раси реально виживають або просідають у боях. Це інструмент для балансу й контентних рішень, не публічний рейтинг.
+
+**Surface**
+
+- Адмінська кнопка або команда на кшталт `📊 Демографія`.
+- Перші вкладки/кнопки: `Звертання`, `Раси`, `Класи`.
+- Другий зріз: `Бої`, якщо combat analytics collection is available/enabled.
+- Повідомлення короткі: counts, percentages and top/bottom highlights, with pagination only if needed.
+
+**Demographic stats**
+
+- Aggregate active-character counts by addressing/pronoun choice, race and class.
+- Show total active characters, created characters and optionally remort lives as separate numbers so rerolls do not silently distort the picture.
+- Include unknown/legacy buckets explicitly instead of dropping old rows.
+- Do not show Telegram ids, usernames, private names, exact creation timestamps or tiny cohort member lists.
+
+**Combat stats**
+
+- Reuse or extend existing combat balance analytics before adding new tables.
+- Aggregate by class, race, level band, remort count, combat source and monster level/difficulty.
+- Track completed outcomes: wins, losses, flees, expiries/timeouts, average turn count, damage dealt/taken, healing, manual vs timeout actions, XP gained and gold gained.
+- Keep reward/resource settlement separate from reporting: analytics must never grant, revoke or replay rewards.
+- Reports should make skew visible without exposing hidden formulas or turning the data into player-facing odds.
+
+**Non-goals**
+
+- no public leaderboard or player comparison in this slice;
+- no player-identifying analytics;
+- no balance changes based only on adding the report;
+- no broad event pipeline or external analytics vendor;
+- no promise that every historical combat can be reconstructed if old rows lack frozen analytics snapshots.
+
+**Acceptance criteria**
+
+- Owner/admin can open a demographics report with counts by звертання, race and class;
+- unknown/legacy/null values are visible as explicit buckets;
+- combat report, when analytics is enabled, shows win/loss/flee/expiry totals and XP/gold aggregates by at least class and race;
+- disabled or unavailable combat analytics renders a clear internal note instead of failing;
+- reports use aggregate counts only and do not expose Telegram ids, usernames, display names or tiny cohort lists;
+- tests cover permission gating, aggregate queries, unknown buckets, disabled analytics, privacy-safe rendering and message-length guardrails.
+
 ## Very later — Web and Multi-Messenger Play Surfaces
 
 **Objective**
