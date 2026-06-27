@@ -3,6 +3,7 @@ import type { HeroService } from "../../services/heroService";
 import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallbackData";
 import { telegramUserIdFromContext } from "../context";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
+import { RESTORE_TO_FULL_BUTTON_LABEL } from "../keyboards/inventoryKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
 import {
   prefixResourceRecoveryNotice,
@@ -77,8 +78,7 @@ export async function sendHero(
 }
 
 function buildHeroRestoreToFullKeyboard(itemId: string): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("❤️ До відновлення", makeItemUseRestoreToFullCallbackData(itemId));
+  return new InlineKeyboard().text(RESTORE_TO_FULL_BUTTON_LABEL, makeItemUseRestoreToFullCallbackData(itemId));
 }
 
 async function sendText(

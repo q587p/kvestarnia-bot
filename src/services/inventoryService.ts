@@ -1,5 +1,6 @@
 import { items } from "../content";
 import type { ItemContent } from "../content/schema";
+import { getItemUseEffect } from "../domain/itemUse";
 import type {
   CharacterItemRecord,
   InventoryRepository
@@ -36,7 +37,19 @@ export class InventoryService {
       return { state: "empty" };
     }
 
-    const enrichedItems = rows.map(enrichItem);
+    const enrichedItems = rows
+      .map((row, index) => ({
+        row,
+        index,
+        item: enrichItem(row)
+      }))
+      .sort((left, right) => {
+        const leftPriority = getInventoryItemPriority(left.item.content);
+        const rightPriority = getInventoryItemPriority(right.item.content);
+
+        return leftPriority - rightPriority || left.index - right.index;
+      })
+      .map(({ item }) => item);
 
     return {
       state: "found",
@@ -99,4 +112,8 @@ function enrichItem(row: CharacterItemRecord): InventoryItemSummary {
     quantity: row.quantity,
     content
   };
+}
+
+function getInventoryItemPriority(item: ItemContent): number {
+  return getItemUseEffect(item) ? 0 : 1;
 }

@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Search buttons now disappear from fresh Nyz surface/passage cards while that node cooldown is still active.
 - Passage-search danger handoffs now keep the normal new-fight intro before the active fight card, including threat escalation lines, `Натиск Низу`, full opponent names and the battle start tip even though the first hero turn is skipped; due dangerous searches resolved from current-location or place actions also send the canonical fight card immediately.
 - Bandage reservation recovery now avoids false reserved-item blocks: duplicate restore-to-full races replay the canonical live confirmation card, ordinary one-bandage use plus restore-to-full can replace each other's own pending previews, older own pending bandage previews no longer make inventory or full-HP recovery say the item is reserved, and combat bandage use can replace the player's own pending item-use preview without replaying the previous combat turn as if it happened again.
+- Inventory now lists one-use consumables before other carried items, and the restore-to-full button uses the roll icon on both the hero card and item-use result cards.
 - Search cooldown is consumed at start and is not refunded by cancel, empty results or monster attacks.
 
 ### Unchanged

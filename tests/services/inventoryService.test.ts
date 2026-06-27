@@ -51,6 +51,40 @@ describe("InventoryService", () => {
     }
   });
 
+  it("lists one-use consumables before other inventory items", async () => {
+    const service = new InventoryService(
+      new FakeInventoryRepository([
+        buildItem({
+          id: "character-item-1",
+          itemId: "item.wet-hero-ticket",
+          quantity: 1
+        }),
+        buildItem({
+          id: "character-item-2",
+          itemId: "item.responsible-panic-bandage",
+          quantity: 2
+        }),
+        buildItem({
+          id: "character-item-3",
+          itemId: "item.pan-of-persuasion",
+          quantity: 1
+        })
+      ])
+    );
+
+    const result = await service.listForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("found");
+
+    if (result.state === "found") {
+      expect(result.items.map((item) => item.itemId)).toEqual([
+        "item.responsible-panic-bandage",
+        "item.wet-hero-ticket",
+        "item.pan-of-persuasion"
+      ]);
+    }
+  });
+
   it("sums gold values for all priced inventory stacks", async () => {
     const service = new InventoryService(
       new FakeInventoryRepository([
