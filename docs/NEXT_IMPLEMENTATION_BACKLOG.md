@@ -73,6 +73,36 @@ Each slice below should be independently testable. If a PR starts turning into s
 persistent fight → equipment stats → loot/reward replay → level 1-13 + HP/mana persistence → recovery/balance polish → inventory/chest polish → balance/playtest polish
 ```
 
+## Later — Quest Offer Rotation Memory
+
+**Objective**
+Зробити `🪧 Три справи на найближчий час` менш повторюваними: Стіл зі справами має памʼятати, які Adventure Choice справи вже були запропоновані конкретному персонажу в поточному циклі, і не показувати їх знову, доки є ще принаймні три небачені в цьому циклі справи.
+
+**Runtime shape**
+
+- Store a per-character quest-offer cycle for the level-eligible `Три справи на найближчий час` pool.
+- When opening the quest table, choose three random eligible problems from the unseen-in-cycle pool while at least three unseen problems remain.
+- Mark the offered problem ids as seen for that cycle when the offer set is created, not only when the player accepts one.
+- When the unseen pool shrinks to three or fewer problems, reset the cycle and start a fresh random pass through the full eligible pool.
+- After a reset, avoid immediately repeating the problem accepted or offered in the previous roll when the pool size allows it; if the pool is too small, fall back deterministically instead of hiding the quest table.
+- Keep completed, locked, level-gated and retired quest rules separate from this visibility cycle.
+
+**Non-goals**
+
+- no new quest content in this slice;
+- no reward, XP, gold, item or cooldown rebalance;
+- no broad quest table redesign;
+- no global player-facing stats or popularity weighting.
+
+**Acceptance criteria**
+
+- Opening `Три справи на найближчий час` repeatedly rotates through unseen eligible problems before repeating old offers;
+- accepted and merely offered problems both count as seen for the current offer cycle;
+- when only three or fewer unseen eligible problems remain, the cycle resets and the next offer set is random from the refreshed pool;
+- the first offer after reset avoids the immediately previous accepted/offered problem when alternatives exist;
+- stale or duplicate offer callbacks do not create duplicate cycle entries or mutate unrelated quest progress;
+- tests cover per-character isolation, level-gated pools, reset threshold, immediate-repeat avoidance, tiny-pool fallback and replay-safe callbacks.
+
 ## Implemented in `0.1.2` — `/remort` After Level 13
 
 **Objective**
