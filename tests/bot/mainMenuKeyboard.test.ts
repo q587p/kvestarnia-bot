@@ -940,6 +940,49 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("offers a journal on terminal training doppelganger screens with logged turns", () => {
+    const session: SoloCombatSessionRecord = {
+      ...persistentFightSession(),
+      monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+      status: "won",
+      state: {
+        ...persistentFightSession().state!,
+        source: "training",
+        status: "won",
+        turnLog: [
+          {
+            eventId: "turn:1",
+            turn: 1,
+            hero: { hp: 17, mana: 5 },
+            monster: { hp: 0 },
+            summary: {
+              action: "attack",
+              heroOutcome: "hit",
+              heroDamage: 18,
+              monsterDamage: 0,
+              manaSpent: 0,
+              critical: false
+            }
+          }
+        ],
+        monster: {
+          id: TRAINING_DOPPELGANGER_MONSTER_ID,
+          hp: 0,
+          hpMax: 18
+        }
+      }
+    };
+
+    expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "📜 Журнал бою",
+      "↩️ Повернутися до кутка"
+    ]);
+    expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
+      "v1:spar:log:123e4567-e89b-12d3-a456-426614174000:0",
+      "v1:place:fighting-corner"
+    ]);
+  });
+
   it("keeps active turn-based duel cards on recoverable refresh only", () => {
     const keyboard = buildTurnBasedDuelKeyboard(
       turnBasedDuelKeyboardResult({

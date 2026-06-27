@@ -99,6 +99,17 @@ export type TrainingDoppelgangerLookupResult =
       reward: TrainingDoppelgangerRewardClaim | null;
     };
 
+export type TrainingDoppelgangerSnapshotResult =
+  | { state: "no-character" }
+  | { state: "not-found"; character: CharacterSummary }
+  | {
+      state: "found";
+      character: CharacterSummary;
+      doppelganger: TrainingDoppelgangerCopy;
+      session: SoloCombatSessionRecord;
+      reward: TrainingDoppelgangerRewardClaim | null;
+    };
+
 export type TrainingDoppelgangerTurnResult =
   | { state: "no-character" }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
@@ -180,6 +191,12 @@ export interface TrainingDoppelgangerRewardClaim {
   now: Date;
   levelChange: RewardLevelChange | null;
 }
+
+export type TrainingDoppelgangerDevResetResult =
+  | { state: "disabled" }
+  | { state: "no-character" }
+  | { state: "no-cooldown"; character: CharacterSummary }
+  | { state: "reset"; character: CharacterSummary; previousAvailableAt: Date; availableAt: Date };
 
 type TrainingResourceSettlementFlowResult =
   | { outcome: "ready" | "completed"; session: SoloCombatSessionRecord }
@@ -492,6 +509,83 @@ export class TrainingDoppelgangerService {
       status: session.state.status,
       expiresAt: session.expiresAt
     });
+  }
+
+  async getTrainingDoppelgangerSnapshotForTelegramUser(
+    telegramUserId: bigint,
+    sessionId: string
+  ): Promise<TrainingDoppelgangerSnapshotResult> {
+    const current = await this.cooldowns.findForTelegramUser(
+      telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return { state: "no-character" };
+    }
+
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+    const character = summarizeCharacter(current.character, { equippedItems });
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (!session || !isTrainingDoppelgangerMonsterId(session.monsterId)) {
+      return { state: "not-found", character };
+    }
+
+    const adopted = await this.adoptLegacyLeasedSettlementIfNeeded(telegramUserId, session);
+    const result = await this.getExistingTrainingSession(telegramUserId, character, adopted);
+
+    return {
+      state: "found",
+      character: result.character,
+      doppelganger: result.doppelganger,
+      session: result.session,
+      reward: result.state === "terminal" ? result.reward : null
+    };
+  }
+
+  async resetCooldownForDev(telegramUserId: bigint): Promise<TrainingDoppelgangerDevResetResult> {
+    if (!this.cooldowns.setAvailableAtForTelegramUser) {
+      return { state: "disabled" };
+    }
+
+    const current = await this.cooldowns.findForTelegramUser(
+      telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return { state: "no-character" };
+    }
+
+    const character = summarizeCharacter(current.character, {
+      equippedItems: await this.getEquippedItemContents(telegramUserId)
+    });
+
+    if (!current.cooldown) {
+      return { state: "no-cooldown", character };
+    }
+
+    const now = this.clock();
+    const updated = await this.cooldowns.setAvailableAtForTelegramUser(telegramUserId, {
+      key: TRAINING_DOPPELGANGER_COOLDOWN_KEY,
+      availableAt: now
+    });
+
+    if (!updated) {
+      return { state: "no-character" };
+    }
+
+    if (updated.state === "not-found") {
+      return { state: "no-cooldown", character };
+    }
+
+    return {
+      state: "reset",
+      character,
+      previousAvailableAt: current.cooldown.availableAt,
+      availableAt: updated.cooldown.availableAt
+    };
   }
 
   async resolveTurn(

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   makeTrainingDoppelgangerCallbackData,
+  makeTrainingDoppelgangerJournalCallbackData,
   makeTrainingDoppelgangerModeCallbackData,
   makeTrainingDoppelgangerTurnCallbackData,
+  makeTrainingDoppelgangerViewCallbackData,
   parseTrainingDoppelgangerCallbackData
 } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 
@@ -49,6 +51,23 @@ describe("training doppelganger callback data", () => {
     }
   );
 
+  it("round-trips journal and view callbacks within Telegram limits", () => {
+    const sessionId = "123e4567-e89b-12d3-a456-426614174000";
+    const view = makeTrainingDoppelgangerViewCallbackData(sessionId);
+    const journal = makeTrainingDoppelgangerJournalCallbackData({ sessionId, page: 2 });
+
+    expect(Buffer.byteLength(view, "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(journal, "utf8")).toBeLessThanOrEqual(64);
+    expect(parseTrainingDoppelgangerCallbackData(view)).toEqual({
+      ok: true,
+      value: { type: "view", sessionId }
+    });
+    expect(parseTrainingDoppelgangerCallbackData(journal)).toEqual({
+      ok: true,
+      value: { type: "journal", sessionId, page: 2 }
+    });
+  });
+
   it("rejects invalid training callbacks", () => {
     expect(parseTrainingDoppelgangerCallbackData("v1:spar:duel")).toEqual({
       ok: false,
@@ -65,6 +84,10 @@ describe("training doppelganger callback data", () => {
     expect(parseTrainingDoppelgangerCallbackData(`v1:spar:${"x".repeat(80)}`)).toEqual({
       ok: false,
       error: "too-long"
+    });
+    expect(parseTrainingDoppelgangerCallbackData("v1:spar:log:123e4567-e89b-12d3-a456-426614174000:-1")).toEqual({
+      ok: false,
+      error: "invalid-turn"
     });
   });
 });

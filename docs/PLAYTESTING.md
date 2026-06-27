@@ -23,10 +23,11 @@ Use one level 3+ account with local dev commands enabled where helpful. Use mult
 7. In a two-enemy threat fight, use Mage, Bureaucramancer, Bard, Kharakternyk, Бісини or dryland Rusalka abilities and verify each living enemy is affected once.
 8. Use Ranger `Рикошетний постріл` in a two-enemy fight and verify the primary target remains clear while splash damage does not double-hit it.
 9. Use Domovyk, Dwarf, Molfar Soul, Priest, Bard or Varenyk support-ready abilities; verify current solo fallback affects only the hero and does not claim party behavior.
-10. Use `/spar`; verify player class and race abilities work in training, while the doppelganger keeps existing copied skill behavior and stores the copied race/class ability ids in debug state.
-11. Open combat journal pages after class/race ability turns; verify stored ability names, cooldown notices and per-target summaries replay without rerolling.
-12. Open quick and turn-based duel screens; verify quick duel remains instant without turn-action buttons, while turn-based duel shows available class/race actions and hides them on mana/cooldown.
-13. In focused seeded-state QA or automated tests, force a class/race critical fumble and verify it consumes normal mana/cooldown, shows the stored funny line, applies the stored consequence and replays without rerolling. Do not add this as a player-facing news/manual spoiler path.
+10. Use `/spar`; verify player class and race abilities work in training, the start card shows `Порада дня`, active training cards show `Бій: N хід` plus the 23-second hint, and the doppelganger keeps existing copied skill behavior while storing the copied race/class ability ids in debug state.
+11. Finish a training fight; verify `📜 Журнал бою` reopens stored training turns, and use `/dev_reset_doppelganger` locally to make the next training start available without changing production cooldown rules.
+12. Open combat journal pages after class/race ability turns; verify stored ability names, cooldown notices and per-target summaries replay without rerolling.
+13. Open quick and turn-based duel screens; verify quick duel remains instant without turn-action buttons, while turn-based duel shows available class/race actions and hides them on mana/cooldown.
+14. In focused seeded-state QA or automated tests, force a class/race critical fumble and verify it consumes normal mana/cooldown, shows the stored funny line, applies the stored consequence and replays without rerolling. Do not add this as a player-facing news/manual spoiler path.
 
 ## 0.2.6 — Passage Search smoke
 

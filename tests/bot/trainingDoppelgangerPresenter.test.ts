@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentTrainingDoppelganger,
   presentTrainingDoppelgangerIntro,
+  presentTrainingDoppelgangerJournal,
   presentTrainingDoppelgangerLevelGate,
   presentTrainingDoppelgangerNeedsRest,
   presentTrainingDoppelgangerNoCharacter,
@@ -24,6 +25,7 @@ describe("training doppelganger presenter", () => {
     expect(text).toContain("🥊 <b>Бійцівський куток</b>");
     expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(text).toContain("Проти вас: <b>Сумлінний Допельґанґер</b>");
+    expect(text).toContain("<i>Порада дня:");
     expect(text).not.toContain("{targetName}");
     expect(text).not.toContain("undefined");
     expect(text).not.toContain("❤️ Ви:");
@@ -39,15 +41,50 @@ describe("training doppelganger presenter", () => {
       session: buildSession()
     });
 
-    expect(text).not.toContain("🥊 <b>Бійцівський куток</b>");
+    expect(text).toContain("🥊 <b>Бій: 1 хід</b>");
     expect(text).toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(text).not.toContain("Сумлінний Допельґанґер");
     expect(text).not.toContain("Титул копії");
     expect(text).toContain("❤️ Ви: 18/22 · мана 7/10");
     expect(text).toContain("🪞 Копія: 22/22");
     expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
     expect(text).not.toContain("Нагород немає");
     expect(text).not.toContain("<b>Мандрівник</b>");
+  });
+
+  it("renders a training battle journal page", () => {
+    const character = buildCharacter();
+    const text = presentTrainingDoppelgangerJournal({
+      state: "found",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession({
+        turnLog: [
+          {
+            eventId: "turn:1",
+            turn: 1,
+            hero: { hp: 17, mana: 5 },
+            monster: { hp: 18 },
+            summary: {
+              action: "attack",
+              heroOutcome: "hit",
+              heroDamage: 4,
+              monsterDamage: 1,
+              manaSpent: 0,
+              critical: false
+            }
+          }
+        ]
+      }),
+      reward: null
+    }, 0);
+
+    expect(text).toContain("📜 <b>Журнал бою</b>");
+    expect(text).toContain("Хід <b>1</b> · запис 1/1");
+    expect(text).toContain("❤️ Ви після ходу: 17/22 · мана 5/10");
+    expect(text).toContain("🪞 Копія після ходу: 18/22");
+    expect(text).toContain("Атака влучає на 4 шкоди.");
   });
 
   it("renders terminal XP without gold or manatky", () => {
@@ -359,6 +396,13 @@ function buildSession(
     status?: "active" | "won";
     monsterHp?: number;
     lastTurn?: CombatTurnSummary;
+    turnLog?: Array<{
+      eventId: string;
+      turn: number;
+      hero: { hp: number; mana: number };
+      monster: { hp: number };
+      summary: CombatTurnSummary;
+    }>;
     monster?: {
       name?: string;
       raceId?: string;
@@ -401,6 +445,7 @@ function buildSession(
         ...(overrides.monster?.title ? { title: overrides.monster.title } : {}),
         ...(overrides.monster?.debugTrace ? { debugTrace: overrides.monster.debugTrace } : {})
       },
+      ...(overrides.turnLog ? { turnLog: overrides.turnLog } : {}),
       ...(overrides.lastTurn ? { lastTurn: overrides.lastTurn } : {})
     },
     reward: null,

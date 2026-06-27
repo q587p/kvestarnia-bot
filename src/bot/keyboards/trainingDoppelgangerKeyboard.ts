@@ -8,8 +8,10 @@ import {
   getPersistentFightSkillLabel
 } from "../../services/fightService";
 import {
+  makeTrainingDoppelgangerJournalCallbackData,
   makeTrainingDoppelgangerModeCallbackData,
-  makeTrainingDoppelgangerTurnCallbackData
+  makeTrainingDoppelgangerTurnCallbackData,
+  makeTrainingDoppelgangerViewCallbackData
 } from "../callbacks/trainingDoppelgangerCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
@@ -65,8 +67,67 @@ export function buildTrainingDoppelgangerKeyboard(
     );
   }
 
-  return new InlineKeyboard().text(
-    "↩️ Повернутися до кутка",
-    makePlaceCallbackData("fighting-corner")
+  const keyboard = new InlineKeyboard();
+  const logLength = session?.state?.turnLog?.length ?? 0;
+
+  if (session && logLength > 0) {
+    keyboard
+      .text(
+        "📜 Журнал бою",
+        makeTrainingDoppelgangerJournalCallbackData({
+          sessionId: session.id,
+          page: logLength - 1
+        })
+      )
+      .row();
+  }
+
+  return keyboard.text("↩️ Повернутися до кутка", makePlaceCallbackData("fighting-corner"));
+}
+
+export function buildTrainingDoppelgangerJournalKeyboard(
+  session: SoloCombatSessionRecord,
+  requestedPage: number
+): InlineKeyboard {
+  const totalPages = Math.max(1, session.state?.turnLog?.length ?? 0);
+  const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
+  const keyboard = new InlineKeyboard();
+
+  if (totalPages > 1) {
+    if (page > 0) {
+      keyboard.text(
+        "⏮️ Початок",
+        makeTrainingDoppelgangerJournalCallbackData({ sessionId: session.id, page: 0 })
+      );
+      keyboard.text(
+        "◀️ Назад",
+        makeTrainingDoppelgangerJournalCallbackData({ sessionId: session.id, page: page - 1 })
+      );
+      keyboard.row();
+    }
+
+    keyboard
+      .text(
+        `${page + 1}/${totalPages}`,
+        makeTrainingDoppelgangerJournalCallbackData({ sessionId: session.id, page })
+      )
+      .row();
+
+    if (page < totalPages - 1) {
+      keyboard.text(
+        "Далі ▶️",
+        makeTrainingDoppelgangerJournalCallbackData({ sessionId: session.id, page: page + 1 })
+      );
+      keyboard.text(
+        "Кінець ⏭️",
+        makeTrainingDoppelgangerJournalCallbackData({ sessionId: session.id, page: totalPages - 1 })
+      );
+      keyboard.row();
+    }
+  }
+
+  return keyboard.text(
+    session.state?.status === "active" ? "↩️ До тренування" : "↩️ До результатів",
+    makeTrainingDoppelgangerViewCallbackData(session.id)
   );
 }

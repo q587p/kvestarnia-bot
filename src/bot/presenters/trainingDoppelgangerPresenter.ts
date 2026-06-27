@@ -2,12 +2,15 @@ import {
   buildDoppelgangerCounterFlavor,
   selectDoppelgangerLine,
   type CombatState,
+  type CombatTurnLogEntry,
   type CombatTurnSummary
 } from "../../domain/combat";
 import type {
   TrainingDoppelgangerLookupResult,
+  TrainingDoppelgangerSnapshotResult,
   TrainingDoppelgangerTurnResult
 } from "../../services/trainingDoppelgangerService";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentLevelUpCelebration } from "./levelGrowthPresenter";
 import { presentRewardAmount } from "./rewardPresenter";
@@ -122,7 +125,9 @@ export function presentTrainingDoppelgangerIntro(
     "",
     escapeHtml(spawnLine.text),
     "",
-    `Проти вас: <b>${escapeHtml(result.doppelganger.name)}</b> · ${escapeHtml(result.doppelganger.raceName)} · ${escapeHtml(result.doppelganger.className)} · рівень ${result.doppelganger.level}`
+    `Проти вас: <b>${escapeHtml(result.doppelganger.name)}</b> · ${escapeHtml(result.doppelganger.raceName)} · ${escapeHtml(result.doppelganger.className)} · рівень ${result.doppelganger.level}`,
+    "",
+    presentBattleStartTip(result.character, result.session.id)
   ].join("\n");
 }
 
@@ -177,9 +182,12 @@ function presentTrainingDoppelgangerState(input: {
 }): string {
   const state = input.session.state;
   const lines = [
+    state?.status === "active"
+      ? `🥊 <b>Бій: ${state.turn} хід</b>`
+      : "🥊 <b>Бій: завершено</b>",
+    "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
-    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
-    `Хід: ${state?.turn ?? "?"}`
+    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`
   ];
 
   if (state?.status === "active") {
@@ -228,10 +236,58 @@ function presentTrainingDoppelgangerState(input: {
       "XP за прострочене тренування немає."
     );
   } else {
-    lines.push("", `<b>${escapeHtml(input.character.name)}</b>, що робимо?`);
+    lines.push(
+      "",
+      `<b>${escapeHtml(input.character.name)}</b>, що робимо?`,
+      "⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист."
+    );
   }
 
   return lines.join("\n");
+}
+
+export function presentTrainingDoppelgangerJournal(
+  result: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>,
+  requestedPage: number
+): string {
+  const log = result.session.state?.turnLog ?? [];
+
+  if (log.length === 0) {
+    return [
+      "📜 <b>Журнал бою</b>",
+      presentCharacterHeader(result.character),
+      "",
+      "У цьому тренуванні ще немає записаних ходів. Дзеркало називає це підготовчим томом."
+    ].join("\n");
+  }
+
+  const page = Math.max(0, Math.min(Math.floor(requestedPage), log.length - 1));
+  const entry = log[page] ?? log[log.length - 1]!;
+  const state = result.session.state;
+  const lines = [
+    "📜 <b>Журнал бою</b>",
+    presentCharacterHeader(result.character),
+    "",
+    `Хід <b>${entry.turn}</b> · запис ${page + 1}/${log.length}`,
+    `❤️ Ви після ходу: ${entry.hero.hp}/${state?.hero.hpMax ?? "?"} · мана ${entry.hero.mana}/${state?.hero.manaMax ?? "?"}`,
+    `🪞 Копія після ходу: ${entry.monster.hp}/${state?.monster.hpMax ?? "?"}`,
+    "",
+    presentTrainingTurnSummary(entry.summary)
+  ];
+  const notices = presentJournalTurnNotices(entry);
+
+  if (notices.length > 0) {
+    lines.push("", ...notices);
+  }
+
+  return lines.join("\n");
+}
+
+function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
+  return [
+    ...presentAbilityCooldowns(entry.cooldowns),
+    ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`)
+  ];
 }
 
 function presentTrainingReward(
@@ -531,6 +587,25 @@ function presentSkillAction(skillId: string | undefined): string {
   const skill = getCombatSkillDisplay(skillId);
 
   return `Вміння ${skill.icon} <i>${escapeHtml(skill.name)}</i>`;
+}
+
+function presentBattleStartTip(
+  character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"],
+  seed: string
+): string {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "quest.start",
+    scene: "fight",
+    seed
+  });
+
+  return flavor
+    ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>`
+    : "<i>Порада дня: якщо дзеркало копіює ваш план, змініть хоча б вираз обличчя.</i>";
+}
+
+function trimTerminalPunctuation(value: string): string {
+  return value.trim().replace(/[.!?…]+$/u, "");
 }
 
 function formatTrainingCooldown(availableAt: Date, now: Date): string {

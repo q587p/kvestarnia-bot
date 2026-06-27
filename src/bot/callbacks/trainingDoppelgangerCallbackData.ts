@@ -6,6 +6,8 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type TrainingDoppelgangerCallback =
   | { type: "open" }
   | { type: "mode"; mode: TrainingDoppelgangerStartMode }
+  | { type: "view"; sessionId: string }
+  | { type: "journal"; sessionId: string; page: number }
   | { type: "turn"; sessionId: string; turn: number; action: PlayerCombatActionType };
 export type TrainingDoppelgangerCallbackError =
   | "invalid-version"
@@ -16,6 +18,8 @@ export type TrainingDoppelgangerCallbackError =
 
 const PREFIX = "v1:spar";
 const MODE_PREFIX = "v1:spar:mode";
+const VIEW_PREFIX = "v1:spar:view";
+const JOURNAL_PREFIX = "v1:spar:log";
 const TURN_PREFIX = "v1:spar:turn";
 const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "race", "flee"]);
 const startModes = new Set<TrainingDoppelgangerStartMode>([
@@ -43,6 +47,17 @@ export function makeTrainingDoppelgangerTurnCallbackData(input: {
   action: PlayerCombatActionType;
 }): string {
   return `${TURN_PREFIX}:${input.sessionId}:${input.turn}:${input.action}`;
+}
+
+export function makeTrainingDoppelgangerViewCallbackData(sessionId: string): string {
+  return `${VIEW_PREFIX}:${sessionId}`;
+}
+
+export function makeTrainingDoppelgangerJournalCallbackData(input: {
+  sessionId: string;
+  page: number;
+}): string {
+  return `${JOURNAL_PREFIX}:${input.sessionId}:${input.page}`;
 }
 
 export function parseTrainingDoppelgangerCallbackData(
@@ -101,6 +116,40 @@ export function parseTrainingDoppelgangerCallbackData(
       turn,
       action: action as PlayerCombatActionType
     });
+  }
+
+  if (data.startsWith(`${VIEW_PREFIX}:`)) {
+    const [, section, scene, sessionId, ...rest] = data.split(":");
+
+    if (section !== "spar" || scene !== "view" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({ type: "view", sessionId });
+  }
+
+  if (data.startsWith(`${JOURNAL_PREFIX}:`)) {
+    const [, section, scene, sessionId, pageRaw, ...rest] = data.split(":");
+
+    if (section !== "spar" || scene !== "log" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    const page = Number(pageRaw);
+
+    if (!Number.isInteger(page) || page < 0) {
+      return err("invalid-turn");
+    }
+
+    return ok({ type: "journal", sessionId, page });
   }
 
   if (!data.startsWith(`${PREFIX}:`)) {
