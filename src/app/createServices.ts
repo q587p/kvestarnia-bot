@@ -44,17 +44,15 @@ export function createServices(
     repositories.combatBalanceAnalytics,
     { enabled: config.combatBalanceAnalyticsEnabled }
   );
-  const fight = new FightService(
-    repositories.characters,
-    repositories.dailyActions,
-    undefined,
-    repositories.soloCombatSessions,
-    undefined,
-    repositories.equipment,
-    combatBalanceAnalytics,
-    repositories.pendingPassageEncounters,
-    repositories.shynok
-  );
+  const fight = new FightService({
+    characters: repositories.characters,
+    dailyActions: repositories.dailyActions,
+    combatSessions: repositories.soloCombatSessions,
+    equipment: repositories.equipment,
+    combatAnalytics: combatBalanceAnalytics,
+    pendingPassageEncounters: repositories.pendingPassageEncounters,
+    shynok: repositories.shynok
+  });
   const presence = new PresenceService(repositories.presence);
 
   return {

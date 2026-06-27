@@ -588,18 +588,50 @@ export type PassageSearchRestWindowResult =
   | Extract<FightLookupResult, { state: "no-character" | "needs-rest" | "combat-blocked" | "training-active" | "persistent-active" | "persistent-terminal" | "persistent-not-issued" | "level-retired" | "ready" | "already-completed" }>
   | Extract<FightLookupResult, { state: "persistent-ready" | "monster-rest" }>;
 
+export interface FightServiceDependencies {
+  characters: CharacterRepository;
+  dailyActions: DailyActionRepository;
+  clock?: Clock;
+  combatSessions?: SoloCombatSessionRepository;
+  rng?: RandomSource;
+  equipment?: EquipmentRepository;
+  combatAnalytics?: CombatBalanceAnalyticsService;
+  pendingPassageEncounters?: PendingPassageEncounterRepository;
+  shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
+}
+
 export class FightService {
-  constructor(
-    private readonly characters: CharacterRepository,
-    private readonly dailyActions: DailyActionRepository,
-    private readonly clock: Clock = systemClock,
-    private readonly combatSessions?: SoloCombatSessionRepository,
-    private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly equipment?: EquipmentRepository,
-    private readonly combatAnalytics?: CombatBalanceAnalyticsService,
-    private readonly pendingPassageEncounters?: PendingPassageEncounterRepository,
-    private readonly shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
-  ) {}
+  private readonly characters: CharacterRepository;
+  private readonly dailyActions: DailyActionRepository;
+  private readonly clock: Clock;
+  private readonly combatSessions: SoloCombatSessionRepository | undefined;
+  private readonly rng: RandomSource;
+  private readonly equipment: EquipmentRepository | undefined;
+  private readonly combatAnalytics: CombatBalanceAnalyticsService | undefined;
+  private readonly pendingPassageEncounters: PendingPassageEncounterRepository | undefined;
+  private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
+
+  constructor({
+    characters,
+    dailyActions,
+    clock = systemClock,
+    combatSessions,
+    rng = new CryptoRandomSource(),
+    equipment,
+    combatAnalytics,
+    pendingPassageEncounters,
+    shynok
+  }: FightServiceDependencies) {
+    this.characters = characters;
+    this.dailyActions = dailyActions;
+    this.clock = clock;
+    this.combatSessions = combatSessions;
+    this.rng = rng;
+    this.equipment = equipment;
+    this.combatAnalytics = combatAnalytics;
+    this.pendingPassageEncounters = pendingPassageEncounters;
+    this.shynok = shynok;
+  }
 
   private async advanceExpiredPersistentTurn(
     telegramUserId: bigint,
