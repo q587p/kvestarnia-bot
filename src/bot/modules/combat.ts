@@ -12,8 +12,13 @@ PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
 } from "../../services/presenceService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
+import {
+  getPassageSearchNodeKey,
+  PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+} from "../../services/passageSearchService";
 import type { BotServices } from "../botServices";
 import { parseFightCallbackData,type FightCallback } from "../callbacks/fightCallbackData";
+import { parsePassageSearchCallbackData, type PassageSearchCallback } from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
 makeQuestCallbackData
@@ -32,6 +37,8 @@ import {
 buildFightResultKeyboard,
 buildPersistentFightDifficultyKeyboard,
 buildPersistentFightJournalKeyboard,
+buildPassageSearchCancelKeyboard,
+buildPassageSearchRunningKeyboard,
 buildPersistentFightPassagePreviewKeyboard,
 buildPersistentFightResultKeyboard,
 resolvePersistentFightPresenceLocation
@@ -55,6 +62,7 @@ presentPersistentFightTurn,
 presentQuestProgressAfterFight,
 type QuestProgressAfterFightEntry
 } from "../presenters/fightPresenter";
+import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
@@ -68,9 +76,17 @@ presentTrainingDoppelgangerTurn
 } from "../presenters/trainingDoppelgangerPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { isPassageSearchAvailable } from "../passageSearchAvailability";
 
 import { sendLevelUpCelebration } from "./levelUp";
-import { refreshCurrentMainMenuLocationKeyboard } from "./mainMenu";
+import {
+refreshCurrentMainMenuLocationKeyboard
+} from "./mainMenu";
+import {
+guardActivePassageSearchCommand,
+sendPassageSearchMonsterAttackFight,
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
 import {
 placeCallbackToPersistentFightPassage,
 presenceLocationToPersistentFightPassage,
@@ -87,9 +103,14 @@ export function registerCombatBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
+  bot.command("fight", async (ctx, next) => {
+    await guardActivePassageSearchCommand(ctx, services, next);
+  });
+
   registerFightCommand(bot, services.fight, {
     presence: services.presence,
-    tavernRaid: services.tavern
+    tavernRaid: services.tavern,
+    passageSearch: services.passageSearch
   });
   if (services.trainingDoppelganger) {
     registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
@@ -119,6 +140,17 @@ export function registerCombatBotModule(
 
     await handleFightCallback(ctx, parsed.value, services);
   });
+
+  bot.callbackQuery(/^v1:search:/, async (ctx) => {
+    const parsed = parsePassageSearchCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok || !services.passageSearch) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handlePassageSearchCallback(ctx, parsed.value, services);
+  });
 }
 
 async function handleTrainingDoppelgangerCallback(
@@ -130,6 +162,10 @@ async function handleTrainingDoppelgangerCallback(
 
   if (!telegramUserId || !services.trainingDoppelganger) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -200,6 +236,10 @@ async function handleFightCallback(
     return;
   }
 
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
   if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
     return;
   }
@@ -239,13 +279,20 @@ async function handleFightCallback(
       if (gate.state === "persistent-ready") {
         await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightDifficultyKeyboard()
+          reply_markup: buildPersistentFightDifficultyKeyboard({
+            searchAvailable: await isPassageSearchAvailable(
+              services.passageSearch,
+              telegramUserId,
+              PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+            )
+          })
         });
         return;
       }
       await sendFight(ctx, services.fight, "reply", {
         presence: services.presence,
         tavernRaid: services.tavern,
+        passageSearch: services.passageSearch,
         requireKorchmaInterior: false
       });
       return;
@@ -267,7 +314,12 @@ async function handleFightCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightPassagePreviewKeyboard({
           passage: resultPassage.passage,
-          encounterToken: result.encounterToken
+          encounterToken: result.encounterToken,
+          searchAvailable: await isPassageSearchAvailable(
+            services.passageSearch,
+            telegramUserId,
+            getPassageSearchNodeKey(resultPassage.passage)
+          )
         })
       });
       return;
@@ -282,13 +334,20 @@ async function handleFightCallback(
       if (gate.state === "persistent-ready") {
         await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightDifficultyKeyboard()
+          reply_markup: buildPersistentFightDifficultyKeyboard({
+            searchAvailable: await isPassageSearchAvailable(
+              services.passageSearch,
+              telegramUserId,
+              PASSAGE_SEARCH_NODE_DEEP_LEVEL1
+            )
+          })
         });
         return;
       }
       await sendFight(ctx, services.fight, "reply", {
         presence: services.presence,
         tavernRaid: services.tavern,
+        passageSearch: services.passageSearch,
         requireKorchmaInterior: false
       });
       return;
@@ -307,6 +366,7 @@ async function handleFightCallback(
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: false,
       suppressStartIntro: Boolean(result.state === "persistent-active" && result.started)
     });
@@ -447,6 +507,120 @@ async function handleFightCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
+}
+
+async function handlePassageSearchCallback(
+  ctx: Context,
+  callback: PassageSearchCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId || !services.passageSearch) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern)) {
+    return;
+  }
+
+  const result = await handlePassageSearchAction(telegramUserId, callback, services);
+
+  await safeAnswerCallbackQuery(ctx);
+  const replyMarkup = result.state === "started" || result.state === "running"
+    ? buildPassageSearchRunningKeyboard(result.action.token)
+    : result.state === "confirm-cancel"
+      ? buildPassageSearchCancelKeyboard(result.action.token)
+      : undefined;
+  await safeEditMessageText(ctx, presentPassageSearch(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+  });
+  if (result.state === "started" || result.state === "running") {
+    const chatId = getSearchNotificationChatId(ctx);
+    if (chatId) {
+      await services.passageSearch.recordNotificationTarget(
+        telegramUserId,
+        result.action.token,
+        { chatId }
+      );
+    }
+  }
+
+  if (result.state === "monster-attack") {
+    await sendPassageSearchMonsterAttackFight(ctx, services, result);
+  }
+}
+
+function getSearchNotificationChatId(ctx: Context): string | null {
+  const chatId = ctx.chat?.id ?? ctx.callbackQuery?.message?.chat.id;
+
+  return chatId === undefined ? null : chatId.toString();
+}
+
+async function handlePassageSearchAction(
+  telegramUserId: bigint,
+  callback: PassageSearchCallback,
+  services: BotServices
+) {
+  if (!services.passageSearch) {
+    return { state: "no-character" as const };
+  }
+
+  if (callback.type === "start-passage") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startPassageSearch(telegramUserId, {
+      passage: callback.passage,
+      encounterToken: callback.encounterToken,
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
+  if (callback.type === "start-safe-passage") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startSafePassageRestSearch(telegramUserId, {
+      passage: callback.passage,
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
+  if (callback.type === "start-descent") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startDescentSearch(telegramUserId, {
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
+  if (callback.type === "start-deep-level-one") {
+    const currentLocationId = await getCurrentLocationId(services, telegramUserId);
+
+    return services.passageSearch.startDeepLevelOneSearch(telegramUserId, {
+      ...(currentLocationId ? { currentLocationId } : {})
+    });
+  }
+
+  if (callback.type === "check" || callback.type === "keep") {
+    return services.passageSearch.checkSearch(telegramUserId, callback.token);
+  }
+
+  if (callback.type === "ask-cancel") {
+    return services.passageSearch.previewCancel(telegramUserId, callback.token);
+  }
+
+  return services.passageSearch.cancelSearch(telegramUserId, callback.token);
+}
+
+async function getCurrentLocationId(
+  services: BotServices,
+  telegramUserId: bigint
+): Promise<string | undefined> {
+  const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+  return place.state === "ready" ? place.locationId : undefined;
 }
 
 type YegerProgressSnapshot = { wins: number; target: number } | null;

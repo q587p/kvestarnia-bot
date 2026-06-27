@@ -169,6 +169,12 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     icon: "🎶",
     description: "скинути бардівський виступ локально",
     devOnly: "grant"
+  },
+  {
+    commands: ["dev_reset_passage_search"],
+    icon: "🔎",
+    description: "скинути пошук у проходах локально",
+    devOnly: "grant"
   }
 ];
 

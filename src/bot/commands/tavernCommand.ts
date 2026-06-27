@@ -14,6 +14,10 @@ import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
+import {
+  PASSAGE_SEARCH_NODE_DESCENT,
+  type PassageSearchService
+} from "../../services/passageSearchService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import {
   PROBLEM_QUEST_REQUIRED_LEVEL,
@@ -57,6 +61,7 @@ import {
   presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { isPassageSearchAvailable } from "../passageSearchAvailability";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 type TavernCommandKeyboard =
@@ -73,7 +78,7 @@ type TavernCommandKeyboard =
   | { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation }
   | "fighting-corner"
   | "deep"
-  | { state: "deep"; munchkinLocation?: MunchkinLocation }
+  | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
   | "back-to-fighting-corner"
   | "back-to-hall"
   | "arrivals"
@@ -374,7 +379,7 @@ export async function sendKorchmaDeepClosed(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options: { now?: Date } = {}
+  options: { now?: Date; passageSearch?: PassageSearchService | undefined } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -410,11 +415,16 @@ export async function sendKorchmaDeepClosed(
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_DEEP);
   const munchkinLocation = getMunchkinLocationAt(options.now ?? systemClock());
+  const searchAvailable = await isPassageSearchAvailable(
+    options.passageSearch,
+    telegramUserId,
+    PASSAGE_SEARCH_NODE_DESCENT
+  );
   await sendText(
     ctx,
     mode,
     presentKorchmaDeepClosed(result.character, { munchkinLocation }),
-    { state: "deep", munchkinLocation }
+    { state: "deep", munchkinLocation, searchAvailable }
   );
 }
 
@@ -602,9 +612,14 @@ async function sendText(
               ? buildKorchmaDeepKeyboard()
             : isDeepKeyboard(keyboard)
               ? buildKorchmaDeepKeyboard(
-                  keyboard.munchkinLocation === undefined
-                    ? {}
-                    : { munchkinLocation: keyboard.munchkinLocation }
+                  {
+                    ...(keyboard.munchkinLocation === undefined
+                      ? {}
+                      : { munchkinLocation: keyboard.munchkinLocation }),
+                    ...(keyboard.searchAvailable === undefined
+                      ? {}
+                      : { searchAvailable: keyboard.searchAvailable })
+                  }
                 )
             : keyboard === "back-to-fighting-corner"
               ? buildKorchmaFightingCornerKeyboard()
@@ -669,7 +684,7 @@ function isHallKeyboard(
 
 function isDeepKeyboard(
   keyboard: TavernCommandKeyboard
-): keyboard is { state: "deep"; munchkinLocation?: MunchkinLocation } {
+): keyboard is { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "deep";
 }
 

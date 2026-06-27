@@ -1580,6 +1580,140 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toMatchObject({ quantity: 1 });
   });
 
+  it("lets combat item use replace the player's own pending item-use preview", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-combat-item-own-use-preview",
+      characterId: "character-combat-item-own-use-preview",
+      telegramUserId: 9403n
+    });
+    const state = makeCombatState("combat-item-own-use-preview", "monster.deadline-spider");
+    state.hero.hp = 10;
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "combat-item-own-use-preview",
+        characterId: "character-combat-item-own-use-preview",
+        monsterId: "monster.deadline-spider",
+        stateJson: state,
+        status: "active",
+        turn: 1,
+        expiresAt: new Date("2026-06-24T14:30:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-combat-item-own-use-preview",
+        characterId: "character-combat-item-own-use-preview",
+        kind: "solo-combat",
+        referenceId: "combat-item-own-use-preview"
+      }
+    });
+    await prisma.characterItem.create({
+      data: {
+        id: "stack-combat-item-own-use-preview",
+        characterId: "character-combat-item-own-use-preview",
+        itemId: "item.responsible-panic-bandage",
+        quantity: 1
+      }
+    });
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-combat-old-replaced",
+        token: "combatoldreplaced",
+        characterId: "character-combat-item-own-use-preview",
+        telegramUserId: 9403n,
+        itemId: "item.responsible-panic-bandage",
+        itemName: "Бинт відповідальної паніки",
+        itemFingerprint: "test-fingerprint",
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "pending",
+        reservationKey: null,
+        previewJson: {
+          mode: "single",
+          rulesVersion: "item-use-v1",
+          healAmount: 7,
+          hpBefore: 10,
+          hpAfter: 17
+        },
+        expiresAt: new Date("2026-06-24T14:10:00.000Z"),
+        createdAt: new Date("2026-06-24T13:58:00.000Z"),
+        updatedAt: new Date("2026-06-24T13:58:00.000Z")
+      }
+    });
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-combat-replaced",
+        token: "combatreplaced",
+        characterId: "character-combat-item-own-use-preview",
+        telegramUserId: 9403n,
+        itemId: "item.responsible-panic-bandage",
+        itemName: "Бинт відповідальної паніки",
+        itemFingerprint: "test-fingerprint",
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "pending",
+        reservationKey: "use:character-combat-item-own-use-preview:item.responsible-panic-bandage",
+        previewJson: {
+          mode: "single",
+          rulesVersion: "item-use-v1",
+          healAmount: 7,
+          hpBefore: 10,
+          hpAfter: 17
+        },
+        expiresAt: new Date("2026-06-24T14:10:00.000Z"),
+        createdAt: new Date("2026-06-24T13:59:00.000Z"),
+        updatedAt: new Date("2026-06-24T14:00:00.000Z")
+      }
+    });
+
+    await expect(repository.applyCombatItemTurnById("combat-item-own-use-preview", 1, {
+      telegramUserId: 9403n,
+      characterId: "character-combat-item-own-use-preview",
+      itemId: "item.responsible-panic-bandage",
+      now: new Date("2026-06-24T14:00:00.000Z"),
+      state: {
+        ...state,
+        turn: 2,
+        hero: {
+          ...state.hero,
+          hp: 17
+        }
+      },
+      status: "active",
+      expiresAt: new Date("2026-06-24T14:23:00.000Z")
+    })).resolves.toMatchObject({
+      outcome: "updated",
+      session: {
+        id: "combat-item-own-use-preview",
+        turn: 2,
+        status: "active"
+      }
+    });
+
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: "character-combat-item-own-use-preview",
+          itemId: "item.responsible-panic-bandage"
+        }
+      }
+    })).resolves.toBeNull();
+    await expect(prisma.itemUseOrder.findUnique({
+      where: { id: "item-use-combat-replaced" }
+    })).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: new Date("2026-06-24T14:00:00.000Z")
+    });
+    await expect(prisma.itemUseOrder.findUnique({
+      where: { id: "item-use-combat-old-replaced" }
+    })).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: new Date("2026-06-24T14:00:00.000Z")
+    });
+  });
+
   it("scans past newer active and non-ordinary sessions for recent ordinary monsters", async () => {
     await seedCharacter(prisma, {
       userId: "user-history",

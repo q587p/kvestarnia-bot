@@ -59,54 +59,66 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           where: {
             characterId: character.id,
             itemId: input.item.id,
-            status: "pending",
+            status: { in: ["pending", "processing"] },
             expiresAt: { gt: input.now }
           },
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
-          if (isRestoreToFullOrder(existing)) {
-            return { state: "reserved" };
-          }
+          await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
+          if (existing.status === "processing") {
+            return {
+              state: "preview-replayed",
+              character: toCharacterRecord(character),
+              order: existing
+            };
+          } else if (isRestoreToFullOrder(existing)) {
+            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
+              ...existing.preview,
+              kind: "cancelled",
+              itemId: existing.itemId,
+              itemName: existing.itemName
+            }, expectedTerminalOrderStatus(existing));
+          } else {
+            const effect = getItemUseEffect(input.item);
+            const validation = await validatePendingPreviewRefresh(tx, existing, character, {
+              item: input.item,
+              itemContents: input.itemContents,
+              itemFingerprint: input.itemFingerprint,
+              now: input.now,
+              effect
+            });
+            if (validation.state !== "valid") {
+              await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
+                ? {
+                    ...validation.preview,
+                    kind: "full-hp",
+                    itemId: existing.itemId,
+                    itemName: existing.itemName
+                  }
+                : {
+                    ...existing.preview,
+                    kind: "expired",
+                    itemId: existing.itemId,
+                    itemName: existing.itemName
+                  },
+                validation.state === "full-hp" ? "completed" : "expired");
 
-          const effect = getItemUseEffect(input.item);
-          const validation = await validatePendingPreviewRefresh(tx, existing, character, {
-            item: input.item,
-            itemContents: input.itemContents,
-            itemFingerprint: input.itemFingerprint,
-            now: input.now,
-            effect
-          });
-          if (validation.state !== "valid") {
-            await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
-              ? {
-                  ...validation.preview,
-                  kind: "full-hp",
-                  itemId: existing.itemId,
-                  itemName: existing.itemName
-                }
-              : {
-                  ...existing.preview,
-                  kind: "expired",
-                  itemId: existing.itemId,
-                  itemName: existing.itemName
-                },
-              validation.state === "full-hp" ? "completed" : "expired");
-
-            return validation.state === "full-hp"
-              ? {
-                  state: "full-hp",
-                  character: toCharacterRecord(character),
-                  preview: validation.preview
-                }
-              : { state: validation.state };
+              return validation.state === "full-hp"
+                ? {
+                    state: "full-hp",
+                    character: toCharacterRecord(character),
+                    preview: validation.preview
+                  }
+                : { state: validation.state };
+            }
+            const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
+            return {
+              state: "preview-replayed",
+              character: toCharacterRecord(character),
+              order: refreshed
+            };
           }
-          const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
-          return {
-            state: "preview-replayed",
-            character: toCharacterRecord(character),
-            order: refreshed
-          };
         }
 
         const effect = getItemUseEffect(input.item);
@@ -472,67 +484,81 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           where: {
             characterId: character.id,
             itemId: input.item.id,
-            status: "pending",
+            status: { in: ["pending", "processing"] },
             expiresAt: { gt: input.now }
           },
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
-          if (!isRestoreToFullOrder(existing)) {
-            return { state: "reserved" };
-          }
-
-          const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
-            item: input.item,
-            itemContents: input.itemContents,
-            itemFingerprint: input.itemFingerprint,
-            now: input.now,
-            effect
-          });
-          if (validation.state === "valid") {
-            const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
+          await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
+          if (existing.status === "processing") {
             return {
               state: "preview-replayed",
               character: toCharacterRecord(character),
-              order: refreshed,
-              neededQuantity: validation.neededQuantity,
-              availableQuantity: validation.availableQuantity
+              order: existing,
+              neededQuantity: existing.quantity,
+              availableQuantity: existing.quantity
             };
-          }
+          } else if (!isRestoreToFullOrder(existing)) {
+            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
+              ...existing.preview,
+              kind: "cancelled",
+              itemId: existing.itemId,
+              itemName: existing.itemName
+            }, expectedTerminalOrderStatus(existing));
+          } else {
+            const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
+              item: input.item,
+              itemContents: input.itemContents,
+              itemFingerprint: input.itemFingerprint,
+              now: input.now,
+              effect
+            });
+            if (validation.state === "valid") {
+              const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
+              return {
+                state: "preview-replayed",
+                character: toCharacterRecord(character),
+                order: refreshed,
+                neededQuantity: validation.neededQuantity,
+                availableQuantity: validation.availableQuantity
+              };
+            }
 
-          await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
-            ? {
-                ...validation.preview,
-                kind: "full-hp",
-                itemId: existing.itemId,
-                itemName: existing.itemName
-              }
-            : {
-                ...existing.preview,
-                kind: "expired",
-                itemId: existing.itemId,
-                itemName: existing.itemName
-              },
-            validation.state === "full-hp" ? "completed" : "expired");
+            await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
+              ? {
+                  ...validation.preview,
+                  kind: "full-hp",
+                  itemId: existing.itemId,
+                  itemName: existing.itemName
+                }
+              : {
+                  ...existing.preview,
+                  kind: "expired",
+                  itemId: existing.itemId,
+                  itemName: existing.itemName
+                },
+              validation.state === "full-hp" ? "completed" : "expired");
 
-          if (validation.state === "full-hp") {
-            return {
-              state: "full-hp",
-              character: toCharacterRecord(character),
-              preview: validation.preview
-            };
-          }
-          if (validation.state === "not-enough") {
-            return {
-              state: "not-enough",
-              character: toCharacterRecord(character),
-              neededQuantity: validation.neededQuantity,
-              availableQuantity: validation.availableQuantity,
-              preview: validation.preview
-            };
-          }
+            if (validation.state === "full-hp") {
+              return {
+                state: "full-hp",
+                character: toCharacterRecord(character),
+                preview: validation.preview
+              };
+            }
+            if (validation.state === "not-enough") {
+              return {
+                state: "not-enough",
+                character: toCharacterRecord(character),
+                neededQuantity: validation.neededQuantity,
+                availableQuantity: validation.availableQuantity,
+                preview: validation.preview
+              };
+            }
 
-          return { state: validation.state };
+            return { state: validation.state };
+          }
         }
 
         const [items, equippedItemIds, reservedItemIds] = await Promise.all([
@@ -614,7 +640,11 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       });
     } catch (error) {
       if (isLiveReservationConflict(error)) {
-        return { state: "reserved" };
+        return await recoverLiveRestoreToFullAfterReservationConflict(this.prisma, telegramUserId, {
+          itemId: input.item.id,
+          itemContents: input.itemContents,
+          now: input.now
+        }) ?? { state: "reserved" };
       }
 
       throw error;
@@ -685,7 +715,11 @@ async function getReservedItemIds(
       select: { inputItemsJson: true }
     }),
     tx.korchmaMantokSale.findMany({
-      where: { characterId, status: { in: ["pending", "processing"] } },
+      where: {
+        characterId,
+        status: { in: ["pending", "processing"] },
+        expiresAt: { gt: now }
+      },
       select: { selectionJson: true }
     }),
     findActiveTransferReservedItems(tx, { senderCharacterId: characterId, now }),
@@ -888,7 +922,7 @@ async function releasePendingOrder(
   result: ItemUseResult,
   status: "completed" | "expired"
 ): Promise<void> {
-  await setTerminalOrder(tx, order.id, status, now, result, "pending");
+  await setTerminalOrder(tx, order.id, status, now, result, expectedTerminalOrderStatus(order));
 }
 
 async function recoverLivePreviewAfterReservationConflict(
@@ -916,7 +950,7 @@ async function recoverLivePreviewAfterReservationConflict(
       where: {
         characterId: character.id,
         itemId: input.itemId,
-        status: "pending",
+        status: { in: ["pending", "processing"] },
         expiresAt: { gt: input.now }
       },
       orderBy: { createdAt: "desc" }
@@ -924,6 +958,14 @@ async function recoverLivePreviewAfterReservationConflict(
 
     if (!existing) {
       return null;
+    }
+
+    if (existing.status === "processing") {
+      return {
+        state: "preview-replayed",
+        character: toCharacterRecord(character),
+        order: existing
+      };
     }
 
     const validation = await validatePendingPreviewRefresh(tx, existing, character, {
@@ -941,6 +983,72 @@ async function recoverLivePreviewAfterReservationConflict(
       state: "preview-replayed",
       character: toCharacterRecord(character),
       order: await refreshPendingPreview(tx, existing, validation.preview, input.now)
+    };
+  });
+}
+
+async function recoverLiveRestoreToFullAfterReservationConflict(
+  prisma: PrismaClient,
+  telegramUserId: bigint,
+  input: {
+    itemId: string;
+    itemContents: readonly ItemContent[];
+    now: Date;
+  }
+): Promise<ItemUseRestoreToFullRepositoryResult | null> {
+  return prisma.$transaction(async (tx) => {
+    const character = await findCharacter(tx, telegramUserId);
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const item = input.itemContents.find((candidate) => candidate.id === input.itemId);
+    const effect = item ? getItemUseEffect(item) : null;
+    if (!item || !effect || blocksAccidentalItemUse(item) || effect.amount <= 0) {
+      return null;
+    }
+
+    const existing = mapOrder(await tx.itemUseOrder.findFirst({
+      where: {
+        characterId: character.id,
+        itemId: input.itemId,
+        status: { in: ["pending", "processing"] },
+        expiresAt: { gt: input.now }
+      },
+      orderBy: { createdAt: "desc" }
+    }));
+
+    if (!existing || !isRestoreToFullOrder(existing)) {
+      return null;
+    }
+
+    if (existing.status === "processing") {
+      return {
+        state: "preview-replayed",
+        character: toCharacterRecord(character),
+        order: existing,
+        neededQuantity: existing.quantity,
+        availableQuantity: existing.quantity
+      };
+    }
+
+    const validation = await validatePendingRestoreToFullRefresh(tx, existing, character, {
+      item,
+      itemContents: input.itemContents,
+      itemFingerprint: createItemUseFingerprint(item),
+      now: input.now,
+      effect
+    });
+    if (validation.state !== "valid") {
+      return null;
+    }
+
+    return {
+      state: "preview-replayed",
+      character: toCharacterRecord(character),
+      order: await refreshPendingPreview(tx, existing, validation.preview, input.now),
+      neededQuantity: validation.neededQuantity,
+      availableQuantity: validation.availableQuantity
     };
   });
 }
@@ -1069,7 +1177,7 @@ async function releaseExpiredUseReservations(
     where: {
       characterId,
       itemId,
-      status: "pending",
+        status: { in: ["pending", "processing"] },
       expiresAt: { lte: now }
     },
     data: {
@@ -1079,6 +1187,34 @@ async function releaseExpiredUseReservations(
       updatedAt: now,
       resultJson: {
         kind: "expired"
+      }
+    }
+  });
+}
+
+async function cancelOtherPendingUseOrdersForItem(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  exceptOrderId: string,
+  now: Date
+): Promise<void> {
+  await tx.itemUseOrder.updateMany({
+    where: {
+      characterId,
+      itemId,
+      id: { not: exceptOrderId },
+      status: { in: ["pending", "processing"] },
+      expiresAt: { gt: now }
+    },
+    data: {
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: now,
+      updatedAt: now,
+      resultJson: {
+        kind: "cancelled",
+        itemId
       }
     }
   });
@@ -1332,6 +1468,10 @@ function createReservationKey(characterId: string, itemId: string): string {
 
 function isRestoreToFullOrder(order: ItemUseOrderRecord): boolean {
   return order.preview.mode === "restore-to-full";
+}
+
+function expectedTerminalOrderStatus(order: ItemUseOrderRecord): "pending" | "processing" {
+  return order.status === "processing" ? "processing" : "pending";
 }
 
 function isLiveReservationConflict(error: unknown): boolean {

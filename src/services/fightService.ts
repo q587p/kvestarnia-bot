@@ -583,6 +583,10 @@ export type PersistentFightPassageAttackResult =
   | (Extract<PersistentFightPreviewResult, { state: "persistent-preview" }> & { refreshed: "expired" | "missing-monster" | "stale" })
   | { state: "invalid-preview" };
 
+export type PassageSearchRestWindowResult =
+  | Extract<FightLookupResult, { state: "no-character" | "needs-rest" | "combat-blocked" | "training-active" | "persistent-active" | "persistent-terminal" | "persistent-not-issued" | "level-retired" | "ready" | "already-completed" }>
+  | Extract<FightLookupResult, { state: "persistent-ready" | "monster-rest" }>;
+
 export class FightService {
   constructor(
     private readonly characters: CharacterRepository,
@@ -767,6 +771,18 @@ export class FightService {
     const difficulty = getPersistentFightDifficultyConfig(options.difficulty);
     const originLocationId = options.originLocationId ?? getDefaultPassageLocationId(difficulty.id);
     const now = this.clock();
+    const passageRest = await this.getPassageMonsterRestCooldown(telegramUserId, originLocationId, now);
+    if (passageRest) {
+      return {
+        state: "monster-rest",
+        character: overview.character,
+        questProgress: overview.questProgress,
+        availableAt: passageRest.availableAt,
+        now: passageRest.now,
+        ...(overview.recoveryNotice ? { recoveryNotice: overview.recoveryNotice } : {})
+      };
+    }
+
     const existing = this.pendingPassageEncounters
       ? await this.pendingPassageEncounters.findReusableForTelegramUser(
           telegramUserId,
@@ -822,6 +838,35 @@ export class FightService {
       expiresAt: encounter.expiresAt,
       ...(recoveredEncounter?.monsterHp ? { monsterHp: recoveredEncounter.monsterHp } : {}),
       ...(options.refreshed ? { refreshed: options.refreshed } : {})
+    };
+  }
+
+  async getPassageSearchRestWindowForTelegramUser(
+    telegramUserId: bigint,
+    options: { originLocationId?: string } = {}
+  ): Promise<PassageSearchRestWindowResult> {
+    const overview = await this.getFightOverviewForTelegramUser(telegramUserId);
+
+    if (overview.state !== "persistent-ready") {
+      return overview;
+    }
+
+    const now = this.clock();
+    const cooldown = options.originLocationId
+      ? await this.getPassageMonsterRestCooldown(telegramUserId, options.originLocationId, now)
+      : await this.getMonsterRestCooldown(telegramUserId, "normal");
+
+    if (!cooldown) {
+      return overview;
+    }
+
+    return {
+      state: "monster-rest",
+      character: overview.character,
+      questProgress: overview.questProgress,
+      availableAt: cooldown.availableAt,
+      now: cooldown.now,
+      ...(overview.recoveryNotice ? { recoveryNotice: overview.recoveryNotice } : {})
     };
   }
 
@@ -3686,6 +3731,31 @@ export class FightService {
           ...(monsterHp.current < monsterHp.max ? { monsterHp } : {})
         }
       : null;
+  }
+
+  private async getPassageMonsterRestCooldown(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date
+  ): Promise<{ availableAt: Date; now: Date } | null> {
+    if (!this.pendingPassageEncounters) {
+      return null;
+    }
+
+    const consumed = await this.pendingPassageEncounters.findLatestConsumedForTelegramUser(
+      telegramUserId,
+      originLocationId,
+      now,
+      PENDING_PASSAGE_ENCOUNTER_RULES_VERSION
+    );
+    if (!consumed?.session || consumed.session.status !== "won" || consumed.session.state?.status !== "won") {
+      return null;
+    }
+
+    const completedAt = parseStoredDate(consumed.session.state.completedAt) ?? consumed.session.updatedAt;
+    const availableAt = new Date(completedAt.getTime() + MONSTER_REST_COOLDOWN_MS);
+
+    return availableAt > now ? { availableAt, now } : null;
   }
 
   private buildPersistentFightCombatState(input: {

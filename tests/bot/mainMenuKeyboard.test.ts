@@ -15,8 +15,11 @@ import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloComb
 import {
   buildFightKeyboard,
   buildFightResultKeyboard,
+  buildPersistentFightDifficultyKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightKeyboard,
+  buildPersistentFightPassagePreviewKeyboard,
+  buildPersistentFightPassageRestKeyboard,
   buildPersistentFightResultKeyboard
 } from "../../src/bot/keyboards/fightKeyboard";
 import { buildDuelResultKeyboard, buildTurnBasedDuelKeyboard } from "../../src/bot/keyboards/duelKeyboard";
@@ -284,6 +287,68 @@ describe("main menu and scene keyboards", () => {
       "v1:spar:mode:copy-target",
       "v1:spar:mode:random-build",
       "v1:place:fighting-corner"
+    ]);
+  });
+
+  it("offers safe passage search during a passage monster-rest card", () => {
+    const keyboard = buildPersistentFightPassageRestKeyboard({ passage: "deep-left" });
+
+    expect(inlineButtonRows(keyboard)).toEqual([
+      ["🔎 Пошукати"],
+      ["↩️ Повернутися до Сутеренів"]
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:search:start:ps:deep-left",
+      "v1:place:deep-level1"
+    ]);
+  });
+
+  it("offers safe location search from the deep level choice card", () => {
+    const keyboard = buildPersistentFightDifficultyKeyboard();
+
+    expect(inlineButtonRows(keyboard)).toEqual([
+      ["⬅️ Лівий прохід"],
+      ["🚪 Прямий прохід"],
+      ["➡️ Правий прохід"],
+      ["🔎 Пошукати"],
+      ["⬆️ Піднятися назад"]
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:place:deep-left",
+      "v1:place:deep-straight",
+      "v1:place:deep-right",
+      "v1:search:start:l1",
+      "v1:place:deep"
+    ]);
+  });
+
+  it("hides safe location search buttons while their node is on cooldown", () => {
+    expect(flatInlineButtonTexts(buildPersistentFightDifficultyKeyboard({ searchAvailable: false }))).toEqual([
+      "⬅️ Лівий прохід",
+      "🚪 Прямий прохід",
+      "➡️ Правий прохід",
+      "⬆️ Піднятися назад"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ searchAvailable: false }))).toEqual([
+      "⬆️ Повернутися до зали",
+      "⬇️ Спуститися"
+    ]);
+  });
+
+  it("hides passage search buttons while their node is on cooldown", () => {
+    expect(flatInlineButtonTexts(buildPersistentFightPassagePreviewKeyboard({
+      passage: "deep-left",
+      encounterToken: "token13",
+      searchAvailable: false
+    }))).toEqual([
+      "⚔️ Атакувати",
+      "↩️ Повернутися до Сутеренів"
+    ]);
+    expect(flatInlineButtonTexts(buildPersistentFightPassageRestKeyboard({
+      passage: "deep-left",
+      searchAvailable: false
+    }))).toEqual([
+      "↩️ Повернутися до Сутеренів"
     ]);
   });
 
@@ -679,20 +744,24 @@ describe("main menu and scene keyboards", () => {
     );
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
       "⬆️ Повернутися до зали",
+      "🔎 Пошукати",
       "⬇️ Спуститися"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard())).toEqual([
       "v1:place:hall",
+      "v1:search:start:d",
       "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "⬆️ Повернутися до зали",
       "🎒 Манчкін-скупник",
+      "🔎 Пошукати",
       "⬇️ Спуститися"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "v1:place:hall",
       "v1:lvlx:open",
+      "v1:search:start:d",
       "v1:place:deep-level1"
     ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightKeyboard(session, character))).toEqual([
@@ -1291,6 +1360,74 @@ describe("main menu and scene keyboards", () => {
         )
       )
     ).toEqual(["v1:equip:item:item.pan-of-persuasion", "v1:item:inventory:s:w", "v1:equip:view"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 1,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 3
+              }
+            }
+          },
+          null,
+          0,
+          null,
+          {
+            canUse: true,
+            combatUse: {
+              sessionId: "123e4567-e89b-42d3-a456-426614174321",
+              turn: 2,
+              itemKey: "item.responsible-panic-bandage"
+            }
+          }
+        )
+      )
+    ).toEqual(["⚔️ Використати у бою", "⬅️ До манаток", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 1,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 3
+              }
+            }
+          },
+          null,
+          0,
+          null,
+          {
+            canUse: true,
+            combatUse: {
+              sessionId: "123e4567-e89b-42d3-a456-426614174321",
+              turn: 2,
+              itemKey: "item.responsible-panic-bandage"
+            }
+          }
+        )
+      )[0]
+    ).toBe("v1:fight:item:123e4567-e89b-42d3-a456-426614174321:2:item.responsible-panic-bandage");
     expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
       flatInlineButtonTexts(
@@ -1407,7 +1544,7 @@ describe("main menu and scene keyboards", () => {
       }))
     ).toEqual([
       "🩹 Ще один",
-      "❤️ До відновлення",
+      "🧻 До відновлення",
       "⬅️ До манаток",
       "🛡️ Спорядження"
     ]);

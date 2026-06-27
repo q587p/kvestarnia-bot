@@ -1,6 +1,6 @@
 {
   "name": "kvestarnia-bot",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "description": "Квестарня — гумористична фентезі-РПҐ у Telegram.",
   "main": "dist/bot.js",
@@ -23,6 +23,7 @@
     "grant:gift": "ts-node scripts/grant-gift-campaign.ts",
     "maintenance:cleanup-remort-daily-actions": "ts-node scripts/cleanup-remort-daily-actions.ts",
     "maintenance:cleanup-remort-yeger-actions": "ts-node scripts/cleanup-remort-daily-actions.ts --yeger-only",
+    "maintenance:repair-character-resources": "ts-node scripts/repair-character-resources.ts",
     "check": "npm run lint && npm run typecheck && npm run build && npm test"
   },
   "dependencies": {

@@ -4,6 +4,7 @@ import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbac
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeDescentSearchStartCallbackData } from "../callbacks/passageSearchCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import {
@@ -161,7 +162,7 @@ export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaDeepKeyboard(
-  options: { munchkinLocation?: MunchkinLocation } = {}
+  options: { munchkinLocation?: MunchkinLocation; searchAvailable?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("⬆️ Повернутися до зали", makePlaceCallbackData("hall"))
@@ -169,6 +170,10 @@ export function buildKorchmaDeepKeyboard(
 
   if (options.munchkinLocation === "nyz-descent") {
     keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData()).row();
+  }
+
+  if (options.searchAvailable !== false) {
+    keyboard.text("🔎 Пошукати", makeDescentSearchStartCallbackData()).row();
   }
 
   return keyboard.text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));

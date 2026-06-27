@@ -364,7 +364,8 @@ export function presentPersistentFightTurn(
     monster: "monster" in result ? result.monster : null,
     questProgress: result.questProgress,
     fightReward: result.state === "updated" || result.state === "terminal" ? result.fightReward : null,
-    ...(intro ? { statusNote: intro } : {})
+    ...(intro ? { statusNote: intro } : {}),
+    suppressLastTurn: result.state === "item-unavailable" || result.state === "not-enough-mana"
   });
 }
 
@@ -678,6 +679,7 @@ function presentPersistentFightState(input: {
   questProgress: ThirteenSmallProblemsProgress | null;
   fightReward?: Extract<PersistentFightTurnResult, { state: "updated" }>["fightReward"];
   statusNote?: string;
+  suppressLastTurn?: boolean;
 }): string {
   const state = input.session.state;
   const enemyRows = state ? presentEnemyHpRows(state, input.monster) : [`👹 Монстр: ?/?`];
@@ -692,7 +694,8 @@ function presentPersistentFightState(input: {
     lines.push("", input.statusNote);
   }
 
-  const timeoutNotice = presentTimeoutNotice(state?.lastTurn);
+  const shouldShowLastTurn = !input.suppressLastTurn;
+  const timeoutNotice = shouldShowLastTurn ? presentTimeoutNotice(state?.lastTurn) : null;
   if (timeoutNotice) {
     lines.push("", timeoutNotice);
   }
@@ -709,8 +712,8 @@ function presentPersistentFightState(input: {
     lines.push("", `🌗 <i>${escapeHtml(state.context.cue.text)}</i>`);
   }
 
-  if (state?.lastTurn || state?.status === "won") {
-    if (state.lastTurn) {
+  if ((shouldShowLastTurn && state?.lastTurn) || state?.status === "won") {
+    if (shouldShowLastTurn && state.lastTurn) {
       lines.push("", presentTurnSummary(state.lastTurn, { includeHeading: false }));
     }
     lines.push(...presentDefeatedEnemyLines(state, input.monster));

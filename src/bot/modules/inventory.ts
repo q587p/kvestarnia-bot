@@ -75,6 +75,10 @@ presentInvalidCallback
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
+import {
+guardActivePassageSearchCommand,
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
 import type { BotModuleDependencies } from "./types";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -85,6 +89,10 @@ export function registerInventoryBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
+  bot.command(["inventory", "items", "bag", "equipment", "gear", "equip"], async (ctx, next) => {
+    await guardActivePassageSearchCommand(ctx, services, next);
+  });
+
   registerInventoryCommand(bot, services.inventory);
   registerEquipmentCommand(bot, services.equipment);
 
@@ -162,6 +170,10 @@ async function handleItemCallback(
     return;
   }
 
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
   const result = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
   const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
   const equipPreview = await services.equipment.previewItemEquipForTelegramUser(
@@ -220,6 +232,10 @@ async function handleItemUseCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -364,6 +380,10 @@ async function handleEquipmentCallback(
     return;
   }
 
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
   if (action.type === "equip-item") {
     const result = await services.equipment.equipItemForTelegramUser(
       telegramUserId,
@@ -415,6 +435,10 @@ async function handleMantokChestCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -592,6 +616,10 @@ async function handleLevelBarterCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 

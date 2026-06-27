@@ -24,6 +24,8 @@ import {
   type InventorySlotFilter
 } from "../presenters/inventoryPresenter";
 
+export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
+
 export function buildInventoryKeyboard(
   result: InventoryResult,
   page = 0,
@@ -133,7 +135,7 @@ export function buildItemUseResultKeyboard(
   if (options.repeatItemId) {
     keyboard.text("🩹 Ще один", makeItemUsePreviewCallbackData(options.repeatItemId));
     if (options.restoreToFullItemId) {
-      keyboard.text("❤️ До відновлення", makeItemUseRestoreToFullCallbackData(options.restoreToFullItemId));
+      keyboard.text(RESTORE_TO_FULL_BUTTON_LABEL, makeItemUseRestoreToFullCallbackData(options.restoreToFullItemId));
     }
     keyboard.row();
   }

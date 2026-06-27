@@ -134,6 +134,10 @@ sendCurrentLocation,
 sendPlaceMovementNotice
 } from "./mainMenu";
 import {
+guardActivePassageSearchCommand,
+showActivePassageSearchIfNeeded
+} from "./passageSearchGuard";
+import {
 placeCallbackToPersistentFightPassage,
 sendPersistentFightPassagePreview
 } from "./persistentFightNavigation";
@@ -149,6 +153,9 @@ export function registerTavernBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
+  bot.command(["tavern", "raid", "cellar"], async (ctx, next) => {
+    await guardActivePassageSearchCommand(ctx, services, next);
+  });
   registerCellarCommand(
     bot,
     services.cellarErrand,
@@ -158,6 +165,7 @@ export function registerTavernBotModule(
   );
   registerTavernCommand(bot, services.tavern, services.presence);
   registerBardPerformanceDevResetHandler(bot, services);
+  registerPassageSearchDevResetHandler(bot, services);
 
   bot.callbackQuery(/^v1:sh:/, async (ctx) => {
     const parsed = parseShynokCallbackData(ctx.callbackQuery.data);
@@ -233,6 +241,10 @@ async function handleShynokCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildBackToShynokKeyboard()
     });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -525,6 +537,39 @@ function registerBardPerformanceDevResetHandler(bot: Bot, services: BotServices)
   });
 }
 
+function registerPassageSearchDevResetHandler(bot: Bot, services: BotServices): void {
+  bot.command("dev_reset_passage_search", async (ctx) => {
+    if (!services.devGrant?.isEnabled()) {
+      await ctx.reply(presentDevGrantDisabled());
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (!telegramUserId) {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (!services.passageSearch) {
+      await ctx.reply("Dev-скидання пошуку в проходах недоступне.");
+      return;
+    }
+
+    const result = await services.passageSearch.devReset(telegramUserId);
+    if (result.state === "no-character") {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (result.state === "disabled") {
+      await ctx.reply("Dev-скидання пошуку в проходах недоступне.");
+      return;
+    }
+
+    await ctx.reply(`🔎 Пошук у проходах скинуто локально. Збито пошуків: ${result.actions}. Cooldown-ів прибрано: ${result.cooldowns}.`);
+  });
+}
+
 async function handlePlaceCallback(
   ctx: Context,
   action: PlaceCallback,
@@ -534,6 +579,10 @@ async function handlePlaceCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -646,7 +695,9 @@ async function handlePlaceCallback(
 
   if (action === "deep") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP);
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
+      passageSearch: services.passageSearch
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -669,6 +720,7 @@ async function handlePlaceCallback(
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: true,
       openDifficulty: true
     });
@@ -752,6 +804,10 @@ async function handleTavernCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 
@@ -895,6 +951,10 @@ async function handleCellarCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
 

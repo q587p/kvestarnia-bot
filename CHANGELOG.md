@@ -7,6 +7,34 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.6] - 12026-06-27 - Passage Search MVP
+
+### Added
+- Added timed `🔎 Пошукати` actions for the `Спуск до Низу` surface, the `Ярус I: Сутерени Корчми` choice card and all three first-tier Nyz passages.
+- Added durable `passage_search_actions` persistence with one running search per character, replay-safe terminal results, server-owned tokens and active-action locking.
+- Added per-node search cooldowns through existing character cooldown storage, so searching one passage does not consume the cooldown for another passage or the descent surface.
+- Added a small deterministic passage-search loot roll with gold and the existing `Бинт відповідальної паніки`; `Спуск до Низу` uses a separate tiny safe table.
+- Added danger resolution for risky passage searches: if the stored monster reacts, the search grants no reward, starts the existing passage combat from the frozen encounter token and skips the first hero turn.
+- Added safe passage-rest searches during the short monster-rest window: passage cards can offer `🔎 Пошукати` without creating or refreshing a pending monster preview, and the search stays danger-free even if a new monster would appear later.
+- Defeating a pending passage monster now puts that same passage into the short 3-minute rest window instead of immediately creating a fresh monster preview on reopen.
+- Added a passage-search completion scheduler: due searches with a stored chat target now resolve automatically and send a new terminal result message instead of requiring a manual `Перевірити` tap.
+- Added `v1:search:*` callbacks, running/check/cancel keyboards, Ukrainian search result cards and local `/dev_reset_passage_search` for manual timer/cooldown QA.
+- Added focused domain and callback tests for search constants, danger/loot behavior and callback parser limits.
+
+### Changed
+- Nyz passage preview cards now include `🔎 Пошукати` beside `⚔️ Атакувати`; the actual `Спуск до Низу` and `Ярус I: Сутерени Корчми` cards also offer safe search buttons.
+- Search start callbacks now re-read current presence server-side: descent search only starts from `Низ`, the `Ярус I` safe search only starts from `Сутерени Корчми`, passage search only from the matching passage, and stale remote buttons do not spend cooldown, create search rows, refresh encounters or start combat.
+- Active search now blocks old fight/place/reply-keyboard actions with a confirm-cancel card instead of letting stale buttons start movement or combat over the timer.
+- Search buttons now disappear from fresh Nyz surface/passage cards while that node cooldown is still active.
+- Passage-search danger handoffs now keep the normal new-fight intro before the active fight card, including threat escalation lines, `Натиск Низу`, full opponent names and the battle start tip even though the first hero turn is skipped; due dangerous searches resolved from current-location or place actions also send the canonical fight card immediately.
+- Bandage reservation recovery now avoids false reserved-item blocks: duplicate restore-to-full races replay the canonical live confirmation card, ordinary one-bandage use plus restore-to-full can replace each other's own pending previews, older own pending bandage previews no longer make inventory or full-HP recovery say the item is reserved, and combat bandage use can replace the player's own pending item-use preview without replaying the previous combat turn as if it happened again.
+- Inventory now lists one-use consumables before other carried items, and the restore-to-full button uses the roll icon on both the hero card and item-use result cards.
+- Search cooldown is consumed at start and is not refunded by cancel, empty results or monster attacks.
+
+### Unchanged
+- No broad loot table, new item catalog, race/class/title search bonuses, party search, market, crafting, Mini App UI or new combat damage formula ships in this slice.
+- Passage monsters still use existing pending passage encounter and persistent fight machinery; search does not introduce a second monster-state system.
+
 ## [0.2.5] - 12026-06-26 - Bard Performance MVP
 
 ### Added

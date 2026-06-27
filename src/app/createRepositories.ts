@@ -18,6 +18,7 @@ import { PrismaLevelBarterRepository } from "../db/repositories/prismaLevelBarte
 import { PrismaLevelMilestoneRepository } from "../db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "../db/repositories/prismaMantokChestRepository";
 import { PrismaPendingPassageEncounterRepository } from "../db/repositories/prismaPendingPassageEncounterRepository";
+import { PrismaPassageSearchRepository } from "../db/repositories/prismaPassageSearchRepository";
 import { PrismaPlayerHintReceiptRepository } from "../db/repositories/prismaPlayerHintReceiptRepository";
 import { PrismaPresenceRepository } from "../db/repositories/prismaPresenceRepository";
 import { PrismaRemortRepository } from "../db/repositories/prismaRemortRepository";
@@ -46,6 +47,7 @@ export function createRepositories(prisma: PrismaClient) {
     levelMilestones: new PrismaLevelMilestoneRepository(prisma),
     mantokChestRuns: new PrismaMantokChestRepository(prisma),
     pendingPassageEncounters: new PrismaPendingPassageEncounterRepository(prisma),
+    passageSearches: new PrismaPassageSearchRepository(prisma),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
     presence: new PrismaPresenceRepository(prisma),
     remorts: new PrismaRemortRepository(prisma),

@@ -57,6 +57,7 @@ import {
   getGoldSensitiveItemDropChance,
   getPersistentFightDifficultyConfig,
   MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+  MONSTER_REST_COOLDOWN_MS,
   PENDING_PASSAGE_ENCOUNTER_TTL_MS,
   PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS,
   PERSISTENT_SOLO_FIGHT_REWARD_KEY,
@@ -68,6 +69,7 @@ import {
 } from "../../src/services/fightService";
 import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
 import {
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
@@ -1257,6 +1259,73 @@ describe("FightService", () => {
       expect(PENDING_PASSAGE_ENCOUNTER_TTL_MS).toBe(93 * 60 * 1000);
     }
     expect(pending.createCount).toBe(1);
+  });
+
+  it("rests the same passage after its pending monster is defeated", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService(
+      characters,
+      dailyActions,
+      fixedClock,
+      sessions,
+      new FakeRandomSource([0.1, 0.9]),
+      undefined,
+      undefined,
+      pending
+    );
+
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected passage preview");
+    }
+
+    const started = await service.attackPersistentPassageEncounterForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    );
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected passage fight");
+    }
+
+    await sessions.updateById(started.session.id, {
+      status: "won",
+      state: markCombatSettlementCompleted({
+        ...started.session.state,
+        status: "won",
+        completedAt: fixedClock().toISOString(),
+        monster: {
+          ...started.session.state.monster,
+          hp: 0
+        }
+      }, fixedClock())
+    });
+
+    const reopened = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "normal",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    const otherPassage = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+
+    expect(reopened.state).toBe("monster-rest");
+    if (reopened.state === "monster-rest") {
+      expect(reopened.availableAt.getTime()).toBe(fixedClock().getTime() + MONSTER_REST_COOLDOWN_MS);
+    }
+    expect(otherPassage.state).toBe("persistent-preview");
+    if (otherPassage.state === "persistent-preview") {
+      expect(otherPassage.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT);
+    }
+    expect(pending.createCount).toBe(2);
   });
 
   it("refreshes a passage preview and rejects attack tokens after rules-version drift", async () => {

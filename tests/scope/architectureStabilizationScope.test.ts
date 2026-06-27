@@ -10,7 +10,7 @@ const featureModuleOwners = {
   "inventory.ts": ["/^v1:equip:/", "/^v1:item:/", "/^v1:use:/", "/^v1:chest:/", "/^v1:lvlx:/"],
   "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:mem:/", "/^v[12]:cellar:/"],
   "quest.ts": ["/^v[12]:adv:/", "/^v1:quest:/", "/^v1:hunt:/", "/^v1:ygr:/"],
-  "combat.ts": ["/^v1:spar:/", "/^v1:fight:/"],
+  "combat.ts": ["/^v1:spar:/", "/^v1:fight:/", "/^v1:search:/"],
   "social.ts": ["/^v1:gift:/", "/^v1:duel:/", "/^v1:nd:/"]
 };
 
@@ -143,6 +143,7 @@ describe("0.2.2 architecture stabilization scope", () => {
       "levelUp.ts",
       "mainMenu.ts",
       "notifications.ts",
+      "passageSearchGuard.ts",
       "persistentFightNavigation.ts",
       "quest.ts",
       "questHubOptions.ts",

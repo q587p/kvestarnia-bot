@@ -791,7 +791,9 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           where: { characterId: input.characterId, itemId: input.itemId },
           select: { id: true }
         }),
-        getCombatItemReservedItemIds(tx, input.characterId, input.now)
+        getCombatItemReservedItemIds(tx, input.characterId, input.now, {
+          includeItemUseReservations: false
+        })
       ]);
 
       if (!stack || stack.quantity < 1) {
@@ -801,6 +803,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (equipped || reservedItemIds.includes(input.itemId)) {
         return { outcome: "reserved", session: null };
       }
+
+      await cancelPendingCombatItemUseOrders(tx, input.characterId, input.itemId, input.now);
 
       const updated = await tx.soloCombatSession.updateMany({
         where: {
@@ -2614,7 +2618,8 @@ function parseDamageKind(value: unknown): CombatDamageKind | null {
 async function getCombatItemReservedItemIds(
   tx: TxClient,
   characterId: string,
-  now: Date
+  now: Date,
+  options: { includeItemUseReservations?: boolean } = {}
 ): Promise<string[]> {
   const [pendingChestRuns, pendingLevelBarters, pendingSales, pendingTransfers, pendingUses] = await Promise.all([
     tx.mantokChestRun.findMany({
@@ -2626,11 +2631,17 @@ async function getCombatItemReservedItemIds(
       select: { inputItemsJson: true }
     }),
     tx.korchmaMantokSale.findMany({
-      where: { characterId, status: { in: ["pending", "processing"] } },
+      where: {
+        characterId,
+        status: { in: ["pending", "processing"] },
+        expiresAt: { gt: now }
+      },
       select: { selectionJson: true }
     }),
     findActiveTransferReservedItems(tx, { senderCharacterId: characterId, now }),
-    findActiveItemUseReservedItems(tx, { characterId, now })
+    options.includeItemUseReservations === false
+      ? Promise.resolve([])
+      : findActiveItemUseReservedItems(tx, { characterId, now })
   ]);
   const reserved = new Set<string>();
 
@@ -2657,6 +2668,32 @@ async function getCombatItemReservedItemIds(
   }
 
   return [...reserved];
+}
+
+async function cancelPendingCombatItemUseOrders(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  itemId: string,
+  now: Date
+): Promise<void> {
+  await tx.itemUseOrder.updateMany({
+    where: {
+      characterId,
+      itemId,
+      status: "pending",
+      expiresAt: { gt: now }
+    },
+    data: {
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: now,
+      resultJson: {
+        kind: "cancelled",
+        itemId
+      },
+      updatedAt: now
+    }
+  });
 }
 
 function parseCombatReservedItems(value: unknown): Array<{ itemId: string; quantity: number }> {

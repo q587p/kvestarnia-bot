@@ -13,18 +13,22 @@ import { type PlaceCallback } from "../callbacks/placeCallbackData";
 import { sendFight } from "../commands/fightCommand";
 import { playerFromContext } from "../context";
 import {
-buildPersistentFightPassagePreviewKeyboard
+buildPersistentFightPassagePreviewKeyboard,
+buildPersistentFightPassageRestKeyboard
 } from "../keyboards/fightKeyboard";
 import {
 buildBackToKorchmaHallKeyboard
 } from "../keyboards/tavernKeyboard";
 import {
 presentFightNoCharacter,
+presentFightMonsterRest,
 presentPersistentFightPassagePreview
 } from "../presenters/fightPresenter";
 import {
 presentKorchmaDeepLevelLocked
 } from "../presenters/tavernPresenter";
+import { getPassageSearchNodeKey } from "../../services/passageSearchService";
+import { isPassageSearchAvailable } from "../passageSearchAvailability";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 import { markScenePresence } from "./scenePresence";
@@ -82,6 +86,31 @@ export async function sendPersistentFightPassagePreview(
     return;
   }
 
+  if (typeof services.fight.getPassageSearchRestWindowForTelegramUser === "function") {
+    const restWindow = await services.fight.getPassageSearchRestWindowForTelegramUser(telegramUserId, {
+      originLocationId: passageFight.locationId
+    });
+    if (restWindow.state === "monster-rest") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: passageFight.locationId,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+      await safeEditOrReply(ctx, mode, presentFightMonsterRest(restWindow), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightPassageRestKeyboard({
+          passage: passageFight.passage,
+          searchAvailable: await isPassageSearchAvailable(
+            services.passageSearch,
+            telegramUserId,
+            getPassageSearchNodeKey(passageFight.passage)
+          )
+        })
+      });
+      return;
+    }
+  }
+
   const preview = await services.fight.previewPersistentFightForTelegramUser(telegramUserId, {
     difficulty: passageFight.difficulty,
     originLocationId: passageFight.locationId
@@ -96,9 +125,30 @@ export async function sendPersistentFightPassagePreview(
   }
 
   if (preview.state !== "persistent-preview") {
+    if (preview.state === "monster-rest") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: passageFight.locationId,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+      await safeEditOrReply(ctx, mode, presentFightMonsterRest(preview), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightPassageRestKeyboard({
+          passage: passageFight.passage,
+          searchAvailable: await isPassageSearchAvailable(
+            services.passageSearch,
+            telegramUserId,
+            getPassageSearchNodeKey(passageFight.passage)
+          )
+        })
+      });
+      return;
+    }
+
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
       requireKorchmaInterior: false
     });
     return;
@@ -113,7 +163,12 @@ export async function sendPersistentFightPassagePreview(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildPersistentFightPassagePreviewKeyboard({
       passage: passageFight.passage,
-      encounterToken: preview.encounterToken
+      encounterToken: preview.encounterToken,
+      searchAvailable: await isPassageSearchAvailable(
+        services.passageSearch,
+        telegramUserId,
+        getPassageSearchNodeKey(passageFight.passage)
+      )
     })
   });
 }
