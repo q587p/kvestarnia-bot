@@ -68,27 +68,40 @@ const secondMonster: MonsterCombatStats = {
   attack: 3
 };
 
-const oldHotSpellNumbers = {
+const aoeHotSpellNumbers = {
   damageKind: "spell",
   stat: "intelligence",
-  manaCost: 3,
-  cooldownOwnActions: 1,
-  baseDamage: 5,
-  multiplier: 1.2,
-  accuracyBonus: 0.06,
+  manaCost: 5,
+  cooldownOwnActions: 2,
+  baseDamage: 3,
+  multiplier: 0.92,
+  accuracyBonus: 0.05,
   critBonus: 0.01,
   monsterDamageReduction: 0
 } as const;
 
-const oldTrickShotNumbers = {
+const rogueShadowCutNumbers = {
   damageKind: "trick",
   stat: "dexterity",
   manaCost: 0,
-  cooldownOwnActions: 1,
+  cooldownOwnActions: 2,
   baseDamage: 4,
   multiplier: 1.15,
   accuracyBonus: 0.06,
   critBonus: 0.08,
+  monsterDamageReduction: 1
+} as const;
+
+const rangerTrickShotNumbers = {
+  damageKind: "trick",
+  stat: "dexterity",
+  manaCost: 1,
+  cooldownOwnActions: 2,
+  baseDamage: 4,
+  multiplier: 1,
+  secondaryMultiplier: 0.45,
+  accuracyBonus: 0.06,
+  critBonus: 0.06,
   monsterDamageReduction: 0
 } as const;
 
@@ -103,44 +116,60 @@ describe("combat domain engine", () => {
       },
       "class.mage": {
         id: "skill.hot-spell",
-        ...oldHotSpellNumbers
+        primaryTargetScope: "all-enemies",
+        ...aoeHotSpellNumbers
       },
       "class.bard": {
         id: "skill.dangerous-couplet",
         damageKind: "social",
-        manaCost: 2,
+        manaCost: 4,
+        cooldownOwnActions: 3,
+        primaryTargetScope: "all-enemies",
         stat: "charisma"
       },
       "class.rogue": {
         id: "skill.shadow-cut",
         legacyCooldownIds: ["skill.trick-shot"],
-        ...oldTrickShotNumbers
+        ...rogueShadowCutNumbers
       },
       "class.priest": {
         id: "skill.strict-blessing",
         damageKind: "spell",
-        manaCost: 2,
+        manaCost: 4,
+        cooldownOwnActions: 3,
+        primaryTargetScope: "lowest-hp-ally",
         stat: "charisma"
       },
       "class.varenyk-mancer": {
         id: "skill.boiling-filling",
         legacyCooldownIds: ["skill.hot-spell"],
-        ...oldHotSpellNumbers
+        primaryTargetScope: "all-enemies",
+        healAmount: 3,
+        ...{
+          ...aoeHotSpellNumbers,
+          manaCost: 4,
+          multiplier: 0.85
+        }
       },
       "class.bureaucramancer": {
         id: "skill.form-thirteen-b",
-        damageKind: "spell",
-        manaCost: 2,
+        damageKind: "social",
+        manaCost: 4,
+        cooldownOwnActions: 3,
+        primaryTargetScope: "all-enemies",
         stat: "intelligence"
       },
       "class.ranger": {
         id: "skill.trick-shot",
-        ...oldTrickShotNumbers
+        primaryTargetScope: "all-enemies",
+        ...rangerTrickShotNumbers
       },
       "class.kharakternyk": {
         id: "skill.steppe-side-eye",
         damageKind: "trick",
-        manaCost: 1,
+        manaCost: 2,
+        cooldownOwnActions: 2,
+        primaryTargetScope: "all-enemies",
         stat: "luck"
       }
     } as const;
@@ -1003,12 +1032,12 @@ describe("combat domain engine", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.state.hero.mana).toBe(9);
+    expect(result.state.hero.mana).toBe(7);
     expect(result.summary).toMatchObject({
       action: "skill",
       skillId: "skill.hot-spell",
       damageKind: "spell",
-      manaSpent: 3
+      manaSpent: 5
     });
   });
 
@@ -1070,6 +1099,136 @@ describe("combat domain engine", () => {
       reason: "cooldown",
       cooldownRemainingTurns: 3
     });
+  });
+
+  it("stores race ability cooldowns separately from class skill cooldowns", () => {
+    const sturdyMonster = { ...monster, hpMax: 80 };
+    const humanWarrior = {
+      ...warrior,
+      raceId: "race.human-ish"
+    };
+    const raceTurn = resolveCombatTurn({
+      state: startCombat({ hero: humanWarrior, monster: sturdyMonster }),
+      action: "race",
+      hero: humanWarrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.9])
+    });
+
+    expect(raceTurn.ok).toBe(true);
+    if (!raceTurn.ok) {
+      throw new Error("Expected race ability turn to resolve.");
+    }
+    expect(raceTurn.summary).toMatchObject({
+      action: "race",
+      abilitySource: "race",
+      skillId: "ability.race.practical-improvisation"
+    });
+    expect(raceTurn.state.cooldowns?.skill).toBeUndefined();
+    expect(raceTurn.state.cooldowns?.abilities?.["ability.race.practical-improvisation"]).toEqual({
+      id: "ability.race.practical-improvisation",
+      remainingTurns: 3
+    });
+    expect(getCombatActionAvailability(raceTurn.state, humanWarrior).race).toMatchObject({
+      available: false,
+      reason: "cooldown",
+      cooldownRemainingTurns: 3
+    });
+    expect(getCombatActionAvailability(raceTurn.state, humanWarrior).skill).toMatchObject({
+      available: true
+    });
+
+    const skillTurn = resolveCombatTurn({
+      state: raceTurn.state,
+      action: "skill",
+      hero: humanWarrior,
+      monster: sturdyMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.9])
+    });
+
+    expect(skillTurn.ok).toBe(true);
+    if (!skillTurn.ok) {
+      throw new Error("Expected class skill to resolve while race ability is cooling down.");
+    }
+    expect(skillTurn.summary.skillId).toBe("skill.forceful-strike");
+    expect(skillTurn.state.cooldowns?.skill).toEqual({
+      id: "skill.forceful-strike",
+      remainingTurns: 1
+    });
+    expect(skillTurn.state.cooldowns?.abilities?.["ability.race.practical-improvisation"]).toEqual({
+      id: "ability.race.practical-improvisation",
+      remainingTurns: 2
+    });
+  });
+
+  it("applies support-only race abilities without direct enemy damage", () => {
+    const dwarfWarrior = {
+      ...warrior,
+      raceId: "race.dwarf"
+    };
+    const state = startCombat({
+      hero: {
+        ...dwarfWarrior,
+        hpCurrent: 12
+      },
+      monster
+    });
+
+    const result = resolveCombatTurn({
+      state,
+      action: "race",
+      hero: dwarfWarrior,
+      monster,
+      rng: new FakeRandomSource([0.9])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected support race ability to resolve.");
+    }
+    expect(result.summary).toMatchObject({
+      action: "race",
+      abilitySource: "race",
+      skillId: "ability.race.low-center-of-gravity",
+      heroDamage: 0,
+      allyResults: [{
+        targetId: "self",
+        label: "Ви",
+        guard: 2
+      }]
+    });
+    expect(result.summary.enemyResults).toBeUndefined();
+    expect(result.state.monster.hp).toBe(monster.hpMax);
+  });
+
+  it("lets race abilities hit every living enemy when their target scope is all enemies", () => {
+    const bisynyMage = {
+      ...unarmedMage,
+      raceId: "race.bisyny",
+      manaCurrent: unarmedMage.manaMax
+    };
+    const result = resolveCombatTurn({
+      state: startCombat({ hero: bisynyMage, monster, enemies: [monster, secondMonster] }),
+      action: "race",
+      hero: bisynyMage,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.9, 0.9, 0.9])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected all-enemies race ability to resolve.");
+    }
+    expect(result.summary).toMatchObject({
+      action: "race",
+      abilitySource: "race",
+      targetScope: "all-enemies",
+      skillId: "ability.race.margin-note"
+    });
+    expect(result.summary.enemyResults).toHaveLength(2);
+    expect(result.summary.enemyResults?.map((entry) => entry.enemyId).sort()).toEqual(["enemy:1", "enemy:2"]);
+    expect(normalizeCombatEnemies(result.state).every((enemy) => enemy.hp < enemy.hpMax)).toBe(true);
   });
 
   it("honors legacy cooldown ids for renamed class skills without storing them again", () => {
@@ -1154,11 +1313,11 @@ describe("combat domain engine", () => {
     }
     expect(renamed.state.cooldowns?.skill).toEqual({
       id: "skill.boiling-filling",
-      remainingTurns: 1
+      remainingTurns: 2
     });
     expect(renamed.state.cooldowns?.abilities?.["skill.boiling-filling"]).toEqual({
       id: "skill.boiling-filling",
-      remainingTurns: 1
+      remainingTurns: 2
     });
     expect(renamed.state.cooldowns?.abilities?.["skill.hot-spell"]).toBeUndefined();
   });
@@ -1229,7 +1388,7 @@ describe("combat domain engine", () => {
     }
     expect(skillTurn.state.turnLog?.[0]?.cooldowns?.skill).toEqual({
       id: "skill.hot-spell",
-      remainingTurns: 1
+      remainingTurns: 2
     });
 
     const pressuredState: CombatState = {

@@ -17,11 +17,11 @@ describe("training doppelganger callback data", () => {
     });
   });
 
-  it("round-trips turn callbacks within Telegram limits", () => {
+  it.each(["skill", "race"] as const)("round-trips %s turn callbacks within Telegram limits", (action) => {
     const data = makeTrainingDoppelgangerTurnCallbackData({
       sessionId: "123e4567-e89b-12d3-a456-426614174000",
       turn: 3,
-      action: "skill"
+      action
     });
 
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(64);
@@ -31,7 +31,7 @@ describe("training doppelganger callback data", () => {
         type: "turn",
         sessionId: "123e4567-e89b-12d3-a456-426614174000",
         turn: 3,
-        action: "skill"
+        action
       }
     });
   });

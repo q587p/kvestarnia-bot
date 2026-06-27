@@ -17,7 +17,7 @@ export type TrainingDoppelgangerCallbackError =
 const PREFIX = "v1:spar";
 const MODE_PREFIX = "v1:spar:mode";
 const TURN_PREFIX = "v1:spar:turn";
-const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "flee"]);
+const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "race", "flee"]);
 const startModes = new Set<TrainingDoppelgangerStartMode>([
   "copy-target",
   "random-build",

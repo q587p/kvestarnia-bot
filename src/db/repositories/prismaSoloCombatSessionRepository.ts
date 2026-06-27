@@ -2409,6 +2409,11 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
   const actionOrigin = parseActionOrigin(value.actionOrigin);
   const monsterAction = parseMonsterAction(value.monsterAction);
+  const abilitySource = parseAbilitySource(value.abilitySource);
+  const targetScope = parseTargetScope(value.targetScope);
+  const secondaryTargetScope = parseTargetScope(value.secondaryTargetScope);
+  const enemyResults = parseEnemyAbilityResults(value.enemyResults);
+  const allyResults = parseAllyAbilityResults(value.allyResults);
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
 
   if (
@@ -2432,6 +2437,9 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     manaSpent,
     critical: value.critical,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
+    ...(abilitySource ? { abilitySource } : {}),
+    ...(targetScope ? { targetScope } : {}),
+    ...(secondaryTargetScope ? { secondaryTargetScope } : {}),
     ...(damageKind ? { damageKind } : {}),
     ...(monsterAction ? { monsterAction } : {}),
     ...(typeof value.monsterSkillId === "string" ? { monsterSkillId: value.monsterSkillId } : {}),
@@ -2444,9 +2452,68 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(typeof value.itemId === "string" ? { itemId: value.itemId } : {}),
     ...(typeof value.itemName === "string" ? { itemName: value.itemName } : {}),
     ...(heroHealing !== null ? { heroHealing } : {}),
+    ...(enemyResults.length > 0 ? { enemyResults } : {}),
+    ...(allyResults.length > 0 ? { allyResults } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(debugTrace ? { debugTrace } : {})
   };
+}
+
+function parseEnemyAbilityResults(value: unknown): NonNullable<CombatTurnSummary["enemyResults"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.enemyId !== "string" || typeof entry.monsterId !== "string") {
+      return [];
+    }
+
+    const damage = intOrNull(entry.damage);
+    const outcome = parseTurnOutcome(entry.outcome);
+
+    if (
+      damage === null ||
+      (outcome !== "hit" && outcome !== "critical-hit" && outcome !== "miss" && outcome !== "won")
+    ) {
+      return [];
+    }
+
+    return [{
+      enemyId: entry.enemyId,
+      monsterId: entry.monsterId,
+      ...(typeof entry.monsterName === "string" ? { monsterName: entry.monsterName } : {}),
+      damage,
+      outcome,
+      ...(entry.critical === true ? { critical: true } : {})
+    }];
+  });
+}
+
+function parseAllyAbilityResults(value: unknown): NonNullable<CombatTurnSummary["allyResults"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.targetId !== "string") {
+      return [];
+    }
+
+    const healing = intOrNull(entry.healing);
+    const guard = intOrNull(entry.guard);
+
+    if ((healing === null || healing <= 0) && (guard === null || guard <= 0)) {
+      return [];
+    }
+
+    return [{
+      targetId: entry.targetId,
+      ...(typeof entry.label === "string" ? { label: entry.label } : {}),
+      ...(healing !== null && healing > 0 ? { healing } : {}),
+      ...(guard !== null && guard > 0 ? { guard } : {})
+    }];
+  });
 }
 
 function parseEnemyTurnSummaries(value: unknown): CombatEnemyTurnSummary[] {
@@ -2570,7 +2637,7 @@ function parseTurnLogMonster(value: unknown): CombatTurnLogEntry["monster"] | nu
 }
 
 function parseCombatAction(value: unknown): CombatActionType | null {
-  return value === "attack" || value === "defend" || value === "skill" || value === "flee" || value === "skip" || value === "item"
+  return value === "attack" || value === "defend" || value === "skill" || value === "race" || value === "flee" || value === "skip" || value === "item"
     ? value
     : null;
 }
@@ -2611,6 +2678,28 @@ function parseTurnOutcome(value: unknown): CombatTurnOutcome | null {
 
 function parseDamageKind(value: unknown): CombatDamageKind | null {
   return value === "physical" || value === "spell" || value === "social" || value === "trick"
+    ? value
+    : null;
+}
+
+function parseAbilitySource(value: unknown): CombatTurnSummary["abilitySource"] | null {
+  return value === "basic" ||
+    value === "class" ||
+    value === "race" ||
+    value === "signature" ||
+    value === "monster"
+    ? value
+    : null;
+}
+
+function parseTargetScope(value: unknown): CombatTurnSummary["targetScope"] | null {
+  return value === "self" ||
+    value === "single-enemy" ||
+    value === "lowest-hp-enemy" ||
+    value === "all-enemies" ||
+    value === "single-ally-or-self" ||
+    value === "all-allies-including-self" ||
+    value === "lowest-hp-ally"
     ? value
     : null;
 }

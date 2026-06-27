@@ -222,7 +222,7 @@ describe("turn-based duel domain", () => {
     }
     expect(firstResolved.state.participants.challenger.cooldowns?.skill).toEqual({
       id: "skill.shadow-cut",
-      remainingTurns: 1
+      remainingTurns: 2
     });
 
     const rejected = resolveTurnBasedDuelAction({
@@ -238,7 +238,7 @@ describe("turn-based duel domain", () => {
     });
     expect(rejected.state.participants.challenger.cooldowns?.skill).toEqual({
       id: "skill.shadow-cut",
-      remainingTurns: 1
+      remainingTurns: 2
     });
   });
 
@@ -453,7 +453,7 @@ describe("turn-based duel domain", () => {
     )?.damage ?? 0;
 
     expect(baselineWarriorDamage).toBeGreaterThan(0);
-    expect(mitigatedWarriorDamage).toBe(Math.max(0, baselineWarriorDamage - 1));
+    expect(mitigatedWarriorDamage).toBe(Math.max(0, baselineWarriorDamage - 2));
   });
 
   it("rolls small replay-storable XP for terminal wins and losses", () => {

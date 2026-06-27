@@ -728,19 +728,20 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
       "🛡 Захищатися",
-      "💪 Силовий удар",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
       "🏃 Відступити"
     ]);
     expect(inlineButtonRows(buildPersistentFightKeyboard(session, character))).toEqual([
       ["🗡️ Вдарити", "🛡 Захищатися"],
-      ["💪 Силовий удар"],
+      ["🪓 Силовий замах", "🧰 Практична імпровізація"],
       ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
-      "🥟 Кипляча начинка · 3 мани"
+      "🥟 Кипляча начинка · 4 мани"
     );
     expect(flatInlineButtonTexts(buildPersistentFightKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
-      "🌘 Тіньовий різ"
+      "🌘 Тіньовий розтин"
     );
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard())).toEqual([
       "⬆️ Повернутися до зали",
@@ -768,6 +769,7 @@ describe("main menu and scene keyboards", () => {
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
+      "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:race",
       "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
@@ -905,24 +907,26 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "🗡️ Вдарити",
       "🛡 Захищатися",
-      "💪 Силовий удар",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
       "🏃 Відступити"
     ]);
     expect(inlineButtonRows(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       ["🗡️ Вдарити", "🛡 Захищатися"],
-      ["💪 Силовий удар"],
+      ["🪓 Силовий замах", "🧰 Практична імпровізація"],
       ["🏃 Відступити"]
     ]);
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.varenyk-mancer" }))).toContain(
-      "🥟 Кипляча начинка · 3 мани"
+      "🥟 Кипляча начинка · 4 мани"
     );
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, { ...character, classId: "class.rogue" }))).toContain(
-      "🌘 Тіньовий різ"
+      "🌘 Тіньовий розтин"
     );
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:attack",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:defend",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:skill",
+      "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:race",
       "v1:spar:turn:123e4567-e89b-12d3-a456-426614174000:4:flee"
     ]);
   });
@@ -1037,7 +1041,7 @@ describe("main menu and scene keyboards", () => {
       "skill.careful-strike"
     ];
     const displays = skillIds.map(getCombatSkillDisplay);
-    const reservedActionIcons = new Set(["🗡️", "🏃", "🕯️", "🎵", "🔥", "🏹", "🧾"]);
+    const reservedActionIcons = new Set(["🗡️", "🛡", "🏃", "🧾"]);
 
     expect(new Set(displays.map((display) => display.icon)).size).toBe(displays.length);
     expect(displays.filter((display) => reservedActionIcons.has(display.icon))).toEqual([]);
@@ -1047,19 +1051,19 @@ describe("main menu and scene keyboards", () => {
     });
     expect(getCombatSkillDisplay("skill.shadow-cut")).toEqual({
       icon: "🌘",
-      name: "Тіньовий різ"
+      name: "Тіньовий розтин"
     });
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.varenyk-mancer" })).toBe(
-      "🥟 Кипляча начинка · 3 мани"
+      "🥟 Кипляча начинка · 4 мани"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.rogue" })).toBe(
-      "🌘 Тіньовий різ"
+      "🌘 Тіньовий розтин"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.ranger" })).toBe(
-      "🎯 Хитрий постріл"
+      "🏹 Рикошетний постріл · 1 мана"
     );
     expect(getPersistentFightSkillLabel({ ...character, classId: "class.priest" })).toBe(
-      "🙏 Суворе благословення · 2 мани"
+      "✨ Суворе благословення · 4 мани"
     );
   });
 

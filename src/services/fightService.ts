@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { items, monsterLoot } from "../content";
 import { findMonsterAbility } from "../content/monsterAbilities";
+import { findPlayerAbility, findRaceAbility } from "../content/playerAbilities";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { LootExpansionSourceId } from "../content/lootExpansionV1";
@@ -4433,6 +4434,7 @@ function buildHeroCombatStats(
     manaMax: character.manaMax,
     hpCurrent: character.hpCurrent,
     manaCurrent: character.manaCurrent,
+    raceId: character.raceId,
     classId: character.classId,
     ...character.stats,
     armor: equipment.armor,
@@ -5058,12 +5060,38 @@ export function getPersistentFightSkillLabel(character: CharacterSummary): strin
   return `${label} · ${skill.manaCost} ${pluralize(skill.manaCost, "мана", "мани", "мани")}`;
 }
 
+export function getPersistentFightRaceAbilityLabel(character: CharacterSummary): string | null {
+  const ability = findRaceAbility(character.raceId);
+
+  if (!ability) {
+    return null;
+  }
+
+  const display = getCombatSkillDisplay(ability.id);
+  const label = `${display.icon} ${display.name}`;
+
+  if (ability.manaCost === 0) {
+    return label;
+  }
+
+  return `${label} · ${ability.manaCost} ${pluralize(ability.manaCost, "мана", "мани", "мани")}`;
+}
+
 export interface CombatSkillDisplay {
   icon: string;
   name: string;
 }
 
 export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillDisplay {
+  const playerAbility = findPlayerAbility(skillId);
+  if (playerAbility) {
+    const [icon, ...nameParts] = playerAbility.label.split(" ");
+    return {
+      icon: icon ?? "🪓",
+      name: nameParts.join(" ") || playerAbility.label
+    };
+  }
+
   const monsterAbility = skillId ? findMonsterAbility(skillId) : null;
   if (monsterAbility) {
     const [icon, ...nameParts] = monsterAbility.label.split(" ");

@@ -93,7 +93,7 @@ describe("duel presenter", () => {
 
     const text = presentTurnBasedDuel(result, { viewerCharacterId: "challenger-character" });
 
-    expect(text).toContain("🫁 💪 Силовий удар відсапується: ще 3 ходи.");
+    expect(text).toContain("🫁 🪓 Силовий замах відсапується: ще 3 ходи.");
     expect(text).not.toContain("🫁 Вміння відсапується");
   });
 

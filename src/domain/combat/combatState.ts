@@ -1,4 +1,5 @@
 import type { CharacterStats } from "../characters/starterStats";
+import type { CombatAbilitySource, CombatTargetScope } from "./combatActions";
 import {
   cloneCombatAnalyticsState,
   type CombatAnalyticsStateV1
@@ -13,7 +14,7 @@ import type { MonsterContextSnapshotV1 } from "./monsterContext";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
-export type CombatActionType = "attack" | "defend" | "skill" | "flee" | "skip" | "item";
+export type CombatActionType = "attack" | "defend" | "skill" | "race" | "flee" | "skip" | "item";
 export type PlayerCombatActionType = Exclude<CombatActionType, "skip" | "item">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
 export type CombatTimeoutMode = "auto-attack" | "auto-defend" | "skip";
@@ -41,6 +42,7 @@ export interface CombatActorStats extends CharacterStats {
   level: number;
   hpMax: number;
   manaMax: number;
+  raceId?: string;
   classId?: string;
   armor?: number;
   resist?: number;
@@ -272,6 +274,9 @@ export interface CombatTurnSummary {
   manaSpent: number;
   critical: boolean;
   skillId?: string;
+  abilitySource?: CombatAbilitySource;
+  targetScope?: CombatTargetScope;
+  secondaryTargetScope?: CombatTargetScope;
   damageKind?: CombatDamageKind;
   monsterAction?: "attack" | "skill" | "defend" | "telegraph";
   monsterSkillId?: string;
@@ -284,8 +289,26 @@ export interface CombatTurnSummary {
   itemId?: string;
   itemName?: string;
   heroHealing?: number;
+  enemyResults?: CombatEnemyAbilityResult[];
+  allyResults?: CombatAllyAbilityResult[];
   enemyActions?: CombatEnemyTurnSummary[];
   debugTrace?: CombatDebugTrace;
+}
+
+export interface CombatEnemyAbilityResult {
+  enemyId: string;
+  monsterId: string;
+  monsterName?: string;
+  damage: number;
+  outcome: Extract<CombatTurnOutcome, "hit" | "critical-hit" | "miss" | "won">;
+  critical?: boolean;
+}
+
+export interface CombatAllyAbilityResult {
+  targetId: string;
+  label?: string;
+  healing?: number;
+  guard?: number;
 }
 
 export interface CombatEnemyTurnSummary {
@@ -721,6 +744,12 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
     ...summary,
     ...(summary.enemyActions
       ? { enemyActions: summary.enemyActions.map((entry) => ({ ...entry })) }
+      : {}),
+    ...(summary.enemyResults
+      ? { enemyResults: summary.enemyResults.map((entry) => ({ ...entry })) }
+      : {}),
+    ...(summary.allyResults
+      ? { allyResults: summary.allyResults.map((entry) => ({ ...entry })) }
       : {}),
     ...(summary.debugTrace ? { debugTrace: { ...summary.debugTrace } } : {})
   };

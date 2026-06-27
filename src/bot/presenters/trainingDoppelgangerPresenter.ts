@@ -1,6 +1,7 @@
 import {
   buildDoppelgangerCounterFlavor,
   selectDoppelgangerLine,
+  type CombatState,
   type CombatTurnSummary
 } from "../../domain/combat";
 import type {
@@ -181,8 +182,8 @@ function presentTrainingDoppelgangerState(input: {
     `Хід: ${state?.turn ?? "?"}`
   ];
 
-  if (state?.status === "active" && state.cooldowns?.skill?.remainingTurns) {
-    lines.push(presentSkillCooldown(state.cooldowns.skill));
+  if (state?.status === "active") {
+    lines.push(...presentAbilityCooldowns(state.cooldowns));
   }
 
   if (input.intro) {
@@ -316,15 +317,12 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
   }
 
   const action =
-    summary.action === "skill"
+    summary.action === "skill" || summary.action === "race"
       ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
         : "Відступ";
-  const hit =
-    summary.heroOutcome === "miss"
-      ? `${action} не влучає.`
-      : `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+  const hit = presentHeroActionResult(summary, action);
   const response =
     summary.monsterDamage > 0
       ? summary.monsterAction === "skill" && summary.monsterSkillId
@@ -334,13 +332,75 @@ function presentTrainingTurnSummary(summary: CombatTurnSummary): string {
         ? "Копія промахнулась і дуже професійно вдала, що це була демонстрація."
         : "";
 
-  return [hit, response].filter(Boolean).join("\n");
+  return [hit, ...presentAllyAbilityResults(summary), response].filter(Boolean).join("\n");
 }
 
 function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }): string {
   const skill = getCombatSkillDisplay(cooldown.id);
 
   return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+}
+
+function presentAbilityCooldowns(
+  cooldowns: CombatState["cooldowns"] | undefined
+): string[] {
+  const entries: Array<{ id: string; remainingTurns: number }> = [];
+  const seen = new Set<string>();
+
+  if (cooldowns?.skill?.remainingTurns) {
+    entries.push(cooldowns.skill);
+    seen.add(cooldowns.skill.id);
+  }
+
+  for (const cooldown of Object.values(cooldowns?.abilities ?? {})) {
+    if (cooldown.remainingTurns > 0 && !seen.has(cooldown.id)) {
+      entries.push(cooldown);
+      seen.add(cooldown.id);
+    }
+  }
+
+  return entries.map(presentSkillCooldown);
+}
+
+function presentHeroActionResult(summary: CombatTurnSummary, action: string): string {
+  if (summary.enemyResults && summary.enemyResults.length > 1) {
+    const results = summary.enemyResults
+      .map((entry) => entry.outcome === "miss"
+        ? `${escapeHtml(entry.monsterName ?? "Копія")} — повз`
+        : `${escapeHtml(entry.monsterName ?? "Копія")} — ${entry.damage}`)
+      .join("; ");
+
+    return `${action} зачіпає цілі: ${results}.`;
+  }
+
+  if (summary.heroOutcome === "miss") {
+    return `${action} не влучає.`;
+  }
+
+  if (summary.heroDamage <= 0 && (summary.allyResults?.length ?? 0) > 0) {
+    return `${action} спрацьовує без прямої шкоди.`;
+  }
+
+  return `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+}
+
+function presentAllyAbilityResults(summary: CombatTurnSummary): string[] {
+  const results = summary.allyResults ?? [];
+
+  if (results.length === 0 && !summary.heroHealing) {
+    return [];
+  }
+
+  return results.length > 0
+    ? results.map((entry) => {
+        const parts = [
+          entry.healing ? `HP підросли на ${entry.healing}` : "",
+          entry.guard ? "захист став міцнішим" : ""
+        ].filter(Boolean);
+
+        return parts.length > 0 ? `Підтримка: ${parts.join(", ")}.` : "";
+      }).filter(Boolean)
+    : [`Підтримка: HP підросли на ${summary.heroHealing}.`];
 }
 
 function presentTrainingCounterFlavor(

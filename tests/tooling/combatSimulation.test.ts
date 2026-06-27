@@ -55,7 +55,58 @@ describe("combatSimulation", () => {
       telegraphCount: 0,
       shieldUses: 0,
       healingUses: 0,
-      abilityUsage: {}
+      abilityUsage: {},
+      classAbilityUsage: {},
+      raceAbilityUsage: {},
+      aoeEnemyHits: 0,
+      allySupportUses: 0
+    });
+  });
+
+  it("summarizes player class/race ability usage and group effect counts separately", () => {
+    const runs: CombatSimulationRunResult[] = [
+      {
+        outcome: "won",
+        turns: 4,
+        endingHp: 8,
+        manaSpent: 5,
+        monsterBasicAttacks: 1,
+        monsterDefends: 0,
+        monsterAbilities: 1,
+        monsterTelegraphs: 0,
+        shieldUses: 0,
+        healingUses: 0,
+        abilityUsage: { "monster.paper-rustle": 1 },
+        classAbilityUsage: { "skill.hot-spell": 2 },
+        raceAbilityUsage: { "ability.race.dry-tide": 1 },
+        aoeEnemyHits: 3,
+        allySupportUses: 0
+      },
+      {
+        outcome: "lost",
+        turns: 5,
+        endingHp: 0,
+        manaSpent: 4,
+        monsterBasicAttacks: 2,
+        monsterDefends: 0,
+        monsterAbilities: 0,
+        monsterTelegraphs: 0,
+        shieldUses: 0,
+        healingUses: 0,
+        abilityUsage: {},
+        classAbilityUsage: { "skill.hot-spell": 1 },
+        raceAbilityUsage: { "ability.race.dry-tide": 1 },
+        aoeEnemyHits: 2,
+        allySupportUses: 1
+      }
+    ];
+
+    expect(summarizeCombatRuns(runs)).toMatchObject({
+      abilityUsage: { "monster.paper-rustle": 1 },
+      classAbilityUsage: { "skill.hot-spell": 3 },
+      raceAbilityUsage: { "ability.race.dry-tide": 2 },
+      aoeEnemyHits: 5,
+      allySupportUses: 1
     });
   });
 
@@ -242,6 +293,28 @@ describe("combatSimulation", () => {
       boundary.rows[0]?.summary.averageEndingHp ?? 0
     );
   });
+
+  it("can choose race abilities during aggressive simulations", () => {
+    const report = runCombatSimulation({
+      levels: [3],
+      monsterLevels: "same",
+      runsPerMatchup: 20,
+      seed: "race-action-sanity",
+      classIds: ["class.warrior"],
+      raceId: "race.dryland-rusalka",
+      policy: "aggressive",
+      maxTurns: 12
+    });
+
+    const raceUses = report.rows.reduce(
+      (sum, row) =>
+        sum + Object.values(row.summary.raceAbilityUsage).reduce((inner, count) => inner + count, 0),
+      0
+    );
+
+    expect(raceUses).toBeGreaterThan(0);
+    expect(formatCombatSimulationReport(report)).toContain("player abilities class");
+  });
 });
 
 function makeRow(
@@ -272,7 +345,18 @@ function makeRow(
       expiredRate: 0,
       averageTurns: 3,
       averageEndingHp: 7,
-      averageManaSpent: 4
+      averageManaSpent: 4,
+      basicAttackShare: 0,
+      defendShare: 0,
+      abilityShare: 0,
+      telegraphCount: 0,
+      shieldUses: 0,
+      healingUses: 0,
+      abilityUsage: {},
+      classAbilityUsage: {},
+      raceAbilityUsage: {},
+      aoeEnemyHits: 0,
+      allySupportUses: 0
     },
     warnings: []
   };

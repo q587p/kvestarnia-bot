@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Низ дозволив пошук, але залишив собі право обуритись");
-    expect(text).toContain("У проходах Низу тепер можна не лише одразу лізти в бій");
+    expect(text).toContain("Пригодники згадали, ким вони є");
+    expect(text).toContain("У бійках тепер важить не лише класова звичка");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("у локаціях <code>Спуск до Низу</code> і <code>Ярус I: Сутерени Корчми</code> є короткий безпечний пошук");
-    expect(text).toContain("ризикований пошук поруч із поточним мешканцем");
-    expect(text).toContain("расові, класові й титульні хитрощі пошуку");
+    expect(text).toContain("зʼявляється окрема расова кнопка");
+    expect(text).toContain("бій із двома супротивниками тепер краще розуміє групові удари");
+    expect(text).toContain("Це ще не партії, не рейди й не велика книжка талантів");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

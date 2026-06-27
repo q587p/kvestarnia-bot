@@ -10,6 +10,23 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.7 — Player Abilities smoke
+
+Use one level 3+ account with local dev commands enabled where helpful. Use multiple races/classes across fresh or edited local test characters.
+
+1. Start a normal Nyz fight for each active onboarding race and verify the compact race ability button label appears beside the class ability row.
+2. Use each race ability once; verify the result card names the ability, spends only its stated mana and shows that ability on cooldown.
+3. Press the same race ability again while it is cooling down; verify no turn advances, no mana changes and no monster response is added.
+4. Use the class ability while the race ability is cooling down; verify class and race cooldowns are independent.
+5. Use refreshed class abilities for Warrior, Mage, Varenyk-mancer, Bureaucramancer, Bard, Rogue, Ranger, Priest and Kharakternyk; verify labels and compact mana hints.
+6. Try a mana-gated class/race ability with insufficient mana; verify the card refreshes without spending a turn.
+7. In a two-enemy threat fight, use Mage, Bureaucramancer, Bard, Kharakternyk, Бісини or dryland Rusalka abilities and verify each living enemy is affected once.
+8. Use Ranger `Рикошетний постріл` in a two-enemy fight and verify the primary target remains clear while splash damage does not double-hit it.
+9. Use Domovyk, Dwarf, Molfar Soul, Priest, Bard or Varenyk support-ready abilities; verify current solo fallback affects only the hero and does not claim party behavior.
+10. Use `/spar`; verify player class and race abilities work in training, while the doppelganger keeps existing copied class-skill behavior.
+11. Open combat journal pages after class/race ability turns; verify stored ability names, cooldown notices and per-target summaries replay without rerolling.
+12. Open quick and turn-based duel screens; verify no race ability buttons appear there.
+
 ## 0.2.6 — Passage Search smoke
 
 Use one level 3+ account with local dev commands enabled where helpful.

@@ -717,7 +717,7 @@ describe("fight presenter", () => {
       questProgress: questProgress(4)
     });
 
-    expect(text).toContain("🫁 🙏 Суворе благословення відсапується: ще 1 хід.");
+    expect(text).toContain("🫁 ✨ Суворе благословення відсапується: ще 1 хід.");
     expect(text).not.toContain("🫁 Вміння відсапується");
   });
 
@@ -935,7 +935,7 @@ describe("fight presenter", () => {
 
     expect(text).toContain(
       [
-        "Вміння 🙏 <i>Суворе благословення</i> влучає критично на 17 шкоди.",
+        "Вміння ✨ <i>Суворе благословення</i> влучає критично на 17 шкоди.",
         "Монстр атакував у відповідь на ваш хід і завдав 8 шкоди."
       ].join("\n")
     );
@@ -1136,7 +1136,7 @@ describe("fight presenter", () => {
       fightReward: null
     });
 
-    expect(text).toContain("🫁 🪄 Гаряче закляття відсапується: ще 1 хід.");
+    expect(text).toContain("🫁 🔥 Гаряче закляття відсапується: ще 1 хід.");
     expect(text).toContain("🧷 Ефект триває: ваша влучність просіла на 15 пунктів, спаде після вашої наступної дії.");
     expect(text).not.toContain("п.п.");
   });
@@ -1289,7 +1289,7 @@ describe("fight presenter", () => {
     expect(text).toContain("Хід <b>2</b> · запис 2/2");
     expect(text).toContain("❤️ Ви після ходу: 19/24 · мана 11/12");
     expect(text).toContain("👹 Монстр після ходу: 0/18");
-    expect(text).toContain("Вміння 🙏 <i>Суворе благословення</i> влучає на 14 шкоди.");
+    expect(text).toContain("Вміння ✨ <i>Суворе благословення</i> влучає на 14 шкоди.");
   });
 
   it("does not duplicate an explicit terminal journal event", () => {

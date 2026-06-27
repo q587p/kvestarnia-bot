@@ -50,7 +50,7 @@ const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
 const PASSAGE_PREFIX = "v1:fight:pass";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
-const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "flee"]);
+const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "race", "flee"]);
 const passageActions = new Set<Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">>([
   "deep-left",
   "deep-straight",

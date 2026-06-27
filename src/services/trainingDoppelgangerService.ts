@@ -1668,6 +1668,7 @@ function buildHeroCombatStats(character: CharacterSummary) {
     manaMax: character.manaMax,
     hpCurrent: character.hpCurrent,
     manaCurrent: character.manaCurrent,
+    raceId: character.raceId,
     classId: character.classId,
     ...character.stats,
     armor: effects?.armor ?? 0,

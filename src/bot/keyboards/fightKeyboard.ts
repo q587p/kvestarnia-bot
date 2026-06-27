@@ -2,7 +2,10 @@ import { InlineKeyboard } from "grammy";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
 import { getCombatActionAvailability, getTerminalCombatTurnLogEventId } from "../../domain/combat";
-import { getPersistentFightSkillLabel } from "../../services/fightService";
+import {
+  getPersistentFightRaceAbilityLabel,
+  getPersistentFightSkillLabel
+} from "../../services/fightService";
 import {
   normalizePresenceLocationId,
   PRESENCE_LOCATION_KORCHMA_BAR,
@@ -69,19 +72,31 @@ export function buildPersistentFightKeyboard(
 ): InlineKeyboard {
   const turn = session.state?.turn ?? 1;
   const availability = session.state
-    ? getCombatActionAvailability(session.state, { classId: character.classId }).skill
+    ? getCombatActionAvailability(session.state, { classId: character.classId, raceId: character.raceId })
     : null;
   const keyboard = new InlineKeyboard()
     .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
     .text("🛡 Захищатися", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
     .row();
 
-  if (availability?.available !== false) {
+  if (availability?.skill.available !== false) {
     keyboard.text(
       getPersistentFightSkillLabel(character),
       makeFightTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
-    ).row();
+    );
   }
+
+  if (availability?.race.available) {
+    const raceLabel = getPersistentFightRaceAbilityLabel(character);
+    if (raceLabel) {
+      keyboard.text(
+        raceLabel,
+        makeFightTurnCallbackData({ sessionId: session.id, turn, action: "race" })
+      );
+    }
+  }
+
+  keyboard.row();
 
   return keyboard
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));
