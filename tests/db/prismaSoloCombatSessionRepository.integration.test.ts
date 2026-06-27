@@ -1617,6 +1617,31 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     });
     await prisma.itemUseOrder.create({
       data: {
+        id: "item-use-combat-old-replaced",
+        token: "combatoldreplaced",
+        characterId: "character-combat-item-own-use-preview",
+        telegramUserId: 9403n,
+        itemId: "item.responsible-panic-bandage",
+        itemName: "Бинт відповідальної паніки",
+        itemFingerprint: "test-fingerprint",
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "pending",
+        reservationKey: null,
+        previewJson: {
+          mode: "single",
+          rulesVersion: "item-use-v1",
+          healAmount: 7,
+          hpBefore: 10,
+          hpAfter: 17
+        },
+        expiresAt: new Date("2026-06-24T14:10:00.000Z"),
+        createdAt: new Date("2026-06-24T13:58:00.000Z"),
+        updatedAt: new Date("2026-06-24T13:58:00.000Z")
+      }
+    });
+    await prisma.itemUseOrder.create({
+      data: {
         id: "item-use-combat-replaced",
         token: "combatreplaced",
         characterId: "character-combat-item-own-use-preview",
@@ -1636,6 +1661,7 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
           hpAfter: 17
         },
         expiresAt: new Date("2026-06-24T14:10:00.000Z"),
+        createdAt: new Date("2026-06-24T13:59:00.000Z"),
         updatedAt: new Date("2026-06-24T14:00:00.000Z")
       }
     });
@@ -1674,6 +1700,13 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toBeNull();
     await expect(prisma.itemUseOrder.findUnique({
       where: { id: "item-use-combat-replaced" }
+    })).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: new Date("2026-06-24T14:00:00.000Z")
+    });
+    await expect(prisma.itemUseOrder.findUnique({
+      where: { id: "item-use-combat-old-replaced" }
     })).resolves.toMatchObject({
       status: "cancelled",
       reservationKey: null,

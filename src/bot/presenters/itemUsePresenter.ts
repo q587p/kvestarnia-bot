@@ -24,7 +24,7 @@ export function presentItemUsePreview(result: ItemUsePreviewRepositoryResult): s
   }
 
   if (result.state === "reserved") {
-    return "Ця манатка вже зайнята іншою дією. Інвентар тримає чергу суворіше за Корчмаря.";
+    return "Ця манатка вже зайнята іншою дією. Інвентар не витрачатиме її вдруге.";
   }
 
   if (result.state === "full-hp") {
@@ -135,7 +135,7 @@ export function presentItemUseRestoreToFull(result: ItemUseRestoreToFullReposito
   }
 
   if (result.state === "reserved") {
-    return "Ця манатка вже зайнята іншою дією. Інвентар тримає чергу суворо.";
+    return "Ця манатка вже зайнята іншою дією. Інвентар не витрачатиме її вдруге.";
   }
 
   if (result.state === "not-owned") {

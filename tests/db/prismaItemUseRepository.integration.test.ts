@@ -442,6 +442,161 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(0);
   });
 
+  it("lets restore-to-full clear older own pending bandage previews before reservation checks", async () => {
+    await seedCharacter({ hpCurrent: 0, hpMax: 31 });
+    await seedBandages(9);
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-old-own-preview",
+        token: "use-token-old-own-preview",
+        characterId,
+        telegramUserId,
+        itemId: bandage.id,
+        itemName: bandage.name,
+        itemFingerprint: createItemUseFingerprint(bandage),
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "pending",
+        reservationKey: null,
+        previewJson: {
+          rulesVersion: "item-use-v1",
+          hpBefore: 0,
+          hpMax: 47,
+          healAmount: 7,
+          hpAfter: 7
+        },
+        expiresAt: future(),
+        createdAt: new Date("2026-06-25T08:58:00.000Z"),
+        updatedAt: new Date("2026-06-25T08:58:00.000Z")
+      }
+    });
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-new-own-preview",
+        token: "use-token-new-own-preview",
+        characterId,
+        telegramUserId,
+        itemId: bandage.id,
+        itemName: bandage.name,
+        itemFingerprint: createItemUseFingerprint(bandage),
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "pending",
+        reservationKey: `use:${characterId}:${bandage.id}`,
+        previewJson: {
+          rulesVersion: "item-use-v1",
+          hpBefore: 0,
+          hpMax: 47,
+          healAmount: 7,
+          hpAfter: 7
+        },
+        expiresAt: future(),
+        createdAt: new Date("2026-06-25T08:59:00.000Z"),
+        updatedAt: new Date("2026-06-25T08:59:00.000Z")
+      }
+    });
+
+    await expect(restoreToFull("restore-token-clears-older-own-previews")).resolves.toMatchObject({
+      state: "preview-created",
+      neededQuantity: 7,
+      availableQuantity: 9,
+      order: {
+        token: "restore-token-clears-older-own-previews",
+        preview: {
+          mode: "restore-to-full",
+          hpBefore: 0,
+          hpAfter: 47
+        }
+      }
+    });
+    await expect(readUseOrder("use-token-old-own-preview")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expect(readUseOrder("use-token-new-own-preview")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expectBandageQuantity(9);
+    await expectCharacterHp(0);
+  });
+
+  it("lets ordinary inventory bandage use clear older own pending previews before reservation checks", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedBandages(3);
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-old-own-inventory-preview",
+        token: "use-token-old-own-inventory-preview",
+        characterId,
+        telegramUserId,
+        itemId: bandage.id,
+        itemName: bandage.name,
+        itemFingerprint: createItemUseFingerprint(bandage),
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "pending",
+        reservationKey: null,
+        previewJson: {
+          rulesVersion: "item-use-v1",
+          hpBefore: 10,
+          hpMax: 41,
+          healAmount: 7,
+          hpAfter: 17
+        },
+        expiresAt: future(),
+        createdAt: new Date("2026-06-25T08:58:00.000Z"),
+        updatedAt: new Date("2026-06-25T08:58:00.000Z")
+      }
+    });
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-new-own-inventory-preview",
+        token: "use-token-new-own-inventory-preview",
+        characterId,
+        telegramUserId,
+        itemId: bandage.id,
+        itemName: bandage.name,
+        itemFingerprint: createItemUseFingerprint(bandage),
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "pending",
+        reservationKey: `use:${characterId}:${bandage.id}`,
+        previewJson: {
+          rulesVersion: "item-use-v1",
+          hpBefore: 10,
+          hpMax: 41,
+          healAmount: 7,
+          hpAfter: 17
+        },
+        expiresAt: future(),
+        createdAt: new Date("2026-06-25T08:59:00.000Z"),
+        updatedAt: new Date("2026-06-25T08:59:00.000Z")
+      }
+    });
+
+    await expect(createPreview("use-token-clears-older-own-inventory-previews")).resolves.toMatchObject({
+      state: "preview-replayed",
+      order: {
+        token: "use-token-new-own-inventory-preview",
+        preview: {
+          hpBefore: 10,
+          hpAfter: 17
+        }
+      }
+    });
+    await expect(readUseOrder("use-token-old-own-inventory-preview")).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null
+    });
+    await expect(readUseOrder("use-token-new-own-inventory-preview")).resolves.toMatchObject({
+      status: "pending",
+      reservationKey: `use:${characterId}:${bandage.id}`
+    });
+    await expectBandageQuantity(3);
+    await expectCharacterHp(10);
+  });
+
   it("blocks restore-to-full for equipped items", async () => {
     await seedCharacter({ hpCurrent: 30, hpMax: 25 });
     await seedBandages(3);

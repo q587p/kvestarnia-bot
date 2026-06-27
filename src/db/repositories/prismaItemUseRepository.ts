@@ -65,6 +65,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
+          await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
           if (isRestoreToFullOrder(existing)) {
             await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
               ...existing.preview,
@@ -483,6 +484,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           orderBy: { createdAt: "desc" }
         }));
         if (existing) {
+          await cancelOtherPendingUseOrdersForItem(tx, character.id, input.item.id, existing.id, input.now);
           if (!isRestoreToFullOrder(existing)) {
             await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
               ...existing.preview,
@@ -1149,6 +1151,34 @@ async function releaseExpiredUseReservations(
       updatedAt: now,
       resultJson: {
         kind: "expired"
+      }
+    }
+  });
+}
+
+async function cancelOtherPendingUseOrdersForItem(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  exceptOrderId: string,
+  now: Date
+): Promise<void> {
+  await tx.itemUseOrder.updateMany({
+    where: {
+      characterId,
+      itemId,
+      id: { not: exceptOrderId },
+      status: "pending",
+      expiresAt: { gt: now }
+    },
+    data: {
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: now,
+      updatedAt: now,
+      resultJson: {
+        kind: "cancelled",
+        itemId
       }
     }
   });

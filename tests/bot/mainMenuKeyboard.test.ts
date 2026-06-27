@@ -1360,6 +1360,74 @@ describe("main menu and scene keyboards", () => {
         )
       )
     ).toEqual(["v1:equip:item:item.pan-of-persuasion", "v1:item:inventory:s:w", "v1:equip:view"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 1,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 3
+              }
+            }
+          },
+          null,
+          0,
+          null,
+          {
+            canUse: true,
+            combatUse: {
+              sessionId: "123e4567-e89b-42d3-a456-426614174321",
+              turn: 2,
+              itemKey: "item.responsible-panic-bandage"
+            }
+          }
+        )
+      )
+    ).toEqual(["⚔️ Використати у бою", "⬅️ До манаток", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 1,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 3
+              }
+            }
+          },
+          null,
+          0,
+          null,
+          {
+            canUse: true,
+            combatUse: {
+              sessionId: "123e4567-e89b-42d3-a456-426614174321",
+              turn: 2,
+              itemKey: "item.responsible-panic-bandage"
+            }
+          }
+        )
+      )[0]
+    ).toBe("v1:fight:item:123e4567-e89b-42d3-a456-426614174321:2:item.responsible-panic-bandage");
     expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
       flatInlineButtonTexts(
