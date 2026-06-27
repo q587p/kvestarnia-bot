@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
+  presentAchievementCheckNotice,
   presentAchievementUnlockNotification,
   presentAchievements
 } from "../../src/bot/presenters/achievementPresenter";
@@ -73,6 +74,15 @@ describe("achievement presenter", () => {
     expect(text).not.toContain("реморт");
   });
 
+  it("renders recalculation notices above the list", () => {
+    const text = presentAchievements(makeEmptyView(), {
+      notice: presentAchievementCheckNotice(3)
+    });
+
+    expect(text).toContain("🔎 Перевірено: нових записів: 3.");
+    expect(text).toContain("Літописець дістав ще одну теку.");
+  });
+
   it("groups several unlock notifications", () => {
     const text = presentAchievementUnlockNotification([
       {
@@ -94,3 +104,13 @@ describe("achievement presenter", () => {
     expect(text).toContain("✅ Манатка дивиться першою");
   });
 });
+
+function makeEmptyView(): AchievementListView {
+  return {
+    entries: [],
+    earnedCount: 0,
+    totalCount: 0,
+    page: 0,
+    totalPages: 1
+  };
+}

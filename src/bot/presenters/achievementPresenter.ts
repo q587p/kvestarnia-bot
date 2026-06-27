@@ -1,7 +1,10 @@
 import type { AchievementListEntry, AchievementListView, AchievementUnlock } from "../../services/achievementService";
 import { escapeHtml } from "./telegramHtml";
 
-export function presentAchievements(view: AchievementListView): string {
+export function presentAchievements(
+  view: AchievementListView,
+  options: { notice?: string | null } = {}
+): string {
   const lines = [
     "🏅 <b>Ачівки</b>",
     "Розділ: 📚 Усі",
@@ -10,6 +13,10 @@ export function presentAchievements(view: AchievementListView): string {
     ""
   ];
 
+  if (options.notice) {
+    lines.push(`🔎 ${escapeHtml(options.notice)}`, "");
+  }
+
   if (view.entries.length === 0) {
     lines.push("Журнал порожній. Літописець підозріло чистить перо.");
   } else {
@@ -17,6 +24,14 @@ export function presentAchievements(view: AchievementListView): string {
   }
 
   return lines.join("\n");
+}
+
+export function presentAchievementCheckNotice(unlockCount: number): string {
+  if (unlockCount === 0) {
+    return "Перевірено: нових записів немає. Літописець поставив галочку й удав, що так і було.";
+  }
+
+  return `Перевірено: нових записів: ${unlockCount}. Літописець дістав ще одну теку.`;
 }
 
 export function presentAchievementUnlockNotification(unlocks: readonly AchievementUnlock[]): string | null {

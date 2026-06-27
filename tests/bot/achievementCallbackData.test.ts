@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  makeAchievementCheckCallbackData,
   makeAchievementListCallbackData,
   parseAchievementCallbackData
 } from "../../src/bot/callbacks/achievementCallbackData";
@@ -24,6 +25,18 @@ describe("achievement callback data", () => {
       ok: true,
       value: {
         type: "hero"
+      }
+    });
+  });
+
+  it("parses the recalculation callback", () => {
+    const callbackData = makeAchievementCheckCallbackData();
+
+    expect(Buffer.byteLength(callbackData, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseAchievementCallbackData(callbackData)).toEqual({
+      ok: true,
+      value: {
+        type: "check"
       }
     });
   });

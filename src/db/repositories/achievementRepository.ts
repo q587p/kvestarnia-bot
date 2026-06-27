@@ -46,6 +46,24 @@ export interface CharacterAchievementSnapshot {
   titleGrants: CharacterCosmeticTitleGrantRecord[];
 }
 
+export interface AchievementRecalculationSnapshot {
+  characterId: string;
+  level: number;
+  raceId: string;
+  classId: string;
+  createdAt: Date;
+  combat: {
+    won: number;
+    lost: number;
+    fled: number;
+    expired: number;
+  };
+  completedProblemQuestStages: number;
+  inventoryItemQuantity: number;
+  inventoryItemQuantities: Readonly<Record<string, number>>;
+  equippedItemCount: number;
+}
+
 export interface UnlockAchievementInput {
   characterId: string;
   achievementId: string;
@@ -61,6 +79,7 @@ export interface UnlockAchievementResult {
 
 export interface AchievementRepository {
   listForCharacter(characterId: string): Promise<CharacterAchievementSnapshot>;
+  getRecalculationSnapshot(characterId: string): Promise<AchievementRecalculationSnapshot | null>;
   unlockAchievement(input: UnlockAchievementInput): Promise<UnlockAchievementResult>;
   updateProgressMax(input: {
     characterId: string;

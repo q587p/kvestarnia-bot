@@ -16,16 +16,21 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `AchievementService` and `PrismaAchievementRepository` for idempotent unlocks, monotonic progress and title-grant provenance tied to the source achievement.
 - Added the `/hero` entry button `🏅 Ачівки`, achievement pagination callbacks, earned/locked/hidden rendering and grouped unlock notification copy.
 - Added seed unlock hooks for existing successful boundaries: character creation, level reached, combat finished, problem quest turn-in, item received through existing reward claims and item equipped.
+- Expanded the seed catalog from a starter handful to 41 enabled achievements plus 2 hidden future placeholders, covering race/class identity collection, more level milestones, combat counts/outcomes, problem-chain stages, carried manatky totals, `Бинт відповідальної паніки` thresholds and equipped manatky counts.
+- Added `🔎 Перевірити` on the achievements page so existing characters can idempotently recalculate currently provable records from stored character, fight, problem, inventory and equipment rows.
 - Added safe archive rendering for unknown stored achievements so future disabled/deleted definitions do not break old rows.
+- Added a project rule that new player-facing gameplay functionality should add matching achievements/hooks for visible new actions, milestones and odd outcomes, or explicitly document why achievements are out of scope for that slice.
+- Documented class/race ability-use achievements as the next counter-backed expansion path: future 42-use records should ship with durable ability-use counters instead of unverifiable placeholders.
 
 ### Changed
 - Hero cards now include an inline `🏅 Ачівки` action; the existing restore-to-full shortcut remains available beneath it when applicable.
 - Successful onboarding, combat rewards, problem turn-ins and equipment changes can send short grouped achievement notifications after their canonical result cards.
 - Level achievement progress is stored as a monotonic snapshot and does not move backward on replay or lower-level events.
+- Achievement progress can now be refreshed from current persisted state without changing rewards, combat state or old reward ledgers.
 
 ### Unchanged
 - Achievements and cosmetic title grants are records only: they grant no XP, gold, items, stats, loot odds, quest/Yeger/Shynok/remort progress, combat power, donor perks or paid advantage.
-- Active title selection, active title abilities, title combat buttons, broad telemetry, party/raid runtime, bestiary collection and noisy backfill remain future slices.
+- Active title selection, active title abilities, title combat buttons, broad telemetry, automatic background backfill, party/raid runtime and bestiary collection remain future slices.
 - Remort does not remove achievements or cosmetic title grants.
 
 ## [0.2.7] - 12026-06-28 - Player Abilities MVP

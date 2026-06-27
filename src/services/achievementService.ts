@@ -7,6 +7,7 @@ import {
 } from "../content/achievements";
 import type {
   AchievementRepository,
+  AchievementRecalculationSnapshot,
   AchievementUnlockSource,
   CharacterAchievementProgressRecord,
   CharacterAchievementRecord,
@@ -19,6 +20,8 @@ export type AchievementEvent =
   | {
       type: "character.created";
       characterId: string;
+      raceId?: string;
+      classId?: string;
       occurredAt: Date;
       sourceId?: string;
     }
@@ -87,6 +90,10 @@ export interface AchievementListView {
   totalPages: number;
 }
 
+export interface AchievementRecalculationResult {
+  unlocks: AchievementUnlock[];
+}
+
 export class AchievementService {
   constructor(private readonly achievementsRepository: AchievementRepository) {}
 
@@ -152,6 +159,62 @@ export class AchievementService {
       return [];
     }
   }
+
+  async recalculateForCharacter(characterId: string, occurredAt = new Date()): Promise<AchievementRecalculationResult> {
+    const snapshot = await this.achievementsRepository.getRecalculationSnapshot(characterId);
+
+    if (!snapshot) {
+      return { unlocks: [] };
+    }
+
+    const unlocks: AchievementUnlock[] = [];
+
+    for (const definition of getEnabledAchievements()) {
+      const current = getRecalculationProgress(definition, snapshot);
+      const threshold = definition.trigger.threshold ?? 1;
+
+      if (definition.progressTarget) {
+        await this.achievementsRepository.updateProgressMax({
+          characterId,
+          achievementId: definition.id,
+          current: Math.min(current, definition.progressTarget),
+          target: definition.progressTarget
+        });
+      }
+
+      if (current < threshold) {
+        continue;
+      }
+
+      const result = await this.achievementsRepository.unlockAchievement({
+        characterId,
+        achievementId: definition.id,
+        source: {
+          type: "achievement.recalculate",
+          occurredAt,
+          payload: {
+            triggerType: definition.trigger.type,
+            current,
+            threshold
+          }
+        },
+        ...(definition.cosmeticTitleGrantId
+          ? { cosmeticTitleGrantId: definition.cosmeticTitleGrantId }
+          : {})
+      });
+
+      if (result.created) {
+        unlocks.push({
+          id: definition.id,
+          title: definition.title,
+          cosmeticTitleGrantId: definition.cosmeticTitleGrantId ?? null,
+          unlockedAt: result.achievement.unlockedAt
+        });
+      }
+    }
+
+    return { unlocks };
+  }
 }
 
 function matchesEvent(definition: AchievementDefinition, event: AchievementEvent): boolean {
@@ -161,15 +224,14 @@ function matchesEvent(definition: AchievementDefinition, event: AchievementEvent
 
   switch (event.type) {
     case "combat.finished":
-      if (definition.id === "achievement.combat.first-win") {
-        return event.outcome === "won";
-      }
-      if (definition.id === "achievement.combat.first-loss") {
-        return event.outcome === "lost";
-      }
-      return false;
+      return !definition.trigger.outcome || definition.trigger.outcome === event.outcome;
+    case "character.created":
+      return matchesOptionalValue(definition.trigger.raceId, event.raceId) &&
+        matchesOptionalValue(definition.trigger.classId, event.classId);
     case "item.received":
-      return event.itemIds.length > 0;
+      return definition.trigger.itemId
+        ? event.itemIds.includes(definition.trigger.itemId)
+        : event.itemIds.length > 0;
     default:
       return true;
   }
@@ -180,7 +242,65 @@ function isThresholdMet(definition: AchievementDefinition, event: AchievementEve
     return event.type === "level.reached" && event.level >= (definition.trigger.threshold ?? 1);
   }
 
-  return true;
+  if (definition.trigger.type === "combat.finished") {
+    return event.type === "combat.finished" && (definition.trigger.threshold ?? 1) <= 1;
+  }
+
+  if (definition.trigger.type === "problem.quest.completed") {
+    return event.type === "problem.quest.completed" && (definition.trigger.threshold ?? 1) <= 1;
+  }
+
+  if (definition.trigger.type === "item.received") {
+    if (event.type !== "item.received") {
+      return false;
+    }
+
+    const itemCount = definition.trigger.itemId
+      ? event.itemIds.filter((itemId) => itemId === definition.trigger.itemId).length
+      : event.itemIds.length;
+
+    return itemCount > 0 && (definition.trigger.threshold ?? 1) <= itemCount;
+  }
+
+  if (definition.trigger.type === "equipment.item_equipped") {
+    return event.type === "equipment.item_equipped" && (definition.trigger.threshold ?? 1) <= 1;
+  }
+
+  return definition.trigger.type === event.type;
+}
+
+function getRecalculationProgress(
+  definition: AchievementDefinition,
+  snapshot: AchievementRecalculationSnapshot
+): number {
+  switch (definition.trigger.type) {
+    case "character.created":
+      return matchesOptionalValue(definition.trigger.raceId, snapshot.raceId) &&
+        matchesOptionalValue(definition.trigger.classId, snapshot.classId)
+        ? 1
+        : 0;
+    case "level.reached":
+      return snapshot.level;
+    case "combat.finished":
+      return definition.trigger.outcome
+        ? snapshot.combat[definition.trigger.outcome]
+        : 0;
+    case "problem.quest.completed":
+      return snapshot.completedProblemQuestStages;
+    case "item.received":
+      return definition.trigger.itemId
+        ? snapshot.inventoryItemQuantities[definition.trigger.itemId] ?? 0
+        : snapshot.inventoryItemQuantity;
+    case "equipment.item_equipped":
+      return snapshot.equippedItemCount;
+    case "future":
+    default:
+      return 0;
+  }
+}
+
+function matchesOptionalValue(expected: string | undefined, actual: string | undefined): boolean {
+  return expected === undefined || expected === actual;
 }
 
 function eventToSource(event: AchievementEvent): AchievementUnlockSource {
@@ -202,9 +322,13 @@ function eventPayload(event: AchievementEvent): Record<string, unknown> {
       return { stageId: event.stageId };
     case "item.received":
       return { itemIds: [...event.itemIds] };
+    case "character.created":
+      return {
+        ...(event.raceId ? { raceId: event.raceId } : {}),
+        ...(event.classId ? { classId: event.classId } : {})
+      };
     case "equipment.item_equipped":
       return { itemId: event.itemId };
-    case "character.created":
     default:
       return {};
   }

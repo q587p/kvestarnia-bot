@@ -14,16 +14,17 @@
 
 Use one fresh account plus one existing level 3+ account. Local dev grants are acceptable for level/equipment setup.
 
-1. Open `/hero` and press `🏅 Ачівки`; verify earned, locked and hidden rows render compactly with no hidden criteria spoiler.
-2. Return from the achievements page to the hero card; repeat old page callbacks and verify views do not mutate rows or create duplicate notifications.
-3. Create a fresh character; verify the first achievement notification appears once and the achievement page shows its title-grant record marker.
-4. Trigger level 3 and level 5 through existing XP/dev-grant paths; verify progress moves forward and grouped notifications appear when several unlocks happen together.
-5. Win a starter or persistent monster fight; repeat terminal/result callbacks and verify `achievement.combat.first-win` does not duplicate.
-6. Lose a persistent fight if convenient; verify the first-loss record appears without XP/gold/item/stat changes from the achievement itself.
-7. Turn in a Korchmar problem; verify the problem achievement and any item/level unlocks are grouped after the canonical turn-in card.
-8. Receive a reward item and equip a manatka; verify item/equipment achievements unlock once and old equip callbacks do not duplicate title grants.
-9. Remort locally; verify achievement and cosmetic title grant rows remain visible afterward.
-10. Confirm no UI path offers a reward claim, active title selection, title ability, title combat button, XP/gold/item/stat/combat buff or paid advantage.
+1. Open `/hero` and press `🏅 Ачівки`; verify earned, locked and hidden rows render compactly with no hidden criteria spoiler and pagination appears when needed.
+2. Press `🔎 Перевірити` on an existing account; verify provable old race/class, level/combat/problem/inventory/equipment rows appear once, then repeat the press and verify no duplicate unlocks.
+3. Return from the achievements page to the hero card; repeat old page callbacks and verify views do not mutate rows or create duplicate notifications.
+4. Create a fresh character; verify the first achievement notification appears once, includes the current race/class identity records, and the achievement page shows title-grant record markers.
+5. Trigger level 3 and level 5 through existing XP/dev-grant paths; verify progress moves forward and grouped notifications appear when several unlocks happen together.
+6. Win a starter or persistent monster fight; repeat terminal/result callbacks and verify `achievement.combat.first-win` does not duplicate.
+7. Lose or flee a persistent fight if convenient; verify the first loss/flee records appear without XP/gold/item/stat changes from the achievement itself.
+8. Turn in a Korchmar problem; verify the problem achievement and any item/level unlocks are grouped after the canonical turn-in card.
+9. Receive a reward item, collect or grant `Бинт відповідальної паніки`, and equip a manatka; verify item/bandage/equipment achievements unlock once and old equip callbacks do not duplicate title grants.
+10. Remort locally; verify achievement and cosmetic title grant rows remain visible afterward.
+11. Confirm no UI path offers a reward claim, active title selection, title ability, title combat button, XP/gold/item/stat/combat buff or paid advantage.
 
 ## 0.2.7 — Player Abilities smoke
 

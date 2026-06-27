@@ -139,6 +139,8 @@ export class OnboardingService {
       ? (await this.achievements?.trackEventSafely({
           type: "character.created",
           characterId: result.character.id,
+          raceId: result.character.raceId,
+          classId: result.character.classId,
           occurredAt: new Date(),
           sourceId: result.character.id
         })) ?? []

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   AchievementRepository,
+  AchievementRecalculationSnapshot,
   CharacterAchievementProgressRecord,
   CharacterAchievementRecord,
   CharacterAchievementSnapshot,
@@ -16,6 +17,8 @@ describe("AchievementService", () => {
     const event = {
       type: "character.created" as const,
       characterId: "character-1",
+      raceId: "race.human-ish",
+      classId: "class.bard",
       occurredAt: new Date("2026-06-28T09:00:00.000Z"),
       sourceId: "character-1"
     };
@@ -23,13 +26,29 @@ describe("AchievementService", () => {
     const first = await service.trackEvent(event);
     const second = await service.trackEvent(event);
 
-    expect(first.map((unlock) => unlock.id)).toEqual(["achievement.character.created"]);
+    expect(first.map((unlock) => unlock.id)).toEqual([
+      "achievement.character.created",
+      "achievement.race.human-ish",
+      "achievement.class.bard"
+    ]);
     expect(second).toEqual([]);
-    expect(repo.snapshot.achievements).toHaveLength(1);
+    expect(repo.snapshot.achievements).toHaveLength(3);
     expect(repo.snapshot.titleGrants).toMatchObject([
       {
         titleGrantId: "cosmetic-title.first-ink",
         achievementId: "achievement.character.created",
+        sourceType: "character.created",
+        sourceId: "character-1"
+      },
+      {
+        titleGrantId: "cosmetic-title.human-ish-paperproof",
+        achievementId: "achievement.race.human-ish",
+        sourceType: "character.created",
+        sourceId: "character-1"
+      },
+      {
+        titleGrantId: "cosmetic-title.bard-dangerous-couplet",
+        achievementId: "achievement.class.bard",
         sourceType: "character.created",
         sourceId: "character-1"
       }
@@ -98,15 +117,83 @@ describe("AchievementService", () => {
     const service = new AchievementService(repo);
 
     const firstPage = await service.listForCharacter("character-1");
-    const secondPage = await service.listForCharacter("character-1", 1);
+    const remainingPages = await Promise.all(
+      Array.from({ length: firstPage.totalPages - 1 }, (_, index) =>
+        service.listForCharacter("character-1", index + 1)
+      )
+    );
+    const allEntries = [firstPage, ...remainingPages].flatMap((page) => page.entries);
 
-    expect(secondPage.entries.some((entry) => entry.earned && entry.unknownStored)).toBe(true);
-    const hiddenLocked = firstPage.entries.find((entry) => entry.id === "achievement.remort.first-memory");
+    expect(allEntries.some((entry) => entry.earned && entry.unknownStored)).toBe(true);
+    const hiddenLocked = allEntries.find((entry) => entry.id === "achievement.remort.first-memory");
     expect(hiddenLocked).toMatchObject({
       earned: false,
       title: "Таємна ачівка"
     });
     expect(hiddenLocked?.description).not.toContain("реморт");
+  });
+
+  it("recalculates provable historical achievements from the current character snapshot", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = {
+      characterId: "character-1",
+      level: 13,
+      raceId: "race.domovyk",
+      classId: "class.ranger",
+      createdAt: new Date("2026-06-28T08:00:00.000Z"),
+      combat: {
+        won: 3,
+        lost: 1,
+        fled: 1,
+        expired: 0
+      },
+      completedProblemQuestStages: 2,
+      inventoryItemQuantity: 106,
+      inventoryItemQuantities: {
+        "item.responsible-panic-bandage": 93,
+        "item.test-other": 13
+      },
+      equippedItemCount: 3
+    };
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T10:00:00.000Z")
+    );
+    const duplicate = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T10:01:00.000Z")
+    );
+
+    expect(result.unlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.character.created",
+      "achievement.race.domovyk",
+      "achievement.class.ranger",
+      "achievement.level.2",
+      "achievement.level.3",
+      "achievement.level.5",
+      "achievement.level.10",
+      "achievement.level.13",
+      "achievement.combat.first-win",
+      "achievement.combat.three-wins",
+      "achievement.combat.first-loss",
+      "achievement.combat.first-flee",
+      "achievement.quest.first-problem",
+      "achievement.quest.problem-chain.23",
+      "achievement.item.first-received",
+      "achievement.item.three-owned",
+      "achievement.item.thirteen-owned",
+      "achievement.bandage.first-owned",
+      "achievement.bandage.ninety-three-owned",
+      "achievement.equipment.first-equipped",
+      "achievement.equipment.three-equipped"
+    ]);
+    expect(duplicate.unlocks).toEqual([]);
+    expect(repo.progressFor("achievement.level.23")?.current).toBe(13);
+    expect(repo.progressFor("achievement.combat.thirteen-wins")?.current).toBe(3);
+    expect(repo.progressFor("achievement.item.thirteen-owned")?.current).toBe(13);
+    expect(repo.progressFor("achievement.bandage.ninety-three-owned")?.current).toBe(93);
   });
 });
 
@@ -116,9 +203,14 @@ class FakeAchievementRepository implements AchievementRepository {
     progress: [],
     titleGrants: []
   };
+  recalculationSnapshot: AchievementRecalculationSnapshot | null = null;
 
   listForCharacter(): Promise<CharacterAchievementSnapshot> {
     return Promise.resolve(this.snapshot);
+  }
+
+  getRecalculationSnapshot(): Promise<AchievementRecalculationSnapshot | null> {
+    return Promise.resolve(this.recalculationSnapshot);
   }
 
   unlockAchievement(input: UnlockAchievementInput): Promise<UnlockAchievementResult> {

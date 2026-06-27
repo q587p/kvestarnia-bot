@@ -7,14 +7,21 @@ export type AchievementCallback = {
   type: "list";
   page: number;
 } | {
+  type: "check";
+} | {
   type: "hero";
 };
 
 const LIST_PREFIX = "v1:ach:list";
 const HERO_CALLBACK = "v1:ach:hero";
+const CHECK_CALLBACK = "v1:ach:check";
 
 export function makeAchievementListCallbackData(page = 0): string {
   return `${LIST_PREFIX}:${normalizePage(page)}`;
+}
+
+export function makeAchievementCheckCallbackData(): string {
+  return CHECK_CALLBACK;
 }
 
 export function parseAchievementCallbackData(
@@ -30,6 +37,10 @@ export function parseAchievementCallbackData(
 
   if (data === HERO_CALLBACK) {
     return ok({ type: "hero" });
+  }
+
+  if (data === CHECK_CALLBACK) {
+    return ok({ type: "check" });
   }
 
   if (!data.startsWith(`${LIST_PREFIX}:`)) {

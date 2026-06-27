@@ -18,7 +18,11 @@ import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import type { ResourceRecoveryNotice } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 import { calculateInventoryRowsGoldValue } from "./inventoryService";
-import type { AchievementListView, AchievementService } from "./achievementService";
+import type {
+  AchievementListView,
+  AchievementRecalculationResult,
+  AchievementService
+} from "./achievementService";
 
 export type HeroLookupResult =
   | { state: "no-character" }
@@ -123,6 +127,30 @@ export class HeroService {
     return {
       state: "ready",
       view: await this.achievements.listForCharacter(character.id, page)
+    };
+  }
+
+  async recalculateAchievementsByTelegramUserId(
+    telegramUserId: bigint
+  ): Promise<
+    { state: "no-character" } | {
+      state: "ready";
+      result: AchievementRecalculationResult;
+      view: AchievementListView;
+    }
+  > {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character || !this.achievements) {
+      return { state: "no-character" };
+    }
+
+    const result = await this.achievements.recalculateForCharacter(character.id);
+
+    return {
+      state: "ready",
+      result,
+      view: await this.achievements.listForCharacter(character.id, 0)
     };
   }
 }

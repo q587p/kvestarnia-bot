@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
+  AchievementRecalculationSnapshot,
   AchievementRepository,
   CharacterAchievementProgressRecord,
   CharacterAchievementRecord,
@@ -8,6 +9,13 @@ import type {
   UnlockAchievementInput,
   UnlockAchievementResult
 } from "./achievementRepository";
+
+const PROBLEM_QUEST_REWARD_KEYS = [
+  "quest.thirteen-small-problems",
+  "quest.problem-chain.23.reward",
+  "quest.problem-chain.42.reward",
+  "quest.problem-chain.93.reward"
+] as const;
 
 export class PrismaAchievementRepository implements AchievementRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -32,6 +40,70 @@ export class PrismaAchievementRepository implements AchievementRepository {
       achievements: achievements.map(toAchievementRecord),
       progress: progress.map(toProgressRecord),
       titleGrants: titleGrants.map(toTitleGrantRecord)
+    };
+  }
+
+  async getRecalculationSnapshot(characterId: string): Promise<AchievementRecalculationSnapshot | null> {
+    const character = await this.prisma.character.findUnique({
+      where: { id: characterId },
+      select: {
+        id: true,
+        level: true,
+        raceId: true,
+        classId: true,
+        createdAt: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    const [
+      won,
+      lost,
+      fled,
+      expired,
+      completedProblemQuestStages,
+      inventory,
+      equippedItemCount
+    ] = await Promise.all([
+      this.prisma.soloCombatSession.count({ where: { characterId, status: "won" } }),
+      this.prisma.soloCombatSession.count({ where: { characterId, status: "lost" } }),
+      this.prisma.soloCombatSession.count({ where: { characterId, status: "fled" } }),
+      this.prisma.soloCombatSession.count({ where: { characterId, status: "expired" } }),
+      this.prisma.dailyAction.count({
+        where: {
+          characterId,
+          key: { in: [...PROBLEM_QUEST_REWARD_KEYS] }
+        }
+      }),
+      this.prisma.characterItem.findMany({
+        where: { characterId },
+        select: {
+          itemId: true,
+          quantity: true
+        }
+      }),
+      this.prisma.characterEquipment.count({ where: { characterId } })
+    ]);
+
+    return {
+      characterId: character.id,
+      level: character.level,
+      raceId: character.raceId,
+      classId: character.classId,
+      createdAt: character.createdAt,
+      combat: {
+        won,
+        lost,
+        fled,
+        expired
+      },
+      completedProblemQuestStages,
+      inventoryItemQuantity: inventory.reduce((sum, row) => sum + row.quantity, 0),
+      inventoryItemQuantities: Object.fromEntries(inventory.map((row) => [row.itemId, row.quantity])),
+      equippedItemCount
     };
   }
 

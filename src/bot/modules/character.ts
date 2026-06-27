@@ -40,6 +40,7 @@ buildRaceKeyboard
 import { buildRemortKeyboard,buildRemortResultKeyboard } from "../keyboards/remortKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
 import {
+presentAchievementCheckNotice,
 presentAchievementUnlockNotification
 } from "../presenters/achievementPresenter";
 import { presentAchievements } from "../presenters/achievementPresenter";
@@ -184,6 +185,27 @@ async function handleAchievementCallback(
 
   if (!telegramUserId) {
     await safeEditMessageText(ctx, presentInvalidCallback());
+    return;
+  }
+
+  if (callback.type === "check") {
+    const result = await heroService.recalculateAchievementsByTelegramUserId(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentInvalidCallback());
+      return;
+    }
+
+    await safeEditMessageText(
+      ctx,
+      presentAchievements(result.view, {
+        notice: presentAchievementCheckNotice(result.result.unlocks.length)
+      }),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildAchievementsKeyboard(result.view)
+      }
+    );
     return;
   }
 

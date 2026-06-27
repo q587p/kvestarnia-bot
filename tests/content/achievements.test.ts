@@ -20,6 +20,7 @@ const forbiddenRewardKeys = [
 describe("achievement definitions", () => {
   it("keeps ids unique and definitions sorted", () => {
     expect(validateAchievementDefinitions()).toEqual([]);
+    expect(achievements.filter((definition) => definition.status === "enabled").length).toBeGreaterThanOrEqual(41);
     expect(new Set(achievements.map((definition) => definition.id)).size).toBe(achievements.length);
     expect(achievements.map((definition) => definition.sortOrder)).toEqual(
       [...achievements].map((definition) => definition.sortOrder).sort((left, right) => left - right)

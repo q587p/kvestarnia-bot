@@ -1,6 +1,9 @@
 import { InlineKeyboard } from "grammy";
 import type { AchievementListView } from "../../services/achievementService";
-import { makeAchievementListCallbackData } from "../callbacks/achievementCallbackData";
+import {
+  makeAchievementCheckCallbackData,
+  makeAchievementListCallbackData
+} from "../callbacks/achievementCallbackData";
 
 export function buildHeroAchievementsKeyboard(
   options: { restoreCallbackData?: string | null } = {}
@@ -16,6 +19,8 @@ export function buildHeroAchievementsKeyboard(
 
 export function buildAchievementsKeyboard(view: AchievementListView): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+
+  keyboard.text("🔎 Перевірити", makeAchievementCheckCallbackData()).row();
 
   if (view.totalPages > 1) {
     if (view.page > 0) {
