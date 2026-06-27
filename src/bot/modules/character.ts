@@ -5,6 +5,7 @@ import type { OnboardingService } from "../../services/onboardingService";
 import type { RemortService } from "../../services/remortService";
 import type { RestartService } from "../../services/restartService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import { parseAchievementCallbackData,type AchievementCallback } from "../callbacks/achievementCallbackData";
 import { parseBestiaryCallbackData,type BestiaryCallback } from "../callbacks/bestiaryCallbackData";
 import { parseDevResetCallbackData } from "../callbacks/devResetCallbackData";
 import {
@@ -21,6 +22,7 @@ sendBestiaryMonsterGated
 import { registerDevGrantCommands } from "../commands/devGrantCommand";
 import { registerDevResetCommand } from "../commands/devResetCommand";
 import { registerHeroCommand } from "../commands/heroCommand";
+import { sendHero } from "../commands/heroCommand";
 import { registerRemortCommand } from "../commands/remortCommand";
 import { registerRestartCommand } from "../commands/restartCommand";
 import { registerStartCommand } from "../commands/startCommand";
@@ -28,6 +30,7 @@ import { playerFromContext } from "../context";
 import {
 buildMainMenuKeyboard
 } from "../keyboards/mainMenuKeyboard";
+import { buildAchievementsKeyboard } from "../keyboards/achievementKeyboard";
 import {
 buildClassKeyboard,
 buildConfirmationKeyboard,
@@ -36,6 +39,10 @@ buildRaceKeyboard
 } from "../keyboards/onboardingKeyboard";
 import { buildRemortKeyboard,buildRemortResultKeyboard } from "../keyboards/remortKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import {
+presentAchievementUnlockNotification
+} from "../presenters/achievementPresenter";
+import { presentAchievements } from "../presenters/achievementPresenter";
 import {
 presentDevResetCancelled,
 presentDevResetDeleted,
@@ -116,6 +123,17 @@ export function registerCharacterBotModule(
     await handleBestiaryCallback(ctx, parsed.value, services.hero);
   });
 
+  bot.callbackQuery(/^v1:ach:/, async (ctx) => {
+    const parsed = parseAchievementCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleAchievementCallback(ctx, parsed.value, services.hero);
+  });
+
   bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
     const parsed = parseDevResetCallbackData(ctx.callbackQuery.data);
 
@@ -147,6 +165,38 @@ export function registerCharacterBotModule(
     }
 
     await handleRemortCallback(ctx, parsed.value, services.remort, services.tavern);
+  });
+}
+
+async function handleAchievementCallback(
+  ctx: Context,
+  callback: AchievementCallback,
+  heroService: HeroService
+): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+
+  if (callback.type === "hero") {
+    await sendHero(ctx, heroService, "edit");
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeEditMessageText(ctx, presentInvalidCallback());
+    return;
+  }
+
+  const result = await heroService.listAchievementsByTelegramUserId(telegramUserId, callback.page);
+
+  if (result.state === "no-character") {
+    await safeEditMessageText(ctx, presentInvalidCallback());
+    return;
+  }
+
+  await safeEditMessageText(ctx, presentAchievements(result.view), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildAchievementsKeyboard(result.view)
   });
 }
 
@@ -295,6 +345,10 @@ async function handleOnboardingCallback(
     presentCharacterCreated(result.value.character, result.value.created),
     HTML_MESSAGE_OPTIONS
   );
+  const achievementText = presentAchievementUnlockNotification(result.value.achievementUnlocks);
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
   await ctx.reply("🍺 Квестарня відчинена.", {
     reply_markup: buildMainMenuKeyboard()
   });

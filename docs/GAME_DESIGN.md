@@ -59,16 +59,17 @@ Future path restrictions should sound like in-world folklore or institutions, no
 Hidden `path` може бути внутрішнім selector-ом, але назви `sun`, `moon`, `boundary` і великі «шляхи» не виходять у player-facing текст.
 
 ## Ачівки й титули
-Achievements Phase 1 лишається rewardless later slice після основного combat/equipment/loot loop. Ачівки в Phase 1 — це жартівливі записи й майбутні титули, а не бойові бонуси.
+`0.2.8` відкриває перший rewardless achievement slice. Ачівки — це жартівливі записи й майбутні титульні сліди, а не бойові бонуси.
 
 - Вхід: кнопка `🏅 Ачівки` з екрану персонажа.
-- Перший seed: 54 definition records із категоріями старту/рівнів, бою, квестів, босів, манаток/золота, присутності й дивацтв.
-- UI показує earned, locked і hidden states, прогрес, дату отримання й пагінацію по 10 рядків.
-- Unlock-повідомлення мають групуватися, якщо одна дія відкрила кілька ачівок.
+- Перший runtime seed малий: створення персонажа, рівні, бойовий результат, корчмарська справа, отримана манатка й екіпірування.
+- UI показує earned, locked і hidden states, прогрес, дату отримання, титульний запис і пагінацію по 10 рядків.
+- Unlock-повідомлення групуються, якщо одна дія відкрила кілька ачівок.
 - Hidden-ачівки не спойлерять умову до відкриття.
-- У Phase 1 ачівки не дають XP, золото, предмети або stat effects.
+- Persisted cosmetic title grants зберігають provenance для майбутнього вибору титулів, але не змінюють поточний combo-title display.
+- Ачівки не дають XP, золото, предмети, stat effects, loot odds, quest/Yeger/Shynok/remort progress або combat power.
 
-Канонічний контракт для наступного PR: `docs/ACHIEVEMENTS_PHASE1.md`.
+Канонічний контракт: `docs/ACHIEVEMENTS_PHASE1.md`; shipped scope: `docs/tasks/0.2.8-achievements-cosmetic-titles.md`.
 
 ## Раси MVP
 Не треба одразу 40 рас. Почати з компактного набору, де кожна має механіку й гумор.

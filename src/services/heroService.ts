@@ -18,6 +18,7 @@ import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import type { ResourceRecoveryNotice } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 import { calculateInventoryRowsGoldValue } from "./inventoryService";
+import type { AchievementListView, AchievementService } from "./achievementService";
 
 export type HeroLookupResult =
   | { state: "no-character" }
@@ -55,7 +56,8 @@ export class HeroService {
     private readonly equipment?: EquipmentRepository,
     private readonly remorts?: Pick<RemortRepository, "countByTelegramUserId">,
     shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | Clock,
-    clock: Clock = systemClock
+    clock: Clock = systemClock,
+    private readonly achievements?: AchievementService
   ) {
     if (typeof shynokOrClock === "function") {
       this.clock = shynokOrClock;
@@ -105,6 +107,22 @@ export class HeroService {
       ...(resourceAware.recoveryNotice
         ? { recoveryNotice: resourceAware.recoveryNotice }
         : {})
+    };
+  }
+
+  async listAchievementsByTelegramUserId(
+    telegramUserId: bigint,
+    page = 0
+  ): Promise<{ state: "no-character" } | { state: "ready"; view: AchievementListView }> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character || !this.achievements) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "ready",
+      view: await this.achievements.listForCharacter(character.id, page)
     };
   }
 }

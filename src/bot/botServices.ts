@@ -1,4 +1,5 @@
 import type { BarrelRaidNotificationRepository } from "../db/repositories/barrelRaidNotificationRepository";
+import type { AchievementService } from "../services/achievementService";
 import type { AdventureService } from "../services/adventureService";
 import type { BardPerformanceService } from "../services/bardPerformanceService";
 import type { CellarErrandService } from "../services/cellarErrandService";
@@ -28,6 +29,7 @@ import type { TrainingDoppelgangerService } from "../services/trainingDoppelgang
 import type { YegerQuestService } from "../services/yegerQuestService";
 
 export interface BotServices {
+  achievements: AchievementService;
   adventure: AdventureService;
   bardPerformance?: BardPerformanceService;
   barrelRaidNotifications?: BarrelRaidNotificationRepository;

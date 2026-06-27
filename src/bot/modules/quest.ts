@@ -67,6 +67,7 @@ buildYegerKeyboard,
 buildYegerTurnInKeyboard
 } from "../keyboards/yegerKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
 presentAdventureLegacyApproachStale,
 presentAdventureNoCharacter,
@@ -352,6 +353,12 @@ async function handleQuestCallback(
           : {})
       })
     });
+    const achievementText = result.state === "turned-in"
+      ? presentAchievementUnlockNotification(result.result.achievementUnlocks)
+      : null;
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }

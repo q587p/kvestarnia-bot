@@ -45,6 +45,7 @@ buildMantokChestPreviewKeyboard,
 buildMantokChestResultKeyboard
 } from "../keyboards/mantokChestKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
 presentEquipItemResult,
 presentEquipment,
@@ -398,6 +399,10 @@ async function handleEquipmentCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildEquipmentKeyboard(equipment)
       });
+      const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
+      if (achievementText) {
+        await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      }
       return;
     }
 

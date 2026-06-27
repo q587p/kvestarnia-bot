@@ -10,6 +10,21 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.8 — Achievements and Cosmetic Title Records smoke
+
+Use one fresh account plus one existing level 3+ account. Local dev grants are acceptable for level/equipment setup.
+
+1. Open `/hero` and press `🏅 Ачівки`; verify earned, locked and hidden rows render compactly with no hidden criteria spoiler.
+2. Return from the achievements page to the hero card; repeat old page callbacks and verify views do not mutate rows or create duplicate notifications.
+3. Create a fresh character; verify the first achievement notification appears once and the achievement page shows its title-grant record marker.
+4. Trigger level 3 and level 5 through existing XP/dev-grant paths; verify progress moves forward and grouped notifications appear when several unlocks happen together.
+5. Win a starter or persistent monster fight; repeat terminal/result callbacks and verify `achievement.combat.first-win` does not duplicate.
+6. Lose a persistent fight if convenient; verify the first-loss record appears without XP/gold/item/stat changes from the achievement itself.
+7. Turn in a Korchmar problem; verify the problem achievement and any item/level unlocks are grouped after the canonical turn-in card.
+8. Receive a reward item and equip a manatka; verify item/equipment achievements unlock once and old equip callbacks do not duplicate title grants.
+9. Remort locally; verify achievement and cosmetic title grant rows remain visible afterward.
+10. Confirm no UI path offers a reward claim, active title selection, title ability, title combat button, XP/gold/item/stat/combat buff or paid advantage.
+
 ## 0.2.7 — Player Abilities smoke
 
 Use one level 3+ account with local dev commands enabled where helpful. Use multiple races/classes across fresh or edited local test characters.

@@ -51,6 +51,7 @@ import {
   buildTrainingDoppelgangerKeyboard
 } from "../keyboards/trainingDoppelgangerKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { presentDevGrantDisabled, presentDevGrantNoCharacter } from "../presenters/devGrantPresenter";
 import {
 buildProblemQuestProgressAfterFightEntry,
@@ -585,6 +586,12 @@ async function handleFightCallback(
         character: result.character
       });
     }
+    const achievementText = result.state === "updated" && result.fightReward
+      ? presentAchievementUnlockNotification(result.fightReward.achievementUnlocks ?? [])
+      : null;
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
     return;
   }
 
@@ -615,6 +622,10 @@ async function handleFightCallback(
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
+    const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
   }
 }
 

@@ -119,7 +119,7 @@
 
 | Зона | План | Guardrail |
 | --- | --- | --- |
-| Achievements Phase 1 | Rewardless achievements can unlock title-like records and future cosmetic titles. | No XP, gold, loot, combat power or pay-to-win advantage. |
+| Achievements Phase 1 | `0.2.8` ships rewardless achievement records and persisted cosmetic title grants as provenance for future title UI. | No XP, gold, loot, combat power, active title selection or pay-to-win advantage. |
 | Active title selection | Later UI may let a player choose a visible active title near the name. | Not part of current runtime; do not key mechanics from localized visible text alone. |
 | Title social hooks | Titles may affect funny adventure outcomes, board-memory lines, reputation scenes or small capped social modifiers. | Keep effects tiny, transparent where needed and replay-safe. |
 | Title combat hooks | Only future scoped slices should add title-linked combat behavior, likely as cosmetic/funny identity first and as a visible action slot on the same current-skill surfaces. | No title should become required for PvE/PvP power; quick duel should not grow hidden title math without a separate balance review. |

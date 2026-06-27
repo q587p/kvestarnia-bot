@@ -150,7 +150,8 @@ describe("scene callback HTML options", () => {
               localDate: "12026-06-12",
               itemGrants: [{ name: "Підозрілий лавашний доказ", quantity: 1 }]
             },
-            levelChange: noLevelChange
+            levelChange: noLevelChange,
+            achievementUnlocks: []
           })
         }
       })
@@ -232,7 +233,8 @@ describe("scene callback HTML options", () => {
                   nextStageId: "42"
                 },
                 nextStageAvailable: true,
-                branchComplete: false
+                branchComplete: false,
+                achievementUnlocks: []
               }
             })
         }
