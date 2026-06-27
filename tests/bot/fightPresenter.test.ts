@@ -852,6 +852,38 @@ describe("fight presenter", () => {
     expect(noMana).not.toContain("Нагорода");
   });
 
+  it("shows item-use failures without replaying the previous real turn", () => {
+    const text = presentPersistentFightTurn({
+      state: "item-unavailable",
+      reason: "reserved",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "skill",
+          heroOutcome: "skill-hit",
+          heroDamage: 26,
+          monsterDamage: 12,
+          manaSpent: 3,
+          critical: true
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Млинок наклепу",
+        description: "Меле репутацію.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Ця манатка вже зайнята іншою дією");
+    expect(text).toContain("👹 Тестовий: 18/18");
+    expect(text).not.toContain("Хитрий постріл");
+    expect(text).not.toContain("Монстр атакував у відповідь");
+  });
+
   it("shows a short recovery note for persistent turn callbacks at zero HP", () => {
     const text = presentPersistentFightTurn({
       state: "needs-rest",
