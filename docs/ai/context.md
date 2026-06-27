@@ -64,6 +64,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/PLAYTESTING.md` — manual smoke tests.
 - `CHANGELOG.md` — detailed release history.
 - `news.md` — player-facing spoiler-light release news.
+- `docs/refactoring-audit/README.md` — imported refactoring audit package with future task candidates and prompts.
 - `docs/PHASE2_MVP_RELEASE_NOTES.md`, `docs/PHASE2_MVP_CLOSEOUT_PLAN.md`, `docs/PHASE2_CLOSEOUT_SMOKE.md`, `docs/PHASE2_DEFERRED_0_2.md` — `0.1.x` Phase 2 MVP closeout summary, smoke gate and `0.2.x` deferred order.
 - `docs/DAILY_KORCHMA_ROUNDS.md`, `docs/tasks/0.2.x-daily-korchma-rounds.md`, `docs/PLAYTESTING-daily-korchma-rounds-addendum.md` — future daily `Корчмарський обхід` design/task/QA package; docs-only until explicitly activated.
 

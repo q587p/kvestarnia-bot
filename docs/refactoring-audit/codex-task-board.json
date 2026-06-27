@@ -1,0 +1,69 @@
+{
+  "generatedAt": "12026-06-27",
+  "repo": "q587p/kvestarnia-bot",
+  "activeContext": "0.2.7 — Player Abilities MVP",
+  "observedMainVersion": "0.2.6",
+  "queues": [
+    {
+      "name": "first",
+      "tasks": [
+        {
+          "id": "player-abilities-registry",
+          "priority": "P0",
+          "taskDoc": "tasks/player-abilities-registry.md",
+          "prompt": "prompts/player-abilities-registry-main-codex.md",
+          "reason": "Directly supports 0.2.7 Player Abilities MVP and turns the current class-skill switch into a registry."
+        },
+        {
+          "id": "bot-callback-route-helper",
+          "priority": "P0/P1",
+          "taskDoc": "tasks/bot-callback-route-helper.md",
+          "prompt": "prompts/bot-callback-route-helper-codex.md",
+          "reason": "Removes repeated unsafe ceremony after 0.2.2 module split without recreating a central router."
+        },
+        {
+          "id": "service-constructor-dependencies",
+          "priority": "P1",
+          "taskDoc": "tasks/service-constructor-dependencies.md",
+          "prompt": null,
+          "reason": "Replaces positional undefined placeholders before deeper service decomposition."
+        }
+      ]
+    },
+    {
+      "name": "second",
+      "tasks": [
+        {
+          "id": "fight-service-facade-split",
+          "priority": "P1",
+          "taskDoc": "tasks/fight-service-facade-split.md",
+          "prompt": "prompts/fight-service-facade-split-codex.md",
+          "reason": "Largest remaining application-service hotspot; should be split only behind characterization tests."
+        },
+        {
+          "id": "player-monster-ability-contract-map",
+          "priority": "P2",
+          "taskDoc": "tasks/player-monster-ability-contract-map.md",
+          "prompt": null,
+          "reason": "Prevents premature coupling between player ability registry and monster runtime."
+        },
+        {
+          "id": "observability-and-balance-metrics",
+          "priority": "P2/P3",
+          "taskDoc": "tasks/observability-and-balance-metrics.md",
+          "prompt": null,
+          "reason": "Measure before adding queues, infrastructure, or broad performance work."
+        }
+      ]
+    }
+  ],
+  "doNotStartWith": [
+    "repository-wide rewrite",
+    "DI container or framework",
+    "generic event bus",
+    "microservices",
+    "global route policy engine without characterization tests",
+    "monster ability runtime rewrite inside player abilities MVP",
+    "Redis/BullMQ/webhook migration without measurements"
+  ]
+}
