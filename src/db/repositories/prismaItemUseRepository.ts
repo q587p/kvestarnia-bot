@@ -66,47 +66,52 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }));
         if (existing) {
           if (isRestoreToFullOrder(existing)) {
-            return { state: "reserved" };
-          }
+            await setTerminalOrder(tx, existing.id, "cancelled", input.now, {
+              ...existing.preview,
+              kind: "cancelled",
+              itemId: existing.itemId,
+              itemName: existing.itemName
+            }, "pending");
+          } else {
+            const effect = getItemUseEffect(input.item);
+            const validation = await validatePendingPreviewRefresh(tx, existing, character, {
+              item: input.item,
+              itemContents: input.itemContents,
+              itemFingerprint: input.itemFingerprint,
+              now: input.now,
+              effect
+            });
+            if (validation.state !== "valid") {
+              await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
+                ? {
+                    ...validation.preview,
+                    kind: "full-hp",
+                    itemId: existing.itemId,
+                    itemName: existing.itemName
+                  }
+                : {
+                    ...existing.preview,
+                    kind: "expired",
+                    itemId: existing.itemId,
+                    itemName: existing.itemName
+                  },
+                validation.state === "full-hp" ? "completed" : "expired");
 
-          const effect = getItemUseEffect(input.item);
-          const validation = await validatePendingPreviewRefresh(tx, existing, character, {
-            item: input.item,
-            itemContents: input.itemContents,
-            itemFingerprint: input.itemFingerprint,
-            now: input.now,
-            effect
-          });
-          if (validation.state !== "valid") {
-            await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
-              ? {
-                  ...validation.preview,
-                  kind: "full-hp",
-                  itemId: existing.itemId,
-                  itemName: existing.itemName
-                }
-              : {
-                  ...existing.preview,
-                  kind: "expired",
-                  itemId: existing.itemId,
-                  itemName: existing.itemName
-                },
-              validation.state === "full-hp" ? "completed" : "expired");
-
-            return validation.state === "full-hp"
-              ? {
-                  state: "full-hp",
-                  character: toCharacterRecord(character),
-                  preview: validation.preview
-                }
-              : { state: validation.state };
+              return validation.state === "full-hp"
+                ? {
+                    state: "full-hp",
+                    character: toCharacterRecord(character),
+                    preview: validation.preview
+                  }
+                : { state: validation.state };
+            }
+            const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
+            return {
+              state: "preview-replayed",
+              character: toCharacterRecord(character),
+              order: refreshed
+            };
           }
-          const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
-          return {
-            state: "preview-replayed",
-            character: toCharacterRecord(character),
-            order: refreshed
-          };
         }
 
         const effect = getItemUseEffect(input.item);

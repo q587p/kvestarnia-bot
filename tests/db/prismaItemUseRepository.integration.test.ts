@@ -369,6 +369,30 @@ describe("PrismaItemUseRepository integration", () => {
     await expectCharacterHp(30);
   });
 
+  it("lets ordinary healing replace a pending restore-to-full preview", async () => {
+    await seedCharacter({ hpCurrent: 0, hpMax: 31 });
+    await seedBandages(7);
+    await restoreToFull("restore-token-replaced-by-use");
+
+    await expect(createPreview("use-token-replaces-restore")).resolves.toMatchObject({
+      state: "preview-created",
+      order: {
+        token: "use-token-replaces-restore",
+        quantity: 1,
+        preview: {
+          hpBefore: 0,
+          hpAfter: 7
+        }
+      }
+    });
+
+    const oldOrder = await readUseOrder("restore-token-replaced-by-use");
+    expect(oldOrder.status).toBe("cancelled");
+    expect(oldOrder.reservationKey).toBeNull();
+    await expectBandageQuantity(7);
+    await expectCharacterHp(0);
+  });
+
   it("blocks restore-to-full for equipped items", async () => {
     await seedCharacter({ hpCurrent: 30, hpMax: 25 });
     await seedBandages(3);
