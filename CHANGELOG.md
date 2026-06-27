@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a small deterministic passage-search loot roll with gold and the existing `Бинт відповідальної паніки`; `Спуск до Низу` uses a separate tiny safe table.
 - Added danger resolution for risky passage searches: if the stored monster reacts, the search grants no reward, starts the existing passage combat from the frozen encounter token and skips the first hero turn.
 - Added safe passage-rest searches during the short monster-rest window: passage cards can offer `🔎 Пошукати` without creating or refreshing a pending monster preview, and the search stays danger-free even if a new monster would appear later.
+- Defeating a pending passage monster now puts that same passage into the short 3-minute rest window instead of immediately creating a fresh monster preview on reopen.
 - Added a passage-search completion scheduler: due searches with a stored chat target now resolve automatically and send a new terminal result message instead of requiring a manual `Перевірити` tap.
 - Added `v1:search:*` callbacks, running/check/cancel keyboards, Ukrainian search result cards and local `/dev_reset_passage_search` for manual timer/cooldown QA.
 - Added focused domain and callback tests for search constants, danger/loot behavior and callback parser limits.

@@ -123,6 +123,26 @@ export async function sendPersistentFightPassagePreview(
   }
 
   if (preview.state !== "persistent-preview") {
+    if (preview.state === "monster-rest") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: passageFight.locationId,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+      await safeEditOrReply(ctx, mode, presentFightMonsterRest(preview), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightPassageRestKeyboard({
+          passage: passageFight.passage,
+          searchAvailable: await isPassageSearchAvailable(
+            services.passageSearch,
+            telegramUserId,
+            getPassageSearchNodeKey(passageFight.passage)
+          )
+        })
+      });
+      return;
+    }
+
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,

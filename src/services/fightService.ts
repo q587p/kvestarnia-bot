@@ -771,6 +771,18 @@ export class FightService {
     const difficulty = getPersistentFightDifficultyConfig(options.difficulty);
     const originLocationId = options.originLocationId ?? getDefaultPassageLocationId(difficulty.id);
     const now = this.clock();
+    const passageRest = await this.getPassageMonsterRestCooldown(telegramUserId, originLocationId, now);
+    if (passageRest) {
+      return {
+        state: "monster-rest",
+        character: overview.character,
+        questProgress: overview.questProgress,
+        availableAt: passageRest.availableAt,
+        now: passageRest.now,
+        ...(overview.recoveryNotice ? { recoveryNotice: overview.recoveryNotice } : {})
+      };
+    }
+
     const existing = this.pendingPassageEncounters
       ? await this.pendingPassageEncounters.findReusableForTelegramUser(
           telegramUserId,
@@ -830,7 +842,8 @@ export class FightService {
   }
 
   async getPassageSearchRestWindowForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    options: { originLocationId?: string } = {}
   ): Promise<PassageSearchRestWindowResult> {
     const overview = await this.getFightOverviewForTelegramUser(telegramUserId);
 
@@ -838,7 +851,11 @@ export class FightService {
       return overview;
     }
 
-    const cooldown = await this.getMonsterRestCooldown(telegramUserId, "normal");
+    const now = this.clock();
+    const cooldown = options.originLocationId
+      ? await this.getPassageMonsterRestCooldown(telegramUserId, options.originLocationId, now) ??
+        await this.getMonsterRestCooldown(telegramUserId, "normal")
+      : await this.getMonsterRestCooldown(telegramUserId, "normal");
 
     if (!cooldown) {
       return overview;
@@ -3715,6 +3732,31 @@ export class FightService {
           ...(monsterHp.current < monsterHp.max ? { monsterHp } : {})
         }
       : null;
+  }
+
+  private async getPassageMonsterRestCooldown(
+    telegramUserId: bigint,
+    originLocationId: string,
+    now: Date
+  ): Promise<{ availableAt: Date; now: Date } | null> {
+    if (!this.pendingPassageEncounters) {
+      return null;
+    }
+
+    const consumed = await this.pendingPassageEncounters.findLatestConsumedForTelegramUser(
+      telegramUserId,
+      originLocationId,
+      now,
+      PENDING_PASSAGE_ENCOUNTER_RULES_VERSION
+    );
+    if (!consumed?.session || consumed.session.status !== "won" || consumed.session.state?.status !== "won") {
+      return null;
+    }
+
+    const completedAt = parseStoredDate(consumed.session.state.completedAt) ?? consumed.session.updatedAt;
+    const availableAt = new Date(completedAt.getTime() + MONSTER_REST_COOLDOWN_MS);
+
+    return availableAt > now ? { availableAt, now } : null;
   }
 
   private buildPersistentFightCombatState(input: {

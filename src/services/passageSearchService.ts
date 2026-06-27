@@ -149,7 +149,9 @@ export class PassageSearchService {
       return { state: "blocked", reason: "stale-location" };
     }
 
-    const restWindow = await this.fights.getPassageSearchRestWindowForTelegramUser(telegramUserId);
+    const restWindow = await this.fights.getPassageSearchRestWindowForTelegramUser(telegramUserId, {
+      originLocationId: passage.locationId
+    });
 
     if (restWindow.state === "no-character") {
       return { state: "no-character" };

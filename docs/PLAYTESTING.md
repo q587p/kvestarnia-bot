@@ -27,7 +27,7 @@ Use one level 3+ account with local dev commands enabled where helpful.
 11. Repeat passage search until danger occurs; verify no search reward appears, the existing passage combat opens with the first hero turn skipped, and any second-monster/`Натиск Низу`/full-opponent/tip context appears before the active card.
 12. Repeat old check/cancel/result callbacks after terminal state; verify no duplicate reward.
 13. Move to another location, press an old descent, `Ярус I` or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
-14. Defeat ordinary Nyz monsters until the short monster-rest window appears, reopen a first-tier passage and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
+14. Defeat a pending monster in a first-tier passage, reopen that same passage before 3 minutes and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
 15. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
 
 ## 0.2.5 — Bard Performance smoke
