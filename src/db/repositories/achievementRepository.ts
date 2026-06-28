@@ -59,6 +59,11 @@ export interface AchievementRecalculationSnapshot {
   raceId: string;
   classId: string;
   createdAt: Date;
+  historicalIdentities: ReadonlyArray<{
+    raceId: string;
+    classId: string;
+    occurredAt: Date;
+  }>;
   levelReachedAt: Readonly<Record<number, Date>>;
   combat: {
     won: number;

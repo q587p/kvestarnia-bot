@@ -459,6 +459,7 @@ describe("AchievementService", () => {
       raceId: "race.domovyk",
       classId: "class.ranger",
       createdAt: new Date("2026-06-28T08:00:00.000Z"),
+      historicalIdentities: [],
       levelReachedAt: {
         2: new Date("2026-06-28T08:10:00.000Z"),
         3: new Date("2026-06-28T08:20:00.000Z"),
@@ -697,6 +698,64 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.combat.threat-pressure.three")?.current).toBe(2);
   });
 
+  it("recalculates race and class achievements from stored remort identity history", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      createdAt: new Date("2026-06-28T08:00:00.000Z"),
+      historicalIdentities: [
+        {
+          raceId: "race.elf",
+          classId: "class.mage",
+          occurredAt: new Date("2026-06-28T09:00:00.000Z")
+        },
+        {
+          raceId: "race.dwarf",
+          classId: "class.ranger",
+          occurredAt: new Date("2026-06-28T10:00:00.000Z")
+        },
+        {
+          raceId: "race.bisyny",
+          classId: "class.bard",
+          occurredAt: new Date("2026-06-28T11:00:00.000Z")
+        }
+      ]
+    });
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T12:00:00.000Z")
+    );
+    const ids = new Set(result.unlocks.map((unlock) => unlock.id));
+
+    expect(ids).toContain("achievement.race.human-ish");
+    expect(ids).toContain("achievement.race.elf");
+    expect(ids).toContain("achievement.race.dwarf");
+    expect(ids).toContain("achievement.race.bisyny");
+    expect(ids).toContain("achievement.class.mage");
+    expect(ids).toContain("achievement.class.ranger");
+    expect(ids).toContain("achievement.class.bard");
+    expect(repo.achievementFor("achievement.race.elf")?.unlockedAt).toEqual(
+      new Date("2026-06-28T09:00:00.000Z")
+    );
+    expect(repo.achievementFor("achievement.race.dwarf")?.unlockedAt).toEqual(
+      new Date("2026-06-28T10:00:00.000Z")
+    );
+    expect(repo.achievementFor("achievement.race.bisyny")?.unlockedAt).toEqual(
+      new Date("2026-06-28T11:00:00.000Z")
+    );
+    expect(repo.snapshot.titleGrants.map((grant) => grant.titleGrantId)).toEqual(
+      expect.arrayContaining([
+        "cosmetic-title.human-ish-paperproof",
+        "cosmetic-title.elf-offended-accuracy",
+        "cosmetic-title.dwarf-low-shelf",
+        "cosmetic-title.bisyny-locked-dictionary"
+      ])
+    );
+  });
+
   it("lists cosmetic title grants with active markers and archived unknown rows", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);
@@ -860,6 +919,7 @@ function makeRecalculationSnapshot(
     raceId: "race.human-ish",
     classId: "class.warrior",
     createdAt: new Date("2026-06-28T08:00:00.000Z"),
+    historicalIdentities: [],
     levelReachedAt: {},
     combat: {
       won: 0,

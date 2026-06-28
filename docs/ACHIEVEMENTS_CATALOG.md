@@ -16,7 +16,7 @@ Current count: 110 enabled achievements and 12 disabled hidden future placeholde
 
 Immediate unlock hooks currently run from successful action boundaries that already emit achievement events: character creation, opening the achievement list, level/item/equipment events, combat reward paths, problem-chain turn-in and local dev level/item grants. These can notify the player at action time when a definition is newly earned.
 
-Manual recalculation through `🔎 Перевірити` remains the broader idempotent backfill path for durable ledger rows and older characters: remort, starter/cellar/Yeger/adventure daily rows, training/Doppleganger, duels, Barrel, Shynok beer rounds, daily Korchma rounds, gifts, sales, drinks, passage search, hunt contracts, special stored fight outcomes and similar rows proven from persisted state. These rows may appear only after the manual check unless the current runtime flow also emits a direct event.
+Manual recalculation through `🔎 Перевірити` remains the broader idempotent backfill path for durable ledger rows and older characters: current identity, identities selected during stored remorts, remort, starter/cellar/Yeger/adventure daily rows, training/Doppleganger, duels, Barrel, Shynok beer rounds, daily Korchma rounds, gifts, sales, drinks, passage search, hunt contracts, special stored fight outcomes and similar rows proven from persisted state. These rows may appear only after the manual check unless the current runtime flow also emits a direct event. The very first pre-remort identity can only be recovered if it is still the current identity or a future durable snapshot exists; old rows before that snapshot are not guessed.
 
 ## Current Catalog
 

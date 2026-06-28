@@ -590,10 +590,7 @@ function getRecalculationProgress(
 ): number {
   switch (definition.trigger.type) {
     case "character.created":
-      return matchesOptionalValue(definition.trigger.raceId, snapshot.raceId) &&
-        matchesOptionalValue(definition.trigger.classId, snapshot.classId)
-        ? 1
-        : 0;
+      return getMatchingIdentityDates(definition, snapshot).length > 0 ? 1 : 0;
     case "level.reached":
       return snapshot.level;
     case "combat.finished":
@@ -678,7 +675,7 @@ function getRecalculationOccurredAt(
 
   switch (definition.trigger.type) {
     case "character.created":
-      return snapshot.createdAt;
+      return getMatchingIdentityDates(definition, snapshot)[0] ?? snapshot.createdAt;
     case "level.reached":
       return snapshot.levelReachedAt[threshold] ?? fallback;
     case "combat.finished":
@@ -773,6 +770,30 @@ function getActivityDates(
   }
 
   return snapshot.activityDates[definition.trigger.type] ?? [];
+}
+
+function getMatchingIdentityDates(
+  definition: AchievementDefinition,
+  snapshot: AchievementRecalculationSnapshot
+): Date[] {
+  if (definition.trigger.type !== "character.created") {
+    return [];
+  }
+
+  return [
+    {
+      raceId: snapshot.raceId,
+      classId: snapshot.classId,
+      occurredAt: snapshot.createdAt
+    },
+    ...snapshot.historicalIdentities
+  ]
+    .filter((identity) =>
+      matchesOptionalValue(definition.trigger.raceId, identity.raceId) &&
+      matchesOptionalValue(definition.trigger.classId, identity.classId)
+    )
+    .map((identity) => identity.occurredAt)
+    .sort((left, right) => left.getTime() - right.getTime());
 }
 
 function getThresholdDate(dates: readonly Date[], threshold: number): Date | null {

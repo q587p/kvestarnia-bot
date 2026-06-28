@@ -287,7 +287,10 @@ export class PrismaAchievementRepository implements AchievementRepository {
       }),
       this.prisma.characterRemort.findMany({
         where: { characterId },
-        select: { createdAt: true },
+        select: {
+          createdAt: true,
+          preservedPayloadJson: true
+        },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }]
       }),
       this.prisma.dailyAction.findMany({
@@ -562,6 +565,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       raceId: character.raceId,
       classId: character.classId,
       createdAt: character.createdAt,
+      historicalIdentities: remorts.flatMap(toHistoricalIdentitySnapshot),
       levelReachedAt: getLevelReachedAt(levelMilestoneActions),
       combat: {
         won,
@@ -729,6 +733,23 @@ function getLevelReachedAt(
   }
 
   return reachedAt;
+}
+
+function toHistoricalIdentitySnapshot(row: {
+  preservedPayloadJson: Prisma.JsonValue;
+  createdAt: Date;
+}): AchievementRecalculationSnapshot["historicalIdentities"] {
+  const value = row.preservedPayloadJson;
+  if (!isRecord(value) || !isRecord(value.identity)) {
+    return [];
+  }
+
+  const raceId = value.identity.raceId;
+  const classId = value.identity.classId;
+
+  return typeof raceId === "string" && typeof classId === "string"
+    ? [{ raceId, classId, occurredAt: row.createdAt }]
+    : [];
 }
 
 function getCombatFinishedAt(
