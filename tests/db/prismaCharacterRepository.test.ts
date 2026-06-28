@@ -63,6 +63,33 @@ describe("PrismaCharacterRepository", () => {
       manaMax: 14
     });
   });
+
+  it("preserves effective resource values above stored base limits when effective maxima are supplied", async () => {
+    const prisma = new FakeCharacterPrisma();
+    const repository = new PrismaCharacterRepository(prisma.client);
+
+    await repository.updateResourcesForTelegramUser(telegramUserId, {
+      hpCurrent: 123,
+      hpMax: 123,
+      manaCurrent: 44,
+      manaMax: 44,
+      hpRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      expected: {
+        hpCurrent: 73,
+        manaCurrent: 33,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+
+    expect(prisma.lastUpdateManyInput).toMatchObject({
+      data: {
+        hpCurrent: 123,
+        manaCurrent: 44
+      }
+    });
+  });
 });
 
 class FakeCharacterPrisma {
@@ -219,7 +246,9 @@ interface FakeUpdateManyInput {
   };
   data: {
     hpCurrent: number;
+    hpMax?: number;
     manaCurrent: number;
+    manaMax?: number;
     hpRegenAt?: Date | null;
     manaRegenAt?: Date | null;
   };
@@ -231,7 +260,9 @@ interface FakeUpdateInput {
   };
   data: {
     hpCurrent: number;
+    hpMax?: number;
     manaCurrent: number;
+    manaMax?: number;
     hpRegenAt?: Date | null;
     manaRegenAt?: Date | null;
   };

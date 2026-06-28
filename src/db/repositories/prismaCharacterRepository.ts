@@ -330,8 +330,8 @@ function normalizeCharacterResourceUpdate(
   input: UpdateCharacterResourcesInput
 ): { hpCurrent: number; manaCurrent: number } {
   return {
-    hpCurrent: clampResourceValue(input.hpCurrent, character.hpMax),
-    manaCurrent: clampResourceValue(input.manaCurrent, character.manaMax)
+    hpCurrent: clampResourceValue(input.hpCurrent, input.hpMax ?? character.hpMax),
+    manaCurrent: clampResourceValue(input.manaCurrent, input.manaMax ?? character.manaMax)
   };
 }
 

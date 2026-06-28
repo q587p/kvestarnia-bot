@@ -40,7 +40,9 @@ export interface CreateCharacterInput {
 
 export interface UpdateCharacterResourcesInput {
   hpCurrent: number;
+  hpMax?: number;
   manaCurrent: number;
+  manaMax?: number;
   hpRegenAt: Date;
   manaRegenAt: Date;
   expectedLife?: {

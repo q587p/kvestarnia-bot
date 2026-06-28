@@ -81,7 +81,9 @@ export async function summarizeAndSyncCharacterResources(input: {
   if (input.persist !== false && regeneration.changed) {
     const updated = await input.characters.updateResourcesForTelegramUser?.(input.telegramUserId, {
       hpCurrent: regeneration.resources.hpCurrent,
+      hpMax: regeneration.resources.hpMax,
       manaCurrent: regeneration.resources.manaCurrent,
+      manaMax: regeneration.resources.manaMax,
       hpRegenAt: regeneration.resources.hpRegenAt ?? input.now,
       manaRegenAt: regeneration.resources.manaRegenAt ?? input.now,
       expected: {
