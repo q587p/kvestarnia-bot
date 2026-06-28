@@ -277,7 +277,9 @@ function filterAchievementEntries(
   filter: AchievementListFilter
 ): AchievementListEntry[] {
   if (filter === "earned") {
-    return entries.filter((entry) => entry.earned);
+    return entries
+      .filter((entry) => entry.earned)
+      .sort(compareEarnedEntries);
   }
 
   if (filter === "locked") {
@@ -285,6 +287,13 @@ function filterAchievementEntries(
   }
 
   return [...entries];
+}
+
+function compareEarnedEntries(left: AchievementListEntry, right: AchievementListEntry): number {
+  const leftTime = left.unlockedAt?.getTime() ?? 0;
+  const rightTime = right.unlockedAt?.getTime() ?? 0;
+
+  return rightTime - leftTime || compareEntries(left, right);
 }
 
 function matchesEvent(definition: AchievementDefinition, event: AchievementEvent): boolean {

@@ -203,6 +203,38 @@ describe("AchievementService", () => {
     expect(earned.totalCount).toBe(locked.totalCount);
   });
 
+  it("sorts earned achievement list entries by newest unlock first", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.snapshot.achievements.push(
+      makeStoredAchievement("achievement.character.created", "2026-06-28T09:00:00.000Z"),
+      makeStoredAchievement("achievement.level.3", "2026-06-28T11:00:00.000Z"),
+      makeStoredAchievement("achievement.item.first-received", "2026-06-28T10:00:00.000Z")
+    );
+    const service = new AchievementService(repo);
+
+    const earned = await service.listForCharacter("character-1", 0, "earned");
+    const firstAllPage = await service.listForCharacter("character-1", 0, "all");
+    const remainingAllPages = await Promise.all(
+      Array.from({ length: firstAllPage.totalPages - 1 }, (_, index) =>
+        service.listForCharacter("character-1", index + 1, "all")
+      )
+    );
+    const allEntries = [firstAllPage, ...remainingAllPages].flatMap((page) => page.entries);
+
+    expect(earned.entries.map((entry) => entry.id)).toEqual([
+      "achievement.level.3",
+      "achievement.item.first-received",
+      "achievement.character.created"
+    ]);
+    const allIds = allEntries.map((entry) => entry.id);
+    expect(allIds.indexOf("achievement.character.created")).toBeLessThan(
+      allIds.indexOf("achievement.level.3")
+    );
+    expect(allIds.indexOf("achievement.level.3")).toBeLessThan(
+      allIds.indexOf("achievement.item.first-received")
+    );
+  });
+
   it("unlocks won combat thresholds from normal combat events", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({
@@ -671,6 +703,22 @@ function makeRecalculationSnapshot(
     equipmentObservedAt: null,
     activityDates: {},
     ...overrides
+  };
+}
+
+function makeStoredAchievement(achievementId: string, unlockedAtIso: string): CharacterAchievementRecord {
+  const unlockedAt = new Date(unlockedAtIso);
+
+  return {
+    id: `stored-${achievementId}`,
+    characterId: "character-1",
+    achievementId,
+    sourceType: "test",
+    sourceId: null,
+    sourceJson: null,
+    unlockedAt,
+    notifiedAt: null,
+    createdAt: unlockedAt
   };
 }
 
