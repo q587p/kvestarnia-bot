@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.11] - 12026-06-28 - Combat Balance and Monster Signature Proof
+## [0.2.11] - 12026-06-29 - Combat Balance and Monster Signature Proof
 
 ### Added
 - Added a small presentation-only monster signature proof pack for stored monster ability ids: selected monster skills and telegraphs now render short Ukrainian signature lines in active fight cards, multi-enemy responses and combat journal replay.
