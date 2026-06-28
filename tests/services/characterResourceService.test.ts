@@ -80,6 +80,50 @@ describe("summarizeAndSyncCharacterResources", () => {
     });
   });
 
+  it("passes remort-adjusted effective resource maxima when persisting passive regeneration", async () => {
+    const now = new Date("2026-06-15T12:00:00.000Z");
+    const marker = new Date("2026-06-15T11:00:00.000Z");
+    const character = createCharacter({
+      hpCurrent: 122,
+      hpMax: 73,
+      manaCurrent: 54,
+      manaMax: 33,
+      xp: 1300,
+      remortCount: 1,
+      hpRegenAt: marker,
+      manaRegenAt: marker
+    });
+    const repository = new FakeCharacterRepository(character);
+
+    await summarizeAndSyncCharacterResources({
+      characters: repository,
+      telegramUserId: 42n,
+      character,
+      remortCount: 1,
+      equippedItems: [
+        {
+          id: "item.test-effective-hp",
+          name: "Тестова манатка ефективного HP",
+          description: "Тримає максимум там, де він має бути.",
+          rarity: "common",
+          slot: "armor",
+          goldValue: 1,
+          effect: {
+            hpMax: 6
+          }
+        }
+      ],
+      now
+    });
+
+    expect(repository.resourceUpdates[0]).toMatchObject({
+      hpCurrent: 123,
+      hpMax: 123,
+      manaCurrent: 55,
+      manaMax: 55
+    });
+  });
+
   it("does not overwrite a fresher resource row when passive regeneration loses the update race", async () => {
     const now = new Date("2026-06-15T12:00:00.000Z");
     const marker = new Date("2026-06-15T11:50:00.000Z");

@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Turn-based duel replay parsing now round-trips stored `defended` and `critical-fumble` action outcomes; unknown current-version outcomes are treated as malformed/repairable state instead of being silently shown as misses.
 - Training Doppelganger starts now include `Порада дня`, active cards use the monster-fight-style `Бій: N хід` header and 23-second action hint, and terminal result cards expose the stored battle journal when turns were recorded.
 - Combat simulation and analytics reports now distinguish class usage, race usage, fumble counts, AoE hits and support counts while keeping fumbled support out of successful healing totals.
+- Passive HP/mana sync now preserves effective resource maxima from remorts and equipped manatky instead of clamping healed/rested characters back to the stored base maxima.
 
 ### Unchanged
 - Deprecated hidden `race.kharakternyk` intentionally has no race ability button; old characters rely on the active `class.kharakternyk` class ability.
