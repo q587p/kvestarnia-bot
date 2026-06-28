@@ -21,6 +21,8 @@ import { calculateInventoryRowsGoldValue } from "./inventoryService";
 import type {
   AchievementListFilter,
   AchievementListView,
+  CosmeticTitleListView,
+  CosmeticTitleMutationResult,
   AchievementRecalculationResult,
   AchievementService
 } from "./achievementService";
@@ -32,6 +34,7 @@ export type HeroLookupResult =
       character: CharacterSummary;
       inventoryGoldValue: number;
       activeDrink: HeroActiveDrink | null;
+      activeCosmeticTitle: string | null;
       restoreToFullItemId: string | null;
       recoveryNotice?: ResourceRecoveryNotice;
     };
@@ -92,6 +95,10 @@ export class HeroService {
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+    const activeCosmeticTitle = await this.achievements?.getActiveCosmeticTitleForCharacter(
+      character.id,
+      character.activeCosmeticTitleGrantId
+    ) ?? null;
     const multiplierWindows = buildShynokRecoveryWindows(recoveryDrink);
     const resourceAware = await summarizeAndSyncCharacterResources({
       characters: this.characters,
@@ -108,6 +115,7 @@ export class HeroService {
       character: resourceAware.character,
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
+      activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
       ...(resourceAware.recoveryNotice
         ? { recoveryNotice: resourceAware.recoveryNotice }
@@ -162,6 +170,59 @@ export class HeroService {
       result,
       view: await this.achievements.listForCharacter(character.id, 0, filter)
     };
+  }
+
+  async listCosmeticTitlesByTelegramUserId(
+    telegramUserId: bigint
+  ): Promise<{ state: "no-character" } | { state: "ready"; view: CosmeticTitleListView }> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character || !this.achievements) {
+      return { state: "no-character" };
+    }
+
+    const view = await this.achievements.listCosmeticTitlesForCharacter(character.id);
+
+    return view ? { state: "ready", view } : { state: "no-character" };
+  }
+
+  async selectCosmeticTitleByTelegramUserId(
+    telegramUserId: bigint,
+    titleGrantRowId: string,
+    expectedRemortCount: number
+  ): Promise<{ state: "no-character" } | { state: "ready"; result: CosmeticTitleMutationResult }> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character || !this.achievements) {
+      return { state: "no-character" };
+    }
+
+    const result = await this.achievements.selectActiveCosmeticTitle({
+      characterId: character.id,
+      titleGrantRowId,
+      expectedRemortCount,
+      occurredAt: this.clock()
+    });
+
+    return result ? { state: "ready", result } : { state: "no-character" };
+  }
+
+  async clearCosmeticTitleByTelegramUserId(
+    telegramUserId: bigint,
+    expectedRemortCount: number
+  ): Promise<{ state: "no-character" } | { state: "ready"; result: CosmeticTitleMutationResult }> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character || !this.achievements) {
+      return { state: "no-character" };
+    }
+
+    const result = await this.achievements.clearActiveCosmeticTitle({
+      characterId: character.id,
+      expectedRemortCount
+    });
+
+    return result ? { state: "ready", result } : { state: "no-character" };
   }
 }
 

@@ -59,17 +59,18 @@ Future path restrictions should sound like in-world folklore or institutions, no
 Hidden `path` може бути внутрішнім selector-ом, але назви `sun`, `moon`, `boundary` і великі «шляхи» не виходять у player-facing текст.
 
 ## Ачівки й титули
-`0.2.8` відкриває перший rewardless achievement slice. Ачівки — це жартівливі записи й майбутні титульні сліди, а не бойові бонуси.
+`0.2.8` відкриває перший rewardless achievement slice, а `0.2.10` робить титульні записи видимою косметикою. Ачівки — це жартівливі записи й титульні сліди, а не бойові бонуси.
 
 - Вхід: кнопка `🏅 Ачівки` з екрану персонажа.
+- Титули: кнопка `🏷️ Титули` з екрану персонажа показує здобуті титульні записи, дозволяє вибрати один активний косметичний титул або зняти його.
 - Перший runtime seed охоплює створення персонажа, расу/клас, рівні, бойовий результат, корчмарські справи, манатки, екіпірування, бинти, дуелі, тренування, подарунки, продаж, напої, пошук, полювання, пригодницькі вибори та тиск Низу там, де вже є durable ledger.
 - UI показує all/earned/locked filters, hidden states, прогрес, дату отримання, титульний запис і пагінацію по 10 рядків.
 - Unlock-повідомлення групуються, якщо одна дія відкрила кілька ачівок.
 - Hidden-ачівки не спойлерять умову до відкриття.
-- Persisted cosmetic title grants зберігають provenance для майбутнього вибору титулів, але не змінюють поточний combo-title display.
+- Persisted cosmetic title grants зберігають provenance; активний косметичний титул показується окремим рядком у `/hero` і не змінює поточний combo-title display чи gameplay selectors.
 - Ачівки не дають XP, золото, предмети, stat effects, loot odds, quest/Yeger/Shynok/remort progress або combat power.
 
-Канонічний контракт і повний каталог: `docs/ACHIEVEMENTS_CATALOG.md`; historical planning note: `docs/ACHIEVEMENTS_PHASE1.md`; shipped scope: `docs/tasks/0.2.8-achievements-cosmetic-titles.md`.
+Канонічний контракт і повний каталог: `docs/ACHIEVEMENTS_CATALOG.md`; historical planning note: `docs/ACHIEVEMENTS_PHASE1.md`; shipped scopes: `docs/tasks/0.2.8-achievements-cosmetic-titles.md`, `docs/tasks/0.2.10-active-cosmetic-title-selection.md`.
 
 `0.2.9` додає `Корчмарський обхід` / `Ревізія здорового глузду`: низьконапружений щоденний маршрут для рівня 3+, де Корчма пропонує три авторські дрібні катастрофи в різних місцинах, включно із зовнішнім `Задвірком корчми`. Достатньо владнати будь-які дві саме з потрібних місць, після чого третя стає `Не сьогоднішня катастрофа`; фінальна здача відбувається явно біля Столу зі справами. Контракт: `docs/DAILY_KORCHMA_ROUNDS.md`; task: `docs/tasks/0.2.9-daily-korchma-rounds.md`.
 

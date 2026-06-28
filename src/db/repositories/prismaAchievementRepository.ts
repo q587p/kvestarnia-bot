@@ -5,6 +5,7 @@ import type {
   CharacterAchievementProgressRecord,
   CharacterAchievementRecord,
   CharacterAchievementSnapshot,
+  CharacterCosmeticTitleSnapshot,
   CharacterCosmeticTitleGrantRecord,
   UnlockAchievementInput,
   UnlockAchievementResult
@@ -62,6 +63,127 @@ export class PrismaAchievementRepository implements AchievementRepository {
     };
   }
 
+  async listCosmeticTitlesForCharacter(characterId: string): Promise<CharacterCosmeticTitleSnapshot | null> {
+    const [character, titleGrants, remortCount] = await Promise.all([
+      this.prisma.character.findUnique({
+        where: { id: characterId },
+        select: {
+          id: true,
+          activeCosmeticTitleGrantId: true
+        }
+      }),
+      this.prisma.characterCosmeticTitleGrant.findMany({
+        where: { characterId },
+        orderBy: [{ grantedAt: "asc" }, { titleGrantId: "asc" }]
+      }),
+      this.prisma.characterRemort.count({ where: { characterId } })
+    ]);
+
+    if (!character) {
+      return null;
+    }
+
+    return {
+      characterId: character.id,
+      activeTitleGrantId: character.activeCosmeticTitleGrantId,
+      remortCount,
+      titleGrants: titleGrants.map(toTitleGrantRecord)
+    };
+  }
+
+  async setActiveCosmeticTitle(input: {
+    characterId: string;
+    titleGrantRowId: string;
+    expectedRemortCount?: number;
+  }): Promise<"selected" | "already-active" | "not-owned" | "stale-life" | "no-character"> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findUnique({
+        where: { id: input.characterId },
+        select: {
+          id: true,
+          activeCosmeticTitleGrantId: true
+        }
+      });
+
+      if (!character) {
+        return "no-character";
+      }
+
+      if (input.expectedRemortCount !== undefined) {
+        const remortCount = await tx.characterRemort.count({ where: { characterId: input.characterId } });
+        if (remortCount !== input.expectedRemortCount) {
+          return "stale-life";
+        }
+      }
+
+      const grant = await tx.characterCosmeticTitleGrant.findFirst({
+        where: {
+          id: input.titleGrantRowId,
+          characterId: input.characterId
+        },
+        select: {
+          titleGrantId: true
+        }
+      });
+
+      if (!grant) {
+        return "not-owned";
+      }
+
+      if (character.activeCosmeticTitleGrantId === grant.titleGrantId) {
+        return "already-active";
+      }
+
+      await tx.character.update({
+        where: { id: input.characterId },
+        data: {
+          activeCosmeticTitleGrantId: grant.titleGrantId
+        }
+      });
+
+      return "selected";
+    });
+  }
+
+  async clearActiveCosmeticTitle(input: {
+    characterId: string;
+    expectedRemortCount?: number;
+  }): Promise<"cleared" | "already-clear" | "stale-life" | "no-character"> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findUnique({
+        where: { id: input.characterId },
+        select: {
+          id: true,
+          activeCosmeticTitleGrantId: true
+        }
+      });
+
+      if (!character) {
+        return "no-character";
+      }
+
+      if (input.expectedRemortCount !== undefined) {
+        const remortCount = await tx.characterRemort.count({ where: { characterId: input.characterId } });
+        if (remortCount !== input.expectedRemortCount) {
+          return "stale-life";
+        }
+      }
+
+      if (!character.activeCosmeticTitleGrantId) {
+        return "already-clear";
+      }
+
+      await tx.character.update({
+        where: { id: input.characterId },
+        data: {
+          activeCosmeticTitleGrantId: null
+        }
+      });
+
+      return "cleared";
+    });
+  }
+
   async getRecalculationSnapshot(characterId: string): Promise<AchievementRecalculationSnapshot | null> {
     const character = await this.prisma.character.findUnique({
       where: { id: characterId },
@@ -70,6 +192,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
         level: true,
         raceId: true,
         classId: true,
+        activeCosmeticTitleGrantId: true,
         createdAt: true
       }
     });
@@ -457,6 +580,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       equippedItemCount,
       firstEquippedItemAt: equipment[0]?.createdAt ?? null,
       equipmentObservedAt,
+      activeCosmeticTitleGrantId: character.activeCosmeticTitleGrantId,
       activityDates
     };
   }

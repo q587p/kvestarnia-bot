@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.10] - 12026-06-28 - Active Cosmetic Title Selection MVP
+
+### Added
+- Added active cosmetic title selection from `/hero` through `🏷️ Титули`, backed by a nullable `characters.active_cosmetic_title_grant_id` pointer and a Prisma migration.
+- Added title-list rendering for earned `CharacterCosmeticTitleGrant` records with active markers, source achievement provenance, empty state, archive-safe unknown rows and a clear action.
+- Added compact `v1:ach:titles`, `v1:ach:tset:<life>:<grantRowId>` and `v1:ach:tclr:<life>` callbacks with Telegram byte-length coverage.
+- Added server-authoritative ownership checks for selecting titles: callbacks select by owned grant row id, then store the selected cosmetic title grant id on the character.
+- Added a rewardless first-title-selection achievement, `achievement.journey.cosmetic-title-selected`, without granting another title.
+
+### Changed
+- `/hero` now offers both `🏅 Ачівки` and `🏷️ Титули`.
+- Character cards show a separate compact `Косметичний титул` line when an active cosmetic title is present. The generated race/class title remains separate for gameplay and flavor routing.
+- Duplicate select and clear callbacks replay canonical title state without duplicate rows, notifications, achievements or mutations.
+- Old-life title mutation callbacks stale out via remort-count callback tokens while active cosmetic title state itself may survive remort.
+
+### Unchanged
+- Cosmetic titles grant no XP, gold, items, stats, combat power, loot odds, quest progress, Yeger/Shynok/remort progress, donor perks or paid advantage.
+- Active cosmetic titles do not affect Adventure Choice, combat formulas, duel formulas, monster selection, rewards, hidden selectors, title abilities or title combat buttons.
+- Remort preserves earned achievement and cosmetic title grant rows.
+
 ## [0.2.9] - 12026-06-28 - Daily Korchma Rounds
 
 ### Added

@@ -517,6 +517,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       mana_max INTEGER NOT NULL DEFAULT 10,
       hp_regen_at DATETIME,
       mana_regen_at DATETIME,
+      active_cosmetic_title_grant_id TEXT,
       stats_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

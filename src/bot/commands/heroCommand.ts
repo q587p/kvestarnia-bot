@@ -51,6 +51,7 @@ export async function sendHero(
   if (result.state === "existing-character") {
     const heroText = presentHero(result.character, {
       activeDrink: result.activeDrink,
+      activeCosmeticTitle: result.activeCosmeticTitle,
       inventoryGoldValue: result.inventoryGoldValue
     });
 

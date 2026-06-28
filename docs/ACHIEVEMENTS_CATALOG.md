@@ -10,7 +10,7 @@ Runtime rules:
 - New player-facing mechanics should add matching achievements/hooks for visible actions, milestones or odd outcomes, or explicitly document why no durable event exists yet.
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 
-Current count: 109 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 110 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -24,6 +24,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | --- | --- | --- | --- | --- | --- |
 | `achievement.character.created` | enabled | visible | `character.created` | Де тут вихід? | створити пригодника й офіційно стати проблемою Корчмаря. |
 | `achievement.journey.achievements-opened` | enabled | visible | `achievement.list.opened` | Ачівка за ачівки | уперше відкрити список ачівок і дати літописцю привід поправити окуляри. |
+| `achievement.journey.cosmetic-title-selected` | enabled | visible | `cosmetic-title.selected` | Табличка тримається | уперше вдягнути косметичний титул і не отримати за це жодної бойової переваги. |
 | `achievement.race.human-ish` | enabled | visible | `character.created race.human-ish` | Анкета витримала людисько | стати людиськом і довести, що практичність теж може бути підозрілою. |
 | `achievement.race.dwarf` | enabled | visible | `character.created race.dwarf` | Полиця програла гному | стати гномом і не дати високим полицям виграти морально. |
 | `achievement.race.elf` | enabled | visible | `character.created race.elf` | Образа лягла влучно | стати ельфом і подивитися на чоботи світу з належною драмою. |

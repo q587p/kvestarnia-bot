@@ -24,6 +24,31 @@ describe("Prisma schema", () => {
     expect(schema).toContain("@@map(\"character_items\")");
   });
 
+  it("stores rewardless achievements and the active cosmetic title pointer", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const achievementsMigration = readFileSync(
+      join(process.cwd(), "prisma", "migrations", "20260628090000_add_achievements", "migration.sql"),
+      "utf8"
+    );
+    const activeTitleMigration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260628120000_add_active_cosmetic_title",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model CharacterAchievement");
+    expect(schema).toContain("model CharacterCosmeticTitleGrant");
+    expect(schema).toContain("cosmeticTitleGrants CharacterCosmeticTitleGrant[]");
+    expect(schema).toContain("activeCosmeticTitleGrantId String? @map(\"active_cosmetic_title_grant_id\")");
+    expect(achievementsMigration).toContain("CREATE TABLE \"character_cosmetic_title_grants\"");
+    expect(activeTitleMigration).toContain("ADD COLUMN \"active_cosmetic_title_grant_id\" TEXT");
+  });
+
   it("stores the hidden character path without exposing it as UI text", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(

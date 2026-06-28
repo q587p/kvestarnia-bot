@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) — Daily `Корчмарський обхід` route backed by [../DAILY_KORCHMA_ROUNDS.md](../DAILY_KORCHMA_ROUNDS.md).
+- [0.2.10-active-cosmetic-title-selection.md](0.2.10-active-cosmetic-title-selection.md) — active cosmetic title browsing, selection, clearing and `/hero` display.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -69,6 +69,7 @@ Active task:
 - [0.2.6-passage-search-mvp.md](0.2.6-passage-search-mvp.md) — shipped timed search for `Спуск до Низу` and first-tier Nyz passages.
 - [0.2.7-player-abilities-mvp.md](0.2.7-player-abilities-mvp.md) — player class/race ability catalogs, race action buttons and group-ready solo combat fallback.
 - [0.2.8-achievements-cosmetic-titles.md](0.2.8-achievements-cosmetic-titles.md) — rewardless achievement browsing, expanded seed unlock hooks, filters, recalculation and persisted cosmetic title grant records.
+- [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) — shipped Daily `Корчмарський обхід` route backed by [../DAILY_KORCHMA_ROUNDS.md](../DAILY_KORCHMA_ROUNDS.md).
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.

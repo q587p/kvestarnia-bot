@@ -100,19 +100,20 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("builds hero inline actions with achievements and optional full restore", () => {
-    expect(flatInlineButtonTexts(buildHeroAchievementsKeyboard())).toEqual(["🏅 Ачівки"]);
-    expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual(["v1:ach:list:all:0"]);
+    expect(flatInlineButtonTexts(buildHeroAchievementsKeyboard())).toEqual(["🏅 Ачівки", "🏷️ Титули"]);
+    expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual(["v1:ach:list:all:0", "v1:ach:titles"]);
 
     const keyboard = buildHeroAchievementsKeyboard({
       restoreCallbackData: "v1:use:full:item.responsible-panic-bandage"
     });
 
     expect(inlineButtonRows(keyboard)).toEqual([
-      ["🏅 Ачівки"],
+      ["🏅 Ачівки", "🏷️ Титули"],
       ["🧻 До відновлення"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:ach:list:all:0",
+      "v1:ach:titles",
       "v1:use:full:item.responsible-panic-bandage"
     ]);
   });
