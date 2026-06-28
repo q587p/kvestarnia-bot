@@ -2283,6 +2283,136 @@ describe("scene callback HTML options", () => {
     expect(String(front?.payload.text)).toContain("🚪 Перед корчмою");
   });
 
+  it("marks quest-table presence before opening the quest hub from the Korchma yard", async () => {
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const problemQuestProgress = {
+      stageId: "13" as const,
+      title: "Тринадцять дрібних проблем" as const,
+      wins: 0,
+      target: 13,
+      completed: false,
+      rewardClaimed: false,
+      issued: true,
+      branchComplete: false
+    };
+    let currentPlace = {
+      state: "ready" as const,
+      locationId: "location.korchma.yard",
+      locationName: "Задвірок корчми",
+      insideKorchma: false
+    };
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      currentPlace = {
+        state: "ready",
+        locationId: input.locationId,
+        locationName: "Стіл зі справами",
+        insideKorchma: input.locationId === "location.korchma.quest_table"
+      };
+
+      return Promise.resolve();
+    });
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("quest-table"),
+      servicesWith({
+        adventure: {
+          getAdventureOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer: adventureOffer
+            }),
+          completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired" as const,
+              character: level3Character,
+              maxLevel: 2
+            })
+        },
+        cellarErrand: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character
+            }),
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready" as const,
+              character: level3Character,
+              questProgress: problemQuestProgress
+            }),
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              progress: problemQuestProgress,
+              archive: []
+            }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired" as const,
+              character: level3Character,
+              maxLevel: 2
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () => Promise.resolve(currentPlace),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready" as const, character: level3Character }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" as const }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" as const }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" as const })
+        },
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-locked" as const,
+              character: level3Character,
+              requiredLevel: 4
+            })
+        }
+      })
+    );
+
+    const messages = calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text));
+    const questHub = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("📋 Стіл зі справами")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.quest_table",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(messages).not.toContain("Квести видають усередині.");
+    expect(questHub).toBeDefined();
+    expect(JSON.stringify(questHub?.payload.reply_markup)).toContain("v1:quest:adventure");
+  });
+
   it("does not send a standalone reply-keyboard refresh message when a place callback keeps the same location", async () => {
     const calls = await captureApiCalls(
       makePlaceCallbackData("bar"),

@@ -693,6 +693,11 @@ async function handlePlaceCallback(
 
   if (action === "quest-table") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
     await sendQuestHub(
       ctx,
       buildQuestHubCommandOptions(services),
