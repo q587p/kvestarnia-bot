@@ -1832,6 +1832,115 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:sh:dr");
   });
 
+  it("reopens an active daily Korchma round scene from the persistent location reply button", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const cellarErrandLookup = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const cellarScene = {
+      id: "scene.cellar.inventory-bottle",
+      icon: "🍾",
+      title: "Пляшка шепоче інвентаризацію",
+      locationId: "location.korchma.cellar",
+      hook: "У льосі пляшка шепоче номери, яких немає в жодному списку, і явно насолоджується процесом.",
+      actions: [
+        {
+          id: "repeat-last",
+          label: "🔁 Повторити останній",
+          outcome: "Пляшка повторила останній номер і підозріло задзвеніла."
+        },
+        {
+          id: "turn-to-wall",
+          label: "🧱 Розвернути до стіни",
+          outcome: "Пляшка образилась на стіну, але список став коротшим."
+        },
+        {
+          id: "mark-empty",
+          label: "✅ Позначити порожньою",
+          outcome: "Порожнечу зараховано. Пляшка виглядає бухгалтерськи переможеною."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [cellarScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: cellarScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.cellar,
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: cellarErrandLookup,
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        dailyKorchmaRound: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.cellar",
+              locationName: "Льох корчми",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(reply?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(cellarErrandLookup).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.cellar",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(String(reply?.payload.text)).toContain("🍾 Пляшка шепоче інвентаризацію");
+    expect(String(reply?.payload.text)).not.toContain("Льох тимчасово тихий");
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:repeat-last:0");
+  });
+
   it("opens Shynok round preview from completed Barrel shortcut", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const createRoundOrder = vi.fn(() =>

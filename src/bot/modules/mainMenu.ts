@@ -50,6 +50,12 @@ getMainMenuLocationButtonText,
 mainMenuButtons,
 mainMenuLocationButtonTexts
 } from "../keyboards/mainMenuKeyboard";
+import {
+buildDailyKorchmaRoundSceneKeyboard
+} from "../keyboards/dailyKorchmaRoundKeyboard";
+import {
+presentDailyKorchmaRoundScene
+} from "../presenters/dailyKorchmaRoundPresenter";
 import { presentHelp } from "../presenters/helpPresenter";
 
 import {
@@ -343,12 +349,64 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
     return;
   }
 
-  await sendCurrentPresenceLocation(
-    ctx,
-    normalizePresenceLocationId(requestedLocationId ?? place.locationId),
-    services
-  );
+  const locationId = normalizePresenceLocationId(requestedLocationId ?? place.locationId);
+
+  if (await sendCurrentDailyKorchmaRoundScene(ctx, telegramUserId, locationId, services)) {
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
+
+  await sendCurrentPresenceLocation(ctx, locationId, services);
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+}
+
+async function sendCurrentDailyKorchmaRoundScene(
+  ctx: Context,
+  telegramUserId: bigint,
+  locationId: string,
+  services: BotServices
+): Promise<boolean> {
+  if (!services.dailyKorchmaRound) {
+    return false;
+  }
+
+  const current = await services.dailyKorchmaRound.getForTelegramUser(telegramUserId);
+
+  if (current.state !== "ready" && current.state !== "turn-in-ready") {
+    return false;
+  }
+
+  const sceneIndex = current.offer.scenes.findIndex(
+    (scene) =>
+      scene.locationId === locationId &&
+      !current.offer.completedSceneIds.includes(scene.id) &&
+      current.offer.omittedSceneId !== scene.id
+  );
+
+  if (sceneIndex < 0) {
+    return false;
+  }
+
+  const result = await services.dailyKorchmaRound.openScene(telegramUserId, {
+    dayToken: current.offer.dayToken,
+    sceneIndex
+  });
+
+  if (result.state !== "scene") {
+    return false;
+  }
+
+  await markScenePresence(ctx, services.presence, {
+    locationId: result.scene.locationId,
+    currentRaidId: null,
+    currentAdventureId: null
+  });
+  await ctx.reply(presentDailyKorchmaRoundScene(result), {
+    parse_mode: "HTML",
+    reply_markup: buildDailyKorchmaRoundSceneKeyboard(result)
+  });
+
+  return true;
 }
 
 async function sendCurrentPresenceLocation(
