@@ -294,6 +294,7 @@ describe("combat domain engine", () => {
 
   it("applies hero-side activation effects during a two-enemy item turn", () => {
     const state = startCombat({ hero: warrior, monster: { ...monster, attack: 6 }, enemies: [monster, secondMonster] });
+    state.turn = 2;
     state.hero.hp = 10;
     state.cooldowns = {
       skill: {
@@ -498,8 +499,10 @@ describe("combat domain engine", () => {
   });
 
   it("lets every living enemy act separately during the enemy phase", () => {
+    const state = startCombat({ hero: warrior, monster, enemies: [secondMonster] });
+    state.turn = 2;
     const result = resolveCombatTurn({
-      state: startCombat({ hero: warrior, monster, enemies: [secondMonster] }),
+      state,
       action: "defend",
       hero: warrior,
       monster,
@@ -512,6 +515,40 @@ describe("combat domain engine", () => {
       monster.monsterId,
       secondMonster.monsterId
     ]);
+  });
+
+  it("softens backup enemy pressure while multiple enemies are alive", () => {
+    const primary = { ...monster, hpMax: 50, attack: 4 };
+    const backup = { ...secondMonster, hpMax: 50, attack: 8 };
+    const state = startCombat({
+      hero: { ...warrior, hpCurrent: warrior.hpMax },
+      monster: primary,
+      enemies: [backup]
+    });
+
+    const first = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: warrior,
+      monster: primary,
+      enemies: [primary, backup],
+      rng: new FakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0])
+    });
+
+    expect(first.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1"]);
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "attack",
+      hero: warrior,
+      monster: primary,
+      enemies: [primary, backup],
+      rng: new FakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0])
+    });
+
+    expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1", "enemy:2"]);
+    const backupAction = second.summary.enemyActions?.find((entry) => entry.enemyId === "enemy:2");
+    expect(backupAction?.monsterDamage).toBeLessThan(backup.attack);
   });
 
   it("wins a two-enemy fight only after every enemy is defeated", () => {

@@ -478,7 +478,7 @@ export const monsterAbilities = [
       "all-enemies"
     ],
     "cooldownOwnActions": 4,
-    "powerBand": "strong",
+    "powerBand": "standard",
     "parameters": {
       "damageMultiplier": 0.9
     },
@@ -498,7 +498,7 @@ export const monsterAbilities = [
       "all-enemies"
     ],
     "cooldownOwnActions": 4,
-    "powerBand": "strong",
+    "powerBand": "standard",
     "parameters": {
       "manaCostIncrease": 1,
       "durationTargetActivations": 2
@@ -2111,8 +2111,8 @@ export const monsterAbilities = [
     "cooldownOwnActions": 3,
     "powerBand": "strong",
     "parameters": {
-      "shieldMaxHpFraction": 0.28,
-      "counterChance": 0.25
+      "shieldMaxHpFraction": 0.12,
+      "counterChance": 0.08
     },
     "telegraphOneEnemyAction": false,
     "oncePerFight": false,

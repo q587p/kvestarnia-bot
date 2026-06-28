@@ -2,6 +2,7 @@ import {
   formatCombatSimulationReport,
   runCombatSimulation,
   type CombatSimulationOptions,
+  type CombatSimulationEncounterMode,
   type CombatSimulationPolicy
 } from "../src/tooling/combatSimulation";
 
@@ -78,12 +79,43 @@ function parseArguments(argv: string[]): Partial<CombatSimulationOptions> {
           throw new Error("Missing value for --race.");
         }
         options.raceId = value;
+        options.raceIds = [value];
+        break;
+      case "--races":
+        if (!value || value.startsWith("--")) {
+          throw new Error("Missing value for --races.");
+        }
+        options.raceIds = value === "all"
+          ? [
+              "race.human-ish",
+              "race.dwarf",
+              "race.elf",
+              "race.bisyny",
+              "race.drantohor",
+              "race.domovyk",
+              "race.dryland-rusalka",
+              "race.intellectual-orc",
+              "race.molfar-soul"
+            ]
+          : value
+              .split(",")
+              .map((raceId) => raceId.trim())
+              .filter(Boolean);
         break;
       case "--policy":
         if (!value || value.startsWith("--")) {
           throw new Error("Missing value for --policy.");
         }
         options.policy = parsePolicy(value);
+        break;
+      case "--encounter":
+        if (!value || value.startsWith("--")) {
+          throw new Error("Missing value for --encounter.");
+        }
+        options.encounterMode = parseEncounterMode(value);
+        break;
+      case "--threat-bonus":
+        options.threatSecondEnemyLevelBonus = parseNonNegativeInteger(value, "--threat-bonus");
         break;
       case "--max-turns":
         options.maxTurns = parsePositiveInteger(value, "--max-turns");
@@ -107,6 +139,14 @@ function parsePolicy(value: string | undefined): CombatSimulationPolicy {
   return value;
 }
 
+function parseEncounterMode(value: string | undefined): CombatSimulationEncounterMode {
+  if (value !== "one-enemy" && value !== "two-enemy-threat") {
+    throw new Error("Encounter must be one-enemy or two-enemy-threat.");
+  }
+
+  return value;
+}
+
 function parsePositiveInteger(value: string | undefined, flag: string): number {
   if (!value || value.startsWith("--")) {
     throw new Error(`Missing value for ${flag}.`);
@@ -116,6 +156,20 @@ function parsePositiveInteger(value: string | undefined, flag: string): number {
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`${flag} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
+function parseNonNegativeInteger(value: string | undefined, flag: string): number {
+  if (!value || value.startsWith("--")) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${flag} must be a non-negative integer.`);
   }
 
   return parsed;
@@ -172,6 +226,9 @@ function printUsage(): void {
       "  --seed 123            Base seed for deterministic output.",
       "  --classes all          Comma-separated class ids or 'all'.",
       "  --race race.human-ish  Race id to use when available.",
+      "  --races all            Comma-separated race ids or 'all'.",
+      "  --encounter one-enemy  Encounter mode: one-enemy or two-enemy-threat.",
+      "  --threat-bonus 0       Effective-level bonus for the second threat enemy.",
       "  --policy aggressive    Combat policy: aggressive or cautious.",
       "  --max-turns 20        Safety cutoff per fight.",
       "  --help                Show this help."

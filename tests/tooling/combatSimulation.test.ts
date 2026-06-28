@@ -118,12 +118,17 @@ describe("combatSimulation", () => {
       policy: "aggressive",
       raceId: "race.dryland-rusalka",
       raceName: "Русалка сухопутна",
+      raceIds: ["race.dryland-rusalka"],
+      raceNames: ["Русалка сухопутна"],
       path: "boundary",
       levels: [3],
       monsterLevels: "same",
       runsPerMatchup: 2,
       maxTurns: 12,
+      encounterMode: "one-enemy",
+      threatSecondEnemyLevelBonus: 0,
       rows: [makeRow("class.mage", "Маг", 3, 3, 0.5, summarizeCombatRuns(runs))],
+      aggregates: [],
       warnings: []
     })).toContain("fumbles 3");
   });
@@ -275,6 +280,31 @@ describe("combatSimulation", () => {
     );
   });
 
+  it("creates deterministic two-enemy threat rows and aggregate summaries", () => {
+    const options = {
+      levels: [3],
+      monsterLevels: "same" as const,
+      runsPerMatchup: 3,
+      seed: "two-enemy-shape",
+      classIds: ["class.mage"],
+      raceIds: ["race.human-ish", "race.bisyny"],
+      policy: "aggressive" as const,
+      maxTurns: 12,
+      encounterMode: "two-enemy-threat" as const
+    };
+    const report = runCombatSimulation(options);
+    const repeated = runCombatSimulation(options);
+
+    expect(report).toEqual(repeated);
+    expect(report.rows.length).toBeGreaterThan(0);
+    expect(report.rows.every((row) => row.enemyCount === 2)).toBe(true);
+    expect(report.rows.every((row) => row.enemies.length === 2)).toBe(true);
+    expect(report.aggregates.map((aggregate) => aggregate.dimension)).toEqual(
+      expect.arrayContaining(["level", "class", "race"])
+    );
+    expect(formatCombatSimulationReport(report)).toContain("encounter: two-enemy-threat");
+  });
+
   it("covers every authored monster profile across same-level roster simulations", () => {
     const report = runCombatSimulation({
       levels: Array.from({ length: 23 }, (_, index) => index + 1),
@@ -344,6 +374,8 @@ function makeRow(
   summary?: CombatOutcomeSummary
 ): CombatSimulationRow {
   return {
+    encounterMode: "one-enemy",
+    enemyCount: 1,
     heroLevel,
     monsterLevel,
     classId,
@@ -352,6 +384,11 @@ function makeRow(
     raceName: "Людиноподібні",
     monsterId: "monster.test",
     monsterName: "Тестовий монстр",
+    enemies: [{
+      monsterId: "monster.test",
+      monsterName: "Тестовий монстр",
+      monsterLevel
+    }],
     summary: summary ?? {
       totalRuns: 100,
       wins: Math.round(winRate * 100),

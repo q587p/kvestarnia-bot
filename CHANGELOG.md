@@ -7,6 +7,27 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.12] - 12026-06-29 - Two-Enemy Threat Simulation and Outlier Tuning
+
+### Added
+- Extended `simulate:combat` with `--encounter one-enemy|two-enemy-threat`, `--races all|id,id` and `--threat-bonus N`, plus deterministic per-level/class/race aggregate summaries and two-enemy roster output.
+- Added focused two-enemy simulator coverage and persistent two-enemy reward replay coverage so threat fights keep one terminal settlement and one stored reward.
+
+### Changed
+- Softened two-enemy threat pressure by applying a named backup-enemy HP guard, skipping backup actions on alternating pressure turns while both enemies live, and reducing backup response damage before it reaches the hero.
+- Tuned targeted 0.2.11 outliers without changing reward math: the zero-declaration tax dragon now uses controller/tiny-boss weighting, its two signature actions are standard-band, the siege iron varenyk loses the generic construct tag and its armored filling shield/counter loop is smaller, and Bisyny/Molfar Soul race guardrails are slightly stronger.
+- The simulator now counts all stored `enemyActions` instead of only the primary monster response, so shields, heals, telegraphs and skills from two-enemy runs show up in summaries.
+
+### Validation
+- Final human-ish one-enemy aggressive same-level sweep over levels 3-13, all classes, 30 runs per matchup: 85.9% wins, 12.6% losses, 5.7 average turns.
+- Final human-ish two-enemy threat same-level sweep over levels 3-13, all classes, 30 runs per matchup: 48.1% wins, 46.9% losses, 6.5 average turns. This is still intentionally dangerous, but no longer the near-zero death spiral seen before guards.
+- Compact all-active-race two-enemy sweep over levels 3-13, all classes, 10 runs per matchup: level aggregates ranged from 31.7% to 64.7% wins, keeping hard matchups visible for later tuning.
+- Direct targeted outlier probes moved `monster.zero-declaration-tax-dragon` from roughly 37.2% to 73.1% wins and `monster.siege-iron-varenyk` from roughly 49.7% to 78.0% wins in the focused same-level matrix.
+
+### Unchanged
+- Rewards, loot, XP/gold formulas, quest progress, threat-history persistence, Yeger/Shynok/gifting/remort/equipment/title-power semantics and schema are unchanged.
+- This slice adds no new player-visible action, durable milestone or once-per-period gate, so it adds no achievement hook, remort reset handling or bot `/dev_*` command.
+
 ## [0.2.11] - 12026-06-29 - Combat Balance and Monster Signature Proof
 
 ### Added

@@ -7,20 +7,24 @@ import { buildEffectiveCharacterStats } from "../domain/progression/effectiveSta
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  applyThreatBackupEnemyCombatStats,
   getActorCombatActionAvailability,
   getCombatRaceAbilityProfile,
   getCombatSkillProfile,
   resolveCombatTurn,
   startCombat,
   type CombatActorStats,
+  type CombatEnemyTurnSummary,
   type CombatState,
   type CombatStatus,
+  type CombatTurnSummary,
   type MonsterCombatStats
 } from "../domain/combat";
 import type { MonsterContent } from "../content/schema";
 import type { RandomSource } from "../shared/random";
 
 export type CombatSimulationPolicy = "aggressive" | "cautious";
+export type CombatSimulationEncounterMode = "one-enemy" | "two-enemy-threat";
 
 export interface CombatSimulationOptions {
   levels: readonly number[];
@@ -29,9 +33,12 @@ export interface CombatSimulationOptions {
   seed: string;
   classIds: readonly string[];
   raceId: string;
+  raceIds: readonly string[];
   path: CharacterPath;
   policy: CombatSimulationPolicy;
   maxTurns: number;
+  encounterMode: CombatSimulationEncounterMode;
+  threatSecondEnemyLevelBonus: number;
 }
 
 export interface CombatSimulationReport {
@@ -39,16 +46,23 @@ export interface CombatSimulationReport {
   policy: CombatSimulationPolicy;
   raceId: string;
   raceName: string;
+  raceIds: readonly string[];
+  raceNames: readonly string[];
   path: CharacterPath;
   levels: readonly number[];
   monsterLevels: readonly number[] | "same";
   runsPerMatchup: number;
   maxTurns: number;
+  encounterMode: CombatSimulationEncounterMode;
+  threatSecondEnemyLevelBonus: number;
   rows: CombatSimulationRow[];
+  aggregates: CombatSimulationAggregateRow[];
   warnings: string[];
 }
 
 export interface CombatSimulationRow {
+  encounterMode: CombatSimulationEncounterMode;
+  enemyCount: number;
   heroLevel: number;
   monsterLevel: number;
   classId: string;
@@ -57,8 +71,34 @@ export interface CombatSimulationRow {
   raceName: string;
   monsterId: string;
   monsterName: string;
+  enemies: readonly CombatSimulationEnemyRow[];
   summary: CombatOutcomeSummary;
   warnings: string[];
+}
+
+export interface CombatSimulationEnemyRow {
+  monsterId: string;
+  monsterName: string;
+  monsterLevel: number;
+}
+
+export type CombatSimulationAggregateDimension = "level" | "class" | "race";
+
+export interface CombatSimulationAggregateRow {
+  dimension: CombatSimulationAggregateDimension;
+  key: string;
+  label: string;
+  totalRows: number;
+  totalRuns: number;
+  wins: number;
+  losses: number;
+  flees: number;
+  expired: number;
+  winRate: number;
+  lossRate: number;
+  averageTurns: number;
+  averageEndingHp: number;
+  averageManaSpent: number;
 }
 
 export interface CombatOutcomeSummary {
@@ -129,47 +169,68 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
       for (const monsterTemplate of monsterTemplates) {
         const monster = materializeMonsterAtLevel(monsterTemplate, monsterLevel);
         const monsterStats = deriveMonsterCombatStats(monster);
+        const enemyStats = buildEncounterEnemies({
+          mode: normalized.encounterMode,
+          primary: monster,
+          monsterLevel,
+          secondEnemyLevelBonus: normalized.threatSecondEnemyLevelBonus,
+          seed: normalized.seed
+        });
 
         for (const classId of normalized.classIds) {
           const classContent = getClassContent(classId);
-          const raceId = resolveRaceForClass(classContent.id, normalized.raceId);
-          const raceContent = getRaceContent(raceId);
-          const hero = buildSimulationHero({
-            raceId,
-            path: normalized.path,
-            classId,
-            level: heroLevel
-          });
-          const runResults = Array.from({ length: normalized.runsPerMatchup }, (_, runIndex) =>
-            simulateSingleFight({
-              hero,
-              monster: monsterStats,
-              policy: normalized.policy,
-              maxTurns: normalized.maxTurns,
-              seed: `${normalized.seed}:${heroLevel}:${monsterLevel}:${monster.id}:${classId}:${runIndex}`
-            })
-          );
-          const summary = summarizeCombatRuns(runResults);
+          for (const requestedRaceId of normalized.raceIds) {
+            const raceId = resolveRaceForClass(classContent.id, requestedRaceId, normalized.raceIds.length > 1);
+            if (!raceId) {
+              continue;
+            }
 
-          rows.push({
-            heroLevel,
-            monsterLevel,
-            classId,
-            className: classContent.name,
-            raceId,
-            raceName: raceContent.name,
-            monsterId: monster.id,
-            monsterName: monster.name,
-            summary,
-            warnings: buildSummaryWarnings(summary, {
-              sameLevelOrdinaryFight: heroLevel === monsterLevel && isOrdinaryBalanceMonster(monster),
+            const raceContent = getRaceContent(raceId);
+            const hero = buildSimulationHero({
+              raceId,
+              path: normalized.path,
+              classId,
+              level: heroLevel
+            });
+            const runResults = Array.from({ length: normalized.runsPerMatchup }, (_, runIndex) =>
+              simulateSingleFight({
+                hero,
+                monster: monsterStats,
+                enemies: enemyStats,
+                policy: normalized.policy,
+                maxTurns: normalized.maxTurns,
+                seed: `${normalized.seed}:${normalized.encounterMode}:${heroLevel}:${monsterLevel}:${monster.id}:${classId}:${raceId}:${runIndex}`
+              })
+            );
+            const summary = summarizeCombatRuns(runResults);
+
+            rows.push({
+              encounterMode: normalized.encounterMode,
+              enemyCount: enemyStats.length,
               heroLevel,
               monsterLevel,
               classId,
               className: classContent.name,
-              monsterLabel: `${monster.name} (${monster.id})`
-            })
-          });
+              raceId,
+              raceName: raceContent.name,
+              monsterId: monster.id,
+              monsterName: monster.name,
+              enemies: enemyStats.map((enemy) => ({
+                monsterId: enemy.monsterId,
+                monsterName: enemy.name ?? enemy.monsterId,
+                monsterLevel: enemy.level
+              })),
+              summary,
+              warnings: buildSummaryWarnings(summary, {
+                sameLevelOrdinaryFight: heroLevel === monsterLevel && isOrdinaryBalanceMonster(monster),
+                heroLevel,
+                monsterLevel,
+                classId,
+                className: classContent.name,
+                monsterLabel: `${monster.name} (${monster.id})`
+              })
+            });
+          }
         }
       }
     }
@@ -195,12 +256,17 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
     policy: normalized.policy,
     raceId: normalized.raceId,
     raceName: getRaceContent(normalized.raceId).name,
+    raceIds: normalized.raceIds,
+    raceNames: normalized.raceIds.map((raceId) => getRaceContent(raceId).name),
     path: normalized.path,
     levels: normalized.levels,
     monsterLevels: normalized.monsterLevels,
     runsPerMatchup: normalized.runsPerMatchup,
     maxTurns: normalized.maxTurns,
+    encounterMode: normalized.encounterMode,
+    threatSecondEnemyLevelBonus: normalized.threatSecondEnemyLevelBonus,
     rows: rowsWithWarnings,
+    aggregates: aggregateCombatSimulationRows(rowsWithWarnings),
     warnings: warnings.map((warning) => warning.message)
   };
 }
@@ -210,22 +276,54 @@ export function formatCombatSimulationReport(report: CombatSimulationReport): st
 
   lines.push("Combat simulation report");
   lines.push(
-    `seed: ${report.seed} | policy: ${report.policy} | race: ${report.raceName} (${report.raceId})`
+    `seed: ${report.seed} | policy: ${report.policy} | encounter: ${report.encounterMode} | races: ${formatRaceSpec(report)}`
   );
   lines.push(
     `levels: ${formatLevelList(report.levels)} | monster levels: ${formatMonsterLevelSpec(
       report.monsterLevels
-    )} | runs: ${report.runsPerMatchup} | max turns: ${report.maxTurns}`
+    )} | runs: ${report.runsPerMatchup} | max turns: ${report.maxTurns} | threat second enemy bonus: ${report.threatSecondEnemyLevelBonus}`
   );
   lines.push(`rows: ${report.rows.length}`);
   lines.push("");
+  lines.push("Aggregate summary");
+  const aggregates = report.aggregates ?? aggregateCombatSimulationRows(report.rows);
+  for (const dimension of ["level", "class", "race"] satisfies CombatSimulationAggregateDimension[]) {
+    const dimensionRows = aggregates
+      .filter((aggregate) => aggregate.dimension === dimension)
+      .sort(compareAggregateRows)
+      .slice(0, 13);
+
+    if (dimensionRows.length === 0) {
+      continue;
+    }
+
+    lines.push(`  by ${dimension}:`);
+    for (const aggregate of dimensionRows) {
+      lines.push(
+        `    ${aggregate.label}: win ${formatPercent(aggregate.winRate)} | loss ${formatPercent(
+          aggregate.lossRate
+        )} | turns ${formatNumber(aggregate.averageTurns)} | runs ${aggregate.totalRuns}`
+      );
+    }
+  }
+  lines.push("");
 
   for (const row of report.rows) {
+    const enemies = row.enemies ?? [{
+      monsterId: row.monsterId,
+      monsterName: row.monsterName,
+      monsterLevel: row.monsterLevel
+    }];
     lines.push(
-      `Lv ${row.heroLevel} vs monster Lv ${row.monsterLevel} — ${row.className} (${row.classId}) vs ${row.monsterName} (${row.monsterId})`
+      `Lv ${row.heroLevel} vs monster Lv ${row.monsterLevel} - ${row.className} (${row.classId}) vs ${row.monsterName} (${row.monsterId})`
     );
     lines.push(
-    `  win ${formatPercent(row.summary.winRate)} | loss ${formatPercent(row.summary.lossRate)} | flee ${formatPercent(row.summary.fleeRate)} | expired ${formatPercent(row.summary.expiredRate)} | turns ${formatNumber(row.summary.averageTurns)} | ending HP ${formatNumber(row.summary.averageEndingHp)} | mana spent ${formatNumber(row.summary.averageManaSpent)}`
+      `  race ${row.raceName} (${row.raceId}) | enemies ${enemies
+        .map((enemy) => `${enemy.monsterName} (${enemy.monsterId}, Lv ${enemy.monsterLevel})`)
+        .join(" + ")}`
+    );
+    lines.push(
+      `  win ${formatPercent(row.summary.winRate)} | loss ${formatPercent(row.summary.lossRate)} | flee ${formatPercent(row.summary.fleeRate)} | expired ${formatPercent(row.summary.expiredRate)} | turns ${formatNumber(row.summary.averageTurns)} | ending HP ${formatNumber(row.summary.averageEndingHp)} | mana spent ${formatNumber(row.summary.averageManaSpent)}`
     );
     lines.push(
       `  monster mix basic ${formatPercent(row.summary.basicAttackShare)} | defend ${formatPercent(row.summary.defendShare)} | ability ${formatPercent(row.summary.abilityShare)} | telegraphs ${row.summary.telegraphCount} | shields ${row.summary.shieldUses} | heals ${row.summary.healingUses}`
@@ -268,6 +366,60 @@ export function formatCombatSimulationReport(report: CombatSimulationReport): st
   }
 
   return lines.join("\n");
+}
+
+export function aggregateCombatSimulationRows(
+  rows: readonly CombatSimulationRow[]
+): CombatSimulationAggregateRow[] {
+  const groups = new Map<
+    string,
+    {
+      dimension: CombatSimulationAggregateDimension;
+      key: string;
+      label: string;
+      rows: CombatSimulationRow[];
+    }
+  >();
+
+  for (const row of rows) {
+    const groupSpecs = [
+      { dimension: "level" as const, key: String(row.heroLevel), label: `Lv ${row.heroLevel}` },
+      { dimension: "class" as const, key: row.classId, label: `${row.className} (${row.classId})` },
+      { dimension: "race" as const, key: row.raceId, label: `${row.raceName} (${row.raceId})` }
+    ];
+
+    for (const spec of groupSpecs) {
+      const groupKey = `${spec.dimension}:${spec.key}`;
+      const group = groups.get(groupKey) ?? { ...spec, rows: [] };
+      group.rows.push(row);
+      groups.set(groupKey, group);
+    }
+  }
+
+  return [...groups.values()].map((group) => {
+    const totalRuns = group.rows.reduce((sum, row) => sum + row.summary.totalRuns, 0);
+    const wins = group.rows.reduce((sum, row) => sum + row.summary.wins, 0);
+    const losses = group.rows.reduce((sum, row) => sum + row.summary.losses, 0);
+    const flees = group.rows.reduce((sum, row) => sum + row.summary.flees, 0);
+    const expired = group.rows.reduce((sum, row) => sum + row.summary.expired, 0);
+
+    return {
+      dimension: group.dimension,
+      key: group.key,
+      label: group.label,
+      totalRows: group.rows.length,
+      totalRuns,
+      wins,
+      losses,
+      flees,
+      expired,
+      winRate: totalRuns === 0 ? 0 : wins / totalRuns,
+      lossRate: totalRuns === 0 ? 0 : losses / totalRuns,
+      averageTurns: weightedAverage(group.rows, (row) => row.summary.averageTurns),
+      averageEndingHp: weightedAverage(group.rows, (row) => row.summary.averageEndingHp),
+      averageManaSpent: weightedAverage(group.rows, (row) => row.summary.averageManaSpent)
+    };
+  });
 }
 
 export function summarizeCombatRuns(
@@ -415,13 +567,14 @@ export function buildOutlierWarnings(rows: readonly CombatSimulationRow[]): Arra
 function simulateSingleFight(input: {
   hero: CombatSimulationHero;
   monster: MonsterCombatStats;
+  enemies: MonsterCombatStats[];
   policy: CombatSimulationPolicy;
   maxTurns: number;
   seed: string;
 }): CombatSimulationRunResult {
   const rng = createSeededRandomSource(input.seed);
   const profile = getCombatSkillProfile(input.hero.classId);
-  let state = startCombat({ hero: input.hero, monster: input.monster });
+  let state = startCombat({ hero: input.hero, monster: input.monster, enemies: input.enemies.slice(1) });
   let manaSpent = 0;
   let turns = 0;
   let monsterBasicAttacks = 0;
@@ -444,26 +597,36 @@ function simulateSingleFight(input: {
       action,
       hero: input.hero,
       monster: input.monster,
+      enemies: [...input.enemies],
       rng
     });
 
     state = result.state;
     manaSpent += result.summary.manaSpent;
-    if (result.summary.monsterAction === "attack") {
-      monsterBasicAttacks += 1;
-    } else if (result.summary.monsterAction === "defend") {
-      monsterDefends += 1;
-    } else if (result.summary.monsterAction === "skill") {
-      monsterAbilities += 1;
-    } else if (result.summary.monsterAction === "telegraph") {
-      monsterTelegraphs += 1;
-    }
-    if (result.summary.monsterSkillId) {
-      abilityUsage[result.summary.monsterSkillId] = (abilityUsage[result.summary.monsterSkillId] ?? 0) + 1;
-    }
-    if (result.summary.monsterTelegraphAbilityId) {
-      abilityUsage[result.summary.monsterTelegraphAbilityId] =
-        (abilityUsage[result.summary.monsterTelegraphAbilityId] ?? 0) + 1;
+    const monsterActions = extractMonsterActions(result.summary);
+    for (const monsterAction of monsterActions) {
+      if (monsterAction.monsterAction === "attack") {
+        monsterBasicAttacks += 1;
+      } else if (monsterAction.monsterAction === "defend") {
+        monsterDefends += 1;
+      } else if (monsterAction.monsterAction === "skill") {
+        monsterAbilities += 1;
+      } else if (monsterAction.monsterAction === "telegraph") {
+        monsterTelegraphs += 1;
+      }
+      if (monsterAction.monsterSkillId) {
+        abilityUsage[monsterAction.monsterSkillId] = (abilityUsage[monsterAction.monsterSkillId] ?? 0) + 1;
+      }
+      if (monsterAction.monsterTelegraphAbilityId) {
+        abilityUsage[monsterAction.monsterTelegraphAbilityId] =
+          (abilityUsage[monsterAction.monsterTelegraphAbilityId] ?? 0) + 1;
+      }
+      if (monsterAction.monsterEffectText?.includes("щит")) {
+        shieldUses += 1;
+      }
+      if (monsterAction.monsterEffectText?.includes("відновив")) {
+        healingUses += 1;
+      }
     }
     if (result.summary.skillId && result.summary.abilitySource === "class") {
       classAbilityUsage[result.summary.skillId] = (classAbilityUsage[result.summary.skillId] ?? 0) + 1;
@@ -479,12 +642,6 @@ function simulateSingleFight(input: {
     }
     if ((result.summary.allyResults?.length ?? 0) > 0) {
       allySupportUses += result.summary.allyResults?.length ?? 0;
-    }
-    if (result.summary.monsterEffectText?.includes("щит")) {
-      shieldUses += 1;
-    }
-    if (result.summary.monsterEffectText?.includes("відновив")) {
-      healingUses += 1;
     }
     turns += 1;
   }
@@ -580,6 +737,7 @@ function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimu
   const levels = normalizeNumberList(options.levels ?? defaultLevels, defaultLevels);
   const classIds = normalizeClassIds(options.classIds ?? classes.map((characterClass) => characterClass.id));
   const raceId = resolveDefaultRaceId(options.raceId);
+  const raceIds = normalizeRaceIds(options.raceIds ?? [raceId]);
   const path = normalizePath(options.path);
 
   return {
@@ -589,9 +747,12 @@ function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimu
     seed: String(options.seed ?? "12345"),
     classIds,
     raceId,
+    raceIds,
     path,
     policy: options.policy ?? DEFAULT_POLICY,
-    maxTurns: normalizePositiveInteger(options.maxTurns ?? DEFAULT_MAX_TURNS)
+    maxTurns: normalizePositiveInteger(options.maxTurns ?? DEFAULT_MAX_TURNS),
+    encounterMode: options.encounterMode ?? "one-enemy",
+    threatSecondEnemyLevelBonus: normalizeNonNegativeInteger(options.threatSecondEnemyLevelBonus ?? 0)
   };
 }
 
@@ -608,6 +769,28 @@ function mergeAbilityUsage(
   }
 
   return usage;
+}
+
+function extractMonsterActions(summary: CombatTurnSummary): Array<
+  Pick<
+    CombatEnemyTurnSummary,
+    "monsterAction" | "monsterSkillId" | "monsterTelegraphAbilityId" | "monsterEffectText"
+  >
+> {
+  if (summary.enemyActions && summary.enemyActions.length > 0) {
+    return summary.enemyActions;
+  }
+
+  return summary.monsterAction
+    ? [{
+        monsterAction: summary.monsterAction,
+        ...(summary.monsterSkillId ? { monsterSkillId: summary.monsterSkillId } : {}),
+        ...(summary.monsterTelegraphAbilityId
+          ? { monsterTelegraphAbilityId: summary.monsterTelegraphAbilityId }
+          : {}),
+        ...(summary.monsterEffectText ? { monsterEffectText: summary.monsterEffectText } : {})
+      }]
+    : [];
 }
 
 function formatAbilityUsage(usage: Record<string, number>): string {
@@ -630,6 +813,44 @@ function normalizePositiveInteger(value: number): number {
   return Math.max(1, Math.floor(value));
 }
 
+function weightedAverage(
+  rows: readonly CombatSimulationRow[],
+  selector: (row: CombatSimulationRow) => number
+): number {
+  const totalRuns = rows.reduce((sum, row) => sum + row.summary.totalRuns, 0);
+
+  if (totalRuns === 0) {
+    return 0;
+  }
+
+  return rows.reduce((sum, row) => sum + selector(row) * row.summary.totalRuns, 0) / totalRuns;
+}
+
+function compareAggregateRows(left: CombatSimulationAggregateRow, right: CombatSimulationAggregateRow): number {
+  if (left.dimension === "level" && right.dimension === "level") {
+    return Number(left.key) - Number(right.key);
+  }
+
+  return left.winRate - right.winRate || left.label.localeCompare(right.label);
+}
+
+function formatRaceSpec(report: CombatSimulationReport): string {
+  const raceIds = report.raceIds ?? [report.raceId];
+  const raceNames = report.raceNames ?? [report.raceName];
+
+  if (raceIds.length === 1) {
+    return `${report.raceName} (${report.raceId})`;
+  }
+
+  return raceIds
+    .map((raceId, index) => `${raceNames[index] ?? raceId} (${raceId})`)
+    .join(", ");
+}
+
+function normalizeNonNegativeInteger(value: number): number {
+  return Math.max(0, Math.floor(value));
+}
+
 function normalizeNumberList(values: readonly number[], fallback: readonly number[]): number[] {
   const normalized = [...new Set(values.map((value) => Math.max(1, Math.floor(value))))].sort(
     (left, right) => left - right
@@ -645,6 +866,13 @@ function normalizeClassIds(classIds: readonly string[]): string[] {
   return normalized.length > 0 ? normalized : classes.map((characterClass) => characterClass.id);
 }
 
+function normalizeRaceIds(raceIds: readonly string[]): string[] {
+  const validIds = new Set(races.map((race) => race.id));
+  const normalized = [...new Set(raceIds.filter((raceId) => validIds.has(raceId)))];
+
+  return normalized.length > 0 ? normalized : ["race.human-ish"];
+}
+
 function resolveDefaultRaceId(raceId: string | undefined): string {
   if (!raceId) {
     return "race.human-ish";
@@ -653,11 +881,19 @@ function resolveDefaultRaceId(raceId: string | undefined): string {
   return races.some((race) => race.id === raceId) ? raceId : "race.human-ish";
 }
 
-function resolveRaceForClass(classId: string, requestedRaceId: string): string {
+function resolveRaceForClass(
+  classId: string,
+  requestedRaceId: string,
+  strictAllowedRace: boolean
+): string | null {
   const characterClass = getClassContent(classId);
 
   if (characterClass.allowedRaces?.includes(requestedRaceId)) {
     return requestedRaceId;
+  }
+
+  if (strictAllowedRace) {
+    return null;
   }
 
   return characterClass.allowedRaces?.[0] ?? requestedRaceId;
@@ -681,6 +917,26 @@ function getRaceContent(raceId: string) {
   }
 
   return race;
+}
+
+function buildEncounterEnemies(input: {
+  mode: CombatSimulationEncounterMode;
+  primary: MonsterContent;
+  monsterLevel: number;
+  secondEnemyLevelBonus: number;
+  seed: string;
+}): MonsterCombatStats[] {
+  const primaryStats = deriveMonsterCombatStats(input.primary);
+
+  if (input.mode === "one-enemy") {
+    return [primaryStats];
+  }
+
+  const secondLevel = Math.min(23, input.monsterLevel + input.secondEnemyLevelBonus);
+  const secondTemplate = selectThreatSecondMonsterTemplate(input.primary, secondLevel, input.seed);
+  const second = materializeMonsterAtLevel(secondTemplate, secondLevel);
+
+  return [primaryStats, applyThreatBackupEnemyCombatStats(deriveMonsterCombatStats(second))];
 }
 
 function selectMonsterTemplates(level: number): MonsterContent[] {
@@ -707,6 +963,34 @@ function selectMonsterTemplates(level: number): MonsterContent[] {
   })[0]!];
 }
 
+function selectThreatSecondMonsterTemplate(
+  primary: MonsterContent,
+  level: number,
+  seed: string
+): MonsterContent {
+  const templates = selectMonsterTemplates(level).filter((candidate) => candidate.id !== primary.id);
+  const candidates = templates.length > 0
+    ? templates
+    : monsters.filter((candidate) => candidate.id !== primary.id);
+
+  if (candidates.length === 0) {
+    return primary;
+  }
+
+  const sorted = [...candidates].sort((left, right) => {
+    const levelDelta = Math.abs(left.level - level) - Math.abs(right.level - level);
+
+    if (levelDelta !== 0) {
+      return levelDelta;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+  const index = hashSeed(`${seed}:threat-second:${primary.id}:${level}`) % sorted.length;
+
+  return sorted[index]!;
+}
+
 function isOrdinaryBalanceMonster(monster: MonsterContent): boolean {
   return !monster.tags.includes("boss") &&
     !monster.tags.includes("mini-boss") &&
@@ -724,7 +1008,7 @@ function groupRows(rows: readonly CombatSimulationRow[]): Map<string, CombatSimu
   const grouped = new Map<string, CombatSimulationRow[]>();
 
   for (const row of rows) {
-    const key = `${row.heroLevel}:${row.monsterLevel}`;
+    const key = `${row.encounterMode}:${row.heroLevel}:${row.monsterLevel}:${row.raceId}`;
     const existing = grouped.get(key) ?? [];
     existing.push(row);
     grouped.set(key, existing);
@@ -734,7 +1018,7 @@ function groupRows(rows: readonly CombatSimulationRow[]): Map<string, CombatSimu
 }
 
 function buildRowKey(row: CombatSimulationRow): string {
-  return `${row.heroLevel}:${row.monsterLevel}:${row.monsterId}:${row.classId}`;
+  return `${row.encounterMode}:${row.heroLevel}:${row.monsterLevel}:${row.monsterId}:${row.classId}:${row.raceId}`;
 }
 
 function createSeededRandomSource(seed: string): RandomSource {
