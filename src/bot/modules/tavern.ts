@@ -911,6 +911,7 @@ async function handleTavernCallback(
 
   if (action === "ranger") {
     await safeAnswerCallbackQuery(ctx);
+    await sendPlaceMovementNotice(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
     if (
       await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER, services)
     ) {

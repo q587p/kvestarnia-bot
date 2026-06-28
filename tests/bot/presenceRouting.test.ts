@@ -9,7 +9,6 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
 import { mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
@@ -56,14 +55,7 @@ describe("presence routing", () => {
         currentAdventureId: null
       }
     ],
-    [
-      "v1:tavern:ranger",
-      {
-        locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
-        currentRaidId: null,
-        currentAdventureId: null
-      }
-    ],
+    ["v1:tavern:ranger", {}],
     ["v1:adv:mimic:poke", {}],
     ["v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:1:attack", {}],
     ["v1:spar:open", {}],

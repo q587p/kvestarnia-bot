@@ -2194,8 +2194,8 @@ describe("scene callback HTML options", () => {
           getCurrentPlaceForTelegramUser: () =>
             Promise.resolve({
               state: "ready" as const,
-              locationId: "location.korchma.ranger_corner",
-              locationName: "Yeger corner",
+              locationId: "location.korchma.deep",
+              locationName: "Низ",
               insideKorchma: true
             }),
           getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
@@ -2208,7 +2208,13 @@ describe("scene callback HTML options", () => {
         call.method === "sendMessage" &&
         String(call.payload.text).includes("Map sneezed in the wrong direction")
     );
+    const movementNotice = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви підійшли до єгерського кутка.")
+    );
     const keyboard = JSON.stringify(scene?.payload.reply_markup);
+    const movementKeyboard = JSON.stringify(movementNotice?.payload.reply_markup);
 
     expect(openScene).toHaveBeenCalledWith(42n, {
       dayToken: "20260628",
@@ -2222,6 +2228,9 @@ describe("scene callback HTML options", () => {
         currentAdventureId: null
       })
     );
+    expect(movementNotice).toBeDefined();
+    expect(movementKeyboard).toContain("🏹 Єгерський куток");
+    expect(movementKeyboard).not.toContain("🪜 Низ");
     expect(scene).toBeDefined();
     expect(keyboard).toContain("v1:dkr:a:20260628:0:fold-north:0");
   });
