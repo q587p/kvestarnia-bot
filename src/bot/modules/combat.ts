@@ -16,6 +16,7 @@ import {
   getPassageSearchNodeKey,
   PASSAGE_SEARCH_NODE_DEEP_LEVEL1
 } from "../../services/passageSearchService";
+import { type CallbackParseResult, registerParsedCallbackRoute } from "../callbackRoute";
 import type { BotServices } from "../botServices";
 import { parseFightCallbackData,type FightCallback } from "../callbacks/fightCallbackData";
 import { parsePassageSearchCallbackData, type PassageSearchCallback } from "../callbacks/passageSearchCallbackData";
@@ -127,38 +128,44 @@ export function registerCombatBotModule(
     registerTrainingDoppelgangerDevResetHandler(bot, services);
   }
 
-  bot.callbackQuery(/^v1:spar:/, async (ctx) => {
-    const parsed = parseTrainingDoppelgangerCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok || !services.trainingDoppelganger) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:spar:/,
+    (data) => parseWhenAvailable(data, parseTrainingDoppelgangerCallbackData, services.trainingDoppelganger),
+    async (ctx, callback) => {
+      await handleTrainingDoppelgangerCallback(ctx, callback, services);
     }
+  );
 
-    await handleTrainingDoppelgangerCallback(ctx, parsed.value, services);
-  });
-
-  bot.callbackQuery(/^v1:fight:/, async (ctx) => {
-    const parsed = parseFightCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:fight:/,
+    parseFightCallbackData,
+    async (ctx, callback) => {
+      await handleFightCallback(ctx, callback, services);
     }
+  );
 
-    await handleFightCallback(ctx, parsed.value, services);
-  });
-
-  bot.callbackQuery(/^v1:search:/, async (ctx) => {
-    const parsed = parsePassageSearchCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok || !services.passageSearch) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:search:/,
+    (data) => parseWhenAvailable(data, parsePassageSearchCallbackData, services.passageSearch),
+    async (ctx, callback) => {
+      await handlePassageSearchCallback(ctx, callback, services);
     }
+  );
+}
 
-    await handlePassageSearchCallback(ctx, parsed.value, services);
-  });
+function parseWhenAvailable<TCallback>(
+  data: string,
+  parse: (data: string) => CallbackParseResult<TCallback>,
+  service: unknown
+): CallbackParseResult<TCallback> {
+  if (!service) {
+    return { ok: false };
+  }
+
+  return parse(data);
 }
 
 function registerTrainingDoppelgangerDevResetHandler(bot: Bot, services: BotServices): void {
