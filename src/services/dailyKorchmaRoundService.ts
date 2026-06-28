@@ -521,8 +521,10 @@ export class DailyKorchmaRoundService {
     }
 
     const character = summarizeCharacter(characterRecord);
+    const lifeToken = Math.max(0, Math.floor(characterRecord.remortCount ?? 0));
+    let offer = await this.loadOffer(telegramUserId, characterRecord.id, lifeToken, false);
 
-    if (character.level < DAILY_KORCHMA_ROUND_MIN_LEVEL) {
+    if (!offer && character.level < DAILY_KORCHMA_ROUND_MIN_LEVEL) {
       return { state: "level-locked", character, requiredLevel: DAILY_KORCHMA_ROUND_MIN_LEVEL };
     }
 
@@ -538,8 +540,9 @@ export class DailyKorchmaRoundService {
       return { state: "pending-barrel", character };
     }
 
-    const lifeToken = Math.max(0, Math.floor(characterRecord.remortCount ?? 0));
-    const offer = await this.loadOffer(telegramUserId, characterRecord.id, lifeToken, options.ensureOffer);
+    if (!offer && options.ensureOffer) {
+      offer = await this.loadOffer(telegramUserId, characterRecord.id, lifeToken, true);
+    }
 
     if (!offer) {
       return options.ensureOffer ? { state: "no-character" } : { state: "not-issued", character };

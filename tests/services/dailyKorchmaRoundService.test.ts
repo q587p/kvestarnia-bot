@@ -28,11 +28,13 @@ const telegramUserId = 587n;
 const now = new Date("2026-06-28T09:00:00.000Z");
 
 describe("DailyKorchmaRoundService", () => {
-  it("locks level 2 and creates a stable level 3 offer with one yard and two interiors", async () => {
-    const world = new FakeWorld(makeCharacter({ level: 2 }));
+  it("locks level 1 without an existing offer and creates a stable level 3 offer with one yard and two interiors", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 1 }));
     let result = await world.service.getForTelegramUser(telegramUserId);
 
     expect(result.state).toBe("level-locked");
+    expect((await world.service.getExistingForTelegramUser(telegramUserId)).state).toBe("level-locked");
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(0);
 
     world.character = makeCharacter({ level: 3 });
     result = await world.service.getForTelegramUser(telegramUserId);
@@ -70,6 +72,37 @@ describe("DailyKorchmaRoundService", () => {
     expect(existing.state).toBe("ready");
     if (issued.state === "ready" && existing.state === "ready") {
       expect(existing.offer.scenes.map((scene) => scene.id)).toEqual(issued.offer.scenes.map((scene) => scene.id));
+    }
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
+  });
+
+  it("keeps an existing same-day offer visible after remort resets the character below level 3", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+    const offer = await readyOffer(world);
+    const first = offer.scenes[0]!;
+
+    world.locationId = first.locationId;
+    await expect(
+      world.service.completeStep(telegramUserId, {
+        dayToken: offer.dayToken,
+        sceneIndex: 0,
+        actionId: first.actions[0]!.id,
+        lifeToken: offer.lifeToken
+      })
+    ).resolves.toMatchObject({ state: "step-completed" });
+
+    world.character = { ...world.character!, level: 1, remortCount: offer.lifeToken + 1 };
+
+    const afterRemort = await world.service.getForTelegramUser(telegramUserId);
+    const existingAfterRemort = await world.service.getExistingForTelegramUser(telegramUserId);
+
+    expect(afterRemort.state).toBe("ready");
+    expect(existingAfterRemort.state).toBe("ready");
+    if (afterRemort.state === "ready" && existingAfterRemort.state === "ready") {
+      expect(afterRemort.offer.lifeToken).toBe(offer.lifeToken + 1);
+      expect(afterRemort.offer.scenes.map((scene) => scene.id)).toEqual(offer.scenes.map((scene) => scene.id));
+      expect(afterRemort.offer.completedSceneIds).toEqual([first.id]);
+      expect(existingAfterRemort.offer.completedSceneIds).toEqual([first.id]);
     }
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
   });
@@ -203,7 +236,7 @@ describe("DailyKorchmaRoundService", () => {
     expect(world.character?.xp).toBe(13 + expectedReward.xp);
     expect(world.character?.gold).toBe(23 + expectedReward.gold);
 
-    world.character = { ...world.character!, remortCount: 1 };
+    world.character = { ...world.character!, level: 1, remortCount: 1 };
     const afterRemort = await world.service.getForTelegramUser(telegramUserId);
     expect(afterRemort.state).toBe("completed");
 
@@ -214,6 +247,68 @@ describe("DailyKorchmaRoundService", () => {
       lifeToken: offer.lifeToken
     });
     expect(oldLife.state).toBe("stale-life");
+  });
+
+  it("allows fresh current-life turn-in after remort but stales old-life claim buttons", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3, xp: 13, gold: 23 }));
+    const offer = await readyOffer(world);
+    const [first, second] = offer.scenes;
+
+    world.locationId = first!.locationId;
+    await world.service.completeStep(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 0,
+      actionId: first!.actions[0]!.id,
+      lifeToken: offer.lifeToken
+    });
+    world.locationId = second!.locationId;
+    await world.service.completeStep(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 1,
+      actionId: second!.actions[0]!.id,
+      lifeToken: offer.lifeToken
+    });
+
+    world.character = { ...world.character!, level: 1, remortCount: offer.lifeToken + 1 };
+    world.locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+
+    const oldLifeClaim = await world.service.claimReward(telegramUserId, {
+      dayToken: offer.dayToken,
+      lifeToken: offer.lifeToken
+    });
+    expect(oldLifeClaim.state).toBe("stale-life");
+
+    const afterRemort = await world.service.getForTelegramUser(telegramUserId);
+    expect(afterRemort.state).toBe("turn-in-ready");
+    if (afterRemort.state !== "turn-in-ready") {
+      return;
+    }
+
+    const claimed = await world.service.claimReward(telegramUserId, {
+      dayToken: afterRemort.offer.dayToken,
+      lifeToken: afterRemort.offer.lifeToken
+    });
+    const expectedReward = calculateDailyKorchmaRoundReward({
+      characterId: "character-1",
+      characterLevel: 1,
+      dayKey: offer.dayKey,
+      sceneIds: offer.scenes.map((scene) => scene.id),
+      completedSceneIds: [first!.id, second!.id]
+    });
+
+    expect(claimed.state).toBe("reward-claimed");
+    expect(claimed.state === "reward-claimed" ? claimed.reward : null).toEqual(expectedReward);
+    expect(world.character?.xp).toBe(13 + expectedReward.xp);
+    expect(world.character?.gold).toBe(23 + expectedReward.gold);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
+
+    const replay = await world.service.claimReward(telegramUserId, {
+      dayToken: afterRemort.offer.dayToken,
+      lifeToken: afterRemort.offer.lifeToken
+    });
+    expect(replay.state).toBe("reward-replayed");
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
+    expect((await world.service.getForTelegramUser(telegramUserId)).state).toBe("completed");
   });
 
   it("keeps daily reward spread bounded and deterministic by level", () => {
