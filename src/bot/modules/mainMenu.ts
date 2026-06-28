@@ -381,7 +381,7 @@ export async function sendDailyKorchmaRoundSceneAtLocation(
     return false;
   }
 
-  const current = await services.dailyKorchmaRound.getForTelegramUser(telegramUserId);
+  const current = await services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId);
 
   if (current.state !== "ready" && current.state !== "turn-in-ready") {
     return false;

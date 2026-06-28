@@ -133,6 +133,49 @@ describe("Yeger presenter", () => {
     expect(text).not.toContain("Здобуто:");
   });
 
+  it("distinguishes available and cooldown ranger bandage submenu copy", () => {
+    const available = presentYegerBandages({
+      state: "completed",
+      character: {
+        ...character,
+        classId: "class.ranger"
+      },
+      progress: { wins: 5, target: 5 },
+      reward: {
+        xp: 80,
+        gold: 120,
+        itemGrants: []
+      },
+      rangerBandage: {
+        state: "available"
+      }
+    });
+    const cooldown = presentYegerBandages({
+      state: "completed",
+      character: {
+        ...character,
+        classId: "class.ranger"
+      },
+      progress: { wins: 5, target: 5 },
+      reward: {
+        xp: 80,
+        gold: 120,
+        itemGrants: []
+      },
+      rangerBandage: {
+        state: "on-cooldown",
+        nextAvailableAt: new Date("2026-06-15T11:38:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+
+    expect(available).toContain("Для єгерів тут є ще один професійний бинт.");
+    expect(cooldown).toContain("Професійний бинт для єгерів зараз перевʼязує власну важливість.");
+    expect(cooldown).toContain("Повернеться пізніше.");
+    expect(cooldown).not.toContain("Він безкоштовний");
+    expect(cooldown).not.toBe(available);
+  });
+
   it("explains start and target help", () => {
     expect(
       presentYegerStart({

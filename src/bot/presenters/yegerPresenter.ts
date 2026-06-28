@@ -141,7 +141,12 @@ export function presentYegerBandages(
   ];
 
   if (result.character.classId === "class.ranger") {
-    lines.push("", "Для єгерів тут є ще один професійний бинт. Він безкоштовний, але дивиться суворо.");
+    lines.push(
+      "",
+      result.rangerBandage?.state === "on-cooldown"
+        ? "Професійний бинт для єгерів зараз перевʼязує власну важливість. Повернеться пізніше."
+        : "Для єгерів тут є ще один професійний бинт. Він безкоштовний, але дивиться суворо."
+    );
   }
 
   return lines.join("\n");

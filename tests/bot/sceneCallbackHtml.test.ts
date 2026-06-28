@@ -1895,7 +1895,7 @@ describe("scene callback HTML options", () => {
           complete: () => Promise.resolve({ state: "no-character" as const })
         },
         dailyKorchmaRound: {
-          getForTelegramUser: () =>
+          getExistingForTelegramUser: () =>
             Promise.resolve({
               state: "ready" as const,
               character: level3Character,
@@ -2006,7 +2006,7 @@ describe("scene callback HTML options", () => {
           complete: () => Promise.resolve({ state: "no-character" as const })
         },
         dailyKorchmaRound: {
-          getForTelegramUser: () =>
+          getExistingForTelegramUser: () =>
             Promise.resolve({
               state: "ready" as const,
               character: level3Character,
@@ -2054,6 +2054,64 @@ describe("scene callback HTML options", () => {
     expect(scene).toBeDefined();
     expect(calls.map((call) => String(call.payload.text))).not.toContain("Льох тимчасово тихий.");
     expect(keyboard).toContain("v1:dkr:a:20260628:0:repeat-last:0");
+  });
+
+  it("falls through to ordinary location content when no daily Korchma offer was issued yet", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getExistingForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "not-issued" as const,
+        character: {
+          ...character,
+          level: 3
+        }
+      })
+    );
+    const openScene = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const cellarErrandLookup = vi.fn(() => Promise.resolve({ state: "ready" as const, character }));
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.cellar,
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: cellarErrandLookup,
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        dailyKorchmaRound: {
+          getExistingForTelegramUser,
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.cellar",
+              locationName: "Льох корчми",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("🐭 Льохова справа"));
+
+    expect(getExistingForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(openScene).not.toHaveBeenCalled();
+    expect(cellarErrandLookup).toHaveBeenCalledWith(42n);
+    expect(String(reply?.payload.text)).toContain("🐭 Льохова справа");
+    expect(calls.some((call) => String(call.payload.text).includes("🍾 Пляшка шепоче інвентаризацію"))).toBe(false);
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.cellar",
+        currentRaidId: null,
+        currentAdventureId: "adventure.cellar.mouse-errand"
+      })
+    );
   });
 
   it("opens an active daily Korchma round scene from the tavern ranger route", async () => {
@@ -2115,7 +2173,7 @@ describe("scene callback HTML options", () => {
       makeTavernCallbackData("ranger"),
       servicesWith({
         dailyKorchmaRound: {
-          getForTelegramUser: () =>
+          getExistingForTelegramUser: () =>
             Promise.resolve({
               state: "ready" as const,
               character: level3Character,

@@ -50,6 +50,27 @@ describe("DailyKorchmaRoundService", () => {
     }
   });
 
+  it("can inspect an existing daily offer without creating one from location navigation", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+    const notIssued = await world.service.getExistingForTelegramUser(telegramUserId);
+
+    expect(notIssued.state).toBe("not-issued");
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(0);
+
+    const issued = await world.service.getForTelegramUser(telegramUserId);
+
+    expect(issued.state).toBe("ready");
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
+
+    const existing = await world.service.getExistingForTelegramUser(telegramUserId);
+
+    expect(existing.state).toBe("ready");
+    if (issued.state === "ready" && existing.state === "ready") {
+      expect(existing.offer.scenes.map((scene) => scene.id)).toEqual(issued.offer.scenes.map((scene) => scene.id));
+    }
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
+  });
+
   it("requires current scene presence, rejects duplicate and stale callbacks, then locks the third scene", async () => {
     const world = new FakeWorld(makeCharacter({ level: 3 }));
     const offer = await readyOffer(world);
