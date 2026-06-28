@@ -1145,6 +1145,7 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
 
   const characterId = stringOrNull(value.characterId);
   const displayName = stringOrNull(value.displayName);
+  const activeCosmeticTitle = stringOrNull(value.activeCosmeticTitle);
   const title = stringOrNull(value.title);
   const raceId = stringOrNull(value.raceId);
   const raceName = stringOrNull(value.raceName);
@@ -1194,6 +1195,7 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   return {
     characterId,
     displayName,
+    ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
     title,
     raceId,
     raceName,
@@ -1559,6 +1561,7 @@ function parseParticipant(value: unknown): DuelResultParticipantSnapshot | null 
 
   const characterId = stringOrNull(value.characterId);
   const displayName = stringOrNull(value.displayName);
+  const activeCosmeticTitle = stringOrNull(value.activeCosmeticTitle);
   const title = stringOrNull(value.title);
   const raceId = stringOrNull(value.raceId);
   const raceName = stringOrNull(value.raceName);
@@ -1572,6 +1575,7 @@ function parseParticipant(value: unknown): DuelResultParticipantSnapshot | null 
   return {
     characterId,
     displayName,
+    ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
     title,
     raceId,
     raceName,

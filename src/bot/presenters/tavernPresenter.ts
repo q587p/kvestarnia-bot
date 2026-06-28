@@ -22,6 +22,7 @@ import {
   selectKorchmaGreetingLine
 } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 
@@ -640,7 +641,7 @@ function presentDuelLeaderboardSection(
 
 function presentDuelLeaderboardEntry(entry: DuelLeaderboardEntry, rank: number): string {
   return [
-    `${rank}. ${escapeHtml(entry.name)} — `,
+    `${rank}. ${presentCharacterDisplayName(entry, { boldName: false })} — `,
     `${entry.winCount} ${presentUkrainianCount(entry.winCount, "перемога", "перемоги", "перемог")}`,
     `, ${entry.drawCount} ${presentUkrainianCount(entry.drawCount, "нічия", "нічиї", "нічиїх")}`,
     `, ${entry.lossCount} ${presentUkrainianCount(entry.lossCount, "поразка", "поразки", "поразок")}`
@@ -747,7 +748,7 @@ function presentKorchmaArrivalEntries(board: KorchmaArrivalBoard): string[] {
     ...board.entries.map((entry) => {
       const level = entry.level === undefined ? "" : ` · рівень ${entry.level}`;
 
-      return `• ${escapeHtml(entry.name)}${level} · ${escapeHtml(entry.locationName)}`;
+      return `• ${presentCharacterDisplayName(entry, { boldName: false })}${level} · ${escapeHtml(entry.locationName)}`;
     })
   ];
 }

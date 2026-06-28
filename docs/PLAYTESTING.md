@@ -24,6 +24,9 @@ Use one fresh account plus one account with at least one earned cosmetic title g
 8. Open achievements list, filters and `🔎 Перевірити`; verify title selection did not break achievement browsing/recalculation.
 9. Open the Daily Korchma Round route or complete one round; verify its achievement definitions and UI still work.
 10. Confirm selecting/clearing titles changes no XP, gold, items, stats, combat, quest, duel, Shynok, Yeger or remort effects.
+11. Select an active title on account A, then from account B in the same location open `👀 Хто поруч`, `/online` and `/look`; verify A's title appears compactly and unknown/cleared titles are omitted.
+12. Create a nearby duel from A, accept/resolve/replay/rematch it, then clear A's title; verify old result/share/rematch cards keep stored title display while new cards omit it.
+13. Open gift target selection, the Korchma arrival board and the duel winners board; verify titles appear only in the documented compact identity rows and do not affect ordering or rewards.
 
 ## 0.2.9 — Daily Korchma Rounds smoke
 

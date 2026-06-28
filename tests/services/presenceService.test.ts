@@ -511,6 +511,39 @@ describe("PresenceService", () => {
     expect(JSON.stringify(snapshot)).not.toContain("Не показувати");
     expect(JSON.stringify(snapshot)).not.toContain("Тихий плащ");
   });
+
+  it("resolves only known enabled active cosmetic titles for nearby presence", async () => {
+    const repository = new FakePresenceRepository([
+      player(1n, "587", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL),
+      player(2n, "Дара", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL, {
+        characterActiveCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+      }),
+      player(3n, "Архів", minutesAgo(1), PRESENCE_LOCATION_KORCHMA_HALL, {
+        characterActiveCosmeticTitleGrantId: "cosmetic-title.unknown-future"
+      })
+    ]);
+    const service = new PresenceService(repository, () => now);
+
+    const snapshot = await service.getNearbyDuelCandidatesForTelegramUser(1n);
+
+    expect(snapshot).toMatchObject({
+      state: "ready",
+      visible: [
+        {
+          telegramUserId: 3n,
+          name: "Архів"
+        },
+        {
+          telegramUserId: 2n,
+          name: "Дара",
+          activeCosmeticTitle: "Перший пергамент не зʼїв"
+        }
+      ]
+    });
+    if (snapshot.state === "ready") {
+      expect(snapshot.visible[0]).not.toHaveProperty("activeCosmeticTitle");
+    }
+  });
 });
 
 function minutesAgo(minutes: number): Date {

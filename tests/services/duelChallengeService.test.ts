@@ -804,8 +804,14 @@ describe("DuelChallengeService", () => {
 
   it("builds duel boards with wins draws and losses", async () => {
     const world = new FakeDuelWorld();
-    world.addCharacter(1n, { name: "Пані Сила" });
-    world.addCharacter(2n, { name: "Пан Обережний" });
+    world.addCharacter(1n, {
+      name: "Пані Сила",
+      activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+    });
+    world.addCharacter(2n, {
+      name: "Пан Обережний",
+      activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+    });
     const service = buildService(world);
     const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
@@ -860,12 +866,15 @@ describe("DuelChallengeService", () => {
         loserCharacterId: null
       }
     });
+    world.characters.get(1n)!.activeCosmeticTitleGrantId = null;
+    world.characters.get(2n)!.activeCosmeticTitleGrantId = "cosmetic-title.unknown-future";
 
     await expect(service.getLeaderboard()).resolves.toEqual({
       day: [
         {
           characterId: "character-1",
           name: "Пані Сила",
+          activeCosmeticTitle: "Перший пергамент не зʼїв",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -873,6 +882,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
+          activeCosmeticTitle: "Табурет навчився хитатися",
           winCount: 0,
           drawCount: 1,
           lossCount: 1
@@ -882,6 +892,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-1",
           name: "Пані Сила",
+          activeCosmeticTitle: "Перший пергамент не зʼїв",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -889,6 +900,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
+          activeCosmeticTitle: "Табурет навчився хитатися",
           winCount: 0,
           drawCount: 1,
           lossCount: 1
@@ -898,6 +910,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-1",
           name: "Пані Сила",
+          activeCosmeticTitle: "Перший пергамент не зʼїв",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -905,6 +918,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
+          activeCosmeticTitle: "Табурет навчився хитатися",
           winCount: 0,
           drawCount: 1,
           lossCount: 1

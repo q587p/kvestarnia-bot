@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentItemGiftCandidates,
   presentItemGiftCreate,
   presentItemGiftNotification,
   presentItemGiftRespond,
@@ -8,6 +9,29 @@ import {
 import type { ItemGiftCreateResult, ItemGiftSelectionResult } from "../../src/services/itemTransferService";
 
 describe("item gift presenter", () => {
+  it("shows active cosmetic titles in gift candidate rows", () => {
+    const text = presentItemGiftCandidates({
+      state: "ready",
+      location: {
+        id: "location.korchma.hall",
+        name: "Зала корчми"
+      },
+      page: 0,
+      pageSize: 5,
+      total: 1,
+      totalPages: 1,
+      visible: [{
+        telegramUserId: 2n,
+        name: "Дара",
+        activeCosmeticTitle: "Перший пергамент не зʼїв",
+        level: 4,
+        status: "active"
+      }]
+    });
+
+    expect(text).toContain("— Дара, «Перший пергамент не зʼїв» · рівень 4");
+  });
+
   it("escapes recipient and item names in the selection and offer cards", () => {
     const selection: ItemGiftSelectionResult = {
       state: "selection",

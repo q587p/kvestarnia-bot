@@ -14,6 +14,7 @@ import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BARREL
 } from "../../services/presenceService";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
 const MAX_VISIBLE_PRESENCE_PEOPLE = 12;
@@ -155,7 +156,13 @@ function presentStatusSection(title: string, people: PresencePerson[]): string[]
 function presentPeople(people: PresencePerson[]): string[] {
   const visible = people.slice(0, MAX_VISIBLE_PRESENCE_PEOPLE);
   const hidden = people.length - visible.length;
-  const lines = visible.map((person) => `— ${escapeHtml(truncatePresenceName(person.name))}`);
+  const lines = visible.map((person) =>
+    `— ${presentCharacterDisplayName(person, {
+      boldName: false,
+      maxNameLength: MAX_PRESENCE_NAME_LENGTH,
+      maxTitleLength: 48
+    })}`
+  );
 
   if (hidden > 0) {
     lines.push(`— і ще ${hidden} ${pluralize(hidden, "пригодник", "пригодники", "пригодників")}`);
@@ -166,14 +173,6 @@ function presentPeople(people: PresencePerson[]): string[] {
 
 function presentSoloRaidPrefix(total: number): string {
   return total === 1 ? "🍺 У соло-рейді" : "🍺 У соло-рейдах";
-}
-
-function truncatePresenceName(name: string): string {
-  if (name.length <= MAX_PRESENCE_NAME_LENGTH) {
-    return name;
-  }
-
-  return `${name.slice(0, MAX_PRESENCE_NAME_LENGTH - 1)}…`;
 }
 
 function pluralize(count: number, one: string, few: string, many: string): string {

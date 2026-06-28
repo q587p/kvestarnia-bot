@@ -5,6 +5,7 @@ import {
   type AchievementDefinition,
   type AchievementTriggerType
 } from "../content/achievements";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import type {
   AchievementRepository,
   AchievementRecalculationSnapshot,
@@ -443,6 +444,7 @@ function resolveCosmeticTitleText(grant: CharacterCosmeticTitleGrantRecord): {
   sourceAchievementTitle: string;
   archived: boolean;
 } {
+  const activeLabel = resolveActiveCosmeticTitleLabel(grant.titleGrantId);
   const definition = achievements.find((candidate) =>
     "cosmeticTitleGrantId" in candidate &&
     candidate.cosmeticTitleGrantId === grant.titleGrantId &&
@@ -459,7 +461,7 @@ function resolveCosmeticTitleText(grant: CharacterCosmeticTitleGrantRecord): {
   }
 
   return {
-    title: definition.title,
+    title: activeLabel ?? definition.title,
     sourceAchievementTitle: definition.title,
     archived: false
   };

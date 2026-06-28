@@ -84,6 +84,30 @@ describe("presence presenter", () => {
     expect(text).toContain("📍 Поточна місцина: Біля Бочки Пінного Міражу");
   });
 
+  it("shows active cosmetic titles in social presence rows and escapes them", () => {
+    const text = presentParticipants({
+      state: "ready",
+      activity: {
+        kind: "raid",
+        id: "raid.friday-barrel",
+        name: "Бочка Пінного Міражу",
+        locationName: "Біля Бочки Пінного Міражу",
+        people: {
+          active: [{
+            telegramUserId: 13n,
+            name: "Дара <&>",
+            activeCosmeticTitle: "Перший <пергамент> не зʼїв",
+            status: "active"
+          }],
+          idle: [],
+          total: 1
+        }
+      }
+    });
+
+    expect(text).toContain("— Дара &lt;&amp;&gt;, «Перший &lt;пергамент&gt; не зʼїв»");
+  });
+
   it("uses cellar icon for cellar adventure participants and online summaries", () => {
     const participants = presentParticipants(cellarParticipantsSnapshot);
     const online = presentOnline(cellarOnlineSnapshot);

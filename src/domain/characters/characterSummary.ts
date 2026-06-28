@@ -23,6 +23,7 @@ export interface CharacterSummary {
   classId: string;
   className: string;
   title: string;
+  activeCosmeticTitle?: string | null;
   level: number;
   xp: number;
   nextLevelXp: number | null;

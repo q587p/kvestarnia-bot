@@ -14,17 +14,22 @@ This project follows a simple pre-1.0 versioning policy:
 - Added title-list rendering for earned `CharacterCosmeticTitleGrant` records with active markers, source achievement provenance, empty state, archive-safe unknown rows and a clear action.
 - Added compact `v1:ach:titles`, `v1:ach:tset:<life>:<grantRowId>` and `v1:ach:tclr:<life>` callbacks with Telegram byte-length coverage.
 - Added server-authoritative ownership checks for selecting titles: callbacks select by owned grant row id, then store the selected cosmetic title grant id on the character.
+- Added shared social display formatting for selected active cosmetic titles with HTML escaping and compact truncation support.
+- Added optional active-title display snapshots to duel result JSON and turn-based duel state JSON, preserving replayed duel history while old rows remain valid.
 - Added a rewardless first-title-selection achievement, `achievement.journey.cosmetic-title-selected`, without granting another title.
 
 ### Changed
 - `/hero` now offers both `🏅 Ачівки` and `🏷️ Титули`.
 - Character cards show a separate compact `Косметичний титул` line when an active cosmetic title is present. The generated race/class title remains separate for gameplay and flavor routing.
+- Presence, nearby duel, gift target selection, Korchma arrival, duel invite/accept/result/share/rematch/terminal headers and duel-winner board rows now show selected active cosmetic titles where compact.
+- Public/social surfaces resolve only enabled active cosmetic title ids; unknown or disabled active title ids are omitted outside owner title management.
 - Duplicate select and clear callbacks replay canonical title state without duplicate rows, notifications, achievements or mutations.
 - Old-life title mutation callbacks stale out via remort-count callback tokens while active cosmetic title state itself may survive remort.
 
 ### Unchanged
 - Cosmetic titles grant no XP, gold, items, stats, combat power, loot odds, quest progress, Yeger/Shynok/remort progress, donor perks or paid advantage.
 - Active cosmetic titles do not affect Adventure Choice, combat formulas, duel formulas, monster selection, rewards, hidden selectors, title abilities or title combat buttons.
+- Active cosmetic titles do not affect presence eligibility, nearby targeting, duel score snapshots, leaderboard ordering, gift transactions, Shynok round rankings or Bard performance resolution.
 - Remort preserves earned achievement and cosmetic title grant rows.
 
 ## [0.2.9] - 12026-06-28 - Daily Korchma Rounds

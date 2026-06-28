@@ -16,7 +16,8 @@ const presenceSelect = {
     select: {
       name: true,
       classId: true,
-      level: true
+      level: true,
+      activeCosmeticTitleGrantId: true
     }
   }
 } satisfies Prisma.UserSelect;
@@ -166,6 +167,7 @@ function toPresenceRecord(user: SelectedPresenceUser): PresenceRecord {
     characterName: user.character?.name ?? null,
     characterClassId: user.character?.classId ?? null,
     characterLevel: user.character?.level ?? null,
+    characterActiveCosmeticTitleGrantId: user.character?.activeCosmeticTitleGrantId ?? null,
     lastActionAt: user.lastActionAt,
     lastSeenLocationId: user.lastSeenLocationId,
     currentRaidId: user.currentRaidId,

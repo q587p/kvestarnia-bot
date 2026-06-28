@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
@@ -52,6 +53,7 @@ export interface DuelPairLimit {
 export interface DuelLeaderboardEntry {
   characterId: string;
   name: string;
+  activeCosmeticTitle?: string | null;
   winCount: number;
   drawCount: number;
   lossCount: number;
@@ -1032,7 +1034,7 @@ export class DuelChallengeService {
       }
     });
 
-    return result.character;
+    return withActiveCosmeticTitle(result.character, character.activeCosmeticTitleGrantId);
   }
 
 }
@@ -1051,12 +1053,14 @@ function buildLeaderboard(
     const challenger = getOrCreateLeaderboardEntry(
       entries,
       record.challenger,
-      record.result.participants?.challenger.displayName
+      record.result.participants?.challenger.displayName,
+      record.result.participants?.challenger.activeCosmeticTitle
     );
     const target = getOrCreateLeaderboardEntry(
       entries,
       record.target,
-      record.result.participants?.target.displayName
+      record.result.participants?.target.displayName,
+      record.result.participants?.target.activeCosmeticTitle
     );
 
     if (record.result.outcome === "draw") {
@@ -1093,7 +1097,8 @@ function buildLeaderboard(
 function getOrCreateLeaderboardEntry(
   entries: Map<string, DuelLeaderboardEntry>,
   character: DuelCharacterSnapshot,
-  snapshotName?: string
+  snapshotName?: string,
+  snapshotActiveCosmeticTitle?: string | null
 ): DuelLeaderboardEntry {
   const current = entries.get(character.id);
 
@@ -1104,6 +1109,7 @@ function getOrCreateLeaderboardEntry(
   const next = {
     characterId: character.id,
     name: snapshotName ?? character.name,
+    ...(snapshotActiveCosmeticTitle ? { activeCosmeticTitle: snapshotActiveCosmeticTitle } : {}),
     winCount: 0,
     drawCount: 0,
     lossCount: 0
@@ -1117,9 +1123,19 @@ function getOrCreateLeaderboardEntry(
 function summarizeDuelCharacter(
   character: DuelCharacterSnapshot
 ): CharacterSummary {
-  return summarizeCharacter(character, {
+  const summary = summarizeCharacter(character, {
     equippedItems: getEquippedItemContents(character.equipment)
   });
+  return withActiveCosmeticTitle(summary, character.activeCosmeticTitleGrantId);
+}
+
+function withActiveCosmeticTitle(
+  character: CharacterSummary,
+  titleGrantId: string | null | undefined
+): CharacterSummary {
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(titleGrantId);
+
+  return activeCosmeticTitle ? { ...character, activeCosmeticTitle } : character;
 }
 
 function summarizeDuelCharacterWithResultSnapshot(
@@ -1144,7 +1160,8 @@ function summarizeDuelCharacterWithResultSnapshot(
     raceName: snapshot.raceName,
     classId: snapshot.classId,
     className: snapshot.className,
-    level: snapshot.level
+    level: snapshot.level,
+    ...(snapshot.activeCosmeticTitle ? { activeCosmeticTitle: snapshot.activeCosmeticTitle } : {})
   };
 
   return snapshot.remortCount > 0
@@ -1235,6 +1252,7 @@ function buildStoredTurnBasedParticipantSnapshot(
   return {
     characterId: participant.characterId,
     displayName: participant.displayName,
+    ...(participant.activeCosmeticTitle ? { activeCosmeticTitle: participant.activeCosmeticTitle } : {}),
     title: participant.title,
     raceId: participant.raceId,
     raceName: participant.raceName,
@@ -1248,6 +1266,7 @@ function buildStoredTurnBasedParticipantSnapshot(
 function summarizeTurnBasedParticipant(participant: TurnBasedDuelParticipantSnapshot): CharacterSummary {
   return {
     name: participant.displayName,
+    ...(participant.activeCosmeticTitle ? { activeCosmeticTitle: participant.activeCosmeticTitle } : {}),
     pronoun: "they",
     pronounLabel: "вони",
     path: "boundary",
@@ -1298,6 +1317,7 @@ function buildParticipantSnapshot(
   return {
     characterId,
     displayName: character.name,
+    ...(character.activeCosmeticTitle ? { activeCosmeticTitle: character.activeCosmeticTitle } : {}),
     title: character.title,
     raceId: character.raceId,
     raceName: character.raceName,

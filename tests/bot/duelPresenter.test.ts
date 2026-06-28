@@ -162,6 +162,42 @@ describe("duel presenter", () => {
     expect(text).toContain("<b>Ліва Рука</b> отримує перемогу");
   });
 
+  it("shows frozen active cosmetic titles on duel result and share cards", () => {
+    const view = {
+      state: "resolved",
+      challenge: {
+        mode: "quick",
+        inviteToken: "abcDEF12"
+      },
+      challenger: {
+        name: "Дара <&>",
+        activeCosmeticTitle: "Перший <пергамент> не зʼїв",
+        level: 4
+      },
+      target: {
+        name: "Нестор",
+        activeCosmeticTitle: "Табличка тримається",
+        level: 4
+      },
+      result: {
+        mode: "quick",
+        outcome: "challenger",
+        winnerCharacterId: "challenger-character",
+        loserCharacterId: "target-character",
+        challengerScore: 12,
+        targetScore: 3,
+        swing: 3,
+        flavorKey: "direct-hit"
+      }
+    } as never;
+    const text = presentDuelView(view);
+    const share = presentDuelResultShare(view);
+
+    expect(text).toContain("<b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв»");
+    expect(text).toContain("<b>Нестор</b>, «Табличка тримається»");
+    expect(share).toContain("<b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв»");
+  });
+
   it("shows stored XP rewards for turn-based results without claiming no XP", () => {
     const view = {
       state: "resolved",

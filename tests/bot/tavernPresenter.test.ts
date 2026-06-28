@@ -176,14 +176,21 @@ describe("tavern presenter", () => {
 
   it("shows duel winners for day week and month", () => {
     const text = presentDuelWinnersBoard(character, {
-      day: [{ characterId: "character-1", name: "<b>Дара</b>", winCount: 2, drawCount: 1, lossCount: 5 }],
+      day: [{
+        characterId: "character-1",
+        name: "<b>Дара</b>",
+        activeCosmeticTitle: "Перший <пергамент> не зʼїв",
+        winCount: 2,
+        drawCount: 1,
+        lossCount: 5
+      }],
       week: [],
       month: [{ characterId: "character-2", name: "Нестор", winCount: 5, drawCount: 2, lossCount: 1 }]
     });
 
     expect(text).toContain("🏆 Переможці дуелей");
     expect(text).toContain("<b>За добу</b>:");
-    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; — 2 перемоги, 1 нічия, 5 поразок");
+    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt;, «Перший &lt;пергамент&gt; не зʼїв» — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не переміг");
     expect(text).toContain("1. Нестор — 5 перемог, 2 нічиї, 1 поразка");
     expect(text).not.toContain("<b>Дара</b>");
