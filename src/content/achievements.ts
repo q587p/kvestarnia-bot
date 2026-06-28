@@ -614,6 +614,30 @@ export const achievements = [
     trigger: { type: "daily.korchma-round.completed", threshold: 1 }
   },
   {
+    id: "achievement.quest.daily-korchma-round.seven",
+    category: "quests",
+    title: "Тиждень дрібниць підписано",
+    description: "закрити 7 Корчмарських обходів і навчити дощечку впізнавати ваш почерк.",
+    hidden: false,
+    lockedDescription: "закрити 7 Корчмарських обходів.",
+    sortOrder: 65.31,
+    status: "enabled",
+    trigger: { type: "daily.korchma-round.completed", threshold: 7 },
+    progressTarget: 7
+  },
+  {
+    id: "achievement.quest.daily-korchma-round.thirteen",
+    category: "quests",
+    title: "Тринадцять ревізій без паніки",
+    description: "закрити 13 Корчмарських обходів і лишити здоровий глузд у стані контрольованої образи.",
+    hidden: false,
+    lockedDescription: "закрити 13 Корчмарських обходів.",
+    sortOrder: 65.32,
+    status: "enabled",
+    trigger: { type: "daily.korchma-round.completed", threshold: 13 },
+    progressTarget: 13
+  },
+  {
     id: "achievement.quest.problem-chain.93",
     category: "quests",
     title: "Девʼяносто три волі до проблем",

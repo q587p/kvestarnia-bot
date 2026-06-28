@@ -423,6 +423,34 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.adventure.choice.thirteen")?.current).toBe(13);
   });
 
+  it("unlocks daily Korchma round milestone thresholds from durable reward rows", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      activityDates: {
+        "daily.korchma-round.completed": Array.from(
+          { length: 13 },
+          (_, index) => new Date(2026, 5, 28, 9, index)
+        )
+      }
+    });
+    const service = new AchievementService(repo);
+
+    const unlocks = await service.trackEvent({
+      type: "daily.korchma-round.completed",
+      characterId: "character-1",
+      occurredAt: new Date("2026-06-28T09:12:00.000Z"),
+      sourceId: "daily-korchma-round-13"
+    });
+
+    expect(new Set(unlocks.map((unlock) => unlock.id))).toEqual(new Set([
+      "achievement.quest.daily-korchma-round",
+      "achievement.quest.daily-korchma-round.seven",
+      "achievement.quest.daily-korchma-round.thirteen"
+    ]));
+    expect(repo.progressFor("achievement.quest.daily-korchma-round.seven")?.current).toBe(7);
+    expect(repo.progressFor("achievement.quest.daily-korchma-round.thirteen")?.current).toBe(13);
+  });
+
   it("recalculates provable historical achievements from the current character snapshot", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = {

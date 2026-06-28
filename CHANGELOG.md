@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the 13-scene v1 daily content pack. Each scene has exactly three authored actions and deterministic authored outcomes, with content validation for scene/action uniqueness and shape.
 - Added a pure Kyiv day helper based on `Intl.DateTimeFormat(..., { timeZone: "Europe/Kyiv" }).formatToParts()` and focused tests for winter, summer, midnight rollover and both DST transition periods.
 - Added compact `daily_actions` rows for offer, step and reward state. No Prisma schema or migration was needed.
-- Added a rewardless daily-round achievement hook and definition, `achievement.quest.daily-korchma-round`, using trigger `daily.korchma-round.completed` and not reusing Shynok beer-round ids.
+- Added rewardless daily-round achievement hooks and definitions for 1, 7 and 13 completed `Корчмарський обхід` runs, using trigger `daily.korchma-round.completed` and not reusing Shynok beer-round ids.
 - Added `location.korchma.yard` as a public outside presence location. It is not part of `KORCHMA_INTERIOR_LOCATION_IDS` and is not accepted by `isKorchmaInteriorLocation()`.
 - Added local `/dev_reset_korchma_round` to clear the current Kyiv-day daily-round offer, step and reward rows for manual QA.
 

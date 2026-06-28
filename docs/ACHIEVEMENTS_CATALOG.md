@@ -10,7 +10,7 @@ Runtime rules:
 - New player-facing mechanics should add matching achievements/hooks for visible actions, milestones or odd outcomes, or explicitly document why no durable event exists yet.
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 
-Current count: 107 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 109 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -65,6 +65,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.quest.mimic-shawarma` | enabled | visible | `starter.mimic-shawarma.completed >= 1` | Шаурма мала зуби | завершити першу справу з міміком-шаурмою й не довіряти обіду з очима. |
 | `achievement.quest.cellar-mouse` | enabled | visible | `cellar.mouse.completed >= 1` | Мишача дипломатія | завершити льохову справу з мишею й лишити сирні аргументи в архіві. |
 | `achievement.quest.daily-korchma-round` | enabled | visible | `daily.korchma-round.completed >= 1` | Дві катастрофи — це вже порядок | закрити перший Корчмарський обхід і лишити третю дрібницю на офіційне «не сьогодні». |
+| `achievement.quest.daily-korchma-round.seven` | enabled | visible | `daily.korchma-round.completed >= 7` | Тиждень дрібниць підписано | закрити 7 Корчмарських обходів і навчити дощечку впізнавати ваш почерк. |
+| `achievement.quest.daily-korchma-round.thirteen` | enabled | visible | `daily.korchma-round.completed >= 13` | Тринадцять ревізій без паніки | закрити 13 Корчмарських обходів і лишити здоровий глузд у стані контрольованої образи. |
 | `achievement.quest.problem-chain.93` | enabled | visible | `problem.quest.completed >= 4` | Девʼяносто три волі до проблем | завершити весь корчмарський ланцюжок проблем і не сперечатися з останньою текою. |
 | `achievement.quest.yeger-first` | enabled | visible | `yeger.trial.completed >= 1` | Єгер кивнув. Це майже овація | завершити перше випробування Єгеря й побачити кивок майже урочистого масштабу. |
 | `achievement.quest.strong-success` | enabled | visible | `adventure.choice.strong-success >= 1` | План спрацював. Підозріло | отримати сильний успіх у корчемній справі й поводитися так, ніби все було заплановано. |
