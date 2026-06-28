@@ -19,6 +19,7 @@ const PROBLEM_QUEST_REWARD_KEYS = [
 
 const MIMIC_SHAWARMA_ADVENTURE_KEY = "adventure.mimic-shawarma";
 const MIMIC_SHAWARMA_COMBAT_PROBE_KEY = "combat.mimic-shawarma.probe";
+const MIMIC_SHAWARMA_MONSTER_ID = "monster.mimic-shawarma";
 const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
 const DAILY_KORCHMA_ROUND_REWARD_KEY = "quest.korchma-daily-round.reward";
 const YEGER_UNQUIET_TRIAL_COMPLETED_KEY = "quest.yeger.unquiet-trial.completed";
@@ -361,6 +362,9 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "training.doppelganger.finished": completedTrainingSessions.map((row) => row.rewardClaimedAt ?? row.updatedAt),
       "training.doppelganger.won": combatSessions
         .filter((row) => row.monsterId === TRAINING_DOPPELGANGER_MONSTER_ID && row.status === "won")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      [`combat.finished.won.exclude:${MIMIC_SHAWARMA_MONSTER_ID}`]: combatSessions
+        .filter((row) => row.monsterId !== MIMIC_SHAWARMA_MONSTER_ID && row.status === "won")
         .map((row) => row.rewardClaimedAt ?? row.updatedAt),
       "combat.persistent.won": persistentCombatSessions
         .filter((row) => row.status === "won")

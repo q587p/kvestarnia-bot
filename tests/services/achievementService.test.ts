@@ -101,6 +101,43 @@ describe("AchievementService", () => {
     expect(unlocks).toEqual([]);
   });
 
+  it("keeps the first combat win achievement separate from the starter shawarma probe", async () => {
+    const starterRepo = new FakeAchievementRepository();
+    const starterService = new AchievementService(starterRepo);
+
+    const starterUnlocks = await starterService.trackEvent({
+      type: "combat.finished",
+      characterId: "character-1",
+      outcome: "won",
+      monsterId: "monster.mimic-shawarma",
+      occurredAt: new Date("2026-06-28T09:00:00.000Z"),
+      sourceId: "starter-shawarma-session"
+    });
+
+    expect(starterUnlocks.map((unlock) => unlock.id)).not.toContain("achievement.combat.first-win");
+    expect(starterRepo.snapshot.titleGrants).toHaveLength(0);
+
+    const normalRepo = new FakeAchievementRepository();
+    const normalService = new AchievementService(normalRepo);
+
+    const normalUnlocks = await normalService.trackEvent({
+      type: "combat.finished",
+      characterId: "character-1",
+      outcome: "won",
+      monsterId: "monster.deadline-spider",
+      occurredAt: new Date("2026-06-28T09:10:00.000Z"),
+      sourceId: "normal-session"
+    });
+
+    expect(normalUnlocks.map((unlock) => unlock.id)).toContain("achievement.combat.first-win");
+    expect(normalRepo.snapshot.titleGrants).toMatchObject([
+      {
+        titleGrantId: "cosmetic-title.first-puddle-victor",
+        achievementId: "achievement.combat.first-win"
+      }
+    ]);
+  });
+
   it("lists earned, locked, hidden and unknown stored entries safely", async () => {
     const repo = new FakeAchievementRepository();
     repo.snapshot.achievements.push({
@@ -226,6 +263,38 @@ describe("AchievementService", () => {
 
     expect(thirteenthWin.map((unlock) => unlock.id)).toContain("achievement.combat.thirteen-wins");
     expect(repo13.progressFor("achievement.combat.thirteen-wins")?.current).toBe(13);
+  });
+
+  it("recalculates the first combat win only from non-starter-shawarma wins", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      combat: {
+        won: 1,
+        lost: 0,
+        fled: 0,
+        expired: 0
+      },
+      combatFinishedAt: {
+        won: [new Date("2026-06-28T09:00:00.000Z")],
+        lost: [],
+        fled: [],
+        expired: []
+      },
+      activityDates: {
+        "combat.finished.won.exclude:monster.mimic-shawarma": []
+      }
+    });
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T09:05:00.000Z")
+    );
+
+    expect(result.unlocks.map((unlock) => unlock.id)).not.toContain("achievement.combat.first-win");
+    expect(repo.snapshot.titleGrants.map((grant) => grant.titleGrantId)).not.toContain(
+      "cosmetic-title.first-puddle-victor"
+    );
   });
 
   it("unlocks problem-chain 93 from the fourth problem reward event", async () => {
@@ -388,6 +457,7 @@ describe("AchievementService", () => {
         "starter.mimic-shawarma.probe.completed": [new Date("2026-06-28T08:57:00.000Z")],
         "cellar.mouse.completed": [new Date("2026-06-28T08:58:00.000Z")],
         "yeger.trial.completed": [new Date("2026-06-28T08:59:00.000Z")],
+        "combat.finished.won.exclude:monster.mimic-shawarma": [new Date("2026-06-28T09:00:00.000Z")],
         "item.used": [
           new Date("2026-06-28T10:10:00.000Z"),
           new Date("2026-06-28T10:11:00.000Z"),

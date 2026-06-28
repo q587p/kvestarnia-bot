@@ -58,6 +58,7 @@ export type AchievementEvent =
       type: "combat.finished";
       characterId: string;
       outcome: "won" | "lost" | "fled" | "expired";
+      monsterId?: string;
       occurredAt: Date;
       sourceId?: string;
     }
@@ -293,7 +294,8 @@ function matchesEvent(definition: AchievementDefinition, event: AchievementEvent
 
   switch (event.type) {
     case "combat.finished":
-      return !definition.trigger.outcome || definition.trigger.outcome === event.outcome;
+      return (!definition.trigger.outcome || definition.trigger.outcome === event.outcome) &&
+        matchesExcludedMonster(definition.trigger.excludedMonsterId, event.monsterId);
     case "character.created":
       return matchesOptionalValue(definition.trigger.raceId, event.raceId) &&
         matchesOptionalValue(definition.trigger.classId, event.classId);
@@ -404,6 +406,14 @@ function getRecalculationProgress(
     case "level.reached":
       return snapshot.level;
     case "combat.finished":
+      if (definition.trigger.excludedMonsterId) {
+        return definition.trigger.outcome
+          ? snapshot.activityDates[getCombatFinishedExcludingMonsterKey(
+            definition.trigger.outcome,
+            definition.trigger.excludedMonsterId
+          )]?.length ?? 0
+          : 0;
+      }
       return definition.trigger.outcome
         ? snapshot.combat[definition.trigger.outcome]
         : 0;
@@ -479,6 +489,17 @@ function getRecalculationOccurredAt(
     case "level.reached":
       return snapshot.levelReachedAt[threshold] ?? fallback;
     case "combat.finished":
+      if (definition.trigger.excludedMonsterId) {
+        return getThresholdDate(
+          definition.trigger.outcome
+            ? snapshot.activityDates[getCombatFinishedExcludingMonsterKey(
+              definition.trigger.outcome,
+              definition.trigger.excludedMonsterId
+            )] ?? []
+            : [],
+          threshold
+        ) ?? fallback;
+      }
       return getThresholdDate(
         definition.trigger.outcome ? snapshot.combatFinishedAt[definition.trigger.outcome] : [],
         threshold
@@ -612,6 +633,17 @@ function matchesOptionalValue(expected: string | undefined, actual: string | und
   return expected === undefined || expected === actual;
 }
 
+function matchesExcludedMonster(excludedMonsterId: string | undefined, monsterId: string | undefined): boolean {
+  return !excludedMonsterId || (monsterId !== undefined && monsterId !== excludedMonsterId);
+}
+
+function getCombatFinishedExcludingMonsterKey(
+  outcome: "won" | "lost" | "fled" | "expired",
+  excludedMonsterId: string
+): string {
+  return `combat.finished.${outcome}.exclude:${excludedMonsterId}`;
+}
+
 function eventToSource(event: AchievementEvent): AchievementUnlockSource {
   return {
     type: event.type,
@@ -626,7 +658,10 @@ function eventPayload(event: AchievementEvent): Record<string, unknown> {
     case "level.reached":
       return { level: event.level };
     case "combat.finished":
-      return { outcome: event.outcome };
+      return {
+        outcome: event.outcome,
+        ...(event.monsterId ? { monsterId: event.monsterId } : {})
+      };
     case "problem.quest.completed":
       return { stageId: event.stageId };
     case "item.received":

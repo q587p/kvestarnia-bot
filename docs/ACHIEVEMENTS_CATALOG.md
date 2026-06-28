@@ -50,7 +50,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.level.13` | enabled | visible | `level.reached >= 13` | Тринадцятий пункт інструкції | досягти 13 рівня й не читати дрібний шрифт уголос. |
 | `achievement.remort.first` | enabled | visible | `remort.completed >= 1` | Знову з першої, але з претензією | завершити перший реморт і повернутися з досвідом, який підозріло світиться. |
 | `achievement.level.23` | disabled | hidden | `future` | Двадцять три причини не питати | досягти 23 рівня й дати літописцю новий привід нервово рахувати. |
-| `achievement.combat.first-win` | enabled | visible | `combat.finished won >= 1` | Бойове хрещення в калюжі | виграти бій з монстром і не питати, чия це була калюжа. |
+| `achievement.combat.first-win` | enabled | visible | `combat.finished won excluding monster.mimic-shawarma >= 1` | Бойове хрещення в калюжі | виграти бій з монстром і не питати, чия це була калюжа. |
 | `achievement.combat.three-wins` | enabled | visible | `combat.finished won >= 3` | Три монстри не погодили протокол | виграти 3 бої з монстрами й лишити протокол у стані легкої образи. |
 | `achievement.combat.thirteen-wins` | enabled | visible | `combat.finished won >= 13` | Тринадцять разів не впав | виграти 13 боїв з монстрами й підписати підлозі акт про ненапад. |
 | `achievement.combat.persistent-win-23` | enabled | visible | `combat.persistent.finished won >= 23` | Двадцять три аргументи | перемогти у 23 старших боях і залишити Низ без переконливого протоколу. |

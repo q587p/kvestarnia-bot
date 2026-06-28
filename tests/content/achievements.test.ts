@@ -44,6 +44,7 @@ describe("achievement definitions", () => {
         type: trigger.type,
         threshold: "threshold" in trigger ? (trigger.threshold ?? 1) : 1,
         outcome: "outcome" in trigger ? (trigger.outcome ?? null) : null,
+        excludedMonsterId: "excludedMonsterId" in trigger ? (trigger.excludedMonsterId ?? null) : null,
         raceId: "raceId" in trigger ? (trigger.raceId ?? null) : null,
         classId: "classId" in trigger ? (trigger.classId ?? null) : null,
         itemId: "itemId" in trigger ? (trigger.itemId ?? null) : null

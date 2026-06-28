@@ -77,6 +77,7 @@ export interface AchievementDefinition {
     type: AchievementTriggerType;
     threshold?: number;
     outcome?: "won" | "lost" | "fled" | "expired";
+    excludedMonsterId?: string;
     raceId?: string;
     classId?: string;
     itemId?: string;
@@ -437,7 +438,12 @@ export const achievements = [
     lockedDescription: "виграти перший бій з монстром.",
     sortOrder: 40,
     status: "enabled",
-    trigger: { type: "combat.finished", outcome: "won", threshold: 1 },
+    trigger: {
+      type: "combat.finished",
+      outcome: "won",
+      threshold: 1,
+      excludedMonsterId: "monster.mimic-shawarma"
+    },
     cosmeticTitleGrantId: "cosmetic-title.first-puddle-victor"
   },
   {
