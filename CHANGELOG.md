@@ -20,7 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Quest Hub now surfaces the daily round when available, with qualitative pre-choice copy only. Exact reward appears after the explicit turn-in.
-- Route buttons can move/open the authored location, but service authorization checks persisted offer/step/reward state and current presence before mutating.
+- The daily overview lists scene locations without direct scene-location teleport buttons. Players walk through ordinary Korchma navigation, and opening a location with an active unfinished daily scene shows that scene there.
 - Final turn-in requires the Quest Table and grants exactly 4 XP + 2 gold once per Kyiv day, with duplicate/restart replay returning the stored result.
 
 ### Unchanged

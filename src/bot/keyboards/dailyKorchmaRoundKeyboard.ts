@@ -5,7 +5,7 @@ import type {
   DailyKorchmaRoundSceneLookupResult,
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
-import { makeDailyKorchmaRoundActionCallbackData, makeDailyKorchmaRoundClaimCallbackData, makeDailyKorchmaRoundOverviewCallbackData, makeDailyKorchmaRoundSceneCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
+import { makeDailyKorchmaRoundActionCallbackData, makeDailyKorchmaRoundClaimCallbackData, makeDailyKorchmaRoundOverviewCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
 export function buildDailyKorchmaRoundOverviewKeyboard(
@@ -14,19 +14,11 @@ export function buildDailyKorchmaRoundOverviewKeyboard(
   const keyboard = new InlineKeyboard();
 
   if (result.state !== "ready" && result.state !== "turn-in-ready" && result.state !== "completed") {
-    return keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
+    return keyboard
+      .text("📋 До справ", makePlaceCallbackData("quest-table"))
+      .row()
+      .text("🍺 До зали", makePlaceCallbackData("hall"));
   }
-
-  result.offer.scenes.forEach((scene, index) => {
-    const locked = result.offer.omittedSceneId === scene.id;
-    const done = result.offer.completedSceneIds.includes(scene.id);
-
-    if (!locked) {
-      keyboard
-        .text(`${done ? "✅" : scene.icon} ${shortSceneButton(scene.title)}`, makeDailyKorchmaRoundSceneCallbackData(result.offer.dayToken, index))
-        .row();
-    }
-  });
 
   if (result.state === "turn-in-ready") {
     keyboard
@@ -34,7 +26,10 @@ export function buildDailyKorchmaRoundOverviewKeyboard(
       .row();
   }
 
-  return keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
+  return keyboard
+    .text("📋 До справ", makePlaceCallbackData("quest-table"))
+    .row()
+    .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildDailyKorchmaRoundSceneKeyboard(result: DailyKorchmaRoundSceneLookupResult): InlineKeyboard {
@@ -60,7 +55,7 @@ export function buildDailyKorchmaRoundSceneKeyboard(result: DailyKorchmaRoundSce
   return keyboard
     .text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken))
     .row()
-    .text("📍 До місцини", makePlaceCallbackData(placeCallbackFromLocation(result.scene.locationId)));
+    .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
 export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStepResult): InlineKeyboard {
@@ -72,11 +67,7 @@ export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStep
     .text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken))
     .row();
 
-  if (result.completedCount >= 2) {
-    keyboard.text("📋 До Столу", makePlaceCallbackData("quest-table"));
-  } else {
-    keyboard.text("📍 Лишитися тут", makePlaceCallbackData(placeCallbackFromLocation(result.scene.locationId)));
-  }
+  keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
 
   return keyboard;
 }
@@ -91,35 +82,4 @@ export function buildDailyKorchmaRoundClaimKeyboard(result: DailyKorchmaRoundCla
   }
 
   return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
-}
-
-function shortSceneButton(title: string): string {
-  return title.length > 24 ? `${title.slice(0, 23)}…` : title;
-}
-
-function placeCallbackFromLocation(locationId: string): Parameters<typeof makePlaceCallbackData>[0] {
-  switch (locationId) {
-    case "location.korchma.yard":
-      return "yard";
-    case "location.korchma.hall":
-      return "hall";
-    case "location.korchma.quest_table":
-      return "quest-table";
-    case "location.korchma.bar":
-      return "bar";
-    case "location.korchma.cellar":
-      return "cellar";
-    case "location.korchma.barrel":
-      return "barrel";
-    case "location.korchma.news_corner":
-      return "news-corner";
-    case "location.korchma.ranger_corner":
-      return "ranger-corner";
-    case "location.korchma.fighting_corner":
-      return "fighting-corner";
-    case "location.korchma.deep":
-      return "deep";
-    default:
-      return "hall";
-  }
 }

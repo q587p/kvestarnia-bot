@@ -114,16 +114,15 @@ Locked:
 Діє до нового київського дня.
 ```
 
-Buttons route to locations:
+Overview buttons do not route directly to incident locations:
 
 ```text
-🪣 До задвірка
-📰 До дошки
-🛢️ До бочки
-⬅️ До Столу
+📋 До справ
+🍺 До зали
 ```
 
-Натискання route button **не завершує** step.
+Гравець іде звичайною навігацією Корчми. Якщо поточна локація має active incomplete scene, її поверхня показує сцену обходу.
+Натискання навігаційної кнопки **не завершує** step.
 
 ### 4.3 Location surface
 
@@ -431,7 +430,7 @@ Compact namespace example:
 
 ```text
 v1:dkr:o:<dayToken>
-v1:dkr:s:<dayToken>:<sceneKey>
+v1:dkr:s:<dayToken>:<sceneKey>        # scene card / stale compatibility, not a fresh overview teleport button
 v1:dkr:a:<dayToken>:<sceneKey>:<actionKey>:<lifeToken>
 v1:dkr:c:<dayToken>:<lifeToken>
 ```
@@ -451,7 +450,7 @@ Requirements:
 
 - Offer/steps/reward survive remort within the same day.
 - Old pre-remort action/claim buttons return stale-life copy and no mutation.
-- Fresh overview creates buttons with current remort count.
+- Fresh action and claim cards use the current remort count.
 - Completed steps remain valid.
 - Unclaimed final reward goes to the current life when explicitly turned in.
 - Reward remains once per day, so remort cannot duplicate it.

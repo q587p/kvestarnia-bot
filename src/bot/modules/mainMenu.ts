@@ -351,7 +351,7 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
 
   const locationId = normalizePresenceLocationId(requestedLocationId ?? place.locationId);
 
-  if (await sendCurrentDailyKorchmaRoundScene(ctx, telegramUserId, locationId, services)) {
+  if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, locationId, services)) {
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -360,7 +360,7 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
-async function sendCurrentDailyKorchmaRoundScene(
+export async function sendDailyKorchmaRoundSceneAtLocation(
   ctx: Context,
   telegramUserId: bigint,
   locationId: string,

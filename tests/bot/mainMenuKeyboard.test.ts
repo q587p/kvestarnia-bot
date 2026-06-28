@@ -52,6 +52,9 @@ import {
 } from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
+  buildDailyKorchmaRoundOverviewKeyboard
+} from "../../src/bot/keyboards/dailyKorchmaRoundKeyboard";
+import {
   buildBackToShynokKeyboard,
   buildShynokRoundPreviewKeyboard,
   buildShynokRoundResultKeyboard
@@ -1754,6 +1757,43 @@ describe("main menu and scene keyboards", () => {
       "v1:place:bar",
       "v1:place:hall"
     ]);
+  });
+
+  it("keeps daily Korchma round overview as a location list without scene teleport buttons", () => {
+    const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
+      state: "ready",
+      character,
+      offer: {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 0,
+        requiredSteps: 2,
+        completedSceneIds: [],
+        omittedSceneId: null,
+        scenes: [
+          {
+            id: "scene.cellar.inventory-bottle",
+            icon: "🍾",
+            title: "Пляшка шепоче інвентаризацію",
+            locationId: "location.korchma.cellar",
+            hook: "У льосі пляшка шепоче номери.",
+            actions: []
+          },
+          {
+            id: "scene.yard.rope",
+            icon: "🪢",
+            title: "Мотузка завʼязала питання",
+            locationId: "location.korchma.yard",
+            hook: "У задвірку мотузка має думку.",
+            actions: []
+          }
+        ]
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До справ", "🍺 До зали"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
+    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:s:"))).toBe(false);
   });
 
   it("builds quest hub buttons from available actions", () => {
