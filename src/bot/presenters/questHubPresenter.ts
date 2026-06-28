@@ -327,7 +327,7 @@ function presentDailyKorchmaRoundRow(
   const title = "🧾 <i>Корчмарський обхід</i>";
 
   if (daily.state === "level-locked") {
-    return `${title} — відкриється з ${daily.requiredLevel} рівня.`;
+    return null;
   }
 
   if (daily.state === "hp-blocked") {
