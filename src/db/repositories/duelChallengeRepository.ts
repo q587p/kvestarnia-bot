@@ -53,6 +53,7 @@ export interface DuelResultPayload {
 export interface DuelResultParticipantSnapshot {
   characterId: string;
   displayName: string;
+  activeCosmeticTitle?: string | null;
   title: string;
   raceId: string;
   raceName: string;

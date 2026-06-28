@@ -3,6 +3,7 @@ import type {
   PresencePerson
 } from "../../services/presenceService";
 import type { DuelCreateResult, DuelResourceWarning } from "../../services/duelChallengeService";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentNearbyDuelCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
@@ -38,7 +39,7 @@ export function presentNearbyDuelMode(target: PresencePerson): string {
   return [
     "🥊 <b>Формат виклику</b>",
     "",
-    `Кому: <b>${escapeHtml(target.name)}</b>${target.level ? ` · рівень ${target.level}` : ""}`,
+    `Кому: ${presentCharacterDisplayName(target)}${target.level ? ` · рівень ${target.level}` : ""}`,
     "",
     "Оберіть, який протокол Корчмар понесе до столу:"
   ].join("\n");
@@ -54,7 +55,7 @@ export function presentNearbyDuelTargetMissing(): string {
 
 export function presentNearbyDuelCreate(
   result: DuelCreateResult,
-  options: { targetName: string; mode: "quick" | "turn-based"; warning?: DuelResourceWarning } | { targetName: string; mode: "quick" | "turn-based" }
+  options: { target: PresencePerson; mode: "quick" | "turn-based"; warning?: DuelResourceWarning } | { target: PresencePerson; mode: "quick" | "turn-based" }
 ): string {
   if (result.state === "resource-warning") {
     return [
@@ -62,7 +63,7 @@ export function presentNearbyDuelCreate(
         ? "♟️ <b>Кинути покрокову дуель?</b>"
         : "⚡ <b>Кинути миттєву дуель?</b>",
       "",
-      `Кому: <b>${escapeHtml(options.targetName)}</b>`,
+      `Кому: ${presentCharacterDisplayName(options.target)}`,
       "",
       "Виклик готовий, але ваш пригодник не зовсім відпочив.",
       presentResourceWarning(result.warning),
@@ -75,7 +76,7 @@ export function presentNearbyDuelCreate(
     return [
       `${result.challenge.mode === "turn-based" ? "♟️" : "⚡"} <b>Виклик надіслано</b>`,
       "",
-      `Кому: <b>${escapeHtml(options.targetName)}</b>`,
+      `Кому: ${presentCharacterDisplayName(options.target)}`,
       "",
       result.challenge.mode === "turn-based"
         ? "Формат: покрокова дуель із закритими виборами за раунд."
@@ -106,7 +107,7 @@ export function presentNearbyDuelTargetNotification(
   return [
     `${result.challenge.mode === "turn-based" ? "♟️" : "⚡"} <b>Вам кинули виклик</b>`,
     "",
-    `Запрошує: <b>${escapeHtml(result.challenger.name)}</b> · ${escapeHtml(result.challenger.title)} · рівень ${result.challenger.level}`,
+    `Запрошує: ${presentCharacterDisplayName(result.challenger)} · ${escapeHtml(result.challenger.title)} · рівень ${result.challenger.level}`,
     "",
     result.challenge.mode === "turn-based"
       ? "Покрокова дуель: гравці таємно обирають дії за раунд."
@@ -119,7 +120,7 @@ export function presentNearbyDuelTargetNotification(
 }
 
 function presentNearbyCandidate(candidate: PresencePerson): string {
-  return `— ${escapeHtml(candidate.name)}${candidate.level ? ` · рівень ${candidate.level}` : ""}`;
+  return `— ${presentCharacterDisplayName(candidate, { boldName: false })}${candidate.level ? ` · рівень ${candidate.level}` : ""}`;
 }
 
 function presentResourceWarning(warning: DuelResourceWarning): string {

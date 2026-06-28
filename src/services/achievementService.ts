@@ -5,12 +5,14 @@ import {
   type AchievementDefinition,
   type AchievementTriggerType
 } from "../content/achievements";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import type {
   AchievementRepository,
   AchievementRecalculationSnapshot,
   AchievementUnlockSource,
   CharacterAchievementProgressRecord,
   CharacterAchievementRecord,
+  CharacterCosmeticTitleSnapshot,
   CharacterCosmeticTitleGrantRecord
 } from "../db/repositories/achievementRepository";
 
@@ -128,6 +130,37 @@ export interface AchievementListView {
 }
 
 export interface AchievementRecalculationResult {
+  unlocks: AchievementUnlock[];
+}
+
+export interface CosmeticTitleListEntry {
+  grantRowId: string;
+  titleGrantId: string;
+  title: string;
+  sourceAchievementTitle: string;
+  grantedAt: Date;
+  active: boolean;
+  archived: boolean;
+}
+
+export interface CosmeticTitleListView {
+  entries: CosmeticTitleListEntry[];
+  activeTitleGrantId: string | null;
+  activeTitleMissing: boolean;
+  remortCount: number;
+}
+
+export type CosmeticTitleMutationState =
+  | "selected"
+  | "already-active"
+  | "cleared"
+  | "already-clear"
+  | "not-owned"
+  | "stale-life";
+
+export interface CosmeticTitleMutationResult {
+  state: CosmeticTitleMutationState;
+  view: CosmeticTitleListView;
   unlocks: AchievementUnlock[];
 }
 
@@ -270,6 +303,96 @@ export class AchievementService {
 
     return { unlocks };
   }
+
+  async listCosmeticTitlesForCharacter(characterId: string): Promise<CosmeticTitleListView | null> {
+    const snapshot = await this.achievementsRepository.listCosmeticTitlesForCharacter(characterId);
+
+    return snapshot ? buildCosmeticTitleListView(snapshot) : null;
+  }
+
+  async getActiveCosmeticTitleForCharacter(
+    characterId: string,
+    activeTitleGrantId: string | null | undefined
+  ): Promise<string | null> {
+    if (!activeTitleGrantId) {
+      return null;
+    }
+
+    const snapshot = await this.achievementsRepository.listCosmeticTitlesForCharacter(characterId);
+    if (!snapshot) {
+      return null;
+    }
+
+    const activeGrant = snapshot.titleGrants.find((grant) => grant.titleGrantId === activeTitleGrantId);
+    if (!activeGrant) {
+      return null;
+    }
+
+    return resolveCosmeticTitleText(activeGrant).title;
+  }
+
+  async selectActiveCosmeticTitle(input: {
+    characterId: string;
+    titleGrantRowId: string;
+    expectedRemortCount: number;
+    occurredAt?: Date;
+  }): Promise<CosmeticTitleMutationResult | null> {
+    const state = await this.achievementsRepository.setActiveCosmeticTitle({
+      characterId: input.characterId,
+      titleGrantRowId: input.titleGrantRowId,
+      expectedRemortCount: input.expectedRemortCount
+    });
+
+    if (state === "no-character") {
+      return null;
+    }
+
+    const unlocks = state === "selected"
+      ? await this.trackEventSafely({
+          type: "cosmetic-title.selected",
+          characterId: input.characterId,
+          occurredAt: input.occurredAt ?? new Date(),
+          sourceId: input.titleGrantRowId
+        })
+      : [];
+    const view = await this.listCosmeticTitlesForCharacter(input.characterId);
+
+    if (!view) {
+      return null;
+    }
+
+    return {
+      state,
+      view,
+      unlocks
+    };
+  }
+
+  async clearActiveCosmeticTitle(input: {
+    characterId: string;
+    expectedRemortCount: number;
+  }): Promise<CosmeticTitleMutationResult | null> {
+    const state = await this.achievementsRepository.clearActiveCosmeticTitle({
+      characterId: input.characterId,
+      expectedRemortCount: input.expectedRemortCount
+    });
+
+    if (state === "no-character") {
+      return null;
+    }
+
+    const view = await this.listCosmeticTitlesForCharacter(input.characterId);
+
+    if (!view) {
+      return null;
+    }
+
+    return {
+      state,
+      view,
+      unlocks: []
+    };
+  }
 }
 
 function filterAchievementEntries(
@@ -287,6 +410,65 @@ function filterAchievementEntries(
   }
 
   return [...entries];
+}
+
+function buildCosmeticTitleListView(snapshot: CharacterCosmeticTitleSnapshot): CosmeticTitleListView {
+  const rawActiveTitleGrantId = snapshot.activeTitleGrantId;
+  const activeTitleGrantId = normalizeTitleGrantId(snapshot.activeTitleGrantId);
+  const entries = snapshot.titleGrants.map((grant) => {
+    const title = resolveCosmeticTitleText(grant);
+
+    return {
+      grantRowId: grant.id,
+      titleGrantId: grant.titleGrantId,
+      title: title.title,
+      sourceAchievementTitle: title.sourceAchievementTitle,
+      grantedAt: grant.grantedAt,
+      active: activeTitleGrantId === grant.titleGrantId,
+      archived: title.archived
+    };
+  });
+
+  return {
+    entries,
+    activeTitleGrantId,
+    activeTitleMissing: rawActiveTitleGrantId !== null &&
+      (activeTitleGrantId === null ||
+        !snapshot.titleGrants.some((grant) => grant.titleGrantId === activeTitleGrantId)),
+    remortCount: snapshot.remortCount
+  };
+}
+
+function resolveCosmeticTitleText(grant: CharacterCosmeticTitleGrantRecord): {
+  title: string;
+  sourceAchievementTitle: string;
+  archived: boolean;
+} {
+  const activeLabel = resolveActiveCosmeticTitleLabel(grant.titleGrantId);
+  const definition = achievements.find((candidate) =>
+    "cosmeticTitleGrantId" in candidate &&
+    candidate.cosmeticTitleGrantId === grant.titleGrantId &&
+    candidate.id === grant.achievementId &&
+    candidate.status === "enabled"
+  );
+
+  if (!definition) {
+    return {
+      title: "Архівний титул",
+      sourceAchievementTitle: "архівний запис",
+      archived: true
+    };
+  }
+
+  return {
+    title: activeLabel ?? definition.title,
+    sourceAchievementTitle: definition.title,
+    archived: false
+  };
+}
+
+function normalizeTitleGrantId(value: string | null | undefined): string | null {
+  return value && /^cosmetic-title\.[a-z0-9.-]+$/u.test(value) ? value : null;
 }
 
 function compareEarnedEntries(left: AchievementListEntry, right: AchievementListEntry): number {
@@ -408,10 +590,7 @@ function getRecalculationProgress(
 ): number {
   switch (definition.trigger.type) {
     case "character.created":
-      return matchesOptionalValue(definition.trigger.raceId, snapshot.raceId) &&
-        matchesOptionalValue(definition.trigger.classId, snapshot.classId)
-        ? 1
-        : 0;
+      return getMatchingIdentityDates(definition, snapshot).length > 0 ? 1 : 0;
     case "level.reached":
       return snapshot.level;
     case "combat.finished":
@@ -440,6 +619,8 @@ function getRecalculationProgress(
       return snapshot.equippedItemCount;
     case "item.used":
       return getActivityDates(definition, snapshot).length;
+    case "cosmetic-title.selected":
+      return snapshot.activeCosmeticTitleGrantId ? 1 : 0;
     case "achievement.list.opened":
     case "remort.completed":
     case "starter.mimic-shawarma.completed":
@@ -494,7 +675,7 @@ function getRecalculationOccurredAt(
 
   switch (definition.trigger.type) {
     case "character.created":
-      return snapshot.createdAt;
+      return getMatchingIdentityDates(definition, snapshot)[0] ?? snapshot.createdAt;
     case "level.reached":
       return snapshot.levelReachedAt[threshold] ?? fallback;
     case "combat.finished":
@@ -533,6 +714,8 @@ function getRecalculationOccurredAt(
         ? snapshot.firstEquippedItemAt ?? fallback
         : snapshot.equipmentObservedAt ?? fallback;
     case "item.used":
+    case "cosmetic-title.selected":
+      return fallback;
     case "achievement.list.opened":
     case "remort.completed":
     case "starter.mimic-shawarma.completed":
@@ -587,6 +770,30 @@ function getActivityDates(
   }
 
   return snapshot.activityDates[definition.trigger.type] ?? [];
+}
+
+function getMatchingIdentityDates(
+  definition: AchievementDefinition,
+  snapshot: AchievementRecalculationSnapshot
+): Date[] {
+  if (definition.trigger.type !== "character.created") {
+    return [];
+  }
+
+  return [
+    {
+      raceId: snapshot.raceId,
+      classId: snapshot.classId,
+      occurredAt: snapshot.createdAt
+    },
+    ...snapshot.historicalIdentities
+  ]
+    .filter((identity) =>
+      matchesOptionalValue(definition.trigger.raceId, identity.raceId) &&
+      matchesOptionalValue(definition.trigger.classId, identity.classId)
+    )
+    .map((identity) => identity.occurredAt)
+    .sort((left, right) => left.getTime() - right.getTime());
 }
 
 function getThresholdDate(dates: readonly Date[], threshold: number): Date | null {

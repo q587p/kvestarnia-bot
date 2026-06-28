@@ -111,7 +111,7 @@ export async function handleNearbyDuelCallback(
 
   if (result.state === "resource-warning") {
     await safeEditMessageText(ctx, presentNearbyDuelCreate(result, {
-      targetName: target.name,
+      target,
       mode: callback.mode
     }), {
       ...HTML_MESSAGE_OPTIONS,
@@ -136,7 +136,7 @@ export async function handleNearbyDuelCallback(
   }
 
   await safeEditMessageText(ctx, presentNearbyDuelCreate(result, {
-    targetName: target.name,
+    target,
     mode: callback.mode
   }), {
     ...HTML_MESSAGE_OPTIONS,

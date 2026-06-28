@@ -376,7 +376,11 @@ describe("DuelChallengeService", () => {
 
   it("replays stored participant snapshots after later character changes", async () => {
     const world = new FakeDuelWorld();
-    world.addCharacter(1n, { name: "Старе Імʼя", manaCurrent: 16 });
+    world.addCharacter(1n, {
+      name: "Старе Імʼя",
+      manaCurrent: 16,
+      activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+    });
     world.addCharacter(2n, { name: "Друга Сторона", manaCurrent: 16 });
     const service = buildService(world);
     const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
@@ -395,20 +399,136 @@ describe("DuelChallengeService", () => {
       throw new Error("Expected challenger");
     }
 
-    world.characters.set(1n, { ...changed, name: "Нове Імʼя", level: 13, remortCount: 2 });
+    world.characters.set(1n, {
+      ...changed,
+      name: "Нове Імʼя",
+      level: 13,
+      remortCount: 2,
+      activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+    });
     const replay = await service.getByToken(created.challenge.inviteToken);
 
     expect(replay).toMatchObject({
       state: "resolved",
       challenger: {
         name: "Старе Імʼя",
-        level: 3
+        level: 3,
+        activeCosmeticTitle: "Перший пергамент не зʼїв"
       }
     });
     if (replay.state === "resolved") {
       expect(replay.challenger.remortCount).toBeUndefined();
       expect(replay.challenger.remortMemoryRank).toBeUndefined();
     }
+  });
+
+  it("does not leak live active cosmetic titles into old result snapshots without title data", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Архівний Автор", manaCurrent: 16 });
+    world.addCharacter(2n, { name: "Архівна Ціль", manaCurrent: 16 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    const accepted = world.challenges.get(created.challenge.inviteToken);
+
+    if (!accepted?.result?.participants) {
+      throw new Error("Expected resolved duel with participant snapshots");
+    }
+
+    const stripActiveCosmeticTitle = (participant: typeof accepted.result.participants.challenger) => {
+      const { activeCosmeticTitle, ...legacyParticipant } = participant;
+      void activeCosmeticTitle;
+      return legacyParticipant;
+    };
+    world.challenges.set(created.challenge.inviteToken, {
+      ...accepted,
+      result: {
+        ...accepted.result,
+        participants: {
+          challenger: stripActiveCosmeticTitle(accepted.result.participants.challenger),
+          target: stripActiveCosmeticTitle(accepted.result.participants.target)
+        }
+      }
+    });
+    world.characters.set(1n, {
+      ...world.characters.get(1n)!,
+      activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+    });
+    world.characters.set(2n, {
+      ...world.characters.get(2n)!,
+      activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+    });
+
+    const replay = await service.getByToken(created.challenge.inviteToken);
+
+    expect(replay).toMatchObject({
+      state: "resolved",
+      challenger: { name: "Архівний Автор" },
+      target: { name: "Архівна Ціль" }
+    });
+    if (replay.state === "resolved") {
+      expect(replay.challenger.activeCosmeticTitle).toBeUndefined();
+      expect(replay.target.activeCosmeticTitle).toBeUndefined();
+    }
+  });
+
+  it("does not leak live active cosmetic titles into legacy resolved duels without participant snapshots", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Старий Автор", manaCurrent: 16 });
+    world.addCharacter(2n, { name: "Стара Ціль", manaCurrent: 16 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    const accepted = world.challenges.get(created.challenge.inviteToken);
+
+    if (!accepted?.result) {
+      throw new Error("Expected resolved duel");
+    }
+
+    const { participants, ...legacyResult } = accepted.result;
+    void participants;
+    world.challenges.set(created.challenge.inviteToken, {
+      ...accepted,
+      result: legacyResult
+    });
+    world.characters.set(1n, {
+      ...world.characters.get(1n)!,
+      activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+    });
+    world.characters.set(2n, {
+      ...world.characters.get(2n)!,
+      activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+    });
+
+    const replay = await service.getByToken(created.challenge.inviteToken);
+    const leaderboard = await service.getLeaderboard();
+
+    if (replay.state === "resolved") {
+      expect(replay.challenger.activeCosmeticTitle).toBeUndefined();
+      expect(replay.target.activeCosmeticTitle).toBeUndefined();
+    }
+    const challengerEntry = leaderboard.day.find((entry) => entry.characterId === "character-1");
+    const targetEntry = leaderboard.day.find((entry) => entry.characterId === "character-2");
+    expect(challengerEntry).toMatchObject({ name: "Старий Автор" });
+    expect(targetEntry).toMatchObject({ name: "Стара Ціль" });
+    expect(challengerEntry).not.toHaveProperty("activeCosmeticTitle");
+    expect(targetEntry).not.toHaveProperty("activeCosmeticTitle");
   });
 
   it("replays stored positive remort counts after later character changes", async () => {
@@ -804,8 +924,14 @@ describe("DuelChallengeService", () => {
 
   it("builds duel boards with wins draws and losses", async () => {
     const world = new FakeDuelWorld();
-    world.addCharacter(1n, { name: "Пані Сила" });
-    world.addCharacter(2n, { name: "Пан Обережний" });
+    world.addCharacter(1n, {
+      name: "Пані Сила",
+      activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+    });
+    world.addCharacter(2n, {
+      name: "Пан Обережний",
+      activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+    });
     const service = buildService(world);
     const created = await service.createOpenChallengeForTelegramUser(1n, { ignoreResourceWarning: true });
 
@@ -860,12 +986,15 @@ describe("DuelChallengeService", () => {
         loserCharacterId: null
       }
     });
+    world.characters.get(1n)!.activeCosmeticTitleGrantId = null;
+    world.characters.get(2n)!.activeCosmeticTitleGrantId = "cosmetic-title.unknown-future";
 
     await expect(service.getLeaderboard()).resolves.toEqual({
       day: [
         {
           characterId: "character-1",
           name: "Пані Сила",
+          activeCosmeticTitle: "Перший пергамент не зʼїв",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -873,6 +1002,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
+          activeCosmeticTitle: "Табурет навчився хитатися",
           winCount: 0,
           drawCount: 1,
           lossCount: 1
@@ -882,6 +1012,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-1",
           name: "Пані Сила",
+          activeCosmeticTitle: "Перший пергамент не зʼїв",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -889,6 +1020,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
+          activeCosmeticTitle: "Табурет навчився хитатися",
           winCount: 0,
           drawCount: 1,
           lossCount: 1
@@ -898,6 +1030,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-1",
           name: "Пані Сила",
+          activeCosmeticTitle: "Перший пергамент не зʼїв",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -905,6 +1038,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
+          activeCosmeticTitle: "Табурет навчився хитатися",
           winCount: 0,
           drawCount: 1,
           lossCount: 1

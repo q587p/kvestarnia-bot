@@ -176,14 +176,21 @@ describe("tavern presenter", () => {
 
   it("shows duel winners for day week and month", () => {
     const text = presentDuelWinnersBoard(character, {
-      day: [{ characterId: "character-1", name: "<b>Дара</b>", winCount: 2, drawCount: 1, lossCount: 5 }],
+      day: [{
+        characterId: "character-1",
+        name: "<b>Дара</b>",
+        activeCosmeticTitle: "Перший <пергамент> не зʼїв",
+        winCount: 2,
+        drawCount: 1,
+        lossCount: 5
+      }],
       week: [],
       month: [{ characterId: "character-2", name: "Нестор", winCount: 5, drawCount: 2, lossCount: 1 }]
     });
 
     expect(text).toContain("🏆 Переможці дуелей");
     expect(text).toContain("<b>За добу</b>:");
-    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; — 2 перемоги, 1 нічия, 5 поразок");
+    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не переміг");
     expect(text).toContain("1. Нестор — 5 перемог, 2 нічиї, 1 поразка");
     expect(text).not.toContain("<b>Дара</b>");
@@ -197,6 +204,38 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("1. Дара — 11 перемог, 12 нічиїх, 14 поразок");
+  });
+
+  it("shows a repeated duel winner cosmetic title only once per board card", () => {
+    const text = presentDuelWinnersBoard(character, {
+      day: [{
+        characterId: "character-1",
+        name: "Дара",
+        activeCosmeticTitle: "Де тут вихід?",
+        winCount: 3,
+        drawCount: 0,
+        lossCount: 1
+      }],
+      week: [{
+        characterId: "character-1",
+        name: "Дара",
+        activeCosmeticTitle: "Де тут вихід?",
+        winCount: 7,
+        drawCount: 1,
+        lossCount: 2
+      }],
+      month: [{
+        characterId: "character-1",
+        name: "Дара",
+        activeCosmeticTitle: "Де тут вихід?",
+        winCount: 13,
+        drawCount: 2,
+        lossCount: 3
+      }]
+    });
+
+    expect(countOccurrences(text, "«Де тут вихід?»")).toBe(1);
+    expect(countOccurrences(text, "Дара")).toBe(3);
   });
 
   it("shows remort memorial board entries with escaped names", () => {
@@ -901,6 +940,10 @@ const roundLeaderboard = {
 
 function extractRaidAdvice(text: string): string {
   return text.match(/<i>Порада дня: (?<advice>.+)<\/i>/)?.groups?.advice ?? "";
+}
+
+function countOccurrences(text: string, fragment: string): number {
+  return text.split(fragment).length - 1;
 }
 
 function extractRangerAction(text: string): string {

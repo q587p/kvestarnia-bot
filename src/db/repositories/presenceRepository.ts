@@ -6,6 +6,7 @@ export interface PresenceRecord {
   characterName?: string | null;
   characterClassId?: string | null;
   characterLevel?: number | null;
+  characterActiveCosmeticTitleGrantId?: string | null;
   lastActionAt?: Date | null;
   lastSeenLocationId?: string | null;
   currentRaidId?: string | null;

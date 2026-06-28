@@ -14,6 +14,7 @@ export type AchievementStatus = (typeof achievementStatuses)[number];
 
 export const achievementTriggerTypes = [
   "achievement.list.opened",
+  "cosmetic-title.selected",
   "character.created",
   "level.reached",
   "remort.completed",
@@ -112,6 +113,17 @@ export const achievements = [
     sortOrder: 10.5,
     status: "enabled",
     trigger: { type: "achievement.list.opened" }
+  },
+  {
+    id: "achievement.journey.cosmetic-title-selected",
+    category: "onboarding",
+    title: "Табличка тримається",
+    description: "уперше вдягнути косметичний титул і не отримати за це жодної бойової переваги.",
+    hidden: false,
+    lockedDescription: "уперше вдягнути косметичний титул.",
+    sortOrder: 10.6,
+    status: "enabled",
+    trigger: { type: "cosmetic-title.selected" }
   },
   {
     id: "achievement.race.human-ish",

@@ -103,6 +103,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         }
       }
     };
+    nextState.participants.challenger.activeCosmeticTitle = "Перший пергамент не зʼїв";
     nextState.lastAction = {
       actorCharacterId: session.challengerCharacterId,
       defenderCharacterId: session.targetCharacterId,
@@ -128,6 +129,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     const mapped = await repository.findTurnBasedByToken("race-json");
 
     expect(mapped?.state.pendingActions?.challenger?.action).toBe("race");
+    expect(mapped?.state.participants.challenger.activeCosmeticTitle).toBe("Перший пергамент не зʼїв");
     expect(mapped?.state.participants.challenger.combatStats.raceId).toBe("race.human-ish");
     expect(
       mapped?.state.participants.challenger.cooldowns?.abilities?.["ability.race.practical-improvisation"]
@@ -665,6 +667,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       mana_max INTEGER NOT NULL DEFAULT 10,
       hp_regen_at DATETIME,
       mana_regen_at DATETIME,
+      active_cosmetic_title_grant_id TEXT,
       stats_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

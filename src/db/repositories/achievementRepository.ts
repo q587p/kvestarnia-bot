@@ -46,12 +46,24 @@ export interface CharacterAchievementSnapshot {
   titleGrants: CharacterCosmeticTitleGrantRecord[];
 }
 
+export interface CharacterCosmeticTitleSnapshot {
+  characterId: string;
+  activeTitleGrantId: string | null;
+  remortCount: number;
+  titleGrants: CharacterCosmeticTitleGrantRecord[];
+}
+
 export interface AchievementRecalculationSnapshot {
   characterId: string;
   level: number;
   raceId: string;
   classId: string;
   createdAt: Date;
+  historicalIdentities: ReadonlyArray<{
+    raceId: string;
+    classId: string;
+    occurredAt: Date;
+  }>;
   levelReachedAt: Readonly<Record<number, Date>>;
   combat: {
     won: number;
@@ -79,6 +91,7 @@ export interface AchievementRecalculationSnapshot {
   equippedItemCount: number;
   firstEquippedItemAt: Date | null;
   equipmentObservedAt: Date | null;
+  activeCosmeticTitleGrantId: string | null;
   activityDates: Readonly<Record<string, readonly Date[]>>;
 }
 
@@ -97,6 +110,16 @@ export interface UnlockAchievementResult {
 
 export interface AchievementRepository {
   listForCharacter(characterId: string): Promise<CharacterAchievementSnapshot>;
+  listCosmeticTitlesForCharacter(characterId: string): Promise<CharacterCosmeticTitleSnapshot | null>;
+  setActiveCosmeticTitle(input: {
+    characterId: string;
+    titleGrantRowId: string;
+    expectedRemortCount?: number;
+  }): Promise<"selected" | "already-active" | "not-owned" | "stale-life" | "no-character">;
+  clearActiveCosmeticTitle(input: {
+    characterId: string;
+    expectedRemortCount?: number;
+  }): Promise<"cleared" | "already-clear" | "stale-life" | "no-character">;
   getRecalculationSnapshot(characterId: string): Promise<AchievementRecalculationSnapshot | null>;
   unlockAchievement(input: UnlockAchievementInput): Promise<UnlockAchievementResult>;
   updateProgressMax(input: {

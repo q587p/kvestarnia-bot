@@ -22,6 +22,7 @@ import {
   selectKorchmaGreetingLine
 } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 
@@ -223,17 +224,19 @@ export function presentDuelWinnersBoard(
   character: CharacterSummary,
   leaderboard: DuelLeaderboard
 ): string {
+  const shownTitleCharacterIds = new Set<string>();
+
   return [
     "🏆 Переможці дуелей",
     presentCharacterHeader(character),
     "",
     "На дошці Бійцівського кутка Корчмар рахує тільки дружні перемоги. Нагород тут немає, зате є крейда й надмірна офіційність.",
     "",
-    ...presentDuelLeaderboardSection("За добу", leaderboard.day),
+    ...presentDuelLeaderboardSection("За добу", leaderboard.day, shownTitleCharacterIds),
     "",
-    ...presentDuelLeaderboardSection("За тиждень", leaderboard.week),
+    ...presentDuelLeaderboardSection("За тиждень", leaderboard.week, shownTitleCharacterIds),
     "",
-    ...presentDuelLeaderboardSection("За місяць", leaderboard.month)
+    ...presentDuelLeaderboardSection("За місяць", leaderboard.month, shownTitleCharacterIds)
   ].join("\n");
 }
 
@@ -626,7 +629,8 @@ function presentKorchmaRoundLeaderboard(leaderboard: KorchmaRoundLeaderboard): s
 
 function presentDuelLeaderboardSection(
   title: string,
-  entries: DuelLeaderboardEntry[]
+  entries: DuelLeaderboardEntry[],
+  shownTitleCharacterIds: Set<string>
 ): string[] {
   if (entries.length === 0) {
     return [`<b>${title}</b>: ще ніхто не переміг. Крейда лежить гостро, але безробітно.`];
@@ -634,13 +638,25 @@ function presentDuelLeaderboardSection(
 
   return [
     `<b>${title}</b>:`,
-    ...entries.map((entry, index) => presentDuelLeaderboardEntry(entry, index + 1))
+    ...entries.map((entry, index) =>
+      presentDuelLeaderboardEntry(entry, index + 1, shownTitleCharacterIds)
+    )
   ];
 }
 
-function presentDuelLeaderboardEntry(entry: DuelLeaderboardEntry, rank: number): string {
+function presentDuelLeaderboardEntry(
+  entry: DuelLeaderboardEntry,
+  rank: number,
+  shownTitleCharacterIds: Set<string>
+): string {
+  const displayEntry = shownTitleCharacterIds.has(entry.characterId)
+    ? { ...entry, activeCosmeticTitle: null }
+    : entry;
+
+  shownTitleCharacterIds.add(entry.characterId);
+
   return [
-    `${rank}. ${escapeHtml(entry.name)} — `,
+    `${rank}. ${presentCharacterDisplayName(displayEntry, { boldName: false })} — `,
     `${entry.winCount} ${presentUkrainianCount(entry.winCount, "перемога", "перемоги", "перемог")}`,
     `, ${entry.drawCount} ${presentUkrainianCount(entry.drawCount, "нічия", "нічиї", "нічиїх")}`,
     `, ${entry.lossCount} ${presentUkrainianCount(entry.lossCount, "поразка", "поразки", "поразок")}`
@@ -747,7 +763,7 @@ function presentKorchmaArrivalEntries(board: KorchmaArrivalBoard): string[] {
     ...board.entries.map((entry) => {
       const level = entry.level === undefined ? "" : ` · рівень ${entry.level}`;
 
-      return `• ${escapeHtml(entry.name)}${level} · ${escapeHtml(entry.locationName)}`;
+      return `• ${presentCharacterDisplayName(entry, { boldName: false })}${level} · ${escapeHtml(entry.locationName)}`;
     })
   ];
 }

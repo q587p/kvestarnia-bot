@@ -11,7 +11,11 @@ import { presentHeroEquipmentEffectLines } from "./itemEffectPresenter";
 
 export function presentHero(
   summary: CharacterSummary,
-  options: { activeDrink?: HeroActiveDrink | null; inventoryGoldValue?: number } = {}
+  options: {
+    activeDrink?: HeroActiveDrink | null;
+    activeCosmeticTitle?: string | null;
+    inventoryGoldValue?: number;
+  } = {}
 ): string {
   const progressLine =
     summary.nextLevelXp === null
@@ -54,6 +58,9 @@ export function presentHero(
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
     `Титул: <i>${escapeHtml(summary.title)}</i>`,
+    ...(options.activeCosmeticTitle
+      ? [`🏷️ Косметичний титул: <i>${escapeHtml(options.activeCosmeticTitle)}</i>`]
+      : []),
     ...presentRemortLines(summary),
     "",
     progressLine,

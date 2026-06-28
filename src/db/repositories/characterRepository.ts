@@ -18,6 +18,7 @@ export interface CharacterRecord {
   manaMax: number;
   hpRegenAt?: Date | null;
   manaRegenAt?: Date | null;
+  activeCosmeticTitleGrantId?: string | null;
   statsJson: unknown;
   remortCount?: number;
 }

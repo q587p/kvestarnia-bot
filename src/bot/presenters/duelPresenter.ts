@@ -17,6 +17,7 @@ import {
 } from "../../content/duelInviteFlavor";
 import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
 import { getCombatSkillDisplay } from "../../services/fightService";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentDuelEntry(): string {
@@ -344,7 +345,7 @@ export function presentDuelInviteShare(
 ): string {
   return renderDuelInviteTemplate({
     templateIndex: options.templateIndex,
-    escapedName: `<b>${escapeHtml(character.name)}</b>`,
+    escapedName: presentCharacterDisplayName(character),
     modeLine: options.mode === "turn-based" ? DUEL_TURN_BASED_INVITE_MODE_LINE : DUEL_INVITE_MODE_LINE,
     fairnessLine: DUEL_INVITE_FAIRNESS_LINE,
     escapedInviteUrl: escapeHtml(inviteUrl)
@@ -414,7 +415,7 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 <b>${escapeHtml(winner.name)}</b> переміг у ${result.challenge.mode === "turn-based" ? "корчемній" : "миттєвій корчемній"} дуелі`
+    ? `🏁 ${presentDuelRepeatedName(winner)} переміг у ${result.challenge.mode === "turn-based" ? "корчемній" : "миттєвій корчемній"} дуелі`
     : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
@@ -454,7 +455,7 @@ function presentResolvedDuel(
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 <b>${escapeHtml(winner.name)}</b> перемагає у ${mode === "turn-based" ? "дуелі" : "миттєвій дуелі"}`
+    ? `🏁 ${presentDuelRepeatedName(winner)} перемагає у ${mode === "turn-based" ? "дуелі" : "миттєвій дуелі"}`
     : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
@@ -613,15 +614,15 @@ function presentTurnBasedDuelFumble(action: {
 }
 
 function presentDuelParticipant(label: string, character: CharacterSummary): string {
-  return `${label}: <b>${escapeHtml(character.name)}</b> · ${escapeHtml(character.title)} · ${presentCharacterLevel(character)}`;
+  return `${label}: ${presentCharacterDisplayName(character)} · ${escapeHtml(character.title)} · ${presentCharacterLevel(character)}`;
 }
 
 function presentDuelParticipantWithItalicTitle(label: string, character: CharacterSummary): string {
-  return `${label}: <b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i> · ${presentCharacterLevel(character)}`;
+  return `${label}: ${presentCharacterDisplayName(character)} · <i>${escapeHtml(character.title)}</i> · ${presentCharacterLevel(character)}`;
 }
 
 function presentDuelParticipantInline(character: CharacterSummary): string {
-  return `<b>${escapeHtml(character.name)}</b> · ${presentCharacterLevel(character)}`;
+  return `${presentCharacterDisplayName(character)} · ${presentCharacterLevel(character)}`;
 }
 
 function presentCharacterLevel(character: CharacterSummary): string {
@@ -735,6 +736,10 @@ function presentDuelDrawFlavor(
 }
 
 function presentDuelFlavorName(character: CharacterSummary): string {
+  return presentDuelRepeatedName(character);
+}
+
+function presentDuelRepeatedName(character: CharacterSummary): string {
   return `<b>${escapeHtml(character.name)}</b>`;
 }
 

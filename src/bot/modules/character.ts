@@ -30,7 +30,7 @@ import { playerFromContext } from "../context";
 import {
 buildMainMenuKeyboard
 } from "../keyboards/mainMenuKeyboard";
-import { buildAchievementsKeyboard } from "../keyboards/achievementKeyboard";
+import { buildAchievementsKeyboard, buildCosmeticTitlesKeyboard } from "../keyboards/achievementKeyboard";
 import {
 buildClassKeyboard,
 buildConfirmationKeyboard,
@@ -44,6 +44,10 @@ presentAchievementCheckNotice,
 presentAchievementUnlockNotification
 } from "../presenters/achievementPresenter";
 import { presentAchievements } from "../presenters/achievementPresenter";
+import {
+presentCosmeticTitleNotice,
+presentCosmeticTitles
+} from "../presenters/cosmeticTitlePresenter";
 import {
 presentDevResetCancelled,
 presentDevResetDeleted,
@@ -214,6 +218,70 @@ async function handleAchievementCallback(
       {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildAchievementsKeyboard(result.view)
+      }
+    );
+    return;
+  }
+
+  if (callback.type === "titles") {
+    const result = await heroService.listCosmeticTitlesByTelegramUserId(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentInvalidCallback());
+      return;
+    }
+
+    await safeEditMessageText(ctx, presentCosmeticTitles(result.view), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildCosmeticTitlesKeyboard(result.view)
+    });
+    return;
+  }
+
+  if (callback.type === "title-set") {
+    const result = await heroService.selectCosmeticTitleByTelegramUserId(
+      telegramUserId,
+      callback.titleGrantRowId,
+      callback.remortCount
+    );
+
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentInvalidCallback());
+      return;
+    }
+
+    await safeEditMessageText(
+      ctx,
+      presentCosmeticTitles(result.result.view, {
+        notice: presentCosmeticTitleNotice(result.result.state, result.result.unlocks.length)
+      }),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildCosmeticTitlesKeyboard(result.result.view)
+      }
+    );
+    return;
+  }
+
+  if (callback.type === "title-clear") {
+    const result = await heroService.clearCosmeticTitleByTelegramUserId(
+      telegramUserId,
+      callback.remortCount
+    );
+
+    if (result.state === "no-character") {
+      await safeEditMessageText(ctx, presentInvalidCallback());
+      return;
+    }
+
+    await safeEditMessageText(
+      ctx,
+      presentCosmeticTitles(result.result.view, {
+        notice: presentCosmeticTitleNotice(result.result.state)
+      }),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildCosmeticTitlesKeyboard(result.result.view)
       }
     );
     return;

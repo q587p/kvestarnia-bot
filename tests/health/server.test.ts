@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Корчмар видав дощечку здорового глузду");
-    expect(text).toContain("У Корчмі зʼявився короткий щоденний обхід");
+    expect(text).toContain("Титули нарешті можна вдягати");
+    expect(text).toContain("Літописець довго складав титульні записи");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("на Столі зі справами для старших новачків може зʼявитися <code>🧾 Корчмарський обхід</code>");
-    expect(text).toContain("щодня Корчма підсовує три дрібні катастрофи");
-    expect(text).toContain("третя після цього чемно стає <code>Не сьогоднішня катастрофа</code>");
+    expect(text).toContain("на картці персонажа є кнопка <code>🏷️ Титули</code>");
+    expect(text).toContain("один косметичний титул можна зробити активним");
+    expect(text).toContain("титули не дають сили, золота, предметів, шансів, переваг у бою");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

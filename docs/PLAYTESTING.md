@@ -10,6 +10,24 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.10 — Active Cosmetic Title Selection smoke
+
+Use one fresh account plus one account with at least one earned cosmetic title grant. Local dev grants/recalculation are acceptable for setup.
+
+1. Open `/hero` on a character with no title grants; press `🏷️ Титули` and verify the empty state is friendly and has no broken selection buttons.
+2. Create or recalculate at least one achievement that grants a title record; reopen `🏷️ Титули` and verify rows show title text, source achievement and no raw ids.
+3. Select one title; verify it becomes marked active and `/hero` shows a separate `Косметичний титул` line below the generated title.
+4. Replay the same select button; verify the title remains active and no duplicate achievement/title rows or notifications appear.
+5. Clear the title; verify `/hero` no longer shows the cosmetic title line, then replay the clear button and verify canonical no-op replay.
+6. Try selecting a title row from another character or an unknown/stale payload; verify the current title page refreshes safely without exposing internals.
+7. Remort locally; verify earned title grants remain, active title state is not duplicated, and old-life select/clear callbacks stale out.
+8. Open achievements list, filters and `🔎 Перевірити`; verify title selection did not break achievement browsing/recalculation.
+9. Open the Daily Korchma Round route or complete one round; verify its achievement definitions and UI still work.
+10. Confirm selecting/clearing titles changes no XP, gold, items, stats, combat, quest, duel, Shynok, Yeger or remort effects.
+11. Select an active title on account A, then from account B in the same location open `👀 Хто поруч`, `/online` and `/look`; verify A's title appears compactly and unknown/cleared titles are omitted.
+12. Create a nearby duel from A, accept/resolve/replay/rematch it, then clear A's title; verify old result/share/rematch cards keep stored title display while new cards omit it.
+13. Open gift target selection, the Korchma arrival board and the duel winners board; verify titles appear only in the documented compact identity rows and do not affect ordering or rewards.
+
 ## 0.2.9 — Daily Korchma Rounds smoke
 
 Use one level 2 account and one level 3+ account. Local dev grants/resets are acceptable for setup.
@@ -41,7 +59,7 @@ Use one fresh account plus one existing level 3+ account. Local dev grants are a
 8. Turn in a Korchmar problem; verify the problem achievement and any item/level unlocks are grouped after the canonical turn-in card.
 9. Receive a reward item, collect or grant `Бинт відповідальної паніки`, and equip a manatka; verify item/bandage/equipment achievements unlock once and old equip callbacks do not duplicate title grants.
 10. Remort locally; verify achievement and cosmetic title grant rows remain visible afterward.
-11. Confirm no UI path offers a reward claim, active title selection, title ability, title combat button, XP/gold/item/stat/combat buff or paid advantage.
+11. Confirm achievements and title grants offer no reward claim, title ability, title combat button, XP/gold/item/stat/combat buff or paid advantage.
 
 ## 0.2.7 — Player Abilities smoke
 

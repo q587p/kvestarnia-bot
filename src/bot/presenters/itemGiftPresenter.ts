@@ -4,6 +4,7 @@ import type {
   ItemGiftRespondResult,
   ItemGiftSelectionResult
 } from "../../services/itemTransferService";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentItemGiftCandidates(result: ItemGiftCandidatesResult): string {
@@ -24,7 +25,7 @@ export function presentItemGiftCandidates(result: ItemGiftCandidatesResult): str
     "",
     "Оберіть активного пригодника поруч:",
     "",
-    ...result.visible.map((person) => `— ${escapeHtml(person.name)}${person.level ? ` · рівень ${person.level}` : ""}`)
+    ...result.visible.map((person) => `— ${presentCharacterDisplayName(person, { boldName: false })}${person.level ? ` · рівень ${person.level}` : ""}`)
   ];
 
   if (result.totalPages > 1) {
@@ -47,7 +48,7 @@ export function presentItemGiftSelection(result: ItemGiftSelectionResult): strin
     return [
       "🎁 <b>Немає придатної манатки</b>",
       "",
-      `Кому: <b>${escapeHtml(result.target.name)}</b>`,
+      `Кому: ${presentCharacterDisplayName(result.target)}`,
       "",
       "Можна дарувати тільки одну звичайну, не вдягнену й не зарезервовану манатку."
     ].join("\n");
@@ -56,7 +57,7 @@ export function presentItemGiftSelection(result: ItemGiftSelectionResult): strin
   const lines = [
     "🎁 <b>Що подарувати?</b>",
     "",
-    `Кому: <b>${escapeHtml(result.target.name)}</b>`,
+    `Кому: ${presentCharacterDisplayName(result.target)}`,
     "",
     "Подарунок — це не обмін. Отримувач має явно погодитись.",
     "",

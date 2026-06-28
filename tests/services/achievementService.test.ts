@@ -459,6 +459,7 @@ describe("AchievementService", () => {
       raceId: "race.domovyk",
       classId: "class.ranger",
       createdAt: new Date("2026-06-28T08:00:00.000Z"),
+      historicalIdentities: [],
       levelReachedAt: {
         2: new Date("2026-06-28T08:10:00.000Z"),
         3: new Date("2026-06-28T08:20:00.000Z"),
@@ -511,6 +512,7 @@ describe("AchievementService", () => {
       equippedItemCount: 3,
       firstEquippedItemAt: new Date("2026-06-28T10:00:00.000Z"),
       equipmentObservedAt: new Date("2026-06-28T10:05:00.000Z"),
+      activeCosmeticTitleGrantId: null,
       activityDates: {
         "remort.completed": [new Date("2026-06-28T08:55:00.000Z")],
         "starter.mimic-shawarma.completed": [new Date("2026-06-28T08:56:00.000Z")],
@@ -695,6 +697,217 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.adventure.choice.thirteen")?.current).toBe(13);
     expect(repo.progressFor("achievement.combat.threat-pressure.three")?.current).toBe(2);
   });
+
+  it("recalculates race and class achievements from stored remort identity history", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      createdAt: new Date("2026-06-28T08:00:00.000Z"),
+      historicalIdentities: [
+        {
+          raceId: "race.elf",
+          classId: "class.mage",
+          occurredAt: new Date("2026-06-28T09:00:00.000Z")
+        },
+        {
+          raceId: "race.dwarf",
+          classId: "class.ranger",
+          occurredAt: new Date("2026-06-28T10:00:00.000Z")
+        },
+        {
+          raceId: "race.bisyny",
+          classId: "class.bard",
+          occurredAt: new Date("2026-06-28T11:00:00.000Z")
+        }
+      ]
+    });
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T12:00:00.000Z")
+    );
+    const ids = new Set(result.unlocks.map((unlock) => unlock.id));
+
+    expect(ids).toContain("achievement.race.human-ish");
+    expect(ids).toContain("achievement.race.elf");
+    expect(ids).toContain("achievement.race.dwarf");
+    expect(ids).toContain("achievement.race.bisyny");
+    expect(ids).toContain("achievement.class.mage");
+    expect(ids).toContain("achievement.class.ranger");
+    expect(ids).toContain("achievement.class.bard");
+    expect(repo.achievementFor("achievement.race.elf")?.unlockedAt).toEqual(
+      new Date("2026-06-28T09:00:00.000Z")
+    );
+    expect(repo.achievementFor("achievement.race.dwarf")?.unlockedAt).toEqual(
+      new Date("2026-06-28T10:00:00.000Z")
+    );
+    expect(repo.achievementFor("achievement.race.bisyny")?.unlockedAt).toEqual(
+      new Date("2026-06-28T11:00:00.000Z")
+    );
+    expect(repo.snapshot.titleGrants.map((grant) => grant.titleGrantId)).toEqual(
+      expect.arrayContaining([
+        "cosmetic-title.human-ish-paperproof",
+        "cosmetic-title.elf-offended-accuracy",
+        "cosmetic-title.dwarf-low-shelf",
+        "cosmetic-title.bisyny-locked-dictionary"
+      ])
+    );
+  });
+
+  it("lists cosmetic title grants with active markers and archived unknown rows", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    const grantedAt = new Date("2026-06-28T09:00:00.000Z");
+
+    await service.trackEvent({
+      type: "character.created",
+      characterId: "character-1",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      occurredAt: grantedAt,
+      sourceId: "character-1"
+    });
+    repo.snapshot.titleGrants.push({
+      id: "title-row-archived",
+      characterId: "character-1",
+      titleGrantId: "cosmetic-title.retired",
+      achievementId: "achievement.retired",
+      sourceType: "test",
+      sourceId: null,
+      grantedAt,
+      createdAt: grantedAt
+    });
+    repo.activeTitleGrantId = "cosmetic-title.first-ink";
+
+    const view = await service.listCosmeticTitlesForCharacter("character-1");
+
+    expect(view).toMatchObject({
+      activeTitleGrantId: "cosmetic-title.first-ink",
+      activeTitleMissing: false,
+      entries: [
+        {
+          titleGrantId: "cosmetic-title.first-ink",
+          active: true,
+          archived: false
+        },
+        {
+          titleGrantId: "cosmetic-title.human-ish-paperproof",
+          active: false,
+          archived: false
+        },
+        {
+          titleGrantId: "cosmetic-title.warrior-straight-plan",
+          active: false,
+          archived: false
+        },
+        {
+          titleGrantId: "cosmetic-title.retired",
+          title: "Архівний титул",
+          sourceAchievementTitle: "архівний запис",
+          active: false,
+          archived: true
+        }
+      ]
+    });
+  });
+
+  it("sets an owned active cosmetic title once and unlocks first-selection once", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    await service.trackEvent({
+      type: "character.created",
+      characterId: "character-1",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      occurredAt: new Date("2026-06-28T09:00:00.000Z"),
+      sourceId: "character-1"
+    });
+
+    const titleGrant = repo.snapshot.titleGrants[0]!;
+    const first = await service.selectActiveCosmeticTitle({
+      characterId: "character-1",
+      titleGrantRowId: titleGrant.id,
+      expectedRemortCount: 0,
+      occurredAt: new Date("2026-06-28T09:05:00.000Z")
+    });
+    const duplicate = await service.selectActiveCosmeticTitle({
+      characterId: "character-1",
+      titleGrantRowId: titleGrant.id,
+      expectedRemortCount: 0,
+      occurredAt: new Date("2026-06-28T09:06:00.000Z")
+    });
+
+    expect(first?.state).toBe("selected");
+    expect(first?.unlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.journey.cosmetic-title-selected"
+    ]);
+    expect(first?.view.entries.find((entry) => entry.grantRowId === titleGrant.id)?.active).toBe(true);
+    expect(duplicate?.state).toBe("already-active");
+    expect(duplicate?.unlocks).toEqual([]);
+    expect(repo.snapshot.achievements.filter((row) =>
+      row.achievementId === "achievement.journey.cosmetic-title-selected"
+    )).toHaveLength(1);
+  });
+
+  it("recalculates first cosmetic title selection when the active pointer proves it", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      activeCosmeticTitleGrantId: "cosmetic-title.first-ink"
+    });
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T09:10:00.000Z")
+    );
+
+    expect(result.unlocks.map((unlock) => unlock.id)).toContain(
+      "achievement.journey.cosmetic-title-selected"
+    );
+  });
+
+  it("clears active cosmetic titles idempotently", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    repo.activeTitleGrantId = "cosmetic-title.first-ink";
+
+    const cleared = await service.clearActiveCosmeticTitle({
+      characterId: "character-1",
+      expectedRemortCount: 0
+    });
+    const duplicate = await service.clearActiveCosmeticTitle({
+      characterId: "character-1",
+      expectedRemortCount: 0
+    });
+
+    expect(cleared?.state).toBe("cleared");
+    expect(cleared?.view.activeTitleGrantId).toBeNull();
+    expect(duplicate?.state).toBe("already-clear");
+  });
+
+  it("rejects not-owned and stale-life cosmetic title mutations safely", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    repo.remortCount = 1;
+
+    const stale = await service.selectActiveCosmeticTitle({
+      characterId: "character-1",
+      titleGrantRowId: "title-row-missing",
+      expectedRemortCount: 0
+    });
+    const notOwned = await service.selectActiveCosmeticTitle({
+      characterId: "character-1",
+      titleGrantRowId: "title-row-missing",
+      expectedRemortCount: 1
+    });
+
+    expect(stale?.state).toBe("stale-life");
+    expect(notOwned?.state).toBe("not-owned");
+    expect(repo.activeTitleGrantId).toBeNull();
+  });
 });
 
 function makeRecalculationSnapshot(
@@ -706,6 +919,7 @@ function makeRecalculationSnapshot(
     raceId: "race.human-ish",
     classId: "class.warrior",
     createdAt: new Date("2026-06-28T08:00:00.000Z"),
+    historicalIdentities: [],
     levelReachedAt: {},
     combat: {
       won: 0,
@@ -729,6 +943,7 @@ function makeRecalculationSnapshot(
     equippedItemCount: 0,
     firstEquippedItemAt: null,
     equipmentObservedAt: null,
+    activeCosmeticTitleGrantId: null,
     activityDates: {},
     ...overrides
   };
@@ -756,10 +971,61 @@ class FakeAchievementRepository implements AchievementRepository {
     progress: [],
     titleGrants: []
   };
+  activeTitleGrantId: string | null = null;
+  remortCount = 0;
   recalculationSnapshot: AchievementRecalculationSnapshot | null = null;
 
   listForCharacter(): Promise<CharacterAchievementSnapshot> {
     return Promise.resolve(this.snapshot);
+  }
+
+  listCosmeticTitlesForCharacter(characterId: string) {
+    return Promise.resolve({
+      characterId,
+      activeTitleGrantId: this.activeTitleGrantId,
+      remortCount: this.remortCount,
+      titleGrants: this.snapshot.titleGrants.filter((row) => row.characterId === characterId)
+    });
+  }
+
+  setActiveCosmeticTitle(input: {
+    characterId: string;
+    titleGrantRowId: string;
+    expectedRemortCount?: number;
+  }): Promise<"selected" | "already-active" | "not-owned" | "stale-life" | "no-character"> {
+    if (input.expectedRemortCount !== undefined && input.expectedRemortCount !== this.remortCount) {
+      return Promise.resolve("stale-life");
+    }
+
+    const grant = this.snapshot.titleGrants.find(
+      (row) => row.characterId === input.characterId && row.id === input.titleGrantRowId
+    );
+
+    if (!grant) {
+      return Promise.resolve("not-owned");
+    }
+
+    if (this.activeTitleGrantId === grant.titleGrantId) {
+      return Promise.resolve("already-active");
+    }
+
+    this.activeTitleGrantId = grant.titleGrantId;
+    return Promise.resolve("selected");
+  }
+
+  clearActiveCosmeticTitle(input: {
+    expectedRemortCount?: number;
+  }): Promise<"cleared" | "already-clear" | "stale-life" | "no-character"> {
+    if (input.expectedRemortCount !== undefined && input.expectedRemortCount !== this.remortCount) {
+      return Promise.resolve("stale-life");
+    }
+
+    if (!this.activeTitleGrantId) {
+      return Promise.resolve("already-clear");
+    }
+
+    this.activeTitleGrantId = null;
+    return Promise.resolve("cleared");
   }
 
   getRecalculationSnapshot(): Promise<AchievementRecalculationSnapshot | null> {

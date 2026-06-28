@@ -4,6 +4,7 @@ import type {
   PresenceRepository
 } from "../db/repositories/presenceRepository";
 import type { TelegramUserProfile } from "../db/repositories/userRepository";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import { systemClock, type Clock } from "../shared/time";
 
 export const PRESENCE_ACTIVE_MS = 5 * 60 * 1000;
@@ -69,6 +70,7 @@ export interface MarkPlayerPresenceInput {
 export interface PresencePerson {
   telegramUserId: bigint;
   name: string;
+  activeCosmeticTitle?: string | null;
   classId?: string;
   level?: number;
   status: Exclude<PresenceStatus, "inactive">;
@@ -83,6 +85,7 @@ export interface PresenceGroup {
 export interface KorchmaArrivalBoardEntry {
   telegramUserId: bigint;
   name: string;
+  activeCosmeticTitle?: string | null;
   level?: number;
   locationName: string;
 }
@@ -344,17 +347,22 @@ export class PresenceService {
     const records = await this.presence.listKorchmaVisitors(limit);
 
     return {
-      entries: uniquePresenceRecords(records).map((record) => ({
-        telegramUserId: record.telegramUserId,
-        name: getPresenceName(record),
-        ...(record.characterClassId === null || record.characterClassId === undefined
-          ? {}
-          : { classId: record.characterClassId }),
-        ...(record.characterLevel === null || record.characterLevel === undefined
-          ? {}
-          : { level: record.characterLevel }),
-        locationName: getLocationName(normalizePresenceLocationId(record.lastSeenLocationId))
-      }))
+      entries: uniquePresenceRecords(records).map((record) => {
+        const activeCosmeticTitle = resolvePresenceActiveCosmeticTitle(record);
+
+        return {
+          telegramUserId: record.telegramUserId,
+          name: getPresenceName(record),
+          ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
+          ...(record.characterClassId === null || record.characterClassId === undefined
+            ? {}
+            : { classId: record.characterClassId }),
+          ...(record.characterLevel === null || record.characterLevel === undefined
+            ? {}
+            : { level: record.characterLevel }),
+          locationName: getLocationName(normalizePresenceLocationId(record.lastSeenLocationId))
+        };
+      })
     };
   }
 
@@ -564,9 +572,12 @@ function groupPeople(records: PresenceRecord[], now: Date): PresenceGroup {
         return null;
       }
 
+      const activeCosmeticTitle = resolvePresenceActiveCosmeticTitle(record);
+
       return {
         telegramUserId: record.telegramUserId,
         name: getPresenceName(record),
+        ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
         ...(record.characterClassId === null || record.characterClassId === undefined
           ? {}
           : { classId: record.characterClassId }),
@@ -591,6 +602,10 @@ function groupPeople(records: PresenceRecord[], now: Date): PresenceGroup {
 
 function getPresenceName(record: PresenceRecord): string {
   return record.characterName ?? record.displayName ?? record.telegramUserId.toString();
+}
+
+function resolvePresenceActiveCosmeticTitle(record: PresenceRecord): string | null {
+  return resolveActiveCosmeticTitleLabel(record.characterActiveCosmeticTitleGrantId);
 }
 
 export function getLocationName(id: string): string {

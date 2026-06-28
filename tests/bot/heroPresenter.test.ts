@@ -59,6 +59,7 @@ describe("hero presenter", () => {
     expect(text).not.toContain("Звертання:");
     expect(text).not.toContain("Стать:");
     expect(text).toContain("Титул: <i>Пересічний Пригодник</i>");
+    expect(text).not.toContain("Косметичний титул:");
     expect(text).toContain("Титул: <i>Пересічний Пригодник</i>\n\nРівень");
     expect(text).toContain("Рівень <b>2</b> · XP 15 · до наступного: 10 XP");
     expect(text).not.toContain("до рівня 3");
@@ -79,6 +80,16 @@ describe("hero presenter", () => {
     expect(text).toContain("\n\nТитул:");
     expect(text).toContain("\n\n❤️ HP");
     expect(text.split("\n").length).toBeLessThanOrEqual(18);
+  });
+
+  it("shows an active cosmetic title separately from the generated title", () => {
+    const text = presentHero(summary, {
+      activeCosmeticTitle: "Де тут вихід?"
+    });
+
+    expect(text).toContain("Титул: <i>Пересічний Пригодник</i>");
+    expect(text).toContain("🏷️ Косметичний титул: <i>Де тут вихід?</i>");
+    expect(text).toContain("Титул: <i>Пересічний Пригодник</i>\n🏷️ Косметичний титул:");
   });
 
   it("adds a short rest hint when the hero is at zero HP", () => {

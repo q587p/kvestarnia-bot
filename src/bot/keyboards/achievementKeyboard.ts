@@ -1,14 +1,19 @@
 import { InlineKeyboard } from "grammy";
-import type { AchievementListView } from "../../services/achievementService";
+import type { AchievementListView, CosmeticTitleListView } from "../../services/achievementService";
 import {
   makeAchievementCheckCallbackData,
-  makeAchievementListCallbackData
+  makeAchievementListCallbackData,
+  makeCosmeticTitleClearCallbackData,
+  makeCosmeticTitleListCallbackData,
+  makeCosmeticTitleSetCallbackData
 } from "../callbacks/achievementCallbackData";
 
 export function buildHeroAchievementsKeyboard(
   options: { restoreCallbackData?: string | null } = {}
 ): InlineKeyboard {
-  const keyboard = new InlineKeyboard().text("🏅 Ачівки", makeAchievementListCallbackData(0));
+  const keyboard = new InlineKeyboard()
+    .text("🏅 Ачівки", makeAchievementListCallbackData(0))
+    .text("🏷️ Титули", makeCosmeticTitleListCallbackData());
 
   if (options.restoreCallbackData) {
     keyboard.row().text("🧻 До відновлення", options.restoreCallbackData);
@@ -44,6 +49,34 @@ export function buildAchievementsKeyboard(view: AchievementListView): InlineKeyb
   }
 
   return keyboard.text("↩️ До персонажа", "v1:ach:hero");
+}
+
+export function buildCosmeticTitlesKeyboard(view: CosmeticTitleListView): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  view.entries.forEach((entry, index) => {
+    keyboard.text(
+      entry.active ? `✅ ${index + 1}` : `🏷️ ${index + 1}`,
+      makeCosmeticTitleSetCallbackData(entry.grantRowId, view.remortCount)
+    );
+
+    if ((index + 1) % 3 === 0) {
+      keyboard.row();
+    }
+  });
+
+  if (view.entries.length > 0) {
+    keyboard.row();
+  }
+
+  if (view.activeTitleGrantId || view.activeTitleMissing) {
+    keyboard.text("🧹 Зняти титул", makeCosmeticTitleClearCallbackData(view.remortCount)).row();
+  }
+
+  return keyboard
+    .text("🏅 Ачівки", makeAchievementListCallbackData(0, "earned"))
+    .row()
+    .text("↩️ До персонажа", "v1:ach:hero");
 }
 
 function formatFilterLabel(filter: AchievementListView["filter"], active: AchievementListView["filter"]): string {
