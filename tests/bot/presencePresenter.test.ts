@@ -108,6 +108,58 @@ describe("presence presenter", () => {
     expect(text).toContain("— <b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
   });
 
+  it("does not repeat online cosmetic titles for people already shown in the location block", () => {
+    const text = presentOnline({
+      state: "ready",
+      globalTotal: 2,
+      location: {
+        id: "location.korchma.quest_table",
+        name: "Стіл зі справами",
+        people: {
+          active: [{
+            telegramUserId: 13n,
+            name: "Shannar de Kassal",
+            activeCosmeticTitle: "Де тут вихід?",
+            status: "active"
+          }],
+          idle: [{
+            telegramUserId: 23n,
+            name: "Ігровий Майстер",
+            activeCosmeticTitle: "Перший поверх амбіцій",
+            status: "idle"
+          }],
+          total: 2
+        }
+      },
+      activity: {
+        kind: "adventure",
+        id: "adventure.shawarma",
+        name: "Підозріла шаурма",
+        locationName: "Стіл зі справами",
+        people: {
+          active: [{
+            telegramUserId: 13n,
+            name: "Shannar de Kassal",
+            activeCosmeticTitle: "Де тут вихід?",
+            status: "active"
+          }],
+          idle: [{
+            telegramUserId: 23n,
+            name: "Ігровий Майстер",
+            activeCosmeticTitle: "Перший поверх амбіцій",
+            status: "idle"
+          }],
+          total: 2
+        }
+      }
+    });
+
+    expect(countOccurrences(text, "«Де тут вихід?»")).toBe(1);
+    expect(countOccurrences(text, "«Перший поверх амбіцій»")).toBe(1);
+    expect(countOccurrences(text, "<b>Shannar de Kassal</b>")).toBe(2);
+    expect(countOccurrences(text, "<b>Ігровий Майстер</b>")).toBe(2);
+  });
+
   it("uses cellar icon for cellar adventure participants and online summaries", () => {
     const participants = presentParticipants(cellarParticipantsSnapshot);
     const online = presentOnline(cellarOnlineSnapshot);
@@ -326,3 +378,7 @@ const unknownAdventureOnlineSnapshot: OnlineSnapshot = {
     }
   }
 };
+
+function countOccurrences(text: string, fragment: string): number {
+  return text.split(fragment).length - 1;
+}

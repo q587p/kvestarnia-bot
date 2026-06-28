@@ -20,6 +20,10 @@ import { escapeHtml } from "./telegramHtml";
 const MAX_VISIBLE_PRESENCE_PEOPLE = 12;
 const MAX_PRESENCE_NAME_LENGTH = 48;
 
+interface PresencePeoplePresentationOptions {
+  suppressTitleForTelegramUserIds?: ReadonlySet<bigint>;
+}
+
 export function presentOnline(snapshot: OnlineSnapshot): string {
   if (snapshot.state === "no-character") {
     return "Спершу створіть пригодника через /start. Квестарня не рахує тіні без анкети.";
@@ -32,8 +36,17 @@ export function presentOnline(snapshot: OnlineSnapshot): string {
   ];
 
   if (snapshot.activity) {
+    const renderedLocationPeople =
+      snapshot.location.people.total > 1
+        ? collectPresencePersonIds(snapshot.location.people)
+        : new Set<bigint>();
+
     lines.push("");
-    lines.push(...presentActivitySummary(snapshot.activity));
+    lines.push(
+      ...presentActivitySummary(snapshot.activity, {
+        suppressTitleForTelegramUserIds: renderedLocationPeople
+      })
+    );
   } else if (snapshot.location.id === PRESENCE_LOCATION_KORCHMA_BARREL) {
     lines.push("");
     lines.push("🍺 Активного рейду зараз немає.");
@@ -109,7 +122,10 @@ function presentLocationBlock(locationName: string, group: PresenceGroup): strin
   ];
 }
 
-function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {
+function presentActivitySummary(
+  activity: PresenceActivitySnapshot,
+  options: PresencePeoplePresentationOptions = {}
+): string[] {
   const prefix =
     activity.kind === "raid"
       ? presentSoloRaidPrefix(activity.people.total)
@@ -122,7 +138,7 @@ function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {
 
   return [
     `${prefix} «${activityName}»: ${activity.people.total}`,
-    ...presentPeople([...activity.people.active, ...activity.people.idle])
+    ...presentPeople([...activity.people.active, ...activity.people.idle], options)
   ];
 }
 
@@ -160,21 +176,32 @@ function presentStatusSection(title: string, people: PresencePerson[]): string[]
   return [title + ":", ...presentPeople(people)];
 }
 
-function presentPeople(people: PresencePerson[]): string[] {
+function presentPeople(
+  people: PresencePerson[],
+  options: PresencePeoplePresentationOptions = {}
+): string[] {
   const visible = people.slice(0, MAX_VISIBLE_PRESENCE_PEOPLE);
   const hidden = people.length - visible.length;
-  const lines = visible.map((person) =>
-    `— ${presentCharacterDisplayName(person, {
+  const lines = visible.map((person) => {
+    const displayPerson = options.suppressTitleForTelegramUserIds?.has(person.telegramUserId)
+      ? { ...person, activeCosmeticTitle: null }
+      : person;
+
+    return `— ${presentCharacterDisplayName(displayPerson, {
       maxNameLength: MAX_PRESENCE_NAME_LENGTH,
       maxTitleLength: 48
-    })}`
-  );
+    })}`;
+  });
 
   if (hidden > 0) {
     lines.push(`— і ще ${hidden} ${pluralize(hidden, "пригодник", "пригодники", "пригодників")}`);
   }
 
   return lines;
+}
+
+function collectPresencePersonIds(group: PresenceGroup): Set<bigint> {
+  return new Set([...group.active, ...group.idle].map((person) => person.telegramUserId));
 }
 
 function presentSoloRaidPrefix(total: number): string {

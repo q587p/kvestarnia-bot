@@ -206,6 +206,38 @@ describe("tavern presenter", () => {
     expect(text).toContain("1. Дара — 11 перемог, 12 нічиїх, 14 поразок");
   });
 
+  it("shows a repeated duel winner cosmetic title only once per board card", () => {
+    const text = presentDuelWinnersBoard(character, {
+      day: [{
+        characterId: "character-1",
+        name: "Дара",
+        activeCosmeticTitle: "Де тут вихід?",
+        winCount: 3,
+        drawCount: 0,
+        lossCount: 1
+      }],
+      week: [{
+        characterId: "character-1",
+        name: "Дара",
+        activeCosmeticTitle: "Де тут вихід?",
+        winCount: 7,
+        drawCount: 1,
+        lossCount: 2
+      }],
+      month: [{
+        characterId: "character-1",
+        name: "Дара",
+        activeCosmeticTitle: "Де тут вихід?",
+        winCount: 13,
+        drawCount: 2,
+        lossCount: 3
+      }]
+    });
+
+    expect(countOccurrences(text, "«Де тут вихід?»")).toBe(1);
+    expect(countOccurrences(text, "Дара")).toBe(3);
+  });
+
   it("shows remort memorial board entries with escaped names", () => {
     const text = presentKorchmaMemorialBoard(
       character,
@@ -908,6 +940,10 @@ const roundLeaderboard = {
 
 function extractRaidAdvice(text: string): string {
   return text.match(/<i>Порада дня: (?<advice>.+)<\/i>/)?.groups?.advice ?? "";
+}
+
+function countOccurrences(text: string, fragment: string): number {
+  return text.split(fragment).length - 1;
 }
 
 function extractRangerAction(text: string): string {
