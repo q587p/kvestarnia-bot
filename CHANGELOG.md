@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Rebalanced generic monster combat stat derivation so levels after 5 grow in a bounded curve instead of outpacing character progression sharply at levels 6-13.
 - Tuned a few player ability constants after simulation evidence: Warrior, Bureaucramancer, Rogue, Ranger and Priest action damage/cooldown profiles were tightened, and Priest's strict blessing now keeps a small direct-damage component.
+- Guarded monster impact signature copy so stored missed/no-effect skills can still name the skill without inventing a consequence line; impact flavor now appears only when stored damage or effect text exists.
 - Pinned the 0.2.11 class tuning constants and updated monster-stat regression expectations.
 
 ### Validation
