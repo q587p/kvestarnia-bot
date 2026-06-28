@@ -85,6 +85,34 @@ describe("achievement presenter", () => {
     expect(text).toContain("Літописець дістав ще одну теку.");
   });
 
+  it("renders unlock dates in Kyiv time near UTC midnight", () => {
+    const text = presentAchievements({
+      entries: [
+        {
+          id: "achievement.character.created",
+          title: "Де тут вихід?",
+          description: "створити пригодника.",
+          category: "onboarding",
+          hidden: false,
+          earned: true,
+          unlockedAt: new Date("2026-06-27T21:30:00.000Z"),
+          progressCurrent: null,
+          progressTarget: null,
+          cosmeticTitleGrantId: null,
+          unknownStored: false
+        }
+      ],
+      earnedCount: 1,
+      totalCount: 1,
+      filter: "all",
+      page: 0,
+      totalPages: 1
+    } satisfies AchievementListView);
+
+    expect(text).toContain("• 28.06");
+    expect(text).not.toContain("• 27.06");
+  });
+
   it("groups several unlock notifications", () => {
     const text = presentAchievementUnlockNotification([
       {

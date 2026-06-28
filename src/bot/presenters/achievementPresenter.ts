@@ -1,5 +1,18 @@
-import type { AchievementListEntry, AchievementListView, AchievementUnlock } from "../../services/achievementService";
+import {
+  ACHIEVEMENTS_PAGE_SIZE,
+  type AchievementListEntry,
+  type AchievementListView,
+  type AchievementUnlock
+} from "../../services/achievementService";
 import { escapeHtml } from "./telegramHtml";
+
+const ACHIEVEMENT_DATE_TIME_ZONE = "Europe/Kyiv";
+const achievementDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: ACHIEVEMENT_DATE_TIME_ZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric"
+});
 
 export function presentAchievements(
   view: AchievementListView,
@@ -20,7 +33,10 @@ export function presentAchievements(
   if (view.entries.length === 0) {
     lines.push("Журнал порожній. Літописець підозріло чистить перо.");
   } else {
-    lines.push(...view.entries.map((entry, index) => presentAchievementRow(entry, view.page * 10 + index + 1)));
+    lines.push(
+      ...view.entries.map((entry, index) =>
+        presentAchievementRow(entry, view.page * ACHIEVEMENTS_PAGE_SIZE + index + 1))
+    );
   }
 
   return lines.join("\n");
@@ -91,12 +107,22 @@ function presentProgress(entry: AchievementListEntry): string {
 
 function formatAchievementDate(date: Date): string {
   const now = new Date();
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const { day, month, year } = getKyivDateParts(date);
+  const currentYear = getKyivDateParts(now).year;
 
-  if (date.getFullYear() === now.getFullYear()) {
+  if (year === currentYear) {
     return `${day}.${month}`;
   }
 
-  return `${day}.${month}.${String(date.getFullYear()).slice(-2)}`;
+  return `${day}.${month}.${year.slice(-2)}`;
+}
+
+function getKyivDateParts(date: Date): { day: string; month: string; year: string } {
+  const parts = achievementDateFormatter.formatToParts(date);
+
+  return {
+    day: parts.find((part) => part.type === "day")?.value ?? "01",
+    month: parts.find((part) => part.type === "month")?.value ?? "01",
+    year: parts.find((part) => part.type === "year")?.value ?? "0000"
+  };
 }

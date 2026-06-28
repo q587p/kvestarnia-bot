@@ -10,7 +10,13 @@ Runtime rules:
 - New player-facing mechanics should add matching achievements/hooks for visible actions, milestones or odd outcomes, or explicitly document why no durable event exists yet.
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 
-Current count: 113 enabled achievements, 12 disabled hidden future placeholders (12 hidden).
+Current count: 113 enabled achievements and 12 disabled hidden future placeholders.
+
+## Runtime Hook Timing
+
+Immediate unlock hooks currently run from successful action boundaries that already emit achievement events: character creation, opening the achievement list, level/item/equipment events, combat reward paths, problem-chain turn-in and local dev level/item grants. These can notify the player at action time when a definition is newly earned.
+
+Manual recalculation through `🔎 Перевірити` remains the broader idempotent backfill path for durable ledger rows and older characters: remort, starter/cellar/Yeger/adventure daily rows, training/Doppleganger, duels, Barrel, Korchma rounds, gifts, sales, drinks, passage search, hunt contracts, special stored fight outcomes and similar rows proven from persisted state. These rows may appear only after the manual check unless the current runtime flow also emits a direct event.
 
 ## Current Catalog
 

@@ -64,6 +64,8 @@ export async function sendHero(
         : null
     });
 
+    // Telegram accepts one reply_markup per message; this card uses inline hero actions,
+    // while the persistent main menu stays owned by the main menu surfaces.
     await sendText(
       ctx,
       mode,

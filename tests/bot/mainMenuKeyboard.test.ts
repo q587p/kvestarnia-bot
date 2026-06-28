@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildHeroAchievementsKeyboard } from "../../src/bot/keyboards/achievementKeyboard";
 import {
   buildAdventureApproachKeyboard,
   buildAdventureParticipantsKeyboard,
@@ -89,6 +90,24 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);
+  });
+
+  it("builds hero inline actions with achievements and optional full restore", () => {
+    expect(flatInlineButtonTexts(buildHeroAchievementsKeyboard())).toEqual(["🏅 Ачівки"]);
+    expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual(["v1:ach:list:all:0"]);
+
+    const keyboard = buildHeroAchievementsKeyboard({
+      restoreCallbackData: "v1:use:full:item.responsible-panic-bandage"
+    });
+
+    expect(inlineButtonRows(keyboard)).toEqual([
+      ["🏅 Ачівки"],
+      ["🧻 До відновлення"]
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:ach:list:all:0",
+      "v1:use:full:item.responsible-panic-bandage"
+    ]);
   });
 
   it("labels the persistent location button with the current place", () => {
