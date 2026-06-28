@@ -1,6 +1,6 @@
 # Daily Korchma Rounds — canonical design
 
-Status: proposed future `0.2.x` runtime slice, captured during the `0.2.5` Bard Performance branch; not implemented until the matching version task is explicitly activated.
+Status: shipped in `0.2.9` on `12026-06-28`. The implementation uses existing `daily_actions` offer/step/reward rows, Kyiv day keys, and no Prisma schema migration.
 
 This document is the canonical product/persistence contract for the first `Корчмарський обхід` implementation. If the release number changes before activation, rename the task file and release surfaces without changing the feature contract silently.
 

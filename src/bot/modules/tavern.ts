@@ -16,6 +16,7 @@ PRESENCE_LOCATION_KORCHMA_HALL,
 PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
 PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
 PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+PRESENCE_LOCATION_KORCHMA_YARD,
 PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { ShynokRoundConfirmResult } from "../../services/shynokService";
@@ -46,6 +47,7 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaYard,
 sendKorchmaMemorialBoard,
 sendKorchmaRemortMilestoneBoard,
 sendTavern,
@@ -612,6 +614,13 @@ async function handlePlaceCallback(
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
       playerHintService: services.playerHints
     });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
+
+  if (action === "yard") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_YARD);
+    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }

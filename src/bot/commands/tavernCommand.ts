@@ -8,6 +8,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_YARD,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
@@ -36,6 +37,7 @@ import {
   buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
+  buildKorchmaYardKeyboard,
   buildKorchmaMemorialBoardKeyboard,
   buildKorchmaRemortMilestoneBoardKeyboard,
   buildTavernKeyboard,
@@ -51,6 +53,7 @@ import {
   presentKorchmaFightingCornerLevelLocked,
   presentKorchmaFront,
   presentKorchmaHall,
+  presentKorchmaYard,
   presentKorchmaMemorialBoard,
   presentKorchmaRemortMilestoneBoard,
   presentTavern,
@@ -75,7 +78,8 @@ type TavernCommandKeyboard =
       bardPerformance?: boolean;
     }
   | "front"
-  | { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation }
+  | { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation; dailyYard?: boolean }
+  | "yard"
   | "fighting-corner"
   | "deep"
   | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
@@ -192,8 +196,45 @@ export async function sendKorchmaFront(
   }), {
     state: "front",
     yegerAction,
-    munchkinLocation
+    munchkinLocation,
+    dailyYard: result.character.level >= 3
   });
+}
+
+export async function sendKorchmaYard(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_YARD);
+  await sendText(ctx, mode, presentKorchmaYard(result.character), "yard");
 }
 
 export async function sendKorchmaArrivalBoard(
@@ -628,10 +669,13 @@ async function sendText(
             : isFrontKeyboard(keyboard)
               ? buildKorchmaFrontKeyboard({
                   yegerAction: keyboard.yegerAction,
+                  dailyYard: Boolean(keyboard.dailyYard),
                   ...(keyboard.munchkinLocation === undefined
                     ? {}
                     : { munchkinLocation: keyboard.munchkinLocation })
                 })
+            : keyboard === "yard"
+              ? buildKorchmaYardKeyboard()
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
             : keyboard === "arrivals"
@@ -662,7 +706,7 @@ async function sendText(
 
 function isFrontKeyboard(
   keyboard: TavernCommandKeyboard
-): keyboard is { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation } {
+): keyboard is { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation; dailyYard?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
 }
 

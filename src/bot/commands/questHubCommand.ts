@@ -3,6 +3,7 @@ import type { AdventureService } from "../../services/adventureService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService } from "../../services/fightService";
+import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import { STARTER_ACTIVITY_MAX_LEVEL } from "../../domain/progression/activityGates";
@@ -29,6 +30,7 @@ export interface QuestHubCommandOptions {
   adventure: AdventureService;
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
+  dailyKorchmaRound?: DailyKorchmaRoundService;
   fight: FightService;
   yeger: YegerQuestService;
   presence: PresenceService;
@@ -106,6 +108,9 @@ async function buildQuestHubSnapshot(
     cellar.state === "level-retired" && options.cellarGrownup
       ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
       : null;
+  const dailyKorchmaRound = options.dailyKorchmaRound
+    ? await options.dailyKorchmaRound.getForTelegramUser(telegramUserId)
+    : null;
 
   if (
     fight.state === "no-character" ||
@@ -127,6 +132,7 @@ async function buildQuestHubSnapshot(
     problemQuestArchive: problemQuest.archive,
     yeger,
     cellar,
+    ...(dailyKorchmaRound && dailyKorchmaRound.state !== "no-character" ? { dailyKorchmaRound } : {}),
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"
       ? { cellarGrownup }
       : {})

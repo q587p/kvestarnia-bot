@@ -6,6 +6,7 @@ import type { CellarErrandService } from "../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import type { DevGrantService } from "../services/devGrantService";
 import type { DevResetService } from "../services/devResetService";
+import type { DailyKorchmaRoundService } from "../services/dailyKorchmaRoundService";
 import type { DuelChallengeService } from "../services/duelChallengeService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { FightService } from "../services/fightService";
@@ -35,6 +36,7 @@ export interface BotServices {
   barrelRaidNotifications?: BarrelRaidNotificationRepository;
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
+  dailyKorchmaRound: DailyKorchmaRoundService;
   fight: FightService;
   hunt: HuntService;
   yeger: YegerQuestService;

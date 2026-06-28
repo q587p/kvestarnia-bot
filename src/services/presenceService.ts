@@ -10,6 +10,7 @@ export const PRESENCE_ACTIVE_MS = 5 * 60 * 1000;
 export const PRESENCE_IDLE_MS = 15 * 60 * 1000;
 
 export const PRESENCE_LOCATION_KORCHMA_FRONT = "location.korchma.front";
+export const PRESENCE_LOCATION_KORCHMA_YARD = "location.korchma.yard";
 export const PRESENCE_LOCATION_KORCHMA_HALL = "location.korchma.hall";
 export const PRESENCE_LOCATION_KORCHMA_QUEST_TABLE = "location.korchma.quest_table";
 export const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
@@ -629,6 +630,16 @@ export function getPublicPresenceLocation(
     return {
       locationId: id,
       title: "Перед корчмою",
+      regionName: "Корчма Квестарні",
+      showNames: true,
+      isSpecific: true
+    };
+  }
+
+  if (id === PRESENCE_LOCATION_KORCHMA_YARD) {
+    return {
+      locationId: id,
+      title: "Задвірок корчми",
       regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true

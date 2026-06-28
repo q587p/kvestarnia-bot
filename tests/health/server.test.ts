@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Літописець відкрив журнал ачівок");
-    expect(text).toContain("У персонажа зʼявився маленький корчемний літопис");
+    expect(text).toContain("Корчмар видав дощечку здорового глузду");
+    expect(text).toContain("У Корчмі зʼявився короткий щоденний обхід");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("на картці персонажа є кнопка <code>🏅 Ачівки</code>");
-    expect(text).toContain("кілька нових записів від однієї дії приходять одним коротким повідомленням");
-    expect(text).toContain("Жодна ачівка не дає XP, золота, манаток, характеристик або бойової сили.");
+    expect(text).toContain("на Столі зі справами для старших новачків може зʼявитися <code>🧾 Корчмарський обхід</code>");
+    expect(text).toContain("щодня Корчма підсовує три дрібні катастрофи");
+    expect(text).toContain("третя після цього чемно стає <code>Не сьогоднішня катастрофа</code>");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

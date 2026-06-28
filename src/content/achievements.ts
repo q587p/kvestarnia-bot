@@ -31,6 +31,7 @@ export const achievementTriggerTypes = [
   "starter.mimic-shawarma.completed",
   "starter.mimic-shawarma.probe.completed",
   "cellar.mouse.completed",
+  "daily.korchma-round.completed",
   "adventure.choice.strong-success",
   "mantok.chest.completed",
   "level.barter.completed",
@@ -594,6 +595,17 @@ export const achievements = [
     sortOrder: 65.2,
     status: "enabled",
     trigger: { type: "cellar.mouse.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.daily-korchma-round",
+    category: "quests",
+    title: "Дві катастрофи — це вже порядок",
+    description: "закрити перший Корчмарський обхід і лишити третю дрібницю на офіційне «не сьогодні».",
+    hidden: false,
+    lockedDescription: "закрити перший Корчмарський обхід.",
+    sortOrder: 65.3,
+    status: "enabled",
+    trigger: { type: "daily.korchma-round.completed", threshold: 1 }
   },
   {
     id: "achievement.quest.problem-chain.93",

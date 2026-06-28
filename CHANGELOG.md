@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.9] - 12026-06-28 - Daily Korchma Rounds
+
+### Added
+- Added `Корчмарський обхід` / `Ревізія здорового глузду`, a level 3+ once-per-Kyiv-day route with exactly three persisted authored incidents: one at `location.korchma.yard` / `Задвірок корчми` and two at distinct Korchma interior locations.
+- Added the 13-scene v1 daily content pack. Each scene has exactly three authored actions and deterministic authored outcomes, with content validation for scene/action uniqueness and shape.
+- Added a pure Kyiv day helper based on `Intl.DateTimeFormat(..., { timeZone: "Europe/Kyiv" }).formatToParts()` and focused tests for winter, summer, midnight rollover and both DST transition periods.
+- Added compact `daily_actions` rows for offer, step and reward state. No Prisma schema or migration was needed.
+- Added a rewardless daily-round achievement hook and definition, `achievement.quest.daily-korchma-round`, using trigger `daily.korchma-round.completed` and not reusing Shynok beer-round ids.
+- Added `location.korchma.yard` as a public outside presence location. It is not part of `KORCHMA_INTERIOR_LOCATION_IDS` and is not accepted by `isKorchmaInteriorLocation()`.
+
+### Changed
+- Quest Hub now surfaces the daily round when available, with qualitative pre-choice copy only. Exact reward appears after the explicit turn-in.
+- Route buttons can move/open the authored location, but service authorization checks persisted offer/step/reward state and current presence before mutating.
+- Final turn-in requires the Quest Table and grants exactly 4 XP + 2 gold once per Kyiv day, with duplicate/restart replay returning the stored result.
+
+### Unchanged
+- Remort does not clear same-day daily-round progress or duplicate the final reward. Old-life mutating callbacks stale out through the compact life token.
+- Active combat and pending Barrel state block daily-round mutations.
+- The daily round has no streak, catch-up, reroll, item drop, stat roll, injuries, fight handoff, third-step bonus, scheduler, Mini App UI, shop, market, raid, party or new economy system.
+
 ## [0.2.8] - 12026-06-28 - Achievements and Cosmetic Title Records
 
 ### Added

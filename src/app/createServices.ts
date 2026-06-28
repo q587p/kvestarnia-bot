@@ -9,6 +9,7 @@ import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService
 import { CombatBalanceAnalyticsService } from "../services/combatBalanceAnalyticsService";
 import { DeployNotificationService } from "../services/deployNotificationService";
 import { DevGrantService } from "../services/devGrantService";
+import { DailyKorchmaRoundService } from "../services/dailyKorchmaRoundService";
 import { DevResetService } from "../services/devResetService";
 import { DuelChallengeService } from "../services/duelChallengeService";
 import { EquipmentService } from "../services/equipmentService";
@@ -57,6 +58,12 @@ export function createServices(
     achievements
   });
   const presence = new PresenceService(repositories.presence);
+  const tavern = new TavernRaidService(
+    repositories.characters,
+    repositories.dailyActions,
+    repositories.roundPurchases,
+    repositories.cooldowns
+  );
 
   return {
     achievements,
@@ -75,6 +82,14 @@ export function createServices(
       repositories.cellarGrownupQuests,
       repositories.dailyActions,
       repositories.cooldowns
+    ),
+    dailyKorchmaRound: new DailyKorchmaRoundService(
+      repositories.characters,
+      repositories.dailyActions,
+      presence,
+      fight,
+      tavern,
+      achievements
     ),
     deployNotifications: new DeployNotificationService(repositories.users, {
       enabled: config.deployNotificationsEnabled,
@@ -135,12 +150,7 @@ export function createServices(
       repositories.dailyActions,
       repositories.roundPurchases
     ),
-    tavern: new TavernRaidService(
-      repositories.characters,
-      repositories.dailyActions,
-      repositories.roundPurchases,
-      repositories.cooldowns
-    ),
+    tavern,
     trainingDoppelganger: new TrainingDoppelgangerService(
       repositories.characters,
       repositories.cooldowns,

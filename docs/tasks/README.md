@@ -48,6 +48,10 @@ Keep each task doc short. Link to canonical docs instead of copying long section
 The shipped `0.0.x` and `0.1.x` versions have compact historical records generated from `CHANGELOG.md`.
 They are not active tasks unless a human explicitly reopens a follow-up.
 
+Active task:
+
+- [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) — Daily `Корчмарський обхід` route backed by [../DAILY_KORCHMA_ROUNDS.md](../DAILY_KORCHMA_ROUNDS.md).
+
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
 - [0.1.22-monster-abilities-ai.md](0.1.22-monster-abilities-ai.md) — typed monster ability catalogs, frozen monster loadouts and pure monster AI.
@@ -71,7 +75,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 - [0.2.x-senior-barrel-brother-group-raid.md](0.2.x-senior-barrel-brother-group-raid.md) — draft future Senior Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
 - [0.2.x-postal-mantok-delivery.md](0.2.x-postal-mantok-delivery.md) — draft future paid postal/courier delivery for sending one eligible manatka to a known non-nearby recipient.
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
-- [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — draft future daily `Корчмарський обхід` route backed by [../DAILY_KORCHMA_ROUNDS.md](../DAILY_KORCHMA_ROUNDS.md).
+- [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — archived draft for the shipped [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) route.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
 - [0.2.x-bard-performance-mvp.md](0.2.x-bard-performance-mvp.md) — archived draft that was activated as `0.2.5`; future non-combat XP needs a separate task.
 

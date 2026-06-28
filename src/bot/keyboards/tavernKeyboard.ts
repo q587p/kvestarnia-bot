@@ -37,7 +37,7 @@ export function buildTavernKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaFrontKeyboard(
-  options: { yegerAction?: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation } = {}
+  options: { yegerAction?: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation; dailyYard?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
@@ -55,6 +55,15 @@ export function buildKorchmaFrontKeyboard(
     hasFrontActionRow = true;
   }
 
+  if (options.dailyYard) {
+    if (hasFrontActionRow) {
+      keyboard.row();
+    }
+
+    keyboard.text("🪣 У задвірок", makePlaceCallbackData("yard"));
+    hasFrontActionRow = true;
+  }
+
   if (options.yegerAction === "hunt") {
     if (hasFrontActionRow) {
       keyboard.row();
@@ -64,6 +73,13 @@ export function buildKorchmaFrontKeyboard(
   }
 
   return keyboard;
+}
+
+export function buildKorchmaYardKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🧾 До обходу", makePlaceCallbackData("quest-table"))
+    .row()
+    .text("⬅️ До дверей", makePlaceCallbackData("front"));
 }
 
 export function buildEnterKorchmaKeyboard(): InlineKeyboard {
