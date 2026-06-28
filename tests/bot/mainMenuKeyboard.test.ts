@@ -1796,6 +1796,51 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:s:"))).toBe(false);
   });
 
+  it("routes daily Korchma round turn-in-ready overview back to the quest table before claiming", () => {
+    const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
+      state: "turn-in-ready",
+      character,
+      offer: {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 0,
+        requiredSteps: 2,
+        completedSceneIds: ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"],
+        omittedSceneId: "scene.yard.rope",
+        scenes: [
+          {
+            id: "scene.cellar.inventory-bottle",
+            icon: "🍾",
+            title: "Пляшка шепоче інвентаризацію",
+            locationId: "location.korchma.cellar",
+            hook: "У льосі пляшка шепоче номери.",
+            actions: []
+          },
+          {
+            id: "scene.yeger.map-sneeze",
+            icon: "🗺️",
+            title: "Мапа чхнула не в той бік",
+            locationId: "location.korchma.yeger-corner",
+            hook: "У єгерському кутку мапа має думку.",
+            actions: []
+          },
+          {
+            id: "scene.yard.rope",
+            icon: "🪢",
+            title: "Мотузка зав’язала питання",
+            locationId: "location.korchma.yard",
+            hook: "У задвірку мотузка має думку.",
+            actions: []
+          }
+        ]
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До Столу зі справами", "🍺 До зали"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
+    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:c:"))).toBe(false);
+  });
+
   it("builds quest hub buttons from available actions", () => {
     const fullHubKeyboard = buildQuestHubKeyboard({
       adventure: { state: "ready", character },

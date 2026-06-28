@@ -5,7 +5,7 @@ import type {
   DailyKorchmaRoundSceneLookupResult,
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
-import { makeDailyKorchmaRoundActionCallbackData, makeDailyKorchmaRoundClaimCallbackData, makeDailyKorchmaRoundOverviewCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
+import { makeDailyKorchmaRoundActionCallbackData, makeDailyKorchmaRoundOverviewCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 
 export function buildDailyKorchmaRoundOverviewKeyboard(
@@ -21,9 +21,10 @@ export function buildDailyKorchmaRoundOverviewKeyboard(
   }
 
   if (result.state === "turn-in-ready") {
-    keyboard
-      .text("🧾 Здати обхід", makeDailyKorchmaRoundClaimCallbackData(result.offer.dayToken, result.offer.lifeToken))
-      .row();
+    return keyboard
+      .text("📋 До Столу зі справами", makePlaceCallbackData("quest-table"))
+      .row()
+      .text("🍺 До зали", makePlaceCallbackData("hall"));
   }
 
   return keyboard

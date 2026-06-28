@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Quest Hub now surfaces the daily round when available, with qualitative pre-choice copy only. Exact reward appears after the explicit turn-in.
 - The daily overview lists scene locations without direct scene-location teleport buttons. Players walk through ordinary Korchma navigation, and opening a location with an active unfinished daily scene shows that scene there.
+- Turn-in-ready daily overview cards now route players back to the Quest Table instead of exposing a remote claim button. The actual `Здати обхід` claim remains on the Quest Table.
 - Yeger Corner now groups paid bandage bundles and the ranger free bandage under a compact `🩹 Бинти` submenu while preserving old direct bandage callbacks for existing cards.
 - The earned achievements tab now sorts newest unlocks first, while all/locked tabs keep catalog order.
 - Pressed reply-keyboard location labels now send the movement notice before the destination card, so cellar/daily-location cards no longer appear above their arrival line.
