@@ -9,11 +9,11 @@ describe("character display presenter", () => {
     expect(presentCharacterDisplayName({ name: "Дара" })).toBe("<b>Дара</b>");
   });
 
-  it("renders selected cosmetic titles as escaped Ukrainian quote labels", () => {
+  it("renders selected cosmetic titles as escaped italic labels after the name", () => {
     expect(presentCharacterDisplayName({
       name: "Дара <&>",
       activeCosmeticTitle: "Перший <пергамент> не зʼїв"
-    })).toBe("<b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв»");
+    })).toBe("<b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
   });
 
   it("can render compact unbolded and truncated social labels", () => {
@@ -24,7 +24,7 @@ describe("character display presenter", () => {
       boldName: false,
       maxNameLength: 6,
       maxTitleLength: 8
-    })).toBe("Довге…, «Дуже до…»");
+    })).toBe("Довге… (<i>«Дуже до…»</i>)");
   });
 
   it("omits blank titles", () => {

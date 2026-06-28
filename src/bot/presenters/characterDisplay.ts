@@ -21,7 +21,7 @@ export function presentCharacterDisplayName(
     ...(options.maxTitleLength === undefined ? {} : { maxLength: options.maxTitleLength })
   });
 
-  return title ? `${renderedName}, ${title}` : renderedName;
+  return title ? `${renderedName} (${title})` : renderedName;
 }
 
 export function presentActiveCosmeticTitle(
@@ -30,7 +30,7 @@ export function presentActiveCosmeticTitle(
 ): string {
   const trimmed = title?.trim();
 
-  return trimmed ? `«${escapeHtml(truncateDisplayPart(trimmed, options.maxLength))}»` : "";
+  return trimmed ? `<i>«${escapeHtml(truncateDisplayPart(trimmed, options.maxLength))}»</i>` : "";
 }
 
 function truncateDisplayPart(value: string, maxLength: number | undefined): string {

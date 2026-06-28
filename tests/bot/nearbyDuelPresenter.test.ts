@@ -28,7 +28,7 @@ describe("nearby duel presenter", () => {
     });
     const mode = presentNearbyDuelMode(target);
 
-    expect(candidates).toContain("— Дара &lt;&amp;&gt;, «Перший &lt;пергамент&gt; не зʼїв» · рівень 4");
-    expect(mode).toContain("<b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв» · рівень 4");
+    expect(candidates).toContain("— Дара &lt;&amp;&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) · рівень 4");
+    expect(mode).toContain("<b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) · рівень 4");
   });
 });

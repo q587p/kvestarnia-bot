@@ -29,7 +29,7 @@ describe("item gift presenter", () => {
       }]
     });
 
-    expect(text).toContain("— Дара, «Перший пергамент не зʼїв» · рівень 4");
+    expect(text).toContain("— Дара (<i>«Перший пергамент не зʼїв»</i>) · рівень 4");
   });
 
   it("escapes recipient and item names in the selection and offer cards", () => {

@@ -193,9 +193,9 @@ describe("duel presenter", () => {
     const text = presentDuelView(view);
     const share = presentDuelResultShare(view);
 
-    expect(text).toContain("<b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв»");
-    expect(text).toContain("<b>Нестор</b>, «Табличка тримається»");
-    expect(share).toContain("<b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв»");
+    expect(text).toContain("<b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
+    expect(text).toContain("<b>Нестор</b> (<i>«Табличка тримається»</i>)");
+    expect(share).toContain("<b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
   });
 
   it("shows stored XP rewards for turn-based results without claiming no XP", () => {

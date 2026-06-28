@@ -190,7 +190,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🏆 Переможці дуелей");
     expect(text).toContain("<b>За добу</b>:");
-    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt;, «Перший &lt;пергамент&gt; не зʼїв» — 2 перемоги, 1 нічия, 5 поразок");
+    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не переміг");
     expect(text).toContain("1. Нестор — 5 перемог, 2 нічиї, 1 поразка");
     expect(text).not.toContain("<b>Дара</b>");

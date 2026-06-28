@@ -105,7 +105,7 @@ describe("presence presenter", () => {
       }
     });
 
-    expect(text).toContain("— <b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв»");
+    expect(text).toContain("— <b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
   });
 
   it("uses cellar icon for cellar adventure participants and online summaries", () => {
