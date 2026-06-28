@@ -1011,7 +1011,7 @@ export const monsterAbilities = [
   },
   {
     "id": "monster.missing-line",
-    "label": "➖ Немає в описі",
+    "label": "➖ Рядок мінус влучність",
     "role": "controller",
     "targetScopes": [
       "single-enemy"

@@ -82,6 +82,12 @@ describe("monster ability runtime", () => {
     )).toEqual([]);
   });
 
+  it("does not ship placeholder monster ability labels", () => {
+    expect(monsterAbilities.filter((ability) =>
+      ability.label.toLocaleLowerCase("uk-UA").includes("немає в описі")
+    )).toEqual([]);
+  });
+
   it("applies slot count gates and freezes explicit ids before deterministic fallback ids", () => {
     expect(getMonsterAbilitySlotCount(1, mimic.tags)).toBe(1);
     expect(getMonsterAbilitySlotCount(1, ["tiny-boss"], {
