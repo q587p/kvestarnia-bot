@@ -13,6 +13,7 @@ import type {
   DailyActionRepository,
   RewardLevelChange
 } from "../db/repositories/dailyActionRepository";
+import { DailyActionPrefixLimitExceededError } from "../db/repositories/dailyActionRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { selectDailyKorchmaRoundSceneIds } from "../domain/quests/dailyKorchmaRound";
 import { getKyivDayKey, getKyivDayToken, kyivDayTokenToKey } from "../shared/kyivDate";
@@ -254,23 +255,14 @@ export class DailyKorchmaRoundService {
       };
     }
 
-    const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
-      key: DAILY_KORCHMA_ROUND_STEP_KEY,
-      localDate: stepLocalDate(context.dayKey, scene.id),
-      rewardXp: 0,
-      rewardGold: 0,
-      resultJson: {
-        version: 1,
-        dayToken: context.dayToken,
-        sceneId: scene.id,
-        actionId: action.id,
-        locationId: scene.locationId
-      } satisfies DailyKorchmaRoundStepJson,
-      expectedLife: { remortCount: context.lifeToken }
-    });
+    const claim = await this.claimStep(telegramUserId, context, scene, action);
 
     if (!claim) {
       return { state: "stale-life", current: await this.getForTelegramUser(telegramUserId) };
+    }
+
+    if (claim === "limit-exceeded") {
+      return { state: "third-locked", character: context.character, offer: context.offer, scene };
     }
 
     const nextCompletedCount = context.completedSceneIds.size + (claim.state === "created" ? 1 : 0);
@@ -295,6 +287,41 @@ export class DailyKorchmaRoundService {
       action,
       completedCount: Math.min(DAILY_KORCHMA_ROUND_REQUIRED_STEPS, nextCompletedCount)
     };
+  }
+
+  private async claimStep(
+    telegramUserId: bigint,
+    context: DailyKorchmaRoundContext,
+    scene: DailyKorchmaRoundScene,
+    action: DailyKorchmaRoundAction
+  ) {
+    try {
+      return await this.dailyActions.claimForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_STEP_KEY,
+        localDate: stepLocalDate(context.dayKey, scene.id),
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: {
+          version: 1,
+          dayToken: context.dayToken,
+          sceneId: scene.id,
+          actionId: action.id,
+          locationId: scene.locationId
+        } satisfies DailyKorchmaRoundStepJson,
+        expectedLife: { remortCount: context.lifeToken },
+        localDatePrefixLimit: {
+          key: DAILY_KORCHMA_ROUND_STEP_KEY,
+          localDatePrefix: `${context.dayKey}:`,
+          maxRows: DAILY_KORCHMA_ROUND_REQUIRED_STEPS
+        }
+      });
+    } catch (error) {
+      if (error instanceof DailyActionPrefixLimitExceededError) {
+        return "limit-exceeded" as const;
+      }
+
+      throw error;
+    }
   }
 
   async claimReward(

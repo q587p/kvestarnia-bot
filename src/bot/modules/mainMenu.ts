@@ -14,6 +14,7 @@ PRESENCE_LOCATION_KORCHMA_HALL,
 PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
 PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
 PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+PRESENCE_LOCATION_KORCHMA_YARD,
 normalizePresenceLocationId,
 type PresenceService
 } from "../../services/presenceService";
@@ -38,6 +39,7 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaYard,
 sendTavern,
 sendTavernBarrel
 } from "../commands/tavernCommand";
@@ -285,6 +287,8 @@ function getLocationMovementNoticeText(
       return "Ви повернулися до зали корчми.";
     case PRESENCE_LOCATION_KORCHMA_FRONT:
       return "Ви вийшли надвір.";
+    case PRESENCE_LOCATION_KORCHMA_YARD:
+      return "Ви зайшли в задвірок корчми.";
     case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
       return "Ви підійшли до столу зі справами.";
     case PRESENCE_LOCATION_KORCHMA_BAR:
@@ -425,6 +429,11 @@ async function sendCurrentPresenceLocation(
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
       playerHintService: services.playerHints
     });
+    return;
+  }
+
+  if (locationId === PRESENCE_LOCATION_KORCHMA_YARD) {
+    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply");
     return;
   }
 

@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import {
+  DailyActionPrefixLimitExceededError,
   DailyActionQuantityLimitExceededError,
   type ClaimDailyActionInput,
   type ClaimDailyActionResult,
@@ -97,6 +98,31 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         const remortCount = await countCharacterRemorts(tx, character.id);
         if (input.expectedLife && remortCount !== input.expectedLife.remortCount) {
           return null;
+        }
+
+        if (input.localDatePrefixLimit) {
+          await tx.character.update({
+            where: {
+              id: character.id
+            },
+            data: {
+              updatedAt: new Date()
+            }
+          });
+
+          const currentRows = await tx.dailyAction.count({
+            where: {
+              characterId: character.id,
+              key: input.localDatePrefixLimit.key,
+              localDate: {
+                startsWith: input.localDatePrefixLimit.localDatePrefix
+              }
+            }
+          });
+
+          if (currentRows >= input.localDatePrefixLimit.maxRows) {
+            throw new DailyActionPrefixLimitExceededError(currentRows, input.localDatePrefixLimit.maxRows);
+          }
         }
 
         if (input.quantityLimit) {

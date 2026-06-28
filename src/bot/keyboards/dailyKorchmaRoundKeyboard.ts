@@ -5,8 +5,20 @@ import type {
   DailyKorchmaRoundSceneLookupResult,
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
+import {
+  PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_DEEP,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+  PRESENCE_LOCATION_KORCHMA_YARD
+} from "../../services/presenceService";
 import { makeDailyKorchmaRoundActionCallbackData, makeDailyKorchmaRoundOverviewCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
-import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
 
 export function buildDailyKorchmaRoundOverviewKeyboard(
   result: DailyKorchmaRoundLookupResult
@@ -61,7 +73,29 @@ export function buildDailyKorchmaRoundSceneKeyboard(result: DailyKorchmaRoundSce
 
 export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStepResult): InlineKeyboard {
   if (result.state !== "step-completed" && result.state !== "step-replayed") {
-    return new InlineKeyboard().text("🧾 До обходу", makePlaceCallbackData("quest-table"));
+    if (result.state === "wrong-location") {
+      const keyboard = new InlineKeyboard();
+      const place = placeCallbackFromLocation(result.scene.locationId);
+
+      if (place) {
+        keyboard.text("📍 До місцини", makePlaceCallbackData(place)).row();
+      }
+
+      return keyboard.text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken));
+    }
+
+    if ("offer" in result) {
+      return new InlineKeyboard().text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken));
+    }
+
+    if ("current" in result && result.current.state !== "no-character" && "offer" in result.current) {
+      return new InlineKeyboard().text(
+        "🧾 До обходу",
+        makeDailyKorchmaRoundOverviewCallbackData(result.current.offer.dayToken)
+      );
+    }
+
+    return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
   const keyboard = new InlineKeyboard()
@@ -71,6 +105,33 @@ export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStep
   keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
 
   return keyboard;
+}
+
+function placeCallbackFromLocation(locationId: string): PlaceCallback | null {
+  switch (locationId) {
+    case PRESENCE_LOCATION_KORCHMA_YARD:
+      return "yard";
+    case PRESENCE_LOCATION_KORCHMA_HALL:
+      return "hall";
+    case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
+      return "quest-table";
+    case PRESENCE_LOCATION_KORCHMA_BAR:
+      return "bar";
+    case PRESENCE_LOCATION_KORCHMA_BARREL:
+      return "barrel";
+    case PRESENCE_LOCATION_KORCHMA_CELLAR:
+      return "cellar";
+    case PRESENCE_LOCATION_KORCHMA_NEWS_CORNER:
+      return "news-corner";
+    case PRESENCE_LOCATION_KORCHMA_RANGER_CORNER:
+      return "ranger-corner";
+    case PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER:
+      return "fighting-corner";
+    case PRESENCE_LOCATION_KORCHMA_DEEP:
+      return "deep";
+    default:
+      return null;
+  }
 }
 
 export function buildDailyKorchmaRoundClaimKeyboard(result: DailyKorchmaRoundClaimResult): InlineKeyboard {

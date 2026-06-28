@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CharacterRecord, CharacterRepository } from "../../src/db/repositories/characterRepository";
+import { DailyActionPrefixLimitExceededError } from "../../src/db/repositories/dailyActionRepository";
 import type {
   ClaimDailyActionInput,
   ClaimDailyActionResult,
@@ -181,6 +182,46 @@ describe("DailyKorchmaRoundService", () => {
     expect(oldLife.state).toBe("stale-life");
   });
 
+  it("does not create a third step row when another callback completes a second scene inside the claim boundary", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+    const offer = await readyOffer(world);
+    const [first, second, third] = offer.scenes;
+
+    world.locationId = first!.locationId;
+    await expect(
+      world.service.completeStep(telegramUserId, {
+        dayToken: offer.dayToken,
+        sceneIndex: 0,
+        actionId: first!.actions[0]!.id,
+        lifeToken: offer.lifeToken
+      })
+    ).resolves.toMatchObject({ state: "step-completed" });
+
+    world.daily.beforeCreate = (input) => {
+      if (input.key !== DAILY_KORCHMA_ROUND_STEP_KEY || !input.localDate.endsWith(`:${second!.id}`)) {
+        return;
+      }
+
+      world.daily.addStepRecord(offer.dayKey, third!, third!.actions[0]!.id);
+    };
+
+    world.locationId = second!.locationId;
+    const raced = await world.service.completeStep(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 1,
+      actionId: second!.actions[0]!.id,
+      lifeToken: offer.lifeToken
+    });
+
+    expect(raced.state).toBe("third-locked");
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_STEP_KEY)).toHaveLength(2);
+    expect(
+      world.daily.records
+        .filter((record) => record.key === DAILY_KORCHMA_ROUND_STEP_KEY)
+        .map((record) => record.localDate)
+    ).toEqual(expect.arrayContaining([`${offer.dayKey}:${first!.id}`, `${offer.dayKey}:${third!.id}`]));
+  });
+
   it("resets today's daily Korchma round rows for local QA", async () => {
     const world = new FakeWorld(makeCharacter({ level: 3 }));
     const offer = await readyOffer(world);
@@ -308,6 +349,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
 
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
+  beforeCreate: ((input: ClaimDailyActionInput) => void) | null = null;
 
   constructor(private readonly world: FakeWorld) {}
 
@@ -332,6 +374,33 @@ class FakeDailyActionRepository implements DailyActionRepository {
     }
 
     return Promise.resolve(this.records.filter((record) => record.key === input.key));
+  }
+
+  addStepRecord(dayKey: string, scene: { id: string; locationId: string }, actionId: string): void {
+    if (!this.world.character) {
+      return;
+    }
+
+    const localDate = `${dayKey}:${scene.id}`;
+    const action: DailyActionRecord = {
+      id: `daily-action-${this.actions.size + 1}`,
+      characterId: this.world.character.id,
+      key: DAILY_KORCHMA_ROUND_STEP_KEY,
+      localDate,
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: {
+        version: 1,
+        dayToken: dayKey.split("-").join(""),
+        sceneId: scene.id,
+        actionId,
+        locationId: scene.locationId
+      },
+      createdAt: now
+    };
+
+    this.actions.set(keyFor(action), action);
   }
 
   claimForTelegramUser(
@@ -360,6 +429,25 @@ class FakeDailyActionRepository implements DailyActionRepository {
         levelChange: null,
         itemGrants: []
       });
+    }
+
+    this.beforeCreate?.(input);
+    this.beforeCreate = null;
+
+    const prefixLimit = input.localDatePrefixLimit;
+
+    if (prefixLimit) {
+      const currentRows = this.records.filter(
+        (record) =>
+          record.key === prefixLimit.key &&
+          record.localDate.startsWith(prefixLimit.localDatePrefix)
+      ).length;
+
+      if (currentRows >= prefixLimit.maxRows) {
+        return Promise.reject(
+          new DailyActionPrefixLimitExceededError(currentRows, prefixLimit.maxRows)
+        );
+      }
     }
 
     const oldLevel = this.world.character.level;
