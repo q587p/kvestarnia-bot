@@ -2114,6 +2114,112 @@ describe("scene callback HTML options", () => {
     );
   });
 
+  it("opens an active daily Korchma round scene after physical yard place navigation", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const yardScene = {
+      id: "scene.yard.rope",
+      icon: "bucket",
+      title: "Rope tied up the unanswered question",
+      locationId: "location.korchma.yard",
+      hook: "The rope insists this is a meeting, not a knot.",
+      actions: [
+        {
+          id: "untie-agenda",
+          label: "Untie the agenda",
+          outcome: "The agenda apologized and became a rope again."
+        },
+        {
+          id: "ask-bucket",
+          label: "Ask the bucket",
+          outcome: "The bucket declined to chair the committee."
+        },
+        {
+          id: "label-knot",
+          label: "Label the knot",
+          outcome: "The knot accepted the label and stopped escalating."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [yardScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: yardScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("yard"),
+      servicesWith({
+        dailyKorchmaRound: {
+          getExistingForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.front",
+              locationName: "Перед корчмою",
+              insideKorchma: false
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const scene = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Rope tied up the unanswered question")
+    );
+    const keyboard = JSON.stringify(scene?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.yard",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(scene).toBeDefined();
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:untie-agenda:0");
+  });
+
   it("opens an active daily Korchma round scene from the tavern ranger route", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const yegerLookup = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
