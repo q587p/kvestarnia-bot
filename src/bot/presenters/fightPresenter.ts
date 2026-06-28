@@ -1230,7 +1230,12 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
 
       if (entry.monsterAction === "skill" && entry.monsterSkillId) {
         const skill = getCombatSkillDisplay(entry.monsterSkillId);
-        const signatureLine = getMonsterSignatureLine(entry.monsterSkillId, "impact");
+        const signatureLine = hasStoredMonsterSkillImpact({
+          damage: entry.monsterDamage,
+          effectText: entry.monsterEffectText
+        })
+          ? getMonsterSignatureLine(entry.monsterSkillId, "impact")
+          : null;
         const consequences = [
           ...(entry.monsterDamage > 0 ? [`завдав ${entry.monsterDamage} шкоди`] : []),
           ...(signatureLine ? [signatureLine] : []),
@@ -1293,11 +1298,15 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
 
   if (summary.monsterAction === "skill" && summary.monsterSkillId) {
     const skill = getCombatSkillDisplay(summary.monsterSkillId);
+    const signatureLine = hasStoredMonsterSkillImpact({
+      damage: directMonsterDamage,
+      effectText: summary.monsterEffectText
+    })
+      ? getMonsterSignatureLine(summary.monsterSkillId, "impact")
+      : null;
     const consequences = [
       ...(directMonsterDamage > 0 ? [`завдав ${directMonsterDamage} шкоди`] : []),
-      ...(getMonsterSignatureLine(summary.monsterSkillId, "impact")
-        ? [escapeHtml(getMonsterSignatureLine(summary.monsterSkillId, "impact")!)]
-        : []),
+      ...(signatureLine ? [escapeHtml(signatureLine)] : []),
       ...(summary.monsterEffectText ? [escapeHtml(trimTerminalPunctuation(summary.monsterEffectText))] : [])
     ];
 
@@ -1357,6 +1366,10 @@ function getMonsterSignatureLine(
   kind: MonsterSignatureLineKind
 ): string | null {
   return abilityId ? monsterSignatureProofLines[abilityId]?.[kind] ?? null : null;
+}
+
+function hasStoredMonsterSkillImpact(input: { damage?: number; effectText?: string | null | undefined }): boolean {
+  return (input.damage ?? 0) > 0 || Boolean(input.effectText?.trim());
 }
 
 function presentHeroEffectDamage(summary: CombatTurnSummary): string {
