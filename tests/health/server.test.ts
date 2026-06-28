@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Титули нарешті можна вдягати");
-    expect(text).toContain("Літописець довго складав титульні записи");
+    expect(text).toContain("Монстри навчилися тримати почерк");
+    expect(text).toContain("Кілька корчемних противників нарешті перестали бити вас просто «якось»");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("на картці персонажа є кнопка <code>🏷️ Титули</code>");
-    expect(text).toContain("один косметичний титул можна зробити активним");
-    expect(text).toContain("титули не дають сили, золота, предметів, шансів, переваг у бою");
+    expect(text).toContain("кілька монстрів мають виразніші бойові дії");
+    expect(text).toContain("журнал бою памʼятає ці дії без перекидання результатів");
+    expect(text).toContain("нагороди, манатки, титули, квести й реморт від цього не стали потайки сильнішими");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

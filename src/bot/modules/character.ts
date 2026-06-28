@@ -5,6 +5,7 @@ import type { OnboardingService } from "../../services/onboardingService";
 import type { RemortService } from "../../services/remortService";
 import type { RestartService } from "../../services/restartService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import { answerInvalidCallback,type CallbackParseResult, registerParsedCallbackRoute } from "../callbackRoute";
 import { parseAchievementCallbackData,type AchievementCallback } from "../callbacks/achievementCallbackData";
 import { parseBestiaryCallbackData,type BestiaryCallback } from "../callbacks/bestiaryCallbackData";
 import { parseDevResetCallbackData } from "../callbacks/devResetCallbackData";
@@ -113,71 +114,52 @@ export function registerCharacterBotModule(
     registerRemortCommand(bot, services.remort, services.tavern);
   }
 
-  bot.callbackQuery(/^v1:onb:/, async (ctx) => {
-    const parsed = parseOnboardingCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleOnboardingCallback(ctx, parsed.value, services.onboarding);
+  registerParsedCallbackRoute(bot, /^v1:onb:/, parseOnboardingCallbackData, async (ctx, callback) => {
+    await handleOnboardingCallback(ctx, callback, services.onboarding);
   });
 
-  bot.callbackQuery(/^v1:bst:/, async (ctx) => {
-    const parsed = parseBestiaryCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleBestiaryCallback(ctx, parsed.value, services.hero);
+  registerParsedCallbackRoute(bot, /^v1:bst:/, parseBestiaryCallbackData, async (ctx, callback) => {
+    await handleBestiaryCallback(ctx, callback, services.hero);
   });
 
-  bot.callbackQuery(/^v1:ach:/, async (ctx) => {
-    const parsed = parseAchievementCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleAchievementCallback(ctx, parsed.value, services.hero);
+  registerParsedCallbackRoute(bot, /^v1:ach:/, parseAchievementCallbackData, async (ctx, callback) => {
+    await handleAchievementCallback(ctx, callback, services.hero);
   });
 
-  bot.callbackQuery(/^v1:devreset:/, async (ctx) => {
-    const parsed = parseDevResetCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleDevResetCallback(ctx, parsed.value, services.devReset);
+  registerParsedCallbackRoute(bot, /^v1:devreset:/, parseDevResetCallbackData, async (ctx, callback) => {
+    await handleDevResetCallback(ctx, callback, services.devReset);
   });
 
-  bot.callbackQuery(/^v1:restart:/, async (ctx) => {
-    const parsed = parseRestartCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleRestartCallback(ctx, parsed.value, services.restart);
+  registerParsedCallbackRoute(bot, /^v1:restart:/, parseRestartCallbackData, async (ctx, callback) => {
+    await handleRestartCallback(ctx, callback, services.restart);
   });
 
-  bot.callbackQuery(/^v1:rm:/, async (ctx) => {
-    const parsed = parseRemortCallbackData(ctx.callbackQuery.data);
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:rm:/,
+    (data) => parseWhenAvailable(data, parseRemortCallbackData, services.remort),
+    async (ctx, callback) => {
+      const remortService = services.remort;
+      if (!remortService) {
+        await answerInvalidCallback(ctx);
+        return;
+      }
 
-    if (!parsed.ok || !services.remort) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
+      await handleRemortCallback(ctx, callback, remortService, services.tavern);
     }
+  );
+}
 
-    await handleRemortCallback(ctx, parsed.value, services.remort, services.tavern);
-  });
+function parseWhenAvailable<TCallback>(
+  data: string,
+  parse: (data: string) => CallbackParseResult<TCallback>,
+  service: unknown
+): CallbackParseResult<TCallback> {
+  if (!service) {
+    return { ok: false };
+  }
+
+  return parse(data);
 }
 
 async function handleAchievementCallback(

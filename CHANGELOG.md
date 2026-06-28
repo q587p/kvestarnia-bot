@@ -7,6 +7,27 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.11] - 12026-06-29 - Combat Balance and Monster Signature Proof
+
+### Added
+- Added a small presentation-only monster signature proof pack for stored monster ability ids: selected monster skills and telegraphs now render short Ukrainian signature lines in active fight cards, multi-enemy responses and combat journal replay.
+- Added focused presenter coverage for live, multi-enemy and journal replay of stored monster skill/telegraph ids.
+
+### Changed
+- Rebalanced generic monster combat stat derivation so levels after 5 grow in a bounded curve instead of outpacing character progression sharply at levels 6-13.
+- Tuned a few player ability constants after simulation evidence: Warrior, Bureaucramancer, Rogue, Ranger and Priest action damage/cooldown profiles were tightened, and Priest's strict blessing now keeps a small direct-damage component.
+- Guarded monster impact signature copy so stored missed/no-effect skills can still name the skill without inventing a consequence line; impact flavor now appears only when stored damage or effect text exists.
+- Pinned the 0.2.11 class tuning constants and updated monster-stat regression expectations.
+
+### Validation
+- Baseline aggressive same-level simulation before tuning collapsed after level 5, with level 9-13 win rates roughly in the 0.7%-7.9% range on the human-ish sweep.
+- Final 100-run human-ish aggressive same-level sweep over levels 3-13 ended at 84.2% overall wins and 5.7 average turns; level bands ranged from 74.1% to 93.9% wins.
+- Final compact active-race sweep over all current active races ended at 80.3% overall wins and 6.1 average turns; known hard outliers remain visible, especially `monster.zero-declaration-tax-dragon`, `monster.siege-iron-varenyk` and softer race/class pairings.
+
+### Unchanged
+- Rewards, loot, XP/gold formulas, quest progress, Yeger/Shynok/gifting/remort/equipment/title-power semantics and persistence schema are unchanged.
+- Balance/signature visibility does not add a durable player milestone, so no new achievement hook ships in this slice.
+
 ## [0.2.10] - 12026-06-28 - Active Cosmetic Title Selection MVP
 
 ### Added

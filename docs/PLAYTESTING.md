@@ -10,6 +10,19 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.11 — Combat Balance and Monster Signature smoke
+
+Use one level 3+ account. Local dev setup or seeded local fights are acceptable for reaching specific monsters.
+
+1. Start ordinary one-enemy fights across representative levels/classes and verify fight cards stay compact, readable and short.
+2. Use Warrior, Bureaucramancer, Rogue, Ranger and Priest class actions; verify mana/cooldown/no-op behavior is unchanged and result text remains Ukrainian.
+3. Encounter or locally force selected signature monsters such as the queue gargoyle, ledger boar, preapproval dragonling, pretzel/oath, chimera, inventory prophet or tide accountant; verify named monster actions show short readable consequences or telegraphs with no raw ids.
+4. In a two-enemy fight, verify stored monster skill responses can render per-enemy signature text and still disambiguate enemy names.
+5. Open the battle journal after signature actions; verify stored skill/telegraph outcomes replay without rerolling or changing damage/effects.
+6. Repeat old action/result/journal callbacks; verify canonical replay and no extra reward, progress, XP, gold or item mutation.
+7. Win and lose representative fights; verify settlement shape, rewards, quest progress, Yeger progress and threat behavior match the pre-0.2.11 flows.
+8. Confirm active cosmetic titles still display cosmetically only and do not affect combat, rewards or monster selection.
+
 ## 0.2.10 — Active Cosmetic Title Selection smoke
 
 Use one fresh account plus one account with at least one earned cosmetic title grant. Local dev grants/recalculation are acceptable for setup.

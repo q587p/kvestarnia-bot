@@ -85,10 +85,10 @@ const rogueShadowCutNumbers = {
   stat: "dexterity",
   manaCost: 0,
   cooldownOwnActions: 2,
-  baseDamage: 4,
-  multiplier: 1.15,
+  baseDamage: 3,
+  multiplier: 0.95,
   accuracyBonus: 0.06,
-  critBonus: 0.08,
+  critBonus: 0.04,
   monsterDamageReduction: 1
 } as const;
 
@@ -97,11 +97,11 @@ const rangerTrickShotNumbers = {
   stat: "dexterity",
   manaCost: 1,
   cooldownOwnActions: 2,
-  baseDamage: 4,
-  multiplier: 1,
-  secondaryMultiplier: 0.45,
+  baseDamage: 3,
+  multiplier: 0.82,
+  secondaryMultiplier: 0.3,
   accuracyBonus: 0.06,
-  critBonus: 0.06,
+  critBonus: 0.04,
   monsterDamageReduction: 0
 } as const;
 
@@ -155,7 +155,7 @@ describe("combat domain engine", () => {
         id: "skill.form-thirteen-b",
         damageKind: "social",
         manaCost: 4,
-        cooldownOwnActions: 3,
+        cooldownOwnActions: 2,
         primaryTargetScope: "all-enemies",
         stat: "intelligence"
       },
@@ -2131,7 +2131,7 @@ describe("combat domain engine", () => {
         tags: ["boss"]
       })
     ).toMatchObject({
-      hpMax: 44,
+      hpMax: 42,
       attack: 11,
       armor: 1,
       resist: 1,
@@ -2181,13 +2181,13 @@ describe("combat domain engine", () => {
     ).toMatchObject({
       hpMax: 22,
       attack: 6,
-      armor: 2,
-      resist: 1,
+      armor: 1,
+      resist: 0,
       dexterity: 8
     });
   });
 
-  it("makes level 5+ monsters scale harder than the early ladder", () => {
+  it("keeps level 5+ monster stat growth bounded after the early ladder", () => {
     const levelFour = deriveMonsterCombatStats({
       id: "monster.level-four-test",
       name: "Тест за вісімдесят",
@@ -2210,10 +2210,12 @@ describe("combat domain engine", () => {
       tags: []
     });
 
-    expect(levelFive.hpMax - levelFour.hpMax).toBeGreaterThan(4);
+    expect(levelFive.hpMax - levelFour.hpMax).toBe(4);
     expect(levelFive.attack - levelFour.attack).toBeGreaterThan(0);
-    expect(levelThirteen.hpMax).toBeGreaterThan(levelFive.hpMax * 2.5);
-    expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack * 2.5);
+    expect(levelThirteen.hpMax).toBeGreaterThan(levelFive.hpMax);
+    expect(levelThirteen.hpMax).toBeLessThan(levelFive.hpMax * 2);
+    expect(levelThirteen.attack).toBeGreaterThan(levelFive.attack);
+    expect(levelThirteen.attack).toBeLessThan(levelFive.attack * 2);
   });
 
   it("separates ongoing monster effect damage from the direct monster response", () => {

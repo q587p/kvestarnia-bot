@@ -43,6 +43,7 @@ For these changes:
 - Create or update a short task doc in `docs/tasks/`.
 - Use one fresh Codex thread per versioned task.
 - Use `$kvestarnia-version-task` for the main implementation.
+- Before starting the next versioned task, fetch and verify `origin/main` against the expected package version and release/task content. Do not treat "branch commit is not an ancestor of `origin/main`" as a blocker by itself, because squash merges produce different commit hashes; compare the tree/content diff and continue from `origin/main` when the required content is present.
 - Update `package.json` version only when the task includes a version bump.
 - If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
 - Update `CHANGELOG.md` and `news.md` only for release-oriented changes.

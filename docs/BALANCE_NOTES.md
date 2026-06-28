@@ -73,6 +73,14 @@ Equipment effects для атак мають заходити через оди�
 
 `0.2.7` Player Abilities keeps class/race power bounded inside existing combat action surfaces. Race abilities are identity buttons with modest damage or small hero-only support fallback; they use their own cooldowns and should not outpace class skills. Refreshed class AoE skills trade lower per-target damage for hitting every living enemy once, while support-ready ally scopes degrade to the acting hero until party runtime exists. Persistent PvE, training doppelganger player turns and turn-based duel turns use the same current class/race action catalog; quick duel remains its instant formula. Ability costs currently stay in `0..5` mana and `1..4` own-action cooldowns; broader balance tuning should use simulator/playtest results rather than hidden per-class exceptions. Race/class abilities do not alter rewards, Yeger progress, loot, monster selection, quick-duel scoring, remort math or economy.
 
+`0.2.11` is a proof balance pass after player abilities, not a final formula lock. Baseline same-level aggressive simulations over levels `3..13` showed the generic monster stat curve overtaking character growth after level 5: the human-ish sweep fell from roughly `84.6%/88.6%/74.3%` wins at levels 3-5 to about `44.2%` at level 6, then down to single digits by levels 9-13. The fix bounded generic monster HP, attack, armor/resist and dexterity growth after the early ladder while preserving tag bonuses, then tightened a few class ability outliers: Warrior, Bureaucramancer, Rogue, Ranger and Priest constants are now pinned in tests, with Priest keeping a small direct-damage component.
+
+Validation commands used:
+- `npm.cmd run simulate:combat -- --levels 3-13 --monster-levels same --runs 100 --classes all --race race.human-ish --policy aggressive --seed 0.2.11-final-humanish-aggressive`
+- Inline `runCombatSimulation` aggregate over all active races, levels `3..13`, same-level monsters, `30` runs per matchup, aggressive policy, seed prefix `0.2.11-final-race-sweep`.
+
+Final aggregate signal: the 100-run human-ish sweep finished at `84.2%` overall wins and `5.7` average turns, with level aggregates from `74.1%` to `93.9%`; the all-active-race compact sweep finished at `80.3%` overall wins and `6.1` average turns. Known hard authored outliers remain intentionally visible for future content-specific tuning, especially `monster.zero-declaration-tax-dragon`, `monster.siege-iron-varenyk`, and softer race/class pairings such as `race.bisyny` or `race.molfar-soul` support/control builds. Rewards, loot, XP/gold, Yeger/Shynok/gifting/remort/equipment/title-power semantics and schema remain unchanged.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 
