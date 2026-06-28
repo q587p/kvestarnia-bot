@@ -166,6 +166,23 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("keeps completed daily Korchma round out of the active list and in the archive", async () => {
+    const activeReplies: Array<{ text: string; options: unknown }> = [];
+    const archiveReplies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+    const services = servicesWith({
+      dailyKorchmaRound: completedDailyKorchmaRoundService(grownCharacter)
+    });
+
+    await sendQuestHub(makeContext(activeReplies), services, "reply");
+    await sendQuestHub(makeContext(archiveReplies), services, "reply", "archive");
+
+    expect(activeReplies[0]?.text).not.toContain("🧾 <i>Корчмарський обхід</i>");
+    expect(archiveReplies[0]?.text).toContain(
+      "🧾 <i>Корчмарський обхід</i> — сьогодні закрито; Корчмар удає, що так і було заплановано."
+    );
+  });
+
   it("moves locked problem quests to the archive for starter levels", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const levelOneCharacter = characterAtLevel(1);
@@ -1057,6 +1074,57 @@ function lockedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorchma
         state: "level-locked",
         character: summary,
         requiredLevel: 3
+      })
+  } as unknown as DailyKorchmaRoundService;
+}
+
+function completedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorchmaRoundService {
+  const completedSceneIds = ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"];
+
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "completed",
+        character: summary,
+        offer: {
+          dayKey: "2026-06-28",
+          dayToken: "20260628",
+          lifeToken: 0,
+          requiredSteps: 2,
+          completedSceneIds,
+          omittedSceneId: "scene.yard.rope",
+          scenes: [
+            {
+              id: completedSceneIds[0],
+              icon: "🍾",
+              title: "Пляшка шепоче інвентаризацію",
+              locationId: "location.korchma.cellar",
+              hook: "У льосі пляшка шепоче номери.",
+              actions: []
+            },
+            {
+              id: completedSceneIds[1],
+              icon: "🗺️",
+              title: "Мапа чхнула не в той бік",
+              locationId: "location.korchma.ranger_corner",
+              hook: "У єгерському кутку мапа має думку.",
+              actions: []
+            },
+            {
+              id: "scene.yard.rope",
+              icon: "🪢",
+              title: "Мотузка завʼязала питання",
+              locationId: "location.korchma.yard",
+              hook: "У задвірку мотузка має думку.",
+              actions: []
+            }
+          ]
+        },
+        reward: {
+          xp: 4,
+          gold: 2,
+          localDate: "2026-06-28"
+        }
       })
   } as unknown as DailyKorchmaRoundService;
 }

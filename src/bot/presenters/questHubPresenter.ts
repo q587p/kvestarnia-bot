@@ -400,7 +400,9 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
     presentActiveFightRow(snapshot.character, snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
     presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup),
-    presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
+    snapshot.dailyKorchmaRound?.state === "completed"
+      ? null
+      : presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
   ].filter(isPresent);
 
   if (rows.length > 0) {
