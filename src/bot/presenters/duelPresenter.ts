@@ -415,7 +415,7 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 ${presentCharacterDisplayName(winner)} переміг у ${result.challenge.mode === "turn-based" ? "корчемній" : "миттєвій корчемній"} дуелі`
+    ? `🏁 ${presentDuelRepeatedName(winner)} переміг у ${result.challenge.mode === "turn-based" ? "корчемній" : "миттєвій корчемній"} дуелі`
     : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
@@ -455,7 +455,7 @@ function presentResolvedDuel(
         ? result.target
         : result.challenger;
   const headline = winner
-    ? `🏁 ${presentCharacterDisplayName(winner)} перемагає у ${mode === "turn-based" ? "дуелі" : "миттєвій дуелі"}`
+    ? `🏁 ${presentDuelRepeatedName(winner)} перемагає у ${mode === "turn-based" ? "дуелі" : "миттєвій дуелі"}`
     : "🏁 <b>Корчемна нічия</b>";
   const line = winner && loser
     ? presentDuelFlavor(result.result, winner, loser)
@@ -736,7 +736,11 @@ function presentDuelDrawFlavor(
 }
 
 function presentDuelFlavorName(character: CharacterSummary): string {
-  return presentCharacterDisplayName(character);
+  return presentDuelRepeatedName(character);
+}
+
+function presentDuelRepeatedName(character: CharacterSummary): string {
+  return `<b>${escapeHtml(character.name)}</b>`;
 }
 
 function formatRemaining(expiresAt: Date, now: Date): string {

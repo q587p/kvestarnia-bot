@@ -162,7 +162,7 @@ describe("duel presenter", () => {
     expect(text).toContain("<b>Ліва Рука</b> отримує перемогу");
   });
 
-  it("shows frozen active cosmetic titles on duel result and share cards", () => {
+  it("shows frozen active cosmetic titles once in duel result and share headers", () => {
     const view = {
       state: "resolved",
       challenge: {
@@ -195,7 +195,13 @@ describe("duel presenter", () => {
 
     expect(text).toContain("<b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
     expect(text).toContain("<b>Нестор</b> (<i>«Табличка тримається»</i>)");
+    expect(text).toContain("🏁 <b>Дара &lt;&amp;&gt;</b> перемагає у миттєвій дуелі");
     expect(share).toContain("<b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
+    expect(share).toContain("🏁 <b>Дара &lt;&amp;&gt;</b> переміг у миттєвій корчемній дуелі");
+    expect(countOccurrences(text, "Перший &lt;пергамент&gt; не зʼїв")).toBe(1);
+    expect(countOccurrences(text, "Табличка тримається")).toBe(1);
+    expect(countOccurrences(share, "Перший &lt;пергамент&gt; не зʼїв")).toBe(1);
+    expect(countOccurrences(share, "Табличка тримається")).toBe(1);
   });
 
   it("shows stored XP rewards for turn-based results without claiming no XP", () => {
@@ -240,6 +246,10 @@ describe("duel presenter", () => {
     expect(share).not.toContain("Без XP");
   });
 });
+
+function countOccurrences(text: string, needle: string): number {
+  return text.split(needle).length - 1;
+}
 
 function makeTurnBasedDuelView(stateOverrides: Record<string, unknown>) {
   return {
