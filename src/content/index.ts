@@ -1,5 +1,21 @@
 export { classes } from "./classes";
 export {
+  HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+  achievementCategories,
+  achievementStatuses,
+  achievementTriggerTypes,
+  achievements,
+  getAchievementDefinition,
+  getEnabledAchievements,
+  validateAchievementDefinitions
+} from "./achievements";
+export type {
+  AchievementCategory,
+  AchievementDefinition,
+  AchievementStatus,
+  AchievementTriggerType
+} from "./achievements";
+export {
   classIdToKey,
   classKeyToId,
   findClass,

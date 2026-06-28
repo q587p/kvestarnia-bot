@@ -96,7 +96,7 @@ Current repeatable slice:
 Status:
 - Closed by `0.1.25 — Phase 2 MVP Closeout`.
 - `0.1.x` should receive only emergency hotfixes after this closeout.
-- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, multi-enemy foundation shipped in `0.2.1`, architecture stabilization shipped in `0.2.2`, ordinary threat escalation shipped in `0.2.3`, item tags/one-use bandages shipped in `0.2.4`, Bard Performance shipped in `0.2.5`, and Passage Search shipped in `0.2.6`.
+- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, multi-enemy foundation shipped in `0.2.1`, architecture stabilization shipped in `0.2.2`, ordinary threat escalation shipped in `0.2.3`, item tags/one-use bandages shipped in `0.2.4`, Bard Performance shipped in `0.2.5`, Passage Search shipped in `0.2.6`, Player Abilities shipped in `0.2.7`, and rewardless achievements/cosmetic title records shipped in `0.2.8`.
 
 Current order:
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
@@ -130,8 +130,8 @@ Canonical docs:
 Closeout cutline:
 - `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
 - `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
-- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice; `0.2.5` shipped the first no-XP Bard Performance social technique; `0.2.6` shipped the first no-XP Passage Search side action for `Спуск до Низу` and passage previews. Broader trading, equipment rebalance, profession engines, in-combat item catalogs and party/raid runtime stay in later `0.2.x+` slices.
-- The next implementation prompt should be chosen from the current `0.2.x` task docs, with race abilities, achievements/cosmetic titles and selected signature techniques split into separate evidence-gated follow-ups.
+- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice; `0.2.5` shipped the first no-XP Bard Performance social technique; `0.2.6` shipped the first no-XP Passage Search side action for `Спуск до Низу` and passage previews; `0.2.7` shipped player class/race combat abilities; `0.2.8` shipped rewardless achievement browsing and cosmetic title grant records. Broader trading, equipment rebalance, profession engines, in-combat item catalogs, active title abilities and party/raid runtime stay in later `0.2.x+` slices.
+- The next implementation prompt should be chosen from the current `0.2.x` task docs, with active title selection/abilities and selected signature techniques split into separate evidence-gated follow-ups.
 
 Deliverables:
 - Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
@@ -144,6 +144,8 @@ Deliverables:
 - `0.2.4` Item Tags and One-use Bandages: shipped a narrow item tag contract, one out-of-combat one-use bandage with replay-safe confirmation, Єгер bandage supply and a small authored monster-loot entry.
 - `0.2.5` Bard Performance MVP: shipped a level 3+ Bard performance solo in Shynok or in any other current location with another active same-location character, frozen CHA/LUCK/level check, 93-minute per-location cooldown, 13-minute audience window, Shynok-only capped house gold, voluntary same-location applause/tips and no XP/items/buffs/profession engine.
 - `0.2.6` Passage Search MVP: shipped `🔎 Пошукати` on `Спуск до Низу` and frozen passage previews, with a short timer, per-node cooldown, replay-safe ledger, tiny no-XP finds and a danger branch that starts the stored passage monster with the monster acting first.
+- `0.2.7` Player Abilities MVP: shipped class/race ability catalogs, race action buttons, group-ready solo fallback and hidden fumble replay for persistent PvE, training and turn-based duels.
+- `0.2.8` Achievements and Cosmetic Title Records: shipped rewardless achievement browsing from `/hero`, expanded seed unlock hooks, all/earned/locked filters, manual recalculation and persisted cosmetic title grant provenance with no power effects.
 - Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
@@ -232,7 +234,7 @@ Very-later platform note:
 - Повноцінний web-клієнт і боти для інших месенджерів на кшталт WhatsApp/Viber лишаються дуже далеким напрямом після стабілізації core loop, соціяльних систем і adapter boundaries. Це не частина `0.1.x` і не public promise.
 
 ## Backlog фіч
-- Achievements Phase 1: 54 seed definitions, earned/locked/hidden states, paginated `🏅 Ачівки` surface, grouped unlock notifications, no gameplay bonuses. Canonical doc: `docs/ACHIEVEMENTS_PHASE1.md`.
+- Achievement follow-ups: add durable ledgers for bestiary/news/memorial/nearby/location-history/Yeger-trail and lifetime class/race/title ability-use records before adding long-term counters such as 42-use achievements; add internal aggregate achievement statistics so admins can see completion counts/percentages like level 10 reached by 5% of characters and level 23 by 0%, without exposing personal data or adding rewards. Shipped catalog: `docs/ACHIEVEMENTS_CATALOG.md`; historical planning note: `docs/ACHIEVEMENTS_PHASE1.md`.
 - Collections: «Бестіарій», «Музей Манаток».
 - Inspiration-backed content packs із `docs/INSPIRATION_CONTENT_BACKLOG.md`: перші 10–15 монстрів, 20–30 манаток і 5–8 quest/adventure seeds у малих PR з тестами.
 - Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.

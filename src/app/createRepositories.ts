@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { PrismaAchievementRepository } from "../db/repositories/prismaAchievementRepository";
 import { PrismaBardPerformanceRepository } from "../db/repositories/prismaBardPerformanceRepository";
 import { PrismaBarrelRaidNotificationRepository } from "../db/repositories/prismaBarrelRaidNotificationRepository";
 import { PrismaCellarGrownupQuestRepository } from "../db/repositories/prismaCellarGrownupQuestRepository";
@@ -28,6 +29,7 @@ import { PrismaUserRepository } from "../db/repositories/prismaUserRepository";
 
 export function createRepositories(prisma: PrismaClient) {
   return {
+    achievements: new PrismaAchievementRepository(prisma),
     users: new PrismaUserRepository(prisma),
     bardPerformances: new PrismaBardPerformanceRepository(prisma),
     barrelRaidNotifications: new PrismaBarrelRaidNotificationRepository(prisma),

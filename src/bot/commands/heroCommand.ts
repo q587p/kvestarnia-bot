@@ -2,8 +2,8 @@ import { InlineKeyboard, type Bot, type Context, type Keyboard } from "grammy";
 import type { HeroService } from "../../services/heroService";
 import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallbackData";
 import { telegramUserIdFromContext } from "../context";
+import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
-import { RESTORE_TO_FULL_BUTTON_LABEL } from "../keyboards/inventoryKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
 import {
   prefixResourceRecoveryNotice,
@@ -58,10 +58,14 @@ export async function sendHero(
       await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
     }
 
-    const restoreKeyboard = result.restoreToFullItemId
-      ? buildHeroRestoreToFullKeyboard(result.restoreToFullItemId)
-      : undefined;
+    const heroKeyboard = buildHeroAchievementsKeyboard({
+      restoreCallbackData: result.restoreToFullItemId
+        ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
+        : null
+    });
 
+    // Telegram accepts one reply_markup per message; this card uses inline hero actions,
+    // while the persistent main menu stays owned by the main menu surfaces.
     await sendText(
       ctx,
       mode,
@@ -69,16 +73,12 @@ export async function sendHero(
         ? prefixResourceRecoveryNotice(heroText, result.recoveryNotice)
         : heroText,
       true,
-      restoreKeyboard ?? options.mainMenuKeyboard
+      heroKeyboard ?? options.mainMenuKeyboard
     );
     return;
   }
 
   await sendText(ctx, mode, presentHeroMissing(), false);
-}
-
-function buildHeroRestoreToFullKeyboard(itemId: string): InlineKeyboard {
-  return new InlineKeyboard().text(RESTORE_TO_FULL_BUTTON_LABEL, makeItemUseRestoreToFullCallbackData(itemId));
 }
 
 async function sendText(

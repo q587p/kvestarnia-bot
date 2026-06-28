@@ -56,6 +56,9 @@ model Character {
   bardPerformanceReactions BardPerformanceReaction[]
   mantokChestRuns MantokChestRun[]
   levelBarterExchanges LevelBarterExchange[]
+  achievements CharacterAchievement[]
+  achievementProgress CharacterAchievementProgress[]
+  cosmeticTitleGrants CharacterCosmeticTitleGrant[]
   remortDrafts CharacterRemortDraft[]
   remorts CharacterRemort[]
   duelChallengesSent DuelChallenge[] @relation("DuelChallenger")
@@ -263,6 +266,59 @@ model CharacterEquipment {
   @@unique([characterId, slot])
   @@index([itemId])
   @@map("character_equipment")
+}
+
+model CharacterAchievement {
+  id             String    @id @default(uuid())
+  characterId    String    @map("character_id")
+  character      Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  achievementId  String    @map("achievement_id")
+  sourceType     String    @map("source_type")
+  sourceId       String?   @map("source_id")
+  sourceJson     Json?     @map("source_json")
+  unlockedAt     DateTime  @map("unlocked_at")
+  notifiedAt     DateTime? @map("notified_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  titleGrants CharacterCosmeticTitleGrant[]
+
+  @@unique([characterId, achievementId])
+  @@index([characterId, unlockedAt])
+  @@index([achievementId])
+  @@map("character_achievements")
+}
+
+model CharacterAchievementProgress {
+  id             String    @id @default(uuid())
+  characterId    String    @map("character_id")
+  character      Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  achievementId  String    @map("achievement_id")
+  current        Int       @default(0)
+  target         Int?
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([characterId, achievementId])
+  @@index([characterId, updatedAt])
+  @@map("character_achievement_progress")
+}
+
+model CharacterCosmeticTitleGrant {
+  id             String    @id @default(uuid())
+  characterId    String    @map("character_id")
+  character      Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  titleGrantId   String    @map("title_grant_id")
+  achievementId  String    @map("achievement_id")
+  achievement    CharacterAchievement @relation(fields: [characterId, achievementId], references: [characterId, achievementId], onDelete: Cascade)
+  sourceType     String    @map("source_type")
+  sourceId       String?   @map("source_id")
+  grantedAt      DateTime  @map("granted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([characterId, titleGrantId])
+  @@index([characterId, grantedAt])
+  @@index([achievementId])
+  @@map("character_cosmetic_title_grants")
 }
 
 model KorchmaRoundPurchase {

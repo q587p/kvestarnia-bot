@@ -31,6 +31,8 @@ import {
 } from "./itemGrant";
 import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "./presenceService";
 import { toIsoDate } from "../shared/time";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
+import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export {
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
@@ -189,6 +191,7 @@ export type YegerQuestTurnInResult =
       progress: YegerQuestProgress;
       reward: YegerQuestReward;
       levelChange: RewardLevelChange | null;
+      achievementUnlocks?: AchievementUnlock[];
     };
 
 export interface YegerQuestReward {
@@ -220,6 +223,7 @@ export type YegerBandageSupplyResult =
       character: CharacterSummary;
       spentGold: number;
       itemGrants: RewardItemGrant[];
+      achievementUnlocks?: AchievementUnlock[];
     }
   | { state: "daily-limit"; character: CharacterSummary; purchasedToday: number; dailyLimit: number }
   | { state: "cancelled"; character: CharacterSummary }
@@ -248,7 +252,7 @@ export interface YegerBandageAffordablePreview {
 export type YegerRangerBandageResult =
   | { state: "no-character" }
   | { state: "class-locked"; character: CharacterSummary }
-  | { state: "claimed"; character: CharacterSummary; itemGrants: RewardItemGrant[]; nextAvailableAt: Date; now: Date }
+  | { state: "claimed"; character: CharacterSummary; itemGrants: RewardItemGrant[]; nextAvailableAt: Date; now: Date; achievementUnlocks?: AchievementUnlock[] }
   | { state: "on-cooldown"; character: CharacterSummary; nextAvailableAt: Date; now: Date };
 
 export class YegerQuestService {
@@ -259,7 +263,8 @@ export class YegerQuestService {
     private readonly fight: FightService,
     private readonly cooldowns: CooldownRepository,
     private readonly now: () => Date = () => new Date(),
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly achievements?: AchievementService
   ) {}
 
   async getForTelegramUser(telegramUserId: bigint): Promise<YegerQuestLookupResult> {
@@ -539,13 +544,24 @@ export class YegerQuestService {
       ...(claim.state === "created" ? { itemGrants: claim.itemGrants } : {}),
       replayUnavailable: claim.state === "existing"
     };
+    const achievementUnlocks = claim.state === "created"
+      ? await trackRewardAchievementsSafely(this.achievements, {
+          characterId: claim.character.id,
+          sourceId: claim.action.id,
+          occurredAt: claim.action.createdAt,
+          levelChange: claim.levelChange,
+          itemGrants: claim.itemGrants,
+          events: ["yeger.trial.completed"]
+        })
+      : [];
 
     return {
       state: claim.state === "created" ? "completed" : "already-completed",
       character: summarizeCharacter(claim.character),
       progress: current.progress,
       reward: buildYegerQuestReward(stage, rewardInput),
-      levelChange: claim.levelChange
+      levelChange: claim.levelChange,
+      achievementUnlocks
     };
   }
 
@@ -715,12 +731,22 @@ export class YegerQuestService {
       };
     }
 
-    return mapPurchaseDecision(
+    const result = mapPurchaseDecision(
       summarizeCharacter(claim.character),
       claim.action,
       claim.state === "created" ? "bought" : "replayed",
       claim.state === "created" ? claim.itemGrants : undefined
     );
+    const achievementUnlocks = result.state === "bought" && claim.state === "created"
+      ? await trackRewardAchievementsSafely(this.achievements, {
+          characterId: claim.character.id,
+          sourceId: claim.action.id,
+          occurredAt: claim.action.createdAt,
+          itemGrants: claim.itemGrants
+        })
+      : [];
+
+    return result.state === "bought" ? { ...result, achievementUnlocks } : result;
   }
 
   async cancelBandagePurchaseForTelegramUser(
@@ -832,12 +858,21 @@ export class YegerQuestService {
       throw new Error("Free Yeger bandage unexpectedly required gold.");
     }
 
+    const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
+      characterId: claim.character.id,
+      sourceId: claim.cooldown.id,
+      occurredAt: claim.cooldown.updatedAt,
+      itemGrants: claim.itemGrants,
+      events: ["yeger.free-bandage.claimed"]
+    });
+
     return {
       state: "claimed",
       character: summarizeCharacter(claim.character),
       itemGrants: enrichRewardItemGrants(claim.itemGrants),
       nextAvailableAt: claim.cooldown.availableAt,
-      now
+      now,
+      achievementUnlocks
     };
   }
 

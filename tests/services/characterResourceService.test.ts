@@ -58,7 +58,9 @@ describe("summarizeAndSyncCharacterResources", () => {
     expect(repository.resourceUpdates).toHaveLength(1);
     expect(repository.resourceUpdates[0]).toMatchObject({
       hpCurrent: 52,
+      hpMax: 52,
       manaCurrent: 26,
+      manaMax: 26,
       expected: {
         hpCurrent: 46,
         manaCurrent: 21,
@@ -154,6 +156,61 @@ describe("summarizeAndSyncCharacterResources", () => {
     expect(repository.refetchCount).toBe(1);
     expect(result.character.hpCurrent).toBe(3);
     expect(result.character.manaCurrent).toBe(1);
+  });
+
+  it("reloads latest state with effective maxima when a passive sync loses the update race", async () => {
+    const now = new Date("2026-06-15T12:00:00.000Z");
+    const staleMarker = new Date("2026-06-15T11:50:00.000Z");
+    const latestMarker = new Date("2026-06-15T11:55:00.000Z");
+    const staleCharacter = createCharacter({
+      hpCurrent: 5,
+      hpMax: 20,
+      manaCurrent: 5,
+      manaMax: 10,
+      hpRegenAt: staleMarker,
+      manaRegenAt: staleMarker
+    });
+    const latestCharacter = createCharacter({
+      hpCurrent: 25,
+      hpMax: 20,
+      manaCurrent: 13,
+      manaMax: 10,
+      hpRegenAt: latestMarker,
+      manaRegenAt: latestMarker
+    });
+    const repository = new FakeCharacterRepository(latestCharacter, {
+      rejectResourceUpdates: true
+    });
+
+    const result = await summarizeAndSyncCharacterResources({
+      characters: repository,
+      telegramUserId: 42n,
+      character: staleCharacter,
+      now,
+      reloadLatest: () =>
+        Promise.resolve({
+          character: latestCharacter,
+          equippedItems: [
+            {
+              id: "item.test-maxima-ring",
+              name: "Тестовий перстень максимумів",
+              description: "Тримає старий регрес у клітці.",
+              rarity: "common",
+              effect: {
+                hpMax: 6,
+                manaMax: 4
+              }
+            }
+          ]
+        })
+    });
+
+    expect(repository.resourceUpdates).toHaveLength(1);
+    expect(repository.refetchCount).toBe(0);
+    expect(result.character.hpMax).toBeGreaterThan(latestCharacter.hpMax);
+    expect(result.character.manaMax).toBeGreaterThan(latestCharacter.manaMax);
+    expect(result.character.hpCurrent).toBe(result.character.hpMax);
+    expect(result.character.manaCurrent).toBe(result.character.manaMax);
   });
 
   it("persists missing regen markers for partial resources", async () => {

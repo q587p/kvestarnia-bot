@@ -20,6 +20,8 @@ import type {
   MantokChestSnapshot
 } from "../db/repositories/mantokChestRepository";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
+import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export type MantokChestOverviewResult =
   | { state: "no-character" }
@@ -58,7 +60,7 @@ export type MantokChestRecycleResult =
   | { state: "expired"; run: MantokChestRunRecord }
   | { state: "stale-inputs"; run: MantokChestRunRecord }
   | { state: "no-output-candidate"; run: MantokChestRunRecord }
-  | { state: "recycled"; run: MantokChestRunRecord; outputItem: MantokChestPresentedItem }
+  | { state: "recycled"; run: MantokChestRunRecord; outputItem: MantokChestPresentedItem; achievementUnlocks?: AchievementUnlock[] }
   | { state: "replayed"; run: MantokChestRunRecord; outputItem: MantokChestPresentedItem | null };
 
 export type MantokChestCancelResult =
@@ -87,7 +89,8 @@ export class MantokChestService {
   constructor(
     private readonly repository: MantokChestRepository,
     private readonly clock: () => Date = () => new Date(),
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly achievements?: AchievementService
   ) {}
 
   async getOverviewForTelegramUser(telegramUserId: bigint): Promise<MantokChestOverviewResult> {
@@ -264,9 +267,19 @@ export class MantokChestService {
     });
 
     if (result.state === "recycled") {
+      const outputItems = presentRunItems(result.run.outputItems);
+      const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
+        characterId: result.run.characterId,
+        sourceId: result.run.id,
+        occurredAt: result.run.completedAt ?? result.run.updatedAt,
+        itemGrants: result.run.outputItems,
+        events: ["mantok.chest.completed"]
+      });
+
       return {
         ...result,
-        outputItem: presentRunItems(result.run.outputItems)[0] ?? unknownOutputItem()
+        outputItem: outputItems[0] ?? unknownOutputItem(),
+        achievementUnlocks
       };
     }
 

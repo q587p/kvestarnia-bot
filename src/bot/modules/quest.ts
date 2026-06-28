@@ -67,6 +67,7 @@ buildYegerKeyboard,
 buildYegerTurnInKeyboard
 } from "../keyboards/yegerKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
 presentAdventureLegacyApproachStale,
 presentAdventureNoCharacter,
@@ -352,6 +353,12 @@ async function handleQuestCallback(
           : {})
       })
     });
+    const achievementText = result.state === "turned-in"
+      ? presentAchievementUnlockNotification(result.result.achievementUnlocks)
+      : null;
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -471,6 +478,10 @@ async function handleAdventureCallback(
 
     if (result.state === "completed") {
       await sendLevelUpCelebration(ctx, result);
+      const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks ?? []);
+      if (achievementText) {
+        await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      }
     }
     return;
   }
@@ -501,6 +512,10 @@ async function handleAdventureCallback(
 
     if (result.state === "completed") {
       await sendLevelUpCelebration(ctx, result);
+      const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks ?? []);
+      if (achievementText) {
+        await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      }
     }
     return;
   }
@@ -679,6 +694,10 @@ async function handleAdventureCallback(
       reply_markup: buildAdventureResultKeyboard(result)
     });
     await sendLevelUpCelebration(ctx, result);
+    const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks ?? []);
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
 
     if (complicationFight) {
       if (
@@ -879,6 +898,12 @@ async function handleYegerCallback(
           ? buildYegerHelpKeyboard()
           : buildYegerCornerKeyboard(quest)
     });
+    const achievementText = presentAchievementUnlockNotification(
+      result.state === "bought" ? result.achievementUnlocks ?? [] : []
+    );
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
     return;
   }
 
@@ -896,6 +921,12 @@ async function handleYegerCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
     });
+    const achievementText = presentAchievementUnlockNotification(
+      result.state === "claimed" ? result.achievementUnlocks ?? [] : []
+    );
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
     return;
   }
 
@@ -1071,5 +1102,11 @@ async function handleYegerCallback(
       character: result.character,
       levelChange: result.levelChange
     });
+  }
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "completed" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
   }
 }

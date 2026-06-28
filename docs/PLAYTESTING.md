@@ -10,6 +10,22 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.8 — Achievements and Cosmetic Title Records smoke
+
+Use one fresh account plus one existing level 3+ account. Local dev grants are acceptable for level/equipment setup.
+
+1. Open `/hero` and press `🏅 Ачівки`; verify all, earned, locked and hidden rows render compactly with no hidden criteria spoiler and pagination appears when needed.
+2. Press `🔎 Перевірити` on an existing account; verify provable old race/class, level/combat/problem/inventory/equipment/side-action rows appear once with historical dates where ledgers exist, then repeat the press and verify no duplicate unlocks.
+3. Return from the achievements page to the hero card; repeat old page callbacks and verify views do not mutate rows or create duplicate notifications.
+4. Create a fresh character; verify the first achievement notification appears once, includes the current race/class identity records, and the achievement page shows title-grant record markers.
+5. Trigger level 3 and level 5 through existing XP/dev-grant paths; verify progress moves forward and grouped notifications appear when several unlocks happen together.
+6. Win a starter or persistent monster fight; repeat terminal/result callbacks and verify `achievement.combat.first-win` does not duplicate.
+7. Lose or flee a persistent fight if convenient; verify the first loss/flee records appear without XP/gold/item/stat changes from the achievement itself.
+8. Turn in a Korchmar problem; verify the problem achievement and any item/level unlocks are grouped after the canonical turn-in card.
+9. Receive a reward item, collect or grant `Бинт відповідальної паніки`, and equip a manatka; verify item/bandage/equipment achievements unlock once and old equip callbacks do not duplicate title grants.
+10. Remort locally; verify achievement and cosmetic title grant rows remain visible afterward.
+11. Confirm no UI path offers a reward claim, active title selection, title ability, title combat button, XP/gold/item/stat/combat buff or paid advantage.
+
 ## 0.2.7 — Player Abilities smoke
 
 Use one level 3+ account with local dev commands enabled where helpful. Use multiple races/classes across fresh or edited local test characters.

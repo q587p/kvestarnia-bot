@@ -6,7 +6,7 @@ const root = process.cwd();
 const moduleDir = "src/bot/modules";
 const featureModuleOwners = {
   "core.ts": ["/^v1:menu:/", "/^v1:news:/"],
-  "character.ts": ["/^v1:onb:/", "/^v1:bst:/", "/^v1:devreset:/", "/^v1:restart:/", "/^v1:rm:/"],
+  "character.ts": ["/^v1:onb:/", "/^v1:bst:/", "/^v1:ach:/", "/^v1:devreset:/", "/^v1:restart:/", "/^v1:rm:/"],
   "inventory.ts": ["/^v1:equip:/", "/^v1:item:/", "/^v1:use:/", "/^v1:chest:/", "/^v1:lvlx:/"],
   "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:mem:/", "/^v[12]:cellar:/"],
   "quest.ts": ["/^v[12]:adv:/", "/^v1:quest:/", "/^v1:hunt:/", "/^v1:ygr:/"],

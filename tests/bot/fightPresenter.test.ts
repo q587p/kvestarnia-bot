@@ -1484,12 +1484,40 @@ describe("fight presenter", () => {
       questProgress: questProgress(4),
       fightReward: null
     });
+    const renamedPlaceholder = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false,
+          monsterAction: "skill",
+          monsterSkillId: "monster.missing-line"
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
 
     expect(damaging).toContain("Монстр застосував");
     expect(damaging).toContain("завдав 5 шкоди");
     expect(damaging).toContain("Накладений ефект спрацював і завдав 2 шкоди.");
     expect(damaging).toContain("захист героя просів на 1");
     expect(noDamage).toContain("без прямої шкоди цього ходу");
+    expect(renamedPlaceholder).toContain("Рядок мінус влучність");
+    expect(renamedPlaceholder).not.toContain("Немає в описі");
   });
 
   it("renders stored monster bark ids without rerolling copy", () => {

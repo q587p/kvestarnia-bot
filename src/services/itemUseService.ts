@@ -12,6 +12,7 @@ import type {
   ItemUseRepository,
   ItemUseRestoreToFullRepositoryResult
 } from "../db/repositories/itemUseRepository";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 
 export const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
 const ITEM_USE_TTL_MINUTES = 23;
@@ -19,11 +20,15 @@ const ITEM_USE_TTL_MINUTES = 23;
 export type ItemUseAvailability =
   | { state: "usable"; item: ItemContent }
   | { state: "not-usable" };
+export type ItemUseConfirmResult = ItemUseConfirmRepositoryResult & {
+  achievementUnlocks?: AchievementUnlock[];
+};
 
 export class ItemUseService {
   constructor(
     private readonly repository: ItemUseRepository,
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly achievements?: AchievementService
   ) {}
 
   getAvailability(item: ItemContent): ItemUseAvailability {
@@ -58,12 +63,30 @@ export class ItemUseService {
   async confirmForTelegramUser(
     telegramUserId: bigint,
     token: string
-  ): Promise<ItemUseConfirmRepositoryResult> {
-    return this.repository.confirmForTelegramUser(telegramUserId, {
+  ): Promise<ItemUseConfirmResult> {
+    const result = await this.repository.confirmForTelegramUser(telegramUserId, {
       token,
       itemContents: items,
       now: this.now()
     });
+
+    if (result.state !== "used") {
+      return result;
+    }
+
+    const achievementUnlocks =
+      (await this.achievements?.trackEventSafely({
+        type: "item.used",
+        characterId: result.order.characterId,
+        itemId: result.order.itemId,
+        occurredAt: result.order.completedAt ?? this.now(),
+        sourceId: result.order.id
+      })) ?? [];
+
+    return {
+      ...result,
+      achievementUnlocks
+    };
   }
 
   async cancelForTelegramUser(

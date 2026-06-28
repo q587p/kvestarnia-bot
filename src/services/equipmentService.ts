@@ -19,6 +19,7 @@ import type {
   InventoryRepository
 } from "../db/repositories/inventoryRepository";
 import { summarizeCharacter } from "../domain/characters/characterSummary";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 
 export type { EquipmentSlot };
 export { equipmentSlots };
@@ -57,7 +58,13 @@ export type EquipItemResult =
       item: EquipmentItemSummary;
     }
   | { state: "unsupported-slot" }
-  | { state: "equipped"; slot: EquipmentSlot; item: EquipmentItemSummary; slots: EquipmentSlotSummary[] };
+  | {
+      state: "equipped";
+      slot: EquipmentSlot;
+      item: EquipmentItemSummary;
+      slots: EquipmentSlotSummary[];
+      achievementUnlocks: AchievementUnlock[];
+    };
 
 export type UnequipSlotResult =
   | { state: "no-character" }
@@ -78,7 +85,8 @@ export class EquipmentService {
   constructor(
     private readonly equipment: EquipmentRepository,
     private readonly inventory: InventoryRepository,
-    private readonly characters?: CharacterRepository
+    private readonly characters?: CharacterRepository,
+    private readonly achievements?: AchievementService
   ) {}
 
   async getEquipmentForTelegramUser(telegramUserId: bigint): Promise<EquipmentResult> {
@@ -230,6 +238,14 @@ export class EquipmentService {
     }
 
     const equipped = await this.equipment.equipForCharacter(snapshot.characterId, slot, itemId);
+    const achievementUnlocks =
+      (await this.achievements?.trackEventSafely({
+        type: "equipment.item_equipped",
+        characterId: snapshot.characterId,
+        itemId,
+        occurredAt: new Date(),
+        sourceId: equipped.id
+      })) ?? [];
     const nextRows = [
       ...snapshot.equipment.filter((row) => row.slot !== slot),
       equipped
@@ -242,7 +258,8 @@ export class EquipmentService {
         itemId,
         content
       },
-      slots: buildSlots(nextRows)
+      slots: buildSlots(nextRows),
+      achievementUnlocks
     };
   }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type {
   DevGrantCharacterResult,
@@ -10,6 +10,7 @@ import type {
 } from "../../src/db/repositories/devGrantRepository";
 import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository";
 import { items } from "../../src/content";
+import type { AchievementService } from "../../src/services/achievementService";
 import { DevGrantService } from "../../src/services/devGrantService";
 import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
@@ -70,6 +71,57 @@ describe("DevGrantService", () => {
         gold: 11
       }
     });
+  });
+
+  it("routes level dev grants through achievement tracking", async () => {
+    const repository = new FakeDevGrantRepository();
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.level.3",
+        title: "Перший поверх амбіцій",
+        cosmeticTitleGrantId: null,
+        unlockedAt: new Date("2026-06-17T10:00:00.000Z")
+      }
+    ]);
+    const recalculateForCharacter = vi
+      .fn<AchievementService["recalculateForCharacter"]>()
+      .mockResolvedValue({ unlocks: [] });
+    const achievements = {
+      trackEventSafely,
+      recalculateForCharacter
+    } as unknown as AchievementService;
+    const service = new DevGrantService(
+      repository,
+      "development",
+      true,
+      new FakeRandomSource([0]),
+      achievements
+    );
+
+    const result = await service.addLevel(42n, 2);
+
+    expect(result).toMatchObject({
+      state: "updated",
+      kind: "level",
+      achievementUnlocks: [
+        {
+          id: "achievement.level.3"
+        }
+      ]
+    });
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = trackEventSafely.mock.calls[0] ?? [];
+    expect(event).toMatchObject({
+      characterId: "character-42",
+      type: "level.reached",
+      level: 3,
+      sourceId: "dev.add_level:character-42:1->3"
+    });
+    expect(event?.occurredAt).toBeInstanceOf(Date);
+    expect(recalculateForCharacter).toHaveBeenCalledTimes(1);
+    const [characterId, occurredAt] = recalculateForCharacter.mock.calls[0] ?? [];
+    expect(characterId).toBe("character-42");
+    expect(occurredAt).toBeInstanceOf(Date);
   });
 
   it("heals the current character to full or by a capped amount", async () => {

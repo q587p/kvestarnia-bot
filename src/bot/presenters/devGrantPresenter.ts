@@ -1,4 +1,5 @@
 import type { DevGrantItemsResult, DevGrantResult } from "../../services/devGrantService";
+import { presentAchievementUnlockNotification } from "./achievementPresenter";
 
 export function presentDevGrantDisabled(): string {
   return "Ця команда доступна лише в локальній майстерні.";
@@ -30,20 +31,20 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
   }
 
   if (result.kind === "level") {
-    return [
+    return appendAchievementUnlocks([
       `🧪 Dev: додано ${result.amount} ${formatUnit(result.amount, ["рівень", "рівні", "рівнів"])}.`,
       "",
       `Рівень: ${result.levelChange?.oldLevel ?? result.character.level} → ${result.character.level}`
-    ].join("\n");
+    ], result);
   }
 
   if (result.kind === "xp") {
-    return [
+    return appendAchievementUnlocks([
       `🧪 Dev: додано ${result.amount} XP.`,
       "",
       `XP: ${result.character.xp}`,
       `Рівень: ${result.character.level}`
-    ].join("\n");
+    ], result);
   }
 
   if (result.kind === "gold") {
@@ -93,15 +94,26 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       grant.quantity === 1 ? `• ${grant.name}` : `• ${grant.name} ×${grant.quantity}`
     );
 
-    return [
+    return appendAchievementUnlocks([
       `🧪 Dev: додано ${result.amount} ${formatUnit(result.amount, ["манатку", "манатки", "манаток"])}.`,
       "",
       "У торбі зʼявилось:",
       ...itemLines
-    ].join("\n");
+    ], result);
   }
 
   return presentDevGrantNoCharacter();
+}
+
+function appendAchievementUnlocks(
+  lines: string[],
+  result: DevGrantResult | DevGrantItemsResult
+): string {
+  const notification = "achievementUnlocks" in result
+    ? presentAchievementUnlockNotification(result.achievementUnlocks ?? [])
+    : null;
+
+  return notification ? [...lines, "", notification].join("\n") : lines.join("\n");
 }
 
 function formatUnit(amount: number, forms: [string, string, string]): string {

@@ -1,6 +1,7 @@
 import type { BotServices } from "../bot/botServices";
 import type { AppConfig } from "../config/env";
 import { readAppVersion } from "../shared/appVersion";
+import { AchievementService } from "../services/achievementService";
 import { AdventureService } from "../services/adventureService";
 import { BardPerformanceService } from "../services/bardPerformanceService";
 import { CellarErrandService } from "../services/cellarErrandService";
@@ -40,6 +41,7 @@ export function createServices(
   repositories: ApplicationRepositories,
   config: AppConfig
 ): ApplicationServices {
+  const achievements = new AchievementService(repositories.achievements);
   const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
     repositories.combatBalanceAnalytics,
     { enabled: config.combatBalanceAnalyticsEnabled }
@@ -51,17 +53,20 @@ export function createServices(
     equipment: repositories.equipment,
     combatAnalytics: combatBalanceAnalytics,
     pendingPassageEncounters: repositories.pendingPassageEncounters,
-    shynok: repositories.shynok
+    shynok: repositories.shynok,
+    achievements
   });
   const presence = new PresenceService(repositories.presence);
 
   return {
+    achievements,
     adventure: new AdventureService(
       repositories.characters,
       repositories.dailyActions,
       undefined,
       repositories.soloCombatSessions,
-      repositories.equipment
+      repositories.equipment,
+      achievements
     ),
     bardPerformance: new BardPerformanceService(repositories.bardPerformances),
     barrelRaidNotifications: repositories.barrelRaidNotifications,
@@ -79,7 +84,9 @@ export function createServices(
     devGrant: new DevGrantService(
       repositories.devGrants,
       config.nodeEnv,
-      config.devGrantCommandsEnabled
+      config.devGrantCommandsEnabled,
+      undefined,
+      achievements
     ),
     devReset: new DevResetService(repositories.characters, config.nodeEnv),
     duel: new DuelChallengeService(
@@ -92,7 +99,8 @@ export function createServices(
     equipment: new EquipmentService(
       repositories.equipment,
       repositories.inventory,
-      repositories.characters
+      repositories.characters,
+      achievements
     ),
     fight,
     hero: new HeroService(
@@ -100,7 +108,9 @@ export function createServices(
       repositories.inventory,
       repositories.equipment,
       repositories.remorts,
-      repositories.shynok
+      repositories.shynok,
+      undefined,
+      achievements
     ),
     hunt: new HuntService(
       repositories.characters,
@@ -108,12 +118,12 @@ export function createServices(
       repositories.huntContracts
     ),
     inventory: new InventoryService(repositories.inventory),
-    itemUse: new ItemUseService(repositories.itemUse),
+    itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
-    levelBarter: new LevelBarterService(repositories.levelBarter),
+    levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements),
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
-    mantokChest: new MantokChestService(repositories.mantokChestRuns),
-    onboarding: new OnboardingService(repositories.users, repositories.characters),
+    mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements),
+    onboarding: new OnboardingService(repositories.users, repositories.characters, achievements),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
@@ -148,7 +158,10 @@ export function createServices(
       repositories.dailyActions,
       repositories.soloCombatSessions,
       fight,
-      repositories.cooldowns
+      repositories.cooldowns,
+      undefined,
+      undefined,
+      achievements
     )
   };
 }

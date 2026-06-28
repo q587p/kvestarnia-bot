@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createRepositories } from "../../src/app/createRepositories";
 import { createServices } from "../../src/app/createServices";
 import type { AppConfig } from "../../src/config/env";
+import { PrismaAchievementRepository } from "../../src/db/repositories/prismaAchievementRepository";
 import { PrismaBarrelRaidNotificationRepository } from "../../src/db/repositories/prismaBarrelRaidNotificationRepository";
 import { PrismaCellarGrownupQuestRepository } from "../../src/db/repositories/prismaCellarGrownupQuestRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
@@ -28,6 +29,7 @@ import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRe
 import { PrismaShynokRepository } from "../../src/db/repositories/prismaShynokRepository";
 import { PrismaSoloCombatSessionRepository } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaUserRepository } from "../../src/db/repositories/prismaUserRepository";
+import { AchievementService } from "../../src/services/achievementService";
 import { AdventureService } from "../../src/services/adventureService";
 import { CellarErrandService } from "../../src/services/cellarErrandService";
 import { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
@@ -58,6 +60,7 @@ describe("application factory wiring", () => {
   it("creates the expected concrete Prisma repositories", () => {
     const repositories = createRepositories({} as PrismaClient);
 
+    expect(repositories.achievements).toBeInstanceOf(PrismaAchievementRepository);
     expect(repositories.users).toBeInstanceOf(PrismaUserRepository);
     expect(repositories.barrelRaidNotifications).toBeInstanceOf(PrismaBarrelRaidNotificationRepository);
     expect(repositories.characters).toBeInstanceOf(PrismaCharacterRepository);
@@ -86,6 +89,7 @@ describe("application factory wiring", () => {
   it("creates the expected application service surface", () => {
     const services = createServices(createRepositories({} as PrismaClient), makeConfig());
 
+    expect(services.achievements).toBeInstanceOf(AchievementService);
     expect(services.adventure).toBeInstanceOf(AdventureService);
     expect(services.barrelRaidNotifications).toBeInstanceOf(PrismaBarrelRaidNotificationRepository);
     expect(services.cellarErrand).toBeInstanceOf(CellarErrandService);
@@ -125,7 +129,8 @@ describe("application factory wiring", () => {
         equipment: repositories.equipment,
         combatAnalytics: combatBalanceAnalytics,
         pendingPassageEncounters: repositories.pendingPassageEncounters,
-        shynok: repositories.shynok
+        shynok: repositories.shynok,
+        achievements
       });
     `));
     expect(source).toContain(compact(`
@@ -134,7 +139,8 @@ describe("application factory wiring", () => {
         repositories.dailyActions,
         undefined,
         repositories.soloCombatSessions,
-        repositories.equipment
+        repositories.equipment,
+        achievements
       )
     `));
     expect(source).toContain(compact(`
@@ -161,12 +167,24 @@ describe("application factory wiring", () => {
       )
     `));
     expect(source).toContain(compact(`
+      itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
+    `));
+    expect(source).toContain(compact(`
+      levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements)
+    `));
+    expect(source).toContain(compact(`
+      mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements)
+    `));
+    expect(source).toContain(compact(`
       yeger: new YegerQuestService(
         repositories.characters,
         repositories.dailyActions,
         repositories.soloCombatSessions,
         fight,
-        repositories.cooldowns
+        repositories.cooldowns,
+        undefined,
+        undefined,
+        achievements
       )
     `));
   });

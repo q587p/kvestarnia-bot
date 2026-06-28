@@ -124,6 +124,7 @@ import {
   type ProblemQuestStage,
   type ProblemQuestStageRecord
 } from "./fight/problemQuest";
+import type { AchievementService, AchievementSimpleEventType, AchievementUnlock } from "./achievementService";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export { PERSISTENT_SOLO_FIGHT_REWARD_KEY } from "./dailyActionKeys";
@@ -191,6 +192,7 @@ export interface ProblemQuestTurnInResult {
   stage: ProblemQuestStage;
   reward: FightReward;
   levelChange: RewardLevelChange | null;
+  achievementUnlocks: AchievementUnlock[];
   nextStage: ProblemQuestStage | null;
   nextStageAvailable: boolean;
   branchComplete: boolean;
@@ -203,6 +205,7 @@ export interface PersistentFightReward {
   state: "claimed" | "replayed" | "already-claimed";
   reward: FightReward;
   levelChange: RewardLevelChange | null;
+  achievementUnlocks?: AchievementUnlock[];
   itemReplayUnavailable?: boolean;
 }
 
@@ -308,6 +311,7 @@ export type FightResult =
       combat: CombatProbeResult;
       reward: FightReward;
       levelChange: RewardLevelChange;
+      achievementUnlocks: AchievementUnlock[];
     }
   | {
       state: "already-completed";
@@ -519,6 +523,7 @@ export interface FightServiceDependencies {
   combatAnalytics?: CombatBalanceAnalyticsService;
   pendingPassageEncounters?: PendingPassageEncounterRepository;
   shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
+  achievements?: AchievementService;
 }
 
 export class FightService {
@@ -531,6 +536,7 @@ export class FightService {
   private readonly combatAnalytics: CombatBalanceAnalyticsService | undefined;
   private readonly pendingPassageEncounters: PendingPassageEncounterRepository | undefined;
   private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
+  private readonly achievements: AchievementService | undefined;
 
   constructor({
     characters,
@@ -541,7 +547,8 @@ export class FightService {
     equipment,
     combatAnalytics,
     pendingPassageEncounters,
-    shynok
+    shynok,
+    achievements
   }: FightServiceDependencies) {
     this.characters = characters;
     this.dailyActions = dailyActions;
@@ -552,6 +559,7 @@ export class FightService {
     this.combatAnalytics = combatAnalytics;
     this.pendingPassageEncounters = pendingPassageEncounters;
     this.shynok = shynok;
+    this.achievements = achievements;
   }
 
   private async advanceExpiredPersistentTurn(
@@ -2006,6 +2014,15 @@ export class FightService {
       };
     }
 
+    const achievementUnlocks = await this.trackRewardAchievements({
+      characterId: claim.character.id,
+      sourceId: claim.action.id,
+      levelChange: claim.levelChange,
+      itemIds: claim.itemGrants.map((grant) => grant.itemId),
+      events: ["starter.mimic-shawarma.probe.completed"],
+      ...(combat.outcome === "flee" ? {} : { combatOutcome: "won" as const })
+    });
+
     return {
       state: "completed",
       action,
@@ -2016,7 +2033,8 @@ export class FightService {
         localDate,
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
-      levelChange: claim.levelChange
+      levelChange: claim.levelChange,
+      achievementUnlocks
     };
   }
 
@@ -2727,6 +2745,15 @@ export class FightService {
       throw new Error("Problem quest daily claim unexpectedly required gold.");
     }
 
+    const achievementUnlocks = claim.state === "created"
+      ? await this.trackRewardAchievements({
+          characterId: claim.character.id,
+          sourceId: claim.action.id,
+          levelChange: claim.levelChange,
+          itemIds: claim.itemGrants.map((grant) => grant.itemId),
+          problemStageId: stage.id
+        })
+      : [];
     const nextStage = stage.nextStageId ? getProblemQuestStage(stage.nextStageId) : null;
 
     return {
@@ -2743,6 +2770,7 @@ export class FightService {
           itemGrants: claim.state === "created" ? enrichRewardItemGrants(claim.itemGrants) : []
         },
         levelChange: claim.levelChange,
+        achievementUnlocks,
         nextStage,
         nextStageAvailable: nextStage !== null,
         branchComplete: nextStage === null
@@ -2900,6 +2928,14 @@ export class FightService {
       return null;
     }
 
+    const achievementUnlocks = await this.trackRewardAchievements({
+      characterId: claim.character.id,
+      sourceId: claim.action.id,
+      levelChange: claim.levelChange,
+      itemIds: claim.itemGrants.map((grant) => grant.itemId),
+      ...withAchievementCombatOutcome(session.state?.status ?? session.status)
+    });
+
     return {
       state: "claimed",
       reward: {
@@ -2909,6 +2945,7 @@ export class FightService {
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange,
+      achievementUnlocks,
       ...(stored.session ? {} : { itemReplayUnavailable: claim.itemGrants.length > 0 })
     };
   }
@@ -3134,6 +3171,84 @@ export class FightService {
     }
 
     return resolveCurrentProblemQuestStage(stageRecords);
+  }
+
+  private async trackRewardAchievements(input: {
+    characterId: string;
+    sourceId: string;
+    levelChange?: RewardLevelChange | null;
+    itemIds?: readonly string[];
+    combatOutcome?: "won" | "lost" | "fled" | "expired";
+    problemStageId?: string;
+    events?: readonly AchievementSimpleEventType[];
+  }): Promise<AchievementUnlock[]> {
+    if (!this.achievements) {
+      return [];
+    }
+
+    const occurredAt = this.clock();
+    const unlocks: AchievementUnlock[] = [];
+
+    if (input.levelChange) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type: "level.reached",
+          characterId: input.characterId,
+          level: input.levelChange.newLevel,
+          occurredAt,
+          sourceId: input.sourceId
+        }))
+      );
+    }
+
+    if (input.itemIds && input.itemIds.length > 0) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type: "item.received",
+          characterId: input.characterId,
+          itemIds: input.itemIds,
+          occurredAt,
+          sourceId: input.sourceId
+        }))
+      );
+    }
+
+    if (input.combatOutcome) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type: "combat.finished",
+          characterId: input.characterId,
+          outcome: input.combatOutcome,
+          occurredAt,
+          sourceId: input.sourceId
+        }))
+      );
+    }
+
+    if (input.problemStageId) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type: "problem.quest.completed",
+          characterId: input.characterId,
+          stageId: input.problemStageId,
+          occurredAt,
+          sourceId: input.sourceId
+        }))
+      );
+    }
+
+    for (const type of input.events ?? []) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type,
+          characterId: input.characterId,
+          occurredAt,
+          sourceId: input.sourceId
+        }))
+      );
+    }
+
+    return unlocks;
   }
 
   private async summarizeCharacterWithEquipment(
@@ -4327,6 +4442,28 @@ function buildHeroCombatStats(
 
 function isSettlementCompletionSuccess(outcome: SettlementCompletionFlowResult["outcome"]): boolean {
   return outcome === "completed" || outcome === "already-completed";
+}
+
+function withAchievementCombatOutcome(
+  status: string
+): Partial<{ combatOutcome: "won" | "lost" | "fled" | "expired" }> {
+  if (status === "won") {
+    return { combatOutcome: "won" };
+  }
+
+  if (status === "lost") {
+    return { combatOutcome: "lost" };
+  }
+
+  if (status === "fled") {
+    return { combatOutcome: "fled" };
+  }
+
+  if (status === "expired") {
+    return { combatOutcome: "expired" };
+  }
+
+  return {};
 }
 
 function needsLegacySettlementAdoption(

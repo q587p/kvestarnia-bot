@@ -4,6 +4,7 @@ import { getItemUseEffect } from "../../domain/itemUse";
 import { getMunchkinLocationAt } from "../../domain/levelBarter/munchkinSchedule";
 import { getCombatUsableItem } from "../../services/combatItemUse";
 import type { BotServices } from "../botServices";
+import { registerParsedCallbackRoute } from "../callbackRoute";
 import {
 parseEquipmentCallbackData,
 parseItemCallbackData,
@@ -45,6 +46,7 @@ buildMantokChestPreviewKeyboard,
 buildMantokChestResultKeyboard
 } from "../keyboards/mantokChestKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
 presentEquipItemResult,
 presentEquipment,
@@ -96,59 +98,24 @@ export function registerInventoryBotModule(
   registerInventoryCommand(bot, services.inventory);
   registerEquipmentCommand(bot, services.equipment);
 
-  bot.callbackQuery(/^v1:equip:/, async (ctx) => {
-    const parsed = parseEquipmentCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleEquipmentCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:equip:/, parseEquipmentCallbackData, async (ctx, action) => {
+    await handleEquipmentCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v1:item:/, async (ctx) => {
-    const parsed = parseItemCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleItemCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:item:/, parseItemCallbackData, async (ctx, action) => {
+    await handleItemCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v1:use:/, async (ctx) => {
-    const parsed = parseItemUseCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleItemUseCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:use:/, parseItemUseCallbackData, async (ctx, action) => {
+    await handleItemUseCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v1:chest:/, async (ctx) => {
-    const parsed = parseMantokChestCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleMantokChestCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:chest:/, parseMantokChestCallbackData, async (ctx, action) => {
+    await handleMantokChestCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v1:lvlx:/, async (ctx) => {
-    const parsed = parseLevelBarterCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleLevelBarterCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:lvlx:/, parseLevelBarterCallbackData, async (ctx, action) => {
+    await handleLevelBarterCallback(ctx, action, services);
   });
 }
 
@@ -322,6 +289,10 @@ async function handleItemUseCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemUseResultKeyboard(repeat)
   });
+  const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks ?? []);
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }
 
 async function getRepeatItemUseOptions(
@@ -398,6 +369,10 @@ async function handleEquipmentCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildEquipmentKeyboard(equipment)
       });
+      const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
+      if (achievementText) {
+        await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      }
       return;
     }
 
@@ -605,6 +580,12 @@ async function handleMantokChestCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildMantokChestResultKeyboard(outputItem)
   });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "recycled" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }
 
 async function handleLevelBarterCallback(
@@ -673,4 +654,10 @@ async function handleLevelBarterCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildLevelBarterResultKeyboard(levelBarterReturnOptions)
   });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "exchanged" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }
