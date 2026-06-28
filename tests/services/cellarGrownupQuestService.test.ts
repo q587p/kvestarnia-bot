@@ -19,10 +19,14 @@ import type {
   DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { summarizeCharacter, type CharacterSummary } from "../../src/domain/characters/characterSummary";
 import {
+  CELLAR_GROWNUP_ROLEPLAY_MAX_CHANCE,
+  CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY,
   CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_MS,
   CELLAR_GROWNUP_SEAL_PRICE,
-  CellarGrownupQuestService
+  CellarGrownupQuestService,
+  getRoleplayChance
 } from "../../src/services/cellarGrownupQuestService";
 import {
   CELLAR_CHEESE_SEAL_ITEM_ID,
@@ -106,7 +110,7 @@ describe("CellarGrownupQuestService", () => {
     expect(world.bottleClaimCount).toBe(1);
   });
 
-  it("can pass through roleplay on success", async () => {
+  it("does not grant the bottle from the first roleplay attempt", async () => {
     const world = new FakeCellarGrownupWorld();
     world.addCharacter({
       xp: 45,
@@ -116,10 +120,46 @@ describe("CellarGrownupQuestService", () => {
     const service = createService(world, () => 0);
 
     await expect(service.attemptRoleplay(telegramUserId)).resolves.toMatchObject({
+      state: "roleplay-failed",
+      chance: 0
+    });
+
+    expect(world.getItem(CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID)).toBe(0);
+  });
+
+  it("can pass through roleplay only after an earlier failed attempt", async () => {
+    const world = new FakeCellarGrownupWorld();
+    world.addCharacter({
+      xp: 45,
+      raceId: "race.domovyk",
+      classId: "class.bard"
+    });
+    world.setRoleplayCooldown(new Date(now.getTime() - 1));
+    const service = createService(world, () => 0);
+
+    await expect(service.attemptRoleplay(telegramUserId)).resolves.toMatchObject({
       state: "bottle-obtained",
       source: "roleplay"
     });
     expect(world.getItem(CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID)).toBe(1);
+  });
+
+  it("caps roleplay bottle chance at thirteen percent", () => {
+    const world = new FakeCellarGrownupWorld();
+    world.addCharacter({
+      xp: 45,
+      raceId: "race.domovyk",
+      classId: "class.bard",
+      statsJson: {
+        strength: 8,
+        dexterity: 6,
+        intelligence: 6,
+        charisma: 13,
+        luck: 13
+      }
+    });
+
+    expect(getRoleplayChance(world.characterSummary())).toBe(CELLAR_GROWNUP_ROLEPLAY_MAX_CHANCE);
   });
 
   it("starts cooldown after failed roleplay without blocking paid routes", async () => {
@@ -248,6 +288,28 @@ class FakeCellarGrownupWorld
 
   setItem(itemId: string, quantity: number): void {
     this.items.set(itemId, quantity);
+  }
+
+  setRoleplayCooldown(availableAt: Date): void {
+    if (!this.character) {
+      throw new Error("Character must exist before setting roleplay cooldown.");
+    }
+
+    this.cooldowns.set(`${this.character.id}:${CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY}`, {
+      id: `cooldown-${this.cooldowns.size + 1}`,
+      characterId: this.character.id,
+      key: CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY,
+      availableAt,
+      updatedAt: now
+    });
+  }
+
+  characterSummary(): CharacterSummary {
+    if (!this.character) {
+      throw new Error("Character must exist before reading summary.");
+    }
+
+    return summarizeCharacter(this.character);
   }
 
   getSnapshotForTelegramUser(

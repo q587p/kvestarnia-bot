@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Pressed reply-keyboard location labels now send the movement notice before the destination card, so cellar/daily-location cards no longer appear above their arrival line.
 - The Korchma yard now behaves as a real reply-keyboard current location, wrong-location daily step cards route to the required place, and daily step claims use a repository-level per-day prefix guard so double-taps cannot create more than two step rows.
 - Final turn-in requires the Quest Table and grants exactly 4 XP + 2 gold once per Kyiv day, with duplicate/restart replay returning the stored result.
+- The level 4+ grownup cellar roleplay route cannot grant the bottle on the first attempt, and later attempts are capped at a 13% success chance. The cheese seal remains the guaranteed expensive route.
 
 ### Unchanged
 - Remort does not clear same-day daily-round progress or duplicate the final reward. Old-life mutating callbacks stale out through the compact life token.
