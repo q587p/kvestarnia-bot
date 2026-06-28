@@ -10,7 +10,7 @@ Runtime rules:
 - New player-facing mechanics should add matching achievements/hooks for visible actions, milestones or odd outcomes, or explicitly document why no durable event exists yet.
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 
-Current count: 113 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 112 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -91,7 +91,6 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.mantok.sale.first` | enabled | visible | `mantok.sale.completed >= 1` | Манчкін-скупник кивнув | уперше продати манатку й не дивитися занадто довго на гаманець. |
 | `achievement.mantok.sale.thirteen` | enabled | visible | `mantok.sale.completed >= 13` | Скупник уже впізнає кроки | продати манатки 13 разів і стати знайомим пунктом у нічному обліку. |
 | `achievement.level.barter.first` | enabled | visible | `level.barter.completed >= 1` | Манчкін прийняв рівневу заявку | уперше скористатися обміном Манчкіна й зробити вигляд, що це не магія бухгалтерії. |
-| `achievement.gear.first-level-barter` | enabled | visible | `level.barter.completed >= 1` | Купив рівень без квитанції | уперше обміняти манатки й золото на рівень так, щоб бухгалтерія кліпнула. |
 | `achievement.level.barter.three` | enabled | visible | `level.barter.completed >= 3` | Три рівневі квитанції | тричі скористатися обміном Манчкіна й не сперечатися з дрібним шрифтом. |
 | `achievement.bard.performance.first` | enabled | visible | `bard.performance.completed >= 1` | Куплет вийшов на люди | уперше виступити як бард і змусити Шинок перевірити акустику. |
 | `achievement.bard.performance.thirteen` | enabled | visible | `bard.performance.completed >= 13` | Тринадцять куплетів свідчать | виступити як бард 13 разів і лишити Шинок у стані культурної обережности. |

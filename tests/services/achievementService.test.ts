@@ -494,7 +494,6 @@ describe("AchievementService", () => {
       "achievement.gear.first-chest",
       "achievement.mantok.sale.first",
       "achievement.level.barter.first",
-      "achievement.gear.first-level-barter",
       "achievement.bard.performance.first",
       "achievement.training.doppelganger.first",
       "achievement.social.training-win-1",

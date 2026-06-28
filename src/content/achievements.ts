@@ -925,17 +925,6 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.first-level-barter"
   },
   {
-    id: "achievement.gear.first-level-barter",
-    category: "gear",
-    title: "Купив рівень без квитанції",
-    description: "уперше обміняти манатки й золото на рівень так, щоб бухгалтерія кліпнула.",
-    hidden: false,
-    lockedDescription: "уперше обміняти манатки й золото на рівень.",
-    sortOrder: 100.5,
-    status: "enabled",
-    trigger: { type: "level.barter.completed", threshold: 1 }
-  },
-  {
     id: "achievement.level.barter.three",
     category: "weird",
     title: "Три рівневі квитанції",
