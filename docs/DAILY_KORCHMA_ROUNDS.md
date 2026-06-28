@@ -327,7 +327,7 @@ localDate = <YYYY-MM-DD in Europe/Kyiv>
 reward    = 0 / 0
 ```
 
-`resultJson`:
+`resultJson` with example stored values:
 
 ```json
 {
@@ -371,8 +371,8 @@ reward    = 0 / 0
 ```text
 key        = quest.korchma-round.reward
 localDate  = <dayKey>
-rewardXp   = 4
-rewardGold = 2
+rewardXp   = stored level-scaled XP
+rewardGold = stored level-scaled gold
 ```
 
 `resultJson`:
@@ -386,7 +386,7 @@ rewardGold = 2
     "barrel-rent-emptiness"
   ],
   "omittedSceneId": "yard-sign-career",
-  "reward": { "xp": 4, "gold": 2 }
+  "reward": { "xp": 13, "gold": 7 }
 }
 ```
 
