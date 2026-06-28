@@ -1220,6 +1220,28 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
         ? `${shortName} ${getEnemyActionDisplayIndex(entry, index)}`
         : shortName;
       const name = escapeHtml(disambiguatedName);
+      if (entry.monsterAction === "telegraph" && entry.monsterTelegraphAbilityId) {
+        const skill = getCombatSkillDisplay(entry.monsterTelegraphAbilityId);
+        const signatureLine = getMonsterSignatureLine(entry.monsterTelegraphAbilityId, "telegraph");
+        const telegraphText = signatureLine ?? "наступний удар буде помітно серйозніший";
+
+        return `${name} готує ${skill.icon} <i>${escapeHtml(skill.name)}</i>: ${escapeHtml(telegraphText)}.`;
+      }
+
+      if (entry.monsterAction === "skill" && entry.monsterSkillId) {
+        const skill = getCombatSkillDisplay(entry.monsterSkillId);
+        const signatureLine = getMonsterSignatureLine(entry.monsterSkillId, "impact");
+        const consequences = [
+          ...(entry.monsterDamage > 0 ? [`завдав ${entry.monsterDamage} шкоди`] : []),
+          ...(signatureLine ? [signatureLine] : []),
+          ...(entry.monsterEffectText ? [trimTerminalPunctuation(entry.monsterEffectText)] : [])
+        ];
+
+        return `${name} застосовує ${skill.icon} <i>${escapeHtml(skill.name)}</i>${
+          consequences.length > 0 ? `: ${consequences.map(escapeHtml).join("; ")}.` : " без прямої шкоди цього ходу."
+        }`;
+      }
+
       if (entry.monsterDamage > 0) {
         return entry.simultaneousFinalResponse
           ? `${name} устиг відповісти в ту саму мить і завдав ${entry.monsterDamage} шкоди.`
@@ -1259,7 +1281,10 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
 
   if (summary.monsterAction === "telegraph" && summary.monsterTelegraphAbilityId) {
     const skill = getCombatSkillDisplay(summary.monsterTelegraphAbilityId);
-    return `${finalResponsePrefix}⚠️ Монстр готує ${skill.icon} <i>${escapeHtml(skill.name)}</i>. Захист може помʼякшити удар.`;
+    const signatureLine = getMonsterSignatureLine(summary.monsterTelegraphAbilityId, "telegraph");
+    return `${finalResponsePrefix}⚠️ Монстр готує ${skill.icon} <i>${escapeHtml(skill.name)}</i>. ${
+      signatureLine ? escapeHtml(signatureLine) : "Захист може помʼякшити удар."
+    }`;
   }
 
   if (summary.monsterAction === "defend") {
@@ -1270,6 +1295,9 @@ function presentMonsterResponse(summary: CombatTurnSummary): string {
     const skill = getCombatSkillDisplay(summary.monsterSkillId);
     const consequences = [
       ...(directMonsterDamage > 0 ? [`завдав ${directMonsterDamage} шкоди`] : []),
+      ...(getMonsterSignatureLine(summary.monsterSkillId, "impact")
+        ? [escapeHtml(getMonsterSignatureLine(summary.monsterSkillId, "impact")!)]
+        : []),
       ...(summary.monsterEffectText ? [escapeHtml(trimTerminalPunctuation(summary.monsterEffectText))] : [])
     ];
 
@@ -1295,6 +1323,40 @@ function presentBasicMonsterAttack(summary: CombatTurnSummary): string {
   }
 
   return `Монстр атакував у відповідь на ваш хід і завдав ${directMonsterDamage} шкоди.`;
+}
+
+type MonsterSignatureLineKind = "impact" | "telegraph";
+
+const monsterSignatureProofLines: Record<string, Partial<Record<MonsterSignatureLineKind, string>>> = {
+  "monster.preapproved-bite": {
+    impact: "Папери клацнули зубами: погодження виявилося гострим"
+  },
+  "monster.queue-number": {
+    impact: "Черга посунулася не туди, і ваша точність слухняно стала в кінець"
+  },
+  "monster.ledger-charge": {
+    impact: "Кабан вписав шкоду в обидві колонки й підкріпив це копитом",
+    telegraph: "Кабан шкрябає копитом рядок для великого тарана; захист тут дуже доречний."
+  },
+  "monster.salted-oath": {
+    impact: "Крендель затягнув обіцянку вузлом; пробити її стало незручно"
+  },
+  "monster.chimera-veto": {
+    impact: "Одна голова химери підписала удар, друга подала окрему думку"
+  },
+  "monster.inventory-prophecy": {
+    impact: "Пророк звірив інвентар і знайшов нестачу саме у вашій впевненості"
+  },
+  "monster.balance-the-tide": {
+    impact: "Водяний звів приплив із відпливом; частина шкоди повернулася хвилею"
+  }
+};
+
+function getMonsterSignatureLine(
+  abilityId: string | undefined,
+  kind: MonsterSignatureLineKind
+): string | null {
+  return abilityId ? monsterSignatureProofLines[abilityId]?.[kind] ?? null : null;
 }
 
 function presentHeroEffectDamage(summary: CombatTurnSummary): string {

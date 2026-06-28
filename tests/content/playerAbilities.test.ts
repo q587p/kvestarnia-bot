@@ -64,6 +64,42 @@ describe("player ability catalog", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("keeps 0.2.11 class combat tuning bounded", () => {
+    expect(findClassAbility("class.warrior")).toMatchObject({
+      id: "skill.forceful-strike",
+      baseDamage: 3,
+      multiplier: 1.1
+    });
+    expect(findClassAbility("class.bureaucramancer")).toMatchObject({
+      id: "skill.form-thirteen-b",
+      cooldownOwnActions: 2,
+      baseDamage: 3,
+      multiplier: 0.75
+    });
+    expect(findClassAbility("class.rogue")).toMatchObject({
+      id: "skill.shadow-cut",
+      baseDamage: 3,
+      multiplier: 0.95,
+      critBonus: 0.04
+    });
+    expect(findClassAbility("class.ranger")).toMatchObject({
+      id: "skill.trick-shot",
+      baseDamage: 3,
+      multiplier: 0.82,
+      secondaryMultiplier: 0.3,
+      critBonus: 0.04
+    });
+
+    const priest = findClassAbility("class.priest");
+
+    expect(priest).toMatchObject({
+      id: "skill.strict-blessing",
+      baseDamage: 2,
+      multiplier: 0.55
+    });
+    expect(priest.recipe).toContain("direct-damage");
+  });
+
   it("keeps group-ready semantics explicit and bounded", () => {
     const activeRaceIds = new Set(activeRaces.map((race) => race.id));
     const classIds = new Set(classes.map((characterClass) => characterClass.id));

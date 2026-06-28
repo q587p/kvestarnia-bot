@@ -574,6 +574,117 @@ describe("fight presenter", () => {
     expect(text).not.toContain("діє окремо");
   });
 
+  it("renders stored multi-enemy monster skill signatures", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        turn: 2,
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 5,
+          monsterDamage: 8,
+          manaSpent: 0,
+          critical: false,
+          enemyActions: [
+            {
+              enemyId: "enemy:1",
+              monsterId: "monster.ledger-boar",
+              monsterName: "Кабан прибутково-видаткової книги",
+              monsterOutcome: "hit",
+              monsterDamage: 8,
+              monsterAction: "skill",
+              monsterSkillId: "monster.ledger-charge",
+              monsterDamageKind: "physical"
+            },
+            {
+              enemyId: "enemy:2",
+              monsterId: "monster.queue-counter-gargoyle",
+              monsterName: "Гаргулья віконця черги",
+              monsterOutcome: "miss",
+              monsterDamage: 0,
+              monsterAction: "attack"
+            }
+          ]
+        }
+      }),
+      monster: {
+        id: "monster.ledger-boar",
+        name: "Кабан прибутково-видаткової книги",
+        description: "Тестовий кабан.",
+        level: 5,
+        tags: ["beast"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain(
+      "Кабан застосовує 🐗 <i>Прибутково-видатковий таран</i>: завдав 8 шкоди; Кабан вписав шкоду в обидві колонки й підкріпив це копитом."
+    );
+  });
+
+  it("renders stored monster skill and telegraph signatures in live turns", () => {
+    const skillText = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 6,
+          manaSpent: 0,
+          critical: false,
+          monsterAction: "skill",
+          monsterOutcome: "hit",
+          monsterSkillId: "monster.queue-number",
+          monsterEffectText: "точність просіла на 1"
+        }
+      }),
+      monster: {
+        id: "monster.queue-counter-gargoyle",
+        name: "Гаргулья віконця черги",
+        description: "Тестова черга.",
+        level: 4,
+        tags: ["construct"]
+      },
+      questProgress: questProgress(4)
+    });
+    const telegraphText = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 2,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false,
+          monsterAction: "telegraph",
+          monsterOutcome: "defended",
+          monsterTelegraphAbilityId: "monster.ledger-charge"
+        }
+      }),
+      monster: {
+        id: "monster.ledger-boar",
+        name: "Кабан прибутково-видаткової книги",
+        description: "Тестовий кабан.",
+        level: 5,
+        tags: ["beast"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(skillText).toContain(
+      "Монстр застосував 🎟 <i>Ваш номер ще не настав</i>: завдав 6 шкоди; Черга посунулася не туди, і ваша точність слухняно стала в кінець; точність просіла на 1."
+    );
+    expect(telegraphText).toContain(
+      "⚠️ Монстр готує 🐗 <i>Прибутково-видатковий таран</i>. Кабан шкрябає копитом рядок для великого тарана; захист тут дуже доречний."
+    );
+  });
+
   it("marks simultaneous final response lines in persisted turn summaries", () => {
     const text = presentPersistentFight({
       state: "persistent-active",
@@ -1089,6 +1200,46 @@ describe("fight presenter", () => {
     expect(text).toContain("👹 Монстр після ходу: 14/18");
     expect(text).toContain("Ви стали в захист");
     expect(text).not.toContain("Хід записано");
+  });
+
+  it("replays stored monster skill signatures in combat journal pages", () => {
+    const session = persistentSession({
+      turn: 2,
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 18, mana: 12 },
+          monster: { hp: 16 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 5,
+            manaSpent: 0,
+            critical: false,
+            monsterAction: "skill",
+            monsterOutcome: "hit",
+            monsterSkillId: "monster.balance-the-tide"
+          }
+        }
+      ]
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.accountant-vodianyk",
+        name: "Водяний-бухгалтер припливів",
+        description: "Тестовий водяний.",
+        level: 7,
+        tags: ["aquatic"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    });
+
+    expect(text).toContain("Водяний звів приплив із відпливом; частина шкоди повернулася хвилею.");
   });
 
   it("renders stored cooldowns and active effect notices in combat journal pages", () => {

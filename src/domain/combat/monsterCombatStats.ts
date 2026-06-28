@@ -6,17 +6,23 @@ export function deriveMonsterCombatStats(monster: MonsterContent): MonsterCombat
   const level = Math.max(1, Math.floor(monster.level));
   const highTierLevel = Math.max(0, level - 4);
   const lateTierLevel = Math.max(0, level - 7);
+  const earlyLevel = Math.min(level, 5);
+  const levelsAfterEarly = Math.max(0, level - 5);
+  const boundedAttackLevel = earlyLevel + Math.floor(earlyLevel / 2) + Math.floor(levelsAfterEarly * 0.5);
+  const boundedHp = level <= 5
+    ? 10 + level * 4 + Math.floor(highTierLevel / 2)
+    : 30 + levelsAfterEarly * 3 + Math.floor(highTierLevel / 3) + Math.floor(lateTierLevel / 3);
 
   return {
     monsterId: monster.id,
     name: monster.name,
     level,
-    hpMax: 10 + level * 4 + highTierLevel * 2 + lateTierLevel + tagHpBonus(tags),
-    attack: 2 + level + Math.floor(level / 2) + Math.floor(highTierLevel / 2) + tagAttackBonus(tags),
-    armor: Math.floor(level / 3) + Math.floor(highTierLevel / 4) + tagArmorBonus(tags),
-    resist: Math.floor(level / 3) + Math.floor(highTierLevel / 4) + tagResistBonus(tags),
+    hpMax: boundedHp + tagHpBonus(tags),
+    attack: 2 + boundedAttackLevel + tagAttackBonus(tags),
+    armor: Math.floor(level / 4) + Math.floor(highTierLevel / 6) + tagArmorBonus(tags),
+    resist: Math.floor(level / 4) + Math.floor(highTierLevel / 6) + tagResistBonus(tags),
     dexterity:
-      5 + level + Math.floor(highTierLevel / 3) + tagDexterityBonus(tags),
+      5 + Math.min(level, 8) + Math.floor(Math.max(0, level - 8) / 2) + tagDexterityBonus(tags),
     tags
   };
 }
