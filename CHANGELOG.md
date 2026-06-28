@@ -16,13 +16,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `AchievementService` and `PrismaAchievementRepository` for idempotent unlocks, monotonic progress and title-grant provenance tied to the source achievement.
 - Added the `/hero` entry button `🏅 Ачівки`, achievement pagination callbacks, earned/locked/hidden rendering and grouped unlock notification copy.
 - Added seed unlock hooks for existing successful boundaries: character creation, level reached, combat finished, problem quest turn-in, item received through existing reward claims and item equipped.
-- Expanded the seed catalog from a starter handful to 85 enabled achievements plus 1 hidden disabled future placeholder, covering race/class identity collection, more level milestones, combat counts/outcomes, problem-chain stages, carried manatky totals, `Бинт відповідальної паніки` owned/used thresholds, equipped manatky counts, chest recycling, level barter, Doppleganger training, quick/turn-based duels, Barrel, Korchma rounds, gifts, manatka sales, Bard performances, Yeger free bandage claims, drinks, passage searches, hunt contracts, Adventure choices and Nyz threat pressure.
+- Expanded the seed catalog from a starter handful to 113 enabled achievements plus 12 hidden disabled future placeholders, covering race/class identity collection, the achievement-list opener, level/remort milestones, starter quests, combat counts/outcomes, problem-chain stages through 93, Adventure/Yeger/starter ledgers, carried manatky totals, `Бинт відповідальної паніки` owned/used thresholds, equipped manatky counts, chest recycling, level barter, Doppleganger training wins, quick/turn-based duel participation/wins/defends, Barrel, Korchma rounds, gifts, manatka sales, Bard performances, Yeger free bandage claims, drinks, passage searches, hunt contracts, Adventure choices and Nyz threat pressure.
 - Added all/earned/locked achievement filters and preserved the selected filter across pagination and recalculation.
 - Added historical-date recalculation for provable old records where stored ledgers carry the original event time.
 - Routed local dev level/item grant commands through the same achievement tracking/recalculation flow so QA grants can unlock level and item achievements.
 - Added `docs/ACHIEVEMENTS_CATALOG.md` as the shipped achievement catalog, including secret entries and honest future ledger gaps for bestiary, news, memorial, nearby, location-history, Yeger trail and lifetime ability-use counters.
 - Added `🔎 Перевірити` on the achievements page so existing characters can idempotently recalculate currently provable records from stored character, fight, problem, inventory and equipment rows.
 - Added safe archive rendering for unknown stored achievements so future disabled/deleted definitions do not break old rows.
+- Disabled the impossible current `achievement.level.23` row as a hidden future placeholder while the playable level cap remains 13, so it no longer appears in visible completion totals unless already stored as an archived earned row.
 - Added a project rule that new player-facing gameplay functionality should add matching achievements/hooks for visible new actions, milestones and odd outcomes, or explicitly document why achievements are out of scope for that slice.
 - Documented class/race ability-use achievements as the next counter-backed expansion path: future 42-use records should ship with durable ability-use counters instead of unverifiable placeholders.
 
@@ -31,6 +32,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Successful onboarding, combat rewards, problem turn-ins and equipment changes can send short grouped achievement notifications after their canonical result cards.
 - Level achievement progress is stored as a monotonic snapshot and does not move backward on replay or lower-level events.
 - Achievement progress can now be refreshed from persisted state without changing rewards, combat state or old reward ledgers; historical dates are used where the source rows can prove them.
+- Non-level combat, problem-chain, inventory and equipment thresholds now unlock from the successful action that reaches the current persisted count instead of requiring a manual `🔎 Перевірити` press.
+- Disabled future definitions are excluded from player list pages and completion totals; already-earned disabled/retired ids still render as safe archive entries.
 
 ### Unchanged
 - Achievements and cosmetic title grants are records only: they grant no XP, gold, items, stats, loot odds, quest/Yeger/Shynok/remort progress, combat power, donor perks or paid advantage.

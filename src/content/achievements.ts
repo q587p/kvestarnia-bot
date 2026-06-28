@@ -13,16 +13,32 @@ export const achievementStatuses = ["enabled", "disabled"] as const;
 export type AchievementStatus = (typeof achievementStatuses)[number];
 
 export const achievementTriggerTypes = [
+  "achievement.list.opened",
   "character.created",
   "level.reached",
+  "remort.completed",
   "combat.finished",
+  "combat.persistent.finished",
+  "combat.persistent.hard-win",
+  "combat.persistent.adventure-origin-win",
+  "combat.persistent.yeger-origin-win",
+  "combat.persistent.low-hp-win",
+  "combat.persistent.zero-gold-item-win",
   "problem.quest.completed",
   "item.received",
   "item.used",
   "equipment.item_equipped",
+  "starter.mimic-shawarma.completed",
+  "starter.mimic-shawarma.probe.completed",
+  "cellar.mouse.completed",
+  "adventure.choice.strong-success",
   "mantok.chest.completed",
   "level.barter.completed",
   "training.doppelganger.finished",
+  "training.doppelganger.won",
+  "duel.resolved",
+  "duel.won",
+  "duel.turnbased.defend",
   "duel.quick.resolved",
   "duel.turnbased.resolved",
   "barrel.raid.claimed",
@@ -37,6 +53,7 @@ export const achievementTriggerTypes = [
   "passage.search.monster-attack",
   "passage.search.unique-nodes",
   "hunt.contract.completed",
+  "yeger.trial.completed",
   "adventure.choice.completed",
   "adventure.choice.complication",
   "combat.threat-escalated",
@@ -82,6 +99,17 @@ export const achievements = [
     status: "enabled",
     trigger: { type: "character.created" },
     cosmeticTitleGrantId: "cosmetic-title.first-ink"
+  },
+  {
+    id: "achievement.journey.achievements-opened",
+    category: "onboarding",
+    title: "Ачівка за ачівки",
+    description: "уперше відкрити список ачівок і дати літописцю привід поправити окуляри.",
+    hidden: false,
+    lockedDescription: "уперше відкрити список ачівок.",
+    sortOrder: 10.5,
+    status: "enabled",
+    trigger: { type: "achievement.list.opened" }
   },
   {
     id: "achievement.race.human-ish",
@@ -339,13 +367,25 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.level-five-stick"
   },
   {
+    id: "achievement.level.8",
+    category: "level",
+    title: "Корчмар памʼятає обличчя",
+    description: "досягти 8 рівня й стати обличчям, яке Корчмар уже не плутає з рахунком.",
+    hidden: false,
+    lockedDescription: "досягти 8 рівня.",
+    sortOrder: 35,
+    status: "enabled",
+    trigger: { type: "level.reached", threshold: 8 },
+    progressTarget: 8
+  },
+  {
     id: "achievement.level.10",
     category: "level",
     title: "Десять рівнів і жодної підозри",
     description: "досягти 10 рівня так, ніби Корчмар не веде окрему теку.",
     hidden: false,
     lockedDescription: "досягти 10 рівня.",
-    sortOrder: 35,
+    sortOrder: 36,
     status: "enabled",
     trigger: { type: "level.reached", threshold: 10 },
     progressTarget: 10,
@@ -365,16 +405,26 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.level-thirteen-clause"
   },
   {
+    id: "achievement.remort.first",
+    category: "level",
+    title: "Знову з першої, але з претензією",
+    description: "завершити перший реморт і повернутися з досвідом, який підозріло світиться.",
+    hidden: false,
+    lockedDescription: "завершити перший реморт.",
+    sortOrder: 38,
+    status: "enabled",
+    trigger: { type: "remort.completed", threshold: 1 }
+  },
+  {
     id: "achievement.level.23",
     category: "level",
     title: "Двадцять три причини не питати",
     description: "досягти 23 рівня й дати літописцю новий привід нервово рахувати.",
-    hidden: false,
-    lockedDescription: "досягти 23 рівня.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
     sortOrder: 39,
-    status: "enabled",
-    trigger: { type: "level.reached", threshold: 23 },
-    progressTarget: 23,
+    status: "disabled",
+    trigger: { type: "future" },
     cosmeticTitleGrantId: "cosmetic-title.level-twenty-three-reasons"
   },
   {
@@ -414,6 +464,42 @@ export const achievements = [
     trigger: { type: "combat.finished", outcome: "won", threshold: 13 },
     progressTarget: 13,
     cosmeticTitleGrantId: "cosmetic-title.thirteen-not-floor"
+  },
+  {
+    id: "achievement.combat.persistent-win-23",
+    category: "combat",
+    title: "Двадцять три аргументи",
+    description: "перемогти у 23 старших боях і залишити Низ без переконливого протоколу.",
+    hidden: false,
+    lockedDescription: "перемогти у 23 старших боях.",
+    sortOrder: 46,
+    status: "enabled",
+    trigger: { type: "combat.persistent.finished", outcome: "won", threshold: 23 },
+    progressTarget: 23
+  },
+  {
+    id: "achievement.combat.persistent-win-42",
+    category: "combat",
+    title: "Відповідь: бити обережніше",
+    description: "перемогти у 42 старших боях і не сперечатися з відповіддю Корчмаря.",
+    hidden: false,
+    lockedDescription: "перемогти у 42 старших боях.",
+    sortOrder: 47,
+    status: "enabled",
+    trigger: { type: "combat.persistent.finished", outcome: "won", threshold: 42 },
+    progressTarget: 42
+  },
+  {
+    id: "achievement.combat.persistent-win-93",
+    category: "combat",
+    title: "Девʼяносто три свідки мовчать",
+    description: "перемогти у 93 старших боях і змусити свідків Низу нервово мовчати.",
+    hidden: false,
+    lockedDescription: "перемогти у 93 старших боях.",
+    sortOrder: 48,
+    status: "enabled",
+    trigger: { type: "combat.persistent.finished", outcome: "won", threshold: 93 },
+    progressTarget: 93
   },
   {
     id: "achievement.combat.first-loss",
@@ -486,6 +572,107 @@ export const achievements = [
     trigger: { type: "problem.quest.completed", threshold: 3 },
     progressTarget: 3,
     cosmeticTitleGrantId: "cosmetic-title.forty-two-stamp-reasons"
+  },
+  {
+    id: "achievement.quest.mimic-shawarma",
+    category: "quests",
+    title: "Шаурма мала зуби",
+    description: "завершити першу справу з міміком-шаурмою й не довіряти обіду з очима.",
+    hidden: false,
+    lockedDescription: "завершити першу справу з міміком-шаурмою.",
+    sortOrder: 65,
+    status: "enabled",
+    trigger: { type: "starter.mimic-shawarma.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.cellar-mouse",
+    category: "quests",
+    title: "Мишача дипломатія",
+    description: "завершити льохову справу з мишею й лишити сирні аргументи в архіві.",
+    hidden: false,
+    lockedDescription: "завершити льохову справу з мишею.",
+    sortOrder: 65.2,
+    status: "enabled",
+    trigger: { type: "cellar.mouse.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.problem-chain.93",
+    category: "quests",
+    title: "Девʼяносто три волі до проблем",
+    description: "завершити весь корчмарський ланцюжок проблем і не сперечатися з останньою текою.",
+    hidden: false,
+    lockedDescription: "завершити весь корчмарський ланцюжок проблем.",
+    sortOrder: 65.4,
+    status: "enabled",
+    trigger: { type: "problem.quest.completed", threshold: 4 },
+    progressTarget: 4
+  },
+  {
+    id: "achievement.quest.yeger-first",
+    category: "quests",
+    title: "Єгер кивнув. Це майже овація",
+    description: "завершити перше випробування Єгеря й побачити кивок майже урочистого масштабу.",
+    hidden: false,
+    lockedDescription: "завершити перше випробування Єгеря.",
+    sortOrder: 65.6,
+    status: "enabled",
+    trigger: { type: "yeger.trial.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.strong-success",
+    category: "quests",
+    title: "План спрацював. Підозріло",
+    description: "отримати сильний успіх у корчемній справі й поводитися так, ніби все було заплановано.",
+    hidden: false,
+    lockedDescription: "отримати сильний успіх у корчемній справі.",
+    sortOrder: 65.8,
+    status: "enabled",
+    trigger: { type: "adventure.choice.strong-success", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.complication",
+    category: "quests",
+    title: "План теж був пригодою",
+    description: "завершити корчемну справу з ускладненням і не подавати скаргу на жанр.",
+    hidden: false,
+    lockedDescription: "завершити корчемну справу з ускладненням.",
+    sortOrder: 66,
+    status: "enabled",
+    trigger: { type: "adventure.choice.complication", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.adventure-first",
+    category: "quests",
+    title: "Метод є. Наслідки теж",
+    description: "завершити першу авторську корчемну справу й не сперечатися з методом.",
+    hidden: false,
+    lockedDescription: "завершити першу авторську корчемну справу.",
+    sortOrder: 66.2,
+    status: "enabled",
+    trigger: { type: "adventure.choice.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.adventure-13",
+    category: "quests",
+    title: "Тринадцять способів не читати умову",
+    description: "завершити 13 авторських корчемних справ і лишити умови нервово шелестіти.",
+    hidden: false,
+    lockedDescription: "завершити 13 авторських корчемних справ.",
+    sortOrder: 66.4,
+    status: "enabled",
+    trigger: { type: "adventure.choice.completed", threshold: 13 },
+    progressTarget: 13
+  },
+  {
+    id: "achievement.combat.starter-probe",
+    category: "combat",
+    title: "Бойове хрещення в соусі",
+    description: "завершити навчальну сутичку з міміком-шаурмою й відмити соус із висновків.",
+    hidden: false,
+    lockedDescription: "завершити навчальну сутичку з міміком-шаурмою.",
+    sortOrder: 66.6,
+    status: "enabled",
+    trigger: { type: "starter.mimic-shawarma.probe.completed", threshold: 1 }
   },
   {
     id: "achievement.item.first-received",
@@ -677,6 +864,17 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.first-chest-recycler"
   },
   {
+    id: "achievement.gear.first-chest",
+    category: "gear",
+    title: "Пʼять зайшли, одна вийшла",
+    description: "уперше завершити переробку в Дружній Скрині й не питати, де решта свідків.",
+    hidden: false,
+    lockedDescription: "уперше завершити переробку в Дружній Скрині.",
+    sortOrder: 88.5,
+    status: "enabled",
+    trigger: { type: "mantok.chest.completed", threshold: 1 }
+  },
+  {
     id: "achievement.mantok.chest.thirteen",
     category: "gear",
     title: "Скриня просить журнал техогляду",
@@ -725,6 +923,17 @@ export const achievements = [
     status: "enabled",
     trigger: { type: "level.barter.completed", threshold: 1 },
     cosmeticTitleGrantId: "cosmetic-title.first-level-barter"
+  },
+  {
+    id: "achievement.gear.first-level-barter",
+    category: "gear",
+    title: "Купив рівень без квитанції",
+    description: "уперше обміняти манатки й золото на рівень так, щоб бухгалтерія кліпнула.",
+    hidden: false,
+    lockedDescription: "уперше обміняти манатки й золото на рівень.",
+    sortOrder: 100.5,
+    status: "enabled",
+    trigger: { type: "level.barter.completed", threshold: 1 }
   },
   {
     id: "achievement.level.barter.three",
@@ -777,6 +986,17 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.first-doppelganger-training"
   },
   {
+    id: "achievement.social.training-win-1",
+    category: "combat",
+    title: "Сам собі суперник",
+    description: "перемогти Сумлінного Допельґанґера й не звинувачувати дзеркало в упередженості.",
+    hidden: false,
+    lockedDescription: "перемогти Сумлінного Допельґанґера.",
+    sortOrder: 110.5,
+    status: "enabled",
+    trigger: { type: "training.doppelganger.won", threshold: 1 }
+  },
+  {
     id: "achievement.training.doppelganger.thirteen",
     category: "combat",
     title: "Допельґанґер просить відпустку",
@@ -790,6 +1010,18 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.thirteen-doppelganger-trainings"
   },
   {
+    id: "achievement.social.training-win-13",
+    category: "combat",
+    title: "Допельґанґер просить вихідний",
+    description: "перемогти Сумлінного Допельґанґера 13 разів і дати дзеркалу привід на заяву.",
+    hidden: false,
+    lockedDescription: "перемогти Сумлінного Допельґанґера 13 разів.",
+    sortOrder: 111.5,
+    status: "enabled",
+    trigger: { type: "training.doppelganger.won", threshold: 13 },
+    progressTarget: 13
+  },
+  {
     id: "achievement.duel.quick.first",
     category: "combat",
     title: "Миттєва дуель не встигла моргнути",
@@ -800,6 +1032,28 @@ export const achievements = [
     status: "enabled",
     trigger: { type: "duel.quick.resolved", threshold: 1 },
     cosmeticTitleGrantId: "cosmetic-title.first-quick-duel"
+  },
+  {
+    id: "achievement.social.duel-resolved",
+    category: "combat",
+    title: "Добровільна незручність",
+    description: "завершити перший двобій з іншим пригодником і зберегти корчемну ввічливість.",
+    hidden: false,
+    lockedDescription: "завершити перший двобій з іншим пригодником.",
+    sortOrder: 115.5,
+    status: "enabled",
+    trigger: { type: "duel.resolved", threshold: 1 }
+  },
+  {
+    id: "achievement.social.duel-win",
+    category: "combat",
+    title: "Переміг знайомого, дружба триває",
+    description: "виграти перший двобій і не оголошувати себе меблям чемпіоном.",
+    hidden: false,
+    lockedDescription: "виграти перший двобій.",
+    sortOrder: 115.6,
+    status: "enabled",
+    trigger: { type: "duel.won", threshold: 1 }
   },
   {
     id: "achievement.duel.quick.thirteen",
@@ -827,6 +1081,17 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.first-turnbased-duel"
   },
   {
+    id: "achievement.social.duel-defend",
+    category: "combat",
+    title: "Не бити — теж хід",
+    description: "уперше захиститися у покроковому двобої й зробити паузу офіційною.",
+    hidden: false,
+    lockedDescription: "уперше захиститися у покроковому двобої.",
+    sortOrder: 117.5,
+    status: "enabled",
+    trigger: { type: "duel.turnbased.defend", threshold: 1 }
+  },
+  {
     id: "achievement.duel.turnbased.three",
     category: "combat",
     title: "Три ходи в чужу впевненість",
@@ -852,6 +1117,17 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.first-barrel-claim"
   },
   {
+    id: "achievement.social.barrel-raid",
+    category: "weird",
+    title: "Бочка програла за очками",
+    description: "завершити рейд на Бочку Пінного Міражу й лишити піну в протоколі.",
+    hidden: false,
+    lockedDescription: "завершити рейд на Бочку Пінного Міражу.",
+    sortOrder: 125.5,
+    status: "enabled",
+    trigger: { type: "barrel.raid.claimed", threshold: 1 }
+  },
+  {
     id: "achievement.barrel.raid.thirteen",
     category: "weird",
     title: "Бочка вже вітається",
@@ -875,6 +1151,17 @@ export const achievements = [
     status: "enabled",
     trigger: { type: "korchma.round.purchased", threshold: 1 },
     cosmeticTitleGrantId: "cosmetic-title.first-korchma-round"
+  },
+  {
+    id: "achievement.social.first-round",
+    category: "weird",
+    title: "Всім пива, бухгалтеру води",
+    description: "уперше пригостити корчму кругом пива й залишити бухгалтеру тверезу підозру.",
+    hidden: false,
+    lockedDescription: "уперше пригостити корчму кругом пива.",
+    sortOrder: 130.5,
+    status: "enabled",
+    trigger: { type: "korchma.round.purchased", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.thirteen",
@@ -1127,6 +1414,61 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.three-nyz-pressures"
   },
   {
+    id: "achievement.combat.hard-passage-win",
+    category: "combat",
+    title: "Ліворуч було написано «не треба»",
+    description: "перемогти після складного лівого проходу в Низі й не сперечатися з написом.",
+    hidden: false,
+    lockedDescription: "перемогти після складного лівого проходу в Низі.",
+    sortOrder: 184,
+    status: "enabled",
+    trigger: { type: "combat.persistent.hard-win", threshold: 1 }
+  },
+  {
+    id: "achievement.combat.adventure-origin-win",
+    category: "combat",
+    title: "Справу закрито кулаком",
+    description: "перемогти у бою, до якого привела корчемна справа.",
+    hidden: false,
+    lockedDescription: "перемогти у бою, до якого привела корчемна справа.",
+    sortOrder: 185,
+    status: "enabled",
+    trigger: { type: "combat.persistent.adventure-origin-win", threshold: 1 }
+  },
+  {
+    id: "achievement.combat.yeger-origin-win",
+    category: "combat",
+    title: "Слід довів до синця",
+    description: "перемогти неупокоєну ціль Єгеря й повернути слід із синцем.",
+    hidden: false,
+    lockedDescription: "перемогти неупокоєну ціль Єгеря.",
+    sortOrder: 186,
+    status: "enabled",
+    trigger: { type: "combat.persistent.yeger-origin-win", threshold: 1 }
+  },
+  {
+    id: "achievement.combat.low-hp-win",
+    category: "combat",
+    title: "На чесному слові й одному HP",
+    description: "перемогти у старшому бою, маючи не більш як 10% HP.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 187,
+    status: "enabled",
+    trigger: { type: "combat.persistent.low-hp-win", threshold: 1 }
+  },
+  {
+    id: "achievement.gear.zero-gold-item",
+    category: "gear",
+    title: "Золота нуль, зате доказ",
+    description: "виграти старший бій без золота, але з манаткою.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 188,
+    status: "enabled",
+    trigger: { type: "combat.persistent.zero-gold-item-win", threshold: 1 }
+  },
+  {
     id: "achievement.remort.first-memory",
     category: "weird",
     title: "Свічка памʼятає більше",
@@ -1137,6 +1479,116 @@ export const achievements = [
     status: "disabled",
     trigger: { type: "future" },
     cosmeticTitleGrantId: "cosmetic-title.first-remort-candle"
+  },
+  {
+    id: "achievement.combat.critical-1",
+    category: "combat",
+    title: "Критичне непорозуміння",
+    description: "завдати першого критичного удару у старшому бою.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 901,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.combat.critical-23",
+    category: "combat",
+    title: "Кістки мають особисту думку",
+    description: "завдати 23 критичних удари у старших боях.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 902,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.combat.defend-1",
+    category: "combat",
+    title: "Щит — теж дієслово",
+    description: "уперше захиститися у старшому бою.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 903,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.combat.defend-23",
+    category: "combat",
+    title: "Меблі корчми вже заздрять",
+    description: "захиститися 23 рази у старших боях.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 904,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.presence.day-1",
+    category: "weird",
+    title: "Корчма ще стоїть",
+    description: "проявити активність у грі в один київський день.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 905,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.presence.day-3",
+    category: "weird",
+    title: "Третій день без нормального сну",
+    description: "проявити активність у 3 різні київські дні.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 906,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.presence.day-13",
+    category: "weird",
+    title: "Тринадцять днів у табелі",
+    description: "проявити активність у 13 різних київських днів.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 907,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.oddity.failed-flee",
+    category: "weird",
+    title: "Втік, але залишився",
+    description: "спробувати втекти й не втекти.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 908,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.oddity.three-defends",
+    category: "weird",
+    title: "Черепаха схвалила техніку",
+    description: "захищатися три ходи поспіль в одному старшому бою.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 909,
+    status: "disabled",
+    trigger: { type: "future" }
+  },
+  {
+    id: "achievement.oddity.unequipped-win",
+    category: "weird",
+    title: "Без штанів, але з планом",
+    description: "перемогти у старшому бою без вдягнених манаток.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 910,
+    status: "disabled",
+    trigger: { type: "future" }
   }
 ] as const satisfies readonly AchievementDefinition[];
 

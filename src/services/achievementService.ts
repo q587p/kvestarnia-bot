@@ -21,6 +21,12 @@ export type AchievementListFilter = (typeof achievementListFilters)[number];
 
 export type AchievementEvent =
   | {
+      type: "achievement.list.opened";
+      characterId: string;
+      occurredAt: Date;
+      sourceId?: string;
+    }
+  | {
       type: "character.created";
       characterId: string;
       raceId?: string;
@@ -132,18 +138,30 @@ export class AchievementService {
   async trackEvent(event: AchievementEvent): Promise<AchievementUnlock[]> {
     const matching = getEnabledAchievements().filter((definition) => matchesEvent(definition, event));
     const unlocks: AchievementUnlock[] = [];
+    let recalculationSnapshot: AchievementRecalculationSnapshot | null | undefined;
 
     for (const definition of matching) {
-      if (definition.progressTarget && event.type === "level.reached") {
+      const eventProgress = getEventProgress(definition, event);
+      const snapshotProgress = await getSnapshotProgressForEventDefinition(
+        definition,
+        event,
+        async () => {
+          recalculationSnapshot ??= await this.achievementsRepository.getRecalculationSnapshot(event.characterId);
+          return recalculationSnapshot;
+        }
+      );
+      const current = snapshotProgress ?? eventProgress;
+
+      if (definition.progressTarget && current !== null) {
         await this.achievementsRepository.updateProgressMax({
           characterId: event.characterId,
           achievementId: definition.id,
-          current: Math.min(event.level, definition.progressTarget),
+          current: Math.min(current, definition.progressTarget),
           target: definition.progressTarget
         });
       }
 
-      if (!isThresholdMet(definition, event)) {
+      if (current === null || current < (definition.trigger.threshold ?? 1)) {
         continue;
       }
 
@@ -250,7 +268,7 @@ function filterAchievementEntries(
 }
 
 function matchesEvent(definition: AchievementDefinition, event: AchievementEvent): boolean {
-  if (definition.trigger.type !== event.type) {
+  if (!matchesEventType(definition.trigger.type, event.type)) {
     return false;
   }
 
@@ -271,40 +289,75 @@ function matchesEvent(definition: AchievementDefinition, event: AchievementEvent
   }
 }
 
-function isThresholdMet(definition: AchievementDefinition, event: AchievementEvent): boolean {
+function matchesEventType(triggerType: AchievementTriggerType, eventType: AchievementEvent["type"]): boolean {
+  return triggerType === eventType ||
+    (eventType === "combat.finished" && triggerType === "combat.persistent.finished");
+}
+
+function getEventProgress(definition: AchievementDefinition, event: AchievementEvent): number | null {
   if (definition.trigger.type === "level.reached") {
-    return event.type === "level.reached" && event.level >= (definition.trigger.threshold ?? 1);
+    return event.type === "level.reached" ? event.level : null;
   }
 
-  if (definition.trigger.type === "combat.finished") {
-    return event.type === "combat.finished" && (definition.trigger.threshold ?? 1) <= 1;
-  }
-
-  if (definition.trigger.type === "problem.quest.completed") {
-    return event.type === "problem.quest.completed" && (definition.trigger.threshold ?? 1) <= 1;
+  if (
+    definition.trigger.type === "achievement.list.opened" ||
+    definition.trigger.type === "character.created" ||
+    definition.trigger.type === "item.used"
+  ) {
+    return 1;
   }
 
   if (definition.trigger.type === "item.received") {
     if (event.type !== "item.received") {
-      return false;
+      return null;
     }
 
     const itemCount = definition.trigger.itemId
       ? event.itemIds.filter((itemId) => itemId === definition.trigger.itemId).length
       : event.itemIds.length;
 
-    return itemCount > 0 && (definition.trigger.threshold ?? 1) <= itemCount;
+    return itemCount > 0 ? itemCount : null;
   }
 
-  if (definition.trigger.type === "equipment.item_equipped") {
-    return event.type === "equipment.item_equipped" && (definition.trigger.threshold ?? 1) <= 1;
+  if (
+    definition.trigger.type === "combat.finished" ||
+    definition.trigger.type === "combat.persistent.finished" ||
+    definition.trigger.type === "problem.quest.completed" ||
+    definition.trigger.type === "equipment.item_equipped"
+  ) {
+    return (definition.trigger.threshold ?? 1) <= 1 ? 1 : null;
   }
 
-  if (definition.trigger.type === "item.used") {
-    return event.type === "item.used" && (definition.trigger.threshold ?? 1) <= 1;
+  return null;
+}
+
+async function getSnapshotProgressForEventDefinition(
+  definition: AchievementDefinition,
+  event: AchievementEvent,
+  loadSnapshot: () => Promise<AchievementRecalculationSnapshot | null>
+): Promise<number | null> {
+  if (!shouldUseSnapshotForEventDefinition(definition, event)) {
+    return null;
   }
 
-  return definition.trigger.type === event.type;
+  const snapshot = await loadSnapshot();
+
+  return snapshot ? getRecalculationProgress(definition, snapshot) : null;
+}
+
+function shouldUseSnapshotForEventDefinition(
+  definition: AchievementDefinition,
+  event: AchievementEvent
+): boolean {
+  return (
+    event.type === "combat.finished" ||
+    event.type === "problem.quest.completed" ||
+    event.type === "item.received" ||
+    event.type === "equipment.item_equipped"
+  ) && (
+    definition.progressTarget !== undefined ||
+    (definition.trigger.threshold ?? 1) > 1
+  );
 }
 
 function getRecalculationProgress(
@@ -323,6 +376,10 @@ function getRecalculationProgress(
       return definition.trigger.outcome
         ? snapshot.combat[definition.trigger.outcome]
         : 0;
+    case "combat.persistent.finished":
+      return definition.trigger.outcome
+        ? snapshot.activityDates[`combat.persistent.${definition.trigger.outcome}`]?.length ?? 0
+        : 0;
     case "problem.quest.completed":
       return snapshot.completedProblemQuestStages;
     case "item.received":
@@ -333,6 +390,22 @@ function getRecalculationProgress(
       return snapshot.equippedItemCount;
     case "item.used":
       return getActivityDates(definition, snapshot).length;
+    case "achievement.list.opened":
+    case "remort.completed":
+    case "starter.mimic-shawarma.completed":
+    case "starter.mimic-shawarma.probe.completed":
+    case "cellar.mouse.completed":
+    case "adventure.choice.strong-success":
+    case "training.doppelganger.won":
+    case "duel.resolved":
+    case "duel.won":
+    case "duel.turnbased.defend":
+    case "yeger.trial.completed":
+    case "combat.persistent.hard-win":
+    case "combat.persistent.adventure-origin-win":
+    case "combat.persistent.yeger-origin-win":
+    case "combat.persistent.low-hp-win":
+    case "combat.persistent.zero-gold-item-win":
     case "mantok.chest.completed":
     case "level.barter.completed":
     case "training.doppelganger.finished":
@@ -378,6 +451,11 @@ function getRecalculationOccurredAt(
         definition.trigger.outcome ? snapshot.combatFinishedAt[definition.trigger.outcome] : [],
         threshold
       ) ?? fallback;
+    case "combat.persistent.finished":
+      return getThresholdDate(
+        definition.trigger.outcome ? snapshot.activityDates[`combat.persistent.${definition.trigger.outcome}`] ?? [] : [],
+        threshold
+      ) ?? fallback;
     case "problem.quest.completed":
       return getThresholdDate(snapshot.problemQuestCompletedAt, threshold) ?? fallback;
     case "item.received":
@@ -393,6 +471,22 @@ function getRecalculationOccurredAt(
         ? snapshot.firstEquippedItemAt ?? fallback
         : snapshot.equipmentObservedAt ?? fallback;
     case "item.used":
+    case "achievement.list.opened":
+    case "remort.completed":
+    case "starter.mimic-shawarma.completed":
+    case "starter.mimic-shawarma.probe.completed":
+    case "cellar.mouse.completed":
+    case "adventure.choice.strong-success":
+    case "training.doppelganger.won":
+    case "duel.resolved":
+    case "duel.won":
+    case "duel.turnbased.defend":
+    case "yeger.trial.completed":
+    case "combat.persistent.hard-win":
+    case "combat.persistent.adventure-origin-win":
+    case "combat.persistent.yeger-origin-win":
+    case "combat.persistent.low-hp-win":
+    case "combat.persistent.zero-gold-item-win":
     case "mantok.chest.completed":
     case "level.barter.completed":
     case "training.doppelganger.finished":
@@ -481,9 +575,11 @@ function buildListEntries(
   const earnedById = new Map(achievementRows.map((row) => [row.achievementId, row]));
   const progressById = new Map(progressRows.map((row) => [row.achievementId, row]));
   const titleGrantsByAchievement = new Map(titleGrants.map((row) => [row.achievementId, row]));
-  const entries = achievements.map((definition) =>
-    buildKnownEntry(definition, earnedById.get(definition.id), progressById.get(definition.id), titleGrantsByAchievement.get(definition.id))
-  );
+  const entries = achievements
+    .filter((definition) => definition.status === "enabled" || earnedById.has(definition.id))
+    .map((definition) =>
+      buildKnownEntry(definition, earnedById.get(definition.id), progressById.get(definition.id), titleGrantsByAchievement.get(definition.id))
+    );
   const knownIds = new Set<string>(achievements.map((definition) => definition.id));
   const unknownEntries = achievementRows
     .filter((row) => !knownIds.has(row.achievementId))

@@ -17,6 +17,10 @@ const PROBLEM_QUEST_REWARD_KEYS = [
   "quest.problem-chain.93.reward"
 ] as const;
 
+const MIMIC_SHAWARMA_ADVENTURE_KEY = "adventure.mimic-shawarma";
+const MIMIC_SHAWARMA_COMBAT_PROBE_KEY = "combat.mimic-shawarma.probe";
+const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
+const YEGER_UNQUIET_TRIAL_COMPLETED_KEY = "quest.yeger.unquiet-trial.completed";
 const LEVEL_MILESTONE_KEY_PATTERN = /^milestone\.(?:remort\.\d+\.)?level\.(\d+)$/u;
 const TRAINING_DOPPELGANGER_MONSTER_ID = "monster.training-doppelganger";
 const YEGER_RANGER_FREE_BANDAGE_KEY = "yeger.bandage.supply.ranger-free";
@@ -73,6 +77,8 @@ export class PrismaAchievementRepository implements AchievementRepository {
       completedProblemQuestStages,
       problemQuestActions,
       levelMilestoneActions,
+      remorts,
+      selectedDailyActions,
       inventory,
       equipment,
       equippedItemCount,
@@ -81,6 +87,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       completedTrainingSessions,
       resolvedQuickDuels,
       resolvedTurnBasedDuels,
+      duelDefendActions,
       claimedBarrelRaids,
       korchmaRounds,
       completedGiftsSent,
@@ -105,7 +112,10 @@ export class PrismaAchievementRepository implements AchievementRepository {
           status: { in: ["won", "lost", "fled", "expired"] }
         },
         select: {
+          monsterId: true,
           status: true,
+          rewardGold: true,
+          rewardItemsJson: true,
           rewardClaimedAt: true,
           stateJson: true,
           updatedAt: true
@@ -140,6 +150,26 @@ export class PrismaAchievementRepository implements AchievementRepository {
           key: true,
           createdAt: true
         },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.characterRemort.findMany({
+        where: { characterId },
+        select: { createdAt: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.dailyAction.findMany({
+        where: {
+          characterId,
+          key: {
+            in: [
+              MIMIC_SHAWARMA_ADVENTURE_KEY,
+              MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+              CELLAR_MOUSE_ERRAND_KEY,
+              YEGER_UNQUIET_TRIAL_COMPLETED_KEY
+            ]
+          }
+        },
+        select: { key: true, createdAt: true },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }]
       }),
       this.prisma.characterItem.findMany({
@@ -188,7 +218,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
             { targetCharacterId: characterId }
           ]
         },
-        select: { resolvedAt: true, updatedAt: true },
+        select: { resultJson: true, resolvedAt: true, updatedAt: true },
         orderBy: [{ resolvedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
       }),
       this.prisma.duelChallenge.findMany({
@@ -200,8 +230,16 @@ export class PrismaAchievementRepository implements AchievementRepository {
             { targetCharacterId: characterId }
           ]
         },
-        select: { resolvedAt: true, updatedAt: true },
+        select: { resultJson: true, resolvedAt: true, updatedAt: true },
         orderBy: [{ resolvedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.duelCombatAction.findMany({
+        where: {
+          actorCharacterId: characterId,
+          actionKey: "defend"
+        },
+        select: { createdAt: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }]
       }),
       this.prisma.barrelRaidNotification.findMany({
         where: {
@@ -294,13 +332,64 @@ export class PrismaAchievementRepository implements AchievementRepository {
       .filter((row) => row.itemId === BANDAGE_ITEM_ID)
       .map((row) => row.completedAt ?? row.updatedAt);
     const completedPassageSearchDates = resolvedPassageSearches.map((row) => row.updatedAt);
+    const selectedDailyActionDates = groupDailyActionDatesByKey(selectedDailyActions);
+    const persistentCombatSessions = combatSessions.filter((row) => row.monsterId !== TRAINING_DOPPELGANGER_MONSTER_ID);
+    const resolvedDuelDates = [
+      ...resolvedQuickDuels.map((row) => row.resolvedAt ?? row.updatedAt),
+      ...resolvedTurnBasedDuels.map((row) => row.resolvedAt ?? row.updatedAt)
+    ].sort(compareDates);
+    const wonDuelDates = [
+      ...resolvedQuickDuels,
+      ...resolvedTurnBasedDuels
+    ]
+      .filter((row) => getDuelWinnerCharacterId(row.resultJson) === characterId)
+      .map((row) => row.resolvedAt ?? row.updatedAt)
+      .sort(compareDates);
     const threatEscalationDates = combatSessions
       .filter((row) => hasCombatThreat(row.stateJson))
       .map((row) => row.rewardClaimedAt ?? row.updatedAt);
     const activityDates = {
+      "remort.completed": remorts.map((row) => row.createdAt),
+      "starter.mimic-shawarma.completed": selectedDailyActionDates[MIMIC_SHAWARMA_ADVENTURE_KEY] ?? [],
+      "starter.mimic-shawarma.probe.completed": selectedDailyActionDates[MIMIC_SHAWARMA_COMBAT_PROBE_KEY] ?? [],
+      "cellar.mouse.completed": selectedDailyActionDates[CELLAR_MOUSE_ERRAND_KEY] ?? [],
+      "yeger.trial.completed": selectedDailyActionDates[YEGER_UNQUIET_TRIAL_COMPLETED_KEY] ?? [],
       "mantok.chest.completed": completedChestRuns.map((row) => row.completedAt ?? row.updatedAt),
       "level.barter.completed": completedLevelBarters.map((row) => row.completedAt ?? row.updatedAt),
       "training.doppelganger.finished": completedTrainingSessions.map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "training.doppelganger.won": combatSessions
+        .filter((row) => row.monsterId === TRAINING_DOPPELGANGER_MONSTER_ID && row.status === "won")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.won": persistentCombatSessions
+        .filter((row) => row.status === "won")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.lost": persistentCombatSessions
+        .filter((row) => row.status === "lost")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.fled": persistentCombatSessions
+        .filter((row) => row.status === "fled")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.expired": persistentCombatSessions
+        .filter((row) => row.status === "expired")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.hard-win": persistentCombatSessions
+        .filter((row) => row.status === "won" && isHardPassageWin(row.stateJson))
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.adventure-origin-win": persistentCombatSessions
+        .filter((row) => row.status === "won" && getCombatSource(row.stateJson) === "adventure")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.yeger-origin-win": persistentCombatSessions
+        .filter((row) => row.status === "won" && getCombatSource(row.stateJson) === "yeger")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.low-hp-win": persistentCombatSessions
+        .filter((row) => row.status === "won" && isLowHpWin(row.stateJson))
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "combat.persistent.zero-gold-item-win": persistentCombatSessions
+        .filter((row) => row.status === "won" && isZeroGoldItemWin(row.rewardGold, row.rewardItemsJson))
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      "duel.resolved": resolvedDuelDates,
+      "duel.won": wonDuelDates,
+      "duel.turnbased.defend": duelDefendActions.map((row) => row.createdAt),
       "duel.quick.resolved": resolvedQuickDuels.map((row) => row.resolvedAt ?? row.updatedAt),
       "duel.turnbased.resolved": resolvedTurnBasedDuels.map((row) => row.resolvedAt ?? row.updatedAt),
       "barrel.raid.claimed": claimedBarrelRaids.flatMap((row) => row.rewardClaimedAt ? [row.rewardClaimedAt] : [row.updatedAt]),
@@ -323,6 +412,9 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "passage.search.unique-nodes": getFirstPassageSearchDatesByNode(resolvedPassageSearches),
       "hunt.contract.completed": completedHuntContracts.map((row) => row.completedAt ?? row.updatedAt),
       "adventure.choice.completed": completedAdventureChoices.map((row) => row.createdAt),
+      "adventure.choice.strong-success": completedAdventureChoices
+        .filter((row) => isAdventureChoiceStrongSuccess(row.resultJson))
+        .map((row) => row.createdAt),
       "adventure.choice.complication": completedAdventureChoices
         .filter((row) => isAdventureChoiceComplication(row.resultJson))
         .map((row) => row.createdAt),
@@ -563,6 +655,41 @@ function isAdventureChoiceComplication(value: Prisma.JsonValue | null): boolean 
   return grade === "complication";
 }
 
+function isAdventureChoiceStrongSuccess(value: Prisma.JsonValue | null): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const grade = (value as Record<string, unknown>).grade;
+  return grade === "strong-success";
+}
+
+function groupDailyActionDatesByKey(
+  rows: readonly { key: string; createdAt: Date }[]
+): Record<string, Date[]> {
+  const result: Record<string, Date[]> = {};
+
+  for (const row of rows) {
+    result[row.key] ??= [];
+    result[row.key]!.push(row.createdAt);
+  }
+
+  for (const dates of Object.values(result)) {
+    dates.sort(compareDates);
+  }
+
+  return result;
+}
+
+function getDuelWinnerCharacterId(value: Prisma.JsonValue | null): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const winnerCharacterId = (value as Record<string, unknown>).winnerCharacterId;
+  return typeof winnerCharacterId === "string" ? winnerCharacterId : null;
+}
+
 function hasCombatThreat(value: Prisma.JsonValue | null): boolean {
   const threat = getCombatThreat(value);
   return !!threat && threat.enemyCount === 2 && threat.reason === "ordinary-win-streak";
@@ -580,6 +707,59 @@ function getCombatThreat(value: Prisma.JsonValue | null): Record<string, unknown
 
   const threat = (value as Record<string, unknown>).threat;
   return isRecord(threat) ? threat : null;
+}
+
+function getCombatSource(value: Prisma.JsonValue | null): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const source = (value as Record<string, unknown>).source;
+  return typeof source === "string" ? source : null;
+}
+
+function isHardPassageWin(value: Prisma.JsonValue | null): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const monster = (value as Record<string, unknown>).monster;
+  if (!isRecord(monster)) {
+    return false;
+  }
+
+  const debugTrace = monster.debugTrace;
+  if (!isRecord(debugTrace)) {
+    return false;
+  }
+
+  return debugTrace.interventionKind === "hinder";
+}
+
+function isLowHpWin(value: Prisma.JsonValue | null): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const hero = (value as Record<string, unknown>).hero;
+  if (!isRecord(hero)) {
+    return false;
+  }
+
+  const hp = Number(hero.hp);
+  const hpMax = Number(hero.hpMax);
+
+  return Number.isFinite(hp) && Number.isFinite(hpMax) && hpMax > 0 && hp > 0 && hp * 10 <= hpMax;
+}
+
+function isZeroGoldItemWin(rewardGold: number | null, rewardItemsJson: Prisma.JsonValue | null): boolean {
+  if (rewardGold !== 0 || !Array.isArray(rewardItemsJson)) {
+    return false;
+  }
+
+  return rewardItemsJson.some((entry) =>
+    isRecord(entry) && Number(entry.quantity) > 0 && typeof entry.itemId === "string"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

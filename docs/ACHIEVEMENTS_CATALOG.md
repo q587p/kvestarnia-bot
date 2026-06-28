@@ -6,80 +6,105 @@ Runtime rules:
 - Achievements are rewardless records and future cosmetic-title provenance only.
 - They must not grant XP, gold, items, stats, loot odds, combat power, quest progress, donor perks or paid advantage.
 - Hidden achievements may appear here for development clarity, but locked player-facing UI must not leak their condition.
+- Disabled future definitions are not shown to players and do not count in visible completion totals unless a character already has an older stored row for that id.
 - New player-facing mechanics should add matching achievements/hooks for visible actions, milestones or odd outcomes, or explicitly document why no durable event exists yet.
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 
-Current count: 85 enabled achievements, 1 disabled hidden future placeholder.
+Current count: 113 enabled achievements, 12 disabled hidden future placeholders (12 hidden).
 
 ## Current Catalog
 
 | ID | Status | Visibility | Trigger | Player-facing title | Full description |
 | --- | --- | --- | --- | --- | --- |
 | `achievement.character.created` | enabled | visible | `character.created` | Де тут вихід? | створити пригодника й офіційно стати проблемою Корчмаря. |
-| `achievement.race.human-ish` | enabled | visible | `character.created` / `race.human-ish` | Анкета витримала людисько | стати людиськом і довести, що практичність теж може бути підозрілою. |
-| `achievement.race.dwarf` | enabled | visible | `character.created` / `race.dwarf` | Полиця програла гному | стати гномом і не дати високим полицям виграти морально. |
-| `achievement.race.elf` | enabled | visible | `character.created` / `race.elf` | Образа лягла влучно | стати ельфом і подивитися на чоботи світу з належною драмою. |
-| `achievement.race.bisyny` | enabled | visible | `character.created` / `race.bisyny` | Словник знову під замком | стати бісинами й лишити корчмарські словники у стані самооборони. |
-| `achievement.race.drantohor` | enabled | visible | `character.created` / `race.drantohor` | Межа підписала заднім числом | стати дрантогором і зробити вигляд, що маршрут був погоджений. |
-| `achievement.race.domovyk` | enabled | visible | `character.created` / `race.domovyk` | За піччю теж є карʼєра | стати домовиком і змусити пил поводитися обережніше. |
-| `achievement.race.dryland-rusalka` | enabled | visible | `character.created` / `race.dryland-rusalka` | Чайник під наглядом | стати сухопутною русалкою й тримати чайники у ввічливій напрузі. |
-| `achievement.race.intellectual-orc` | enabled | visible | `character.created` / `race.intellectual-orc` | Рецензія прилетіла обличчям | стати орком-інтелігентом і мати аргументи з помітною вагою. |
-| `achievement.race.molfar-soul` | enabled | visible | `character.created` / `race.molfar-soul` | Оберіг знайшов запасний оберіг | стати мольфарською душею й носити туман так, ніби це документ. |
-| `achievement.class.warrior` | enabled | visible | `character.created` / `class.warrior` | План стояв рівно | стати воїном і переконливо пояснити світу залізом. |
-| `achievement.class.mage` | enabled | visible | `character.created` / `class.mage` | У кімнаті стало складніше | стати магом і сказати слово, після якого меблі нервово теплішають. |
-| `achievement.class.bard` | enabled | visible | `character.created` / `class.bard` | Куплет подав заявку | стати бардом і принести в бій небезпечно впевнений приспів. |
-| `achievement.class.rogue` | enabled | visible | `character.created` / `class.rogue` | Рахунок зник першим | стати злодієм і лишити таверну з питаннями до бухгалтерії. |
-| `achievement.class.priest` | enabled | visible | `character.created` / `class.priest` | Суворий погляд лікує | стати жерцем і подивитися на нежить так, щоб вона переглянула плани. |
-| `achievement.class.varenyk-mancer` | enabled | visible | `character.created` / `class.varenyk-mancer` | Начинка бачить майбутнє | стати вареник-мантом і дати тісту службові повноваження. |
-| `achievement.class.bureaucramancer` | enabled | visible | `character.created` / `class.bureaucramancer` | Форма 13-Б зітхнула | стати бюрокромантом і налякати хаос правильною печаткою. |
-| `achievement.class.ranger` | enabled | visible | `character.created` / `class.ranger` | Слід підписав квитанцію | стати єгерем і знати, де ховається остання стріла. |
-| `achievement.class.kharakternyk` | enabled | visible | `character.created` / `class.kharakternyk` | Проблема відвела очі | стати козаком-характерником і дивитися на халепу до її капітуляції. |
+| `achievement.journey.achievements-opened` | enabled | visible | `achievement.list.opened` | Ачівка за ачівки | уперше відкрити список ачівок і дати літописцю привід поправити окуляри. |
+| `achievement.race.human-ish` | enabled | visible | `character.created race.human-ish` | Анкета витримала людисько | стати людиськом і довести, що практичність теж може бути підозрілою. |
+| `achievement.race.dwarf` | enabled | visible | `character.created race.dwarf` | Полиця програла гному | стати гномом і не дати високим полицям виграти морально. |
+| `achievement.race.elf` | enabled | visible | `character.created race.elf` | Образа лягла влучно | стати ельфом і подивитися на чоботи світу з належною драмою. |
+| `achievement.race.bisyny` | enabled | visible | `character.created race.bisyny` | Словник знову під замком | стати бісинами й лишити корчмарські словники у стані самооборони. |
+| `achievement.race.drantohor` | enabled | visible | `character.created race.drantohor` | Межа підписала заднім числом | стати дрантогором і зробити вигляд, що маршрут був погоджений. |
+| `achievement.race.domovyk` | enabled | visible | `character.created race.domovyk` | За піччю теж є карʼєра | стати домовиком і змусити пил поводитися обережніше. |
+| `achievement.race.dryland-rusalka` | enabled | visible | `character.created race.dryland-rusalka` | Чайник під наглядом | стати сухопутною русалкою й тримати чайники у ввічливій напрузі. |
+| `achievement.race.intellectual-orc` | enabled | visible | `character.created race.intellectual-orc` | Рецензія прилетіла обличчям | стати орком-інтелігентом і мати аргументи з помітною вагою. |
+| `achievement.race.molfar-soul` | enabled | visible | `character.created race.molfar-soul` | Оберіг знайшов запасний оберіг | стати мольфарською душею й носити туман так, ніби це документ. |
+| `achievement.class.warrior` | enabled | visible | `character.created class.warrior` | План стояв рівно | стати воїном і переконливо пояснити світу залізом. |
+| `achievement.class.mage` | enabled | visible | `character.created class.mage` | У кімнаті стало складніше | стати магом і сказати слово, після якого меблі нервово теплішають. |
+| `achievement.class.bard` | enabled | visible | `character.created class.bard` | Куплет подав заявку | стати бардом і принести в бій небезпечно впевнений приспів. |
+| `achievement.class.rogue` | enabled | visible | `character.created class.rogue` | Рахунок зник першим | стати злодієм і лишити таверну з питаннями до бухгалтерії. |
+| `achievement.class.priest` | enabled | visible | `character.created class.priest` | Суворий погляд лікує | стати жерцем і подивитися на нежить так, щоб вона переглянула плани. |
+| `achievement.class.varenyk-mancer` | enabled | visible | `character.created class.varenyk-mancer` | Начинка бачить майбутнє | стати вареник-мантом і дати тісту службові повноваження. |
+| `achievement.class.bureaucramancer` | enabled | visible | `character.created class.bureaucramancer` | Форма 13-Б зітхнула | стати бюрокромантом і налякати хаос правильною печаткою. |
+| `achievement.class.ranger` | enabled | visible | `character.created class.ranger` | Слід підписав квитанцію | стати єгерем і знати, де ховається остання стріла. |
+| `achievement.class.kharakternyk` | enabled | visible | `character.created class.kharakternyk` | Проблема відвела очі | стати козаком-характерником і дивитися на халепу до її капітуляції. |
 | `achievement.level.2` | enabled | visible | `level.reached >= 2` | Табурет навчився хитатися | досягти 2 рівня й зрозуміти, що табурет під вами теж має амбіції. |
 | `achievement.level.3` | enabled | visible | `level.reached >= 3` | Перший поверх амбіцій | досягти 3 рівня, де справи вже починають дивитися у відповідь. |
 | `achievement.level.5` | enabled | visible | `level.reached >= 5` | Палиця вже не випадкова | досягти 5 рівня й виглядати так, ніби це був план. |
+| `achievement.level.8` | enabled | visible | `level.reached >= 8` | Корчмар памʼятає обличчя | досягти 8 рівня й стати обличчям, яке Корчмар уже не плутає з рахунком. |
 | `achievement.level.10` | enabled | visible | `level.reached >= 10` | Десять рівнів і жодної підозри | досягти 10 рівня так, ніби Корчмар не веде окрему теку. |
 | `achievement.level.13` | enabled | visible | `level.reached >= 13` | Тринадцятий пункт інструкції | досягти 13 рівня й не читати дрібний шрифт уголос. |
-| `achievement.level.23` | enabled | visible | `level.reached >= 23` | Двадцять три причини не питати | досягти 23 рівня й дати літописцю новий привід нервово рахувати. |
+| `achievement.remort.first` | enabled | visible | `remort.completed >= 1` | Знову з першої, але з претензією | завершити перший реморт і повернутися з досвідом, який підозріло світиться. |
+| `achievement.level.23` | disabled | hidden | `future` | Двадцять три причини не питати | досягти 23 рівня й дати літописцю новий привід нервово рахувати. |
 | `achievement.combat.first-win` | enabled | visible | `combat.finished won >= 1` | Бойове хрещення в калюжі | виграти бій з монстром і не питати, чия це була калюжа. |
 | `achievement.combat.three-wins` | enabled | visible | `combat.finished won >= 3` | Три монстри не погодили протокол | виграти 3 бої з монстрами й лишити протокол у стані легкої образи. |
 | `achievement.combat.thirteen-wins` | enabled | visible | `combat.finished won >= 13` | Тринадцять разів не впав | виграти 13 боїв з монстрами й підписати підлозі акт про ненапад. |
+| `achievement.combat.persistent-win-23` | enabled | visible | `combat.persistent.finished won >= 23` | Двадцять три аргументи | перемогти у 23 старших боях і залишити Низ без переконливого протоколу. |
+| `achievement.combat.persistent-win-42` | enabled | visible | `combat.persistent.finished won >= 42` | Відповідь: бити обережніше | перемогти у 42 старших боях і не сперечатися з відповіддю Корчмаря. |
+| `achievement.combat.persistent-win-93` | enabled | visible | `combat.persistent.finished won >= 93` | Девʼяносто три свідки мовчать | перемогти у 93 старших боях і змусити свідків Низу нервово мовчати. |
 | `achievement.combat.first-loss` | enabled | visible | `combat.finished lost >= 1` | Горизонтальний досвід | програти бій і зробити вигляд, що це була розвідка підлоги. |
 | `achievement.combat.three-losses` | enabled | visible | `combat.finished lost >= 3` | Підлога впізнає кроки | програти 3 бої й отримати від підлоги мовчазне «знову ви». |
 | `achievement.combat.first-flee` | enabled | visible | `combat.finished fled >= 1` | Тактичний відступ із поясненнями | утекти з бою й назвати це перевіркою запасних дверей. |
-| `achievement.quest.first-problem` | enabled | visible | `problem.quest.completed >= 1` | Перший пергамент не зʼїв | здати першу корчмарську проблему й лишити папірець придатним для архіву. |
+| `achievement.quest.first-problem` | enabled | visible | `problem.quest.completed` | Перший пергамент не зʼїв | здати першу корчмарську проблему й лишити папірець придатним для архіву. |
 | `achievement.quest.problem-chain.23` | enabled | visible | `problem.quest.completed >= 2` | Двадцять три підозрілі підписи | закрити другу теку корчмарських проблем і не загубити підпис між плямами. |
 | `achievement.quest.problem-chain.42` | enabled | visible | `problem.quest.completed >= 3` | Сорок дві причини для печатки | закрити третю теку корчмарських проблем і змусити печатку задуматися. |
-| `achievement.item.first-received` | enabled | visible | `item.received >= 1` | Манатка дивиться першою | отримати першу манатку й чемно не питати, звідки вона дивиться. |
+| `achievement.quest.mimic-shawarma` | enabled | visible | `starter.mimic-shawarma.completed >= 1` | Шаурма мала зуби | завершити першу справу з міміком-шаурмою й не довіряти обіду з очима. |
+| `achievement.quest.cellar-mouse` | enabled | visible | `cellar.mouse.completed >= 1` | Мишача дипломатія | завершити льохову справу з мишею й лишити сирні аргументи в архіві. |
+| `achievement.quest.problem-chain.93` | enabled | visible | `problem.quest.completed >= 4` | Девʼяносто три волі до проблем | завершити весь корчмарський ланцюжок проблем і не сперечатися з останньою текою. |
+| `achievement.quest.yeger-first` | enabled | visible | `yeger.trial.completed >= 1` | Єгер кивнув. Це майже овація | завершити перше випробування Єгеря й побачити кивок майже урочистого масштабу. |
+| `achievement.quest.strong-success` | enabled | visible | `adventure.choice.strong-success >= 1` | План спрацював. Підозріло | отримати сильний успіх у корчемній справі й поводитися так, ніби все було заплановано. |
+| `achievement.quest.complication` | enabled | visible | `adventure.choice.complication >= 1` | План теж був пригодою | завершити корчемну справу з ускладненням і не подавати скаргу на жанр. |
+| `achievement.quest.adventure-first` | enabled | visible | `adventure.choice.completed >= 1` | Метод є. Наслідки теж | завершити першу авторську корчемну справу й не сперечатися з методом. |
+| `achievement.quest.adventure-13` | enabled | visible | `adventure.choice.completed >= 13` | Тринадцять способів не читати умову | завершити 13 авторських корчемних справ і лишити умови нервово шелестіти. |
+| `achievement.combat.starter-probe` | enabled | visible | `starter.mimic-shawarma.probe.completed >= 1` | Бойове хрещення в соусі | завершити навчальну сутичку з міміком-шаурмою й відмити соус із висновків. |
+| `achievement.item.first-received` | enabled | visible | `item.received` | Манатка дивиться першою | отримати першу манатку й чемно не питати, звідки вона дивиться. |
 | `achievement.item.three-owned` | enabled | visible | `item.received >= 3` | Три манатки вже радяться | мати 3 манатки в торбі, поки вони ще не створили комітет. |
 | `achievement.item.thirteen-owned` | enabled | visible | `item.received >= 13` | Тринадцять одиниць сумніву | мати 13 манаток у торбі й не питати, чому торба важчає морально. |
-| `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |
-| `achievement.item.forty-two-owned` | enabled | visible | `item.received >= 42` | Сорок дві манатки відповіли | мати 42 манатки в торбі й не питати, на яке саме питання вони відповіли. |
-| `achievement.item.ninety-three-owned` | enabled | visible | `item.received >= 93` | Девʼяносто три докази торби | мати 93 манатки в торбі й виглядати як пересувний склад пригод. |
 | `achievement.bandage.first-owned` | enabled | visible | `item.received item.responsible-panic-bandage >= 1` | Бинт дивиться відповідально | мати перший Бинт відповідальної паніки й не питати, чи він теж нервує. |
 | `achievement.bandage.ninety-three-owned` | enabled | visible | `item.received item.responsible-panic-bandage >= 93` | Девʼяносто три причини не кровити | мати 93 Бинти відповідальної паніки й виглядати як склад невеликої надії. |
 | `achievement.bandage.first-used` | enabled | visible | `item.used item.responsible-panic-bandage >= 1` | Паніка спрацювала за призначенням | уперше використати Бинт відповідальної паніки й не сперечатися з медициною. |
 | `achievement.bandage.four-used` | enabled | visible | `item.used item.responsible-panic-bandage >= 4` | Чотири вузли самозбереження | використати 4 Бинти відповідальної паніки й виглядати майже професійно. |
 | `achievement.bandage.ninety-three-used` | enabled | visible | `item.used item.responsible-panic-bandage >= 93` | Девʼяносто три рази не сьогодні | використати 93 Бинти відповідальної паніки й змусити біль заповнити форму. |
 | `achievement.yeger.free-bandage.first` | enabled | visible | `yeger.free-bandage.claimed >= 1` | Єгер дав бинт і не моргнув | уперше отримати безкоштовний бинт як єгер. |
-| `achievement.equipment.first-equipped` | enabled | visible | `equipment.item_equipped >= 1` | На мені це виглядає службово | вдягнути першу манатку й почути, як гачок нервово погодився. |
+| `achievement.equipment.first-equipped` | enabled | visible | `equipment.item_equipped` | На мені це виглядає службово | вдягнути першу манатку й почути, як гачок нервово погодився. |
 | `achievement.equipment.three-equipped` | enabled | visible | `equipment.item_equipped >= 3` | Образ уже має інвентарний номер | вдягнути 3 манатки й виглядати як службова перевірка пригод. |
+| `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |
+| `achievement.item.forty-two-owned` | enabled | visible | `item.received >= 42` | Сорок дві манатки відповіли | мати 42 манатки в торбі й не питати, на яке саме питання вони відповіли. |
+| `achievement.item.ninety-three-owned` | enabled | visible | `item.received >= 93` | Девʼяносто три докази торби | мати 93 манатки в торбі й виглядати як пересувний склад пригод. |
 | `achievement.mantok.chest.first` | enabled | visible | `mantok.chest.completed >= 1` | Скриня зробила вигляд, що так і треба | уперше завершити переробку манаток у скрині. |
+| `achievement.gear.first-chest` | enabled | visible | `mantok.chest.completed >= 1` | Пʼять зайшли, одна вийшла | уперше завершити переробку в Дружній Скрині й не питати, де решта свідків. |
 | `achievement.mantok.chest.thirteen` | enabled | visible | `mantok.chest.completed >= 13` | Скриня просить журнал техогляду | завершити 13 переробок манаток і лишити скриню з робочою підозрою. |
 | `achievement.mantok.sale.first` | enabled | visible | `mantok.sale.completed >= 1` | Манчкін-скупник кивнув | уперше продати манатку й не дивитися занадто довго на гаманець. |
 | `achievement.mantok.sale.thirteen` | enabled | visible | `mantok.sale.completed >= 13` | Скупник уже впізнає кроки | продати манатки 13 разів і стати знайомим пунктом у нічному обліку. |
 | `achievement.level.barter.first` | enabled | visible | `level.barter.completed >= 1` | Манчкін прийняв рівневу заявку | уперше скористатися обміном Манчкіна й зробити вигляд, що це не магія бухгалтерії. |
+| `achievement.gear.first-level-barter` | enabled | visible | `level.barter.completed >= 1` | Купив рівень без квитанції | уперше обміняти манатки й золото на рівень так, щоб бухгалтерія кліпнула. |
 | `achievement.level.barter.three` | enabled | visible | `level.barter.completed >= 3` | Три рівневі квитанції | тричі скористатися обміном Манчкіна й не сперечатися з дрібним шрифтом. |
 | `achievement.bard.performance.first` | enabled | visible | `bard.performance.completed >= 1` | Куплет вийшов на люди | уперше виступити як бард і змусити Шинок перевірити акустику. |
 | `achievement.bard.performance.thirteen` | enabled | visible | `bard.performance.completed >= 13` | Тринадцять куплетів свідчать | виступити як бард 13 разів і лишити Шинок у стані культурної обережности. |
 | `achievement.training.doppelganger.first` | enabled | visible | `training.doppelganger.finished >= 1` | Дзеркало вдарило першим | уперше завершити тренування з Допельґанґером і не підписувати протокол споріднености. |
+| `achievement.social.training-win-1` | enabled | visible | `training.doppelganger.won >= 1` | Сам собі суперник | перемогти Сумлінного Допельґанґера й не звинувачувати дзеркало в упередженості. |
 | `achievement.training.doppelganger.thirteen` | enabled | visible | `training.doppelganger.finished >= 13` | Допельґанґер просить відпустку | завершити 13 тренувань із Допельґанґером і лишити дзеркало втомленим. |
+| `achievement.social.training-win-13` | enabled | visible | `training.doppelganger.won >= 13` | Допельґанґер просить вихідний | перемогти Сумлінного Допельґанґера 13 разів і дати дзеркалу привід на заяву. |
 | `achievement.duel.quick.first` | enabled | visible | `duel.quick.resolved >= 1` | Миттєва дуель не встигла моргнути | уперше завершити миттєву дуель і зберегти обличчя в будь-якому стані. |
+| `achievement.social.duel-resolved` | enabled | visible | `duel.resolved >= 1` | Добровільна незручність | завершити перший двобій з іншим пригодником і зберегти корчемну ввічливість. |
+| `achievement.social.duel-win` | enabled | visible | `duel.won >= 1` | Переміг знайомого, дружба триває | виграти перший двобій і не оголошувати себе меблям чемпіоном. |
 | `achievement.duel.quick.thirteen` | enabled | visible | `duel.quick.resolved >= 13` | Тринадцять швидких непорозумінь | завершити 13 миттєвих дуелей і навчити рукавичку літати по графіку. |
 | `achievement.duel.turnbased.first` | enabled | visible | `duel.turnbased.resolved >= 1` | Хід подумав і погодився | уперше завершити покрокову дуель і пережити офіційне очікування. |
+| `achievement.social.duel-defend` | enabled | visible | `duel.turnbased.defend >= 1` | Не бити — теж хід | уперше захиститися у покроковому двобої й зробити паузу офіційною. |
 | `achievement.duel.turnbased.three` | enabled | visible | `duel.turnbased.resolved >= 3` | Три ходи в чужу впевненість | завершити 3 покрокові дуелі й не загубити чергу в кишені. |
 | `achievement.barrel.raid.first` | enabled | visible | `barrel.raid.claimed >= 1` | Бочка видала перший акт | уперше отримати результат Бочки й не питати, хто там веде облік. |
+| `achievement.social.barrel-raid` | enabled | visible | `barrel.raid.claimed >= 1` | Бочка програла за очками | завершити рейд на Бочку Пінного Міражу й лишити піну в протоколі. |
 | `achievement.barrel.raid.thirteen` | enabled | visible | `barrel.raid.claimed >= 13` | Бочка вже вітається | отримати 13 результатів Бочки й не сперечатися з пінним архівом. |
 | `achievement.korchma.round.first` | enabled | visible | `korchma.round.purchased >= 1` | Перший кухоль за компанію | уперше проставити пиво й лишити на столі соціяльний слід. |
+| `achievement.social.first-round` | enabled | visible | `korchma.round.purchased >= 1` | Всім пива, бухгалтеру води | уперше пригостити корчму кругом пива й залишити бухгалтеру тверезу підозру. |
 | `achievement.korchma.round.thirteen` | enabled | visible | `korchma.round.purchased >= 13` | Тринадцять кухлів дипломатії | проставити пиво 13 разів і стати окремим пунктом корчемної ввічливости. |
 | `achievement.item.gift.sent.first` | enabled | visible | `item.gift.sent >= 1` | Манатка пішла в люди | уперше подарувати манатку іншому пригоднику й не вимагати драматичного листа подяки. |
 | `achievement.item.gift.sent.thirteen` | enabled | visible | `item.gift.sent >= 13` | Дарувальник із журналом | подарувати манатки 13 разів і змусити щедрість вести облік. |
@@ -100,16 +125,35 @@ Current count: 85 enabled achievements, 1 disabled hidden future placeholder.
 | `achievement.combat.threat-escalation.three` | enabled | visible | `combat.threat-escalated >= 3` | Три протоколи натовпу | тричі пережити ескалацію бою й лишити Низ із процедурним задоволенням. |
 | `achievement.combat.threat-pressure.first` | enabled | visible | `combat.threat-pressure >= 1` | Натиск Низу підкрутив гайку | уперше відчути тиск Низу, коли друга проблема прийшла вже з інструкцією. |
 | `achievement.combat.threat-pressure.three` | enabled | visible | `combat.threat-pressure >= 3` | Три натиски і жодної ввічливости | тричі пережити тиск Низу й не погодитися, що це нормальна гостинність. |
+| `achievement.combat.hard-passage-win` | enabled | visible | `combat.persistent.hard-win >= 1` | Ліворуч було написано «не треба» | перемогти після складного лівого проходу в Низі й не сперечатися з написом. |
+| `achievement.combat.adventure-origin-win` | enabled | visible | `combat.persistent.adventure-origin-win >= 1` | Справу закрито кулаком | перемогти у бою, до якого привела корчемна справа. |
+| `achievement.combat.yeger-origin-win` | enabled | visible | `combat.persistent.yeger-origin-win >= 1` | Слід довів до синця | перемогти неупокоєну ціль Єгеря й повернути слід із синцем. |
+| `achievement.combat.low-hp-win` | enabled | hidden | `combat.persistent.low-hp-win >= 1` | На чесному слові й одному HP | перемогти у старшому бою, маючи не більш як 10% HP. |
+| `achievement.gear.zero-gold-item` | enabled | hidden | `combat.persistent.zero-gold-item-win >= 1` | Золота нуль, зате доказ | виграти старший бій без золота, але з манаткою. |
 | `achievement.remort.first-memory` | disabled | hidden | `future` | Свічка памʼятає більше | пройти перший реморт і лишити памʼять там, де Корчма її не дістане шваброю. |
+| `achievement.combat.critical-1` | disabled | hidden | `future` | Критичне непорозуміння | завдати першого критичного удару у старшому бою. |
+| `achievement.combat.critical-23` | disabled | hidden | `future` | Кістки мають особисту думку | завдати 23 критичних удари у старших боях. |
+| `achievement.combat.defend-1` | disabled | hidden | `future` | Щит — теж дієслово | уперше захиститися у старшому бою. |
+| `achievement.combat.defend-23` | disabled | hidden | `future` | Меблі корчми вже заздрять | захиститися 23 рази у старших боях. |
+| `achievement.presence.day-1` | disabled | hidden | `future` | Корчма ще стоїть | проявити активність у грі в один київський день. |
+| `achievement.presence.day-3` | disabled | hidden | `future` | Третій день без нормального сну | проявити активність у 3 різні київські дні. |
+| `achievement.presence.day-13` | disabled | hidden | `future` | Тринадцять днів у табелі | проявити активність у 13 різних київських днів. |
+| `achievement.oddity.failed-flee` | disabled | hidden | `future` | Втік, але залишився | спробувати втекти й не втекти. |
+| `achievement.oddity.three-defends` | disabled | hidden | `future` | Черепаха схвалила техніку | захищатися три ходи поспіль в одному старшому бою. |
+| `achievement.oddity.unequipped-win` | disabled | hidden | `future` | Без штанів, але з планом | перемогти у старшому бою без вдягнених манаток. |
 
 ## Not Yet Countable Without New Ledgers
 
 These are good future achievements, but current persisted state cannot honestly reconstruct or count them yet:
 
+- Persistent PvE critical-hit and manual defend lifetime counters; current finished fight rows do not preserve a durable per-turn action log that can be counted across old sessions.
+- Failed flee and three consecutive defends in one senior fight; existing terminal rows do not preserve enough committed turn history for historical backfill.
+- Distinct Kyiv active-day streaks; current character timestamps and last activity fields are not durable day receipts and must not be used to infer 3/13 day history.
+- Unequipped senior-fight wins; current fight rows do not reliably freeze the equipment-at-start snapshot for old fights.
 - Bestiary reading and specific monster-record reads.
 - News board opens and reading several news entries from the Telegram board.
 - Memorial board views beyond the current board data itself.
-- `Хто поруч` opens and repeated nearby-player checks.
+- `??? ?????` opens and repeated nearby-player checks.
 - Location visit history, visiting every current place and first visits to Nyz; current presence stores where a character is now, not a durable route diary.
 - Yeger trail attempts, failed trails and repeated trail outcomes; current cooldown state only preserves the latest trail, not the historical series.
 - Class/race ability lifetime-use achievements such as 42 uses; current fumble cycles live in active combat/duel JSON, not a durable per-character counter.
@@ -118,7 +162,7 @@ These are good future achievements, but current persisted state cannot honestly 
 
 A later internal analytics slice should expose aggregate achievement statistics without adding player power:
 
-- per-achievement earned character count and percentage, for example level 10 reached by 5% of characters and level 23 reached by 0%;
+- per-achievement earned character count and percentage, for example level 10 reached by 5% of characters and level 23 by 0%;
 - filterable views by active characters, all characters, remort generation or release window if those cohorts are useful;
 - no public personal data, Telegram ids, private names or exact individual histories in aggregate views;
 - no gameplay rewards, leader pressure or monetization advantage from completion percentages.

@@ -126,6 +126,13 @@ export class HeroService {
       return { state: "no-character" };
     }
 
+    await this.achievements.trackEventSafely({
+      type: "achievement.list.opened",
+      characterId: character.id,
+      occurredAt: this.clock(),
+      sourceId: character.id
+    });
+
     return {
       state: "ready",
       view: await this.achievements.listForCharacter(character.id, page, filter)
