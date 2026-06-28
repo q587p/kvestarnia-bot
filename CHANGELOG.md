@@ -26,7 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The earned achievements tab now sorts newest unlocks first, while all/locked tabs keep catalog order.
 - Pressed reply-keyboard location labels now send the movement notice before the destination card, so cellar/daily-location cards no longer appear above their arrival line.
 - The Korchma yard now behaves as a real reply-keyboard current location, wrong-location daily step cards route to the required place, and daily step claims use a repository-level per-day prefix guard so double-taps cannot create more than two step rows.
-- Final turn-in requires the Quest Table and grants exactly 4 XP + 2 gold once per Kyiv day, with duplicate/restart replay returning the stored result.
+- Final turn-in requires the Quest Table and grants a deterministic level-scaled XP/gold spread once per Kyiv day, with duplicate/restart replay returning the stored result.
 - The level 4+ grownup cellar roleplay route cannot grant the bottle on the first attempt, and later attempts are capped at a 13% success chance. The cheese seal remains the guaranteed expensive route. Turning in the bottle now grants 40 XP + 180 gold, so it cannot skip a level 4 character straight to level 6.
 
 ### Unchanged

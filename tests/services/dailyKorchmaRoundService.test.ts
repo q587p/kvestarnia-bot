@@ -14,7 +14,10 @@ import {
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   DAILY_KORCHMA_ROUND_STEP_KEY
 } from "../../src/services/dailyActionKeys";
-import { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
+import {
+  DailyKorchmaRoundService,
+  calculateDailyKorchmaRoundReward
+} from "../../src/services/dailyKorchmaRoundService";
 import {
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -145,7 +148,7 @@ describe("DailyKorchmaRoundService", () => {
     expect(thirdStep.state).toBe("third-locked");
   });
 
-  it("claims exactly 4 XP and 2 gold once from the Quest Table and survives restart/remort", async () => {
+  it("claims a persisted level-scaled reward once from the Quest Table and survives restart/remort", async () => {
     const world = new FakeWorld(makeCharacter({ level: 3, xp: 13, gold: 23 }));
     const offer = await readyOffer(world);
     const [first, second] = offer.scenes;
@@ -177,9 +180,17 @@ describe("DailyKorchmaRoundService", () => {
       dayToken: offer.dayToken,
       lifeToken: offer.lifeToken
     });
+    const expectedReward = calculateDailyKorchmaRoundReward({
+      characterId: "character-1",
+      characterLevel: 3,
+      dayKey: offer.dayKey,
+      sceneIds: offer.scenes.map((scene) => scene.id),
+      completedSceneIds: [first!.id, second!.id]
+    });
     expect(claimed.state).toBe("reward-claimed");
-    expect(world.character?.xp).toBe(17);
-    expect(world.character?.gold).toBe(25);
+    expect(claimed.state === "reward-claimed" ? claimed.reward : null).toEqual(expectedReward);
+    expect(world.character?.xp).toBe(13 + expectedReward.xp);
+    expect(world.character?.gold).toBe(23 + expectedReward.gold);
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
 
     const restarted = new DailyKorchmaRoundService(world, world.daily, world, world, world, undefined, () => now);
@@ -188,8 +199,9 @@ describe("DailyKorchmaRoundService", () => {
       lifeToken: offer.lifeToken
     });
     expect(replay.state).toBe("reward-replayed");
-    expect(world.character?.xp).toBe(17);
-    expect(world.character?.gold).toBe(25);
+    expect(replay.state === "reward-replayed" ? replay.reward : null).toEqual(expectedReward);
+    expect(world.character?.xp).toBe(13 + expectedReward.xp);
+    expect(world.character?.gold).toBe(23 + expectedReward.gold);
 
     world.character = { ...world.character!, remortCount: 1 };
     const afterRemort = await world.service.getForTelegramUser(telegramUserId);
@@ -202,6 +214,28 @@ describe("DailyKorchmaRoundService", () => {
       lifeToken: offer.lifeToken
     });
     expect(oldLife.state).toBe("stale-life");
+  });
+
+  it("keeps daily reward spread bounded and deterministic by level", () => {
+    const base = {
+      characterId: "character-1",
+      dayKey: "2026-06-28",
+      sceneIds: ["yard-rope-philosophy", "cellar-inventory-bottle", "ranger-map-sneeze"],
+      completedSceneIds: ["yard-rope-philosophy", "ranger-map-sneeze"]
+    };
+
+    const level3 = calculateDailyKorchmaRoundReward({ ...base, characterLevel: 3 });
+    const level13 = calculateDailyKorchmaRoundReward({ ...base, characterLevel: 13 });
+
+    expect(calculateDailyKorchmaRoundReward({ ...base, characterLevel: 3 })).toEqual(level3);
+    expect(level3.xp).toBeGreaterThanOrEqual(7);
+    expect(level3.xp).toBeLessThanOrEqual(9);
+    expect(level3.gold).toBeGreaterThanOrEqual(4);
+    expect(level3.gold).toBeLessThanOrEqual(6);
+    expect(level13.xp).toBeGreaterThanOrEqual(27);
+    expect(level13.xp).toBeLessThanOrEqual(39);
+    expect(level13.gold).toBeGreaterThanOrEqual(14);
+    expect(level13.gold).toBeLessThanOrEqual(26);
   });
 
   it("does not create a third step row when another callback completes a second scene inside the claim boundary", async () => {

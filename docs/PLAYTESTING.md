@@ -19,7 +19,7 @@ Use one level 2 account and one level 3+ account. Local dev grants/resets are ac
 3. Walk through normal Korchma navigation to the first required location; verify the active scene opens there, then complete one authored action.
 4. Try the second scene action from the wrong location using an old/stale scene card if available; verify no step row/reward is created and the card names the required place.
 5. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `Не сьогоднішня катастрофа`.
-6. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants exactly `+4 XP` and `+2 золота`.
+6. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants level-scaled XP/gold and replays the same exact values.
 7. Replay old overview/scene/action/claim buttons; verify no duplicate step, reward, achievement notification, XP or gold.
 8. Remort before and after claim in local QA; verify same-day progress/reward is not cleared or duplicated and old-life action buttons stale out.
 9. Restart before and after claim; verify the exact same scene ids/order and reward replay.

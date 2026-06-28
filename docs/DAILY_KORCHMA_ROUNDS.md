@@ -214,8 +214,8 @@ Result:
 ніби саме це весь день тримало світ.
 
 Отримано:
-+4 XP
-+2 золота
++8 XP
++5 золота
 ```
 
 ### 4.7 Already completed replay
@@ -226,8 +226,8 @@ Result:
 Книга лежить рівно, що для неї підозріло.
 
 Отримано:
-+4 XP
-+2 золота
++8 XP
++5 золота
 ```
 
 Stored reward values, chosen scenes and omitted scene replay-яться з final claim.
@@ -494,13 +494,12 @@ Show/open the new current offer without mutating the old one.
 
 ## 12. Reward and economy
 
-- fixed `4 XP + 2 gold`;
+- deterministic level-scaled stored XP/gold spread: `level * 2 + 1..level` XP and `level + 1..level` gold;
 - exact values only after claim/replay;
 - no per-step rewards;
 - no item rolls;
 - no consumable integration;
 - no luck/class/race modifier;
-- no level scaling;
 - no third-step bonus;
 - no streak multiplier.
 

@@ -1,7 +1,6 @@
 import {
   DAILY_KORCHMA_ROUND_CONTENT_VERSION,
   DAILY_KORCHMA_ROUND_REQUIRED_STEPS,
-  DAILY_KORCHMA_ROUND_REWARD,
   dailyKorchmaRoundScenes,
   getDailyKorchmaRoundScene,
   type DailyKorchmaRoundAction,
@@ -17,6 +16,7 @@ import { DailyActionPrefixLimitExceededError } from "../db/repositories/dailyAct
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { selectDailyKorchmaRoundSceneIds } from "../domain/quests/dailyKorchmaRound";
 import { getKyivDayKey, getKyivDayToken, kyivDayTokenToKey } from "../shared/kyivDate";
+import { SeededRandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import {
@@ -398,29 +398,40 @@ export class DailyKorchmaRoundService {
         state: "reward-replayed",
         character: context.character,
         offer: context.offer,
-        reward: buildReward(context.dayKey),
+        reward: buildRewardFromRecord(existingReward),
         levelChange: null,
         achievementUnlocks: []
       };
     }
 
+    const reward = calculateDailyKorchmaRoundReward({
+      characterId: context.characterId,
+      characterLevel: context.character.level,
+      dayKey: context.dayKey,
+      sceneIds: context.offer.scenes.map((scene) => scene.id),
+      completedSceneIds: [...context.completedSceneIds]
+    });
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: DAILY_KORCHMA_ROUND_REWARD_KEY,
       localDate: context.dayKey,
-      rewardXp: DAILY_KORCHMA_ROUND_REWARD.xp,
-      rewardGold: DAILY_KORCHMA_ROUND_REWARD.gold,
+      rewardXp: reward.xp,
+      rewardGold: reward.gold,
       resultJson: {
         version: 1,
         dayToken: context.dayToken,
         completedSceneIds: [...context.completedSceneIds],
         omittedSceneId: context.offer.omittedSceneId,
-        reward: DAILY_KORCHMA_ROUND_REWARD
+        reward
       },
       expectedLife: { remortCount: context.lifeToken }
     });
 
     if (!claim) {
       return { state: "stale-life", current: await this.getForTelegramUser(telegramUserId) };
+    }
+
+    if (claim.state === "insufficient-gold") {
+      throw new Error("Daily Korchma round reward claim unexpectedly required gold.");
     }
 
     const achievementUnlocks = claim.state === "created"
@@ -437,7 +448,7 @@ export class DailyKorchmaRoundService {
       state: claim.state === "created" ? "reward-claimed" : "reward-replayed",
       character: summarizeCharacter(claim.character),
       offer: context.offer,
-      reward: buildReward(context.dayKey),
+      reward: buildRewardFromRecord(claim.action),
       levelChange: claim.state === "created" ? claim.levelChange : null,
       achievementUnlocks
     };
@@ -569,7 +580,7 @@ export class DailyKorchmaRoundService {
         state: "completed",
         character: context.character,
         offer: context.offer,
-        reward: buildReward(context.dayKey)
+        reward: buildRewardFromRecord(context.rewardRecord)
       };
     }
 
@@ -837,11 +848,34 @@ function actionFromRecord(
   return scene.actions.find((action) => action.id === actionId) ?? null;
 }
 
-function buildReward(dayKey: string): DailyKorchmaRoundReward {
+export function calculateDailyKorchmaRoundReward(input: {
+  characterId: string;
+  characterLevel: number;
+  dayKey: string;
+  sceneIds: readonly string[];
+  completedSceneIds: readonly string[];
+}): DailyKorchmaRoundReward {
+  const level = Math.max(DAILY_KORCHMA_ROUND_MIN_LEVEL, Math.floor(input.characterLevel));
+  const random = new SeededRandomSource([
+    "daily-korchma-round-reward:v2",
+    input.characterId,
+    input.dayKey,
+    input.sceneIds.join(","),
+    [...input.completedSceneIds].sort().join(",")
+  ].join("|"));
+
   return {
-    xp: DAILY_KORCHMA_ROUND_REWARD.xp,
-    gold: DAILY_KORCHMA_ROUND_REWARD.gold,
-    localDate: dayKey
+    xp: level * 2 + random.nextInt(1, level),
+    gold: level + random.nextInt(1, level),
+    localDate: input.dayKey
+  };
+}
+
+function buildRewardFromRecord(record: DailyActionRecord): DailyKorchmaRoundReward {
+  return {
+    xp: record.rewardXp,
+    gold: record.rewardGold,
+    localDate: record.localDate
   };
 }
 

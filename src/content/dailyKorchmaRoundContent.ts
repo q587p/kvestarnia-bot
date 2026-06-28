@@ -13,10 +13,6 @@ import {
 
 export const DAILY_KORCHMA_ROUND_CONTENT_VERSION = "v1";
 export const DAILY_KORCHMA_ROUND_REQUIRED_STEPS = 2;
-export const DAILY_KORCHMA_ROUND_REWARD = {
-  xp: 4,
-  gold: 2
-} as const;
 
 export type DailyKorchmaRoundZone = "yard" | "interior";
 
