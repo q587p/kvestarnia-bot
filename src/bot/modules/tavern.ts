@@ -21,6 +21,7 @@ PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { ShynokRoundConfirmResult } from "../../services/shynokService";
 import type { BotServices } from "../botServices";
+import { registerParsedCallbackRoute } from "../callbackRoute";
 import { parseCellarCallbackData,type CellarCallback } from "../callbacks/cellarCallbackData";
 import { parseMemorialCallbackData,type MemorialCallback } from "../callbacks/memorialCallbackData";
 import { parsePlaceCallbackData,type PlaceCallback } from "../callbacks/placeCallbackData";
@@ -170,59 +171,24 @@ export function registerTavernBotModule(
   registerBardPerformanceDevResetHandler(bot, services);
   registerPassageSearchDevResetHandler(bot, services);
 
-  bot.callbackQuery(/^v1:sh:/, async (ctx) => {
-    const parsed = parseShynokCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleShynokCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:sh:/, parseShynokCallbackData, async (ctx, action) => {
+    await handleShynokCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v1:tavern:/, async (ctx) => {
-    const parsed = parseTavernCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleTavernCallback(ctx, parsed.value, services, bot);
+  registerParsedCallbackRoute(bot, /^v1:tavern:/, parseTavernCallbackData, async (ctx, action) => {
+    await handleTavernCallback(ctx, action, services, bot);
   });
 
-  bot.callbackQuery(/^v1:place:/, async (ctx) => {
-    const parsed = parsePlaceCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handlePlaceCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:place:/, parsePlaceCallbackData, async (ctx, action) => {
+    await handlePlaceCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v1:mem:/, async (ctx) => {
-    const parsed = parseMemorialCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleMemorialCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:mem:/, parseMemorialCallbackData, async (ctx, action) => {
+    await handleMemorialCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v[12]:cellar:/, async (ctx) => {
-    const parsed = parseCellarCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleCellarCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v[12]:cellar:/, parseCellarCallbackData, async (ctx, action) => {
+    await handleCellarCallback(ctx, action, services);
   });
 }
 
