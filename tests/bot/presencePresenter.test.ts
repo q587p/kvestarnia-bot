@@ -16,8 +16,8 @@ describe("presence presenter", () => {
 
     expect(text).toContain("👥 У грі зараз: 3");
     expect(text).toContain("📍 Зала корчми: 2");
-    expect(text).toContain("— 587");
-    expect(text).toContain("— Дара");
+    expect(text).toContain("— <b>587</b>");
+    expect(text).toContain("— <b>Дара</b>");
     expect(text).toContain("🍺 У соло-рейдах «Бочка Пінного Міражу»: 2");
     expect(text).not.toContain("Нестор Межовий");
     expect(text).not.toContain("Стіл зі справами");
@@ -78,9 +78,9 @@ describe("presence presenter", () => {
 
     expect(text).toContain("🍺 Бочка Пінного Міражу");
     expect(text).toContain("🟢 Активні:");
-    expect(text).toContain("— 587");
+    expect(text).toContain("— <b>587</b>");
     expect(text).toContain("🟡 Притихли:");
-    expect(text).toContain("— Дара");
+    expect(text).toContain("— <b>Дара</b>");
     expect(text).toContain("📍 Поточна місцина: Біля Бочки Пінного Міражу");
   });
 
@@ -105,37 +105,37 @@ describe("presence presenter", () => {
       }
     });
 
-    expect(text).toContain("— Дара &lt;&amp;&gt;, «Перший &lt;пергамент&gt; не зʼїв»");
+    expect(text).toContain("— <b>Дара &lt;&amp;&gt;</b>, «Перший &lt;пергамент&gt; не зʼїв»");
   });
 
   it("uses cellar icon for cellar adventure participants and online summaries", () => {
     const participants = presentParticipants(cellarParticipantsSnapshot);
     const online = presentOnline(cellarOnlineSnapshot);
 
-    expect(participants).toContain("🐭 Льохова справа");
-    expect(participants).not.toContain("🌯 Льохова справа");
-    expect(online).toContain("🐭 У пригоді «Льохова справа»: 1");
-    expect(online).not.toContain("🌯 У пригоді «Льохова справа»");
+    expect(participants).toContain("🐭 <i>Льохова справа</i>");
+    expect(participants).not.toContain("🌯 <i>Льохова справа</i>");
+    expect(online).toContain("🐭 У пригоді «<i>Льохова справа</i>»: 1");
+    expect(online).not.toContain("🌯 У пригоді «<i>Льохова справа</i>»");
   });
 
   it("uses yeger icon for yeger adventure participants and online summaries", () => {
     const participants = presentParticipants(yegerParticipantsSnapshot);
     const online = presentOnline(yegerOnlineSnapshot);
 
-    expect(participants).toContain("🏹 Єгерська справа");
-    expect(participants).not.toContain("🌯 Єгерська справа");
-    expect(online).toContain("🏹 У пригоді «Єгерська справа»: 1");
-    expect(online).not.toContain("🌯 У пригоді «Єгерська справа»");
+    expect(participants).toContain("🏹 <i>Єгерська справа</i>");
+    expect(participants).not.toContain("🌯 <i>Єгерська справа</i>");
+    expect(online).toContain("🏹 У пригоді «<i>Єгерська справа</i>»: 1");
+    expect(online).not.toContain("🌯 У пригоді «<i>Єгерська справа</i>»");
   });
 
   it("uses fighting corner icon for doppelganger training and a neutral fallback for unknown adventures", () => {
     const doppelgangerOnline = presentOnline(doppelgangerOnlineSnapshot);
     const unknownOnline = presentOnline(unknownAdventureOnlineSnapshot);
 
-    expect(doppelgangerOnline).toContain("🥊 У пригоді «Сумлінний Допельґанґер»: 1");
-    expect(doppelgangerOnline).not.toContain("🌯 У пригоді «Сумлінний Допельґанґер»");
-    expect(unknownOnline).toContain("🧩 У пригоді «Невідома пригода»: 1");
-    expect(unknownOnline).not.toContain("🌯 У пригоді «Невідома пригода»");
+    expect(doppelgangerOnline).toContain("🥊 У пригоді «<i>Сумлінний Допельґанґер</i>»: 1");
+    expect(doppelgangerOnline).not.toContain("🌯 У пригоді «<i>Сумлінний Допельґанґер</i>»");
+    expect(unknownOnline).toContain("🧩 У пригоді «<i>Невідома пригода</i>»: 1");
+    expect(unknownOnline).not.toContain("🌯 У пригоді «<i>Невідома пригода</i>»");
   });
 
   it("limits long Telegram people lists and truncates oversized names", () => {

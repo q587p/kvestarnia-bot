@@ -64,7 +64,7 @@ export function presentParticipants(snapshot: ParticipantsSnapshot): string {
   const title =
     snapshot.activity.kind === "raid"
       ? `🍺 ${escapeHtml(snapshot.activity.name)}`
-      : `${presentAdventureIcon(snapshot.activity)} ${escapeHtml(snapshot.activity.name)}`;
+      : `${presentAdventureIcon(snapshot.activity)} <i>${escapeHtml(snapshot.activity.name)}</i>`;
 
   return [
     title,
@@ -114,15 +114,22 @@ function presentActivitySummary(activity: PresenceActivitySnapshot): string[] {
     activity.kind === "raid"
       ? presentSoloRaidPrefix(activity.people.total)
       : `${presentAdventureIcon(activity)} У пригоді`;
+  const activityName = presentActivityName(activity);
 
   if (activity.people.total === 0) {
-    return [`${prefix} «${escapeHtml(activity.name)}»: поки тихо.`];
+    return [`${prefix} «${activityName}»: поки тихо.`];
   }
 
   return [
-    `${prefix} «${escapeHtml(activity.name)}»: ${activity.people.total}`,
+    `${prefix} «${activityName}»: ${activity.people.total}`,
     ...presentPeople([...activity.people.active, ...activity.people.idle])
   ];
+}
+
+function presentActivityName(activity: PresenceActivitySnapshot): string {
+  const name = escapeHtml(activity.name);
+
+  return activity.kind === "adventure" ? `<i>${name}</i>` : name;
 }
 
 function presentAdventureIcon(activity: PresenceActivitySnapshot): string {
@@ -158,7 +165,6 @@ function presentPeople(people: PresencePerson[]): string[] {
   const hidden = people.length - visible.length;
   const lines = visible.map((person) =>
     `— ${presentCharacterDisplayName(person, {
-      boldName: false,
       maxNameLength: MAX_PRESENCE_NAME_LENGTH,
       maxTitleLength: 48
     })}`
