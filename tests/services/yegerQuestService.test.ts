@@ -894,6 +894,12 @@ describe("YegerQuestService", () => {
       state: "on-cooldown",
       nextAvailableAt: new Date("2026-06-15T11:38:00.000Z")
     });
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      rangerBandage: {
+        state: "on-cooldown",
+        nextAvailableAt: new Date("2026-06-15T11:38:00.000Z")
+      }
+    });
     expect(world.cooldowns.find((cooldown) => cooldown.key === YEGER_RANGER_FREE_BANDAGE_KEY)?.availableAt)
       .toEqual(new Date("2026-06-15T11:38:00.000Z"));
   });

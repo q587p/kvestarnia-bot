@@ -120,6 +120,28 @@ describe("Yeger keyboard", () => {
     });
   });
 
+  it("hides the free ranger bandage button while it is on cooldown", () => {
+    const bandages = buildYegerBandagesKeyboard({
+      state: "completed",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Р„РіРµСЂ"
+      },
+      progress: { wins: 5, target: 5 },
+      reward,
+      rangerBandage: {
+        state: "on-cooldown",
+        nextAvailableAt: new Date("2026-06-15T11:38:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      }
+    });
+
+    expect(flatButtons(bandages).map((button) => button.callback_data)).not.toContain(
+      makeYegerFreeBandageCallbackData()
+    );
+  });
+
   it("links the completed Yeger keepsake from the quest screen", () => {
     const keyboard = buildYegerKeyboard({
       state: "completed",
