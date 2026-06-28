@@ -630,40 +630,6 @@ export const achievements = [
     trigger: { type: "adventure.choice.strong-success", threshold: 1 }
   },
   {
-    id: "achievement.quest.complication",
-    category: "quests",
-    title: "План теж був пригодою",
-    description: "завершити корчемну справу з ускладненням і не подавати скаргу на жанр.",
-    hidden: false,
-    lockedDescription: "завершити корчемну справу з ускладненням.",
-    sortOrder: 66,
-    status: "enabled",
-    trigger: { type: "adventure.choice.complication", threshold: 1 }
-  },
-  {
-    id: "achievement.quest.adventure-first",
-    category: "quests",
-    title: "Метод є. Наслідки теж",
-    description: "завершити першу авторську корчемну справу й не сперечатися з методом.",
-    hidden: false,
-    lockedDescription: "завершити першу авторську корчемну справу.",
-    sortOrder: 66.2,
-    status: "enabled",
-    trigger: { type: "adventure.choice.completed", threshold: 1 }
-  },
-  {
-    id: "achievement.quest.adventure-13",
-    category: "quests",
-    title: "Тринадцять способів не читати умову",
-    description: "завершити 13 авторських корчемних справ і лишити умови нервово шелестіти.",
-    hidden: false,
-    lockedDescription: "завершити 13 авторських корчемних справ.",
-    sortOrder: 66.4,
-    status: "enabled",
-    trigger: { type: "adventure.choice.completed", threshold: 13 },
-    progressTarget: 13
-  },
-  {
     id: "achievement.combat.starter-probe",
     category: "combat",
     title: "Бойове хрещення в соусі",
@@ -862,17 +828,6 @@ export const achievements = [
     status: "enabled",
     trigger: { type: "mantok.chest.completed", threshold: 1 },
     cosmeticTitleGrantId: "cosmetic-title.first-chest-recycler"
-  },
-  {
-    id: "achievement.gear.first-chest",
-    category: "gear",
-    title: "Пʼять зайшли, одна вийшла",
-    description: "уперше завершити переробку в Дружній Скрині й не питати, де решта свідків.",
-    hidden: false,
-    lockedDescription: "уперше завершити переробку в Дружній Скрині.",
-    sortOrder: 88.5,
-    status: "enabled",
-    trigger: { type: "mantok.chest.completed", threshold: 1 }
   },
   {
     id: "achievement.mantok.chest.thirteen",
@@ -1106,17 +1061,6 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.first-barrel-claim"
   },
   {
-    id: "achievement.social.barrel-raid",
-    category: "weird",
-    title: "Бочка програла за очками",
-    description: "завершити рейд на Бочку Пінного Міражу й лишити піну в протоколі.",
-    hidden: false,
-    lockedDescription: "завершити рейд на Бочку Пінного Міражу.",
-    sortOrder: 125.5,
-    status: "enabled",
-    trigger: { type: "barrel.raid.claimed", threshold: 1 }
-  },
-  {
     id: "achievement.barrel.raid.thirteen",
     category: "weird",
     title: "Бочка вже вітається",
@@ -1140,17 +1084,6 @@ export const achievements = [
     status: "enabled",
     trigger: { type: "korchma.round.purchased", threshold: 1 },
     cosmeticTitleGrantId: "cosmetic-title.first-korchma-round"
-  },
-  {
-    id: "achievement.social.first-round",
-    category: "weird",
-    title: "Всім пива, бухгалтеру води",
-    description: "уперше пригостити корчму кругом пива й залишити бухгалтеру тверезу підозру.",
-    hidden: false,
-    lockedDescription: "уперше пригостити корчму кругом пива.",
-    sortOrder: 130.5,
-    status: "enabled",
-    trigger: { type: "korchma.round.purchased", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.thirteen",

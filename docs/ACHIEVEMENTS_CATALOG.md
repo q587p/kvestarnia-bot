@@ -10,7 +10,7 @@ Runtime rules:
 - New player-facing mechanics should add matching achievements/hooks for visible actions, milestones or odd outcomes, or explicitly document why no durable event exists yet.
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 
-Current count: 112 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 106 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -67,9 +67,6 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.quest.problem-chain.93` | enabled | visible | `problem.quest.completed >= 4` | Девʼяносто три волі до проблем | завершити весь корчмарський ланцюжок проблем і не сперечатися з останньою текою. |
 | `achievement.quest.yeger-first` | enabled | visible | `yeger.trial.completed >= 1` | Єгер кивнув. Це майже овація | завершити перше випробування Єгеря й побачити кивок майже урочистого масштабу. |
 | `achievement.quest.strong-success` | enabled | visible | `adventure.choice.strong-success >= 1` | План спрацював. Підозріло | отримати сильний успіх у корчемній справі й поводитися так, ніби все було заплановано. |
-| `achievement.quest.complication` | enabled | visible | `adventure.choice.complication >= 1` | План теж був пригодою | завершити корчемну справу з ускладненням і не подавати скаргу на жанр. |
-| `achievement.quest.adventure-first` | enabled | visible | `adventure.choice.completed >= 1` | Метод є. Наслідки теж | завершити першу авторську корчемну справу й не сперечатися з методом. |
-| `achievement.quest.adventure-13` | enabled | visible | `adventure.choice.completed >= 13` | Тринадцять способів не читати умову | завершити 13 авторських корчемних справ і лишити умови нервово шелестіти. |
 | `achievement.combat.starter-probe` | enabled | visible | `starter.mimic-shawarma.probe.completed >= 1` | Бойове хрещення в соусі | завершити навчальну сутичку з міміком-шаурмою й відмити соус із висновків. |
 | `achievement.item.first-received` | enabled | visible | `item.received` | Манатка дивиться першою | отримати першу манатку й чемно не питати, звідки вона дивиться. |
 | `achievement.item.three-owned` | enabled | visible | `item.received >= 3` | Три манатки вже радяться | мати 3 манатки в торбі, поки вони ще не створили комітет. |
@@ -86,7 +83,6 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.item.forty-two-owned` | enabled | visible | `item.received >= 42` | Сорок дві манатки відповіли | мати 42 манатки в торбі й не питати, на яке саме питання вони відповіли. |
 | `achievement.item.ninety-three-owned` | enabled | visible | `item.received >= 93` | Девʼяносто три докази торби | мати 93 манатки в торбі й виглядати як пересувний склад пригод. |
 | `achievement.mantok.chest.first` | enabled | visible | `mantok.chest.completed >= 1` | Скриня зробила вигляд, що так і треба | уперше завершити переробку манаток у скрині. |
-| `achievement.gear.first-chest` | enabled | visible | `mantok.chest.completed >= 1` | Пʼять зайшли, одна вийшла | уперше завершити переробку в Дружній Скрині й не питати, де решта свідків. |
 | `achievement.mantok.chest.thirteen` | enabled | visible | `mantok.chest.completed >= 13` | Скриня просить журнал техогляду | завершити 13 переробок манаток і лишити скриню з робочою підозрою. |
 | `achievement.mantok.sale.first` | enabled | visible | `mantok.sale.completed >= 1` | Манчкін-скупник кивнув | уперше продати манатку й не дивитися занадто довго на гаманець. |
 | `achievement.mantok.sale.thirteen` | enabled | visible | `mantok.sale.completed >= 13` | Скупник уже впізнає кроки | продати манатки 13 разів і стати знайомим пунктом у нічному обліку. |
@@ -106,10 +102,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.social.duel-defend` | enabled | visible | `duel.turnbased.defend >= 1` | Не бити — теж хід | уперше захиститися у покроковому двобої й зробити паузу офіційною. |
 | `achievement.duel.turnbased.three` | enabled | visible | `duel.turnbased.resolved >= 3` | Три ходи в чужу впевненість | завершити 3 покрокові дуелі й не загубити чергу в кишені. |
 | `achievement.barrel.raid.first` | enabled | visible | `barrel.raid.claimed >= 1` | Бочка видала перший акт | уперше отримати результат Бочки й не питати, хто там веде облік. |
-| `achievement.social.barrel-raid` | enabled | visible | `barrel.raid.claimed >= 1` | Бочка програла за очками | завершити рейд на Бочку Пінного Міражу й лишити піну в протоколі. |
 | `achievement.barrel.raid.thirteen` | enabled | visible | `barrel.raid.claimed >= 13` | Бочка вже вітається | отримати 13 результатів Бочки й не сперечатися з пінним архівом. |
 | `achievement.korchma.round.first` | enabled | visible | `korchma.round.purchased >= 1` | Перший кухоль за компанію | уперше проставити пиво й лишити на столі соціяльний слід. |
-| `achievement.social.first-round` | enabled | visible | `korchma.round.purchased >= 1` | Всім пива, бухгалтеру води | уперше пригостити корчму кругом пива й залишити бухгалтеру тверезу підозру. |
 | `achievement.korchma.round.thirteen` | enabled | visible | `korchma.round.purchased >= 13` | Тринадцять кухлів дипломатії | проставити пиво 13 разів і стати окремим пунктом корчемної ввічливости. |
 | `achievement.item.gift.sent.first` | enabled | visible | `item.gift.sent >= 1` | Манатка пішла в люди | уперше подарувати манатку іншому пригоднику й не вимагати драматичного листа подяки. |
 | `achievement.item.gift.sent.thirteen` | enabled | visible | `item.gift.sent >= 13` | Дарувальник із журналом | подарувати манатки 13 разів і змусити щедрість вести облік. |

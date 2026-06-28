@@ -57,6 +57,8 @@ import {
   resolveQuestMethodsForCharacter
 } from "../domain/quests/questMethodResolver";
 import { getEquippedItemContents } from "./equipmentService";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
+import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export { ADVENTURE_CHOICE_KEY } from "./dailyActionKeys";
 export { ADVENTURE_CHOICE_REROLL_KEY } from "./dailyActionKeys";
@@ -226,6 +228,7 @@ export type AdventureResult =
       levelChange: RewardLevelChange;
       complication: boolean;
       check: QuestCheckResult;
+      achievementUnlocks: AchievementUnlock[];
     }
   | {
       state: "insufficient-gold";
@@ -251,6 +254,7 @@ export type MimicShawarmaResult =
       character: CharacterSummary;
       reward: AdventureReward;
       levelChange: RewardLevelChange;
+      achievementUnlocks: AchievementUnlock[];
     }
   | {
       state: "already-completed";
@@ -285,7 +289,8 @@ export class AdventureService {
       SoloCombatSessionRepository,
       "findActiveByTelegramUserId" | "findLeasedByTelegramUserId" | "releaseLeaseBySessionId"
     >,
-    private readonly equipment?: EquipmentRepository
+    private readonly equipment?: EquipmentRepository,
+    private readonly achievements?: AchievementService
   ) {}
 
   async getAdventureOfferForTelegramUser(telegramUserId: bigint): Promise<AdventureLookupResult> {
@@ -533,6 +538,19 @@ export class AdventureService {
       };
     }
 
+    const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
+      characterId: claim.character.id,
+      sourceId: claim.action.id,
+      occurredAt: claim.action.createdAt,
+      levelChange: claim.levelChange,
+      itemGrants: claim.itemGrants,
+      events: [
+        "adventure.choice.completed",
+        ...(check.grade === "strong-success" ? ["adventure.choice.strong-success" as const] : []),
+        ...(check.grade === "complication" ? ["adventure.choice.complication" as const] : [])
+      ]
+    });
+
     return {
       state: "completed",
       character: summarizeCharacter(claim.character, { equippedItems }),
@@ -553,7 +571,8 @@ export class AdventureService {
       },
       levelChange: claim.levelChange,
       complication: check.grade === "complication",
-      check
+      check,
+      achievementUnlocks
     };
   }
 
@@ -703,6 +722,15 @@ export class AdventureService {
       };
     }
 
+    const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
+      characterId: claim.character.id,
+      sourceId: claim.action.id,
+      occurredAt: claim.action.createdAt,
+      levelChange: claim.levelChange,
+      itemGrants: claim.itemGrants,
+      events: ["starter.mimic-shawarma.completed"]
+    });
+
     return {
       state: "completed",
       action: completionInput.type === "legacy" ? completionInput.action : completionInput.methodId,
@@ -717,7 +745,8 @@ export class AdventureService {
         localDate,
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
-      levelChange: claim.levelChange
+      levelChange: claim.levelChange,
+      achievementUnlocks
     };
   }
 

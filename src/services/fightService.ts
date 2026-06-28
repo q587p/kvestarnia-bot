@@ -124,7 +124,7 @@ import {
   type ProblemQuestStage,
   type ProblemQuestStageRecord
 } from "./fight/problemQuest";
-import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { AchievementService, AchievementSimpleEventType, AchievementUnlock } from "./achievementService";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 export { PERSISTENT_SOLO_FIGHT_REWARD_KEY } from "./dailyActionKeys";
@@ -2019,6 +2019,7 @@ export class FightService {
       sourceId: claim.action.id,
       levelChange: claim.levelChange,
       itemIds: claim.itemGrants.map((grant) => grant.itemId),
+      events: ["starter.mimic-shawarma.probe.completed"],
       ...(combat.outcome === "flee" ? {} : { combatOutcome: "won" as const })
     });
 
@@ -3179,6 +3180,7 @@ export class FightService {
     itemIds?: readonly string[];
     combatOutcome?: "won" | "lost" | "fled" | "expired";
     problemStageId?: string;
+    events?: readonly AchievementSimpleEventType[];
   }): Promise<AchievementUnlock[]> {
     if (!this.achievements) {
       return [];
@@ -3229,6 +3231,17 @@ export class FightService {
           type: "problem.quest.completed",
           characterId: input.characterId,
           stageId: input.problemStageId,
+          occurredAt,
+          sourceId: input.sourceId
+        }))
+      );
+    }
+
+    for (const type of input.events ?? []) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type,
+          characterId: input.characterId,
           occurredAt,
           sourceId: input.sourceId
         }))

@@ -296,6 +296,32 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.equipment.three-equipped")?.current).toBe(3);
   });
 
+  it("unlocks simple ledger-backed triggers immediately and snapshots their thresholds", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      activityDates: {
+        "adventure.choice.completed": Array.from(
+          { length: 13 },
+          (_, index) => new Date(2026, 5, 28, 9, index)
+        )
+      }
+    });
+    const service = new AchievementService(repo);
+
+    const unlocks = await service.trackEvent({
+      type: "adventure.choice.completed",
+      characterId: "character-1",
+      occurredAt: new Date("2026-06-28T09:12:00.000Z"),
+      sourceId: "adventure-13"
+    });
+
+    expect(new Set(unlocks.map((unlock) => unlock.id))).toEqual(new Set([
+      "achievement.adventure.choice.first",
+      "achievement.adventure.choice.thirteen"
+    ]));
+    expect(repo.progressFor("achievement.adventure.choice.thirteen")?.current).toBe(13);
+  });
+
   it("recalculates provable historical achievements from the current character snapshot", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = {
@@ -473,9 +499,6 @@ describe("AchievementService", () => {
       "achievement.quest.problem-chain.93",
       "achievement.quest.yeger-first",
       "achievement.quest.strong-success",
-      "achievement.quest.complication",
-      "achievement.quest.adventure-first",
-      "achievement.quest.adventure-13",
       "achievement.combat.starter-probe",
       "achievement.item.first-received",
       "achievement.item.three-owned",
@@ -491,7 +514,6 @@ describe("AchievementService", () => {
       "achievement.item.forty-two-owned",
       "achievement.item.ninety-three-owned",
       "achievement.mantok.chest.first",
-      "achievement.gear.first-chest",
       "achievement.mantok.sale.first",
       "achievement.level.barter.first",
       "achievement.bard.performance.first",
@@ -504,9 +526,7 @@ describe("AchievementService", () => {
       "achievement.duel.turnbased.first",
       "achievement.social.duel-defend",
       "achievement.barrel.raid.first",
-      "achievement.social.barrel-raid",
       "achievement.korchma.round.first",
-      "achievement.social.first-round",
       "achievement.item.gift.sent.first",
       "achievement.item.gift.received.first",
       "achievement.shynok.drink.first",
@@ -543,7 +563,6 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.passage.search.all-current")?.current).toBe(5);
     expect(repo.progressFor("achievement.hunt.contract.thirteen")?.current).toBe(1);
     expect(repo.progressFor("achievement.adventure.choice.thirteen")?.current).toBe(13);
-    expect(repo.progressFor("achievement.quest.adventure-13")?.current).toBe(13);
     expect(repo.progressFor("achievement.combat.threat-pressure.three")?.current).toBe(2);
   });
 });

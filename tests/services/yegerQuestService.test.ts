@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -43,6 +43,7 @@ import {
   YegerQuestService
 } from "../../src/services/yegerQuestService";
 import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "../../src/services/presenceService";
+import type { AchievementService } from "../../src/services/achievementService";
 
 const telegramUserId = 42n;
 const startedAt = new Date("2026-06-15T10:00:00.000Z");
@@ -136,6 +137,54 @@ describe("YegerQuestService", () => {
       state: "in-progress",
       progress: { wins: 2, target: 17, stageId: "second" }
     });
+  });
+
+  it("tracks bought and free bandages for immediate achievement notifications", async () => {
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.bandage.first-owned",
+        title: "Р‘РёРЅС‚ РґРёРІРёС‚СЊСЃСЏ РІС–РґРїРѕРІС–РґР°Р»СЊРЅРѕ",
+        cosmeticTitleGrantId: null,
+        unlockedAt: now
+      }
+    ]);
+    const achievements = { trackEventSafely } as unknown as AchievementService;
+    const buyer = new FakeWorld();
+    buyer.addCharacter({ gold: 20 });
+
+    const preview = await buyer.service(achievements).previewBandagePurchaseForTelegramUser(telegramUserId, 1);
+    expect(preview.state).toBe("preview");
+    const bought = preview.state === "preview"
+      ? await buyer.service(achievements).confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token)
+      : preview;
+
+    expect(bought.state).toBe("bought");
+    expect(bought.state === "bought" ? bought.achievementUnlocks?.map((unlock) => unlock.id) : [])
+      .toContain("achievement.bandage.first-owned");
+    expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
+      type: "item.received",
+      characterId: "character-42",
+      itemIds: [expect.stringContaining("responsible-panic-bandage")],
+      sourceId: "action-2"
+    }));
+
+    trackEventSafely.mockClear();
+    const ranger = new FakeWorld();
+    ranger.addCharacter({ classId: "class.ranger" });
+    const free = await ranger.service(achievements).claimRangerBandageForTelegramUser(telegramUserId);
+
+    expect(free.state).toBe("claimed");
+    expect(free.state === "claimed" ? free.achievementUnlocks?.map((unlock) => unlock.id) : [])
+      .toContain("achievement.bandage.first-owned");
+    expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
+      type: "item.received",
+      characterId: "character-42",
+      itemIds: [expect.stringContaining("responsible-panic-bandage")]
+    }));
+    expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
+      type: "yeger.free-bandage.claimed",
+      characterId: "character-42"
+    }));
   });
 
   it("does not count an old unquiet win that was updated after the trail started", async () => {
@@ -869,7 +918,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   fightResult: () => ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]> = () =>
     Promise.resolve({ state: "no-character" });
 
-  service(): YegerQuestService {
+  service(achievements?: AchievementService): YegerQuestService {
     return new YegerQuestService(
       this,
       this,
@@ -886,7 +935,8 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       } as unknown as FightService,
       this,
       () => now,
-      new FakeRandomSource(this.randomValues)
+      new FakeRandomSource(this.randomValues),
+      achievements
     );
   }
 

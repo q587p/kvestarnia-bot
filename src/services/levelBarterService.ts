@@ -6,6 +6,8 @@ import type {
   LevelBarterRepository,
   LevelBarterSnapshot
 } from "../db/repositories/levelBarterRepository";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
+import { trackRewardAchievementsSafely } from "./achievementTracking";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   LEVEL_BARTER_COST_GOLD,
@@ -62,7 +64,7 @@ export type LevelBarterConfirmResult =
       cost: number;
     }
   | { state: "stale-selection" }
-  | { state: "exchanged"; character: CharacterSummary; offer: LevelBarterPresentedOffer }
+  | { state: "exchanged"; character: CharacterSummary; offer: LevelBarterPresentedOffer; achievementUnlocks?: AchievementUnlock[] }
   | { state: "replayed"; character: CharacterSummary; offer: LevelBarterPresentedOffer };
 
 export interface LevelBarterPresentedOffer {
@@ -91,7 +93,8 @@ export interface LevelBarterPresentedItem {
 export class LevelBarterService {
   constructor(
     private readonly repository: LevelBarterRepository,
-    private readonly clock: () => Date = () => new Date()
+    private readonly clock: () => Date = () => new Date(),
+    private readonly achievements?: AchievementService
   ) {}
 
   async getOfferForTelegramUser(telegramUserId: bigint): Promise<LevelBarterOfferResult> {
@@ -158,10 +161,26 @@ export class LevelBarterService {
     });
 
     if (result.state === "exchanged" || result.state === "replayed") {
+      const now = this.clock();
+      const achievementUnlocks = result.state === "exchanged"
+        ? await trackRewardAchievementsSafely(this.achievements, {
+            characterId: result.character.id,
+            sourceId: result.plan.token,
+            occurredAt: now,
+            levelChange: {
+              oldLevel: result.plan.levelBefore,
+              newLevel: result.plan.levelAfter,
+              leveledUp: result.plan.levelAfter > result.plan.levelBefore
+            },
+            events: ["level.barter.completed"]
+          })
+        : [];
+
       return {
         state: result.state,
         character: summarizeCharacter(result.character, { remortCount: result.remortCount }),
-        offer: presentPlan(result.plan)
+        offer: presentPlan(result.plan),
+        ...(result.state === "exchanged" ? { achievementUnlocks } : {})
       };
     }
 

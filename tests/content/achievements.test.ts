@@ -31,8 +31,28 @@ describe("achievement definitions", () => {
     const enabled = achievements.filter((definition) => definition.status === "enabled");
     const disabled = achievements.filter((definition) => definition.status === "disabled");
 
-    expect(enabled).toHaveLength(112);
+    expect(enabled).toHaveLength(106);
     expect(disabled).toHaveLength(12);
+  });
+
+  it("does not ship enabled achievements with duplicate trigger gates", () => {
+    const signatures = new Map<string, string>();
+
+    for (const definition of achievements.filter((row) => row.status === "enabled")) {
+      const trigger = definition.trigger;
+      const signature = JSON.stringify({
+        type: trigger.type,
+        threshold: "threshold" in trigger ? (trigger.threshold ?? 1) : 1,
+        outcome: "outcome" in trigger ? (trigger.outcome ?? null) : null,
+        raceId: "raceId" in trigger ? (trigger.raceId ?? null) : null,
+        classId: "classId" in trigger ? (trigger.classId ?? null) : null,
+        itemId: "itemId" in trigger ? (trigger.itemId ?? null) : null
+      });
+      const duplicateId = signatures.get(signature);
+
+      expect(duplicateId, `${definition.id} duplicates ${duplicateId ?? "unknown"}`).toBeUndefined();
+      signatures.set(signature, definition.id);
+    }
   });
 
   it("keeps disabled rows hidden future placeholders", () => {

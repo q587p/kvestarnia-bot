@@ -18,6 +18,19 @@ export const ACHIEVEMENTS_PAGE_SIZE = 10;
 
 export const achievementListFilters = ["all", "earned", "locked"] as const;
 export type AchievementListFilter = (typeof achievementListFilters)[number];
+export type AchievementSimpleEventType = Exclude<
+  AchievementTriggerType,
+  | "achievement.list.opened"
+  | "character.created"
+  | "level.reached"
+  | "combat.finished"
+  | "combat.persistent.finished"
+  | "problem.quest.completed"
+  | "item.received"
+  | "item.used"
+  | "equipment.item_equipped"
+  | "future"
+>;
 
 export type AchievementEvent =
   | {
@@ -73,6 +86,12 @@ export type AchievementEvent =
       type: "equipment.item_equipped";
       characterId: string;
       itemId: string;
+      occurredAt: Date;
+      sourceId?: string;
+    }
+  | {
+      type: AchievementSimpleEventType;
+      characterId: string;
       occurredAt: Date;
       sourceId?: string;
     };
@@ -328,6 +347,10 @@ function getEventProgress(definition: AchievementDefinition, event: AchievementE
     return (definition.trigger.threshold ?? 1) <= 1 ? 1 : null;
   }
 
+  if (definition.trigger.type === event.type) {
+    return (definition.trigger.threshold ?? 1) <= 1 ? 1 : null;
+  }
+
   return null;
 }
 
@@ -349,15 +372,23 @@ function shouldUseSnapshotForEventDefinition(
   definition: AchievementDefinition,
   event: AchievementEvent
 ): boolean {
-  return (
+  const needsSnapshot = definition.progressTarget !== undefined ||
+    (definition.trigger.threshold ?? 1) > 1;
+
+  if (!needsSnapshot) {
+    return false;
+  }
+
+  if (
     event.type === "combat.finished" ||
     event.type === "problem.quest.completed" ||
     event.type === "item.received" ||
     event.type === "equipment.item_equipped"
-  ) && (
-    definition.progressTarget !== undefined ||
-    (definition.trigger.threshold ?? 1) > 1
-  );
+  ) {
+    return true;
+  }
+
+  return definition.trigger.type === event.type && isActivityDateTriggerType(definition.trigger.type);
 }
 
 function getRecalculationProgress(
@@ -528,6 +559,50 @@ function getActivityDates(
 
 function getThresholdDate(dates: readonly Date[], threshold: number): Date | null {
   return dates[Math.max(0, threshold - 1)] ?? null;
+}
+
+function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
+  switch (type) {
+    case "remort.completed":
+    case "starter.mimic-shawarma.completed":
+    case "starter.mimic-shawarma.probe.completed":
+    case "cellar.mouse.completed":
+    case "adventure.choice.strong-success":
+    case "training.doppelganger.won":
+    case "duel.resolved":
+    case "duel.won":
+    case "duel.turnbased.defend":
+    case "yeger.trial.completed":
+    case "combat.persistent.hard-win":
+    case "combat.persistent.adventure-origin-win":
+    case "combat.persistent.yeger-origin-win":
+    case "combat.persistent.low-hp-win":
+    case "combat.persistent.zero-gold-item-win":
+    case "mantok.chest.completed":
+    case "level.barter.completed":
+    case "training.doppelganger.finished":
+    case "duel.quick.resolved":
+    case "duel.turnbased.resolved":
+    case "barrel.raid.claimed":
+    case "korchma.round.purchased":
+    case "item.gift.sent":
+    case "item.gift.received":
+    case "mantok.sale.completed":
+    case "bard.performance.completed":
+    case "yeger.free-bandage.claimed":
+    case "shynok.drink.activated":
+    case "passage.search.completed":
+    case "passage.search.monster-attack":
+    case "passage.search.unique-nodes":
+    case "hunt.contract.completed":
+    case "adventure.choice.completed":
+    case "adventure.choice.complication":
+    case "combat.threat-escalated":
+    case "combat.threat-pressure":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function matchesOptionalValue(expected: string | undefined, actual: string | undefined): boolean {

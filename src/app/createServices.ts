@@ -65,7 +65,8 @@ export function createServices(
       repositories.dailyActions,
       undefined,
       repositories.soloCombatSessions,
-      repositories.equipment
+      repositories.equipment,
+      achievements
     ),
     bardPerformance: new BardPerformanceService(repositories.bardPerformances),
     barrelRaidNotifications: repositories.barrelRaidNotifications,
@@ -117,11 +118,11 @@ export function createServices(
       repositories.huntContracts
     ),
     inventory: new InventoryService(repositories.inventory),
-    itemUse: new ItemUseService(repositories.itemUse),
+    itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
-    levelBarter: new LevelBarterService(repositories.levelBarter),
+    levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements),
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
-    mantokChest: new MantokChestService(repositories.mantokChestRuns),
+    mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements),
     onboarding: new OnboardingService(repositories.users, repositories.characters, achievements),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
@@ -157,7 +158,10 @@ export function createServices(
       repositories.dailyActions,
       repositories.soloCombatSessions,
       fight,
-      repositories.cooldowns
+      repositories.cooldowns,
+      undefined,
+      undefined,
+      achievements
     )
   };
 }

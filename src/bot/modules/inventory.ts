@@ -289,6 +289,10 @@ async function handleItemUseCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemUseResultKeyboard(repeat)
   });
+  const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks ?? []);
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }
 
 async function getRepeatItemUseOptions(
@@ -576,6 +580,12 @@ async function handleMantokChestCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildMantokChestResultKeyboard(outputItem)
   });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "recycled" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }
 
 async function handleLevelBarterCallback(
@@ -644,4 +654,10 @@ async function handleLevelBarterCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildLevelBarterResultKeyboard(levelBarterReturnOptions)
   });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "exchanged" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }

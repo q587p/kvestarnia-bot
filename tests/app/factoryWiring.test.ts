@@ -139,7 +139,8 @@ describe("application factory wiring", () => {
         repositories.dailyActions,
         undefined,
         repositories.soloCombatSessions,
-        repositories.equipment
+        repositories.equipment,
+        achievements
       )
     `));
     expect(source).toContain(compact(`
@@ -166,12 +167,24 @@ describe("application factory wiring", () => {
       )
     `));
     expect(source).toContain(compact(`
+      itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
+    `));
+    expect(source).toContain(compact(`
+      levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements)
+    `));
+    expect(source).toContain(compact(`
+      mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements)
+    `));
+    expect(source).toContain(compact(`
       yeger: new YegerQuestService(
         repositories.characters,
         repositories.dailyActions,
         repositories.soloCombatSessions,
         fight,
-        repositories.cooldowns
+        repositories.cooldowns,
+        undefined,
+        undefined,
+        achievements
       )
     `));
   });
