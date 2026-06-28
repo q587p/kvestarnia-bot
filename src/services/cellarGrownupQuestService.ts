@@ -29,7 +29,7 @@ export const CELLAR_GROWNUP_SEAL_PRICE = 240;
 export const CELLAR_GROWNUP_ROLEPLAY_MAX_CHANCE = 0.13;
 
 const TURN_IN_REWARD = {
-  xp: 80,
+  xp: 40,
   gold: 180
 };
 

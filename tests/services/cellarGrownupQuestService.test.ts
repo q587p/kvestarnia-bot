@@ -195,7 +195,7 @@ describe("CellarGrownupQuestService", () => {
       state: "completed",
       ending: "turn-in",
       reward: {
-        xp: 80,
+        xp: 40,
         gold: 180
       }
     });
@@ -204,10 +204,27 @@ describe("CellarGrownupQuestService", () => {
       ending: "turn-in"
     });
 
-    expect(world.character?.xp).toBe(125);
+    expect(world.character?.xp).toBe(85);
     expect(world.character?.gold).toBe(480);
     expect(world.getItem(CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID)).toBe(0);
     expect(world.completionCount).toBe(1);
+  });
+
+  it("does not skip two levels from any level four bottle turn-in", async () => {
+    const world = new FakeCellarGrownupWorld();
+    world.addCharacter({ xp: 69, gold: 300 });
+    world.setItem(CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID, 1);
+    const service = createService(world);
+
+    await expect(service.complete(telegramUserId, "turn-in")).resolves.toMatchObject({
+      state: "completed",
+      levelChange: {
+        oldLevel: 4,
+        newLevel: 5
+      }
+    });
+
+    expect(world.character?.xp).toBe(109);
   });
 
   it("can keep the final bottle and still completes once", async () => {
