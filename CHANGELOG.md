@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The daily overview lists scene locations without direct scene-location teleport buttons. Players walk through ordinary Korchma navigation, and opening a location with an active unfinished daily scene shows that scene there.
 - Yeger Corner now groups paid bandage bundles and the ranger free bandage under a compact `🩹 Бинти` submenu while preserving old direct bandage callbacks for existing cards.
 - The earned achievements tab now sorts newest unlocks first, while all/locked tabs keep catalog order.
+- Pressed reply-keyboard location labels now send the movement notice before the destination card, so cellar/daily-location cards no longer appear above their arrival line.
 - Final turn-in requires the Quest Table and grants exactly 4 XP + 2 gold once per Kyiv day, with duplicate/restart replay returning the stored result.
 
 ### Unchanged
