@@ -1142,7 +1142,7 @@ function summarizeDuelCharacterWithResultSnapshot(
   character: DuelCharacterSnapshot,
   snapshot: DuelResultParticipantSnapshot | undefined
 ): CharacterSummary {
-  const summary = summarizeDuelCharacter(character);
+  const summary = summarizeDuelCharacterForReplay(character);
 
   if (!snapshot) {
     return summary;
@@ -1171,6 +1171,15 @@ function summarizeDuelCharacterWithResultSnapshot(
         remortMemoryRank: snapshot.remortCount
       }
     : replay;
+}
+
+function summarizeDuelCharacterForReplay(
+  character: DuelCharacterSnapshot
+): CharacterSummary {
+  const { activeCosmeticTitle, ...summary } = summarizeDuelCharacter(character);
+  void activeCosmeticTitle;
+
+  return summary;
 }
 
 function buildStoredDuelResult(
