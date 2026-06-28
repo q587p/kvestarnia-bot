@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added compact `daily_actions` rows for offer, step and reward state. No Prisma schema or migration was needed.
 - Added a rewardless daily-round achievement hook and definition, `achievement.quest.daily-korchma-round`, using trigger `daily.korchma-round.completed` and not reusing Shynok beer-round ids.
 - Added `location.korchma.yard` as a public outside presence location. It is not part of `KORCHMA_INTERIOR_LOCATION_IDS` and is not accepted by `isKorchmaInteriorLocation()`.
+- Added local `/dev_reset_korchma_round` to clear the current Kyiv-day daily-round offer, step and reward rows for manual QA.
 
 ### Changed
 - Quest Hub now surfaces the daily round when available, with qualitative pre-choice copy only. Exact reward appears after the explicit turn-in.

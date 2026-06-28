@@ -96,7 +96,14 @@ export function registerCharacterBotModule(
   if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant);
   }
-  registerDevResetCommand(bot, services.devReset, services.adventure, services.tavern, services.fight);
+  registerDevResetCommand(
+    bot,
+    services.devReset,
+    services.adventure,
+    services.tavern,
+    services.dailyKorchmaRound,
+    services.fight
+  );
   registerRestartCommand(bot);
   if (services.remort) {
     registerRemortCommand(bot, services.remort, services.tavern);

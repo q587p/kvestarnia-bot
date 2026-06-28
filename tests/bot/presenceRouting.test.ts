@@ -195,6 +195,7 @@ describe("presence routing", () => {
     ["support", {}],
     ["restart", {}],
     ["dev_raid_stop", {}],
+    ["dev_reset_korchma_round", {}],
     ["dev_reset_monster_rest", {}],
     ["dev_add_bandage", {}],
     ["dev_reset_yeger_bandage", {}],

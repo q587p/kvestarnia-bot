@@ -17,6 +17,7 @@ describe("help command", () => {
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain("🧰 Dev-довідка Квестарні");
     expect(replies[0]).toContain("/dev_raid_stop");
+    expect(replies[0]).toContain("/dev_reset_korchma_round");
     expect(replies[0]).toContain("/dev_add_xp");
     expect(replies[0]).toContain("/dev_add_bandage");
     expect(replies[0]).toContain("/dev_reset_yeger_bandage");

@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import { describe, expect, it } from "vitest";
 import { registerDevResetCommand } from "../../src/bot/commands/devResetCommand";
 import type { AdventureService } from "../../src/services/adventureService";
+import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
 import type { DevResetService } from "../../src/services/devResetService";
 import type { FightService } from "../../src/services/fightService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
@@ -95,6 +96,53 @@ describe("dev adventure reset command", () => {
 
     expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
   });
+
+  it("resets the daily Korchma round in local environments", async () => {
+    const replies: string[] = [];
+    const seenUserIds: bigint[] = [];
+    const bot = createTestBot(replies, {
+      devReset: enabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      dailyKorchmaRound: {
+        resetTodayForDev: (telegramUserId: bigint) => {
+          seenUserIds.push(telegramUserId);
+          return Promise.resolve("reset");
+        }
+      } as unknown as DailyKorchmaRoundService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_reset_korchma_round"));
+
+    expect(seenUserIds).toEqual([42n]);
+    expect(replies).toEqual([
+      "Корчмарський обхід скинуто для поточного київського дня. Наступне відкриття заново підніме сьогоднішні папірці з-під кухля."
+    ]);
+  });
+
+  it("keeps daily Korchma round reset disabled in production", async () => {
+    const replies: string[] = [];
+    let called = false;
+    const bot = createTestBot(replies, {
+      devReset: disabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      dailyKorchmaRound: {
+        resetTodayForDev: () => {
+          called = true;
+          return Promise.resolve("reset");
+        }
+      } as unknown as DailyKorchmaRoundService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_reset_korchma_round"));
+
+    expect(called).toBe(false);
+    expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
+  });
+
   it("resets the monster rest cooldown in local environments", async () => {
     const replies: string[] = [];
     const bot = createTestBot(replies, {
@@ -246,6 +294,7 @@ function createTestBot(
     devReset: Pick<DevResetService, "isEnabled" | "resetCurrentUser">;
     adventure: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">;
     tavern?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">;
+    dailyKorchmaRound?: Pick<DailyKorchmaRoundService, "resetTodayForDev">;
     fight?: Pick<
       FightService,
       "getOrStartPersistentFightForTelegramUser" | "recordPersistentFightMessageReference" | "resetMonsterRestCooldownForDev"
@@ -275,6 +324,7 @@ function createTestBot(
     services.devReset as DevResetService,
     services.adventure,
     services.tavern,
+    services.dailyKorchmaRound,
     services.fight
   );
   return bot;

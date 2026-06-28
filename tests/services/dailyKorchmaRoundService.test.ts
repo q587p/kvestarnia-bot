@@ -181,6 +181,48 @@ describe("DailyKorchmaRoundService", () => {
     expect(oldLife.state).toBe("stale-life");
   });
 
+  it("resets today's daily Korchma round rows for local QA", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+    const offer = await readyOffer(world);
+    const [first, second] = offer.scenes;
+
+    world.locationId = first!.locationId;
+    await world.service.completeStep(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 0,
+      actionId: first!.actions[0]!.id,
+      lifeToken: offer.lifeToken
+    });
+    world.locationId = second!.locationId;
+    await world.service.completeStep(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 1,
+      actionId: second!.actions[0]!.id,
+      lifeToken: offer.lifeToken
+    });
+    world.locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+    await world.service.claimReward(telegramUserId, {
+      dayToken: offer.dayToken,
+      lifeToken: offer.lifeToken
+    });
+
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_STEP_KEY)).toHaveLength(2);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
+
+    await expect(world.service.resetTodayForDev(telegramUserId)).resolves.toBe("reset");
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(0);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_STEP_KEY)).toHaveLength(0);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(0);
+
+    const reopened = await world.service.getForTelegramUser(telegramUserId);
+    expect(reopened.state).toBe("ready");
+    if (reopened.state === "ready") {
+      expect(reopened.offer.scenes.map((scene) => scene.id)).toEqual(offer.scenes.map((scene) => scene.id));
+      expect(reopened.offer.completedSceneIds).toEqual([]);
+    }
+  });
+
   it("blocks mutation during active combat or pending Barrel", async () => {
     const fightWorld = new FakeWorld(makeCharacter({ level: 3 }));
     fightWorld.fightState = "persistent-active";

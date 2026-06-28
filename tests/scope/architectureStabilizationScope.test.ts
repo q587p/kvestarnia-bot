@@ -56,6 +56,7 @@ const expectedCommandAliasInventory = [
   "dev_heal",
   "dev_help",
   "dev_raid_stop",
+  "dev_reset_korchma_round",
   "dev_reset_me",
   "dev_reset_monster_rest",
   "dev_reset_yeger_bandage",
