@@ -99,6 +99,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data.startsWith("v1:dkr:")) {
+    return {};
+  }
+
   if (
     data.startsWith("v1:item:") ||
     data.startsWith("v1:equip:") ||
@@ -130,6 +134,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
   }
 
   if (data === "v1:place:front") {
+    return {};
+  }
+
+  if (data === "v1:place:yard") {
     return {};
   }
 

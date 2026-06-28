@@ -76,9 +76,14 @@ describe("presence routing", () => {
     ["v1:quest:fight", {}],
     ["v1:quest:archive", {}],
     ["v1:quest:list", {}],
+    ["v1:dkr:o:20260628", {}],
+    ["v1:dkr:s:20260628:1", {}],
+    ["v1:dkr:a:20260628:1:rope-nod:0", {}],
+    ["v1:dkr:c:20260628:0", {}],
     ["v1:place:current", {}],
     ["v1:place:hall", {}],
     ["v1:place:front", {}],
+    ["v1:place:yard", {}],
     ["v1:place:fighting-corner", {}],
     ["v1:place:quest-table", {}],
     ["v1:place:bar", {}],
@@ -146,6 +151,7 @@ describe("presence routing", () => {
     "v1:place:current",
     "v1:place:hall",
     "v1:place:front",
+    "v1:place:yard",
     "v1:place:fighting-corner",
     "v1:place:quest-table",
     "v1:place:bar",
@@ -159,6 +165,15 @@ describe("presence routing", () => {
     "v1:place:news-corner",
     "v1:place:duel-winners"
   ])("keeps place callback %s neutral until handler gates pass", (data) => {
+    expect(getCallbackPresenceContext(data)).toEqual({});
+  });
+
+  it.each([
+    "v1:dkr:o:20260628",
+    "v1:dkr:s:20260628:0",
+    "v1:dkr:a:20260628:0:rope-nod:0",
+    "v1:dkr:c:20260628:0"
+  ])("keeps daily Korchma callback %s neutral until handler gates pass", (data) => {
     expect(getCallbackPresenceContext(data)).toEqual({});
   });
 
