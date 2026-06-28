@@ -2056,6 +2056,118 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:dkr:a:20260628:0:repeat-last:0");
   });
 
+  it("opens an active daily Korchma round scene from the tavern ranger route", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const yegerLookup = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const rangerScene = {
+      id: "scene.ranger.sneezing-map",
+      icon: "map",
+      title: "Map sneezed in the wrong direction",
+      locationId: "location.korchma.ranger_corner",
+      hook: "The map insists the table moved first.",
+      actions: [
+        {
+          id: "fold-north",
+          label: "Fold north",
+          outcome: "North accepted the paperwork."
+        },
+        {
+          id: "mark-crumbs",
+          label: "Mark crumbs",
+          outcome: "The crumbs formed a route."
+        },
+        {
+          id: "ask-yeger",
+          label: "Ask Yeger",
+          outcome: "Yeger blamed licensed magic."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [rangerScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: rangerScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("ranger"),
+      servicesWith({
+        dailyKorchmaRound: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        yeger: {
+          getHuntBoardForTelegramUser: yegerLookup,
+          completeHuntContract: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.ranger_corner",
+              locationName: "Yeger corner",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const scene = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Map sneezed in the wrong direction")
+    );
+    const keyboard = JSON.stringify(scene?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(yegerLookup).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.ranger_corner",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(scene).toBeDefined();
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:fold-north:0");
+  });
+
   it("opens Shynok round preview from completed Barrel shortcut", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const createRoundOrder = vi.fn(() =>
