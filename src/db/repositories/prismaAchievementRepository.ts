@@ -28,6 +28,14 @@ const TRAINING_DOPPELGANGER_MONSTER_ID = "monster.training-doppelganger";
 const YEGER_RANGER_FREE_BANDAGE_KEY = "yeger.bandage.supply.ranger-free";
 const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
 
+export const ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS = [
+  MIMIC_SHAWARMA_ADVENTURE_KEY,
+  MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+  CELLAR_MOUSE_ERRAND_KEY,
+  DAILY_KORCHMA_ROUND_REWARD_KEY,
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY
+] as const;
+
 export class PrismaAchievementRepository implements AchievementRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -163,12 +171,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
         where: {
           characterId,
           key: {
-            in: [
-              MIMIC_SHAWARMA_ADVENTURE_KEY,
-              MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
-              CELLAR_MOUSE_ERRAND_KEY,
-              YEGER_UNQUIET_TRIAL_COMPLETED_KEY
-            ]
+            in: [...ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS]
           }
         },
         select: { key: true, createdAt: true },
