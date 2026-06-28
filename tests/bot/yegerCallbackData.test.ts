@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  makeYegerBandagesCallbackData,
   makeYegerBuyBandageCallbackData,
   makeYegerCancelBandagePurchaseCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
@@ -44,6 +45,10 @@ describe("Yeger callback data", () => {
       ok: true,
       value: { type: "help" }
     });
+    expect(parseYegerCallbackData(makeYegerBandagesCallbackData())).toEqual({
+      ok: true,
+      value: { type: "bandages" }
+    });
     expect(parseYegerCallbackData(makeYegerBuyBandageCallbackData())).toEqual({
       ok: true,
       value: { type: "buy-bandage-preview", targetQuantity: 1 }
@@ -80,6 +85,7 @@ describe("Yeger callback data", () => {
       makeYegerTrackCallbackData(),
       makeYegerTurnInCallbackData(),
       makeYegerHelpCallbackData(),
+      makeYegerBandagesCallbackData(),
       makeYegerBuyBandageCallbackData(),
       makeYegerBuyBandageCallbackData(5),
       makeYegerBuyBandageCallbackData(17),

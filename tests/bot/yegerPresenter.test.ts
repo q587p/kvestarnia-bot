@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentYegerBandages,
   presentYegerBandageBuy,
   presentYegerCorner,
   presentYegerHelp,
@@ -106,6 +107,28 @@ describe("Yeger presenter", () => {
     expect(text).toContain("🧥 Єгерський куток");
     expect(text).toContain("Єгер:\n<blockquote>");
     expect(text).toContain("Неспокійні справи закрито.");
+    expect(text).not.toContain("Нагорода:");
+    expect(text).not.toContain("Здобуто:");
+  });
+
+  it("renders the bandages submenu without quest details", () => {
+    const text = presentYegerBandages({
+      state: "completed",
+      character: {
+        ...character,
+        classId: "class.ranger"
+      },
+      progress: { wins: 5, target: 5 },
+      reward: {
+        xp: 80,
+        gold: 120,
+        itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 1 }]
+      }
+    });
+
+    expect(text).toContain("🩹 Бинти Єгеря");
+    expect(text).toContain("Платні пачки лежать окремо");
+    expect(text).toContain("Для єгерів тут є ще один професійний бинт.");
     expect(text).not.toContain("Нагорода:");
     expect(text).not.toContain("Здобуто:");
   });

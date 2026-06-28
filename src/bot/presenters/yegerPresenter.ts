@@ -129,6 +129,24 @@ export function presentYegerCorner(
   return lines.join("\n");
 }
 
+export function presentYegerBandages(
+  result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
+): string {
+  const lines = [
+    "🩹 Бинти Єгеря",
+    presentCharacterHeader(result.character),
+    "",
+    "Єгер розклав бинти так рівно, ніби вони самі винні.",
+    "Платні пачки лежать окремо: порядок дивиться на них і майже не кліпає."
+  ];
+
+  if (result.character.classId === "class.ranger") {
+    lines.push("", "Для єгерів тут є ще один професійний бинт. Він безкоштовний, але дивиться суворо.");
+  }
+
+  return lines.join("\n");
+}
+
 export function presentYegerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Єгер не видає сліди порожнім чоботам.";
 }

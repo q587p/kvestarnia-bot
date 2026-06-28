@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeItemDetailCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import {
+  buildYegerBandagesKeyboard,
   buildYegerBandagePurchaseKeyboard,
   buildYegerCornerKeyboard,
   buildYegerHuntKeyboard,
@@ -9,6 +10,7 @@ import {
   buildYegerTurnInKeyboard
 } from "../../src/bot/keyboards/yegerKeyboard";
 import {
+  makeYegerBandagesCallbackData,
   makeYegerBuyBandageCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
@@ -32,21 +34,37 @@ describe("Yeger keyboard", () => {
     });
   });
 
-  it("offers paid Yeger bandages as fixed bundle quantities", () => {
+  it("keeps paid Yeger bandages inside the bandages submenu", () => {
     const keyboard = buildYegerCornerKeyboard({
       state: "completed",
       character,
       progress: { wins: 5, target: 5 },
       reward
     });
+    const bandages = buildYegerBandagesKeyboard({
+      state: "completed",
+      character,
+      progress: { wins: 5, target: 5 },
+      reward
+    });
 
-    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🩹 Бинти",
+      callback_data: makeYegerBandagesCallbackData()
+    });
+    expect(flatButtons(keyboard)).not.toEqual(expect.arrayContaining([
       { text: "🩹 1 бинт", callback_data: makeYegerBuyBandageCallbackData(1) },
       { text: "🩹 5 бинтів", callback_data: makeYegerBuyBandageCallbackData(5) },
       { text: "🩹 17 бинтів", callback_data: makeYegerBuyBandageCallbackData(17) },
       { text: "🩹 93 бинти", callback_data: makeYegerBuyBandageCallbackData(93) }
     ]));
-    expect(keyboard.inline_keyboard.slice(1, 3).map((row) => row.map((button) => button.text))).toEqual([
+    expect(flatButtons(bandages)).toEqual(expect.arrayContaining([
+      { text: "🩹 1 бинт", callback_data: makeYegerBuyBandageCallbackData(1) },
+      { text: "🩹 5 бинтів", callback_data: makeYegerBuyBandageCallbackData(5) },
+      { text: "🩹 17 бинтів", callback_data: makeYegerBuyBandageCallbackData(17) },
+      { text: "🩹 93 бинти", callback_data: makeYegerBuyBandageCallbackData(93) }
+    ]));
+    expect(bandages.inline_keyboard.slice(0, 2).map((row) => row.map((button) => button.text))).toEqual([
       ["🩹 1 бинт", "🩹 5 бинтів"],
       ["🩹 17 бинтів", "🩹 93 бинти"]
     ]);
@@ -73,12 +91,30 @@ describe("Yeger keyboard", () => {
       },
       requiredLevel: 4
     });
+    const bandages = buildYegerBandagesKeyboard({
+      state: "level-locked",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Єгер",
+        level: 1
+      },
+      requiredLevel: 4
+    });
 
     expect(flatButtons(keyboard)).not.toContainEqual({
       text: "🏹 Неспокійні справи",
       callback_data: makeYegerQuestCallbackData()
     });
     expect(flatButtons(keyboard)).toContainEqual({
+      text: "🩹 Бинти",
+      callback_data: makeYegerBandagesCallbackData()
+    });
+    expect(flatButtons(keyboard)).not.toContainEqual({
+      text: "🧰 Єгерський бинт",
+      callback_data: makeYegerFreeBandageCallbackData()
+    });
+    expect(flatButtons(bandages)).toContainEqual({
       text: "🧰 Єгерський бинт",
       callback_data: makeYegerFreeBandageCallbackData()
     });

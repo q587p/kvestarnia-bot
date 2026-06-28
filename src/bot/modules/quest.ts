@@ -71,8 +71,8 @@ buildKorchmaBarKeyboard
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import {
 buildYegerHelpKeyboard,
+buildYegerBandagesKeyboard,
 buildYegerBandagePurchaseKeyboard,
-buildYegerCornerKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
 buildYegerTurnInKeyboard
@@ -109,6 +109,7 @@ presentInvalidCallback
 import { presentParticipants } from "../presenters/presencePresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
+presentYegerBandages,
 presentYegerBandageBuy,
 presentYegerHelp,
 presentYegerNoCharacter,
@@ -924,6 +925,23 @@ async function handleYegerCallback(
     return;
   }
 
+  if (callback.type === "bandages") {
+    await safeAnswerCallbackQuery(ctx);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+
+    if (quest.state === "no-character") {
+      await safeEditMessageText(ctx, presentYegerNoCharacter());
+      return;
+    }
+
+    await markYegerCornerPresence(ctx, services.presence);
+    await safeEditMessageText(ctx, presentYegerBandages(quest), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerBandagesKeyboard(quest)
+    });
+    return;
+  }
+
   if (callback.type === "quest") {
     await safeAnswerCallbackQuery(ctx);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
@@ -979,7 +997,7 @@ async function handleYegerCallback(
         ? buildYegerBandagePurchaseKeyboard(result.token)
         : quest.state === "no-character"
           ? buildYegerHelpKeyboard()
-          : buildYegerCornerKeyboard(quest)
+          : buildYegerBandagesKeyboard(quest)
     });
     return;
   }
@@ -1006,7 +1024,7 @@ async function handleYegerCallback(
           )
         : quest.state === "no-character"
           ? buildYegerHelpKeyboard()
-          : buildYegerCornerKeyboard(quest)
+          : buildYegerBandagesKeyboard(quest)
     });
     const achievementText = presentAchievementUnlockNotification(
       result.state === "bought" ? result.achievementUnlocks ?? [] : []
@@ -1029,7 +1047,7 @@ async function handleYegerCallback(
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
     await safeEditMessageText(ctx, presentYegerRangerBandage(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
+      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerBandagesKeyboard(quest)
     });
     const achievementText = presentAchievementUnlockNotification(
       result.state === "claimed" ? result.achievementUnlocks ?? [] : []
