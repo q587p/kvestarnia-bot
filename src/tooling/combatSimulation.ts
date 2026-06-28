@@ -4,6 +4,7 @@ import { monsters } from "../content/monsters";
 import type { CharacterPath } from "../domain/characters/path";
 import { buildStarterStats } from "../domain/characters/starterStats";
 import { buildEffectiveCharacterStats } from "../domain/progression/effectiveStats";
+import { buildRemortStarterStats, REMORT_REQUIRED_LEVEL } from "../domain/remort";
 import {
   deriveMonsterCombatStats,
   expireCombat,
@@ -35,6 +36,7 @@ export interface CombatSimulationOptions {
   raceId: string;
   raceIds: readonly string[];
   path: CharacterPath;
+  remortCount: number;
   policy: CombatSimulationPolicy;
   maxTurns: number;
   encounterMode: CombatSimulationEncounterMode;
@@ -49,6 +51,7 @@ export interface CombatSimulationReport {
   raceIds: readonly string[];
   raceNames: readonly string[];
   path: CharacterPath;
+  remortCount: number;
   levels: readonly number[];
   monsterLevels: readonly number[] | "same";
   runsPerMatchup: number;
@@ -190,7 +193,8 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
               raceId,
               path: normalized.path,
               classId,
-              level: heroLevel
+              level: heroLevel,
+              remortCount: normalized.remortCount
             });
             const runResults = Array.from({ length: normalized.runsPerMatchup }, (_, runIndex) =>
               simulateSingleFight({
@@ -259,6 +263,7 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
     raceIds: normalized.raceIds,
     raceNames: normalized.raceIds.map((raceId) => getRaceContent(raceId).name),
     path: normalized.path,
+    remortCount: normalized.remortCount,
     levels: normalized.levels,
     monsterLevels: normalized.monsterLevels,
     runsPerMatchup: normalized.runsPerMatchup,
@@ -281,7 +286,7 @@ export function formatCombatSimulationReport(report: CombatSimulationReport): st
   lines.push(
     `levels: ${formatLevelList(report.levels)} | monster levels: ${formatMonsterLevelSpec(
       report.monsterLevels
-    )} | runs: ${report.runsPerMatchup} | max turns: ${report.maxTurns} | threat second enemy bonus: ${report.threatSecondEnemyLevelBonus}`
+    )} | runs: ${report.runsPerMatchup} | max turns: ${report.maxTurns} | remort: ${report.remortCount} | threat second enemy bonus: ${report.threatSecondEnemyLevelBonus}`
   );
   lines.push(`rows: ${report.rows.length}`);
   lines.push("");
@@ -706,8 +711,20 @@ function buildSimulationHero(input: {
   path: CharacterPath;
   classId: string;
   level: number;
+  remortCount: number;
 }): CombatSimulationHero {
-  const starter = buildStarterStats(input.raceId, input.classId);
+  const starter =
+    input.remortCount > 0
+      ? buildRemortStarterStats({
+          raceId: input.raceId,
+          classId: input.classId,
+          remortNumber: input.remortCount,
+          previousLevel: REMORT_REQUIRED_LEVEL,
+          previousClassId: input.classId,
+          previousRaceId: input.raceId,
+          previousPath: input.path
+        })
+      : buildStarterStats(input.raceId, input.classId);
   const effective = buildEffectiveCharacterStats({
     level: input.level,
     classId: input.classId,
@@ -749,6 +766,7 @@ function normalizeOptions(options: Partial<CombatSimulationOptions>): CombatSimu
     raceId,
     raceIds,
     path,
+    remortCount: normalizeNonNegativeInteger(options.remortCount ?? 0),
     policy: options.policy ?? DEFAULT_POLICY,
     maxTurns: normalizePositiveInteger(options.maxTurns ?? DEFAULT_MAX_TURNS),
     encounterMode: options.encounterMode ?? "one-enemy",

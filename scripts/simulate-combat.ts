@@ -108,6 +108,9 @@ function parseArguments(argv: string[]): Partial<CombatSimulationOptions> {
         }
         options.policy = parsePolicy(value);
         break;
+      case "--remort":
+        options.remortCount = parseNonNegativeInteger(value, "--remort");
+        break;
       case "--encounter":
         if (!value || value.startsWith("--")) {
           throw new Error("Missing value for --encounter.");
@@ -227,6 +230,7 @@ function printUsage(): void {
       "  --classes all          Comma-separated class ids or 'all'.",
       "  --race race.human-ish  Race id to use when available.",
       "  --races all            Comma-separated race ids or 'all'.",
+      "  --remort 0            Remort memory rank to model for the hero.",
       "  --encounter one-enemy  Encounter mode: one-enemy or two-enemy-threat.",
       "  --threat-bonus 0       Effective-level bonus for the second threat enemy.",
       "  --policy aggressive    Combat policy: aggressive or cautious.",

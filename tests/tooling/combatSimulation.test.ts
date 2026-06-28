@@ -121,6 +121,7 @@ describe("combatSimulation", () => {
       raceIds: ["race.dryland-rusalka"],
       raceNames: ["Русалка сухопутна"],
       path: "boundary",
+      remortCount: 0,
       levels: [3],
       monsterLevels: "same",
       runsPerMatchup: 2,
@@ -257,6 +258,27 @@ describe("combatSimulation", () => {
     expect(formatted).toContain("Combat simulation report");
     expect(formatted).toContain("Warnings summary");
     expect(report.rows).toHaveLength(monsters.filter((monster) => monster.level === 1).length);
+  });
+
+  it("models remort memory in simulated hero stats", () => {
+    const options = {
+      levels: [12],
+      monsterLevels: [12],
+      runsPerMatchup: 20,
+      seed: "remort-memory-sanity",
+      classIds: ["class.warrior"],
+      raceId: "race.human-ish",
+      policy: "aggressive" as const,
+      maxTurns: 20
+    };
+    const baseline = runCombatSimulation(options);
+    const remorted = runCombatSimulation({ ...options, remortCount: 5 });
+
+    expect(remorted.remortCount).toBe(5);
+    expect(formatCombatSimulationReport(remorted)).toContain("remort: 5");
+    expect(remorted.rows[0]?.summary.averageEndingHp).toBeGreaterThan(
+      baseline.rows[0]?.summary.averageEndingHp ?? 0
+    );
   });
 
   it("uses every exact ladder monster when simulating levels 4 and 13", () => {
