@@ -1,6 +1,6 @@
 # Daily Korchma Rounds — canonical design
 
-Status: proposed future `0.2.x` runtime slice, captured during the `0.2.5` Bard Performance branch; not implemented until the matching version task is explicitly activated.
+Status: shipped in `0.2.9` on `12026-06-28`. The implementation uses existing `daily_actions` offer/step/reward rows, Kyiv day keys, and no Prisma schema migration.
 
 This document is the canonical product/persistence contract for the first `Корчмарський обхід` implementation. If the release number changes before activation, rename the task file and release surfaces without changing the feature contract silently.
 
@@ -114,16 +114,15 @@ Locked:
 Діє до нового київського дня.
 ```
 
-Buttons route to locations:
+Overview buttons do not route directly to incident locations:
 
 ```text
-🪣 До задвірка
-📰 До дошки
-🛢️ До бочки
-⬅️ До Столу
+📋 До справ
+🍺 До зали
 ```
 
-Натискання route button **не завершує** step.
+Гравець іде звичайною навігацією Корчми. Якщо поточна локація має active incomplete scene, її поверхня показує сцену обходу.
+Натискання навігаційної кнопки **не завершує** step.
 
 ### 4.3 Location surface
 
@@ -215,8 +214,8 @@ Result:
 ніби саме це весь день тримало світ.
 
 Отримано:
-+4 XP
-+2 золота
++8 XP
++5 золота
 ```
 
 ### 4.7 Already completed replay
@@ -227,8 +226,8 @@ Result:
 Книга лежить рівно, що для неї підозріло.
 
 Отримано:
-+4 XP
-+2 золота
++8 XP
++5 золота
 ```
 
 Stored reward values, chosen scenes and omitted scene replay-яться з final claim.
@@ -328,7 +327,7 @@ localDate = <YYYY-MM-DD in Europe/Kyiv>
 reward    = 0 / 0
 ```
 
-`resultJson`:
+`resultJson` with example stored values:
 
 ```json
 {
@@ -372,8 +371,8 @@ reward    = 0 / 0
 ```text
 key        = quest.korchma-round.reward
 localDate  = <dayKey>
-rewardXp   = 4
-rewardGold = 2
+rewardXp   = stored level-scaled XP
+rewardGold = stored level-scaled gold
 ```
 
 `resultJson`:
@@ -387,7 +386,7 @@ rewardGold = 2
     "barrel-rent-emptiness"
   ],
   "omittedSceneId": "yard-sign-career",
-  "reward": { "xp": 4, "gold": 2 }
+  "reward": { "xp": 13, "gold": 7 }
 }
 ```
 
@@ -431,7 +430,7 @@ Compact namespace example:
 
 ```text
 v1:dkr:o:<dayToken>
-v1:dkr:s:<dayToken>:<sceneKey>
+v1:dkr:s:<dayToken>:<sceneKey>        # scene card / stale compatibility, not a fresh overview teleport button
 v1:dkr:a:<dayToken>:<sceneKey>:<actionKey>:<lifeToken>
 v1:dkr:c:<dayToken>:<lifeToken>
 ```
@@ -451,7 +450,7 @@ Requirements:
 
 - Offer/steps/reward survive remort within the same day.
 - Old pre-remort action/claim buttons return stale-life copy and no mutation.
-- Fresh overview creates buttons with current remort count.
+- Fresh action and claim cards use the current remort count.
 - Completed steps remain valid.
 - Unclaimed final reward goes to the current life when explicitly turned in.
 - Reward remains once per day, so remort cannot duplicate it.
@@ -495,13 +494,12 @@ Show/open the new current offer without mutating the old one.
 
 ## 12. Reward and economy
 
-- fixed `4 XP + 2 gold`;
+- deterministic level-scaled stored XP/gold spread: `level * 2 + 1..level` XP and `level + 1..level` gold;
 - exact values only after claim/replay;
 - no per-step rewards;
 - no item rolls;
 - no consumable integration;
 - no luck/class/race modifier;
-- no level scaling;
 - no third-step bonus;
 - no streak multiplier.
 

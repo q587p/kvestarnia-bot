@@ -3,6 +3,7 @@ import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../ser
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
+import type { DailyKorchmaRoundLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
@@ -22,6 +23,7 @@ export interface QuestHubSnapshot {
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
+  dailyKorchmaRound?: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }>;
 }
 
 export type QuestHubMode = "active" | "archive";
@@ -315,6 +317,42 @@ function presentActiveCellarRow(
   return presentCellarRow(cellar, cellarGrownup);
 }
 
+function presentDailyKorchmaRoundRow(
+  daily: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }> | undefined
+): string | null {
+  if (!daily) {
+    return null;
+  }
+
+  const title = "🧾 <i>Корчмарський обхід</i>";
+
+  if (daily.state === "level-locked") {
+    return null;
+  }
+
+  if (daily.state === "hp-blocked") {
+    return `${title} — спершу відновіть хоча б 1 HP.`;
+  }
+
+  if (daily.state === "active-fight") {
+    return `${title} — спершу завершіть поточний бій.`;
+  }
+
+  if (daily.state === "pending-barrel") {
+    return `${title} — Бочка Пінного Міражу ще ревнує до черги.`;
+  }
+
+  if (daily.state === "completed") {
+    return `${title} — сьогодні закрито; Корчмар удає, що так і було заплановано.`;
+  }
+
+  const completed = daily.offer.completedSceneIds.length;
+
+  return daily.state === "turn-in-ready"
+    ? `${title} — 2/2, Корчмар чекає на два підписи біля столу.`
+    : `${title} — ${completed}/2 дрібниць чекають ревізії здорового глузду.`;
+}
+
 function hasGrownupBottle(
   cellarGrownup:
     | Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
@@ -361,7 +399,10 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
       : null,
     presentActiveFightRow(snapshot.character, snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
-    presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup)
+    presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup),
+    snapshot.dailyKorchmaRound?.state === "completed"
+      ? null
+      : presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
   ].filter(isPresent);
 
   if (rows.length > 0) {
@@ -380,7 +421,10 @@ function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
     ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
     presentFightArchiveRow(snapshot.character, snapshot.fight),
     presentYegerArchiveRow(snapshot.yeger),
-    ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup)
+    ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup),
+    snapshot.dailyKorchmaRound?.state === "completed"
+      ? presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
+      : null
   ].filter(isPresent);
 
   if (rows.length > 0) {
@@ -436,7 +480,9 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
     snapshot.yeger.state === "in-progress" ||
     snapshot.yeger.state === "turn-in-ready" ||
     snapshot.cellar.state === "ready" ||
-    (snapshot.cellar.state === "level-retired" && snapshot.cellarGrownup?.state !== "completed")
+    (snapshot.cellar.state === "level-retired" && snapshot.cellarGrownup?.state !== "completed") ||
+    snapshot.dailyKorchmaRound?.state === "ready" ||
+    snapshot.dailyKorchmaRound?.state === "turn-in-ready"
   );
 }
 

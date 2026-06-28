@@ -11,7 +11,7 @@ Merge this section into `docs/PLAYTESTING.md` when the matching version task is 
 3. Complete one scene at its required location; confirm `1/2` and no XP, gold, item, HP or mana change.
 4. Repeat the same callback; confirm replay/no duplicate.
 5. Complete a second scene in another location; confirm `2/2` and the third is marked unavailable.
-6. Return to the Quest Table and claim; confirm exactly `+4 XP`, `+2 gold`, no item.
+6. Return to the Quest Table and claim; confirm level-scaled XP/gold, no item, and exact stored replay values.
 7. Repeat claim and restart the bot; confirm the stored result replays without another mutation.
 
 ### Safety and routing

@@ -7,6 +7,33 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.9] - 12026-06-28 - Daily Korchma Rounds
+
+### Added
+- Added `Корчмарський обхід` / `Ревізія здорового глузду`, a level 3+ once-per-Kyiv-day route with exactly three persisted authored incidents: one at `location.korchma.yard` / `Задвірок корчми` and two at distinct Korchma interior locations.
+- Added the 13-scene v1 daily content pack. Each scene has exactly three authored actions and deterministic authored outcomes, with content validation for scene/action uniqueness and shape.
+- Added a pure Kyiv day helper based on `Intl.DateTimeFormat(..., { timeZone: "Europe/Kyiv" }).formatToParts()` and focused tests for winter, summer, midnight rollover and both DST transition periods.
+- Added compact `daily_actions` rows for offer, step and reward state. No Prisma schema or migration was needed.
+- Added rewardless daily-round achievement hooks and definitions for 1, 7 and 13 completed `Корчмарський обхід` runs, using trigger `daily.korchma-round.completed` and not reusing Shynok beer-round ids.
+- Added `location.korchma.yard` as a public outside presence location. It is not part of `KORCHMA_INTERIOR_LOCATION_IDS` and is not accepted by `isKorchmaInteriorLocation()`.
+- Added local `/dev_reset_korchma_round` to clear the current Kyiv-day daily-round offer, step and reward rows for manual QA.
+
+### Changed
+- Quest Hub now surfaces the daily round when available, with qualitative pre-choice copy only. Exact reward appears after the explicit turn-in.
+- The daily overview lists scene locations without direct scene-location teleport buttons. Players walk through ordinary Korchma navigation, and opening a location with an active unfinished daily scene shows that scene there.
+- Turn-in-ready daily overview cards now route players back to the Quest Table instead of exposing a remote claim button. The actual `Здати обхід` claim remains on the Quest Table.
+- Yeger Corner now groups paid bandage bundles and the ranger free bandage under a compact `🩹 Бинти` submenu while preserving old direct bandage callbacks for existing cards.
+- The earned achievements tab now sorts newest unlocks first, while all/locked tabs keep catalog order.
+- Pressed reply-keyboard location labels now send the movement notice before the destination card, so cellar/daily-location cards no longer appear above their arrival line.
+- The Korchma yard now behaves as a real reply-keyboard current location, wrong-location daily step cards route to the required place, and daily step claims use a repository-level per-day prefix guard so double-taps cannot create more than two step rows.
+- Final turn-in requires the Quest Table and grants a deterministic level-scaled XP/gold spread once per Kyiv day, with duplicate/restart replay returning the stored result.
+- The level 4+ grownup cellar roleplay route cannot grant the bottle on the first attempt, and later attempts are capped at a 13% success chance. The cheese seal remains the guaranteed expensive route. Turning in the bottle now grants 40 XP + 180 gold, so it cannot skip a level 4 character straight to level 6.
+
+### Unchanged
+- Remort does not clear same-day daily-round progress or duplicate the final reward. Old-life mutating callbacks stale out through the compact life token.
+- Active combat and pending Barrel state block daily-round mutations.
+- The daily round has no streak, catch-up, reroll, item drop, stat roll, injuries, fight handoff, third-step bonus, scheduler, Mini App UI, shop, market, raid, party or new economy system.
+
 ## [0.2.8] - 12026-06-28 - Achievements and Cosmetic Title Records
 
 ### Added

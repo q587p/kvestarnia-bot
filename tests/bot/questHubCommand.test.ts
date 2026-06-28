@@ -10,6 +10,7 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import type { AdventureService } from "../../src/services/adventureService";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
+import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
 import type { FightService } from "../../src/services/fightService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import type { YegerQuestService } from "../../src/services/yegerQuestService";
@@ -102,7 +103,8 @@ describe("quest hub command", () => {
         adventure: readyAdventureService(levelOneCharacter),
         fight: readyFightService(levelOneCharacter),
         yeger: readyYegerService(levelOneCharacter),
-        cellarErrand: readyCellarService(levelOneCharacter)
+        cellarErrand: readyCellarService(levelOneCharacter),
+        dailyKorchmaRound: lockedDailyKorchmaRoundService(levelOneCharacter)
       }),
       "reply"
     );
@@ -111,6 +113,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).not.toContain("🧹 <i>Льохова справа</i> — відкриється з 2 рівня.");
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — новачкова підозра чекає на столі.");
     expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — підозріла шаурма ще не дала свідчень.");
+    expect(replies[0]?.text).not.toContain("🧾 <i>Корчмарський обхід</i>");
     expect(replies[0]?.text).not.toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
     const buttons = (
@@ -136,7 +139,8 @@ describe("quest hub command", () => {
         adventure: readyAdventureService(levelTwoCharacter),
         fight: readyFightService(levelTwoCharacter),
         yeger: readyYegerService(levelTwoCharacter),
-        cellarErrand: readyCellarService(levelTwoCharacter)
+        cellarErrand: readyCellarService(levelTwoCharacter),
+        dailyKorchmaRound: lockedDailyKorchmaRoundService(levelTwoCharacter)
       }),
       "reply"
     );
@@ -145,6 +149,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — новачкова підозра чекає на столі.");
     expect(replies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — підозріла шаурма ще не дала свідчень.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
+    expect(replies[0]?.text).not.toContain("🧾 <i>Корчмарський обхід</i>");
     expect(replies[0]?.text).not.toContain("🧾 <i>Тринадцять дрібних проблем</i> — відкриється з 3 рівня.");
     expect(replies[0]?.text).not.toContain("🪜 <i>Низ</i> — можна починати.");
     const buttons = (
@@ -159,6 +164,23 @@ describe("quest hub command", () => {
       "📦 Архів",
       "🍺 До зали"
     ]);
+  });
+
+  it("keeps completed daily Korchma round out of the active list and in the archive", async () => {
+    const activeReplies: Array<{ text: string; options: unknown }> = [];
+    const archiveReplies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+    const services = servicesWith({
+      dailyKorchmaRound: completedDailyKorchmaRoundService(grownCharacter)
+    });
+
+    await sendQuestHub(makeContext(activeReplies), services, "reply");
+    await sendQuestHub(makeContext(archiveReplies), services, "reply", "archive");
+
+    expect(activeReplies[0]?.text).not.toContain("🧾 <i>Корчмарський обхід</i>");
+    expect(archiveReplies[0]?.text).toContain(
+      "🧾 <i>Корчмарський обхід</i> — сьогодні закрито; Корчмар удає, що так і було заплановано."
+    );
   });
 
   it("moves locked problem quests to the archive for starter levels", async () => {
@@ -1019,6 +1041,7 @@ function servicesWith(overrides: {
   adventure?: AdventureService;
   cellarErrand?: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
+  dailyKorchmaRound?: DailyKorchmaRoundService;
   fight?: FightService;
   yeger?: YegerQuestService;
   presence?: CapturingPresenceService;
@@ -1032,6 +1055,7 @@ function servicesWith(overrides: {
       overrides.cellarErrand ??
       readyCellarService(character),
     cellarGrownup: overrides.cellarGrownup,
+    dailyKorchmaRound: overrides.dailyKorchmaRound,
     fight:
       overrides.fight ??
       readyFightService(character),
@@ -1041,6 +1065,68 @@ function servicesWith(overrides: {
     presence: overrides.presence ?? new CapturingPresenceService(),
     tavernRaid: overrides.tavernRaid
   };
+}
+
+function lockedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorchmaRoundService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "level-locked",
+        character: summary,
+        requiredLevel: 3
+      })
+  } as unknown as DailyKorchmaRoundService;
+}
+
+function completedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorchmaRoundService {
+  const completedSceneIds = ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"];
+
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "completed",
+        character: summary,
+        offer: {
+          dayKey: "2026-06-28",
+          dayToken: "20260628",
+          lifeToken: 0,
+          requiredSteps: 2,
+          completedSceneIds,
+          omittedSceneId: "scene.yard.rope",
+          scenes: [
+            {
+              id: completedSceneIds[0],
+              icon: "🍾",
+              title: "Пляшка шепоче інвентаризацію",
+              locationId: "location.korchma.cellar",
+              hook: "У льосі пляшка шепоче номери.",
+              actions: []
+            },
+            {
+              id: completedSceneIds[1],
+              icon: "🗺️",
+              title: "Мапа чхнула не в той бік",
+              locationId: "location.korchma.ranger_corner",
+              hook: "У єгерському кутку мапа має думку.",
+              actions: []
+            },
+            {
+              id: "scene.yard.rope",
+              icon: "🪢",
+              title: "Мотузка завʼязала питання",
+              locationId: "location.korchma.yard",
+              hook: "У задвірку мотузка має думку.",
+              actions: []
+            }
+          ]
+        },
+        reward: {
+          xp: 4,
+          gold: 2,
+          localDate: "2026-06-28"
+        }
+      })
+  } as unknown as DailyKorchmaRoundService;
 }
 
 function completedCellarGrownupService(summary: CharacterSummary): CellarGrownupQuestService {

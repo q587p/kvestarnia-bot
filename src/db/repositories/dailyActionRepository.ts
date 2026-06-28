@@ -57,6 +57,11 @@ export interface ClaimDailyActionInput {
     quantity: number;
     maxQuantity: number;
   };
+  localDatePrefixLimit?: {
+    key: string;
+    localDatePrefix: string;
+    maxRows: number;
+  };
 }
 
 export class DailyActionQuantityLimitExceededError extends Error {
@@ -65,6 +70,15 @@ export class DailyActionQuantityLimitExceededError extends Error {
     readonly maxQuantity: number
   ) {
     super("Daily action quantity limit exceeded.");
+  }
+}
+
+export class DailyActionPrefixLimitExceededError extends Error {
+  constructor(
+    readonly currentRows: number,
+    readonly maxRows: number
+  ) {
+    super("Daily action prefix row limit exceeded.");
   }
 }
 

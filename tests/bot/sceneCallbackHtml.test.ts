@@ -1832,6 +1832,515 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:sh:dr");
   });
 
+  it("reopens an active daily Korchma round scene from the persistent location reply button", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const cellarErrandLookup = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const cellarScene = {
+      id: "scene.cellar.inventory-bottle",
+      icon: "🍾",
+      title: "Пляшка шепоче інвентаризацію",
+      locationId: "location.korchma.cellar",
+      hook: "У льосі пляшка шепоче номери, яких немає в жодному списку, і явно насолоджується процесом.",
+      actions: [
+        {
+          id: "repeat-last",
+          label: "🔁 Повторити останній",
+          outcome: "Пляшка повторила останній номер і підозріло задзвеніла."
+        },
+        {
+          id: "turn-to-wall",
+          label: "🧱 Розвернути до стіни",
+          outcome: "Пляшка образилась на стіну, але список став коротшим."
+        },
+        {
+          id: "mark-empty",
+          label: "✅ Позначити порожньою",
+          outcome: "Порожнечу зараховано. Пляшка виглядає бухгалтерськи переможеною."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [cellarScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: cellarScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.cellar,
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: cellarErrandLookup,
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        dailyKorchmaRound: {
+          getExistingForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.cellar",
+              locationName: "Льох корчми",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const reply = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("🍾 Пляшка шепоче інвентаризацію")
+    );
+    const keyboard = JSON.stringify(reply?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(cellarErrandLookup).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.cellar",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(String(reply?.payload.text)).toContain("🍾 Пляшка шепоче інвентаризацію");
+    expect(String(reply?.payload.text)).not.toContain("Льох тимчасово тихий");
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:repeat-last:0");
+  });
+
+  it("opens an active daily Korchma round scene after physical cellar place navigation", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const cellarErrandLookup = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const cellarScene = {
+      id: "scene.cellar.inventory-bottle",
+      icon: "🍾",
+      title: "Пляшка шепоче інвентаризацію",
+      locationId: "location.korchma.cellar",
+      hook: "У льосі пляшка шепоче номери, яких немає в жодному списку, і явно насолоджується процесом.",
+      actions: [
+        {
+          id: "repeat-last",
+          label: "🔁 Повторити останній",
+          outcome: "Пляшка повторила останній номер і підозріло задзвеніла."
+        },
+        {
+          id: "turn-to-wall",
+          label: "🧱 Розвернути до стіни",
+          outcome: "Пляшка образилась на стіну, але список став коротшим."
+        },
+        {
+          id: "mark-empty",
+          label: "✅ Позначити порожньою",
+          outcome: "Порожнечу зараховано. Пляшка виглядає бухгалтерськи переможеною."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [cellarScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: cellarScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("cellar"),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: cellarErrandLookup,
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        dailyKorchmaRound: {
+          getExistingForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const scene = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("🍾 Пляшка шепоче інвентаризацію")
+    );
+    const keyboard = JSON.stringify(scene?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(cellarErrandLookup).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.cellar",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(scene).toBeDefined();
+    expect(calls.map((call) => String(call.payload.text))).not.toContain("Льох тимчасово тихий.");
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:repeat-last:0");
+  });
+
+  it("falls through to ordinary location content when no daily Korchma offer was issued yet", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getExistingForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "not-issued" as const,
+        character: {
+          ...character,
+          level: 3
+        }
+      })
+    );
+    const openScene = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const cellarErrandLookup = vi.fn(() => Promise.resolve({ state: "ready" as const, character }));
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.cellar,
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: cellarErrandLookup,
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        dailyKorchmaRound: {
+          getExistingForTelegramUser,
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.cellar",
+              locationName: "Льох корчми",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage" && String(call.payload.text).includes("🐭 Льохова справа"));
+
+    expect(getExistingForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(openScene).not.toHaveBeenCalled();
+    expect(cellarErrandLookup).toHaveBeenCalledWith(42n);
+    expect(String(reply?.payload.text)).toContain("🐭 Льохова справа");
+    expect(calls.some((call) => String(call.payload.text).includes("🍾 Пляшка шепоче інвентаризацію"))).toBe(false);
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.cellar",
+        currentRaidId: null,
+        currentAdventureId: "adventure.cellar.mouse-errand"
+      })
+    );
+  });
+
+  it("opens an active daily Korchma round scene after physical yard place navigation", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const yardScene = {
+      id: "scene.yard.rope",
+      icon: "bucket",
+      title: "Rope tied up the unanswered question",
+      locationId: "location.korchma.yard",
+      hook: "The rope insists this is a meeting, not a knot.",
+      actions: [
+        {
+          id: "untie-agenda",
+          label: "Untie the agenda",
+          outcome: "The agenda apologized and became a rope again."
+        },
+        {
+          id: "ask-bucket",
+          label: "Ask the bucket",
+          outcome: "The bucket declined to chair the committee."
+        },
+        {
+          id: "label-knot",
+          label: "Label the knot",
+          outcome: "The knot accepted the label and stopped escalating."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [yardScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: yardScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("yard"),
+      servicesWith({
+        dailyKorchmaRound: {
+          getExistingForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.front",
+              locationName: "Перед корчмою",
+              insideKorchma: false
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const scene = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Rope tied up the unanswered question")
+    );
+    const keyboard = JSON.stringify(scene?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.yard",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(scene).toBeDefined();
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:untie-agenda:0");
+  });
+
+  it("opens an active daily Korchma round scene from the tavern ranger route", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const yegerLookup = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const rangerScene = {
+      id: "scene.ranger.sneezing-map",
+      icon: "map",
+      title: "Map sneezed in the wrong direction",
+      locationId: "location.korchma.ranger_corner",
+      hook: "The map insists the table moved first.",
+      actions: [
+        {
+          id: "fold-north",
+          label: "Fold north",
+          outcome: "North accepted the paperwork."
+        },
+        {
+          id: "mark-crumbs",
+          label: "Mark crumbs",
+          outcome: "The crumbs formed a route."
+        },
+        {
+          id: "ask-yeger",
+          label: "Ask Yeger",
+          outcome: "Yeger blamed licensed magic."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [rangerScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: rangerScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("ranger"),
+      servicesWith({
+        dailyKorchmaRound: {
+          getExistingForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        yeger: {
+          getHuntBoardForTelegramUser: yegerLookup,
+          completeHuntContract: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.deep",
+              locationName: "Низ",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const scene = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Map sneezed in the wrong direction")
+    );
+    const movementNotice = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви підійшли до єгерського кутка.")
+    );
+    const keyboard = JSON.stringify(scene?.payload.reply_markup);
+    const movementKeyboard = JSON.stringify(movementNotice?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(yegerLookup).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.ranger_corner",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(movementNotice).toBeDefined();
+    expect(movementKeyboard).toContain("🏹 Єгерський куток");
+    expect(movementKeyboard).not.toContain("🪜 Низ");
+    expect(scene).toBeDefined();
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:fold-north:0");
+  });
+
   it("opens Shynok round preview from completed Barrel shortcut", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const createRoundOrder = vi.fn(() =>
@@ -1996,7 +2505,9 @@ describe("scene callback HTML options", () => {
         }
       })
     );
-    const reply = calls.find((call) => call.method === "sendMessage");
+    const reply = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("🪜 Спуск до Низу")
+    );
 
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2007,6 +2518,46 @@ describe("scene callback HTML options", () => {
     );
     expect(String(reply?.payload.text)).toContain("🪜 Спуск до Низу");
     expect(String(reply?.payload.text)).not.toContain("📋 Стіл зі справами");
+  });
+
+  it("sends the movement notice before opening a pressed cellar location label", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureTextApiCalls(
+      mainMenuLocationButtons.cellar,
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready" as const, character }),
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.hall",
+              locationName: "Зала корчми",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const messages = calls.filter((call) => call.method === "sendMessage");
+
+    expect(String(messages[0]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
+    expect(String(messages[1]?.payload.text)).toContain("🐭 Льохова справа");
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.cellar",
+        currentRaidId: null,
+        currentAdventureId: "adventure.cellar.mouse-errand"
+      })
+    );
   });
 
   it("sends the fight card when current-location text resolves a due dangerous search", async () => {
@@ -2281,6 +2832,136 @@ describe("scene callback HTML options", () => {
     expect(String(movement?.payload.text)).not.toContain("перед корчму");
     expect(JSON.stringify(movement?.payload.reply_markup)).toContain(mainMenuLocationButtons.front);
     expect(String(front?.payload.text)).toContain("🚪 Перед корчмою");
+  });
+
+  it("marks quest-table presence before opening the quest hub from the Korchma yard", async () => {
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const problemQuestProgress = {
+      stageId: "13" as const,
+      title: "Тринадцять дрібних проблем" as const,
+      wins: 0,
+      target: 13,
+      completed: false,
+      rewardClaimed: false,
+      issued: true,
+      branchComplete: false
+    };
+    let currentPlace = {
+      state: "ready" as const,
+      locationId: "location.korchma.yard",
+      locationName: "Задвірок корчми",
+      insideKorchma: false
+    };
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      currentPlace = {
+        state: "ready",
+        locationId: input.locationId,
+        locationName: "Стіл зі справами",
+        insideKorchma: input.locationId === "location.korchma.quest_table"
+      };
+
+      return Promise.resolve();
+    });
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("quest-table"),
+      servicesWith({
+        adventure: {
+          getAdventureOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer: adventureOffer
+            }),
+          completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired" as const,
+              character: level3Character,
+              maxLevel: 2
+            })
+        },
+        cellarErrand: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character
+            }),
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready" as const,
+              character: level3Character,
+              questProgress: problemQuestProgress
+            }),
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              progress: problemQuestProgress,
+              archive: []
+            }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired" as const,
+              character: level3Character,
+              maxLevel: 2
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () => Promise.resolve(currentPlace),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready" as const, character: level3Character }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" as const }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" as const }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () =>
+            Promise.resolve({ state: "none" as const })
+        },
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-locked" as const,
+              character: level3Character,
+              requiredLevel: 4
+            })
+        }
+      })
+    );
+
+    const messages = calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text));
+    const questHub = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("📋 Стіл зі справами")
+    );
+
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.quest_table",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(messages).not.toContain("Квести видають усередині.");
+    expect(questHub).toBeDefined();
+    expect(JSON.stringify(questHub?.payload.reply_markup)).toContain("v1:quest:adventure");
   });
 
   it("does not send a standalone reply-keyboard refresh message when a place callback keeps the same location", async () => {

@@ -31,6 +31,7 @@ export const achievementTriggerTypes = [
   "starter.mimic-shawarma.completed",
   "starter.mimic-shawarma.probe.completed",
   "cellar.mouse.completed",
+  "daily.korchma-round.completed",
   "adventure.choice.strong-success",
   "mantok.chest.completed",
   "level.barter.completed",
@@ -76,6 +77,7 @@ export interface AchievementDefinition {
     type: AchievementTriggerType;
     threshold?: number;
     outcome?: "won" | "lost" | "fled" | "expired";
+    excludedMonsterId?: string;
     raceId?: string;
     classId?: string;
     itemId?: string;
@@ -436,7 +438,12 @@ export const achievements = [
     lockedDescription: "виграти перший бій з монстром.",
     sortOrder: 40,
     status: "enabled",
-    trigger: { type: "combat.finished", outcome: "won", threshold: 1 },
+    trigger: {
+      type: "combat.finished",
+      outcome: "won",
+      threshold: 1,
+      excludedMonsterId: "monster.mimic-shawarma"
+    },
     cosmeticTitleGrantId: "cosmetic-title.first-puddle-victor"
   },
   {
@@ -594,6 +601,41 @@ export const achievements = [
     sortOrder: 65.2,
     status: "enabled",
     trigger: { type: "cellar.mouse.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.daily-korchma-round",
+    category: "quests",
+    title: "Дві катастрофи — це вже порядок",
+    description: "закрити перший Корчмарський обхід і лишити третю дрібницю на офіційне «не сьогодні».",
+    hidden: false,
+    lockedDescription: "закрити перший Корчмарський обхід.",
+    sortOrder: 65.3,
+    status: "enabled",
+    trigger: { type: "daily.korchma-round.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.daily-korchma-round.seven",
+    category: "quests",
+    title: "Тиждень дрібниць підписано",
+    description: "закрити 7 Корчмарських обходів і навчити дощечку впізнавати ваш почерк.",
+    hidden: false,
+    lockedDescription: "закрити 7 Корчмарських обходів.",
+    sortOrder: 65.31,
+    status: "enabled",
+    trigger: { type: "daily.korchma-round.completed", threshold: 7 },
+    progressTarget: 7
+  },
+  {
+    id: "achievement.quest.daily-korchma-round.thirteen",
+    category: "quests",
+    title: "Тринадцять ревізій без паніки",
+    description: "закрити 13 Корчмарських обходів і лишити здоровий глузд у стані контрольованої образи.",
+    hidden: false,
+    lockedDescription: "закрити 13 Корчмарських обходів.",
+    sortOrder: 65.32,
+    status: "enabled",
+    trigger: { type: "daily.korchma-round.completed", threshold: 13 },
+    progressTarget: 13
   },
   {
     id: "achievement.quest.problem-chain.93",

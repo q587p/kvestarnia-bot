@@ -12,6 +12,7 @@ export type YegerCallback =
   | { type: "start"; questId: "u1" }
   | { type: "track"; questId: "u1" }
   | { type: "turn-in"; questId: "u1" }
+  | { type: "bandages" }
   | { type: "buy-bandage-preview"; targetQuantity: YegerBandagePurchaseTarget }
   | { type: "buy-bandage-confirm"; token: string }
   | { type: "buy-bandage-cancel"; token: string }
@@ -54,6 +55,10 @@ export function makeYegerTurnInCallbackData(): string {
 
 export function makeYegerHelpCallbackData(): string {
   return assertYegerCallbackData(`${PREFIX}:help`);
+}
+
+export function makeYegerBandagesCallbackData(): string {
+  return assertYegerCallbackData(`${PREFIX}:bandages`);
 }
 
 export function makeYegerBuyBandageCallbackData(targetQuantity: YegerBandagePurchaseTarget = 1): string {
@@ -99,6 +104,10 @@ export function parseYegerCallbackData(
 
   if (action === "help") {
     return questId ? err("invalid-prefix") : ok({ type: "help" });
+  }
+
+  if (action === "bandages") {
+    return questId ? err("invalid-prefix") : ok({ type: "bandages" });
   }
 
   if (action === "buy") {

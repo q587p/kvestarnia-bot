@@ -16,6 +16,7 @@ PRESENCE_LOCATION_KORCHMA_HALL,
 PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
 PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
 PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+PRESENCE_LOCATION_KORCHMA_YARD,
 PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { ShynokRoundConfirmResult } from "../../services/shynokService";
@@ -46,6 +47,7 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaYard,
 sendKorchmaMemorialBoard,
 sendKorchmaRemortMilestoneBoard,
 sendTavern,
@@ -130,6 +132,7 @@ import { barrelRaidCompletionScheduler } from "./barrelRaidCompletionScheduler";
 import { sendLevelUpCelebration } from "./levelUp";
 import {
 refreshCurrentMainMenuLocationKeyboard,
+sendDailyKorchmaRoundSceneAtLocation,
 sendCurrentLocation,
 sendPlaceMovementNotice
 } from "./mainMenu";
@@ -602,6 +605,10 @@ async function handlePlaceCallback(
 
   if (action === "hall") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_HALL);
+    if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_HALL, services)) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendTavern(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -612,6 +619,17 @@ async function handlePlaceCallback(
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
       playerHintService: services.playerHints
     });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
+
+  if (action === "yard") {
+    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_YARD);
+    if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_YARD, services)) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
+    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -642,6 +660,10 @@ async function handlePlaceCallback(
 
   if (action === "barrel") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BARREL);
+    if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_BARREL, services)) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -649,6 +671,10 @@ async function handlePlaceCallback(
 
   if (action === "bar") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BAR);
+    if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_BAR, services)) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendKorchmaBar(ctx, services.tavern, services.presence, "reply", services.cellarGrownup, services.fight);
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -656,6 +682,12 @@ async function handlePlaceCallback(
 
   if (action === "fighting-corner") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+    if (
+      await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER, services)
+    ) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply");
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -674,6 +706,12 @@ async function handlePlaceCallback(
 
   if (action === "ranger-corner") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
+    if (
+      await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER, services)
+    ) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern
@@ -684,6 +722,11 @@ async function handlePlaceCallback(
 
   if (action === "quest-table") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
     await sendQuestHub(
       ctx,
       buildQuestHubCommandOptions(services),
@@ -695,6 +738,10 @@ async function handlePlaceCallback(
 
   if (action === "deep") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP);
+    if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_DEEP, services)) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
       passageSearch: services.passageSearch
     });
@@ -717,6 +764,12 @@ async function handlePlaceCallback(
     }
 
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1);
+    if (
+      await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1, services)
+    ) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendFight(ctx, services.fight, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
@@ -739,6 +792,10 @@ async function handlePlaceCallback(
 
   if (action === "cellar") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_CELLAR);
+    if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_CELLAR, services)) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await sendCellarErrandRouted(
       ctx,
       services.cellarErrand,
@@ -754,6 +811,10 @@ async function handlePlaceCallback(
   }
 
   await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_NEWS_CORNER);
+  if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_NEWS_CORNER, services)) {
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
   await markScenePresence(ctx, services.presence, {
     locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
     currentRaidId: null,
@@ -850,6 +911,12 @@ async function handleTavernCallback(
 
   if (action === "ranger") {
     await safeAnswerCallbackQuery(ctx);
+    await sendPlaceMovementNotice(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER);
+    if (
+      await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_RANGER_CORNER, services)
+    ) {
+      return;
+    }
     await sendYegerCorner(ctx, yegerQuestService, "edit", {
       presence: presenceService,
       tavernRaid: tavernRaidService,

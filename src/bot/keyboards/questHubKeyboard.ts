@@ -3,6 +3,7 @@ import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../ser
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
+import type { DailyKorchmaRoundLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
@@ -16,6 +17,7 @@ import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
+import { makeDailyKorchmaRoundOverviewCallbackData, makeDailyKorchmaRoundClaimCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
 
 export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
@@ -27,6 +29,7 @@ export interface QuestHubKeyboardInput {
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
+  dailyKorchmaRound?: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }>;
 }
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
@@ -101,6 +104,20 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   ) {
     keyboard.text("🧹 У льох", makeQuestCallbackData("cellar"));
     keyboard.row();
+  }
+
+  if (input.dailyKorchmaRound?.state === "ready" || input.dailyKorchmaRound?.state === "turn-in-ready") {
+    keyboard
+      .text(
+        input.dailyKorchmaRound.state === "turn-in-ready" ? "🧾 Здати обхід" : "🧾 Корчмарський обхід",
+        input.dailyKorchmaRound.state === "turn-in-ready"
+          ? makeDailyKorchmaRoundClaimCallbackData(
+              input.dailyKorchmaRound.offer.dayToken,
+              input.dailyKorchmaRound.offer.lifeToken
+            )
+          : makeDailyKorchmaRoundOverviewCallbackData(input.dailyKorchmaRound.offer.dayToken)
+      )
+      .row();
   }
 
   addQuestReferenceButtons(keyboard, input);
@@ -203,6 +220,8 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.yeger.state === "in-progress" ||
     input.yeger.state === "turn-in-ready" ||
     input.cellar.state === "ready" ||
-    (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed")
+    (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed") ||
+    input.dailyKorchmaRound?.state === "ready" ||
+    input.dailyKorchmaRound?.state === "turn-in-ready"
   );
 }

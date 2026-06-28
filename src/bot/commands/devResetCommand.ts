@@ -1,5 +1,6 @@
 import type { Bot } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
+import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { DevResetService } from "../../services/devResetService";
 import type { FightService } from "../../services/fightService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
@@ -9,6 +10,7 @@ import { buildPersistentFightResultKeyboard } from "../keyboards/fightKeyboard";
 import { buildDevResetKeyboard } from "../keyboards/mainMenuKeyboard";
 import {
   presentDevAdventureResetResult,
+  presentDevKorchmaRoundResetResult,
   presentDevMonsterRestResetResult,
   presentDevRaidStopResult,
   presentDevResetDisabled,
@@ -26,6 +28,7 @@ export function registerDevResetCommand(
   devResetService: DevResetService,
   adventureService?: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">,
   tavernRaidService?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">,
+  dailyKorchmaRoundService?: Pick<DailyKorchmaRoundService, "resetTodayForDev">,
   fightService?: Pick<
     FightService,
     "getOrStartPersistentFightForTelegramUser" | "recordPersistentFightMessageReference" | "resetMonsterRestCooldownForDev"
@@ -63,6 +66,29 @@ export function registerDevResetCommand(
     const result = await adventureService.resetCurrentPeriodForTelegramUser(telegramUserId);
 
     await ctx.reply(presentDevAdventureResetResult(result.state));
+  });
+
+  bot.command("dev_reset_korchma_round", async (ctx) => {
+    if (!devResetService.isEnabled()) {
+      await ctx.reply(presentDevResetDisabled());
+      return;
+    }
+
+    if (!dailyKorchmaRoundService) {
+      await ctx.reply(presentDevKorchmaRoundResetResult("unavailable"));
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+    if (!telegramUserId) {
+      await ctx.reply(presentDevKorchmaRoundResetResult("no-character"));
+      return;
+    }
+
+    const result = await dailyKorchmaRoundService.resetTodayForDev(telegramUserId);
+
+    await ctx.reply(presentDevKorchmaRoundResetResult(result));
   });
 
   bot.command("dev_raid_stop", async (ctx) => {

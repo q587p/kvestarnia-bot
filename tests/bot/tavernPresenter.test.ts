@@ -75,6 +75,7 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<i>Дошка вістей</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
+    expect(text).toContain("<i>задвірок корчми</i>");
     expect(text).toContain("<i>Манчкін-скупник</i>");
     expect(text).not.toContain("За дверима біля Бочки сидить <i>Єгер</i>");
     expect(text).not.toContain("сліди просить перевіряти надворі");

@@ -38,6 +38,8 @@ export function presentKorchmaFront(
     "Зліва від дверей висить <i>табличка прибулих</i>: хто вже проходив повз і не був стертий дощем.",
     "",
     "Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
+    "",
+    "За рогом починається <i>задвірок корчми</i>: там дрібні катастрофи сушаться біля відра й чекають слушного пригодника.",
     ...presentFrontMunchkinLines(options.munchkinLocation ?? "front"),
     ...(options.showEntryHint === false
       ? []
@@ -61,6 +63,19 @@ export function presentKorchmaArrivalBoard(
     ...presentKorchmaArrivalEntries(board),
     "",
     "Корчмар каже, що це не список боржників. Табличка тактовно мовчить."
+  ].join("\n");
+}
+
+export function presentKorchmaYard(character: CharacterSummary): string {
+  return [
+    "🪣 Задвірок корчми",
+    presentCharacterHeader(character),
+    "",
+    "За корчмою пахне мокрим деревом, самовпевненим пилом і дрібними проблемами, які не пройшли через головні двері.",
+    "",
+    "Якщо сьогоднішній Корчмарський обхід прислав вас сюди, дрібницю треба владнати саме тут. Якщо ні, задвірок чемно вдає пейзаж.",
+    "",
+    "Що робимо?"
   ].join("\n");
 }
 

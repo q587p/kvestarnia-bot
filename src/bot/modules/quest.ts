@@ -12,12 +12,17 @@ PRESENCE_LOCATION_KORCHMA_BAR,
 PRESENCE_LOCATION_KORCHMA_DEEP,
 PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
 PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
-PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+PRESENCE_LOCATION_KORCHMA_YARD
 } from "../../services/presenceService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
 import type { BotServices } from "../botServices";
 import { parseAdventureCallbackData,type AdventureCallback } from "../callbacks/adventureCallbackData";
 import { parseHuntCallbackData,type HuntCallback } from "../callbacks/huntCallbackData";
+import {
+parseDailyKorchmaRoundCallbackData,
+type DailyKorchmaRoundCallback
+} from "../callbacks/dailyKorchmaRoundCallbackData";
 import {
 parseQuestCallbackData,
 questCallbackToPersistentFightDifficulty,
@@ -51,6 +56,12 @@ buildAdventureParticipantsKeyboard,
 buildAdventureResultKeyboard
 } from "../keyboards/adventureKeyboard";
 import {
+buildDailyKorchmaRoundClaimKeyboard,
+buildDailyKorchmaRoundOverviewKeyboard,
+buildDailyKorchmaRoundSceneKeyboard,
+buildDailyKorchmaRoundStepKeyboard
+} from "../keyboards/dailyKorchmaRoundKeyboard";
+import {
 buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
 import {
@@ -60,8 +71,8 @@ buildKorchmaBarKeyboard
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import {
 buildYegerHelpKeyboard,
+buildYegerBandagesKeyboard,
 buildYegerBandagePurchaseKeyboard,
-buildYegerCornerKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
 buildYegerTurnInKeyboard
@@ -75,6 +86,12 @@ presentAdventureProblem,
 presentAdventureResult,
 presentMimicShawarmaResult
 } from "../presenters/adventurePresenter";
+import {
+presentDailyKorchmaRound,
+presentDailyKorchmaRoundClaim,
+presentDailyKorchmaRoundScene,
+presentDailyKorchmaRoundStep
+} from "../presenters/dailyKorchmaRoundPresenter";
 import {
 presentFightLevelRetired,
 presentFightMonsterRest,
@@ -92,6 +109,7 @@ presentInvalidCallback
 import { presentParticipants } from "../presenters/presencePresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
+presentYegerBandages,
 presentYegerBandageBuy,
 presentYegerHelp,
 presentYegerNoCharacter,
@@ -166,6 +184,17 @@ export function registerQuestBotModule(
     await handleQuestCallback(ctx, parsed.value, services);
   });
 
+  bot.callbackQuery(/^v1:dkr:/, async (ctx) => {
+    const parsed = parseDailyKorchmaRoundCallbackData(ctx.callbackQuery.data);
+
+    if (!parsed.ok) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await handleDailyKorchmaRoundCallback(ctx, parsed.value, services);
+  });
+
   bot.callbackQuery(/^v1:hunt:/, async (ctx) => {
     const parsed = parseHuntCallbackData(ctx.callbackQuery.data);
 
@@ -187,6 +216,88 @@ export function registerQuestBotModule(
 
     await handleYegerCallback(ctx, parsed.value, services);
   });
+}
+
+async function handleDailyKorchmaRoundCallback(
+  ctx: Context,
+  callback: DailyKorchmaRoundCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
+  await safeAnswerCallbackQuery(ctx);
+
+  if (callback.type === "overview") {
+    const result = await services.dailyKorchmaRound.getForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentDailyKorchmaRound(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDailyKorchmaRoundOverviewKeyboard(result)
+    });
+    return;
+  }
+
+  if (callback.type === "scene") {
+    const result = await services.dailyKorchmaRound.openScene(telegramUserId, callback);
+
+    if (result.state === "scene") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: result.scene.locationId,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+    }
+
+    await safeEditMessageText(ctx, presentDailyKorchmaRoundScene(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDailyKorchmaRoundSceneKeyboard(result)
+    });
+
+    if (result.state === "scene") {
+      await refreshMainMenuLocationKeyboard(
+        ctx,
+        result.scene.locationId === PRESENCE_LOCATION_KORCHMA_YARD
+          ? PRESENCE_LOCATION_KORCHMA_YARD
+          : result.scene.locationId
+      );
+    }
+    return;
+  }
+
+  if (callback.type === "action") {
+    const result = await services.dailyKorchmaRound.completeStep(telegramUserId, callback);
+    await safeEditMessageText(ctx, presentDailyKorchmaRoundStep(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDailyKorchmaRoundStepKeyboard(result)
+    });
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
+
+  const result = await services.dailyKorchmaRound.claimReward(telegramUserId, callback);
+  await safeEditMessageText(ctx, presentDailyKorchmaRoundClaim(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildDailyKorchmaRoundClaimKeyboard(result)
+  });
+
+  if (result.state === "reward-claimed" && result.levelChange) {
+    await sendLevelUpCelebration(ctx, {
+      character: result.character,
+      levelChange: result.levelChange
+    });
+    const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
+  }
 }
 
 async function handleQuestCallback(
@@ -814,6 +925,23 @@ async function handleYegerCallback(
     return;
   }
 
+  if (callback.type === "bandages") {
+    await safeAnswerCallbackQuery(ctx);
+    const quest = await services.yeger.getForTelegramUser(telegramUserId);
+
+    if (quest.state === "no-character") {
+      await safeEditMessageText(ctx, presentYegerNoCharacter());
+      return;
+    }
+
+    await markYegerCornerPresence(ctx, services.presence);
+    await safeEditMessageText(ctx, presentYegerBandages(quest), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerBandagesKeyboard(quest)
+    });
+    return;
+  }
+
   if (callback.type === "quest") {
     await safeAnswerCallbackQuery(ctx);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
@@ -869,7 +997,7 @@ async function handleYegerCallback(
         ? buildYegerBandagePurchaseKeyboard(result.token)
         : quest.state === "no-character"
           ? buildYegerHelpKeyboard()
-          : buildYegerCornerKeyboard(quest)
+          : buildYegerBandagesKeyboard(quest)
     });
     return;
   }
@@ -896,7 +1024,7 @@ async function handleYegerCallback(
           )
         : quest.state === "no-character"
           ? buildYegerHelpKeyboard()
-          : buildYegerCornerKeyboard(quest)
+          : buildYegerBandagesKeyboard(quest)
     });
     const achievementText = presentAchievementUnlockNotification(
       result.state === "bought" ? result.achievementUnlocks ?? [] : []
@@ -919,7 +1047,7 @@ async function handleYegerCallback(
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
     await safeEditMessageText(ctx, presentYegerRangerBandage(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerCornerKeyboard(quest)
+      reply_markup: quest.state === "no-character" ? buildYegerHelpKeyboard() : buildYegerBandagesKeyboard(quest)
     });
     const achievementText = presentAchievementUnlockNotification(
       result.state === "claimed" ? result.achievementUnlocks ?? [] : []

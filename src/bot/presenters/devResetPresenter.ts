@@ -39,6 +39,20 @@ export function presentDevAdventureResetResult(
   return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
 }
 
+export function presentDevKorchmaRoundResetResult(
+  result: "reset" | "no-character" | "unavailable"
+): string {
+  if (result === "reset") {
+    return "Корчмарський обхід скинуто для поточного київського дня. Наступне відкриття заново підніме сьогоднішні папірці з-під кухля.";
+  }
+
+  if (result === "unavailable") {
+    return "Скидання Корчмарського обходу недоступне: сховище не має потрібного гачка.";
+  }
+
+  return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
+}
+
 export function presentDevMonsterRestResetResult(
   result: DevMonsterRestCooldownResetResult
 ): string {

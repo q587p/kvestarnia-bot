@@ -26,9 +26,10 @@ export const CELLAR_GROWNUP_COMPLETION_KEY = "cellar.grownup.completed";
 export const CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY = "cellar.grownup.roleplay";
 export const CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_MS = 60 * 60 * 1000;
 export const CELLAR_GROWNUP_SEAL_PRICE = 240;
+export const CELLAR_GROWNUP_ROLEPLAY_MAX_CHANCE = 0.13;
 
 const TURN_IN_REWARD = {
-  xp: 80,
+  xp: 40,
   gold: 180
 };
 
@@ -205,7 +206,8 @@ export class CellarGrownupQuestService {
       };
     }
 
-    const chance = getRoleplayChance(summarizeCharacter(snapshot.character));
+    const character = summarizeCharacter(snapshot.character);
+    const chance = snapshot.roleplayCooldown ? getRoleplayChance(character) : 0;
 
     if (this.roll() < chance) {
       return this.grantBottle(telegramUserId, "roleplay");
@@ -452,5 +454,5 @@ export function getRoleplayChance(character: CharacterSummary): number {
     chance += 0.08;
   }
 
-  return Math.min(0.96, Math.max(0.05, chance));
+  return Math.min(CELLAR_GROWNUP_ROLEPLAY_MAX_CHANCE, Math.max(0.05, chance));
 }

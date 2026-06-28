@@ -119,23 +119,31 @@ export type YegerTrackingSummary =
   | { state: "tracking-pending"; availableAt: Date; now: Date }
   | { state: "tracking-ready"; availableAt: Date; now: Date };
 
+export type YegerRangerBandageSummary =
+  | { state: "available" }
+  | { state: "on-cooldown"; nextAvailableAt: Date; now: Date };
+
+interface YegerRangerBandageLookup {
+  rangerBandage?: YegerRangerBandageSummary;
+}
+
 export type YegerQuestLookupResult =
   | { state: "no-character" }
-  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
-  | { state: "offered"; character: CharacterSummary; progress: YegerQuestProgress }
-  | {
+  | ({ state: "level-locked"; character: CharacterSummary; requiredLevel: number } & YegerRangerBandageLookup)
+  | ({ state: "offered"; character: CharacterSummary; progress: YegerQuestProgress } & YegerRangerBandageLookup)
+  | ({
       state: "in-progress";
       character: CharacterSummary;
       progress: YegerQuestProgress;
       tracking: YegerTrackingSummary;
-    }
-  | { state: "turn-in-ready"; character: CharacterSummary; progress: YegerQuestProgress }
-  | {
+    } & YegerRangerBandageLookup)
+  | ({ state: "turn-in-ready"; character: CharacterSummary; progress: YegerQuestProgress } & YegerRangerBandageLookup)
+  | ({
       state: "completed";
       character: CharacterSummary;
       progress: YegerQuestProgress;
       reward: YegerQuestReward;
-    };
+    } & YegerRangerBandageLookup);
 
 export type YegerQuestStartResult =
   | { state: "no-character" }
@@ -275,12 +283,14 @@ export class YegerQuestService {
     }
 
     const summary = summarizeCharacter(character);
+    const rangerBandage = await this.getRangerBandageSummary(telegramUserId, summary);
 
     if (summary.level < YEGER_UNQUIET_TRIAL_MIN_LEVEL) {
       return {
         state: "level-locked",
         character: summary,
-        requiredLevel: YEGER_UNQUIET_TRIAL_MIN_LEVEL
+        requiredLevel: YEGER_UNQUIET_TRIAL_MIN_LEVEL,
+        ...withRangerBandage(rangerBandage)
       };
     }
 
@@ -302,7 +312,8 @@ export class YegerQuestService {
         state: "completed",
         character: summary,
         progress: buildYegerQuestProgress(YEGER_UNQUIET_TRIAL_SECOND_STAGE, YEGER_UNQUIET_TRIAL_SECOND_TARGET),
-        reward: buildYegerQuestReward(YEGER_UNQUIET_TRIAL_SECOND_STAGE, replayReward)
+        reward: buildYegerQuestReward(YEGER_UNQUIET_TRIAL_SECOND_STAGE, replayReward),
+        ...withRangerBandage(rangerBandage)
       };
     }
 
@@ -315,21 +326,23 @@ export class YegerQuestService {
       return {
         state: "offered",
         character: summary,
-        progress: buildYegerQuestProgress(stage, 0)
+        progress: buildYegerQuestProgress(stage, 0),
+        ...withRangerBandage(rangerBandage)
       };
     }
 
     const progress = await this.countProgress(telegramUserId, started.createdAt, stage);
 
     if (progress.wins >= stage.target) {
-      return { state: "turn-in-ready", character: summary, progress };
+      return { state: "turn-in-ready", character: summary, progress, ...withRangerBandage(rangerBandage) };
     }
 
     return {
       state: "in-progress",
       character: summary,
       progress,
-      tracking: await this.getTrackingSummary(telegramUserId)
+      tracking: await this.getTrackingSummary(telegramUserId),
+      ...withRangerBandage(rangerBandage)
     };
   }
 
@@ -891,6 +904,29 @@ export class YegerQuestService {
     return null;
   }
 
+  private async getRangerBandageSummary(
+    telegramUserId: bigint,
+    character: CharacterSummary
+  ): Promise<YegerRangerBandageSummary | undefined> {
+    if (character.classId !== "class.ranger") {
+      return undefined;
+    }
+
+    const now = this.now();
+    const lookup = await this.cooldowns.findForTelegramUser(telegramUserId, YEGER_RANGER_FREE_BANDAGE_KEY);
+    const cooldown = lookup?.cooldown;
+
+    if (cooldown && cooldown.availableAt > now) {
+      return {
+        state: "on-cooldown",
+        nextAvailableAt: cooldown.availableAt,
+        now
+      };
+    }
+
+    return { state: "available" };
+  }
+
   private async countProgress(
     telegramUserId: bigint,
     startedAt: Date,
@@ -1333,6 +1369,10 @@ function normalizeBandagePurchaseTarget(value: unknown): YegerBandagePurchaseTar
   return YEGER_BANDAGE_PURCHASE_TARGETS.includes(value as YegerBandagePurchaseTarget)
     ? value as YegerBandagePurchaseTarget
     : 1;
+}
+
+function withRangerBandage(summary: YegerRangerBandageSummary | undefined): YegerRangerBandageLookup {
+  return summary ? { rangerBandage: summary } : {};
 }
 
 function normalizePositiveInteger(value: unknown): number | null {

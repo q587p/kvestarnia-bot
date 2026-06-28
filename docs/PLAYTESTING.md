@@ -10,6 +10,23 @@
 
 Для `0.1.25` manual two-account regression після `0.1.24` already accepted; цей документ лишає repeatable маршрут для hotfix-ів і `0.2.x` регресій. Перевіряй quick duel, turn-based duel, nearby targeting, stale callback replay, solo/training combat locks, remort boundaries, Shynok drinks/rounds/sales and `/health` / `/version` / `/news`.
 
+## 0.2.9 — Daily Korchma Rounds smoke
+
+Use one level 2 account and one level 3+ account. Local dev grants/resets are acceptable for setup.
+
+1. On level 2, open the Quest Table and verify `Корчмарський обхід` is hidden.
+2. On level 3+, open the Quest Table; verify the daily overview shows one `Задвірок корчми` scene and two distinct interior scenes, but only offers `До справ` / `До зали` navigation, not direct scene-location buttons.
+3. Walk through normal Korchma navigation to the first required location; verify the active scene opens there, then complete one authored action.
+4. Try the second scene action from the wrong location using an old/stale scene card if available; verify no step row/reward is created and the card names the required place.
+5. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `Не сьогоднішня катастрофа`.
+6. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants level-scaled XP/gold and replays the same exact values.
+7. Replay old overview/scene/action/claim buttons; verify no duplicate step, reward, achievement notification, XP or gold.
+8. Remort before and after claim in local QA; verify same-day progress/reward is not cleared or duplicated and old-life action buttons stale out.
+9. Restart before and after claim; verify the exact same scene ids/order and reward replay.
+10. Locally run `/dev_reset_korchma_round`, reopen the Quest Table and verify the same Kyiv-day route starts again with `0/2` progress.
+11. During active combat and while a pending Barrel raid is active, verify daily mutations are blocked.
+12. Verify the achievement hook is distinct from Shynok beer-round ids and unlocks only the rewardless daily-round record.
+
 ## 0.2.8 — Achievements and Cosmetic Title Records smoke
 
 Use one fresh account plus one existing level 3+ account. Local dev grants are acceptable for level/equipment setup.
@@ -539,6 +556,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
+- `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.

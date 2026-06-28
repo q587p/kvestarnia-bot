@@ -14,6 +14,7 @@ PRESENCE_LOCATION_KORCHMA_HALL,
 PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
 PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
 PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+PRESENCE_LOCATION_KORCHMA_YARD,
 normalizePresenceLocationId,
 type PresenceService
 } from "../../services/presenceService";
@@ -38,6 +39,7 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaYard,
 sendTavern,
 sendTavernBarrel
 } from "../commands/tavernCommand";
@@ -50,6 +52,12 @@ getMainMenuLocationButtonText,
 mainMenuButtons,
 mainMenuLocationButtonTexts
 } from "../keyboards/mainMenuKeyboard";
+import {
+buildDailyKorchmaRoundSceneKeyboard
+} from "../keyboards/dailyKorchmaRoundKeyboard";
+import {
+presentDailyKorchmaRoundScene
+} from "../presenters/dailyKorchmaRoundPresenter";
 import { presentHelp } from "../presenters/helpPresenter";
 
 import {
@@ -279,6 +287,8 @@ function getLocationMovementNoticeText(
       return "Ви повернулися до зали корчми.";
     case PRESENCE_LOCATION_KORCHMA_FRONT:
       return "Ви вийшли надвір.";
+    case PRESENCE_LOCATION_KORCHMA_YARD:
+      return "Ви зайшли в задвірок корчми.";
     case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
       return "Ви підійшли до столу зі справами.";
     case PRESENCE_LOCATION_KORCHMA_BAR:
@@ -343,12 +353,71 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
     return;
   }
 
-  await sendCurrentPresenceLocation(
-    ctx,
-    normalizePresenceLocationId(requestedLocationId ?? place.locationId),
-    services
-  );
+  const locationId = normalizePresenceLocationId(requestedLocationId ?? place.locationId);
+  const previousLocationId = normalizePresenceLocationId(place.locationId);
+
+  if (requestedLocationId && locationId !== previousLocationId) {
+    await refreshMainMenuLocationKeyboard(ctx, locationId, {
+      previousLocationId
+    });
+  }
+
+  if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, locationId, services)) {
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
+
+  await sendCurrentPresenceLocation(ctx, locationId, services);
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+}
+
+export async function sendDailyKorchmaRoundSceneAtLocation(
+  ctx: Context,
+  telegramUserId: bigint,
+  locationId: string,
+  services: BotServices
+): Promise<boolean> {
+  if (!services.dailyKorchmaRound) {
+    return false;
+  }
+
+  const current = await services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId);
+
+  if (current.state !== "ready" && current.state !== "turn-in-ready") {
+    return false;
+  }
+
+  const sceneIndex = current.offer.scenes.findIndex(
+    (scene) =>
+      scene.locationId === locationId &&
+      !current.offer.completedSceneIds.includes(scene.id) &&
+      current.offer.omittedSceneId !== scene.id
+  );
+
+  if (sceneIndex < 0) {
+    return false;
+  }
+
+  const result = await services.dailyKorchmaRound.openScene(telegramUserId, {
+    dayToken: current.offer.dayToken,
+    sceneIndex
+  });
+
+  if (result.state !== "scene") {
+    return false;
+  }
+
+  await markScenePresence(ctx, services.presence, {
+    locationId: result.scene.locationId,
+    currentRaidId: null,
+    currentAdventureId: null
+  });
+  await ctx.reply(presentDailyKorchmaRoundScene(result), {
+    parse_mode: "HTML",
+    reply_markup: buildDailyKorchmaRoundSceneKeyboard(result)
+  });
+
+  return true;
 }
 
 async function sendCurrentPresenceLocation(
@@ -360,6 +429,11 @@ async function sendCurrentPresenceLocation(
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
       playerHintService: services.playerHints
     });
+    return;
+  }
+
+  if (locationId === PRESENCE_LOCATION_KORCHMA_YARD) {
+    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply");
     return;
   }
 

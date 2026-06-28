@@ -19,12 +19,22 @@ const PROBLEM_QUEST_REWARD_KEYS = [
 
 const MIMIC_SHAWARMA_ADVENTURE_KEY = "adventure.mimic-shawarma";
 const MIMIC_SHAWARMA_COMBAT_PROBE_KEY = "combat.mimic-shawarma.probe";
+const MIMIC_SHAWARMA_MONSTER_ID = "monster.mimic-shawarma";
 const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
+const DAILY_KORCHMA_ROUND_REWARD_KEY = "quest.korchma-daily-round.reward";
 const YEGER_UNQUIET_TRIAL_COMPLETED_KEY = "quest.yeger.unquiet-trial.completed";
 const LEVEL_MILESTONE_KEY_PATTERN = /^milestone\.(?:remort\.\d+\.)?level\.(\d+)$/u;
 const TRAINING_DOPPELGANGER_MONSTER_ID = "monster.training-doppelganger";
 const YEGER_RANGER_FREE_BANDAGE_KEY = "yeger.bandage.supply.ranger-free";
 const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
+
+export const ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS = [
+  MIMIC_SHAWARMA_ADVENTURE_KEY,
+  MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
+  CELLAR_MOUSE_ERRAND_KEY,
+  DAILY_KORCHMA_ROUND_REWARD_KEY,
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY
+] as const;
 
 export class PrismaAchievementRepository implements AchievementRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -161,12 +171,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
         where: {
           characterId,
           key: {
-            in: [
-              MIMIC_SHAWARMA_ADVENTURE_KEY,
-              MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
-              CELLAR_MOUSE_ERRAND_KEY,
-              YEGER_UNQUIET_TRIAL_COMPLETED_KEY
-            ]
+            in: [...ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS]
           }
         },
         select: { key: true, createdAt: true },
@@ -353,12 +358,16 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "starter.mimic-shawarma.completed": selectedDailyActionDates[MIMIC_SHAWARMA_ADVENTURE_KEY] ?? [],
       "starter.mimic-shawarma.probe.completed": selectedDailyActionDates[MIMIC_SHAWARMA_COMBAT_PROBE_KEY] ?? [],
       "cellar.mouse.completed": selectedDailyActionDates[CELLAR_MOUSE_ERRAND_KEY] ?? [],
+      "daily.korchma-round.completed": selectedDailyActionDates[DAILY_KORCHMA_ROUND_REWARD_KEY] ?? [],
       "yeger.trial.completed": selectedDailyActionDates[YEGER_UNQUIET_TRIAL_COMPLETED_KEY] ?? [],
       "mantok.chest.completed": completedChestRuns.map((row) => row.completedAt ?? row.updatedAt),
       "level.barter.completed": completedLevelBarters.map((row) => row.completedAt ?? row.updatedAt),
       "training.doppelganger.finished": completedTrainingSessions.map((row) => row.rewardClaimedAt ?? row.updatedAt),
       "training.doppelganger.won": combatSessions
         .filter((row) => row.monsterId === TRAINING_DOPPELGANGER_MONSTER_ID && row.status === "won")
+        .map((row) => row.rewardClaimedAt ?? row.updatedAt),
+      [`combat.finished.won.exclude:${MIMIC_SHAWARMA_MONSTER_ID}`]: combatSessions
+        .filter((row) => row.monsterId !== MIMIC_SHAWARMA_MONSTER_ID && row.status === "won")
         .map((row) => row.rewardClaimedAt ?? row.updatedAt),
       "combat.persistent.won": persistentCombatSessions
         .filter((row) => row.status === "won")

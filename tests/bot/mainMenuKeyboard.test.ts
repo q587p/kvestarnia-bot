@@ -42,6 +42,8 @@ import {
   buildDevResetKeyboard,
   buildMainMenuKeyboard,
   buildRestartKeyboard,
+  getMainMenuLocationButtonPresenceId,
+  getMainMenuLocationButtonText,
   mainMenuButtons,
   mainMenuLocationButtons
 } from "../../src/bot/keyboards/mainMenuKeyboard";
@@ -51,6 +53,11 @@ import {
   buildLevelBarterResultKeyboard
 } from "../../src/bot/keyboards/levelBarterKeyboard";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
+import {
+  buildDailyKorchmaRoundOverviewKeyboard,
+  buildDailyKorchmaRoundSceneKeyboard,
+  buildDailyKorchmaRoundStepKeyboard
+} from "../../src/bot/keyboards/dailyKorchmaRoundKeyboard";
 import {
   buildBackToShynokKeyboard,
   buildShynokRoundPreviewKeyboard,
@@ -121,6 +128,20 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("round-trips the Korchma yard as a current location button", () => {
+    const keyboard = buildMainMenuKeyboard({
+      locationId: "location.korchma.yard"
+    });
+
+    expect(replyKeyboardTexts(keyboard.keyboard)[0]).toEqual([
+      mainMenuButtons.hero,
+      mainMenuLocationButtons.yard
+    ]);
+    expect(getMainMenuLocationButtonText("location.korchma.yard")).toBe(mainMenuLocationButtons.yard);
+    expect(getMainMenuLocationButtonPresenceId(mainMenuLocationButtons.yard)).toBe("location.korchma.yard");
+    expect(mainMenuLocationButtons.yard).not.toBe(mainMenuButtons.tavern);
+  });
+
   it("builds korchma place navigation", () => {
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual([
       "🚪 Зайти в корчму",
@@ -145,6 +166,12 @@ describe("main menu and scene keyboards", () => {
       "🏅 Пропамʼятна дошка",
       "🎒 Манчкін-скупник",
       "🏹 До полювання"
+    ]);
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard({ dailyYard: true }))).toEqual([
+      ["🚪 Зайти в корчму"],
+      ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
+      ["🪣 У задвірок"],
+      ["🎒 Манчкін-скупник"]
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "🚪 Зайти в корчму",
@@ -1754,6 +1781,138 @@ describe("main menu and scene keyboards", () => {
       "v1:place:bar",
       "v1:place:hall"
     ]);
+  });
+
+  it("keeps daily Korchma round overview as a location list without scene teleport buttons", () => {
+    const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
+      state: "ready",
+      character,
+      offer: {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 0,
+        requiredSteps: 2,
+        completedSceneIds: [],
+        omittedSceneId: null,
+        scenes: [
+          {
+            id: "scene.cellar.inventory-bottle",
+            icon: "🍾",
+            title: "Пляшка шепоче інвентаризацію",
+            locationId: "location.korchma.cellar",
+            hook: "У льосі пляшка шепоче номери.",
+            actions: []
+          },
+          {
+            id: "scene.yard.rope",
+            icon: "🪢",
+            title: "Мотузка завʼязала питання",
+            locationId: "location.korchma.yard",
+            hook: "У задвірку мотузка має думку.",
+            actions: []
+          }
+        ]
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До справ", "🍺 До зали"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
+    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:s:"))).toBe(false);
+  });
+
+  it("routes daily Korchma round turn-in-ready overview back to the quest table before claiming", () => {
+    const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
+      state: "turn-in-ready",
+      character,
+      offer: {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 0,
+        requiredSteps: 2,
+        completedSceneIds: ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"],
+        omittedSceneId: "scene.yard.rope",
+        scenes: [
+          {
+            id: "scene.cellar.inventory-bottle",
+            icon: "🍾",
+            title: "Пляшка шепоче інвентаризацію",
+            locationId: "location.korchma.cellar",
+            hook: "У льосі пляшка шепоче номери.",
+            actions: []
+          },
+          {
+            id: "scene.yeger.map-sneeze",
+            icon: "🗺️",
+            title: "Мапа чхнула не в той бік",
+            locationId: "location.korchma.yeger-corner",
+            hook: "У єгерському кутку мапа має думку.",
+            actions: []
+          },
+          {
+            id: "scene.yard.rope",
+            icon: "🪢",
+            title: "Мотузка зав’язала питання",
+            locationId: "location.korchma.yard",
+            hook: "У задвірку мотузка має думку.",
+            actions: []
+          }
+        ]
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До Столу зі справами", "🍺 До зали"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
+    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:c:"))).toBe(false);
+  });
+
+  it("routes stale daily Korchma round scene callbacks to the current overview", () => {
+    const keyboard = buildDailyKorchmaRoundSceneKeyboard({
+      state: "stale-day",
+      current: {
+        state: "ready",
+        character,
+        offer: {
+          dayKey: "2026-06-29",
+          dayToken: "20260629",
+          lifeToken: 0,
+          requiredSteps: 2,
+          completedSceneIds: [],
+          omittedSceneId: null,
+          scenes: []
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🧾 До обходу"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:dkr:o:20260629"]);
+  });
+
+  it("routes a daily Korchma round wrong-location step to the required scene place", () => {
+    const keyboard = buildDailyKorchmaRoundStepKeyboard({
+      state: "wrong-location",
+      character,
+      currentLocationName: "Зала корчми",
+      scene: {
+        id: "scene.yard.rope",
+        icon: "🪢",
+        title: "Мотузка зав’язала питання",
+        locationId: "location.korchma.yard",
+        hook: "У задвірку мотузка має думку.",
+        actions: []
+      },
+      offer: {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 0,
+        requiredSteps: 2,
+        completedSceneIds: [],
+        omittedSceneId: null,
+        scenes: []
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["📍 До місцини", "🧾 До обходу"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:yard", "v1:dkr:o:20260628"]);
   });
 
   it("builds quest hub buttons from available actions", () => {

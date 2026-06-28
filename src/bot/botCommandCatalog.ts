@@ -209,6 +209,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "reset"
   },
   {
+    command: "dev_reset_korchma_round",
+    icon: "🗓️",
+    description: "скинути Корчмарський обхід локально",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
     command: "dev_raid_stop",
     icon: "⏹️",
     description: "завершити pending рейд локально",

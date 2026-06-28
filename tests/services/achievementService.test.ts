@@ -101,6 +101,43 @@ describe("AchievementService", () => {
     expect(unlocks).toEqual([]);
   });
 
+  it("keeps the first combat win achievement separate from the starter shawarma probe", async () => {
+    const starterRepo = new FakeAchievementRepository();
+    const starterService = new AchievementService(starterRepo);
+
+    const starterUnlocks = await starterService.trackEvent({
+      type: "combat.finished",
+      characterId: "character-1",
+      outcome: "won",
+      monsterId: "monster.mimic-shawarma",
+      occurredAt: new Date("2026-06-28T09:00:00.000Z"),
+      sourceId: "starter-shawarma-session"
+    });
+
+    expect(starterUnlocks.map((unlock) => unlock.id)).not.toContain("achievement.combat.first-win");
+    expect(starterRepo.snapshot.titleGrants).toHaveLength(0);
+
+    const normalRepo = new FakeAchievementRepository();
+    const normalService = new AchievementService(normalRepo);
+
+    const normalUnlocks = await normalService.trackEvent({
+      type: "combat.finished",
+      characterId: "character-1",
+      outcome: "won",
+      monsterId: "monster.deadline-spider",
+      occurredAt: new Date("2026-06-28T09:10:00.000Z"),
+      sourceId: "normal-session"
+    });
+
+    expect(normalUnlocks.map((unlock) => unlock.id)).toContain("achievement.combat.first-win");
+    expect(normalRepo.snapshot.titleGrants).toMatchObject([
+      {
+        titleGrantId: "cosmetic-title.first-puddle-victor",
+        achievementId: "achievement.combat.first-win"
+      }
+    ]);
+  });
+
   it("lists earned, locked, hidden and unknown stored entries safely", async () => {
     const repo = new FakeAchievementRepository();
     repo.snapshot.achievements.push({
@@ -166,6 +203,38 @@ describe("AchievementService", () => {
     expect(earned.totalCount).toBe(locked.totalCount);
   });
 
+  it("sorts earned achievement list entries by newest unlock first", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.snapshot.achievements.push(
+      makeStoredAchievement("achievement.character.created", "2026-06-28T09:00:00.000Z"),
+      makeStoredAchievement("achievement.level.3", "2026-06-28T11:00:00.000Z"),
+      makeStoredAchievement("achievement.item.first-received", "2026-06-28T10:00:00.000Z")
+    );
+    const service = new AchievementService(repo);
+
+    const earned = await service.listForCharacter("character-1", 0, "earned");
+    const firstAllPage = await service.listForCharacter("character-1", 0, "all");
+    const remainingAllPages = await Promise.all(
+      Array.from({ length: firstAllPage.totalPages - 1 }, (_, index) =>
+        service.listForCharacter("character-1", index + 1, "all")
+      )
+    );
+    const allEntries = [firstAllPage, ...remainingAllPages].flatMap((page) => page.entries);
+
+    expect(earned.entries.map((entry) => entry.id)).toEqual([
+      "achievement.level.3",
+      "achievement.item.first-received",
+      "achievement.character.created"
+    ]);
+    const allIds = allEntries.map((entry) => entry.id);
+    expect(allIds.indexOf("achievement.character.created")).toBeLessThan(
+      allIds.indexOf("achievement.level.3")
+    );
+    expect(allIds.indexOf("achievement.level.3")).toBeLessThan(
+      allIds.indexOf("achievement.item.first-received")
+    );
+  });
+
   it("unlocks won combat thresholds from normal combat events", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({
@@ -226,6 +295,38 @@ describe("AchievementService", () => {
 
     expect(thirteenthWin.map((unlock) => unlock.id)).toContain("achievement.combat.thirteen-wins");
     expect(repo13.progressFor("achievement.combat.thirteen-wins")?.current).toBe(13);
+  });
+
+  it("recalculates the first combat win only from non-starter-shawarma wins", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      combat: {
+        won: 1,
+        lost: 0,
+        fled: 0,
+        expired: 0
+      },
+      combatFinishedAt: {
+        won: [new Date("2026-06-28T09:00:00.000Z")],
+        lost: [],
+        fled: [],
+        expired: []
+      },
+      activityDates: {
+        "combat.finished.won.exclude:monster.mimic-shawarma": []
+      }
+    });
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T09:05:00.000Z")
+    );
+
+    expect(result.unlocks.map((unlock) => unlock.id)).not.toContain("achievement.combat.first-win");
+    expect(repo.snapshot.titleGrants.map((grant) => grant.titleGrantId)).not.toContain(
+      "cosmetic-title.first-puddle-victor"
+    );
   });
 
   it("unlocks problem-chain 93 from the fourth problem reward event", async () => {
@@ -322,6 +423,34 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.adventure.choice.thirteen")?.current).toBe(13);
   });
 
+  it("unlocks daily Korchma round milestone thresholds from durable reward rows", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      activityDates: {
+        "daily.korchma-round.completed": Array.from(
+          { length: 13 },
+          (_, index) => new Date(2026, 5, 28, 9, index)
+        )
+      }
+    });
+    const service = new AchievementService(repo);
+
+    const unlocks = await service.trackEvent({
+      type: "daily.korchma-round.completed",
+      characterId: "character-1",
+      occurredAt: new Date("2026-06-28T09:12:00.000Z"),
+      sourceId: "daily-korchma-round-13"
+    });
+
+    expect(new Set(unlocks.map((unlock) => unlock.id))).toEqual(new Set([
+      "achievement.quest.daily-korchma-round",
+      "achievement.quest.daily-korchma-round.seven",
+      "achievement.quest.daily-korchma-round.thirteen"
+    ]));
+    expect(repo.progressFor("achievement.quest.daily-korchma-round.seven")?.current).toBe(7);
+    expect(repo.progressFor("achievement.quest.daily-korchma-round.thirteen")?.current).toBe(13);
+  });
+
   it("recalculates provable historical achievements from the current character snapshot", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = {
@@ -388,6 +517,7 @@ describe("AchievementService", () => {
         "starter.mimic-shawarma.probe.completed": [new Date("2026-06-28T08:57:00.000Z")],
         "cellar.mouse.completed": [new Date("2026-06-28T08:58:00.000Z")],
         "yeger.trial.completed": [new Date("2026-06-28T08:59:00.000Z")],
+        "combat.finished.won.exclude:monster.mimic-shawarma": [new Date("2026-06-28T09:00:00.000Z")],
         "item.used": [
           new Date("2026-06-28T10:10:00.000Z"),
           new Date("2026-06-28T10:11:00.000Z"),
@@ -601,6 +731,22 @@ function makeRecalculationSnapshot(
     equipmentObservedAt: null,
     activityDates: {},
     ...overrides
+  };
+}
+
+function makeStoredAchievement(achievementId: string, unlockedAtIso: string): CharacterAchievementRecord {
+  const unlockedAt = new Date(unlockedAtIso);
+
+  return {
+    id: `stored-${achievementId}`,
+    characterId: "character-1",
+    achievementId,
+    sourceType: "test",
+    sourceId: null,
+    sourceJson: null,
+    unlockedAt,
+    notifiedAt: null,
+    createdAt: unlockedAt
   };
 }
 

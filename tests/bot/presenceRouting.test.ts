@@ -9,7 +9,6 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
 import { mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
@@ -56,14 +55,7 @@ describe("presence routing", () => {
         currentAdventureId: null
       }
     ],
-    [
-      "v1:tavern:ranger",
-      {
-        locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
-        currentRaidId: null,
-        currentAdventureId: null
-      }
-    ],
+    ["v1:tavern:ranger", {}],
     ["v1:adv:mimic:poke", {}],
     ["v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:1:attack", {}],
     ["v1:spar:open", {}],
@@ -76,9 +68,14 @@ describe("presence routing", () => {
     ["v1:quest:fight", {}],
     ["v1:quest:archive", {}],
     ["v1:quest:list", {}],
+    ["v1:dkr:o:20260628", {}],
+    ["v1:dkr:s:20260628:1", {}],
+    ["v1:dkr:a:20260628:1:rope-nod:0", {}],
+    ["v1:dkr:c:20260628:0", {}],
     ["v1:place:current", {}],
     ["v1:place:hall", {}],
     ["v1:place:front", {}],
+    ["v1:place:yard", {}],
     ["v1:place:fighting-corner", {}],
     ["v1:place:quest-table", {}],
     ["v1:place:bar", {}],
@@ -146,6 +143,7 @@ describe("presence routing", () => {
     "v1:place:current",
     "v1:place:hall",
     "v1:place:front",
+    "v1:place:yard",
     "v1:place:fighting-corner",
     "v1:place:quest-table",
     "v1:place:bar",
@@ -159,6 +157,15 @@ describe("presence routing", () => {
     "v1:place:news-corner",
     "v1:place:duel-winners"
   ])("keeps place callback %s neutral until handler gates pass", (data) => {
+    expect(getCallbackPresenceContext(data)).toEqual({});
+  });
+
+  it.each([
+    "v1:dkr:o:20260628",
+    "v1:dkr:s:20260628:0",
+    "v1:dkr:a:20260628:0:rope-nod:0",
+    "v1:dkr:c:20260628:0"
+  ])("keeps daily Korchma callback %s neutral until handler gates pass", (data) => {
     expect(getCallbackPresenceContext(data)).toEqual({});
   });
 
@@ -195,6 +202,7 @@ describe("presence routing", () => {
     ["support", {}],
     ["restart", {}],
     ["dev_raid_stop", {}],
+    ["dev_reset_korchma_round", {}],
     ["dev_reset_monster_rest", {}],
     ["dev_add_bandage", {}],
     ["dev_reset_yeger_bandage", {}],

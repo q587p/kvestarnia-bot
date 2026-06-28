@@ -8,6 +8,7 @@ export function buildQuestHubCommandOptions(services: BotServices): QuestHubComm
     adventure: services.adventure,
     cellarErrand: services.cellarErrand,
     ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
+    dailyKorchmaRound: services.dailyKorchmaRound,
     fight: services.fight,
     yeger: services.yeger,
     presence: services.presence,

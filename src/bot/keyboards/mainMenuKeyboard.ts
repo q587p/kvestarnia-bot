@@ -16,6 +16,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+  PRESENCE_LOCATION_KORCHMA_YARD,
   normalizePresenceLocationId
 } from "../../services/presenceService";
 
@@ -31,6 +32,7 @@ export const mainMenuButtons = {
 export const mainMenuLocationButtons = {
   fallback: mainMenuButtons.tavern,
   front: "🚪 Перед корчмою",
+  yard: "🪣 Задвірок корчми",
   hall: "🍺 Зала корчми",
   questTable: "📋 Стіл зі справами",
   bar: "🍻 Шинок",
@@ -48,6 +50,7 @@ export const mainMenuLocationButtons = {
 
 const locationButtonByPresenceId = new Map<string, string>([
   [PRESENCE_LOCATION_KORCHMA_FRONT, mainMenuLocationButtons.front],
+  [PRESENCE_LOCATION_KORCHMA_YARD, mainMenuLocationButtons.yard],
   [PRESENCE_LOCATION_KORCHMA_HALL, mainMenuLocationButtons.hall],
   [PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, mainMenuLocationButtons.questTable],
   [PRESENCE_LOCATION_KORCHMA_BAR, mainMenuLocationButtons.bar],

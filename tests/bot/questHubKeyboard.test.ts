@@ -47,6 +47,55 @@ describe("quest hub keyboard", () => {
     expect(json).toContain("v1:place:bar");
     expect(json).not.toContain("v1:quest:problem");
   });
+
+  it("keeps daily Korchma round turn-in as a quest table claim", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        dailyKorchmaRound: {
+          state: "turn-in-ready",
+          character: character(),
+          offer: {
+            dayKey: "2026-06-28",
+            dayToken: "20260628",
+            lifeToken: 7,
+            requiredSteps: 2,
+            completedSceneIds: ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"],
+            omittedSceneId: "scene.yard.rope",
+            scenes: [
+              {
+                id: "scene.cellar.inventory-bottle",
+                icon: "🍾",
+                title: "Пляшка шепоче інвентаризацію",
+                locationId: "location.korchma.cellar",
+                hook: "У льосі пляшка шепоче номери.",
+                actions: []
+              },
+              {
+                id: "scene.yeger.map-sneeze",
+                icon: "🗺️",
+                title: "Мапа чхнула не в той бік",
+                locationId: "location.korchma.yeger-corner",
+                hook: "У єгерському кутку мапа має думку.",
+                actions: []
+              },
+              {
+                id: "scene.yard.rope",
+                icon: "🪢",
+                title: "Мотузка зав’язала питання",
+                locationId: "location.korchma.yard",
+                hook: "У задвірку мотузка має думку.",
+                actions: []
+              }
+            ]
+          }
+        }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🧾 Здати обхід");
+    expect(json).toContain("v1:dkr:c:20260628:7");
+  });
 });
 
 function makeInput(overrides: Partial<QuestHubKeyboardInput> = {}): QuestHubKeyboardInput {

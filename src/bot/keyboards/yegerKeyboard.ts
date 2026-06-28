@@ -4,6 +4,7 @@ import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData"
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
+  makeYegerBandagesCallbackData,
   makeYegerBuyBandageCallbackData,
   makeYegerCancelBandagePurchaseCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
@@ -76,16 +77,29 @@ export function buildYegerCornerKeyboard(
     keyboard.text("🏹 Неспокійні справи", makeYegerQuestCallbackData()).row();
   }
 
+  keyboard.text("🩹 Бинти", makeYegerBandagesCallbackData()).row();
+
+  return keyboard
+    .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
+    .row()
+    .text("🍺 До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildYegerBandagesKeyboard(
+  result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
   keyboard.text("🩹 1 бинт", makeYegerBuyBandageCallbackData(1));
   keyboard.text("🩹 5 бинтів", makeYegerBuyBandageCallbackData(5)).row();
   keyboard.text("🩹 17 бинтів", makeYegerBuyBandageCallbackData(17));
   keyboard.text("🩹 93 бинти", makeYegerBuyBandageCallbackData(93)).row();
-  if (result.character.classId === "class.ranger") {
+  if (result.character.classId === "class.ranger" && result.rangerBandage?.state !== "on-cooldown") {
     keyboard.text("🧰 Єгерський бинт", makeYegerFreeBandageCallbackData()).row();
   }
 
   return keyboard
-    .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
+    .text("⬅️ До Єгеря", makeYegerOpenCallbackData())
     .row()
     .text("🍺 До зали", makePlaceCallbackData("hall"));
 }

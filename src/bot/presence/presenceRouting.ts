@@ -5,7 +5,6 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import { isMainMenuLocationButtonText, mainMenuButtons } from "../keyboards/mainMenuKeyboard";
@@ -52,11 +51,7 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
   }
 
   if (data === "v1:tavern:ranger") {
-    return {
-      locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
-      currentRaidId: null,
-      currentAdventureId: null
-    };
+    return {};
   }
 
   if (data.startsWith("v1:adv:")) {
@@ -99,6 +94,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data.startsWith("v1:dkr:")) {
+    return {};
+  }
+
   if (
     data.startsWith("v1:item:") ||
     data.startsWith("v1:equip:") ||
@@ -130,6 +129,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
   }
 
   if (data === "v1:place:front") {
+    return {};
+  }
+
+  if (data === "v1:place:yard") {
     return {};
   }
 
@@ -291,6 +294,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_reset_me" ||
     command === "dev_help" ||
     command === "dev_adventure_reset" ||
+    command === "dev_reset_korchma_round" ||
     command === "dev_raid_stop" ||
     command === "dev_reset_monster_rest" ||
     command === "dev_two_enemies" ||
