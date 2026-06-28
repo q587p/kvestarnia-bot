@@ -90,13 +90,64 @@ describe("PrismaCharacterRepository", () => {
       }
     });
   });
+
+  it("clamps expected-life resource writes to supplied effective hp and mana limits", async () => {
+    const prisma = new FakeCharacterPrisma();
+    const repository = new PrismaCharacterRepository(prisma.client);
+
+    const updated = await repository.updateResourcesForTelegramUser(telegramUserId, {
+      hpCurrent: 52,
+      hpMax: 52,
+      manaCurrent: 26,
+      manaMax: 26,
+      hpRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      expectedLife: {
+        remortCount: 2
+      },
+      expected: {
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+
+    expect(prisma.transactionCount).toBe(1);
+    expect(prisma.lastCountCharacterRemortsId).toBe("character-1");
+    expect(prisma.lastUpdateManyInput).toMatchObject({
+      where: {
+        id: "character-1",
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
+      },
+      data: {
+        hpCurrent: 52,
+        manaCurrent: 26
+      }
+    });
+    expect(updated).toMatchObject({
+      hpCurrent: 28,
+      hpMax: 28,
+      manaCurrent: 14,
+      manaMax: 14
+    });
+  });
 });
 
 class FakeCharacterPrisma {
   lastFindFirstInput: FakeFindFirstInput | null = null;
   lastUpdateManyInput: FakeUpdateManyInput | null = null;
+  lastCountCharacterRemortsId: string | null = null;
+  transactionCount = 0;
 
   readonly client = {
+    $transaction: async <T>(callback: (tx: FakeCharacterPrisma["client"]) => Promise<T>) => {
+      this.transactionCount += 1;
+      return callback(this.client);
+    },
     character: {
       findFirst: (input: FakeFindFirstInput) => {
         this.lastFindFirstInput = input;
@@ -223,6 +274,12 @@ class FakeCharacterPrisma {
             remorts: 2
           }
         });
+      }
+    },
+    characterRemort: {
+      count: (input: { where: { characterId: string } }) => {
+        this.lastCountCharacterRemortsId = input.where.characterId;
+        return Promise.resolve(2);
       }
     }
   } as unknown as ConstructorParameters<typeof PrismaCharacterRepository>[0];
