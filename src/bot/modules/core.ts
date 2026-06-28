@@ -1,7 +1,8 @@
 import { type Bot,type Context } from "grammy";
 import type { BotServices } from "../botServices";
-import { parseMenuCallbackData } from "../callbacks/menuCallbackData";
-import { parseNewsCallbackData } from "../callbacks/newsCallbackData";
+import { registerParsedCallbackRoute } from "../callbackRoute";
+import { parseMenuCallbackData,type MenuCallback } from "../callbacks/menuCallbackData";
+import { parseNewsCallbackData,type NewsCallback } from "../callbacks/newsCallbackData";
 import { registerHelpCommand } from "../commands/helpCommand";
 import { sendHero } from "../commands/heroCommand";
 import { sendInventory } from "../commands/inventoryCommand";
@@ -15,9 +16,6 @@ sendTavern
 } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
 import { presentHelp } from "../presenters/helpPresenter";
-import {
-presentInvalidCallback
-} from "../presenters/onboardingPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -44,39 +42,16 @@ export function registerCoreBotModule(
   registerMainMenuKeyboard(bot, services);
   registerCallbackMainMenuLocationRefresh(bot, services.presence);
 
-  bot.callbackQuery(/^v1:menu:/, async (ctx) => {
-    const parsed = parseMenuCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleMenuCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:menu:/, parseMenuCallbackData, async (ctx, action) => {
+    await handleMenuCallback(ctx, action, services);
   });
 
-  bot.callbackQuery(/^v1:news:/, async (ctx) => {
-    const parsed = parseNewsCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await safeAnswerCallbackQuery(ctx);
-
-    if (parsed.value.type === "list") {
-      await sendNewsList(ctx, parsed.value.page, "edit", { source: parsed.value.source });
-      return;
-    }
-
-    await sendNewsEntry(ctx, parsed.value.entryIndex, parsed.value.listPage, { source: parsed.value.source });
-  });
+  registerParsedCallbackRoute(bot, /^v1:news:/, parseNewsCallbackData, handleNewsCallback);
 }
 
 async function handleMenuCallback(
   ctx: Context,
-  action: "hero" | "help" | "inventory" | "tavern",
+  action: MenuCallback,
   services: BotServices
 ): Promise<void> {
   await safeAnswerCallbackQuery(ctx);
@@ -100,4 +75,15 @@ async function handleMenuCallback(
   }
 
   await sendTavern(ctx, services.tavern, services.presence, "edit");
+}
+
+async function handleNewsCallback(ctx: Context, action: NewsCallback): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+
+  if (action.type === "list") {
+    await sendNewsList(ctx, action.page, "edit", { source: action.source });
+    return;
+  }
+
+  await sendNewsEntry(ctx, action.entryIndex, action.listPage, { source: action.source });
 }
