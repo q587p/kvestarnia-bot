@@ -10,6 +10,7 @@ import type {
 import { DAILY_KORCHMA_ROUND_REQUIRED_STEPS } from "../../src/content/dailyKorchmaRoundContent";
 import {
   DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_REROLL_KEY,
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   DAILY_KORCHMA_ROUND_STEP_KEY
 } from "../../src/services/dailyActionKeys";
@@ -255,11 +256,12 @@ describe("DailyKorchmaRoundService", () => {
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(0);
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_STEP_KEY)).toHaveLength(0);
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(0);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REROLL_KEY).length).toBeGreaterThan(0);
 
     const reopened = await world.service.getForTelegramUser(telegramUserId);
     expect(reopened.state).toBe("ready");
     if (reopened.state === "ready") {
-      expect(reopened.offer.scenes.map((scene) => scene.id)).toEqual(offer.scenes.map((scene) => scene.id));
+      expect(reopened.offer.scenes.map((scene) => scene.id)).not.toEqual(offer.scenes.map((scene) => scene.id));
       expect(reopened.offer.completedSceneIds).toEqual([]);
     }
   });
@@ -374,6 +376,21 @@ class FakeDailyActionRepository implements DailyActionRepository {
     }
 
     return Promise.resolve(this.records.filter((record) => record.key === input.key));
+  }
+
+  countForTelegramUser(
+    id: bigint,
+    input: { key: string; localDatePrefix: string }
+  ): Promise<number | null> {
+    if (id !== telegramUserId || !this.world.character) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(
+      this.records.filter(
+        (record) => record.key === input.key && record.localDate.startsWith(input.localDatePrefix)
+      ).length
+    );
   }
 
   addStepRecord(dayKey: string, scene: { id: string; locationId: string }, actionId: string): void {

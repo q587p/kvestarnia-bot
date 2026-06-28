@@ -19,6 +19,22 @@ describe("daily Korchma round planning", () => {
     expect(new Set(selected.filter((scene) => scene.zone === "interior").map((scene) => scene.locationId)).size).toBe(2);
   });
 
+  it("supports a deterministic dev reroll variant without changing the default plan", () => {
+    const input = {
+      characterId: "character-1",
+      dayKey: "2026-06-28",
+      scenes: dailyKorchmaRoundScenes
+    };
+    const normal = selectDailyKorchmaRoundSceneIds(input);
+    const explicitDefault = selectDailyKorchmaRoundSceneIds({ ...input, rerollIndex: 0 });
+    const rerolled = Array.from({ length: 23 }, (_, index) =>
+      selectDailyKorchmaRoundSceneIds({ ...input, rerollIndex: index + 1 })
+    ).find((sceneIds) => sceneIds.join("|") !== normal.join("|"));
+
+    expect(explicitDefault).toEqual(normal);
+    expect(rerolled).toBeDefined();
+  });
+
   it("does not change a persisted id plan when content order changes", () => {
     const normal = selectDailyKorchmaRoundSceneIds({
       characterId: "character-1",

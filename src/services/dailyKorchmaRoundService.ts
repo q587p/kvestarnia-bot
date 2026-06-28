@@ -21,6 +21,7 @@ import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import {
   DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_REROLL_KEY,
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   DAILY_KORCHMA_ROUND_STEP_KEY
 } from "./dailyActionKeys";
@@ -424,6 +425,12 @@ export class DailyKorchmaRoundService {
     }
 
     const dayKey = getKyivDayKey(this.clock());
+    const currentOffer = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_OFFER_KEY,
+      localDate: dayKey
+    });
+    const currentSceneIds = currentOffer ? readOfferJson(currentOffer)?.sceneIds ?? null : null;
+
     await this.dailyActions.deleteForTelegramUser(telegramUserId, {
       key: DAILY_KORCHMA_ROUND_OFFER_KEY,
       localDate: dayKey
@@ -438,6 +445,17 @@ export class DailyKorchmaRoundService {
         key: DAILY_KORCHMA_ROUND_STEP_KEY,
         localDate: stepLocalDate(dayKey, scene.id)
       });
+    }
+
+    const rerollIndex = await this.recordDevRerollUntilChanged(
+      telegramUserId,
+      character.id,
+      dayKey,
+      currentSceneIds
+    );
+
+    if (rerollIndex === null) {
+      return "no-character";
     }
 
     return "reset";
@@ -546,9 +564,11 @@ export class DailyKorchmaRoundService {
     });
 
     if (!record && ensure) {
+      const rerollIndex = await this.getDevRerollIndex(telegramUserId, dayKey);
       const sceneIds = selectDailyKorchmaRoundSceneIds({
         characterId,
         dayKey,
+        rerollIndex,
         scenes: dailyKorchmaRoundScenes
       });
       const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
@@ -614,6 +634,71 @@ export class DailyKorchmaRoundService {
 
         return json !== null && sceneIds.has(json.sceneId);
       });
+  }
+
+  private async getDevRerollIndex(telegramUserId: bigint, dayKey: string): Promise<number> {
+    const count = await this.dailyActions.countForTelegramUser?.(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_REROLL_KEY,
+      localDatePrefix: devRerollLocalDatePrefix(dayKey)
+    });
+
+    if (count !== undefined) {
+      return count ?? 0;
+    }
+
+    const rows = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_REROLL_KEY
+    });
+
+    return (rows ?? []).filter((record) => record.localDate.startsWith(devRerollLocalDatePrefix(dayKey))).length;
+  }
+
+  private async recordDevRerollUntilChanged(
+    telegramUserId: bigint,
+    characterId: string,
+    dayKey: string,
+    currentSceneIds: readonly string[] | null
+  ): Promise<number | null> {
+    const currentIndex = await this.getDevRerollIndex(telegramUserId, dayKey);
+
+    for (let rerollIndex = currentIndex + 1; rerollIndex <= currentIndex + 23; rerollIndex += 1) {
+      const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_REROLL_KEY,
+        localDate: devRerollLocalDate(dayKey, rerollIndex),
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: {
+          version: 1,
+          dayKey,
+          rerollIndex
+        }
+      });
+
+      if (!claim) {
+        return null;
+      }
+
+      if (claim.state === "insufficient-gold") {
+        throw new Error("Daily Korchma round reroll unexpectedly required gold.");
+      }
+
+      if (!currentSceneIds) {
+        return rerollIndex;
+      }
+
+      const nextSceneIds = selectDailyKorchmaRoundSceneIds({
+        characterId,
+        dayKey,
+        rerollIndex,
+        scenes: dailyKorchmaRoundScenes
+      });
+
+      if (!sameSceneIds(currentSceneIds, nextSceneIds)) {
+        return rerollIndex;
+      }
+    }
+
+    return currentIndex + 23;
   }
 
   private isCurrentDay(dayToken: string): boolean {
@@ -731,6 +816,18 @@ function buildReward(dayKey: string): DailyKorchmaRoundReward {
 
 function stepLocalDate(dayKey: string, sceneId: string): string {
   return `${dayKey}:${sceneId}`;
+}
+
+function devRerollLocalDatePrefix(dayKey: string): string {
+  return `${dayKey}:reroll:`;
+}
+
+function devRerollLocalDate(dayKey: string, rerollIndex: number): string {
+  return `${devRerollLocalDatePrefix(dayKey)}${rerollIndex.toString(36)}`;
+}
+
+function sameSceneIds(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
 }
 
 function isString(value: unknown): value is string {

@@ -3,17 +3,20 @@ import type { DailyKorchmaRoundScene } from "../../content/dailyKorchmaRoundCont
 export interface DailyKorchmaRoundPlanInput {
   characterId: string;
   dayKey: string;
+  rerollIndex?: number;
   scenes: readonly DailyKorchmaRoundScene[];
 }
 
 export function selectDailyKorchmaRoundSceneIds(input: DailyKorchmaRoundPlanInput): string[] {
+  const rerollIndex = Math.max(0, Math.floor(input.rerollIndex ?? 0));
+  const seedBase = `${input.characterId}:${input.dayKey}${rerollIndex > 0 ? `:r${rerollIndex}` : ""}`;
   const yardScenes = shuffleStable(
     input.scenes.filter((scene) => scene.zone === "yard"),
-    `${input.characterId}:${input.dayKey}:yard`
+    `${seedBase}:yard`
   );
   const interiorScenes = shuffleStable(
     input.scenes.filter((scene) => scene.zone === "interior"),
-    `${input.characterId}:${input.dayKey}:interior`
+    `${seedBase}:interior`
   );
   const firstYard = yardScenes[0];
 
@@ -41,7 +44,7 @@ export function selectDailyKorchmaRoundSceneIds(input: DailyKorchmaRoundPlanInpu
     throw new Error("Daily Korchma round requires two distinct interior locations.");
   }
 
-  return shuffleStable([firstYard, ...interiors], `${input.characterId}:${input.dayKey}:order`).map(
+  return shuffleStable([firstYard, ...interiors], `${seedBase}:order`).map(
     (scene) => scene.id
   );
 }
