@@ -49,6 +49,10 @@ export function buildDailyKorchmaRoundSceneKeyboard(result: DailyKorchmaRoundSce
   const keyboard = new InlineKeyboard();
 
   if (result.state !== "scene") {
+    if ("current" in result && result.current.state !== "no-character" && "offer" in result.current) {
+      return keyboard.text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.current.offer.dayToken));
+    }
+
     return keyboard.text("🧾 До обходу", makePlaceCallbackData("quest-table"));
   }
 

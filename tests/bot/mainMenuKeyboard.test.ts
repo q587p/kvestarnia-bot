@@ -55,6 +55,7 @@ import {
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import {
   buildDailyKorchmaRoundOverviewKeyboard,
+  buildDailyKorchmaRoundSceneKeyboard,
   buildDailyKorchmaRoundStepKeyboard
 } from "../../src/bot/keyboards/dailyKorchmaRoundKeyboard";
 import {
@@ -1862,6 +1863,28 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До Столу зі справами", "🍺 До зали"]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
     expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:c:"))).toBe(false);
+  });
+
+  it("routes stale daily Korchma round scene callbacks to the current overview", () => {
+    const keyboard = buildDailyKorchmaRoundSceneKeyboard({
+      state: "stale-day",
+      current: {
+        state: "ready",
+        character,
+        offer: {
+          dayKey: "2026-06-29",
+          dayToken: "20260629",
+          lifeToken: 0,
+          requiredSteps: 2,
+          completedSceneIds: [],
+          omittedSceneId: null,
+          scenes: []
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🧾 До обходу"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:dkr:o:20260629"]);
   });
 
   it("routes a daily Korchma round wrong-location step to the required scene place", () => {
