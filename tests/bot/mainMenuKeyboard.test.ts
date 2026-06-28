@@ -166,6 +166,12 @@ describe("main menu and scene keyboards", () => {
       "🎒 Манчкін-скупник",
       "🏹 До полювання"
     ]);
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard({ dailyYard: true }))).toEqual([
+      ["🚪 Зайти в корчму"],
+      ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
+      ["🪣 У задвірок"],
+      ["🎒 Манчкін-скупник"]
+    ]);
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "🚪 Зайти в корчму",
       "📜 Табличка прибулих",

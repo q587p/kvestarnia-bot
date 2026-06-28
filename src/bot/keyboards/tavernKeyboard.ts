@@ -50,17 +50,17 @@ export function buildKorchmaFrontKeyboard(
 
   let hasFrontActionRow = false;
 
-  if ((options.munchkinLocation ?? "front") === "front") {
-    keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
+  if (options.dailyYard) {
+    keyboard.text("🪣 У задвірок", makePlaceCallbackData("yard"));
     hasFrontActionRow = true;
   }
 
-  if (options.dailyYard) {
+  if ((options.munchkinLocation ?? "front") === "front") {
     if (hasFrontActionRow) {
       keyboard.row();
     }
 
-    keyboard.text("🪣 У задвірок", makePlaceCallbackData("yard"));
+    keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
     hasFrontActionRow = true;
   }
 
