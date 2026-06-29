@@ -30,6 +30,7 @@ type QuestCallback
 } from "../callbacks/questCallbackData";
 import { parseYegerCallbackData,type YegerCallback } from "../callbacks/yegerCallbackData";
 import { registerAdventureCommand,sendAdventure } from "../commands/adventureCommand";
+import { registerParsedCallbackRoute } from "../callbackRoute";
 import {
 sendCellarErrandRouted
 } from "../commands/cellarCommand";
@@ -170,59 +171,24 @@ export function registerQuestBotModule(
   });
   registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
 
-  bot.callbackQuery(/^v[12]:adv:/, async (ctx) => {
-    const parsed = parseAdventureCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleAdventureCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v[12]:adv:/, parseAdventureCallbackData, async (ctx, callback) => {
+    await handleAdventureCallback(ctx, callback, services);
   });
 
-  bot.callbackQuery(/^v1:quest:/, async (ctx) => {
-    const parsed = parseQuestCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleQuestCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:quest:/, parseQuestCallbackData, async (ctx, callback) => {
+    await handleQuestCallback(ctx, callback, services);
   });
 
-  bot.callbackQuery(/^v1:dkr:/, async (ctx) => {
-    const parsed = parseDailyKorchmaRoundCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleDailyKorchmaRoundCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:dkr:/, parseDailyKorchmaRoundCallbackData, async (ctx, callback) => {
+    await handleDailyKorchmaRoundCallback(ctx, callback, services);
   });
 
-  bot.callbackQuery(/^v1:hunt:/, async (ctx) => {
-    const parsed = parseHuntCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleHuntCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:hunt:/, parseHuntCallbackData, async (ctx, callback) => {
+    await handleHuntCallback(ctx, callback, services);
   });
 
-  bot.callbackQuery(/^v1:ygr:/, async (ctx) => {
-    const parsed = parseYegerCallbackData(ctx.callbackQuery.data);
-
-    if (!parsed.ok) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await handleYegerCallback(ctx, parsed.value, services);
+  registerParsedCallbackRoute(bot, /^v1:ygr:/, parseYegerCallbackData, async (ctx, callback) => {
+    await handleYegerCallback(ctx, callback, services);
   });
 }
 
