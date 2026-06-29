@@ -118,6 +118,36 @@ describe("PrismaPartySessionRepository integration", () => {
       }
     })).toEqual({ activeMembershipKey: null });
   });
+
+  it("force-expires live recruiting sessions before natural expiry and replays terminal state", async () => {
+    await seedCharacter(prisma, "leader-five-user", 5001n, "Девконтролер");
+    await seedCharacter(prisma, "joiner-five-user", 5002n, "Тестувальник");
+    const created = await repository.createForTelegramUser(5001n, partyInput("party-token-g"));
+    await repository.joinByTokenForTelegramUser(5002n, "party-token-g", joinInput());
+
+    const expired = await repository.forceExpireByToken("party-token-g", now());
+    const duplicate = await repository.forceExpireByToken("party-token-g", now());
+    const row = await prisma.partySession.findUnique({
+      where: { inviteToken: "party-token-g" },
+      select: { status: true, activeLeaderKey: true, version: true }
+    });
+    const activeKeys = await prisma.partyParticipant.count({
+      where: {
+        session: {
+          inviteToken: "party-token-g"
+        },
+        activeMembershipKey: {
+          not: null
+        }
+      }
+    });
+
+    expect(created.state).toBe("created");
+    expect(expired?.status).toBe("expired");
+    expect(duplicate?.status).toBe("expired");
+    expect(row).toEqual({ status: "expired", activeLeaderKey: null, version: 2 });
+    expect(activeKeys).toBe(0);
+  });
 });
 
 function now(): Date {

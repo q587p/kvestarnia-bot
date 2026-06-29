@@ -115,6 +115,7 @@ export interface PartySessionRepository {
   findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
   findLiveRecruitingByTelegramUser(telegramUserId: bigint, now: Date): Promise<PartySessionRecord | null>;
   expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
+  forceExpireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
   expireRecruiting(now: Date, limit?: number): Promise<number>;
   cleanupLiveMembershipsForRemort(characterId: string, now: Date): Promise<void>;
 }

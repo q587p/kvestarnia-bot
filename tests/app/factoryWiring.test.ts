@@ -181,7 +181,8 @@ describe("application factory wiring", () => {
     `));
     expect(source).toContain(compact(`
       partySessions: new PartySessionService(repositories.partySessions, {
-        enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled
+        enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled,
+        devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
       })
     `));
     expect(source).toContain(compact(`
@@ -206,7 +207,8 @@ function makeConfig(): AppConfig {
     deployNotificationsEnabled: false,
     devGrantCommandsEnabled: false,
     combatBalanceAnalyticsEnabled: false,
-    partySessionFoundationEnabled: false
+    partySessionFoundationEnabled: false,
+    partySessionDevHelpersEnabled: false
   };
 }
 

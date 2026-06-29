@@ -6,7 +6,7 @@
 
 ## 0.2.15 — Party Session Foundation smoke
 
-Use two or three local accounts. Enable `PARTY_SESSION_FOUNDATION_ENABLED=true` in production-like local config, or run in normal non-production dev mode.
+Use two or three local accounts. Enable `PARTY_SESSION_FOUNDATION_ENABLED=true` in production-like local config, or run in normal non-production dev mode. The forced expiry button appears only in non-production mode or when `PARTY_SESSION_DEV_HELPERS_ENABLED=true` is explicitly set for manual QA.
 
 1. Account A runs `/dev_party`; verify the card says this is only a temporary party gathering surface with no boss, combat or rewards, and shows a Telegram deep link only when `BOT_USERNAME` is configured.
 2. Account A reruns `/dev_party`; verify it reopens the existing live party instead of creating a second one.
@@ -16,7 +16,7 @@ Use two or three local accounts. Enable `PARTY_SESSION_FOUNDATION_ENABLED=true` 
 6. Account B taps `🚪 Вийти`; verify B is marked left and can rejoin with the same invite while the session is still recruiting.
 7. Account A leaves while other members remain; verify leadership transfers to the earliest remaining joined participant.
 8. The current leader taps `🧹 Скасувати збір`; verify old join/leave/cancel buttons replay the cancelled state and do not reopen recruitment.
-9. Open a party and tap `⏱️ Dev: завершити строк`, or wait past the short local expiry; verify old buttons show the expired state and active membership keys clear.
+9. Open a party and, with dev helpers enabled, tap `⏱️ Dev: завершити строк`; otherwise wait past the short local expiry. Verify old buttons show the expired state and active membership keys clear.
 10. While Account A has a live party and nearby duel candidates exist, open `/online` or `👀 Хто поруч`; verify `🧭 Покликати у ватагу` appears, sends only best-effort private invites and does not expose exact location or rejection details.
 11. Start remort for a character in a live party; verify remort removes that character from the live party, cancels the party if they were alone, or transfers leadership if needed.
 12. Run ordinary duel, Shynok, postal gift and Barrel raid smoke routes; verify the party foundation did not create combat locks, rewards, quest counters, wagers or inventory movement.

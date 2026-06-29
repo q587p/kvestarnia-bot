@@ -12,12 +12,13 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added dev/flagged temporary party recruiting through `/dev_party` and `PARTY_SESSION_FOUNDATION_ENABLED`.
 - Added `party_sessions` and `party_participants` persistence with one opaque invite token, capacity `8`, minimum participant metadata `1`, one live leader session key and one live membership key per character.
-- Added `/start party_<token>` deep-link joins plus compact `v1:party:` callbacks for join, refresh, leave, leader cancel and dev expiry.
+- Added `/start party_<token>` deep-link joins plus compact `v1:party:` callbacks for join, refresh, leave, leader cancel and dev-helper expiry.
 - Added nearby private party invites from `👀 Хто поруч` only when the inviter already has a live recruiting party.
 - Added remort cleanup so live party memberships are left, leader remorts transfer leadership deterministically, and last-participant remort cancels the recruiting session.
 
 ### Changed
 - Party join/rejoin, leave, cancel and passive expiry replay from canonical database rows instead of trusting callback payloads.
+- Dev-helper expiry now force-expires live recruiting sessions before their natural TTL, clears live keys and is gated separately from the production smoke feature flag.
 - Terminal party states clear all live leader/membership keys while preserving roster history for stale-card replay.
 - The compact Codex context, task index, playtesting guide and security/fair-play notes now document the party-session foundation and privacy contract.
 

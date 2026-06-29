@@ -142,7 +142,8 @@ export function createServices(
     onboarding: new OnboardingService(repositories.users, repositories.characters, achievements),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
     partySessions: new PartySessionService(repositories.partySessions, {
-      enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled
+      enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled,
+      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
     }),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,

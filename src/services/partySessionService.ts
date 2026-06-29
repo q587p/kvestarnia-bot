@@ -24,6 +24,7 @@ export type PartyCancelResult = PartyCancelRepositoryResult;
 
 export interface PartySessionServiceOptions {
   enabled: boolean;
+  devHelpersEnabled?: boolean;
 }
 
 export class PartySessionService {
@@ -35,6 +36,10 @@ export class PartySessionService {
 
   isEnabled(): boolean {
     return this.options.enabled;
+  }
+
+  areDevHelpersEnabled(): boolean {
+    return this.isEnabled() && this.options.devHelpersEnabled === true;
   }
 
   async createForTelegramUser(
@@ -135,6 +140,15 @@ export class PartySessionService {
     }
 
     const session = await this.sessions.expireByToken(inviteToken, this.clock());
+    return session ? { state: "ready", session } : { state: "not-found" };
+  }
+
+  async forceExpireByToken(inviteToken: string): Promise<PartyViewResult> {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "not-found" };
+    }
+
+    const session = await this.sessions.forceExpireByToken(inviteToken, this.clock());
     return session ? { state: "ready", session } : { state: "not-found" };
   }
 

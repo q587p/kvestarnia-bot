@@ -40,6 +40,7 @@ export const configSchema = z.object({
   deployNotificationsEnabled: z.boolean().default(false),
   devGrantCommandsEnabled: z.boolean().default(false),
   partySessionFoundationEnabled: z.boolean().default(false),
+  partySessionDevHelpersEnabled: z.boolean().default(false),
   combatBalanceAnalyticsEnabled: z.boolean().default(false),
   supportJarUrl: supportJarUrlSchema.optional(),
   supportJarStatus: supportJarStatusSchema
@@ -56,6 +57,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     deployNotificationsEnabled: parseBoolean(env.DEPLOY_NOTIFICATIONS_ENABLED),
     devGrantCommandsEnabled: parseBoolean(env.DEV_GRANT_COMMANDS_ENABLED),
     partySessionFoundationEnabled: parseBoolean(env.PARTY_SESSION_FOUNDATION_ENABLED),
+    partySessionDevHelpersEnabled: parseBoolean(env.PARTY_SESSION_DEV_HELPERS_ENABLED),
     combatBalanceAnalyticsEnabled: parseBoolean(env.COMBAT_BALANCE_ANALYTICS_ENABLED),
     supportJarUrl: blankToUndefined(env.SUPPORT_JAR_URL),
     supportJarStatus: parseSupportJarStatus(env)

@@ -107,6 +107,12 @@ describe("loadConfig", () => {
     expect(config.partySessionFoundationEnabled).toBe(false);
   });
 
+  it("keeps party session dev helpers disabled by default", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.partySessionDevHelpersEnabled).toBe(false);
+  });
+
   it("can enable deploy notifications explicitly", () => {
     const config = loadConfig({
       ...validEnv,
@@ -148,6 +154,15 @@ describe("loadConfig", () => {
     });
 
     expect(config.partySessionFoundationEnabled).toBe(true);
+  });
+
+  it("can enable party session dev helpers explicitly", () => {
+    const config = loadConfig({
+      ...validEnv,
+      PARTY_SESSION_DEV_HELPERS_ENABLED: "true"
+    });
+
+    expect(config.partySessionDevHelpersEnabled).toBe(true);
   });
 
   it("parses the dev grant flag in production but leaves production blocking to the service", () => {

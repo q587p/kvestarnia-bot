@@ -63,7 +63,7 @@ export async function sendPartyCreate(
     ? {
         session,
         viewerCharacterId: getViewerCharacterId(session, telegramUserId),
-        includeDevExpire: service.isEnabled()
+        includeDevExpire: service.areDevHelpersEnabled()
       }
     : false);
 }
@@ -104,7 +104,7 @@ export async function handlePartySessionCallback(
       ? {
           session: result.session,
           viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-          includeDevExpire: service.isEnabled()
+          includeDevExpire: service.areDevHelpersEnabled()
         }
       : false);
     return;
@@ -117,7 +117,7 @@ export async function handlePartySessionCallback(
       ? {
           session: result.session,
           viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-          includeDevExpire: service.isEnabled()
+          includeDevExpire: service.areDevHelpersEnabled()
         }
       : false);
     return;
@@ -133,13 +133,18 @@ export async function handlePartySessionCallback(
       ? {
           session: result.session,
           viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-          includeDevExpire: service.isEnabled()
+          includeDevExpire: service.areDevHelpersEnabled()
         }
       : false);
     return;
   }
 
-  const result = await service.expireByToken(callback.token);
+  if (!service.areDevHelpersEnabled()) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await service.forceExpireByToken(callback.token);
   await safeAnswerCallbackQuery(ctx, { text: "Строк збору завершено." });
   await sendPartyView(ctx, "edit", result, service, telegramUserId);
 }
@@ -194,7 +199,7 @@ async function handleNearbyInvite(
     await sendText(ctx, "edit", presentPartyView({ state: "ready", session }), {
       session,
       viewerCharacterId: getViewerCharacterId(session, telegramUserId),
-      includeDevExpire: service.isEnabled()
+      includeDevExpire: service.areDevHelpersEnabled()
     });
     return;
   }
@@ -225,7 +230,7 @@ async function handleNearbyInvite(
       {
         session: view.session,
         viewerCharacterId: getViewerCharacterId(view.session, telegramUserId),
-        includeDevExpire: service.isEnabled()
+        includeDevExpire: service.areDevHelpersEnabled()
       }
     );
   }
@@ -242,7 +247,7 @@ async function sendPartyView(
     ? {
         session: result.session,
         viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-        includeDevExpire: service.isEnabled()
+        includeDevExpire: service.areDevHelpersEnabled()
       }
     : false);
 }

@@ -393,6 +393,24 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     });
   }
 
+  async forceExpireByToken(inviteToken: string): Promise<PartySessionRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const session = await findSessionByToken(tx, inviteToken);
+
+      if (!session) {
+        return null;
+      }
+
+      if (session.status === LIVE_STATUS) {
+        await terminalizeSessionTx(tx, session.id, "expired");
+        const updated = await findSessionById(tx, session.id);
+        return updated ? mapSession(updated) : null;
+      }
+
+      return mapSession(session);
+    });
+  }
+
   async expireRecruiting(now: Date, limit = 23): Promise<number> {
     return expireRecruitingTx(this.prisma, now, limit);
   }
