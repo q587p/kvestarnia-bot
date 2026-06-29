@@ -241,7 +241,7 @@ export async function sendFight(
       PASSAGE_SEARCH_NODE_DEEP_LEVEL1
     );
     await sendResultText(
-      presentPersistentFightDifficultyChoice(result),
+      presentPersistentFightDifficultyChoice(),
       { type: "persistent-difficulty", searchAvailable }
     );
     return;

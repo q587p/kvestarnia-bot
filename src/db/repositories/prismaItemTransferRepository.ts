@@ -456,7 +456,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         }
 
         if (transfer.expiresAt <= input.now) {
-          return guardedTerminalResult(tx, transfer.id, "expired", input.now, { kind: "expired" }, "pending");
+          return guardedTerminalResult(tx, transfer, "expired", input.now, { kind: "expired" }, "pending");
         }
 
         const sender = await tx.character.findUnique({
@@ -756,12 +756,12 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
       if (transfer.expiresAt <= now && !senderCancellation) {
         return transferKind === "postal"
           ? guardedPostalTerminalResult(tx, transfer, "expired", now, { kind: "postal-expired" }, "pending")
-          : guardedTerminalResult(tx, transfer.id, "expired", now, { kind: "expired" }, "pending");
+          : guardedTerminalResult(tx, transfer, "expired", now, { kind: "expired" }, "pending");
       }
 
       return transferKind === "postal"
         ? guardedPostalTerminalResult(tx, transfer, status, now, { kind: status }, expectedStatuses)
-        : guardedTerminalResult(tx, transfer.id, status, now, { kind: status }, expectedStatuses);
+        : guardedTerminalResult(tx, transfer, status, now, { kind: status }, expectedStatuses);
     });
   }
 }
@@ -1379,15 +1379,15 @@ async function replayIfTerminal(
 
 async function guardedTerminalResult(
   tx: TxClient,
-  transferId: string,
+  transfer: ItemTransferRecord,
   status: "declined" | "expired" | "cancelled",
   now: Date,
   result: unknown,
   expectedStatus: string | readonly string[]
 ): Promise<ItemTransferRespondResult> {
-  const transition = await setTransferStatus(tx, transferId, status, now, result, expectedStatus);
+  const transition = await setTransferStatus(tx, transfer.id, status, now, result, expectedStatus);
   if (transition.changed) {
-    return { state: status, transfer: transition.transfer, transitioned: true };
+    return { state: status, transfer: transition.transfer, transitioned: true, transitionedFrom: transfer.status };
   }
 
   return canonicalTransferResult(tx, transition.transfer);
@@ -1406,7 +1406,7 @@ async function guardedPostalTerminalResult(
     if (transfer.status === "pending" && hasPostalSenderDebited(transfer)) {
       await restorePostalPackageToSender(tx, transfer);
     }
-    return { state: status, transfer: transition.transfer, transitioned: true };
+    return { state: status, transfer: transition.transfer, transitioned: true, transitionedFrom: transfer.status };
   }
 
   return canonicalTransferResult(tx, transition.transfer);

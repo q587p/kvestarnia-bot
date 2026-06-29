@@ -19,12 +19,13 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Postal packages allow 1 to 5 distinct `itemId` stack types, with 1 to 93 units per selected type, capped by currently owned eligible unreserved quantity.
-- Postal confirm now moves selected quantities out of the sender inventory into postal custody, marks that custody in stored replay state, and returns items to the sender once on decline, cancel or expiry.
+- Postal confirm now moves selected quantities out of the sender inventory into postal custody, marks that custody in stored replay state, and returns items to the sender once on decline, cancel, expiry or receiver remort.
 - Postal confirm keeps one live `postal:<sender>` reservation key for the package; other item-spending flows still read `package_json` lines as active item-transfer reservations.
 - Postal manual package eligibility now allows explicitly selected owned, non-equipped, non-reserved stacks such as one-use/trade-blocked bandages; Safe Gifting keeps its stricter one-unit tag blocks.
 - Delivery fee is charged from the sender immediately at confirmation/send time; if the sender lacks gold, the package stays a draft and is not sent. The internal tested fee formula is `5 + selected type count`, so package size by unit count does not inflate postage.
 - Pending postal packages now use a one-week response window, and the postal overview includes packages in transit plus completed history with pagination.
-- Shynok/bar and nearby social surfaces expose `📮 Пошта Квестарні` beside existing Safe Gifting.
+- Sender remort is blocked while outgoing sender-debited postal custody is pending, so mailed items cannot survive a remort outside normal kept-item rules; draft postal rows do not block remort and cancel privately without moving items.
+- The Korchma board and nearby social surfaces expose `📮 Пошта Квестарні` beside existing Safe Gifting, while Shynok no longer owns those buttons.
 - Adventure Choice, starter shawarma and cellar mouse method-choice cards now show only compact method names up front, with qualitative risk/chance details moved behind a `💡 Підказка` callback that does not complete the scene; the detail screens italicize the explanatory lines and replace the hint button with `⬅️ Назад`. Daily Korchma round action scenes now also list the local actions in the compact card and show optional action descriptions behind `💡 Підказка` / `⬅️ Назад`. The cellar mouse start also splits the intro scene from the action card, the Korchma hall no longer repeats the title header before asking where to go, onboarding completion combines the created-title note with `🍺 Квестарня відчинена.` while suppressing the redundant outdoor movement notice, and the front-door Munchkin paragraph/button stays hidden until level 3.
 - Active cosmetic title labels now resolve from an explicit short-title catalog instead of reusing full achievement names, with validation for coverage, duplicates, length, punctuation and reward/power wording.
 

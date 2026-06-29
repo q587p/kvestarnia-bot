@@ -78,17 +78,7 @@ describe("fight presenter", () => {
   });
 
   it("renders the Nyz level choice without a character header", () => {
-    const text = presentPersistentFightDifficultyChoice({
-      state: "persistent-ready",
-      character,
-      searchAvailability: {
-        "location:descent-to-nyz": { searchAvailable: true },
-        "location:deep-level1": { searchAvailable: true },
-        "passage:deep-left": { searchAvailable: true },
-        "passage:deep-straight": { searchAvailable: true },
-        "passage:deep-right": { searchAvailable: true }
-      }
-    });
+    const text = presentPersistentFightDifficultyChoice();
 
     expect(text).toContain("Ярус I: Сутерени Корчми");
     expect(text).not.toContain("<b>Мандрівник</b>");

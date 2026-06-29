@@ -136,7 +136,7 @@ export async function handleItemPostalCallback(
     reply_markup: buildItemPostalResultKeyboard(result)
   });
 
-  if (result.state === "cancelled" && result.transitioned) {
+  if (result.state === "cancelled" && result.transitioned && result.transitionedFrom === "pending") {
     await notifyPostalReceiverTerminal(ctx, result);
   } else if (result.state === "declined" && result.transitioned) {
     await notifyPostalSenderTerminal(ctx, result);

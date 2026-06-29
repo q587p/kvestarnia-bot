@@ -23,8 +23,8 @@ Use two accounts with at least one completed accepted item-transfer relationship
 13. Lower sender gold below the fee before confirmation; verify the package is not sent, no item moves and no fee is charged.
 14. Reopen `📮 Пошта Квестарні`; verify known recipients, packages in transit and completed history appear without current location or online-status details, and pagination works once enough rows exist.
 15. Verify nearby `🎁 Подарувати манатку` still works as the old one-unit same-location gift flow and does not list postal-only trade-blocked stacks such as bandages.
-16. Remort sender around a pending delivery; verify postal-custody items return to that sender once after remort, recipient gets nothing and the sent fee is not refunded.
-17. Remort recipient around a pending delivery if convenient; verify postal-custody items return to the original sender and never enter the receiver's new life.
+16. Try to remort the sender around a confirmed pending delivery; verify remort is blocked with a clear reason, the package stays in postal custody, recipient gets nothing and the sent fee is not refunded.
+17. Remort recipient around a pending delivery if convenient; verify postal-custody items return to the original sender and never enter the receiver's new life. Draft postal rows should not block remort and should cancel without moving items.
 
 ## 0.2.12 — Two-Enemy Threat Simulation and Outlier Tuning smoke
 

@@ -65,9 +65,9 @@ export type ItemGiftRespondResult =
   | { state: "location-mismatch"; transfer: ItemTransferRecord }
   | { state: "stale-selection"; transfer: ItemTransferRecord }
   | { state: "insufficient-gold"; transfer: ItemTransferRecord }
-  | { state: "expired"; transfer: ItemTransferRecord; transitioned?: boolean }
-  | { state: "declined"; transfer: ItemTransferRecord; transitioned?: boolean }
-  | { state: "cancelled"; transfer: ItemTransferRecord; transitioned?: boolean }
+  | { state: "expired"; transfer: ItemTransferRecord; transitioned?: boolean; transitionedFrom?: ItemTransferRecord["status"] }
+  | { state: "declined"; transfer: ItemTransferRecord; transitioned?: boolean; transitionedFrom?: ItemTransferRecord["status"] }
+  | { state: "cancelled"; transfer: ItemTransferRecord; transitioned?: boolean; transitionedFrom?: ItemTransferRecord["status"] }
   | { state: "completed"; transfer: ItemTransferRecord; sender: CharacterSummary; receiver: CharacterSummary }
   | { state: "replayed"; transfer: ItemTransferRecord; sender: CharacterSummary | null; receiver: CharacterSummary | null };
 

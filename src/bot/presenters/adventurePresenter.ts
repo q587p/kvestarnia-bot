@@ -27,7 +27,7 @@ export function presentAdventureOffer(
   ].join("\n");
 }
 
-export function presentAdventureStart(character: CharacterSummary): string {
+export function presentAdventureStart(): string {
   return [
     "🪧 Три справи на найближчий час",
     "",

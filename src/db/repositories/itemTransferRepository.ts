@@ -153,9 +153,9 @@ export type ItemTransferRespondResult =
   | { state: "location-mismatch"; transfer: ItemTransferRecord }
   | { state: "stale-selection"; transfer: ItemTransferRecord }
   | { state: "insufficient-gold"; transfer: ItemTransferRecord }
-  | { state: "expired"; transfer: ItemTransferRecord; transitioned?: boolean }
-  | { state: "declined"; transfer: ItemTransferRecord; transitioned?: boolean }
-  | { state: "cancelled"; transfer: ItemTransferRecord; transitioned?: boolean }
+  | { state: "expired"; transfer: ItemTransferRecord; transitioned?: boolean; transitionedFrom?: ItemTransferStatus }
+  | { state: "declined"; transfer: ItemTransferRecord; transitioned?: boolean; transitionedFrom?: ItemTransferStatus }
+  | { state: "cancelled"; transfer: ItemTransferRecord; transitioned?: boolean; transitionedFrom?: ItemTransferStatus }
   | { state: "completed"; transfer: ItemTransferRecord; sender: CharacterRecord; receiver: CharacterRecord }
   | { state: "replayed"; transfer: ItemTransferRecord; sender: CharacterRecord | null; receiver: CharacterRecord | null };
 

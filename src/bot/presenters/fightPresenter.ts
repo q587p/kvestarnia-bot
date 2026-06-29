@@ -128,9 +128,7 @@ export function presentFightTrainingActive(
   ].join("\n");
 }
 
-export function presentPersistentFightDifficultyChoice(
-  result: Extract<FightLookupResult, { state: "persistent-ready" }>
-): string {
+export function presentPersistentFightDifficultyChoice(): string {
   return [
     "🧱 <b>Ярус I: Сутерени Корчми</b>",
     "",
