@@ -62,7 +62,9 @@ const choice: AdventureChoice = {
   id: "stew",
   title: "Казанок <репетирує>",
   hook: "Юшка вимагає «райдер» і ложку.",
-  client: "Кухар & свідок"
+  client: "Кухар & свідок",
+  problem: "Юшка співає замість бути стравою.",
+  goal: "Стишити казанок без оперної премії."
 };
 
 describe("adventure presenter", () => {
@@ -79,8 +81,22 @@ describe("adventure presenter", () => {
         expiresAt: new Date("2026-06-12T11:23:00.000Z"),
         choices: [
           choice,
-          { id: "barrel", title: "Бочка", hook: "Вимагає угоду.", client: "Корчмар" },
-          { id: "helmet", title: "Шолом", hook: "Просить овацій.", client: "Зброяр" }
+          {
+            id: "barrel",
+            title: "Бочка",
+            hook: "Вимагає угоду.",
+            client: "Корчмар",
+            problem: "Бочка вимагає оренду.",
+            goal: "Повернути її до тари."
+          },
+          {
+            id: "helmet",
+            title: "Шолом",
+            hook: "Просить овацій.",
+            client: "Зброяр",
+            problem: "Шолом хвалиться.",
+            goal: "Стишити чужу славу."
+          }
         ]
       }
     });
@@ -135,7 +151,11 @@ describe("adventure presenter", () => {
     const text = presentAdventureProblem(result);
 
     expect(text).toContain("Казанок &lt;репетирує&gt;");
+    expect(text).toContain("<i>Замовник:</i> Кухар &amp; свідок");
+    expect(text).toContain("<i>Проблема:</i> Юшка співає замість бути стравою.");
+    expect(text).toContain("<i>Ціль:</i> Стишити казанок без оперної премії.");
     expect(text).toContain("<i>Можливі способи:</i>\n🛡️ Обережно");
+    expect(text.indexOf("<i>Ціль:</i>")).toBeLessThan(text.indexOf("<i>Можливі способи:</i>"));
     expect(text).toContain("Метод оберіть самі.");
     expect(text).toContain("🛡️ Обережно");
     expect(text).not.toContain("Майже без драматичних зубів.");
@@ -209,7 +229,9 @@ describe("adventure presenter", () => {
       id: "class-bard-uniform",
       title: "Форма для «Барда» не влазить у клітинку",
       hook: "У бланку професій для «Барда» лишилася надто мала клітинка.",
-      client: "Клітинка"
+      client: "Клітинка",
+      problem: "Форма сперечається з клітинкою.",
+      goal: "Повернути бланк до робочого стану."
     };
     const result: Extract<AdventureProblemResult, { state: "selected" }> = {
       state: "selected",
@@ -244,7 +266,7 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("точну біографію");
     expect(text).not.toContain(": форму");
     expect(text).toContain("<i>Можливі способи:</i>");
-    expect(text.match(/<i>/gu)?.length ?? 0).toBe(1);
+    expect(text.match(/<i>/gu)?.length ?? 0).toBe(4);
     expect(presentAdventureProblemMethodHelp(result)).toContain("Детальніше про способи:");
     expect(presentAdventureProblemMethodHelp(result)).toContain("Домовитися з канцелярським краєм\n<i>Дипломатія полів");
   });
@@ -324,6 +346,37 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("+7 XP");
   });
 
+  it("shows local failure without claiming the quest was closed", () => {
+    const result: Extract<AdventureResult, { state: "completed" }> = {
+      ...completed(false),
+      grade: "complication",
+      consequence: "local-failure",
+      complication: true,
+      outcome: {
+        headline: "❌ Справу не закрито",
+        body: [
+          choice.title,
+          "",
+          "Пророцтво перекричало лаву й записало спробу в деревʼяну паузу."
+        ]
+      },
+      reward: {
+        xp: 0,
+        gold: 0,
+        localDate: "2026-06-12",
+        itemGrants: []
+      }
+    };
+    const text = presentAdventureResult(result);
+
+    expect(text).toContain("❌ Справу не закрито");
+    expect(text).toContain("Винагорода за справу:\n<b>0 XP\n0 золота</b>");
+    expect(text).toContain("наступний 93-хвилинний період");
+    expect(text).not.toContain("✅ Справу закрито");
+    expect(text).not.toContain("<b>+0 XP</b>");
+    expect(text).not.toContain("Нагорода не видана: проблема покликала бій.");
+  });
+
   it("shows bounded HP loss only when a quest injury happened", () => {
     const result = {
       ...completed(false),
@@ -369,7 +422,8 @@ describe("adventure presenter", () => {
   it("does not imply duplicate rewards for already-completed adventure", () => {
     const text = presentAdventureAlreadyCompleted();
 
-    expect(text).toContain("уже закрито");
+    expect(text).toContain("уже використано");
+    expect(text).not.toContain("уже закрито");
     expect(text).not.toContain("+7 XP");
   });
 

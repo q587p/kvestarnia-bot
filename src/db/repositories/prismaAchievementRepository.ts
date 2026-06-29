@@ -479,6 +479,9 @@ export class PrismaAchievementRepository implements AchievementRepository {
     const threatEscalationDates = combatSessions
       .filter((row) => hasCombatThreat(row.stateJson))
       .map((row) => row.rewardClaimedAt ?? row.updatedAt);
+    const resolvedAdventureChoices = completedAdventureChoices.filter((row) =>
+      isAdventureChoiceResolvedForAchievement(row.resultJson)
+    );
     const activityDates = {
       "remort.completed": remorts.map((row) => row.createdAt),
       "starter.mimic-shawarma.completed": selectedDailyActionDates[MIMIC_SHAWARMA_ADVENTURE_KEY] ?? [],
@@ -546,12 +549,12 @@ export class PrismaAchievementRepository implements AchievementRepository {
         .map((row) => row.updatedAt),
       "passage.search.unique-nodes": getFirstPassageSearchDatesByNode(resolvedPassageSearches),
       "hunt.contract.completed": completedHuntContracts.map((row) => row.completedAt ?? row.updatedAt),
-      "adventure.choice.completed": completedAdventureChoices.map((row) => row.createdAt),
-      "adventure.choice.strong-success": completedAdventureChoices
+      "adventure.choice.completed": resolvedAdventureChoices.map((row) => row.createdAt),
+      "adventure.choice.strong-success": resolvedAdventureChoices
         .filter((row) => isAdventureChoiceStrongSuccess(row.resultJson))
         .map((row) => row.createdAt),
       "adventure.choice.complication": completedAdventureChoices
-        .filter((row) => isAdventureChoiceComplication(row.resultJson))
+        .filter((row) => isAdventureChoiceFightComplication(row.resultJson))
         .map((row) => row.createdAt),
       "combat.threat-escalated": threatEscalationDates,
       "combat.threat-pressure": combatSessions
@@ -800,15 +803,6 @@ function getPassageSearchOutcome(value: Prisma.JsonValue | null): string | null 
   return typeof outcome === "string" ? outcome : null;
 }
 
-function isAdventureChoiceComplication(value: Prisma.JsonValue | null): boolean {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const grade = (value as Record<string, unknown>).grade;
-  return grade === "complication";
-}
-
 function isAdventureChoiceStrongSuccess(value: Prisma.JsonValue | null): boolean {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -816,6 +810,23 @@ function isAdventureChoiceStrongSuccess(value: Prisma.JsonValue | null): boolean
 
   const grade = (value as Record<string, unknown>).grade;
   return grade === "strong-success";
+}
+
+export function getAdventureChoiceConsequence(value: Prisma.JsonValue | null): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const consequence = (value as Record<string, unknown>).consequence;
+  return typeof consequence === "string" ? consequence : null;
+}
+
+export function isAdventureChoiceResolvedForAchievement(value: Prisma.JsonValue | null): boolean {
+  return getAdventureChoiceConsequence(value) !== "local-failure";
+}
+
+export function isAdventureChoiceFightComplication(value: Prisma.JsonValue | null): boolean {
+  return getAdventureChoiceConsequence(value) === "fight-handoff";
 }
 
 function groupDailyActionDatesByKey(

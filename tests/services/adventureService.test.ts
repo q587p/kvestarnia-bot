@@ -46,6 +46,7 @@ import {
 import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
 import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 import { monsters } from "../../src/content/monsters";
+import type { AchievementService, AchievementSimpleEventType } from "../../src/services/achievementService";
 
 const telegramUserId = 42n;
 
@@ -326,6 +327,55 @@ describe("AdventureService", () => {
       rewardXp: 0,
       rewardGold: 0
     });
+  });
+
+  it("records a local failure as a no-reward consumed adventure claim", async () => {
+    const found = await findResolvedAdventure((result) => result.consequence === "local-failure");
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.complication).toBe(true);
+      expect(found.result.fightHandoff).toBe(false);
+      expect(found.result.fightEncounter).toBeNull();
+      expect(found.result.hpLoss).toBeNull();
+      expect(found.result.reward).toMatchObject({
+        xp: 0,
+        gold: 0,
+        itemGrants: []
+      });
+      expect(found.result.outcome.headline).not.toContain("Справу закрито");
+    }
+    expect(found.dailyActions.createCount).toBe(1);
+    expect(found.dailyActions.records[0]).toMatchObject({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: buildAdventurePeriod(fixedClock()).storageKey,
+      rewardXp: 0,
+      rewardGold: 0
+    });
+    expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
+      consequence: "local-failure",
+      reward: {
+        xp: 0,
+        gold: 0,
+        itemGrants: []
+      },
+      fightHandoff: null
+    });
+
+    const repeated = await found.service.completeAdventureApproach(found.userId, found.input);
+
+    expect(repeated.state).toBe("already-completed");
+    expect(found.dailyActions.createCount).toBe(1);
+  });
+
+  it("does not track local failure as a resolved or monster-complication adventure achievement", async () => {
+    const found = await findResolvedAdventure((result) => result.consequence === "local-failure", {
+      withAchievements: true
+    });
+
+    expect(found.achievements?.eventTypes).not.toContain("adventure.choice.completed");
+    expect(found.achievements?.eventTypes).not.toContain("adventure.choice.complication");
+    expect(found.achievements?.eventTypes).not.toContain("adventure.choice.strong-success");
   });
 
   it("rolls back a failed fight handoff through the stored claim identity", async () => {
@@ -804,7 +854,9 @@ describe("AdventureService", () => {
         id: "barrel",
         title: "Бочка уклала угоду з порожнечею",
         hook: "",
-        client: ""
+        client: "",
+        problem: "",
+        goal: ""
       },
       characterSummary()
     );
@@ -832,10 +884,12 @@ function fixedClock(): Date {
 function setup(
   activeFight: SoloCombatSessionRecord | null = null,
   equipment: EquipmentRepository | undefined = undefined,
-  leasedFight?: SoloCombatLeaseLookupResult
+  leasedFight?: SoloCombatLeaseLookupResult,
+  options: { achievements?: FakeAchievementService } = {}
 ): {
   characters: FakeCharacterRepository;
   dailyActions: FakeDailyActionRepository;
+  achievements?: FakeAchievementService;
   service: AdventureService;
 } {
   const characters = new FakeCharacterRepository();
@@ -850,7 +904,15 @@ function setup(
   return {
     characters,
     dailyActions,
-    service: new AdventureService(characters, dailyActions, fixedClock, fights, equipment)
+    achievements: options.achievements,
+    service: new AdventureService(
+      characters,
+      dailyActions,
+      fixedClock,
+      fights,
+      equipment,
+      options.achievements as unknown as AchievementService | undefined
+    )
   };
 }
 
@@ -865,7 +927,8 @@ async function readyOffer(service: AdventureService, userId = telegramUserId) {
 }
 
 async function findResolvedAdventure(
-  matches: (result: Extract<AdventureResult, { state: "completed" }>) => boolean
+  matches: (result: Extract<AdventureResult, { state: "completed" }>) => boolean,
+  options: { withAchievements?: boolean } = {}
 ) {
   for (let user = 40n; user < 1_200n; user += 1n) {
     const probe = setup();
@@ -887,7 +950,9 @@ async function findResolvedAdventure(
       }
 
       for (const approach of selected.approaches) {
-        const { service, characters, dailyActions } = setup();
+        const { service, characters, dailyActions, achievements } = setup(null, undefined, undefined, {
+          achievements: options.withAchievements ? new FakeAchievementService() : undefined
+        });
         characters.add(user, { xp: 25, gold: 10 });
         const freshLookup = await service.getAdventureOfferForTelegramUser(user);
 
@@ -909,7 +974,7 @@ async function findResolvedAdventure(
         const result = await service.completeAdventureApproach(user, input);
 
         if (result.state === "completed" && matches(result)) {
-          return { service, dailyActions, result, input, userId: user, offer: freshLookup.offer };
+          return { service, dailyActions, achievements, result, input, userId: user, offer: freshLookup.offer };
         }
       }
     }
@@ -1287,6 +1352,15 @@ class FakeEquipmentRepository implements EquipmentRepository {
 
   unequipForCharacter(): Promise<boolean> {
     throw new Error("Not implemented in adventure service tests.");
+  }
+}
+
+class FakeAchievementService {
+  readonly eventTypes: AchievementSimpleEventType[] = [];
+
+  trackEventSafely(input: { type: AchievementSimpleEventType }): Promise<[]> {
+    this.eventTypes.push(input.type);
+    return Promise.resolve([]);
   }
 }
 

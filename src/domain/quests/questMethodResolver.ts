@@ -205,7 +205,12 @@ function replaceLastPersonalMethod(
 function isRiskyMethod(method: QuestMethodDefinition): boolean {
   const consequence = method.consequenceByGrade.complication;
 
-  return consequence === "minor-injury" || consequence === "serious-injury" || consequence === "fight-handoff";
+  return (
+    consequence === "minor-injury" ||
+    consequence === "serious-injury" ||
+    consequence === "fight-handoff" ||
+    consequence === "local-failure"
+  );
 }
 
 function normalizeLabel(label: string): string {

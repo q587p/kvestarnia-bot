@@ -180,7 +180,9 @@ describe("adventure callback data", () => {
           id: problemId,
           title: problemId,
           hook: "",
-          client: ""
+          client: "",
+          problem: "",
+          goal: ""
         },
         character
       );

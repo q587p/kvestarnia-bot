@@ -84,6 +84,10 @@ export function presentAdventureProblem(
     "",
     escapeHtml(result.choice.hook),
     "",
+    `<i>Замовник:</i> ${escapeHtml(result.choice.client)}`,
+    `<i>Проблема:</i> ${escapeHtml(result.choice.problem)}`,
+    `<i>Ціль:</i> ${escapeHtml(result.choice.goal)}`,
+    "",
     "<i>Можливі способи:</i>",
     ...methodLines,
     "",
@@ -150,9 +154,9 @@ export function presentAdventureNoCharacter(): string {
 
 export function presentAdventureAlreadyCompleted(): string {
   return [
-    "🪧 Справу на найближчий час уже закрито.",
+    "🪧 Спробу на найближчий час уже використано.",
     "",
-    "Корчмар поставив галочку, потім ще одну для впевненості. Повторні натискання не видають додаткову винагороду.",
+    "Корчмар поставив галочку на папірці, а не на результаті. Повторні натискання не видають додаткову винагороду.",
     "",
     "Повертайтесь трохи згодом або перевірте персонажа: /hero"
   ].join("\n");
@@ -264,7 +268,13 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
     ...presentHpLossLines(result.hpLoss, result.character),
     ...(result.fightHandoff
       ? ["Нагорода не видана: проблема покликала бій."]
-      : ["", presentRewardAmount({ ...result.reward, label: "Винагорода за справу" })]),
+      : result.consequence === "local-failure"
+        ? [
+            "",
+            "Винагорода за справу:\n<b>0 XP\n0 золота</b>",
+            "Наступний набір справ відкриється в наступний 93-хвилинний період."
+          ]
+        : ["", presentRewardAmount({ ...result.reward, label: "Винагорода за справу" })]),
     "",
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
