@@ -32,7 +32,6 @@ export function presentKorchmaFront(
 ): string {
   return [
     "🚪 Перед корчмою",
-    presentCharacterHeader(character),
     "",
     "За дверима гуде <b>Корчма Квестарні</b>. Там видають квести, сперечаються з бочками й іноді не питають зайвого.",
     "",
@@ -65,10 +64,11 @@ export function presentKorchmaArrivalBoard(
   ].join("\n");
 }
 
-export function presentKorchmaYard(character: CharacterSummary): string {
+export function presentKorchmaYard(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🪣 Задвірок корчми",
-    presentCharacterHeader(character),
     "",
     "За корчмою пахне мокрим деревом, самовпевненим пилом і дрібними проблемами, які не пройшли через головні двері.",
     "",
@@ -122,6 +122,7 @@ export function presentKorchmaHall(
 ): string {
   return [
     "🍺 Зала корчми",
+    "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
     "Ліворуч гупає <i>бійцівський куток</i>, праворуч терпить життя <i>стіл зі справами</i>. Далі піниться <i>Бочка Пінного Міражу</i>, шумить <i>шинок</i>, за бочками чекає <i>спуск до Низу</i>, а поруч скромно пахне <i>льох</i>.",
@@ -137,10 +138,11 @@ export function presentKorchmaHall(
   ].join("\n");
 }
 
-export function presentKorchmaFightingCorner(character: CharacterSummary): string {
+export function presentKorchmaFightingCorner(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🥊 Бійцівський куток",
-    presentCharacterHeader(character),
     "",
     "Тут не бʼються одразу. Спершу Корчмар показує пальцем на дошку правил, потім на ваші манатки, потім знову на дошку правил.",
     "",
@@ -154,12 +156,11 @@ export function presentKorchmaFightingCorner(character: CharacterSummary): strin
 }
 
 export function presentKorchmaFightingCornerLevelLocked(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   requiredLevel = 3
 ): string {
   return [
     `🥊 Бійцівський куток відкриється з ${requiredLevel} рівня`,
-    presentCharacterHeader(character),
     "",
     "Куток поки вдає, що це просто дуже підозрілий закуток. Корчмар радить спершу закрити кілька справ і не сваритися з рукавицями.",
     "",
@@ -168,12 +169,11 @@ export function presentKorchmaFightingCornerLevelLocked(
 }
 
 export function presentKorchmaDeepClosed(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   options: { munchkinLocation?: MunchkinLocation } = {}
 ): string {
   return [
     "🪜 Спуск до Низу",
-    presentCharacterHeader(character),
     "",
     "За бочками в коморі є сходи. Перші тринадцять сходинок ще пахнуть пивом і мишами. Далі — гарячим каменем, старою кров’ю і чимось, що не мало б дихати.",
     ...presentDeepMunchkinLines(options.munchkinLocation ?? "front")
@@ -203,12 +203,11 @@ function presentDeepMunchkinLines(location: MunchkinLocation): string[] {
 }
 
 export function presentKorchmaDeepLevelLocked(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   requiredLevel = 3
 ): string {
   return [
     `🪜 Низ відкриється з ${requiredLevel} рівня`,
-    presentCharacterHeader(character),
     "",
     "Сходи за бочками чемно скриплять і роблять вигляд, що їх ще не вигадали.",
     "",
@@ -248,7 +247,7 @@ function presentRemortCandleHint(character: CharacterSummary): string[] {
 }
 
 export function presentKorchmaBar(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   options: {
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
@@ -259,7 +258,6 @@ export function presentKorchmaBar(
 
   return [
     "🍻 Шинок",
-    presentCharacterHeader(character),
     "",
     "<i>Шинок</i> тримає кухлі, чеки й корчмаря в одному місці. Корчмар каже, що це не бардак, а логістика.",
     "",
@@ -300,10 +298,11 @@ function presentKorchmaBarActionLines(options: {
   return lines.length > 0 ? ["", ...lines] : [];
 }
 
-export function presentTavern(character: CharacterSummary): string {
+export function presentTavern(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    presentCharacterHeader(character),
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
     "",
@@ -313,10 +312,11 @@ export function presentTavern(character: CharacterSummary): string {
   ].join("\n");
 }
 
-export function presentTavernAlreadyRaided(character: CharacterSummary): string {
+export function presentTavernAlreadyRaided(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    presentCharacterHeader(character),
     "",
     "Бочка Пінного Міражу в цьому відтинку вже пережила ваше втручання.",
     "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",

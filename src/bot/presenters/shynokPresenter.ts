@@ -51,7 +51,6 @@ export function presentShynokOverview(result: ShynokOverviewResult): string {
 
   return [
     "🍻 Шинок",
-    presentCharacterHeader(result.character),
     "",
     "Корчмар виставив напої, рахівницю й табличку «манатки приймаємо не всі, бо маємо очі».",
     ...(result.character.classId === "class.bard" && result.character.level >= 3

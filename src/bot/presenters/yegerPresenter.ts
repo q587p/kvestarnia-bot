@@ -18,7 +18,6 @@ export function presentYegerQuest(
   if (result.state === "level-locked") {
     return [
       "🧥 Єгерський куток",
-      presentCharacterHeader(result.character),
       "",
       ...presentYegerCornerIntro(result.character),
       "",
@@ -29,7 +28,6 @@ export function presentYegerQuest(
   if (result.state === "offered") {
     return [
       "🧥 Єгерський куток",
-      presentCharacterHeader(result.character),
       "",
       ...presentYegerCornerIntro(result.character),
       "",
@@ -57,7 +55,6 @@ export function presentYegerQuest(
 
   const lines = [
     "🧥 Єгерський куток",
-    presentCharacterHeader(result.character),
     "",
     ...presentYegerCornerIntro(result.character),
     "",
@@ -84,7 +81,6 @@ export function presentYegerHuntOutside(
 ): string {
   const lines = [
     "🚪 Надворі біля корчми",
-    presentCharacterHeader(result.character),
     "",
     "Єгер лишився біля Бочки, а вас відправив сюди, де сліди не можуть сховатися під піною.",
     "",
@@ -104,7 +100,6 @@ export function presentYegerCorner(
 ): string {
   const lines = [
     "🧥 Єгерський куток",
-    presentCharacterHeader(result.character),
     "",
     ...presentYegerCornerIntro(result.character)
   ];
@@ -435,7 +430,6 @@ export function presentYegerTurnIn(result: YegerQuestTurnInResult): string {
   if (result.state === "not-started") {
     return [
       "🧥 Єгерський куток",
-      presentCharacterHeader(result.character),
       "",
       ...presentYegerCornerIntro(result.character),
       "",

@@ -6,12 +6,14 @@ import {
   presentKorchmaBar,
   presentDuelWinnersBoard,
   presentKorchmaDeepClosed,
+  presentKorchmaDeepLevelLocked,
   presentKorchmaFightingCorner,
   presentKorchmaFightingCornerLevelLocked,
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
   presentKorchmaRemortMilestoneBoard,
+  presentKorchmaYard,
   presentPendingRaidActionBlock,
   presentTavernNoCharacter,
   presentTavernRaidAuditBreak,
@@ -96,6 +98,29 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🚪 Перед корчмою");
     expect(text).not.toContain("Манчкін-скупник");
+  });
+
+  it("omits character identity headers from plain location cards", () => {
+    const characterHeader = "<b>Мандрівник</b> · <i>Пересічний Пригодник</i>";
+    const locationCards = [
+      presentKorchmaFront(character),
+      presentKorchmaYard(character),
+      presentKorchmaHall(character),
+      presentKorchmaFightingCorner(character),
+      presentKorchmaFightingCornerLevelLocked(character),
+      presentKorchmaDeepClosed(character),
+      presentKorchmaDeepLevelLocked(character),
+      presentKorchmaBar(character),
+      presentTavern(character),
+      presentTavernAlreadyRaided(character)
+    ];
+
+    for (const text of locationCards) {
+      expect(text).not.toContain(characterHeader);
+    }
+
+    expect(presentKorchmaFront(character)).toMatch(/^🚪 Перед корчмою\n\n/u);
+    expect(presentKorchmaHall(character)).toMatch(/^🍺 Зала корчми\n\n/u);
   });
 
   it("shows a front-door arrivals plaque with escaped visitor names", () => {
@@ -566,16 +591,16 @@ describe("tavern presenter", () => {
     expect(text).toContain("Що робимо?");
   });
 
-  it("escapes character names and titles in tavern scene headers", () => {
+  it("does not print character names and titles in tavern location headers", () => {
     const text = presentTavern({
       ...character,
       name: "<b>Мандрівник</b>",
       title: "<i>Пересічний Пригодник</i>"
     });
 
-    expect(text).toContain(
-      "<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b> · <i>&lt;i&gt;Пересічний Пригодник&lt;/i&gt;</i>"
-    );
+    expect(text).toMatch(/^🛢️ Біля Бочки Пінного Міражу\n\n/u);
+    expect(text).not.toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(text).not.toContain("&lt;i&gt;Пересічний Пригодник&lt;/i&gt;");
     expect(text).not.toContain("<b>Мандрівник</b>");
     expect(text).not.toContain("<i>Пересічний Пригодник</i>");
   });

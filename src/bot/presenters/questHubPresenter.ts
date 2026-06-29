@@ -11,7 +11,6 @@ import {
   meetsActivityLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../../domain/progression/activityGates";
-import { presentCharacterHeader } from "./telegramHtml";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
@@ -32,7 +31,6 @@ export function presentQuestHub(snapshot: QuestHubSnapshot, mode: QuestHubMode =
   const rows = mode === "archive" ? getQuestHubArchiveRows(snapshot) : getQuestHubActiveRows(snapshot);
   const lines = [
     mode === "archive" ? "📦 Архів справ" : "📋 Стіл зі справами",
-    presentCharacterHeader(snapshot.character),
     "",
     mode === "archive"
       ? "Архів показує закриті й недоступні справи. Він шарудить так, ніби памʼятає більше, ніж треба."

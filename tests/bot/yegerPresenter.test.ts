@@ -27,7 +27,8 @@ describe("Yeger presenter", () => {
       progress: { wins: 0, target: 5 }
     });
 
-    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>");
+    expect(text).not.toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(text).not.toContain("Титул &lt;i&gt;підступу&lt;/i&gt;");
     expect(text).toContain("🧥 Єгерський куток");
     expect(text).toContain("У темному кутку сидить людисько-єгер у капюшоні");
     expect(text).toContain("Єгер:\n<blockquote>");
