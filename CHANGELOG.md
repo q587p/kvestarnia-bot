@@ -21,7 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Postal confirm reserves every selected `itemId` through one live `postal:<sender>` reservation key; other item-spending flows now read `package_json` lines as active item-transfer reservations.
 - Delivery fee is charged from the sender only when the recipient accepts, in the same transaction as item movement. The internal tested fee formula is `13 + 3 * selected type count + selected unit count`.
 - Shynok/bar and nearby social surfaces expose `📮 Пошта Квестарні` beside existing Safe Gifting.
-- Adventure Choice, starter shawarma and cellar mouse method-choice cards now show only compact method names up front, with qualitative risk/chance details moved behind a `💡 Підказка` callback that does not complete the scene; the detail screens italicize the explanatory lines and replace the hint button with `⬅️ Назад`, the cellar mouse start also splits the intro scene from the action card, and the Korchma hall no longer repeats the title header before asking where to go.
+- Adventure Choice, starter shawarma and cellar mouse method-choice cards now show only compact method names up front, with qualitative risk/chance details moved behind a `💡 Підказка` callback that does not complete the scene; the detail screens italicize the explanatory lines and replace the hint button with `⬅️ Назад`, the cellar mouse start also splits the intro scene from the action card, the Korchma hall no longer repeats the title header before asking where to go, and onboarding completion combines the created-title note with `🍺 Квестарня відчинена.` while suppressing the redundant outdoor movement notice.
 
 ### Unchanged
 - Existing Safe Gifting remains a one-unit, same-location, explicit-accept flow.

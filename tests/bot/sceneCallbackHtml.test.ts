@@ -32,6 +32,7 @@ import {
   makeLevelBarterAutoCallbackData,
   makeLevelBarterOpenCallbackData
 } from "../../src/bot/callbacks/levelBarterCallbackData";
+import { makeConfirmCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
@@ -2910,6 +2911,56 @@ describe("scene callback HTML options", () => {
     ]);
     expect(markAction.mock.calls.some(([input]) => input.locationId === "location.korchma.deep.level1")).toBe(false);
     expect(recordPersistentFightMessageReference).toHaveBeenCalledTimes(1);
+  });
+
+  it("combines onboarding completion with the Kvestarnia opened line without an outdoor movement notice", async () => {
+    const calls = await captureApiCalls(
+      makeConfirmCallbackData("he", "race.human-ish", "class.warrior"),
+      servicesWith({
+        onboarding: {
+          complete: () => Promise.resolve({
+            ok: true as const,
+            value: {
+              character,
+              created: true,
+              achievementUnlocks: [
+                {
+                  id: "achievement.character.created",
+                  title: "Де тут вихід?",
+                  cosmeticTitleGrantId: "cosmetic-title.first-ink",
+                  unlockedAt: new Date("2026-06-28T09:00:00.000Z")
+                }
+              ]
+            }
+          })
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.front",
+              locationName: "Перед корчмою",
+              insideKorchma: false
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const messages = calls.filter((call) => call.method === "sendMessage");
+    const achievement = messages.find((call) => String(call.payload.text).includes("Нова ачівка"));
+
+    expect(String(edit?.payload.text)).toContain("🎒 Пригодника створено.");
+    expect(String(edit?.payload.text)).toContain("🍺 Квестарня відчинена.");
+    expect(messages.some((call) => String(call.payload.text) === "🍺 Квестарня відчинена.")).toBe(false);
+    expect(messages.some((call) => String(call.payload.text).includes("Ви вийшли надвір."))).toBe(false);
+    expect(JSON.stringify(achievement?.payload.reply_markup)).toContain(mainMenuButtons.hero);
   });
 
   it("uses an outdoor movement notice when leaving the korchma", async () => {

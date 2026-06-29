@@ -45,6 +45,7 @@ sendTavernBarrel
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
 import { parseFightCallbackData } from "../callbacks/fightCallbackData";
+import { parseOnboardingCallbackData } from "../callbacks/onboardingCallbackData";
 import {
 buildMainMenuKeyboard,
 getMainMenuLocationButtonPresenceId,
@@ -159,6 +160,11 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
   bot.on("callback_query:data", async (ctx, next) => {
     const isPlaceCallback = parsePlaceCallbackData(ctx.callbackQuery.data).ok;
     if (isPlaceCallback) {
+      await next();
+      return;
+    }
+    const isOnboardingCallback = parseOnboardingCallbackData(ctx.callbackQuery.data).ok;
+    if (isOnboardingCallback) {
       await next();
       return;
     }

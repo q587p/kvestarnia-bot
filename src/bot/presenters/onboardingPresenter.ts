@@ -67,11 +67,20 @@ export function presentClassSelected(pronoun: Pronoun, raceId: string, classId: 
   ].join("\n");
 }
 
-export function presentCharacterCreated(summary: CharacterSummary, created: boolean): string {
+export function presentCharacterCreated(
+  summary: CharacterSummary,
+  created: boolean,
+  options: { includeKvestarniaOpened?: boolean } = {}
+): string {
   const title = created ? "🎒 Пригодника створено." : "🎒 Пригодник уже чекає.";
   const titleLine = created ? "Ви отримали титул:" : "Ваш титул:";
+  const lines = [title, "", `${titleLine} <i>${escapeHtml(summary.title)}</i>`];
 
-  return [title, "", `${titleLine} <i>${escapeHtml(summary.title)}</i>`].join("\n");
+  if (options.includeKvestarniaOpened) {
+    lines.push("", "🍺 Квестарня відчинена.");
+  }
+
+  return lines.join("\n");
 }
 
 export function presentCharacterSummary(summary: CharacterSummary): string {
