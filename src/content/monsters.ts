@@ -233,7 +233,7 @@ export const monsters = [
     "level": 5,
     "tags": [
       "dragon",
-      "boss",
+      "tiny-boss",
       "gold",
       "bureaucracy",
       "tax"
@@ -699,7 +699,6 @@ export const monsters = [
     "level": 12,
     "tags": [
       "food",
-      "construct",
       "armor",
       "siege"
     ]

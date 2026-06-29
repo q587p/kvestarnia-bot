@@ -2164,6 +2164,100 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
+  it("claims and replays one persistent fight reward after a two-enemy victory", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active" || !started.session.state) {
+      return;
+    }
+    const state = started.session.state;
+    sessions.addSession({
+      ...started.session,
+      state: {
+        ...state,
+        monster: {
+          ...state.monster,
+          hp: 1,
+          hpMax: 1
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            ...state.monster,
+            hp: 1,
+            hpMax: 1
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.audit-mosquito",
+            name: "Комар-ревізор дрібних витрат",
+            level: 1,
+            hp: 1,
+            hpMax: 1,
+            attack: 1,
+            armor: 0,
+            resist: 0,
+            dexterity: 1
+          }
+        ]
+      }
+    });
+
+    const first = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(first.state).toBe("updated");
+    if (first.state !== "updated") {
+      return;
+    }
+    expect(first.session.status).toBe("active");
+
+    const second = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: first.session.state?.turn ?? 2,
+      action: "attack"
+    });
+
+    expect(second.state).toBe("updated");
+    if (second.state !== "updated") {
+      return;
+    }
+    expect(second.session.status).toBe("won");
+    expect(second.fightReward).toMatchObject({
+      state: "claimed",
+      reward: {
+        localDate: started.session.id
+      }
+    });
+    const rewardRecords = dailyActions.records.filter(
+      (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
+    );
+    expect(rewardRecords).toHaveLength(1);
+
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: first.session.state?.turn ?? 2,
+      action: "attack"
+    });
+
+    expect(repeated.state).toBe("terminal");
+    expect(dailyActions.records.filter((record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY)).toHaveLength(1);
+  });
+
   it("claims a persistent fight reward when the final monster response drops the hero to zero", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

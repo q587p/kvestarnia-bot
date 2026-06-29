@@ -4,6 +4,22 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.12 — Two-Enemy Threat Simulation and Outlier Tuning smoke
+
+Use one level 3+ account. Local seeded setup is acceptable for forcing specific monsters.
+
+1. Start ordinary one-enemy Nyz fights across a few representative classes; verify cards, buttons, mana/cooldown rows and terminal settlement still match the 0.2.11 flow.
+2. Trigger or locally force a two-enemy threat fight; verify both enemies have separate HP rows and the intro/active cards name the full roster once.
+3. During a two-enemy fight, take several turns and verify the backup enemy does not respond on every odd pressure turn while both enemies live, but resumes normal pressure after it becomes the only living enemy.
+4. Defeat the primary enemy first; verify target switching, defeated-enemy text and journal HP snapshots remain clear.
+5. Win a two-enemy threat fight; replay old action/result/journal buttons and verify exactly one terminal settlement/reward is shown with no duplicate XP, gold, item, quest, Yeger or achievement mutation.
+6. Lose or flee a two-enemy threat fight if convenient; verify the terminal card and next ordinary start behavior match the threat-reset rules.
+7. Force or encounter `monster.zero-declaration-tax-dragon`; verify tax breath / asset freeze remain readable but no longer feel like a hard wall for ordinary same-level characters.
+8. Force or encounter `monster.siege-iron-varenyk`; verify shield/counter turns still read as armored-varenyk flavor but do not stall the fight indefinitely.
+9. Use Bisyny and Molfar Soul race abilities in difficult pairings; verify their guard/response mitigation text remains Ukrainian and no raw ids or English fallback appears.
+10. Recheck missed/no-effect monster signature turns and battle-journal replay; verify 0.2.11 signature visibility did not regress.
+11. Confirm active cosmetic title display remains cosmetic only and does not affect combat, rewards, monster selection or settlement.
+
 ## 0.1.25 — Phase 2 MVP closeout smoke
 
 Канонічний closeout gate для бойово-соціяльного зрізу живе в [`docs/PHASE2_CLOSEOUT_SMOKE.md`](PHASE2_CLOSEOUT_SMOKE.md), а підсумок релізу — в [`docs/PHASE2_MVP_RELEASE_NOTES.md`](PHASE2_MVP_RELEASE_NOTES.md).

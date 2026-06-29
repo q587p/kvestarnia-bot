@@ -118,12 +118,18 @@ describe("combatSimulation", () => {
       policy: "aggressive",
       raceId: "race.dryland-rusalka",
       raceName: "Русалка сухопутна",
+      raceIds: ["race.dryland-rusalka"],
+      raceNames: ["Русалка сухопутна"],
       path: "boundary",
+      remortCount: 0,
       levels: [3],
       monsterLevels: "same",
       runsPerMatchup: 2,
       maxTurns: 12,
+      encounterMode: "one-enemy",
+      threatSecondEnemyLevelBonus: 0,
       rows: [makeRow("class.mage", "Маг", 3, 3, 0.5, summarizeCombatRuns(runs))],
+      aggregates: [],
       warnings: []
     })).toContain("fumbles 3");
   });
@@ -254,6 +260,27 @@ describe("combatSimulation", () => {
     expect(report.rows).toHaveLength(monsters.filter((monster) => monster.level === 1).length);
   });
 
+  it("models remort memory in simulated hero stats", () => {
+    const options = {
+      levels: [12],
+      monsterLevels: [12],
+      runsPerMatchup: 20,
+      seed: "remort-memory-sanity",
+      classIds: ["class.warrior"],
+      raceId: "race.human-ish",
+      policy: "aggressive" as const,
+      maxTurns: 20
+    };
+    const baseline = runCombatSimulation(options);
+    const remorted = runCombatSimulation({ ...options, remortCount: 5 });
+
+    expect(remorted.remortCount).toBe(5);
+    expect(formatCombatSimulationReport(remorted)).toContain("remort: 5");
+    expect(remorted.rows[0]?.summary.averageEndingHp).toBeGreaterThan(
+      baseline.rows[0]?.summary.averageEndingHp ?? 0
+    );
+  });
+
   it("uses every exact ladder monster when simulating levels 4 and 13", () => {
     const report = runCombatSimulation({
       levels: [4, 13],
@@ -273,6 +300,31 @@ describe("combatSimulation", () => {
         "monster.quiet-catastrophe-clerk"
       ])
     );
+  });
+
+  it("creates deterministic two-enemy threat rows and aggregate summaries", () => {
+    const options = {
+      levels: [3],
+      monsterLevels: "same" as const,
+      runsPerMatchup: 3,
+      seed: "two-enemy-shape",
+      classIds: ["class.mage"],
+      raceIds: ["race.human-ish", "race.bisyny"],
+      policy: "aggressive" as const,
+      maxTurns: 12,
+      encounterMode: "two-enemy-threat" as const
+    };
+    const report = runCombatSimulation(options);
+    const repeated = runCombatSimulation(options);
+
+    expect(report).toEqual(repeated);
+    expect(report.rows.length).toBeGreaterThan(0);
+    expect(report.rows.every((row) => row.enemyCount === 2)).toBe(true);
+    expect(report.rows.every((row) => row.enemies.length === 2)).toBe(true);
+    expect(report.aggregates.map((aggregate) => aggregate.dimension)).toEqual(
+      expect.arrayContaining(["level", "class", "race"])
+    );
+    expect(formatCombatSimulationReport(report)).toContain("encounter: two-enemy-threat");
   });
 
   it("covers every authored monster profile across same-level roster simulations", () => {
@@ -344,6 +396,8 @@ function makeRow(
   summary?: CombatOutcomeSummary
 ): CombatSimulationRow {
   return {
+    encounterMode: "one-enemy",
+    enemyCount: 1,
     heroLevel,
     monsterLevel,
     classId,
@@ -352,6 +406,11 @@ function makeRow(
     raceName: "Людиноподібні",
     monsterId: "monster.test",
     monsterName: "Тестовий монстр",
+    enemies: [{
+      monsterId: "monster.test",
+      monsterName: "Тестовий монстр",
+      monsterLevel
+    }],
     summary: summary ?? {
       totalRuns: 100,
       wins: Math.round(winRate * 100),

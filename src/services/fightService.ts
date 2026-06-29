@@ -34,6 +34,7 @@ import {
 import {
   deriveMonsterCombatStats,
   expireCombat,
+  applyThreatBackupEnemyCombatStats,
   freezeCombatLife,
   appendCombatTurnLogEntry,
   applyMonsterContextToStats,
@@ -1794,7 +1795,9 @@ export class FightService {
     const extraMonsterStats = extraMonsters.map(({ monster: enemy }) => {
       const context = resolveMonsterContext({ monster: enemy, world: worldContext });
 
-      return applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context);
+      return applyThreatBackupEnemyCombatStats(
+        applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context)
+      );
     });
     const state = startCombat({
       id: sessionId,
@@ -3800,7 +3803,9 @@ export class FightService {
     const extraMonsterStats = (input.extraMonsters ?? []).map(({ monster }) => {
       const context = resolveMonsterContext({ monster, world: worldContext });
 
-      return applyMonsterContextToStats(deriveMonsterCombatStats(monster), context);
+      return applyThreatBackupEnemyCombatStats(
+        applyMonsterContextToStats(deriveMonsterCombatStats(monster), context)
+      );
     });
     const state = startCombat({
       id: input.sessionId,

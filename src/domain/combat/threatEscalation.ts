@@ -1,8 +1,9 @@
-import type { CombatStatus } from "./combatState";
+import type { CombatStatus, MonsterCombatStats } from "./combatState";
 
 export const THREAT_ESCALATION_REQUIRED_WINS = 3;
 export const THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS = 2;
 export const THREAT_ESCALATION_LINE_VERSION = "threat-escalation-v1";
+export const THREAT_BACKUP_ENEMY_HP_FRACTION = 0.5;
 
 export interface ThreatEscalationHistoryEntry {
   result: Exclude<CombatStatus, "active">;
@@ -152,4 +153,13 @@ export function selectThreatEscalationLineId(seed: string): string {
   }
 
   return THREAT_ESCALATION_LINES[hash % THREAT_ESCALATION_LINES.length]!.id;
+}
+
+export function applyThreatBackupEnemyCombatStats(monster: MonsterCombatStats): MonsterCombatStats {
+  const hpMax = Math.max(1, Math.ceil(monster.hpMax * THREAT_BACKUP_ENEMY_HP_FRACTION));
+
+  return {
+    ...monster,
+    hpMax
+  };
 }

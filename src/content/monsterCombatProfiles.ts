@@ -195,7 +195,7 @@ export const monsterCombatProfiles = [
     "monsterId": "monster.zero-declaration-tax-dragon",
     "name": "Податковий дракон нульової декларації",
     "authoredLevel": 5,
-    "aiProfile": "boss",
+    "aiProfile": "controller",
     "abilityIds": [
       "monster.tax-breath",
       "monster.asset-freeze"

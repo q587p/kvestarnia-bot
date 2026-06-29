@@ -1831,7 +1831,7 @@ function resolveLivingEnemyPhase(
   let defendCounter = false;
   const enemyActions: CombatEnemyTurnSummary[] = [];
 
-  for (const participant of participants) {
+  for (const [participantIndex, participant] of participants.entries()) {
     if (state.hero.hp <= 0) {
       break;
     }
@@ -1839,6 +1839,14 @@ function resolveLivingEnemyPhase(
     const enemy = normalizeCombatEnemies(state).find((candidate) =>
       candidate.enemyId === participant.enemyId
     ) ?? participant;
+    const livingEnemyCount = getLivingCombatEnemies(state).length;
+    if (shouldSkipBackupEnemyPressure({
+      livingEnemyCount,
+      participantIndex,
+      turn: state.turn
+    })) {
+      continue;
+    }
     const simultaneousFinalResponse = participant.hp > 0 && enemy.hp <= 0;
     state.monster = combatEnemyToMonster(enemy);
     if (enemy.monsterRuntime) {
@@ -1853,7 +1861,11 @@ function resolveLivingEnemyPhase(
         ...input,
         monster: findEnemyStats(input, enemy)
       },
-      damageReduction,
+      damageReduction: damageReduction + getBackupEnemyPressureDamageReduction({
+        enemy,
+        livingEnemyCount,
+        participantIndex
+      }),
       simultaneousFinalResponse
     });
     const updatedEnemy: CombatEnemyState = {
@@ -1891,6 +1903,28 @@ function resolveLivingEnemyPhase(
     enemyActions,
     defendCounter
   };
+}
+
+function shouldSkipBackupEnemyPressure(input: {
+  livingEnemyCount: number;
+  participantIndex: number;
+  turn: number;
+}): boolean {
+  return input.livingEnemyCount > 1 && input.participantIndex > 0 && input.turn % 2 === 1;
+}
+
+function getBackupEnemyPressureDamageReduction(input: {
+  enemy: CombatEnemyState;
+  livingEnemyCount: number;
+  participantIndex: number;
+}): number {
+  if (input.livingEnemyCount <= 1 || input.participantIndex === 0) {
+    return 0;
+  }
+
+  const level = Math.max(1, Math.floor(input.enemy.level ?? 1));
+
+  return level + 3;
 }
 
 function enemyActionToSummaryFields(action: CombatEnemyTurnSummary): {
