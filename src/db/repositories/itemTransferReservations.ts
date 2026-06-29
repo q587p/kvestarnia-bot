@@ -27,6 +27,30 @@ export function findActiveTransferReservedItems(
         }
       ]
     },
-    select: { itemId: true }
+    select: { itemId: true, packageJson: true }
+  }).then((rows) => {
+    const reserved = new Set<string>();
+    for (const row of rows) {
+      reserved.add(row.itemId);
+      for (const itemId of parsePackageItemIds(row.packageJson)) {
+        reserved.add(itemId);
+      }
+    }
+
+    return [...reserved].map((itemId) => ({ itemId }));
   });
+}
+
+function parsePackageItemIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) =>
+    typeof entry === "object" &&
+    entry !== null &&
+    typeof (entry as { itemId?: unknown }).itemId === "string"
+      ? [(entry as { itemId: string }).itemId]
+      : []
+  );
 }

@@ -2,6 +2,7 @@ import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { PresenceService } from "../../services/presenceService";
 import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
+import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeNearbyDuelOpenCallbackData } from "../callbacks/nearbyDuelCallbackData";
 import { makeShynokBardPerformanceStartCallbackData } from "../callbacks/shynokCallbackData";
 import { presentOnline } from "../presenters/presencePresenter";
@@ -73,6 +74,7 @@ function buildNearbyActionsKeyboard(
 
   if (options.itemGiftEnabled) {
     keyboard.text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData()).row();
+    keyboard.text("📮 Пошта Квестарні", makeItemPostalOpenCallbackData()).row();
     hasActions = true;
   }
 

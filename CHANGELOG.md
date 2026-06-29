@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.13] - 12026-06-29 - Postal Manatka Delivery MVP
+
+### Added
+- Added `📮 Пошта Квестарні`, a paid courier delivery flow for sending a bounded package of eligible manatky to a known recipient without requiring same-location presence.
+- Added postal recipient discovery from completed item-transfer history in either direction, without exposing recipient current location or online status.
+- Added tokenized postal draft/package callbacks under `v1:post:` with add/remove/quantity/confirm controls and Telegram byte-limit parser coverage.
+- Extended `item_transfers` with `transfer_kind`, `package_json` and `delivery_fee_gold` so Safe Gifting and postal delivery replay from explicit stored state.
+- Added repository integration coverage for known-recipient discovery, five-line package acceptance, duplicate accept replay, insufficient sender fee gold and stale-line all-or-nothing rollback.
+
+### Changed
+- Postal packages allow 1 to 5 distinct `itemId` stack types, with 1 to 93 units per selected type, capped by currently owned eligible unreserved quantity.
+- Postal confirm reserves every selected `itemId` through one live `postal:<sender>` reservation key; other item-spending flows now read `package_json` lines as active item-transfer reservations.
+- Delivery fee is charged only when the recipient accepts, in the same transaction as item movement. The internal tested fee formula is `13 + 3 * selected type count + selected unit count`.
+- Shynok/bar and nearby social surfaces expose `📮 Пошта Квестарні` beside existing Safe Gifting.
+
+### Unchanged
+- Existing Safe Gifting remains a one-unit, same-location, explicit-accept flow.
+- No item-for-item trade, player-to-player gold transfer, market, anonymous mailbox, public search, exact-location leak, XP, quest progress, power bonus, party/raid/guild/combat runtime or Mini App work ships here.
+- Postal-specific achievements are deferred until the achievement catalog has explicit postal trigger keys; existing gift achievements are not overloaded.
+
 ## [0.2.12] - 12026-06-29 - Two-Enemy Threat Simulation and Outlier Tuning
 
 ### Added

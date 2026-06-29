@@ -690,6 +690,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE TABLE item_transfers (
       id TEXT PRIMARY KEY,
       token TEXT NOT NULL UNIQUE,
+      transfer_kind TEXT NOT NULL DEFAULT 'gift',
       sender_character_id TEXT NOT NULL,
       receiver_character_id TEXT NOT NULL,
       sender_telegram_user_id BIGINT NOT NULL,
@@ -703,6 +704,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       item_name TEXT NOT NULL,
       item_fingerprint TEXT NOT NULL,
       quantity INTEGER NOT NULL DEFAULT 1,
+      package_json JSONB,
+      delivery_fee_gold INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'pending',
       reservation_key TEXT UNIQUE,
       result_json JSONB,

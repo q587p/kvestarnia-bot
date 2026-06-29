@@ -1,22 +1,35 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { items } from "../content";
 import type { ItemContent } from "../content/schema";
 import type {
   ItemTransferCreateResult,
   ItemTransferRecord,
   ItemTransferRepository,
-  ItemTransferRespondResult
+  ItemTransferRespondResult,
+  ItemPostalConfirmResult,
+  ItemPostalDraftResult,
+  ItemPostalRecipientsResult
 } from "../db/repositories/itemTransferRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   buildItemGiftEligibleStacks,
   createItemGiftSelectionGuard,
   ITEM_GIFT_PAGE_SIZE,
-  type ItemGiftEligibleStack
+  ITEM_POSTAL_DRAFT_TTL_MS,
+  ITEM_POSTAL_MAX_DISTINCT_TYPES,
+  ITEM_POSTAL_MAX_UNITS_PER_TYPE,
+  ITEM_POSTAL_PAGE_SIZE,
+  ITEM_POSTAL_TTL_MS,
+  calculatePostalDeliveryFee,
+  packageLineFromEligibleStack,
+  validatePostalPackageLines,
+  type ItemGiftEligibleStack,
+  type ItemPostalPackageLine
 } from "../domain/itemTransfers";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson, PresenceService } from "./presenceService";
 
 export type ItemGiftCandidatesResult = NearbyDuelCandidatesSnapshot;
+export type ItemPostalRecipientsListResult = ItemPostalRecipientsResult;
 
 export type ItemGiftSelectionResult =
   | { state: "no-character" }
@@ -49,11 +62,52 @@ export type ItemGiftRespondResult =
   | { state: "combat-locked"; transfer: ItemTransferRecord }
   | { state: "location-mismatch"; transfer: ItemTransferRecord }
   | { state: "stale-selection"; transfer: ItemTransferRecord }
+  | { state: "insufficient-gold"; transfer: ItemTransferRecord }
   | { state: "expired"; transfer: ItemTransferRecord; transitioned?: boolean }
   | { state: "declined"; transfer: ItemTransferRecord; transitioned?: boolean }
   | { state: "cancelled"; transfer: ItemTransferRecord; transitioned?: boolean }
   | { state: "completed"; transfer: ItemTransferRecord; sender: CharacterSummary; receiver: CharacterSummary }
   | { state: "replayed"; transfer: ItemTransferRecord; sender: CharacterSummary | null; receiver: CharacterSummary | null };
+
+export type ItemPostalDraftViewResult =
+  | { state: "no-character" }
+  | { state: "invalid-token" }
+  | { state: "not-sender" }
+  | { state: "target-not-found" }
+  | { state: "stale-selection"; transfer?: ItemTransferRecord }
+  | {
+      state: "draft";
+      transfer: ItemTransferRecord;
+      sender: CharacterSummary;
+      receiver: CharacterSummary;
+      items: PresentedGiftItem[];
+      page: number;
+      pageCount: number;
+      packageLines: ItemPostalPackageLine[];
+      deliveryFeeGold: number;
+    };
+
+export type ItemPostalCreateDraftResult =
+  | Exclude<ItemPostalDraftResult, { state: "created" }>
+  | { state: "invalid-token" }
+  | { state: "not-sender" }
+  | { state: "stale-selection"; transfer?: ItemTransferRecord }
+  | Extract<ItemPostalDraftViewResult, { state: "draft" }>;
+
+export type ItemPostalEditResult =
+  | { state: "invalid-quantity"; transfer: ItemTransferRecord }
+  | { state: "package-full"; transfer: ItemTransferRecord }
+  | { state: "duplicate-item"; transfer: ItemTransferRecord }
+  | { state: "stale-selection"; transfer?: ItemTransferRecord }
+  | { state: "invalid-token" }
+  | { state: "not-sender" }
+  | { state: "no-character" }
+  | { state: "target-not-found" }
+  | Extract<ItemPostalDraftViewResult, { state: "draft" }>;
+
+export type ItemPostalConfirmServiceResult =
+  | Exclude<ItemPostalConfirmResult, { state: "created" }>
+  | { state: "created"; transfer: ItemTransferRecord; sender: CharacterSummary; receiver: CharacterSummary };
 
 export interface PresentedGiftItem {
   index: number;
@@ -74,6 +128,182 @@ export class ItemTransferService {
 
   getCandidatesForTelegramUser(telegramUserId: bigint, page = 0): Promise<ItemGiftCandidatesResult> {
     return this.presence.getNearbyDuelCandidatesForTelegramUser(telegramUserId, page);
+  }
+
+  getPostalRecipientsForTelegramUser(telegramUserId: bigint, page = 0): Promise<ItemPostalRecipientsListResult> {
+    return this.transfers.getPostalRecipientsForTelegramUser(telegramUserId, page, ITEM_POSTAL_PAGE_SIZE);
+  }
+
+  async createPostalDraftForTelegramUser(
+    telegramUserId: bigint,
+    receiverTelegramUserId: bigint,
+    page = 0
+  ): Promise<ItemPostalCreateDraftResult> {
+    const now = this.clock();
+    const result = await this.transfers.createPostalDraftForTelegramUser(telegramUserId, {
+      token: createPostalToken(),
+      receiverTelegramUserId,
+      now,
+      expiresAt: new Date(now.getTime() + ITEM_POSTAL_DRAFT_TTL_MS)
+    });
+    if (result.state !== "created") {
+      return result;
+    }
+
+    return this.getPostalDraftForTelegramUser(telegramUserId, result.transfer.token, page);
+  }
+
+  async getPostalDraftForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    page = 0
+  ): Promise<ItemPostalDraftViewResult> {
+    const transfer = await this.transfers.findPostalTransferForTelegramUser(telegramUserId, token);
+    if (!transfer) {
+      return { state: "invalid-token" };
+    }
+    if (transfer.senderTelegramUserId !== telegramUserId) {
+      return { state: "not-sender" };
+    }
+    if (transfer.status !== "draft" || transfer.expiresAt <= this.clock()) {
+      return { state: "stale-selection", transfer };
+    }
+
+    return this.buildPostalDraftView(telegramUserId, transfer, page);
+  }
+
+  async addPostalDraftLineForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    index: number,
+    selectionGuard: string,
+    page = 0
+  ): Promise<ItemPostalEditResult> {
+    const view = await this.getPostalDraftForTelegramUser(telegramUserId, token, page);
+    if (view.state !== "draft") {
+      return view;
+    }
+    if (view.packageLines.length >= ITEM_POSTAL_MAX_DISTINCT_TYPES) {
+      return { state: "package-full", transfer: view.transfer };
+    }
+
+    const eligible = await this.getPostalEligibleStacks(telegramUserId);
+    const selected = selectGiftStackByGuard(eligible, selectionGuard);
+    void index;
+    if (!selected) {
+      return { state: "stale-selection", transfer: view.transfer };
+    }
+    if (view.packageLines.some((line) => line.itemId === selected.itemId)) {
+      return { state: "duplicate-item", transfer: view.transfer };
+    }
+
+    return this.updatePostalDraft(telegramUserId, view.transfer, [
+      ...view.packageLines,
+      packageLineFromEligibleStack(selected, 1)
+    ], page);
+  }
+
+  async changePostalDraftLineQuantityForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    lineIndex: number,
+    quantity: number,
+    page = 0
+  ): Promise<ItemPostalEditResult> {
+    const view = await this.getPostalDraftForTelegramUser(telegramUserId, token, page);
+    if (view.state !== "draft") {
+      return view;
+    }
+    const safeIndex = Math.trunc(lineIndex);
+    const safeQuantity = Math.trunc(quantity);
+    if (
+      !Number.isInteger(safeIndex) ||
+      safeIndex < 0 ||
+      safeIndex >= view.packageLines.length ||
+      !Number.isInteger(safeQuantity) ||
+      safeQuantity < 1 ||
+      safeQuantity > ITEM_POSTAL_MAX_UNITS_PER_TYPE
+    ) {
+      return { state: "invalid-quantity", transfer: view.transfer };
+    }
+
+    const eligible = await this.getPostalEligibleStacks(telegramUserId);
+    const byId = new Map(eligible.map((stack) => [stack.itemId, stack]));
+    const current = byId.get(view.packageLines[safeIndex]!.itemId);
+    if (!current || current.quantity < safeQuantity) {
+      return { state: "stale-selection", transfer: view.transfer };
+    }
+
+    const nextLines = view.packageLines.map((line, index) =>
+      index === safeIndex ? packageLineFromEligibleStack(current, safeQuantity) : line
+    );
+
+    return this.updatePostalDraft(telegramUserId, view.transfer, nextLines, page);
+  }
+
+  async removePostalDraftLineForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    lineIndex: number,
+    page = 0
+  ): Promise<ItemPostalEditResult> {
+    const view = await this.getPostalDraftForTelegramUser(telegramUserId, token, page);
+    if (view.state !== "draft") {
+      return view;
+    }
+    const safeIndex = Math.trunc(lineIndex);
+    if (!Number.isInteger(safeIndex) || safeIndex < 0 || safeIndex >= view.packageLines.length) {
+      return { state: "invalid-quantity", transfer: view.transfer };
+    }
+
+    return this.updatePostalDraft(
+      telegramUserId,
+      view.transfer,
+      view.packageLines.filter((_line, index) => index !== safeIndex),
+      page
+    );
+  }
+
+  async confirmPostalDraftForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<ItemPostalConfirmServiceResult> {
+    const transfer = await this.transfers.findPostalTransferForTelegramUser(telegramUserId, token);
+    if (!transfer) {
+      return { state: "invalid-token" };
+    }
+    if (!validatePostalPackageLines(transfer.packageLines)) {
+      return { state: "stale-selection", transfer };
+    }
+
+    const now = this.clock();
+    const result = await this.transfers.confirmPostalDraftForTelegramUser(telegramUserId, {
+      token,
+      itemContents: items,
+      now,
+      expiresAt: new Date(now.getTime() + ITEM_POSTAL_TTL_MS),
+      result: buildPostalTransferResult("pending", transfer)
+    });
+
+    return mapPostalConfirmResult(result);
+  }
+
+  async acceptPostalForTelegramUser(telegramUserId: bigint, token: string): Promise<ItemGiftRespondResult> {
+    const transfer = await this.transfers.findPostalTransferForTelegramUser(telegramUserId, token);
+    return mapRespondResult(await this.transfers.acceptPostalForTelegramUser(telegramUserId, {
+      token,
+      itemContents: items,
+      now: this.clock(),
+      result: buildPostalTransferResult("completed", transfer)
+    }));
+  }
+
+  async declinePostalForTelegramUser(telegramUserId: bigint, token: string): Promise<ItemGiftRespondResult> {
+    return mapRespondResult(await this.transfers.declinePostalForTelegramUser(telegramUserId, token, this.clock()));
+  }
+
+  async cancelPostalForTelegramUser(telegramUserId: bigint, token: string): Promise<ItemGiftRespondResult> {
+    return mapRespondResult(await this.transfers.cancelPostalForTelegramUser(telegramUserId, token, this.clock()));
   }
 
   async getSelectionForTelegramUser(
@@ -212,6 +442,77 @@ export class ItemTransferService {
     return { state: "stale-selection", transfer };
   }
 
+  private async buildPostalDraftView(
+    telegramUserId: bigint,
+    transfer: ItemTransferRecord,
+    page: number
+  ): Promise<ItemPostalDraftViewResult> {
+    const snapshot = await this.transfers.getSnapshotForTelegramUser(telegramUserId, this.clock());
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+    const eligible = sortEligible(buildItemGiftEligibleStacks({
+      stacks: snapshot.items,
+      equippedItemIds: new Set(snapshot.equippedItemIds),
+      reservedItemIds: new Set(snapshot.reservedItemIds),
+      itemContents: items
+    }));
+    const pageCount = Math.max(1, Math.ceil(eligible.length / ITEM_POSTAL_PAGE_SIZE));
+    const safePage = Math.max(0, Math.min(Math.trunc(page), pageCount - 1));
+    const receiver = {
+      ...snapshot.character,
+      id: transfer.receiverCharacterId,
+      name: transfer.receiverName
+    };
+
+    return {
+      state: "draft",
+      transfer,
+      sender: summarizeCharacter(snapshot.character),
+      receiver: summarizeCharacter(receiver),
+      items: eligible
+        .slice(safePage * ITEM_POSTAL_PAGE_SIZE, (safePage + 1) * ITEM_POSTAL_PAGE_SIZE)
+        .map((item, offset) => presentGiftItem(item, safePage * ITEM_POSTAL_PAGE_SIZE + offset)),
+      page: safePage,
+      pageCount,
+      packageLines: transfer.packageLines,
+      deliveryFeeGold: calculatePostalDeliveryFee(transfer.packageLines)
+    };
+  }
+
+  private async getPostalEligibleStacks(telegramUserId: bigint): Promise<ItemGiftEligibleStack[]> {
+    const snapshot = await this.transfers.getSnapshotForTelegramUser(telegramUserId, this.clock());
+    if (!snapshot) {
+      return [];
+    }
+
+    return sortEligible(buildItemGiftEligibleStacks({
+      stacks: snapshot.items,
+      equippedItemIds: new Set(snapshot.equippedItemIds),
+      reservedItemIds: new Set(snapshot.reservedItemIds),
+      itemContents: items
+    }));
+  }
+
+  private async updatePostalDraft(
+    telegramUserId: bigint,
+    transfer: ItemTransferRecord,
+    packageLines: ItemPostalPackageLine[],
+    page: number
+  ): Promise<ItemPostalEditResult> {
+    const updated = await this.transfers.updatePostalDraftForTelegramUser(telegramUserId, {
+      token: transfer.token,
+      packageLines,
+      deliveryFeeGold: calculatePostalDeliveryFee(packageLines),
+      now: this.clock()
+    });
+    if (updated.state !== "updated") {
+      return updated;
+    }
+
+    return this.getPostalDraftForTelegramUser(telegramUserId, updated.transfer.token, page);
+  }
+
   private async findTarget(
     telegramUserId: bigint,
     targetTelegramUserId: bigint,
@@ -295,6 +596,19 @@ function mapRespondResult(result: ItemTransferRespondResult): ItemGiftRespondRes
   return result;
 }
 
+function mapPostalConfirmResult(result: ItemPostalConfirmResult): ItemPostalConfirmServiceResult {
+  if (result.state !== "created") {
+    return result;
+  }
+
+  return {
+    state: "created",
+    transfer: result.transfer,
+    sender: summarizeCharacter(result.sender),
+    receiver: summarizeCharacter(result.receiver)
+  };
+}
+
 function buildTransferResult(status: string, transfer: ItemTransferRecord | null) {
   return {
     kind: "item-gift",
@@ -305,4 +619,26 @@ function buildTransferResult(status: string, transfer: ItemTransferRecord | null
     senderTelegramUserId: transfer?.senderTelegramUserId?.toString() ?? null,
     receiverTelegramUserId: transfer?.receiverTelegramUserId?.toString() ?? null
   };
+}
+
+function buildPostalTransferResult(status: string, transfer: ItemTransferRecord | null) {
+  return {
+    kind: "postal-delivery",
+    status,
+    packageLines: transfer?.packageLines.map((line) => ({
+      itemId: line.itemId,
+      itemName: line.itemName,
+      quantity: line.quantity,
+      itemFingerprint: line.itemFingerprint,
+      observedQuantity: line.observedQuantity,
+      tags: line.tags
+    })) ?? [],
+    deliveryFeeGold: transfer?.deliveryFeeGold ?? 0,
+    senderTelegramUserId: transfer?.senderTelegramUserId?.toString() ?? null,
+    receiverTelegramUserId: transfer?.receiverTelegramUserId?.toString() ?? null
+  };
+}
+
+function createPostalToken(): string {
+  return randomBytes(16).toString("base64url");
 }

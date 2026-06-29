@@ -30,7 +30,8 @@ const shynokActionRows = [
     { text: "🍻 Якісне всім", callback_data: "v1:sh:rp:fine" }
   ],
   [{ text: "💰 Продати манатки", callback_data: "v1:sh:so" }],
-  [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }]
+  [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }],
+  [{ text: "📮 Пошта Квестарні", callback_data: "v1:post:open" }]
 ];
 
 describe("tavern command screens", () => {

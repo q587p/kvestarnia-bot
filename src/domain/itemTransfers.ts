@@ -5,6 +5,11 @@ import { isProtectedMantokChestItem } from "./mantokChest";
 export const ITEM_GIFT_PAGE_SIZE = 5;
 export const ITEM_GIFT_QUANTITY = 1;
 export const ITEM_GIFT_SELECTION_GUARD_LENGTH = 12;
+export const ITEM_POSTAL_MAX_DISTINCT_TYPES = 5;
+export const ITEM_POSTAL_MAX_UNITS_PER_TYPE = 93;
+export const ITEM_POSTAL_PAGE_SIZE = 5;
+export const ITEM_POSTAL_TTL_MS = 23 * 60 * 1000;
+export const ITEM_POSTAL_DRAFT_TTL_MS = 13 * 60 * 1000;
 
 export interface ItemGiftStackInput {
   itemId: string;
@@ -17,6 +22,16 @@ export interface ItemGiftEligibleStack {
   content: ItemContent;
   unitGoldValue: number;
   fingerprint: string;
+}
+
+export interface ItemPostalPackageLine {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  itemFingerprint: string;
+  unitGoldValue: number;
+  observedQuantity: number;
+  tags: string[];
 }
 
 export function isItemTransferBlockedByTags(item: ItemContent): boolean {
@@ -60,6 +75,57 @@ export function buildItemGiftEligibleStacks(input: {
       fingerprint: createItemGiftFingerprint(content)
     }];
   });
+}
+
+export function calculatePostalDeliveryFee(lines: readonly Pick<ItemPostalPackageLine, "quantity">[]): number {
+  const typeCount = lines.length;
+  const unitCount = lines.reduce((sum, line) => sum + Math.max(0, Math.floor(line.quantity)), 0);
+
+  return typeCount > 0 ? 13 + typeCount * 3 + unitCount : 0;
+}
+
+export function validatePostalPackageLines(lines: readonly Pick<ItemPostalPackageLine, "itemId" | "quantity">[]): boolean {
+  if (lines.length < 1 || lines.length > ITEM_POSTAL_MAX_DISTINCT_TYPES) {
+    return false;
+  }
+
+  const seen = new Set<string>();
+  for (const line of lines) {
+    if (seen.has(line.itemId)) {
+      return false;
+    }
+    seen.add(line.itemId);
+
+    if (
+      !Number.isInteger(line.quantity) ||
+      line.quantity < 1 ||
+      line.quantity > ITEM_POSTAL_MAX_UNITS_PER_TYPE
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function packageLineFromEligibleStack(
+  stack: ItemGiftEligibleStack,
+  quantity: number
+): ItemPostalPackageLine {
+  const safeQuantity = Math.max(
+    1,
+    Math.min(ITEM_POSTAL_MAX_UNITS_PER_TYPE, Math.floor(quantity), stack.quantity)
+  );
+
+  return {
+    itemId: stack.itemId,
+    itemName: stack.content.name,
+    quantity: safeQuantity,
+    itemFingerprint: stack.fingerprint,
+    unitGoldValue: stack.unitGoldValue,
+    observedQuantity: stack.quantity,
+    tags: [...(stack.content.tags ?? [])].sort()
+  };
 }
 
 export function selectGiftStackByIndex(

@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
+import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeDescentSearchStartCallbackData } from "../callbacks/passageSearchCallbackData";
@@ -148,6 +149,7 @@ export function buildKorchmaBarKeyboard(
     .row()
     .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
+  keyboard.text("📮 Пошта Квестарні", makeItemPostalOpenCallbackData()).row();
 
   if (options.bardPerformance) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();

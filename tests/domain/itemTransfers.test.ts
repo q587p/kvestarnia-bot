@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildItemGiftEligibleStacks,
+  calculatePostalDeliveryFee,
   createItemGiftFingerprint,
+  packageLineFromEligibleStack,
+  validatePostalPackageLines,
   selectGiftStackByIndex
 } from "../../src/domain/itemTransfers";
 import type { ItemContent } from "../../src/content/schema";
@@ -90,6 +93,29 @@ describe("item gift eligibility", () => {
 
     expect(selectGiftStackByIndex(eligible, 0)?.itemId).toBe(giftable.id);
     expect(selectGiftStackByIndex(eligible, 1)).toBeNull();
+  });
+
+  it("enforces postal package caps and fee formula", () => {
+    const eligible = buildItemGiftEligibleStacks({
+      stacks: [{ itemId: giftable.id, quantity: 100 }],
+      itemContents: [giftable]
+    });
+    const line = packageLineFromEligibleStack(eligible[0]!, 93);
+
+    expect(line).toMatchObject({ itemId: giftable.id, quantity: 93, observedQuantity: 100 });
+    expect(validatePostalPackageLines([line])).toBe(true);
+    expect(validatePostalPackageLines([{ ...line, quantity: 0 }])).toBe(false);
+    expect(validatePostalPackageLines([{ ...line, quantity: 94 }])).toBe(false);
+    expect(validatePostalPackageLines([line, { ...line }])).toBe(false);
+    expect(validatePostalPackageLines([
+      line,
+      { ...line, itemId: "item.2" },
+      { ...line, itemId: "item.3" },
+      { ...line, itemId: "item.4" },
+      { ...line, itemId: "item.5" },
+      { ...line, itemId: "item.6" }
+    ])).toBe(false);
+    expect(calculatePostalDeliveryFee([{ quantity: 93 }])).toBe(109);
   });
 });
 
