@@ -581,7 +581,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
     token: string,
     now: Date
   ): Promise<ItemTransferRespondResult> {
-    return this.respondByStatus(telegramUserId, token, "cancelled", now, "sender", "postal");
+    return this.respondByStatus(telegramUserId, token, "cancelled", now, "sender", "postal", ["draft", "pending"]);
   }
 
   async declinePostalForTelegramUser(
@@ -755,7 +755,8 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
     status: "cancelled" | "declined",
     now: Date,
     actor: "sender" | "recipient",
-    transferKind: ItemTransferKind = "gift"
+    transferKind: ItemTransferKind = "gift",
+    expectedStatuses: readonly string[] = ["pending"]
   ): Promise<ItemTransferRespondResult> {
     return this.prisma.$transaction(async (tx) => {
       const character = await findCharacter(tx, telegramUserId);
@@ -787,7 +788,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         return guardedTerminalResult(tx, transfer.id, "expired", now, { kind: "expired" }, "pending");
       }
 
-      return guardedTerminalResult(tx, transfer.id, status, now, { kind: status }, "pending");
+      return guardedTerminalResult(tx, transfer.id, status, now, { kind: status }, expectedStatuses);
     });
   }
 }
@@ -1088,7 +1089,7 @@ async function replayIfTerminal(
   tx: TxClient,
   transfer: ItemTransferRecord
 ): Promise<ItemTransferRespondResult | null> {
-  if (transfer.status === "pending" || transfer.status === "processing") {
+  if (transfer.status === "draft" || transfer.status === "pending" || transfer.status === "processing") {
     return null;
   }
 
@@ -1109,7 +1110,7 @@ async function guardedTerminalResult(
   status: "declined" | "expired" | "cancelled",
   now: Date,
   result: unknown,
-  expectedStatus: string
+  expectedStatus: string | readonly string[]
 ): Promise<ItemTransferRespondResult> {
   const transition = await setTransferStatus(tx, transferId, status, now, result, expectedStatus);
   if (transition.changed) {
@@ -1162,7 +1163,7 @@ async function setTransferStatus(
   status: "completed" | "declined" | "expired" | "cancelled",
   now: Date,
   result: unknown,
-  expectedStatus?: string
+  expectedStatus?: string | readonly string[]
 ): Promise<{ transfer: ItemTransferRecord; changed: boolean }> {
   const data = {
     status,
@@ -1173,8 +1174,9 @@ async function setTransferStatus(
   };
 
   if (expectedStatus) {
+    const expectedStatuses = typeof expectedStatus === "string" ? [expectedStatus] : Array.from(expectedStatus);
     const changed = await tx.itemTransfer.updateMany({
-      where: { id: transferId, status: expectedStatus },
+      where: { id: transferId, status: { in: expectedStatuses } },
       data
     });
 

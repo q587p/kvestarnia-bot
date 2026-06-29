@@ -589,6 +589,90 @@ describe("PrismaItemTransferRepository integration", () => {
     await expectItemQuantity("receiver", postalItems[1]!.id, 0);
   });
 
+  it("lets the sender cancel a postal draft without moving items or charging the fee", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created", transfer: { status: "draft" } });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      packageLines: [packageLine(postalItems[0]!, 2)],
+      deliveryFeeGold: 18,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ transferKind: "postal", status: "draft" });
+
+    const cancelled = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    expect(cancelled).toMatchObject({
+      state: "cancelled",
+      transitioned: true,
+      transfer: { status: "cancelled" }
+    });
+
+    const row = await prisma.itemTransfer.findUniqueOrThrow({ where: { token: "postal-token-1" } });
+    expect(row).toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      resultJson: { kind: "cancelled" }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 100 });
+    await expectItemQuantity("sender", postalItems[0]!.id, 5);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+
+    const replay = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    expect(replay).toMatchObject({ state: "cancelled", transfer: { status: "cancelled" } });
+    expect(replay).not.toHaveProperty("transitioned");
+  });
+
+  it("keeps postal draft cancellation sender-only", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedCompletedRelationship();
+
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created", transfer: { status: "draft" } });
+
+    await expect(repository.cancelPostalForTelegramUser(2n, "postal-token-1", now()))
+      .resolves.toMatchObject({ state: "not-sender" });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "draft", reservationKey: null });
+  });
+
+  it("still lets the sender cancel a pending postal package and releases the live reservation", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+    await createPostal([packageLine(postalItems[0]!, 2)]);
+
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "pending", reservationKey: "postal:sender" });
+
+    const cancelled = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    expect(cancelled).toMatchObject({ state: "cancelled", transitioned: true });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "cancelled", reservationKey: null });
+
+    const replay = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    expect(replay).toMatchObject({ state: "cancelled", transfer: { status: "cancelled" } });
+    expect(replay).not.toHaveProperty("transitioned");
+    await expectItemQuantity("sender", postalItems[0]!.id, 5);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+  });
+
   function createGift(token = "gift-token-1", expiresAt = future()) {
     return repository.createGiftForTelegramUser(1n, {
       token,
