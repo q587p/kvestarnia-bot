@@ -97,6 +97,54 @@ describe("online command", () => {
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:gift:open");
   });
 
+  it("shows live party invite action above the nearby duel action", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: "location.korchma.bar",
+            name: "Шинок",
+            people: {
+              active: [
+                { telegramUserId: 42n, name: "Тестовий Герой", status: "active" },
+                { telegramUserId: 93n, name: "Сусідній Дуеліст", status: "active" }
+              ],
+              idle: [],
+              total: 2
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+
+    await sendOnline(ctx, presenceService, {
+      duelEnabled: true,
+      partySessions: {
+        getLiveRecruitingByTelegramUser: () => Promise.resolve({ id: "party-1" })
+      } as never
+    });
+
+    expect(replies).toHaveLength(1);
+    expect(inlineButtonTexts(replies[0]?.options)).toEqual([
+      "🧭 Покликати у ватагу",
+      "🥊 Кинути виклик присутнім"
+    ]);
+  });
+
   it("does not show the Bard performance button to non-Bards nearby", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {
@@ -185,3 +233,10 @@ describe("online command", () => {
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:nd:open");
   });
 });
+
+function inlineButtonTexts(options: unknown): string[] {
+  return (
+    (options as { reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> } })
+      .reply_markup?.inline_keyboard ?? []
+  ).flatMap((row) => row.map((button) => button.text));
+}

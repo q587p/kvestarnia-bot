@@ -21,13 +21,6 @@ export function buildNearbyDuelCandidatesKeyboard(
   const keyboard = new InlineKeyboard();
 
   for (const candidate of snapshot.visible) {
-    keyboard
-      .text(
-        `⚔️ ${formatCandidateButton(candidate)}`,
-        makeNearbyDuelSelectCallbackData(candidate.telegramUserId, snapshot.page)
-      )
-      .row();
-
     if (options.partyInviteEnabled) {
       keyboard
         .text(
@@ -36,6 +29,13 @@ export function buildNearbyDuelCandidatesKeyboard(
         )
         .row();
     }
+
+    keyboard
+      .text(
+        `⚔️ ${formatCandidateButton(candidate)}`,
+        makeNearbyDuelSelectCallbackData(candidate.telegramUserId, snapshot.page)
+      )
+      .row();
   }
 
   if (snapshot.totalPages > 1) {

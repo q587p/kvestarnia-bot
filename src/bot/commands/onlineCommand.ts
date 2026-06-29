@@ -64,13 +64,13 @@ async function buildNearbyActionsKeyboard(
   const keyboard = new InlineKeyboard();
   let hasActions = false;
 
-  if (options.duelEnabled) {
-    keyboard.text("🥊 Кинути виклик присутнім", makeNearbyDuelOpenCallbackData()).row();
+  if (await hasLiveParty(options.partySessions, telegramUserId)) {
+    keyboard.text("🧭 Покликати у ватагу", makeNearbyDuelOpenCallbackData()).row();
     hasActions = true;
   }
 
-  if (await hasLiveParty(options.partySessions, telegramUserId)) {
-    keyboard.text("🧭 Покликати у ватагу", makeNearbyDuelOpenCallbackData()).row();
+  if (options.duelEnabled) {
+    keyboard.text("🥊 Кинути виклик присутнім", makeNearbyDuelOpenCallbackData()).row();
     hasActions = true;
   }
 
