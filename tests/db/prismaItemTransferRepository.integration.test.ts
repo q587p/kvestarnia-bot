@@ -623,6 +623,49 @@ describe("PrismaItemTransferRepository integration", () => {
     }
   });
 
+  it("lets postal packages send explicit trade-blocked bandages", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    await seedItem("sender", 2, bandage.id);
+
+    await repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      packageLines: [packageLine(bandage, 2)],
+      deliveryFeeGold: 0,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
+
+    const confirmed = await repository.confirmPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      itemContents: [bandage],
+      now: now(),
+      expiresAt: future(),
+      result: { kind: "postal-test-bandage-pending" }
+    });
+    expect(confirmed.state).toBe("created");
+    await expectItemQuantity("sender", bandage.id, 0);
+    await expectItemQuantity("receiver", bandage.id, 0);
+
+    const accepted = await repository.acceptPostalForTelegramUser(2n, {
+      token: "postal-token-1",
+      itemContents: [bandage],
+      now: now(),
+      result: { kind: "postal-test-bandage-accepted" }
+    });
+
+    expect(accepted.state).toBe("completed");
+    await expectItemQuantity("sender", bandage.id, 0);
+    await expectItemQuantity("receiver", bandage.id, 2);
+  });
+
   it("does not create a pending postal package when sender lacks gold at confirmation", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");

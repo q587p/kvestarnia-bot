@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildItemGiftEligibleStacks,
+  buildItemPostalEligibleStacks,
   calculatePostalDeliveryFee,
   createItemGiftFingerprint,
   packageLineFromEligibleStack,
@@ -76,6 +77,25 @@ describe("item gift eligibility", () => {
     });
 
     expect(eligible.map((stack) => stack.itemId)).toEqual([giftable.id]);
+  });
+
+  it("allows explicit postal packages to include owned blocked or priceless stacks", () => {
+    const eligible = buildItemPostalEligibleStacks({
+      stacks: [
+        { itemId: giftable.id, quantity: 1 },
+        { itemId: tradeBlocked.id, quantity: 2 },
+        { itemId: soulbound.id, quantity: 3 },
+        { itemId: priceless.id, quantity: 4 }
+      ],
+      itemContents: [giftable, tradeBlocked, soulbound, priceless]
+    });
+
+    expect(eligible.map((stack) => [stack.itemId, stack.quantity])).toEqual([
+      [giftable.id, 1],
+      [tradeBlocked.id, 2],
+      [soulbound.id, 3],
+      [priceless.id, 4]
+    ]);
   });
 
   it("includes transfer tags in the gift fingerprint so tag edits stale old selections", () => {

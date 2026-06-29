@@ -2,6 +2,7 @@ import { Prisma, type Character, type CharacterItem, type ItemTransfer, type Pri
 import type { ItemContent } from "../../content/schema";
 import {
   buildItemGiftEligibleStacks,
+  buildItemPostalEligibleStacks,
   calculatePostalDeliveryFee,
   createItemGiftFingerprint
 } from "../../domain/itemTransfers";
@@ -1216,7 +1217,7 @@ async function validatePostalPackage(
     getEquippedItemIds(tx, senderCharacterId),
     getReservedItemIds(tx, senderCharacterId, now, exceptTransferId)
   ]);
-  const eligible = buildItemGiftEligibleStacks({
+  const eligible = buildItemPostalEligibleStacks({
     stacks: items,
     equippedItemIds: new Set(equipment),
     reservedItemIds: new Set(reservedItemIds),

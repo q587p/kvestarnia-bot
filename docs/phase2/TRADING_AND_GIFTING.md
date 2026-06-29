@@ -12,11 +12,11 @@ Trading/gifting should arrive after duel invites prove that Квестарня c
 
 ## Eligibility
 
+Safe Gifting and future barter remain conservative. Postal delivery is a manual courier package: once the sender explicitly selects a stack, it may include owned non-equipped non-reserved manatky that other automatic sinks or one-unit gifts would skip, such as one-use bandages or trade-blocked keepsakes.
+
 Do not allow:
 
 - equipped items;
-- priceless/story/protected items;
-- apology keepsakes;
 - items involved in another pending transfer;
 - items involved in a future live mail/delivery reservation;
 - items whose stack changed after preview without a new confirmation.
@@ -56,7 +56,7 @@ item_transfers
 ## Acceptance criteria
 
 - Sender cannot transfer an item they no longer own.
-- Equipped/protected/priceless items are rejected.
+- Equipped or reserved items are rejected; postal packages may include protected/priceless/story/tag-blocked stacks only when they are explicitly selected by the sender.
 - Accept/confirm is transactional and idempotent.
 - Audit payload can explain what moved.
 - Tests cover stale preview, repeated confirm, declined/expired transfer and concurrent transfer attempts.

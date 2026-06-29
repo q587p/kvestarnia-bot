@@ -13,6 +13,7 @@ import type {
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   buildItemGiftEligibleStacks,
+  buildItemPostalEligibleStacks,
   createItemGiftSelectionGuard,
   ITEM_GIFT_PAGE_SIZE,
   ITEM_POSTAL_DRAFT_TTL_MS,
@@ -329,7 +330,7 @@ export class ItemTransferService {
       return { state: "no-character" };
     }
 
-    const eligible = sortEligible(buildItemGiftEligibleStacks({
+    const eligible = sortEligible(buildItemPostalEligibleStacks({
       stacks: snapshot.items,
       equippedItemIds: new Set(snapshot.equippedItemIds),
       reservedItemIds: new Set(snapshot.reservedItemIds),
@@ -494,7 +495,7 @@ export class ItemTransferService {
       return [];
     }
 
-    return sortEligible(buildItemGiftEligibleStacks({
+    return sortEligible(buildItemPostalEligibleStacks({
       stacks: snapshot.items,
       equippedItemIds: new Set(snapshot.equippedItemIds),
       reservedItemIds: new Set(snapshot.reservedItemIds),

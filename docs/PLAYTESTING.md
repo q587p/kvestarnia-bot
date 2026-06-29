@@ -17,11 +17,12 @@ Use two accounts with at least one completed accepted item-transfer relationship
 7. Confirm as sender; verify the delivery fee is charged immediately and selected quantities leave the sender inventory for postal custody. Accept as recipient; verify every line moves exactly once and neither player is charged again.
 8. Decline, cancel and expire a pending package; verify canonical state and that postal-custody items return to the sender once.
 9. Replay accept, decline, cancel and old draft buttons; verify canonical state and no duplicate notices or item movement.
-10. Try equipped, protected/story, trade-blocked/soulbound, reserved, drifted and missing stacks; verify stale rejection without partial delivery.
-11. Lower sender gold below the fee before confirmation; verify the package is not sent, no item moves and no fee is charged.
-12. Reopen `📮 Пошта Квестарні`; verify known recipients, packages in transit and completed history appear without current location or online-status details, and pagination works once enough rows exist.
-13. Verify nearby `🎁 Подарувати манатку` still works as the old one-unit same-location gift flow.
-14. Remort sender or recipient around a pending delivery if convenient; verify stale/replay behavior and no hidden transfer.
+10. Send a bandage or other trade-blocked/one-use stack explicitly; verify it can be packaged, leaves inventory on confirm and delivers on accept.
+11. Try equipped, reserved, drifted and missing stacks; verify stale rejection without partial delivery.
+12. Lower sender gold below the fee before confirmation; verify the package is not sent, no item moves and no fee is charged.
+13. Reopen `📮 Пошта Квестарні`; verify known recipients, packages in transit and completed history appear without current location or online-status details, and pagination works once enough rows exist.
+14. Verify nearby `🎁 Подарувати манатку` still works as the old one-unit same-location gift flow.
+15. Remort sender or recipient around a pending delivery if convenient; verify stale/replay behavior and no hidden transfer.
 
 ## 0.2.12 — Two-Enemy Threat Simulation and Outlier Tuning smoke
 

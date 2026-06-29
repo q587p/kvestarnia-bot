@@ -77,6 +77,39 @@ export function buildItemGiftEligibleStacks(input: {
   });
 }
 
+export function buildItemPostalEligibleStacks(input: {
+  stacks: readonly ItemGiftStackInput[];
+  equippedItemIds?: ReadonlySet<string>;
+  reservedItemIds?: ReadonlySet<string>;
+  itemContents: readonly ItemContent[];
+}): ItemGiftEligibleStack[] {
+  const contentById = new Map(input.itemContents.map((item) => [item.id, item]));
+  const equippedItemIds = input.equippedItemIds ?? new Set<string>();
+  const reservedItemIds = input.reservedItemIds ?? new Set<string>();
+
+  return input.stacks.flatMap((stack) => {
+    const quantity = Math.max(0, Math.floor(stack.quantity));
+    const content = contentById.get(stack.itemId);
+
+    if (
+      !content ||
+      quantity < ITEM_GIFT_QUANTITY ||
+      equippedItemIds.has(stack.itemId) ||
+      reservedItemIds.has(stack.itemId)
+    ) {
+      return [];
+    }
+
+    return [{
+      itemId: stack.itemId,
+      quantity,
+      content,
+      unitGoldValue: Math.max(0, Math.floor(content.goldValue ?? 0)),
+      fingerprint: createItemGiftFingerprint(content)
+    }];
+  });
+}
+
 export function calculatePostalDeliveryFee(lines: readonly Pick<ItemPostalPackageLine, "quantity">[]): number {
   const typeCount = lines.length;
 
