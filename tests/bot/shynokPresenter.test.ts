@@ -59,6 +59,14 @@ describe("shynokPresenter", () => {
     );
   });
 
+  it("explains that wrong-place Shynok actions wait at the bar", () => {
+    const html = presentShynokGate({ state: "wrong-place" });
+
+    expect(html).toContain("Кухоль чекає в Шинку");
+    expect(html).toContain("дасть випити");
+    expect(html).not.toContain("несвіжий");
+  });
+
   it("omits character identity headers from the shynok overview", () => {
     const result: ShynokOverviewResult = {
       state: "ready",
