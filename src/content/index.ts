@@ -16,6 +16,12 @@ export type {
   AchievementTriggerType
 } from "./achievements";
 export {
+  cosmeticTitles,
+  resolveActiveCosmeticTitleLabel,
+  validateCosmeticTitleDefinitions
+} from "./cosmeticTitles";
+export type { CosmeticTitleDefinition } from "./cosmeticTitles";
+export {
   classIdToKey,
   classKeyToId,
   findClass,
