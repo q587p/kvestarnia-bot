@@ -96,6 +96,48 @@ describe("PrismaPartySessionRepository integration", () => {
     })).toEqual({ activeLeaderKey: null });
   });
 
+  it("replays cancelled state for duplicate leader cancel buttons", async () => {
+    await seedCharacter(prisma, "leader-six-user", 6001n, "Скасовувачка");
+    await repository.createForTelegramUser(6001n, partyInput("party-token-h"));
+
+    const cancelled = await repository.cancelByTokenForTelegramUser(6001n, "party-token-h", now());
+    const duplicate = await repository.cancelByTokenForTelegramUser(6001n, "party-token-h", now());
+
+    expect(cancelled.state).toBe("cancelled");
+    expect(duplicate.state).toBe("cancelled");
+    expect("session" in duplicate ? duplicate.session.status : null).toBe("cancelled");
+    expect("session" in duplicate ? duplicate.session.activeLeaderKey : "missing").toBeNull();
+  });
+
+  it("replays cancelled state for stale leave buttons after leader cancellation", async () => {
+    await seedCharacter(prisma, "leader-seven-user", 7001n, "Очільниця");
+    await seedCharacter(prisma, "joiner-seven-user", 7002n, "Стара Кнопка");
+    await repository.createForTelegramUser(7001n, partyInput("party-token-i"));
+    await repository.joinByTokenForTelegramUser(7002n, "party-token-i", joinInput());
+
+    const cancelled = await repository.cancelByTokenForTelegramUser(7001n, "party-token-i", now());
+    const staleLeave = await repository.leaveByTokenForTelegramUser(7002n, "party-token-i", now());
+
+    expect(cancelled.state).toBe("cancelled");
+    expect(staleLeave.state).toBe("cancelled");
+    expect("session" in staleLeave ? staleLeave.session.status : null).toBe("cancelled");
+  });
+
+  it("replays cancelled state after last participant leave cancels the session", async () => {
+    await seedCharacter(prisma, "leader-eight-user", 8001n, "Остання");
+    await repository.createForTelegramUser(8001n, partyInput("party-token-j"));
+
+    const cancelled = await repository.leaveByTokenForTelegramUser(8001n, "party-token-j", now());
+    const duplicateLeave = await repository.leaveByTokenForTelegramUser(8001n, "party-token-j", now());
+    const duplicateCancel = await repository.cancelByTokenForTelegramUser(8001n, "party-token-j", now());
+
+    expect(cancelled.state).toBe("cancelled");
+    expect(duplicateLeave.state).toBe("cancelled");
+    expect(duplicateCancel.state).toBe("cancelled");
+    expect("session" in duplicateLeave ? duplicateLeave.session.status : null).toBe("cancelled");
+    expect("session" in duplicateCancel ? duplicateCancel.session.status : null).toBe("cancelled");
+  });
+
   it("expires recruiting sessions and clears live membership keys", async () => {
     await seedCharacter(prisma, "leader-four-user", 4001n, "Годинникар");
     await repository.createForTelegramUser(4001n, {
@@ -117,6 +159,23 @@ describe("PrismaPartySessionRepository integration", () => {
         activeMembershipKey: true
       }
     })).toEqual({ activeMembershipKey: null });
+  });
+
+  it("replays expired state for stale leave and cancel buttons", async () => {
+    await seedCharacter(prisma, "leader-nine-user", 9001n, "Протермінована");
+    await repository.createForTelegramUser(9001n, {
+      ...partyInput("party-token-k"),
+      expiresAt: new Date("2026-06-29T14:59:00.000Z"),
+      joinUntilAt: new Date("2026-06-29T14:59:00.000Z")
+    });
+
+    const staleLeave = await repository.leaveByTokenForTelegramUser(9001n, "party-token-k", now());
+    const staleCancel = await repository.cancelByTokenForTelegramUser(9001n, "party-token-k", now());
+
+    expect(staleLeave.state).toBe("expired");
+    expect(staleCancel.state).toBe("expired");
+    expect("session" in staleLeave ? staleLeave.session.status : null).toBe("expired");
+    expect("session" in staleCancel ? staleCancel.session.status : null).toBe("expired");
   });
 
   it("force-expires live recruiting sessions before natural expiry and replays terminal state", async () => {

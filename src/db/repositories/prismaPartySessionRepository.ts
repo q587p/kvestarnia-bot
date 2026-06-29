@@ -274,8 +274,9 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "not-found" };
       }
 
-      if (session.status === "expired") {
-        return { state: "expired", session: mapSession(session) };
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(session) };
       }
 
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
@@ -346,8 +347,9 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "not-found" };
       }
 
-      if (session.status === "expired") {
-        return { state: "expired", session: mapSession(session) };
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(session) };
       }
 
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
@@ -699,6 +701,11 @@ function snapshotCharacter(character: CharacterRow): Prisma.InputJsonObject {
     classId: character.classId,
     remortCount: character._count.remorts
   };
+}
+
+function getTerminalReplayState(row: PartySessionRow): "cancelled" | "expired" | null {
+  const status = parseStatus(row.status);
+  return status === "cancelled" || status === "expired" ? status : null;
 }
 
 function parseStatus(value: string): PartySessionStatus {
