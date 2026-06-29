@@ -75,7 +75,7 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<i>Шинок</i>");
     expect(text).not.toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).not.toContain("<i>Льох</i>");
-    expect(text).not.toContain("<i>Дошка вістей</i>");
+    expect(text).not.toContain("<i>Дошка корчми</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
     expect(text).toContain(
@@ -438,8 +438,8 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>спуск до Низу</i>");
     expect(text).toContain("<i>льох</i>");
-    expect(text).toContain("<i>льох</i>.\n\nБіля дверей висить <i>дошка вістей</i>");
-    expect(text).toContain("<i>дошка вістей</i>");
+    expect(text).toContain("<i>льох</i>.\n\nБіля дверей висить <i>дошка корчми</i>");
+    expect(text).toContain("<i>дошка корчми</i>");
     expect(text).toContain("<i>надвір</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("<b>Мандрівник</b>, куди йдемо?");
@@ -498,8 +498,8 @@ describe("tavern presenter", () => {
   it("shows the news board as a small service location", () => {
     const text = presentKorchmaNewsCorner(character);
 
-    expect(text).toContain("📰 Дошка вістей");
-    expect(text).toContain("<i>дошка вістей</i>");
+    expect(text).toContain("📰 Дошка корчми");
+    expect(text).toContain("<i>дошка корчми</i>");
     expect(text).toContain("глянути вісти Квестарні");
     expect(text).toContain("передати пакунок через пошту");
     expect(text).toContain("Що дивимося?");

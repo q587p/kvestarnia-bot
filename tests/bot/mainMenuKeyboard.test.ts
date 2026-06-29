@@ -225,7 +225,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "📰 Дошка вістей",
+      "📰 Дошка корчми",
       "🐭 Льох",
       "🚪 Надвір",
       "🪜 Спуск до Низу"
@@ -246,7 +246,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "📰 Дошка вістей",
+      "📰 Дошка корчми",
       "🐭 Льох",
       "🚪 Надвір",
       "🪜 Спуск до Низу"
@@ -277,7 +277,7 @@ describe("main menu and scene keyboards", () => {
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
       ["🛢️ Бочка", "🍻 Шинок"],
-      ["📰 Дошка вістей", "🐭 Льох"],
+      ["📰 Дошка корчми", "🐭 Льох"],
       ["🚪 Надвір", "🪜 Спуск до Низу"]
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([

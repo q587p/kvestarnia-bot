@@ -714,7 +714,7 @@ export function getPublicPresenceLocation(
   if (id === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER) {
     return {
       locationId: id,
-      title: "Дошка вістей",
+      title: "Дошка корчми",
       regionName: "Корчма Квестарні",
       showNames: true,
       isSpecific: true

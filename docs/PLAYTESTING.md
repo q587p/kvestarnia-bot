@@ -8,7 +8,7 @@
 
 Use two accounts with at least one completed accepted item-transfer relationship. Local seeded inventory is acceptable for quantity and stale-state checks.
 
-1. Open `📰 Дошка вістей`; verify it shows a location card with `📰 Вісти`, `🎁 Подарувати манатку` and `📮 Пошта Квестарні`, while `🍻 Шинок` no longer shows gift or postal buttons.
+1. Open `📰 Дошка корчми`; verify it shows a location card with `📰 Вісти`, `🎁 Подарувати манатку` and `📮 Пошта Квестарні`, while `🍻 Шинок` no longer shows gift or postal buttons. From `📰 Вісти`, verify `⬅️ Назад` returns to `📰 Дошка корчми`.
 2. Open `📮 Пошта Квестарні` as sender while the recipient is not nearby; verify recipients appear as known after accepted gift, accepted/finished duel, or explicit Bard applause/tip history without current location or online-status details.
 3. Select one eligible manatka type with quantity 1; verify the draft names the recipient, item, quantity, exact visible delivery fee and simple fee formula.
 4. Build a package with five distinct eligible manatka types, including one quantity above 1 and one quantity 93 if local data can create the stack.

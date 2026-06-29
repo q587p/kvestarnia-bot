@@ -19,8 +19,8 @@ describe("news presenter", () => {
     expect(page.text).toContain("- <b>0.0.3 — 12026-06-12 — Рейд на бочку</b>");
     expect(page.text).toContain("Архів");
     expect(page.keyboard).toBeDefined();
-    expect(flatInlineButtonTexts(page.keyboard)).toContain("⬅️ До зали");
-    expect(flatInlineButtonCallbacks(page.keyboard)).toContain("v1:place:hall");
+    expect(flatInlineButtonTexts(page.keyboard)).toContain("⬅️ Назад");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain("v1:place:news-corner");
   });
 
   it("shows a selected archived entry with a back button", () => {
@@ -29,8 +29,8 @@ describe("news presenter", () => {
     expect(page.text).toContain("<b>0.0.3 — 12026-06-12 — Рейд на бочку</b>");
     expect(page.text).toContain("https://t.me/kvestarnia");
     expect(page.keyboard).toBeDefined();
-    expect(flatInlineButtonTexts(page.keyboard)).toContain("⬅️ До зали");
-    expect(flatInlineButtonCallbacks(page.keyboard)).toContain("v1:place:hall");
+    expect(flatInlineButtonTexts(page.keyboard)).toContain("⬅️ Назад");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain("v1:place:news-corner");
   });
 
   it("returns raid-opened news back to the raid", () => {

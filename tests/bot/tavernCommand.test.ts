@@ -279,7 +279,7 @@ describe("tavern command screens", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("📰 Дошка вістей");
+    expect(replies[0]?.text).toContain("📰 Дошка корчми");
     expect(replies[0]?.text).toContain("можна глянути вісти Квестарні");
     expect(replies[0]?.text).toContain("передати пакунок через пошту");
     expect(replies[0]?.options).toMatchObject({

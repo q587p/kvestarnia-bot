@@ -123,7 +123,7 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
     .row();
 
   keyboard
-    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
+    .text("📰 Дошка корчми", makePlaceCallbackData("news-corner"))
     .text("🐭 Льох", makePlaceCallbackData("cellar"))
     .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));

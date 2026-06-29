@@ -136,7 +136,7 @@ function buildNewsEntryKeyboard(
 function addReturnButton(keyboard: InlineKeyboard, source: NewsCallbackSource): InlineKeyboard {
   return source === "raid"
     ? keyboard.text("⬅️ До рейду", makeTavernCallbackData("raid"))
-    : keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
+    : keyboard.text("⬅️ Назад", makePlaceCallbackData("news-corner"));
 }
 
 function clamp(value: number, min: number, max: number): number {
