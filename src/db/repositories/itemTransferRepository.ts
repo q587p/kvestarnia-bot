@@ -41,6 +41,27 @@ export interface ItemPostalRecipient {
   activeCosmeticTitle?: string;
 }
 
+export interface ItemPostalTransferSummary {
+  token: string;
+  status: ItemTransferStatus;
+  direction: "incoming" | "outgoing";
+  otherName: string;
+  packageLines: ItemPostalPackageLine[];
+  deliveryFeeGold: number;
+  expiresAt: Date;
+  completedAt: Date | null;
+  respondedAt: Date | null;
+  updatedAt: Date;
+}
+
+export interface ItemPostalTransferPage {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  visible: ItemPostalTransferSummary[];
+}
+
 export interface ItemTransferSnapshot {
   character: CharacterRecord;
   items: CharacterItemRecord[];
@@ -90,7 +111,16 @@ export type ItemTransferCreateResult =
 
 export type ItemPostalRecipientsResult =
   | { state: "no-character" }
-  | { state: "ready"; page: number; pageSize: number; total: number; totalPages: number; visible: ItemPostalRecipient[] };
+  | {
+      state: "ready";
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      visible: ItemPostalRecipient[];
+      inTransit: ItemPostalTransferPage;
+      history: ItemPostalTransferPage;
+    };
 
 export type ItemPostalDraftResult =
   | { state: "no-character" }
@@ -110,6 +140,7 @@ export type ItemPostalConfirmResult =
   | { state: "invalid-token" }
   | { state: "not-sender" }
   | { state: "combat-locked"; transfer: ItemTransferRecord }
+  | { state: "insufficient-gold"; transfer: ItemTransferRecord }
   | { state: "stale-selection"; transfer: ItemTransferRecord }
   | { state: "created"; transfer: ItemTransferRecord; sender: CharacterRecord; receiver: CharacterRecord };
 
@@ -138,7 +169,8 @@ export interface ItemTransferRepository {
   getPostalRecipientsForTelegramUser(
     telegramUserId: bigint,
     page: number,
-    pageSize: number
+    pageSize: number,
+    pages?: { inTransitPage?: number; historyPage?: number }
   ): Promise<ItemPostalRecipientsResult>;
   createPostalDraftForTelegramUser(
     senderTelegramUserId: bigint,

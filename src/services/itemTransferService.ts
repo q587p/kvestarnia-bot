@@ -30,6 +30,7 @@ import type { NearbyDuelCandidatesSnapshot, PresencePerson, PresenceService } fr
 
 export type ItemGiftCandidatesResult = NearbyDuelCandidatesSnapshot;
 export type ItemPostalRecipientsListResult = ItemPostalRecipientsResult;
+export type ItemPostalOpenSection = "recipients" | "transit" | "history";
 
 export type ItemGiftSelectionResult =
   | { state: "no-character" }
@@ -130,8 +131,15 @@ export class ItemTransferService {
     return this.presence.getNearbyDuelCandidatesForTelegramUser(telegramUserId, page);
   }
 
-  getPostalRecipientsForTelegramUser(telegramUserId: bigint, page = 0): Promise<ItemPostalRecipientsListResult> {
-    return this.transfers.getPostalRecipientsForTelegramUser(telegramUserId, page, ITEM_POSTAL_PAGE_SIZE);
+  getPostalRecipientsForTelegramUser(
+    telegramUserId: bigint,
+    page = 0,
+    section: ItemPostalOpenSection = "recipients"
+  ): Promise<ItemPostalRecipientsListResult> {
+    return this.transfers.getPostalRecipientsForTelegramUser(telegramUserId, section === "recipients" ? page : 0, ITEM_POSTAL_PAGE_SIZE, {
+      inTransitPage: section === "transit" ? page : 0,
+      historyPage: section === "history" ? page : 0
+    });
   }
 
   async createPostalDraftForTelegramUser(

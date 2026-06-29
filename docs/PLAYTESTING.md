@@ -9,15 +9,16 @@
 Use two accounts with at least one completed accepted item-transfer relationship. Local seeded inventory is acceptable for quantity and stale-state checks.
 
 1. Open `📮 Пошта Квестарні` as sender while the recipient is not nearby; verify recipients appear as known after accepted gift, accepted/finished duel, or explicit Bard applause/tip history without current location or online-status details.
-2. Select one eligible manatka type with quantity 1; verify the draft names the recipient, item, quantity and exact visible delivery fee.
+2. Select one eligible manatka type with quantity 1; verify the draft names the recipient, item, quantity, exact visible delivery fee and simple fee formula.
 3. Build a package with five distinct eligible manatka types, including one quantity above 1 and one quantity 93 if local data can create the stack.
 4. Try adding a sixth type; verify the UI blocks it before confirmation.
 5. Try quantity 0, 94 and quantity above the owned stack through stale/old buttons or local state edits; verify no mutation.
 6. Confirm the package and verify the recipient notice shows the full package summary and explicit accept/decline controls.
-7. Accept as recipient; verify every line moves exactly once and sender pays the delivery fee once.
+7. Confirm as sender; verify the delivery fee is charged immediately. Accept as recipient; verify every line moves exactly once and neither player is charged again.
 8. Replay accept, decline, cancel and old draft buttons; verify canonical state and no duplicate notices or item movement.
 9. Try equipped, protected/story, trade-blocked/soulbound, reserved, drifted and missing stacks; verify stale rejection.
-10. Lower sender gold below the fee before recipient acceptance; verify no item moves and no fee is charged.
+10. Lower sender gold below the fee before confirmation; verify the package is not sent, no item moves and no fee is charged.
+11. Reopen `📮 Пошта Квестарні`; verify known recipients, packages in transit and completed history appear without current location or online-status details, and pagination works once enough rows exist.
 11. Verify nearby `🎁 Подарувати манатку` still works as the old one-unit same-location gift flow.
 12. Remort sender or recipient around a pending delivery if convenient; verify stale/replay behavior and no hidden transfer.
 

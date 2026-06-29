@@ -8,8 +8,8 @@ export const ITEM_GIFT_SELECTION_GUARD_LENGTH = 12;
 export const ITEM_POSTAL_MAX_DISTINCT_TYPES = 5;
 export const ITEM_POSTAL_MAX_UNITS_PER_TYPE = 93;
 export const ITEM_POSTAL_PAGE_SIZE = 5;
-export const ITEM_POSTAL_TTL_MS = 23 * 60 * 1000;
-export const ITEM_POSTAL_DRAFT_TTL_MS = 13 * 60 * 1000;
+export const ITEM_POSTAL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const ITEM_POSTAL_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface ItemGiftStackInput {
   itemId: string;
@@ -79,9 +79,8 @@ export function buildItemGiftEligibleStacks(input: {
 
 export function calculatePostalDeliveryFee(lines: readonly Pick<ItemPostalPackageLine, "quantity">[]): number {
   const typeCount = lines.length;
-  const unitCount = lines.reduce((sum, line) => sum + Math.max(0, Math.floor(line.quantity)), 0);
 
-  return typeCount > 0 ? 13 + typeCount * 3 + unitCount : 0;
+  return typeCount > 0 ? 5 + typeCount : 0;
 }
 
 export function validatePostalPackageLines(lines: readonly Pick<ItemPostalPackageLine, "itemId" | "quantity">[]): boolean {

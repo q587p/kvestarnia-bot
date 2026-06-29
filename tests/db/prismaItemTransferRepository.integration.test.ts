@@ -563,7 +563,7 @@ describe("PrismaItemTransferRepository integration", () => {
     })).resolves.toMatchObject({ state: "target-not-found" });
   });
 
-  it("moves a five-type postal package once and charges the sender fee at acceptance", async () => {
+  it("charges the sender fee at postal confirmation and moves a five-type package once", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
     await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
@@ -574,6 +574,21 @@ describe("PrismaItemTransferRepository integration", () => {
     const lines = postalItems.map((content, index) => packageLine(content, index + 1));
 
     await createPostal(lines);
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 90 });
+    await expect(repository.getPostalRecipientsForTelegramUser(1n, 0, 5)).resolves.toMatchObject({
+      state: "ready",
+      inTransit: {
+        total: 1,
+        visible: [expect.objectContaining({ direction: "outgoing", otherName: "Отримувач", deliveryFeeGold: 10 })]
+      }
+    });
+    await expect(repository.getPostalRecipientsForTelegramUser(2n, 0, 5)).resolves.toMatchObject({
+      state: "ready",
+      inTransit: {
+        total: 1,
+        visible: [expect.objectContaining({ direction: "incoming", otherName: "Дарувальник", deliveryFeeGold: 10 })]
+      }
+    });
     const accepted = await repository.acceptPostalForTelegramUser(2n, {
       token: "postal-token-1",
       itemContents: postalItems,
@@ -589,14 +604,21 @@ describe("PrismaItemTransferRepository integration", () => {
     });
     expect(replay.state).toBe("replayed");
 
-    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 57 });
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 90 });
+    await expect(repository.getPostalRecipientsForTelegramUser(1n, 0, 5, { historyPage: 0 })).resolves.toMatchObject({
+      state: "ready",
+      history: {
+        total: 1,
+        visible: [expect.objectContaining({ direction: "outgoing", otherName: "Отримувач", deliveryFeeGold: 10 })]
+      }
+    });
     for (const [index, content] of postalItems.entries()) {
       await expectItemQuantity("sender", content.id, 93 - (index + 1));
       await expectItemQuantity("receiver", content.id, index + 1);
     }
   });
 
-  it("does not move any postal line or charge fee when sender lacks gold at acceptance", async () => {
+  it("does not create a pending postal package when sender lacks gold at confirmation", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
     await prisma.character.update({ where: { id: "sender" }, data: { gold: 1 } });
@@ -605,17 +627,31 @@ describe("PrismaItemTransferRepository integration", () => {
       await seedItem("sender", 5, content.id);
     }
     const lines = postalItems.slice(0, 2).map((content) => packageLine(content, 2));
-    await createPostal(lines);
+    await repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      packageLines: lines,
+      deliveryFeeGold: 0,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
 
-    const accepted = await repository.acceptPostalForTelegramUser(2n, {
+    const confirmed = await repository.confirmPostalDraftForTelegramUser(1n, {
       token: "postal-token-1",
       itemContents: postalItems,
       now: now(),
+      expiresAt: future(),
       result: { kind: "postal-test-no-gold" }
     });
 
-    expect(accepted.state).toBe("insufficient-gold");
+    expect(confirmed.state).toBe("insufficient-gold");
     await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 1 });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "draft", reservationKey: null });
     for (const content of postalItems.slice(0, 2)) {
       await expectItemQuantity("sender", content.id, 5);
       await expectItemQuantity("receiver", content.id, 0);
@@ -645,7 +681,7 @@ describe("PrismaItemTransferRepository integration", () => {
     });
 
     expect(accepted.state).toBe("stale-selection");
-    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 100 });
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 93 });
     await expectItemQuantity("sender", postalItems[0]!.id, 3);
     await expectItemQuantity("sender", postalItems[1]!.id, 1);
     await expectItemQuantity("receiver", postalItems[0]!.id, 0);
@@ -668,7 +704,7 @@ describe("PrismaItemTransferRepository integration", () => {
     await expect(repository.updatePostalDraftForTelegramUser(1n, {
       token: "postal-token-1",
       packageLines: [packageLine(postalItems[0]!, 2)],
-      deliveryFeeGold: 18,
+      deliveryFeeGold: 6,
       now: now()
     })).resolves.toMatchObject({ state: "updated" });
     await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
@@ -732,6 +768,7 @@ describe("PrismaItemTransferRepository integration", () => {
     const replay = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
     expect(replay).toMatchObject({ state: "cancelled", transfer: { status: "cancelled" } });
     expect(replay).not.toHaveProperty("transitioned");
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 4 });
     await expectItemQuantity("sender", postalItems[0]!.id, 5);
     await expectItemQuantity("receiver", postalItems[0]!.id, 0);
   });

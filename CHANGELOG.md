@@ -14,12 +14,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added postal recipient discovery from completed item-transfer history, accepted duel history and explicit Bard performance reactions in either direction, without exposing recipient current location or online status.
 - Added tokenized postal draft/package callbacks under `v1:post:` with add/remove/quantity/confirm controls and Telegram byte-limit parser coverage.
 - Extended `item_transfers` with `transfer_kind`, `package_json` and `delivery_fee_gold` so Safe Gifting and postal delivery replay from explicit stored state.
-- Added repository integration coverage for known-recipient discovery, five-line package acceptance, duplicate accept replay, insufficient sender fee gold and stale-line all-or-nothing rollback.
+- Added repository integration coverage for known-recipient discovery, five-line package acceptance, duplicate accept replay, insufficient sender fee gold at confirmation, in-transit/history overview rows and stale-line all-or-nothing rollback.
+- Added keyboard coverage for contextual postal quantity controls so dead `×1`/internal-max buttons do not appear.
 
 ### Changed
 - Postal packages allow 1 to 5 distinct `itemId` stack types, with 1 to 93 units per selected type, capped by currently owned eligible unreserved quantity.
 - Postal confirm reserves every selected `itemId` through one live `postal:<sender>` reservation key; other item-spending flows now read `package_json` lines as active item-transfer reservations.
-- Delivery fee is charged from the sender only when the recipient accepts, in the same transaction as item movement. The internal tested fee formula is `13 + 3 * selected type count + selected unit count`.
+- Delivery fee is charged from the sender immediately at confirmation/send time; if the sender lacks gold, the package stays a draft and is not sent. The internal tested fee formula is `5 + selected type count`, so package size by unit count does not inflate postage.
+- Pending postal packages now use a one-week response window, and the postal overview includes packages in transit plus completed history with pagination.
 - Shynok/bar and nearby social surfaces expose `📮 Пошта Квестарні` beside existing Safe Gifting.
 - Adventure Choice, starter shawarma and cellar mouse method-choice cards now show only compact method names up front, with qualitative risk/chance details moved behind a `💡 Підказка` callback that does not complete the scene; the detail screens italicize the explanatory lines and replace the hint button with `⬅️ Назад`. Daily Korchma round action scenes now also list the local actions in the compact card and show optional action descriptions behind `💡 Підказка` / `⬅️ Назад`. The cellar mouse start also splits the intro scene from the action card, the Korchma hall no longer repeats the title header before asking where to go, onboarding completion combines the created-title note with `🍺 Квестарня відчинена.` while suppressing the redundant outdoor movement notice, and the front-door Munchkin paragraph/button stays hidden until level 3.
 - Active cosmetic title labels now resolve from an explicit short-title catalog instead of reusing full achievement names, with validation for coverage, duplicates, length, punctuation and reward/power wording.

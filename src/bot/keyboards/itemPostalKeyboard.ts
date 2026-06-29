@@ -3,8 +3,10 @@ import type {
   ItemGiftRespondResult,
   ItemPostalConfirmServiceResult,
   ItemPostalDraftViewResult,
+  ItemPostalOpenSection,
   ItemPostalRecipientsListResult
 } from "../../services/itemTransferService";
+import { ITEM_POSTAL_MAX_UNITS_PER_TYPE } from "../../domain/itemTransfers";
 import {
   makeItemPostalAcceptCallbackData,
   makeItemPostalAddCallbackData,
@@ -28,6 +30,21 @@ export function buildItemPostalOpenKeyboard(): InlineKeyboard {
 export function buildItemPostalRecipientsKeyboard(result: ItemPostalRecipientsListResult): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (result.state === "ready") {
+    for (const transfer of result.inTransit.visible) {
+      if (transfer.direction === "incoming") {
+        keyboard
+          .text(`📮 Прийняти від ${buttonName(transfer.otherName)}`, makeItemPostalAcceptCallbackData(transfer.token))
+          .row()
+          .text("Ні, дякую", makeItemPostalDeclineCallbackData(transfer.token))
+          .row();
+      } else {
+        keyboard
+          .text(`🧹 Скасувати до ${buttonName(transfer.otherName)}`, makeItemPostalCancelCallbackData(transfer.token))
+          .row();
+      }
+    }
+    addSectionPagination(keyboard, result.inTransit, "transit");
+
     for (const recipient of result.visible) {
       keyboard.text(`📮 ${buttonName(recipient.name)}`, makeItemPostalRecipientCallbackData(recipient.telegramUserId, result.page)).row();
     }
@@ -41,6 +58,7 @@ export function buildItemPostalRecipientsKeyboard(result: ItemPostalRecipientsLi
       }
       keyboard.row();
     }
+    addSectionPagination(keyboard, result.history, "history");
     keyboard.text("🔎 Оновити", makeItemPostalOpenCallbackData(result.page)).row();
   }
 
@@ -54,11 +72,7 @@ export function buildItemPostalDraftKeyboard(result: ItemPostalDraftViewResult):
 
   const keyboard = new InlineKeyboard();
   result.packageLines.forEach((line, index) => {
-    keyboard.text("➖", makeItemPostalQuantityCallbackData(result.transfer.token, index, Math.max(1, line.quantity - 1), result.page));
-    keyboard.text(`×${line.quantity}`, makeItemPostalQuantityCallbackData(result.transfer.token, index, line.quantity, result.page));
-    keyboard.text("➕", makeItemPostalQuantityCallbackData(result.transfer.token, index, Math.min(93, line.quantity + 1), result.page));
-    keyboard.text("93", makeItemPostalQuantityCallbackData(result.transfer.token, index, 93, result.page));
-    keyboard.text("🧹", makeItemPostalRemoveCallbackData(result.transfer.token, index, result.page)).row();
+    addQuantityButtons(keyboard, result, line, index);
   });
 
   for (const item of result.items) {
@@ -121,4 +135,52 @@ function buttonName(name: string): string {
   return name.length <= MAX_BUTTON_NAME_LENGTH
     ? name
     : `${name.slice(0, MAX_BUTTON_NAME_LENGTH - 1)}…`;
+}
+
+function addQuantityButtons(
+  keyboard: InlineKeyboard,
+  result: Extract<ItemPostalDraftViewResult, { state: "draft" }>,
+  line: Extract<ItemPostalDraftViewResult, { state: "draft" }>["packageLines"][number],
+  index: number
+): void {
+  if (line.quantity <= 1) {
+    keyboard.text("➖", makeItemPostalRemoveCallbackData(result.transfer.token, index, result.page));
+  } else {
+    keyboard.text("-1", makeItemPostalQuantityCallbackData(result.transfer.token, index, line.quantity - 1, result.page));
+    for (const step of [5, 10, 50]) {
+      if (line.quantity > step) {
+        keyboard.text(`-${step}`, makeItemPostalQuantityCallbackData(result.transfer.token, index, line.quantity - step, result.page));
+      }
+    }
+  }
+
+  const maxAvailable = Math.min(ITEM_POSTAL_MAX_UNITS_PER_TYPE, line.observedQuantity);
+  if (line.quantity < maxAvailable) {
+    keyboard.text("+1", makeItemPostalQuantityCallbackData(result.transfer.token, index, line.quantity + 1, result.page));
+    for (const step of [5, 10, 50]) {
+      if (line.quantity + step <= maxAvailable) {
+        keyboard.text(`+${step}`, makeItemPostalQuantityCallbackData(result.transfer.token, index, line.quantity + step, result.page));
+      }
+    }
+  }
+  keyboard.row();
+}
+
+function addSectionPagination(
+  keyboard: InlineKeyboard,
+  page: { page: number; totalPages: number },
+  section: Exclude<ItemPostalOpenSection, "recipients">
+): void {
+  if (page.totalPages <= 1) {
+    return;
+  }
+
+  if (page.page > 0) {
+    keyboard.text("◀️", makeItemPostalOpenCallbackData(page.page - 1, section));
+  }
+  keyboard.text(`${page.page + 1}/${page.totalPages}`, makeItemPostalOpenCallbackData(page.page, section));
+  if (page.page + 1 < page.totalPages) {
+    keyboard.text("▶️", makeItemPostalOpenCallbackData(page.page + 1, section));
+  }
+  keyboard.row();
 }

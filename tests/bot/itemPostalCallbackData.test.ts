@@ -12,7 +12,15 @@ describe("item postal callback data", () => {
   it("round-trips compact postal callbacks", () => {
     expect(parseItemPostalCallbackData(makeItemPostalOpenCallbackData())).toEqual({
       ok: true,
-      value: { type: "open", page: 0 }
+      value: { type: "open", page: 0, section: "recipients" }
+    });
+    expect(parseItemPostalCallbackData(makeItemPostalOpenCallbackData(2, "transit"))).toEqual({
+      ok: true,
+      value: { type: "open", page: 2, section: "transit" }
+    });
+    expect(parseItemPostalCallbackData(makeItemPostalOpenCallbackData(3, "history"))).toEqual({
+      ok: true,
+      value: { type: "open", page: 3, section: "history" }
     });
     expect(parseItemPostalCallbackData(makeItemPostalRecipientCallbackData(42n, 2))).toEqual({
       ok: true,

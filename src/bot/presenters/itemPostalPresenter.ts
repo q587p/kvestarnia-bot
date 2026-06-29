@@ -13,23 +13,33 @@ export function presentItemPostalRecipients(result: ItemPostalRecipientsListResu
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Пошта не носить туман туманові.";
   }
-  if (result.total === 0) {
-    return [
-      "📮 <b>Пошта Квестарні</b>",
-      "",
-      "Поки немає знайомих отримувачів. Пошта показує лише тих, із ким у вас уже була явна соціяльна дія: подарунок манатки, дуель або реакція на виступ."
-    ].join("\n");
-  }
-
   const lines = [
     "📮 <b>Пошта Квестарні</b>",
     "",
-    "Кому надіслати пакунок:",
-    "",
-    ...result.visible.map((recipient) => `— ${presentCharacterDisplayName(recipient, { boldName: false })} · рівень ${recipient.level}`)
+    ...presentTransferPage("В дорозі:", result.inTransit, "transit")
   ];
-  if (result.totalPages > 1) {
-    lines.push("", `Сторінка ${result.page + 1}/${result.totalPages}`);
+  if (result.inTransit.total > 0) {
+    lines.push("");
+  }
+
+  if (result.total === 0) {
+    lines.push(
+      "Кому надіслати пакунок:",
+      "Поки немає знайомих отримувачів. Пошта показує лише тих, із ким у вас уже була явна соціяльна дія: подарунок манатки, дуель або реакція на виступ."
+    );
+  } else {
+    lines.push(
+      "Кому надіслати пакунок:",
+      ...result.visible.map((recipient) => `— ${presentCharacterDisplayName(recipient, { boldName: false })} · рівень ${recipient.level}`)
+    );
+    if (result.totalPages > 1) {
+      lines.push(`Сторінка отримувачів ${result.page + 1}/${result.totalPages}`);
+    }
+  }
+
+  const historyLines = presentTransferPage("Історія:", result.history, "history");
+  if (historyLines.length > 0) {
+    lines.push("", ...historyLines);
   }
 
   return lines.join("\n");
@@ -54,8 +64,10 @@ export function presentItemPostalDraft(result: ItemPostalDraftViewResult | ItemP
     ...packageLines,
     "",
     `Плата за дорогу з відправника: <b>${result.deliveryFeeGold} золота</b>`,
+    "Формула проста: 5 за дорогу + 1 за кожен різний тип манатки.",
     `Строк: до <b>${formatPostalExpiry(result.transfer.expiresAt)}</b> за Києвом.`,
-    "Отримувач має явно прийняти пакунок. Золото не переходить іншому гравцеві й не знімається з отримувача.",
+    "Плата списується одразу при відправленні, якщо золота вистачає. Отримувач має явно прийняти пакунок.",
+    "Золото не переходить іншому гравцеві й не знімається з отримувача.",
     "",
     "Додати манатку:",
     ...itemLines
@@ -78,7 +90,7 @@ export function presentItemPostalConfirm(result: ItemPostalConfirmServiceResult)
     `Кому: <b>${escapeHtml(result.receiver.name)}</b>`,
     ...presentPackageLines(result.transfer),
     "",
-    `Плата з відправника при прийнятті: <b>${result.transfer.deliveryFeeGold} золота</b>`,
+    `Плату вже списано з відправника: <b>${result.transfer.deliveryFeeGold} золота</b>`,
     `Строк: до <b>${formatPostalExpiry(result.transfer.expiresAt)}</b> за Києвом.`,
     "Манатки зарезервовані до відповіді, скасування або завершення строку."
   ].join("\n");
@@ -92,7 +104,7 @@ export function presentItemPostalNotification(result: Extract<ItemPostalConfirmS
     ...presentPackageLines(result.transfer),
     "",
     `Строк: до <b>${formatPostalExpiry(result.transfer.expiresAt)}</b> за Києвом.`,
-    `Плату за дорогу сплачує відправник: <b>${result.transfer.deliveryFeeGold} золота</b>. З вас золото не знімається.`,
+    `Плату за дорогу вже сплатив відправник: <b>${result.transfer.deliveryFeeGold} золота</b>. З вас золото не знімається.`,
     "Це доставка, не продаж. Прийміть явно або відхиліть."
   ].join("\n");
 }
@@ -140,6 +152,43 @@ function presentPackageLines(transfer: { packageLines: Array<{ itemName: string;
   return transfer.packageLines.map((line) => `Манатка: <b>${escapeHtml(line.itemName)}</b> ×${line.quantity}`);
 }
 
+function presentTransferPage(
+  title: string,
+  page: Extract<ItemPostalRecipientsListResult, { state: "ready" }>["inTransit"],
+  kind: "transit" | "history"
+): string[] {
+  if (page.total === 0) {
+    return [];
+  }
+
+  const lines = [
+    title,
+    ...page.visible.map((transfer) => {
+      const direction = transfer.direction === "incoming" ? "від" : "до";
+      const packageText = summarizePackageLines(transfer.packageLines);
+      const dateText = kind === "transit"
+        ? `до ${formatPostalExpiry(transfer.expiresAt)}`
+        : formatPostalExpiry(transfer.completedAt ?? transfer.respondedAt ?? transfer.updatedAt);
+      return `— ${direction} <b>${escapeHtml(transfer.otherName)}</b>: ${packageText} · ${dateText}`;
+    })
+  ];
+  if (page.totalPages > 1) {
+    lines.push(`Сторінка ${page.page + 1}/${page.totalPages}`);
+  }
+
+  return lines;
+}
+
+function summarizePackageLines(lines: Array<{ itemName: string; quantity: number }>): string {
+  const [first, ...rest] = lines;
+  if (!first) {
+    return "порожній запис";
+  }
+
+  const suffix = rest.length > 0 ? ` + ще ${rest.length}` : "";
+  return `${escapeHtml(first.itemName)} ×${first.quantity}${suffix}`;
+}
+
 function formatPostalExpiry(expiresAt: Date): string {
   return new Intl.DateTimeFormat("uk-UA", {
     timeZone: "Europe/Kyiv",
@@ -159,9 +208,9 @@ function presentPostalFailure(state: string, transfer?: { deliveryFeeGold?: numb
     case "duplicate-item":
       return "📮 Цей тип манатки вже є в пакунку. Змініть кількість у рядку.";
     case "invalid-quantity":
-      return "📮 Кількість має бути від 1 до 93 для кожного типу.";
+      return "📮 Кількість у рядку не підходить для цієї пачки.";
     case "insufficient-gold":
-      return `📮 У відправника бракує золота на дорогу${transfer?.deliveryFeeGold ? `: потрібно ${transfer.deliveryFeeGold}` : ""}. Манатки не рухались.`;
+      return `📮 У відправника бракує золота на дорогу${transfer?.deliveryFeeGold ? `: потрібно ${transfer.deliveryFeeGold}` : ""}. Пакунок не відправлено.`;
     case "combat-locked":
       return "📮 Поки хтось у бою, гонець удає статую.";
     case "stale-selection":
@@ -178,4 +227,12 @@ function presentPostalFailure(state: string, transfer?: { deliveryFeeGold?: numb
     default:
       return "📮 Пошта не знайшла цей пакунок або вже віддала його в легенди.";
   }
+}
+
+export function presentItemPostalCallbackNotice(result: ItemPostalDraftViewResult | ItemPostalCreateDraftResult | ItemPostalEditResult): string {
+  if (result.state === "draft") {
+    return "Пакунок оновлено.";
+  }
+
+  return presentPostalFailure(result.state, "transfer" in result ? result.transfer : undefined).replace(/^📮\s*/u, "");
 }

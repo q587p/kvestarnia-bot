@@ -15,7 +15,9 @@ describe("item postal presenter", () => {
       pageSize: 5,
       total: 1,
       totalPages: 1,
-      visible: [{ telegramUserId: 2n, name: "Дара", level: 4 }]
+      visible: [{ telegramUserId: 2n, name: "Дара", level: 4 }],
+      inTransit: emptyTransferPage(),
+      history: emptyTransferPage()
     });
 
     expect(text).toContain("📮 <b>Пошта Квестарні</b>");
@@ -32,7 +34,9 @@ describe("item postal presenter", () => {
       pageSize: 5,
       total: 0,
       totalPages: 0,
-      visible: []
+      visible: [],
+      inTransit: emptyTransferPage(),
+      history: emptyTransferPage()
     });
 
     expect(text).toContain("подарунок манатки, дуель або реакція на виступ");
@@ -63,7 +67,7 @@ describe("item postal presenter", () => {
       page: 0,
       pageCount: 1,
       packageLines: transfer("draft").packageLines,
-      deliveryFeeGold: 18
+      deliveryFeeGold: 6
     };
     const confirmed: ItemPostalConfirmServiceResult = {
       state: "created",
@@ -73,15 +77,70 @@ describe("item postal presenter", () => {
     };
 
     expect(presentItemPostalDraft(draft)).toContain("Ложка &lt;бантом&gt;");
-    expect(presentItemPostalDraft(draft)).toContain("Плата за дорогу з відправника: <b>18 золота</b>");
+    expect(presentItemPostalDraft(draft)).toContain("Плата за дорогу з відправника: <b>6 золота</b>");
+    expect(presentItemPostalDraft(draft)).toContain("5 за дорогу + 1 за кожен різний тип манатки");
+    expect(presentItemPostalDraft(draft)).toContain("списується одразу при відправленні");
     expect(presentItemPostalDraft(draft)).toContain("не знімається з отримувача");
     expect(presentItemPostalNotification(confirmed)).toContain("Дарувальник &lt;&amp;&gt;");
-    expect(presentItemPostalNotification(confirmed)).toContain("Плату за дорогу сплачує відправник: <b>18 золота</b>");
+    expect(presentItemPostalNotification(confirmed)).toContain("Плату за дорогу вже сплатив відправник: <b>6 золота</b>");
     expect(presentItemPostalNotification(confirmed)).toContain("З вас золото не знімається");
     expect(presentItemPostalRespond({ state: "replayed", transfer: transfer("completed"), sender: null, receiver: null }))
       .toContain("Пакунок уже записано");
     expect(presentItemPostalRespond({ state: "replayed", transfer: transfer("completed"), sender: null, receiver: null }))
-      .toContain("Плата з відправника: <b>18 золота</b>");
+      .toContain("Плата з відправника: <b>6 золота</b>");
+  });
+
+  it("shows in-transit and history packages on the postal overview", () => {
+    const text = presentItemPostalRecipients({
+      state: "ready",
+      page: 0,
+      pageSize: 5,
+      total: 0,
+      totalPages: 1,
+      visible: [],
+      inTransit: {
+        page: 0,
+        pageSize: 5,
+        total: 1,
+        totalPages: 1,
+        visible: [{
+          token: "incoming-token",
+          status: "pending",
+          direction: "incoming",
+          otherName: "Дара <&>",
+          packageLines: transfer("pending").packageLines,
+          deliveryFeeGold: 6,
+          expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+          completedAt: null,
+          respondedAt: null,
+          updatedAt: new Date("2026-06-24T10:00:00.000Z")
+        }]
+      },
+      history: {
+        page: 1,
+        pageSize: 5,
+        total: 6,
+        totalPages: 2,
+        visible: [{
+          token: "history-token",
+          status: "completed",
+          direction: "outgoing",
+          otherName: "Борис",
+          packageLines: transfer("completed").packageLines,
+          deliveryFeeGold: 6,
+          expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+          completedAt: new Date("2026-06-24T10:00:00.000Z"),
+          respondedAt: null,
+          updatedAt: new Date("2026-06-24T10:00:00.000Z")
+        }]
+      }
+    });
+
+    expect(text).toContain("В дорозі:");
+    expect(text).toContain("від <b>Дара &lt;&amp;&gt;</b>");
+    expect(text).toContain("Історія:");
+    expect(text).toContain("до <b>Борис</b>");
+    expect(text).toContain("Сторінка 2/2");
   });
 });
 
@@ -136,7 +195,7 @@ function transfer(status: "draft" | "pending" | "completed") {
       observedQuantity: 2,
       tags: []
     }],
-    deliveryFeeGold: 18,
+    deliveryFeeGold: 6,
     status,
     result: null,
     expiresAt: new Date("2026-06-24T10:23:00.000Z"),
@@ -144,5 +203,15 @@ function transfer(status: "draft" | "pending" | "completed") {
     respondedAt: null,
     createdAt: new Date("2026-06-24T10:00:00.000Z"),
     updatedAt: new Date("2026-06-24T10:00:00.000Z")
+  };
+}
+
+function emptyTransferPage() {
+  return {
+    page: 0,
+    pageSize: 5,
+    total: 0,
+    totalPages: 1,
+    visible: []
   };
 }

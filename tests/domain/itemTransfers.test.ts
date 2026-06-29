@@ -115,7 +115,12 @@ describe("item gift eligibility", () => {
       { ...line, itemId: "item.5" },
       { ...line, itemId: "item.6" }
     ])).toBe(false);
-    expect(calculatePostalDeliveryFee([{ quantity: 93 }])).toBe(109);
+    expect(calculatePostalDeliveryFee([{ quantity: 93 }])).toBe(6);
+    expect(calculatePostalDeliveryFee([
+      { quantity: 1 },
+      { quantity: 93 },
+      { quantity: 42 }
+    ])).toBe(8);
   });
 });
 

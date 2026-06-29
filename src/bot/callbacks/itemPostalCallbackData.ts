@@ -2,7 +2,7 @@ import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type ItemPostalCallback =
-  | { type: "open"; page: number }
+  | { type: "open"; page: number; section: ItemPostalOpenSection }
   | { type: "recipient"; receiverTelegramUserId: bigint; page: number }
   | { type: "page"; token: string; page: number }
   | { type: "add"; token: string; page: number; index: number; selectionGuard: string }
@@ -12,6 +12,8 @@ export type ItemPostalCallback =
   | { type: "accept"; token: string }
   | { type: "decline"; token: string }
   | { type: "cancel"; token: string };
+
+export type ItemPostalOpenSection = "recipients" | "transit" | "history";
 
 export type ItemPostalCallbackError =
   | "invalid-version"
@@ -30,8 +32,12 @@ const tokenPattern = /^[0-9A-Za-z_-]{8,32}$/;
 const base36Pattern = /^[0-9a-z]{1,13}$/;
 const selectionGuardPattern = /^[0-9A-Za-z_-]{8,16}$/;
 
-export function makeItemPostalOpenCallbackData(page = 0): string {
-  return page === 0 ? `${PREFIX}:open` : `${PREFIX}:o:${page.toString(36)}`;
+export function makeItemPostalOpenCallbackData(page = 0, section: ItemPostalOpenSection = "recipients"): string {
+  if (section === "recipients") {
+    return page === 0 ? `${PREFIX}:open` : `${PREFIX}:o:${page.toString(36)}`;
+  }
+
+  return `${PREFIX}:${section === "transit" ? "t" : "h"}:${page.toString(36)}`;
 }
 
 export function makeItemPostalRecipientCallbackData(receiverTelegramUserId: bigint, page: number): string {
@@ -88,7 +94,7 @@ export function parseItemPostalCallbackData(data: string | undefined): Result<It
     return err("too-long");
   }
   if (data === `${PREFIX}:open`) {
-    return ok({ type: "open", page: 0 });
+    return ok({ type: "open", page: 0, section: "recipients" });
   }
   if (!data.startsWith(`${PREFIX}:`)) {
     return err("invalid-prefix");
@@ -103,7 +109,18 @@ export function parseItemPostalCallbackData(data: string | undefined): Result<It
     if (!first || !base36Pattern.test(first) || second !== undefined) {
       return err("invalid-page");
     }
-    return ok({ type: "open", page: Number.parseInt(first, 36) });
+    return ok({ type: "open", page: Number.parseInt(first, 36), section: "recipients" });
+  }
+
+  if (action === "t" || action === "h") {
+    if (!first || !base36Pattern.test(first) || second !== undefined) {
+      return err("invalid-page");
+    }
+    return ok({
+      type: "open",
+      page: Number.parseInt(first, 36),
+      section: action === "t" ? "transit" : "history"
+    });
   }
 
   if (action === "r") {

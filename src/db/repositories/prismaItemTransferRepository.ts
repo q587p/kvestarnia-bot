@@ -23,7 +23,9 @@ import type {
   ItemTransferRepository,
   ItemTransferRespondResult,
   ItemTransferSnapshot,
-  ItemTransferStatus
+  ItemTransferStatus,
+  ItemPostalTransferPage,
+  ItemPostalTransferSummary
 } from "./itemTransferRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
@@ -145,7 +147,8 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
   async getPostalRecipientsForTelegramUser(
     telegramUserId: bigint,
     page: number,
-    pageSize: number
+    pageSize: number,
+    pages: { inTransitPage?: number; historyPage?: number } = {}
   ): Promise<ItemPostalRecipientsResult> {
     return this.prisma.$transaction(async (tx) => {
       const sender = await findCharacter(tx, telegramUserId);
@@ -154,6 +157,10 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
       }
 
       const recipientIds = await getKnownPostalRecipientIds(tx, sender.id);
+      const [inTransit, history] = await Promise.all([
+        getPostalTransferPage(tx, sender.id, "transit", pages.inTransitPage ?? 0, pageSize),
+        getPostalTransferPage(tx, sender.id, "history", pages.historyPage ?? 0, pageSize)
+      ]);
 
       const total = recipientIds.length;
       const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -174,6 +181,8 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         pageSize,
         total,
         totalPages,
+        inTransit,
+        history,
         visible: visibleIds.flatMap((id) => {
           const character = byId.get(id);
           return character
@@ -340,8 +349,25 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         }
 
         const fee = calculatePostalDeliveryFee(transfer.packageLines);
-        const updated = mustMapTransfer(await tx.itemTransfer.update({
-          where: { id: transfer.id },
+        const charged = await tx.character.updateMany({
+          where: {
+            id: sender.id,
+            gold: { gte: fee }
+          },
+          data: {
+            gold: { decrement: fee }
+          }
+        });
+        if (charged.count !== 1) {
+          return { state: "insufficient-gold", transfer: { ...transfer, deliveryFeeGold: fee } };
+        }
+
+        const confirmed = await tx.itemTransfer.updateMany({
+          where: {
+            id: transfer.id,
+            status: "draft",
+            expiresAt: { gt: input.now }
+          },
           data: {
             status: "pending",
             expiresAt: input.expiresAt,
@@ -350,16 +376,27 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
             resultJson: input.result as Prisma.InputJsonValue,
             updatedAt: input.now
           }
-        }));
+        });
+        if (confirmed.count !== 1) {
+          throw new StalePostalRollback(transfer, "stale-selection");
+        }
+        const updated = mustMapTransfer(await tx.itemTransfer.findUniqueOrThrow({ where: { id: transfer.id } }));
+        const updatedSender = await tx.character.findUniqueOrThrow({
+          where: { id: sender.id },
+          include: characterInclude
+        });
 
         return {
           state: "created",
           transfer: updated,
-          sender: toCharacterRecord(sender),
+          sender: toCharacterRecord(updatedSender),
           receiver: toCharacterRecord(receiver)
         };
       });
     } catch (error) {
+      if (error instanceof StalePostalRollback) {
+        return { state: error.state, transfer: error.transfer };
+      }
       if (isLiveReservationConflict(error)) {
         const transfer = await this.findPostalTransferForTelegramUser(telegramUserId, input.token);
         if (transfer) {
@@ -624,10 +661,6 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         ) {
           return { state: "stale-selection", transfer };
         }
-        if (sender.gold < transfer.deliveryFeeGold) {
-          return { state: "insufficient-gold", transfer };
-        }
-
         const validation = await validatePostalPackage(tx, sender.id, transfer, input.itemContents, input.now, transfer.id);
         if (!validation.ok) {
           return { state: "stale-selection", transfer };
@@ -647,19 +680,6 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         if (claimed.count !== 1) {
           const replay = mapTransfer(await tx.itemTransfer.findUnique({ where: { id: transfer.id } }));
           return replay ? replayTransfer(tx, replay) : { state: "invalid-token" };
-        }
-
-        const charged = await tx.character.updateMany({
-          where: {
-            id: sender.id,
-            gold: { gte: transfer.deliveryFeeGold }
-          },
-          data: {
-            gold: { decrement: transfer.deliveryFeeGold }
-          }
-        });
-        if (charged.count !== 1) {
-          throw new StalePostalRollback(transfer, "insufficient-gold");
         }
 
         for (const line of transfer.packageLines) {
@@ -1087,6 +1107,66 @@ async function getKnownPostalRecipientIds(tx: TxClient, senderCharacterId: strin
       seen.add(contact.recipientId);
       return [contact.recipientId];
     });
+}
+
+async function getPostalTransferPage(
+  tx: TxClient,
+  characterId: string,
+  mode: "transit" | "history",
+  page: number,
+  pageSize: number
+): Promise<ItemPostalTransferPage> {
+  const status = mode === "transit" ? "pending" : "completed";
+  const where: Prisma.ItemTransferWhereInput = {
+    transferKind: "postal",
+    status,
+    OR: [
+      { senderCharacterId: characterId },
+      { receiverCharacterId: characterId }
+    ]
+  };
+  const total = await tx.itemTransfer.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.max(0, Math.min(Math.trunc(page), totalPages - 1));
+  const rows = await tx.itemTransfer.findMany({
+    where,
+    orderBy: mode === "transit"
+      ? [{ expiresAt: "asc" }, { updatedAt: "desc" }]
+      : [{ completedAt: "desc" }, { updatedAt: "desc" }],
+    skip: safePage * pageSize,
+    take: pageSize
+  });
+
+  return {
+    page: safePage,
+    pageSize,
+    total,
+    totalPages,
+    visible: rows.flatMap((row) => {
+      const transfer = mapTransfer(row);
+      return transfer ? [presentPostalTransferSummary(transfer, characterId)] : [];
+    })
+  };
+}
+
+function presentPostalTransferSummary(
+  transfer: ItemTransferRecord,
+  characterId: string
+): ItemPostalTransferSummary {
+  const direction = transfer.senderCharacterId === characterId ? "outgoing" : "incoming";
+
+  return {
+    token: transfer.token,
+    status: transfer.status,
+    direction,
+    otherName: direction === "outgoing" ? transfer.receiverName : transfer.senderName,
+    packageLines: transfer.packageLines,
+    deliveryFeeGold: transfer.deliveryFeeGold,
+    expiresAt: transfer.expiresAt,
+    completedAt: transfer.completedAt,
+    respondedAt: transfer.respondedAt,
+    updatedAt: transfer.updatedAt
+  };
 }
 
 async function isKnownPostalRecipient(tx: TxClient, senderCharacterId: string, receiverCharacterId: string): Promise<boolean> {

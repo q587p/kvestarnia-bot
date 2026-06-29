@@ -10,6 +10,7 @@ import {
 } from "../keyboards/itemPostalKeyboard";
 import {
   presentItemPostalConfirm,
+  presentItemPostalCallbackNotice,
   presentItemPostalDraft,
   presentItemPostalNotification,
   presentItemPostalRecipients,
@@ -35,7 +36,7 @@ export async function handleItemPostalCallback(
   }
 
   if (callback.type === "open") {
-    const result = await service.getPostalRecipientsForTelegramUser(telegramUserId, callback.page);
+    const result = await service.getPostalRecipientsForTelegramUser(telegramUserId, callback.page, callback.section);
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentItemPostalRecipients(result), {
       ...HTML_MESSAGE_OPTIONS,
@@ -91,10 +92,15 @@ export async function handleItemPostalCallback(
             callback.lineIndex,
             callback.page
           );
-    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "draft" });
+    if (result.state !== "draft") {
+      await safeAnswerCallbackQuery(ctx, { text: presentItemPostalCallbackNotice(result), show_alert: true });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentItemPostalDraft(result), {
       ...HTML_MESSAGE_OPTIONS,
-      ...(result.state === "draft" ? { reply_markup: buildItemPostalDraftKeyboard(result) } : {})
+      reply_markup: buildItemPostalDraftKeyboard(result)
     });
     return;
   }
@@ -103,7 +109,7 @@ export async function handleItemPostalCallback(
     const result = await service.confirmPostalDraftForTelegramUser(telegramUserId, callback.token);
     await safeAnswerCallbackQuery(ctx, result.state === "created"
       ? { text: "Гонець прийняв пакунок.", show_alert: false }
-      : { show_alert: true });
+      : { text: presentItemPostalConfirm(result).replace(/^📮\s*/u, ""), show_alert: true });
     await safeEditMessageText(ctx, presentItemPostalConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildItemPostalConfirmKeyboard(result)
