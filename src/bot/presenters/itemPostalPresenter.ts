@@ -17,7 +17,7 @@ export function presentItemPostalRecipients(result: ItemPostalRecipientsListResu
     return [
       "📮 <b>Пошта Квестарні</b>",
       "",
-      "Поки немає знайомих отримувачів. Пошта показує лише тих, із ким у вас уже була явна соціяльна дія: передача манатки, дуель або реакція на виступ."
+      "Поки немає знайомих отримувачів. Пошта показує лише тих, із ким у вас уже була явна соціяльна дія: подарунок манатки, дуель або реакція на виступ."
     ].join("\n");
   }
 
@@ -152,7 +152,7 @@ function formatPostalExpiry(expiresAt: Date): string {
 function presentPostalFailure(state: string, transfer?: { deliveryFeeGold?: number }): string {
   switch (state) {
     case "target-not-found":
-      return "📮 Пошта знає тільки пригодників із попередньою прийнятою передачею манатки.";
+      return "📮 Пошта знає тільки пригодників із попереднім прийнятим подарунком манатки.";
     case "package-full":
       return "📮 У пакунок влазить до 5 різних типів манатки.";
     case "duplicate-item":

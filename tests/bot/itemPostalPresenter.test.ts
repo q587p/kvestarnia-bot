@@ -25,6 +25,21 @@ describe("item postal presenter", () => {
     expect(text).not.toContain("поруч");
   });
 
+  it("explains empty postal recipients as known by gifts, duels or Bard reactions", () => {
+    const text = presentItemPostalRecipients({
+      state: "ready",
+      page: 0,
+      pageSize: 5,
+      total: 0,
+      totalPages: 0,
+      visible: []
+    });
+
+    expect(text).toContain("подарунок манатки, дуель або реакція на виступ");
+    expect(text).not.toContain("передача манатки");
+    expect(presentItemPostalDraft({ state: "target-not-found" })).toContain("прийнятим подарунком манатки");
+  });
+
   it("renders draft, notification and replay package summaries with fee", () => {
     const draft: ItemPostalDraftViewResult = {
       state: "draft",
