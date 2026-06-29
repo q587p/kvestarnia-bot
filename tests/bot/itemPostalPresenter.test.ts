@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentItemPostalConfirm,
   presentItemPostalDraft,
   presentItemPostalNotification,
   presentItemPostalRecipients,
@@ -76,6 +77,7 @@ describe("item postal presenter", () => {
       receiver: character("Отримувач")
     };
 
+    expect(presentItemPostalConfirm(confirmed)).toContain("Манатки передано пошті");
     expect(presentItemPostalDraft(draft)).toContain("Ложка &lt;бантом&gt;");
     expect(presentItemPostalDraft(draft)).toContain("Плата за дорогу з відправника: <b>6 золота</b>");
     expect(presentItemPostalDraft(draft)).toContain("5 за дорогу + 1 за кожен різний тип манатки");
@@ -88,6 +90,11 @@ describe("item postal presenter", () => {
       .toContain("Пакунок уже записано");
     expect(presentItemPostalRespond({ state: "replayed", transfer: transfer("completed"), sender: null, receiver: null }))
       .toContain("Плата з відправника: <b>6 золота</b>");
+  });
+
+  it("speaks directly to the sender when postal gold is missing", () => {
+    expect(presentItemPostalDraft({ state: "insufficient-gold", transfer: transfer("draft") }))
+      .toContain("У вас бракує золота");
   });
 
   it("shows in-transit and history packages on the postal overview", () => {

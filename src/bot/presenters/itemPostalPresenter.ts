@@ -92,7 +92,7 @@ export function presentItemPostalConfirm(result: ItemPostalConfirmServiceResult)
     "",
     `Плату вже списано з відправника: <b>${result.transfer.deliveryFeeGold} золота</b>`,
     `Строк: до <b>${formatPostalExpiry(result.transfer.expiresAt)}</b> за Києвом.`,
-    "Манатки зарезервовані до відповіді, скасування або завершення строку."
+    "Манатки передано пошті до відповіді, скасування або завершення строку."
   ].join("\n");
 }
 
@@ -210,7 +210,7 @@ function presentPostalFailure(state: string, transfer?: { deliveryFeeGold?: numb
     case "invalid-quantity":
       return "📮 Кількість у рядку не підходить для цієї пачки.";
     case "insufficient-gold":
-      return `📮 У відправника бракує золота на дорогу${transfer?.deliveryFeeGold ? `: потрібно ${transfer.deliveryFeeGold}` : ""}. Пакунок не відправлено.`;
+      return `📮 У вас бракує золота на дорогу${transfer?.deliveryFeeGold ? `: потрібно ${transfer.deliveryFeeGold}` : ""}. Пакунок не відправлено.`;
     case "combat-locked":
       return "📮 Поки хтось у бою, гонець удає статую.";
     case "stale-selection":

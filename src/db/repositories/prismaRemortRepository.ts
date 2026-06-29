@@ -647,6 +647,8 @@ async function cancelShynokLifecycleForRemort(
     }
   });
 
+  await restoreIncomingPostalCustodyForRemort(tx, characterId);
+
   await tx.itemTransfer.updateMany({
     where: {
       OR: [
@@ -685,6 +687,47 @@ async function cancelShynokLifecycleForRemort(
       }
     }
   });
+}
+
+async function restoreIncomingPostalCustodyForRemort(tx: TxClient, receiverCharacterId: string): Promise<void> {
+  const transfers = await tx.itemTransfer.findMany({
+    where: {
+      transferKind: "postal",
+      receiverCharacterId,
+      status: "pending"
+    },
+    select: {
+      senderCharacterId: true,
+      packageJson: true,
+      resultJson: true
+    }
+  });
+
+  for (const transfer of transfers) {
+    if (!isPostalSenderDebited(transfer.resultJson)) {
+      continue;
+    }
+    for (const line of parsePostalPackageItems(transfer.packageJson)) {
+      const updated = await tx.characterItem.updateMany({
+        where: {
+          characterId: transfer.senderCharacterId,
+          itemId: line.itemId
+        },
+        data: {
+          quantity: { increment: line.quantity }
+        }
+      });
+      if (updated.count === 0) {
+        await tx.characterItem.create({
+          data: {
+            characterId: transfer.senderCharacterId,
+            itemId: line.itemId,
+            quantity: line.quantity
+          }
+        });
+      }
+    }
+  }
 }
 
 async function resetCurrentLifeStateForRemort(tx: TxClient, characterId: string): Promise<void> {
@@ -928,6 +971,25 @@ function parseKeptItems(value: unknown): Array<{ itemId: string; quantity: numbe
 
     return quantity > 0 ? [{ itemId: entry.itemId, quantity }] : [];
   });
+}
+
+function parsePostalPackageItems(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.itemId !== "string") {
+      return [];
+    }
+
+    const quantity = intOrZero(entry.quantity);
+    return quantity > 0 ? [{ itemId: entry.itemId, quantity }] : [];
+  });
+}
+
+function isPostalSenderDebited(value: unknown): boolean {
+  return isRecord(value) && value.postalCustody === "sender-debited";
 }
 
 function toCharacterRecord(

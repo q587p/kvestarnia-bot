@@ -589,6 +589,11 @@ describe("PrismaItemTransferRepository integration", () => {
         visible: [expect.objectContaining({ direction: "incoming", otherName: "Дарувальник", deliveryFeeGold: 10 })]
       }
     });
+    for (const [index, content] of postalItems.entries()) {
+      await expectItemQuantity("sender", content.id, 93 - (index + 1));
+      await expectItemQuantity("receiver", content.id, 0);
+    }
+
     const accepted = await repository.acceptPostalForTelegramUser(2n, {
       token: "postal-token-1",
       itemContents: postalItems,
@@ -668,21 +673,20 @@ describe("PrismaItemTransferRepository integration", () => {
     }
     const lines = postalItems.slice(0, 2).map((content) => packageLine(content, 2));
     await createPostal(lines);
-    await prisma.characterItem.update({
-      where: { characterId_itemId: { characterId: "sender", itemId: postalItems[1]!.id } },
-      data: { quantity: 1 }
-    });
+    const staleContents = postalItems.map((content, index) => index === 1
+      ? { ...content, name: `${content.name} stale` }
+      : content);
 
     const accepted = await repository.acceptPostalForTelegramUser(2n, {
       token: "postal-token-1",
-      itemContents: postalItems,
+      itemContents: staleContents,
       now: now(),
       result: { kind: "postal-test-stale" }
     });
 
     expect(accepted.state).toBe("stale-selection");
     await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 93 });
-    await expectItemQuantity("sender", postalItems[0]!.id, 3);
+    await expectItemQuantity("sender", postalItems[0]!.id, 1);
     await expectItemQuantity("sender", postalItems[1]!.id, 1);
     await expectItemQuantity("receiver", postalItems[0]!.id, 0);
     await expectItemQuantity("receiver", postalItems[1]!.id, 0);
@@ -759,8 +763,10 @@ describe("PrismaItemTransferRepository integration", () => {
 
     await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
       .resolves.toMatchObject({ status: "pending", reservationKey: "postal:sender" });
+    await expectItemQuantity("sender", postalItems[0]!.id, 3);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
 
-    const cancelled = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    const cancelled = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", new Date("2026-06-24T10:24:00.000Z"));
     expect(cancelled).toMatchObject({ state: "cancelled", transitioned: true });
     await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
       .resolves.toMatchObject({ status: "cancelled", reservationKey: null });
@@ -769,6 +775,27 @@ describe("PrismaItemTransferRepository integration", () => {
     expect(replay).toMatchObject({ state: "cancelled", transfer: { status: "cancelled" } });
     expect(replay).not.toHaveProperty("transitioned");
     await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 4 });
+    await expectItemQuantity("sender", postalItems[0]!.id, 5);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+  });
+
+  it("returns a pending postal package to the sender when it expires", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+    await createPostal([packageLine(postalItems[0]!, 2)]);
+
+    const expired = await repository.acceptPostalForTelegramUser(2n, {
+      token: "postal-token-1",
+      itemContents: postalItems,
+      now: new Date("2026-06-24T10:24:00.000Z"),
+      result: { kind: "postal-test-expired-accept" }
+    });
+
+    expect(expired).toMatchObject({ state: "expired", transitioned: true });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "expired", reservationKey: null });
     await expectItemQuantity("sender", postalItems[0]!.id, 5);
     await expectItemQuantity("receiver", postalItems[0]!.id, 0);
   });

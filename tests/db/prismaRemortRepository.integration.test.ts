@@ -40,6 +40,11 @@ describe("PrismaRemortRepository integration", () => {
       characterId: "character-remort-solo",
       telegramUserId: 9301n
     });
+    await seedCharacter(prisma, {
+      userId: "user-remort-postal-sender",
+      characterId: "character-remort-postal-sender",
+      telegramUserId: 9399n
+    });
     await seedDraft(prisma, "character-remort-solo", "token-remort-solo", now);
     await prisma.soloCombatSession.create({
       data: {
@@ -207,6 +212,42 @@ describe("PrismaRemortRepository integration", () => {
         sentAt: new Date(now.getTime() - 30_000)
       }
     });
+    await prisma.itemTransfer.create({
+      data: {
+        id: "transfer-remort-postal",
+        token: "token-remort-postal",
+        transferKind: "postal",
+        senderCharacterId: "character-remort-postal-sender",
+        receiverCharacterId: "character-remort-solo",
+        senderTelegramUserId: 9399n,
+        receiverTelegramUserId: 9301n,
+        senderName: "Поштовий відправник",
+        receiverName: "Ремортний отримувач",
+        senderRemortCount: 0,
+        receiverRemortCount: 0,
+        itemId: "item.remort-postal",
+        itemName: "Ремортний поштовий ґудзик",
+        itemFingerprint: "remort-postal-fingerprint",
+        quantity: 2,
+        packageJson: [{
+          itemId: "item.remort-postal",
+          itemName: "Ремортний поштовий ґудзик",
+          quantity: 2,
+          itemFingerprint: "remort-postal-fingerprint",
+          unitGoldValue: 13,
+          observedQuantity: 2,
+          tags: []
+        }],
+        deliveryFeeGold: 6,
+        status: "pending",
+        reservationKey: "postal:character-remort-postal-sender",
+        resultJson: {
+          kind: "postal-test-pending",
+          postalCustody: "sender-debited"
+        },
+        expiresAt: new Date(now.getTime() + 5 * 60_000)
+      }
+    });
 
     const result = await repository.completeDraftForTelegramUser(
       9301n,
@@ -296,6 +337,25 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.barrelRaidNotification.count({
       where: { characterId: "character-remort-solo" }
     })).resolves.toBe(0);
+    await expect(prisma.itemTransfer.findUnique({
+      where: { id: "transfer-remort-postal" }
+    })).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      resultJson: { kind: "remort-cancelled-gift" }
+    });
+    await expect(prisma.characterItem.findMany({
+      where: {
+        characterId: "character-remort-postal-sender",
+        itemId: "item.remort-postal"
+      }
+    })).resolves.toMatchObject([{ quantity: 2 }]);
+    await expect(prisma.characterItem.findMany({
+      where: {
+        characterId: "character-remort-solo",
+        itemId: "item.remort-postal"
+      }
+    })).resolves.toEqual([]);
 
     await repository.completeDraftForTelegramUser(9301n, makeCompletionInput("token-remort-solo", now));
     const replayedSession = await prisma.soloCombatSession.findUnique({ where: { id: "session-remort-solo" } });

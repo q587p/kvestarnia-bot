@@ -362,6 +362,8 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
           return { state: "insufficient-gold", transfer: { ...transfer, deliveryFeeGold: fee } };
         }
 
+        await movePostalPackageFromSenderToCustody(tx, sender.id, transfer);
+
         const confirmed = await tx.itemTransfer.updateMany({
           where: {
             id: transfer.id,
@@ -373,7 +375,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
             expiresAt: input.expiresAt,
             reservationKey: createPostalReservationKey(sender.id),
             deliveryFeeGold: fee,
-            resultJson: input.result as Prisma.InputJsonValue,
+            resultJson: markPostalSenderDebited(input.result),
             updatedAt: input.now
           }
         });
@@ -637,7 +639,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         }
 
         if (transfer.expiresAt <= input.now) {
-          return guardedTerminalResult(tx, transfer.id, "expired", input.now, { kind: "postal-expired" }, "pending");
+          return guardedPostalTerminalResult(tx, transfer, "expired", input.now, { kind: "postal-expired" }, "pending");
         }
 
         const sender = await tx.character.findUnique({
@@ -661,7 +663,10 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         ) {
           return { state: "stale-selection", transfer };
         }
-        const validation = await validatePostalPackage(tx, sender.id, transfer, input.itemContents, input.now, transfer.id);
+        const senderDebited = hasPostalSenderDebited(transfer);
+        const validation = senderDebited
+          ? validatePostalPackageContent(transfer, input.itemContents)
+          : await validatePostalPackage(tx, sender.id, transfer, input.itemContents, input.now, transfer.id);
         if (!validation.ok) {
           return { state: "stale-selection", transfer };
         }
@@ -682,45 +687,10 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
           return replay ? replayTransfer(tx, replay) : { state: "invalid-token" };
         }
 
-        for (const line of transfer.packageLines) {
-          const consumed = await tx.characterItem.updateMany({
-            where: {
-              characterId: sender.id,
-              itemId: line.itemId,
-              quantity: { gte: line.quantity }
-            },
-            data: {
-              quantity: { decrement: line.quantity }
-            }
-          });
-          if (consumed.count !== 1) {
-            throw new StalePostalRollback(transfer, "stale-selection");
-          }
-
-          await tx.characterItem.upsert({
-            where: {
-              characterId_itemId: {
-                characterId: receiver.id,
-                itemId: line.itemId
-              }
-            },
-            create: {
-              characterId: receiver.id,
-              itemId: line.itemId,
-              quantity: line.quantity
-            },
-            update: {
-              quantity: { increment: line.quantity }
-            }
-          });
+        if (!senderDebited) {
+          await movePostalPackageFromSenderToCustody(tx, sender.id, transfer);
         }
-
-        await tx.characterItem.deleteMany({
-          where: {
-            characterId: sender.id,
-            quantity: { lte: 0 }
-          }
-        });
+        await deliverPostalPackageToReceiver(tx, receiver.id, transfer);
 
         const completed = await setTransferStatus(tx, transfer.id, "completed", input.now, input.result, "processing");
         if (!completed.changed) {
@@ -781,11 +751,16 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         return terminal;
       }
 
-      if (transfer.expiresAt <= now) {
-        return guardedTerminalResult(tx, transfer.id, "expired", now, { kind: "expired" }, "pending");
+      const senderCancellation = transferKind === "postal" && actor === "sender" && status === "cancelled";
+      if (transfer.expiresAt <= now && !senderCancellation) {
+        return transferKind === "postal"
+          ? guardedPostalTerminalResult(tx, transfer, "expired", now, { kind: "postal-expired" }, "pending")
+          : guardedTerminalResult(tx, transfer.id, "expired", now, { kind: "expired" }, "pending");
       }
 
-      return guardedTerminalResult(tx, transfer.id, status, now, { kind: status }, expectedStatuses);
+      return transferKind === "postal"
+        ? guardedPostalTerminalResult(tx, transfer, status, now, { kind: status }, expectedStatuses)
+        : guardedTerminalResult(tx, transfer.id, status, now, { kind: status }, expectedStatuses);
     });
   }
 }
@@ -913,23 +888,22 @@ async function releaseExpiredPostalReservations(
   senderCharacterId: string,
   now: Date
 ): Promise<void> {
-  await tx.itemTransfer.updateMany({
+  const rows = await tx.itemTransfer.findMany({
     where: {
       transferKind: "postal",
       senderCharacterId,
       status: { in: ["draft", "pending"] },
       expiresAt: { lte: now }
-    },
-    data: {
-      status: "expired",
-      reservationKey: null,
-      respondedAt: now,
-      updatedAt: now,
-      resultJson: {
-        kind: "postal-expired"
-      }
     }
   });
+
+  for (const row of rows) {
+    const transfer = mapTransfer(row);
+    if (!transfer) {
+      continue;
+    }
+    await guardedPostalTerminalResult(tx, transfer, "expired", now, { kind: "postal-expired" }, transfer.status);
+  }
 }
 
 async function getEquippedItemIds(tx: TxClient, characterId: string): Promise<string[]> {
@@ -1266,6 +1240,123 @@ async function validatePostalPackage(
   return { ok: true };
 }
 
+function validatePostalPackageContent(
+  transfer: ItemTransferRecord,
+  itemContents: readonly ItemContent[]
+): { ok: boolean } {
+  const lines = transfer.packageLines;
+  if (lines.length < 1 || lines.length > 5) {
+    return { ok: false };
+  }
+  const seen = new Set<string>();
+  const contentById = new Map(itemContents.map((item) => [item.id, item]));
+  for (const line of lines) {
+    if (
+      seen.has(line.itemId) ||
+      !Number.isInteger(line.quantity) ||
+      line.quantity < 1 ||
+      line.quantity > 93
+    ) {
+      return { ok: false };
+    }
+    seen.add(line.itemId);
+
+    const current = contentById.get(line.itemId);
+    if (
+      !current ||
+      current.name !== line.itemName ||
+      createItemGiftFingerprint(current) !== line.itemFingerprint ||
+      !sameStringList([...(current.tags ?? [])].sort(), [...line.tags].sort())
+    ) {
+      return { ok: false };
+    }
+  }
+
+  return { ok: true };
+}
+
+async function movePostalPackageFromSenderToCustody(
+  tx: TxClient,
+  senderCharacterId: string,
+  transfer: ItemTransferRecord
+): Promise<void> {
+  for (const line of transfer.packageLines) {
+    const consumed = await tx.characterItem.updateMany({
+      where: {
+        characterId: senderCharacterId,
+        itemId: line.itemId,
+        quantity: { gte: line.quantity }
+      },
+      data: {
+        quantity: { decrement: line.quantity }
+      }
+    });
+    if (consumed.count !== 1) {
+      throw new StalePostalRollback(transfer, "stale-selection");
+    }
+  }
+
+  await tx.characterItem.deleteMany({
+    where: {
+      characterId: senderCharacterId,
+      quantity: { lte: 0 }
+    }
+  });
+}
+
+async function restorePostalPackageToSender(tx: TxClient, transfer: ItemTransferRecord): Promise<void> {
+  await upsertPostalPackageToCharacter(tx, transfer.senderCharacterId, transfer);
+}
+
+async function deliverPostalPackageToReceiver(
+  tx: TxClient,
+  receiverCharacterId: string,
+  transfer: ItemTransferRecord
+): Promise<void> {
+  await upsertPostalPackageToCharacter(tx, receiverCharacterId, transfer);
+}
+
+async function upsertPostalPackageToCharacter(
+  tx: TxClient,
+  characterId: string,
+  transfer: ItemTransferRecord
+): Promise<void> {
+  for (const line of transfer.packageLines) {
+    await tx.characterItem.upsert({
+      where: {
+        characterId_itemId: {
+          characterId,
+          itemId: line.itemId
+        }
+      },
+      create: {
+        characterId,
+        itemId: line.itemId,
+        quantity: line.quantity
+      },
+      update: {
+        quantity: { increment: line.quantity }
+      }
+    });
+  }
+}
+
+function markPostalSenderDebited(result: unknown): Prisma.InputJsonObject {
+  const base = isRecord(result) ? result : {};
+  return {
+    ...base,
+    postalCustody: "sender-debited"
+  };
+}
+
+function hasPostalSenderDebited(transfer: ItemTransferRecord): boolean {
+  return isRecord(transfer.result) && transfer.result.postalCustody === "sender-debited";
+}
+
+function sameStringList(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 async function replayIfTerminal(
   tx: TxClient,
   transfer: ItemTransferRecord
@@ -1295,6 +1386,25 @@ async function guardedTerminalResult(
 ): Promise<ItemTransferRespondResult> {
   const transition = await setTransferStatus(tx, transferId, status, now, result, expectedStatus);
   if (transition.changed) {
+    return { state: status, transfer: transition.transfer, transitioned: true };
+  }
+
+  return canonicalTransferResult(tx, transition.transfer);
+}
+
+async function guardedPostalTerminalResult(
+  tx: TxClient,
+  transfer: ItemTransferRecord,
+  status: "declined" | "expired" | "cancelled",
+  now: Date,
+  result: unknown,
+  expectedStatus: string | readonly string[]
+): Promise<ItemTransferRespondResult> {
+  const transition = await setTransferStatus(tx, transfer.id, status, now, result, expectedStatus);
+  if (transition.changed) {
+    if (transfer.status === "pending" && hasPostalSenderDebited(transfer)) {
+      await restorePostalPackageToSender(tx, transfer);
+    }
     return { state: status, transfer: transition.transfer, transitioned: true };
   }
 

@@ -60,5 +60,5 @@ item_transfers
 - Accept/confirm is transactional and idempotent.
 - Audit payload can explain what moved.
 - Tests cover stale preview, repeated confirm, declined/expired transfer and concurrent transfer attempts.
-- Postal delivery keeps the same item reservation and replay guarantees, adds a tested delivery-fee rule, and does not disclose recipient location or online status.
+- Postal delivery keeps replay guarantees by moving confirmed package quantities into postal custody, returning them on decline/cancel/expiry, adding a tested delivery-fee rule, and not disclosing recipient location or online status.
 

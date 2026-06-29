@@ -19,7 +19,8 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Postal packages allow 1 to 5 distinct `itemId` stack types, with 1 to 93 units per selected type, capped by currently owned eligible unreserved quantity.
-- Postal confirm reserves every selected `itemId` through one live `postal:<sender>` reservation key; other item-spending flows now read `package_json` lines as active item-transfer reservations.
+- Postal confirm now moves selected quantities out of the sender inventory into postal custody, marks that custody in stored replay state, and returns items to the sender once on decline, cancel or expiry.
+- Postal confirm keeps one live `postal:<sender>` reservation key for the package; other item-spending flows still read `package_json` lines as active item-transfer reservations.
 - Delivery fee is charged from the sender immediately at confirmation/send time; if the sender lacks gold, the package stays a draft and is not sent. The internal tested fee formula is `5 + selected type count`, so package size by unit count does not inflate postage.
 - Pending postal packages now use a one-week response window, and the postal overview includes packages in transit plus completed history with pagination.
 - Shynok/bar and nearby social surfaces expose `📮 Пошта Квестарні` beside existing Safe Gifting.
