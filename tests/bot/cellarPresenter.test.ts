@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentCellarCooldown,
   presentCellarGrownupQuest,
+  presentCellarIntro,
   presentCellarMethodHelp,
   presentCellarGrownupResult,
   presentCellarResult,
@@ -14,12 +15,24 @@ import type {
 import type { CellarGrownupQuestLookupResult } from "../../src/services/cellarGrownupQuestService";
 
 describe("cellar presenter", () => {
-  it("renders cellar start scene with a compact method list and HTML quote", () => {
+  it("renders cellar intro as a separate scene header", () => {
+    const text = presentCellarIntro(ready);
+
+    expect(text).toContain("Корчмар показує на люк під баром.");
+    expect(text).toContain("<blockquote>");
+    expect(text).toContain("Корчмар:");
+    expect(text).toContain("Миша:");
+    expect(text).not.toContain("🐭 Льохова справа");
+    expect(text).not.toContain("Можливі способи");
+    expect(text).not.toContain("що робимо?");
+  });
+
+  it("renders cellar start action card with a compact method list", () => {
     const text = presentCellarStart(ready);
 
     expect(text).toContain("🐭 Льохова справа");
-    expect(text).toContain("<blockquote>");
-    expect(text).toContain("Миша:");
+    expect(text).not.toContain("<blockquote>");
+    expect(text).not.toContain("Корчмар показує на люк");
     expect(text).toContain("<i>Можливі способи:</i>");
     expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
     expect(text).not.toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
@@ -64,7 +77,7 @@ describe("cellar presenter", () => {
       raceName: "Домовик"
     };
 
-    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain(
+    expect(presentCellarIntro({ state: "ready", character: domovyk })).toContain(
       "не плутати мою автономію з вашим житловим фондом"
     );
     expect(

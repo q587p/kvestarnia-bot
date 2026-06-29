@@ -334,9 +334,13 @@ describe("adventure command", () => {
       fallbackToCellar: true
     });
 
-    expect(replies).toHaveLength(1);
-    expect(replies[0]?.text).toContain("🐭 Льохова справа");
-    expect(replies[0]?.options).toHaveProperty("reply_markup");
+    expect(replies).toHaveLength(2);
+    expect(replies[0]?.text).toContain("Корчмар показує на люк під баром.");
+    expect(replies[0]?.text).toContain("Миша:");
+    expect(replies[0]?.options).not.toHaveProperty("reply_markup");
+    expect(replies[1]?.text).toContain("🐭 Льохова справа");
+    expect(replies[1]?.text).toContain("<i>Можливі способи:</i>");
+    expect(replies[1]?.options).toHaveProperty("reply_markup");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

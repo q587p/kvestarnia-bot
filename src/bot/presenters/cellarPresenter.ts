@@ -14,6 +14,18 @@ import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
+export function presentCellarIntro(
+  result: Extract<CellarErrandLookupResult, { state: "ready" }>
+): string {
+  return [
+    "Корчмар показує на люк під баром.",
+    "",
+    npcQuote("Корчмар", "Там миша. Вона мала бути побічним квестом, але вже вимагає титул."),
+    "",
+    npcQuote("Миша", selectCellarStartMouseQuote(result.character))
+  ].join("\n");
+}
+
 export function presentCellarStart(
   result: Extract<CellarErrandLookupResult, { state: "ready" }>
 ): string {
@@ -23,12 +35,6 @@ export function presentCellarStart(
 
   return [
     "🐭 Льохова справа",
-    "",
-    "Корчмар показує на люк під баром.",
-    "",
-    npcQuote("Корчмар", "Там миша. Вона мала бути побічним квестом, але вже вимагає титул."),
-    "",
-    npcQuote("Миша", selectCellarStartMouseQuote(result.character)),
     ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
     "",
     "<i>Можливі способи:</i>",

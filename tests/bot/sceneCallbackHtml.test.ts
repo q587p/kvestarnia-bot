@@ -2627,7 +2627,8 @@ describe("scene callback HTML options", () => {
     const messages = calls.filter((call) => call.method === "sendMessage");
 
     expect(String(messages[0]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
-    expect(String(messages[1]?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(messages[1]?.payload.text)).toContain("Корчмар показує на люк під баром.");
+    expect(String(messages[2]?.payload.text)).toContain("🐭 Льохова справа");
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: "location.korchma.cellar",
