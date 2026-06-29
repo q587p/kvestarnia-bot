@@ -7,7 +7,9 @@ import { buildStarterMethodOptions, getAdventureProblemIcon } from "../../servic
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import {
   makeAdventureApproachCallbackData,
+  makeAdventureProblemHelpCallbackData,
   makeMimicShawarmaMethodCallbackData,
+  makeMimicShawarmaHelpCallbackData,
   makeAdventureParticipantsCallbackData,
   makeAdventureProblemCallbackData
 } from "../callbacks/adventureCallbackData";
@@ -45,7 +47,10 @@ export function buildAdventureKeyboard(offer?: AdventureOffer | CharacterSummary
         .row();
     }
 
-    keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
+    keyboard
+      .text("💡 Підказка", makeMimicShawarmaHelpCallbackData())
+      .row()
+      .text("📋 До справ", makePlaceCallbackData("quest-table"));
 
     return keyboard;
   }
@@ -75,7 +80,13 @@ export function buildAdventureApproachKeyboard(
       .row();
   }
 
-  keyboard.text("⬅️ Інші справи", makeQuestCallbackData("adventure"));
+  keyboard
+    .text("💡 Підказка", makeAdventureProblemHelpCallbackData({
+      periodToken: result.offer.periodToken,
+      problemId: result.choice.id
+    }))
+    .row()
+    .text("⬅️ Інші справи", makeQuestCallbackData("adventure"));
 
   return keyboard;
 }

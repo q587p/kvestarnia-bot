@@ -7,6 +7,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type CellarCallback =
   | { type: "legacy-action"; action: CellarErrandAction }
   | { type: "method"; methodId: string }
+  | { type: "method-help" }
   | { type: "grownup"; action: CellarGrownupQuestAction }
   | { type: "participants" };
 export type CellarCallbackError =
@@ -37,6 +38,10 @@ export function makeCellarMethodCallbackData(action: CellarErrandAction): string
   return `${V2_PREFIX}:${action}`;
 }
 
+export function makeCellarMethodHelpCallbackData(): string {
+  return `${V2_PREFIX}:h`;
+}
+
 export function parseCellarCallbackData(
   data: string | undefined
 ): Result<CellarCallback, CellarCallbackError> {
@@ -49,6 +54,10 @@ export function parseCellarCallbackData(
 
     if (section !== "cellar" || rest.length > 0) {
       return err("invalid-prefix");
+    }
+
+    if (action === "h") {
+      return ok({ type: "method-help" });
     }
 
     return isKnownQuestMethodId(action) ? ok({ type: "method", methodId: action }) : err("invalid-action");

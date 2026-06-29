@@ -17,10 +17,9 @@ import { escapeHtml, npcQuote } from "./telegramHtml";
 export function presentCellarStart(
   result: Extract<CellarErrandLookupResult, { state: "ready" }>
 ): string {
-  const methodLines = buildCellarMethodOptions(result.character).flatMap((method) => [
-    `${escapeHtml(method.buttonLabel ?? method.label)}`,
-    `<i>${escapeHtml(formatMethodHint(method))}</i>`
-  ]);
+  const methodLines = buildCellarMethodOptions(result.character).map((method) =>
+    escapeHtml(method.label)
+  );
 
   return [
     "🐭 Льохова справа",
@@ -32,11 +31,26 @@ export function presentCellarStart(
     npcQuote("Миша", selectCellarStartMouseQuote(result.character)),
     ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
     "",
-    "Можливі способи:",
-    "",
+    "<i>Можливі способи:</i>",
     ...methodLines,
     "",
     `<b>${escapeHtml(result.character.name)}</b>, що робимо?`
+  ].join("\n");
+}
+
+export function presentCellarMethodHelp(
+  result: Extract<CellarErrandLookupResult, { state: "ready" }>
+): string {
+  const methodLines = buildCellarMethodOptions(result.character).flatMap((method, index, methods) => [
+    escapeHtml(method.label),
+    escapeHtml(formatMethodHint(method)),
+    ...(index < methods.length - 1 ? [""] : [])
+  ]);
+
+  return [
+    "Детальніше про способи:",
+    "",
+    ...methodLines
   ].join("\n");
 }
 

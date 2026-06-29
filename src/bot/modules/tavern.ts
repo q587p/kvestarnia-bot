@@ -86,10 +86,12 @@ buildTavernResultKeyboard
 } from "../keyboards/tavernKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
 import {
+presentCellarCooldown,
 presentCellarGrownupQuest,
 presentCellarGrownupResult,
 presentCellarLevelLocked,
 presentCellarLevelRetired,
+presentCellarMethodHelp,
 presentCellarNoCharacter,
 presentCellarResult
 } from "../presenters/cellarPresenter";
@@ -1074,6 +1076,30 @@ async function handleCellarCallback(
     await safeEditMessageText(ctx, presentParticipants(snapshot), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildCellarParticipantsKeyboard()
+    });
+    return;
+  }
+
+  if (callback.type === "method-help") {
+    if (lookup.state === "on-cooldown") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentCellarCooldown(lookup), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildCellarResultKeyboard("on-cooldown", lookup.character)
+      });
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+    });
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentCellarMethodHelp(lookup), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildCellarResultKeyboard("ready", lookup.character)
     });
     return;
   }

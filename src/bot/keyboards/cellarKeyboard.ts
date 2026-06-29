@@ -3,7 +3,7 @@ import { items } from "../../content";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { buildCellarMethodOptions } from "../../services/cellarErrandService";
 import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "../../services/itemGrant";
-import { makeCellarCallbackData, makeCellarMethodCallbackData } from "../callbacks/cellarCallbackData";
+import { makeCellarCallbackData, makeCellarMethodCallbackData, makeCellarMethodHelpCallbackData } from "../callbacks/cellarCallbackData";
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -20,7 +20,10 @@ export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboar
         .row();
     }
 
-    keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
+    keyboard
+      .text("💡 Підказка", makeCellarMethodHelpCallbackData())
+      .row()
+      .text("⬅️ До зали", makePlaceCallbackData("hall"));
 
     return keyboard;
   }

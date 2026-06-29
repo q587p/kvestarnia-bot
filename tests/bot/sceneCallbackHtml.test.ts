@@ -7,11 +7,14 @@ import {
 import { toQuestCallbackKey } from "../../src/content/questResolution";
 import {
   makeAdventureApproachCallbackData,
+  makeAdventureProblemHelpCallbackData,
   makeMimicShawarmaMethodCallbackData,
+  makeMimicShawarmaHelpCallbackData,
   makeAdventureProblemCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
 import {
   makeCellarCallbackData,
+  makeCellarMethodHelpCallbackData,
   makeCellarMethodCallbackData
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
@@ -521,6 +524,80 @@ describe("scene callback HTML options", () => {
     expect(String(edits[0]?.payload.text)).toContain("1");
     expect(String(edits[1]?.payload.text)).not.toContain("Сирний фонд офіційно зашаршів");
     expect(String(edits[1]?.payload.text)).not.toContain("Списано");
+  });
+
+  it("renders adventure method help without completing the selected problem", async () => {
+    const completeAdventureApproach = vi.fn();
+    const selectAdventureProblem = vi.fn(() =>
+      Promise.resolve({
+        state: "selected" as const,
+        character,
+        offer: adventureOffer,
+        choice: adventureChoice,
+        approaches: [adventureApproach]
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      servicesWith({
+        adventure: {
+          selectAdventureProblem,
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(selectAdventureProblem).toHaveBeenCalledWith(42n, {
+      type: "problem-help",
+      periodToken: "period93",
+      problemId: "stew"
+    });
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
+    expect(String(edit?.payload.text)).toContain("🎵 Продиригувати юшкою");
+    expect(String(edit?.payload.text)).toContain("Непевно");
+  });
+
+  it("renders starter shawarma help without completing the starter scene", async () => {
+    const completeMimicShawarma = vi.fn();
+    const calls = await captureApiCalls(
+      makeMimicShawarmaHelpCallbackData(),
+      servicesWith({
+        adventure: {
+          getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeMimicShawarma
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeMimicShawarma).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
+    expect(String(edit?.payload.text)).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
+    expect(String(edit?.payload.text)).toContain("Розслідування без поспіху");
+  });
+
+  it("renders cellar method help without completing the cellar errand", async () => {
+    const complete = vi.fn();
+    const calls = await captureApiCalls(
+      makeCellarMethodHelpCallbackData(),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(complete).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
+    expect(String(edit?.payload.text)).toContain("🧀 Поставити пастку по маршруту крихт");
+    expect(String(edit?.payload.text)).toContain("Пастка й сліди");
   });
 
   it("renders stale state for hidden v2 adventure method callbacks", async () => {

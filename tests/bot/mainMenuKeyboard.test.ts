@@ -658,12 +658,14 @@ describe("main menu and scene keyboards", () => {
   it("keeps character-aware adventure labels on the same callback actions", () => {
     const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
 
-    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
     expect(labels).toContain("📋 Вимагати чек і походження начинки");
     expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(labels.at(-2)).toBe("💡 Підказка");
     expect(labels.at(-1)).toBe("📋 До справ");
     const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
-    expect(callbacks.slice(0, -1).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.slice(0, -2).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-2)).toBe("v2:adv:h:m");
     expect(callbacks.at(-1)).toBe("v1:place:quest-table");
   });
 
@@ -700,9 +702,10 @@ describe("main menu and scene keyboards", () => {
 
     const labels = flatInlineButtonTexts(keyboard);
 
-    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
     expect(labels).toContain("🤝 Домовитися з канцелярським краєм");
     expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
+    expect(labels.at(-2)).toBe("💡 Підказка");
     expect(labels.at(-1)).toBe("⬅️ Інші справи");
   });
 
@@ -731,12 +734,14 @@ describe("main menu and scene keyboards", () => {
 
     const cellarLabels = flatInlineButtonTexts(buildCellarKeyboard(domovyk));
 
-    expect(cellarLabels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(cellarLabels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
     expect(cellarLabels).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
     expect(cellarLabels.join("\n")).not.toMatch(/Оголосити правилом|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(cellarLabels.at(-2)).toBe("💡 Підказка");
     expect(cellarLabels.at(-1)).toBe("⬅️ До зали");
     const callbacks = flatInlineButtonCallbacks(buildCellarKeyboard(domovyk));
-    expect(callbacks.slice(0, -1).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.slice(0, -2).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-2)).toBe("v2:cellar:h");
     expect(callbacks.at(-1)).toBe("v1:place:hall");
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual(cellarLabels);
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeCellarCallbackData,
+  makeCellarMethodHelpCallbackData,
   makeCellarMethodCallbackData,
   parseCellarCallbackData
 } from "../../src/bot/callbacks/cellarCallbackData";
@@ -39,6 +40,16 @@ describe("cellar callback data", () => {
     expect(parseCellarCallbackData(data)).toEqual({
       ok: true,
       value: { type: "method", methodId: "r5" }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("parses method help callback", () => {
+    const data = makeCellarMethodHelpCallbackData();
+
+    expect(parseCellarCallbackData(data)).toEqual({
+      ok: true,
+      value: { type: "method-help" }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });

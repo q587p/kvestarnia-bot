@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentCellarCooldown,
   presentCellarGrownupQuest,
+  presentCellarMethodHelp,
   presentCellarGrownupResult,
   presentCellarResult,
   presentCellarStart
@@ -13,20 +14,31 @@ import type {
 import type { CellarGrownupQuestLookupResult } from "../../src/services/cellarGrownupQuestService";
 
 describe("cellar presenter", () => {
-  it("renders cellar start scene with method descriptions and HTML quote", () => {
+  it("renders cellar start scene with a compact method list and HTML quote", () => {
     const text = presentCellarStart(ready);
 
     expect(text).toContain("🐭 Льохова справа");
     expect(text).toContain("<blockquote>");
     expect(text).toContain("Миша:");
-    expect(text).toContain("Можливі способи:");
+    expect(text).toContain("<i>Можливі способи:</i>");
     expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
-    expect(text).toContain("<i>Пастка й сліди. Винагорода звичайна. Можна постраждати.</i>");
+    expect(text).not.toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
     expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
-    expect(text).toContain("<i>Винагорода скромніша. Коштує 1 золото.</i>");
+    expect(text).not.toContain("Винагорода скромніша. Коштує 1 золото.");
     expect(text).not.toMatch(/Шанси \d|Підпис методу|race\+class/u);
     expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(30);
+    expect(text.split("\n").length).toBeLessThanOrEqual(24);
+  });
+
+  it("renders cellar method help separately", () => {
+    const text = presentCellarMethodHelp(ready);
+
+    expect(text).toContain("Детальніше про способи:");
+    expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
+    expect(text).toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
+    expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
+    expect(text).toContain("Винагорода скромніша. Коштує 1 золото.");
+    expect(text).not.toContain("що робимо?");
   });
 
   it("separates cellar combo title flavor from the following beat", () => {

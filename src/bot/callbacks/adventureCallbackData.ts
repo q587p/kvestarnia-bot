@@ -14,7 +14,9 @@ export type AdventureCallback =
   | { type: "participants" }
   | { type: "legacy"; action: MimicShawarmaAction }
   | { type: "problem"; periodToken: string; problemId: AdventureProblemId }
+  | { type: "problem-help"; periodToken: string; problemId: AdventureProblemId }
   | { type: "method"; methodId: AdventureMethodId }
+  | { type: "method-help" }
   | { type: "legacy-approach"; periodToken: string; problemId: AdventureProblemId; approach: AdventureApproach }
   | {
       type: "approach";
@@ -53,6 +55,13 @@ export function makeAdventureProblemCallbackData(input: {
   return `${V2_PREFIX}:p:${input.periodToken}:${encodeProblemId(input.problemId)}`;
 }
 
+export function makeAdventureProblemHelpCallbackData(input: {
+  periodToken: string;
+  problemId: AdventureProblemId;
+}): string {
+  return `${V2_PREFIX}:h:${input.periodToken}:${encodeProblemId(input.problemId)}`;
+}
+
 export function makeAdventureApproachCallbackData(input: {
   periodToken: string;
   problemId: AdventureProblemId;
@@ -68,6 +77,10 @@ export function makeAdventureApproachCallbackData(input: {
 
 export function makeMimicShawarmaMethodCallbackData(methodId: AdventureMethodId): string {
   return `${V2_PREFIX}:m:${methodId}`;
+}
+
+export function makeMimicShawarmaHelpCallbackData(): string {
+  return `${V2_PREFIX}:h:m`;
 }
 
 export function makeAdventureParticipantsCallbackData(): string {
@@ -165,6 +178,18 @@ function parseAdventureV2CallbackData(data: string): Result<AdventureCallback, A
       periodToken: first,
       problemId: decodeProblemKey(second)
     });
+  }
+
+  if (action === "h" && isPeriodToken(first) && isProblemKey(second) && !third) {
+    return ok({
+      type: "problem-help",
+      periodToken: first,
+      problemId: decodeProblemKey(second)
+    });
+  }
+
+  if (action === "h" && first === "m" && !second && !third) {
+    return ok({ type: "method-help" });
   }
 
   if (action === "a" && isPeriodToken(first) && isProblemKey(second) && isKnownQuestMethodId(third)) {

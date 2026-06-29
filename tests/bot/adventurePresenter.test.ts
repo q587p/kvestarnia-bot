@@ -4,6 +4,8 @@ import {
   presentAdventureLevelLocked,
   presentAdventureOffer,
   presentAdventureProblem,
+  presentAdventureProblemMethodHelp,
+  presentMimicShawarmaMethodHelp,
   presentMimicShawarmaStart,
   presentAdventureResult
 } from "../../src/bot/presenters/adventurePresenter";
@@ -129,10 +131,10 @@ describe("adventure presenter", () => {
     const text = presentAdventureProblem(result);
 
     expect(text).toContain("Казанок &lt;репетирує&gt;");
-    expect(text).toContain("Можливі способи:\n\n🛡️ Обережно");
+    expect(text).toContain("<i>Можливі способи:</i>\n🛡️ Обережно");
     expect(text).toContain("Метод оберіть самі.");
     expect(text).toContain("🛡️ Обережно");
-    expect(text).toContain("Майже без драматичних зубів.");
+    expect(text).not.toContain("Майже без драматичних зубів.");
     expect(text).not.toContain("🧠 Хитро — Середній ризик.");
     expect(text).not.toContain("+4 XP");
     expect(text).not.toContain("+10 XP");
@@ -140,19 +142,29 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("ризик 42%");
   });
 
-  it("explains starter shawarma methods like selected problem methods", () => {
+  it("keeps starter shawarma method list compact", () => {
     const text = presentMimicShawarmaStart(character);
 
     expect(text).toContain("🌯 Підозріла шаурма");
-    expect(text).toContain("Можливі способи:");
+    expect(text).toContain("<i>Можливі способи:</i>");
     expect(text).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
-    expect(text).toContain("<i>Розслідування без поспіху");
+    expect(text).not.toContain("Розслідування без поспіху");
     expect(text).toContain("🍴 Притиснути лаваш виделкою до зʼясування");
     expect(text).toContain("🧄 Запропонувати зубчик часнику як примирення");
     expect(text).toContain("<b>Мандрівник</b>, що робимо?");
     expect(text.indexOf("Можливі способи:")).toBeLessThan(text.indexOf("<b>Мандрівник</b>, що робимо?"));
     expect(text).not.toContain("ризик 13%");
     expect(text).not.toContain("шанс ускладнення");
+  });
+
+  it("renders starter shawarma method help separately", () => {
+    const text = presentMimicShawarmaMethodHelp(character);
+
+    expect(text).toContain("Детальніше про способи:");
+    expect(text).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
+    expect(text).toContain("Розслідування без поспіху");
+    expect(text).toContain("Майже надійно");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
   });
 
   it("does not print the approach reward ladder on the selected problem screen", () => {
@@ -227,8 +239,10 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("race+class");
     expect(text).not.toContain("точну біографію");
     expect(text).not.toContain(": форму");
-    expect(text).toContain("</i>\n\n");
-    expect(text.match(/<i>/gu)?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(text).toContain("<i>Можливі способи:</i>");
+    expect(text.match(/<i>/gu)?.length ?? 0).toBe(1);
+    expect(presentAdventureProblemMethodHelp(result)).toContain("Детальніше про способи:");
+    expect(presentAdventureProblemMethodHelp(result)).toContain("Домовитися з канцелярським краєм\nДипломатія полів");
   });
 
   it("shows non-complicated reward without level-up text", () => {
