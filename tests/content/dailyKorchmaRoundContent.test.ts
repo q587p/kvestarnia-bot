@@ -16,6 +16,10 @@ describe("daily Korchma round content", () => {
     for (const scene of dailyKorchmaRoundScenes) {
       expect(scene.actions).toHaveLength(3);
       expect(new Set(scene.actions.map((action) => action.id)).size).toBe(3);
+
+      for (const action of scene.actions) {
+        expect(action.description?.trim()).toBeTruthy();
+      }
     }
   });
 

@@ -61,6 +61,7 @@ import {
   buildDailyKorchmaRoundSceneKeyboard,
   buildDailyKorchmaRoundStepKeyboard
 } from "../../src/bot/keyboards/dailyKorchmaRoundKeyboard";
+import { dailyKorchmaRoundScenes } from "../../src/content/dailyKorchmaRoundContent";
 import {
   buildBackToShynokKeyboard,
   buildShynokRoundPreviewKeyboard,
@@ -2020,6 +2021,33 @@ describe("main menu and scene keyboards", () => {
       "v1:dkr:o:20260628",
       "v1:place:hall"
     ]);
+  });
+
+  it("adds help and back buttons for every shipped daily Korchma round scene", () => {
+    for (const [sceneIndex, scene] of dailyKorchmaRoundScenes.entries()) {
+      const sceneResult = {
+        state: "scene",
+        character,
+        offer: {
+          dayKey: "2026-06-28",
+          dayToken: "20260628",
+          lifeToken: 7,
+          requiredSteps: 2,
+          completedSceneIds: [],
+          omittedSceneId: null,
+          scenes: dailyKorchmaRoundScenes
+        },
+        scene,
+        sceneIndex,
+        alreadyCompleted: false,
+        locked: false
+      } as const;
+
+      expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult))).toContain("💡 Підказка");
+      expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult, { mode: "help" }))).toContain(
+        "⬅️ Назад"
+      );
+    }
   });
 
   it("routes a daily Korchma round wrong-location step to the required scene place", () => {
