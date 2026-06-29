@@ -394,7 +394,7 @@ describe("tavern presenter", () => {
     const text = presentKorchmaHall({ ...character, level: 3 });
 
     expect(text).toContain("Зала корчми");
-    expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
+    expect(text).not.toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
     expect(text).toContain("Корчма Квестарні");
     expect(text).toContain("Ліворуч гупає <i>бійцівський куток</i>");
     expect(text).toContain("праворуч терпить життя <i>стіл зі справами</i>");
@@ -406,9 +406,20 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>дошка вістей</i>");
     expect(text).toContain("<i>надвір</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
-    expect(text).toContain("Куди йдемо?");
+    expect(text).toContain("Мандрівник, куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
     expect(text).not.toContain("запалилася свічка");
+  });
+
+  it("uses only the escaped character name in the korchma hall prompt", () => {
+    const text = presentKorchmaHall({
+      ...character,
+      name: "<b>Shannar de Kassal</b>",
+      title: "Тлумачка Підозрілих Благословень"
+    });
+
+    expect(text).toContain("&lt;b&gt;Shannar de Kassal&lt;/b&gt;, куди йдемо?");
+    expect(text).not.toContain("Тлумачка Підозрілих Благословень");
   });
 
   it("keeps the early korchma hall prose stable while buttons stay level-gated", () => {
@@ -467,7 +478,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("</blockquote>");
-    expect(text).toContain("Куди йдемо?");
+    expect(text).toContain("Мандрівник, куди йдемо?");
   });
 
   it("says only-you only when the current player is the sole active person inside", () => {

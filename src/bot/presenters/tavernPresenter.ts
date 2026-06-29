@@ -124,8 +124,6 @@ export function presentKorchmaHall(
 ): string {
   return [
     "🍺 Зала корчми",
-    presentCharacterHeader(character),
-    "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
     "Ліворуч гупає <i>бійцівський куток</i>, праворуч терпить життя <i>стіл зі справами</i>. Далі піниться <i>Бочка Пінного Міражу</i>, шумить <i>шинок</i>, за бочками чекає <i>спуск до Низу</i>, а поруч скромно пахне <i>льох</i>.",
@@ -137,7 +135,7 @@ export function presentKorchmaHall(
     "",
     ...presentTavernPresence(presence, viewerTelegramUserId),
     "",
-    "Куди йдемо?"
+    `${escapeHtml(character.name)}, куди йдемо?`
   ].join("\n");
 }
 
