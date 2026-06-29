@@ -73,10 +73,15 @@ describe("item postal presenter", () => {
     };
 
     expect(presentItemPostalDraft(draft)).toContain("Ложка &lt;бантом&gt;");
-    expect(presentItemPostalDraft(draft)).toContain("Плата за дорогу: <b>18 золота</b>");
+    expect(presentItemPostalDraft(draft)).toContain("Плата за дорогу з відправника: <b>18 золота</b>");
+    expect(presentItemPostalDraft(draft)).toContain("не знімається з отримувача");
     expect(presentItemPostalNotification(confirmed)).toContain("Дарувальник &lt;&amp;&gt;");
+    expect(presentItemPostalNotification(confirmed)).toContain("Плату за дорогу сплачує відправник: <b>18 золота</b>");
+    expect(presentItemPostalNotification(confirmed)).toContain("З вас золото не знімається");
     expect(presentItemPostalRespond({ state: "replayed", transfer: transfer("completed"), sender: null, receiver: null }))
       .toContain("Пакунок уже записано");
+    expect(presentItemPostalRespond({ state: "replayed", transfer: transfer("completed"), sender: null, receiver: null }))
+      .toContain("Плата з відправника: <b>18 золота</b>");
   });
 });
 

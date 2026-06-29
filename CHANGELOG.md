@@ -19,7 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Postal packages allow 1 to 5 distinct `itemId` stack types, with 1 to 93 units per selected type, capped by currently owned eligible unreserved quantity.
 - Postal confirm reserves every selected `itemId` through one live `postal:<sender>` reservation key; other item-spending flows now read `package_json` lines as active item-transfer reservations.
-- Delivery fee is charged only when the recipient accepts, in the same transaction as item movement. The internal tested fee formula is `13 + 3 * selected type count + selected unit count`.
+- Delivery fee is charged from the sender only when the recipient accepts, in the same transaction as item movement. The internal tested fee formula is `13 + 3 * selected type count + selected unit count`.
 - Shynok/bar and nearby social surfaces expose `📮 Пошта Квестарні` beside existing Safe Gifting.
 
 ### Unchanged

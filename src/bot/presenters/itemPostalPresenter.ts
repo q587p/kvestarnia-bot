@@ -53,9 +53,9 @@ export function presentItemPostalDraft(result: ItemPostalDraftViewResult | ItemP
     "Пакунок:",
     ...packageLines,
     "",
-    `Плата за дорогу: <b>${result.deliveryFeeGold} золота</b>`,
+    `Плата за дорогу з відправника: <b>${result.deliveryFeeGold} золота</b>`,
     `Строк: до <b>${formatPostalExpiry(result.transfer.expiresAt)}</b> за Києвом.`,
-    "Отримувач має явно прийняти пакунок. Золото не переходить іншому гравцеві.",
+    "Отримувач має явно прийняти пакунок. Золото не переходить іншому гравцеві й не знімається з отримувача.",
     "",
     "Додати манатку:",
     ...itemLines
@@ -78,7 +78,7 @@ export function presentItemPostalConfirm(result: ItemPostalConfirmServiceResult)
     `Кому: <b>${escapeHtml(result.receiver.name)}</b>`,
     ...presentPackageLines(result.transfer),
     "",
-    `Плата при прийнятті: <b>${result.transfer.deliveryFeeGold} золота</b>`,
+    `Плата з відправника при прийнятті: <b>${result.transfer.deliveryFeeGold} золота</b>`,
     `Строк: до <b>${formatPostalExpiry(result.transfer.expiresAt)}</b> за Києвом.`,
     "Манатки зарезервовані до відповіді, скасування або завершення строку."
   ].join("\n");
@@ -92,6 +92,7 @@ export function presentItemPostalNotification(result: Extract<ItemPostalConfirmS
     ...presentPackageLines(result.transfer),
     "",
     `Строк: до <b>${formatPostalExpiry(result.transfer.expiresAt)}</b> за Києвом.`,
+    `Плату за дорогу сплачує відправник: <b>${result.transfer.deliveryFeeGold} золота</b>. З вас золото не знімається.`,
     "Це доставка, не продаж. Прийміть явно або відхиліть."
   ].join("\n");
 }
@@ -105,7 +106,7 @@ export function presentItemPostalRespond(result: ItemGiftRespondResult): string 
       `Кому: <b>${escapeHtml(result.transfer.receiverName)}</b>`,
       ...presentPackageLines(result.transfer),
       "",
-      `Плата: <b>${result.transfer.deliveryFeeGold} золота</b>`
+      `Плата з відправника: <b>${result.transfer.deliveryFeeGold} золота</b>`
     ].join("\n");
   }
 
