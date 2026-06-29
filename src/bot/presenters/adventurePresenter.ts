@@ -9,7 +9,7 @@ import { buildStarterMethodOptions, getAdventureProblemIcon } from "../../servic
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
-import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
+import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureOffer(
   result: Extract<AdventureLookupResult, { state: "ready" }>
@@ -22,7 +22,6 @@ export function presentAdventureOffer(
 
   return [
     "🪧 Три справи на найближчий час",
-    presentCharacterHeader(result.character),
     "",
     ...choiceLines
   ].join("\n");
@@ -31,7 +30,6 @@ export function presentAdventureOffer(
 export function presentAdventureStart(character: CharacterSummary): string {
   return [
     "🪧 Три справи на найближчий час",
-    presentCharacterHeader(character),
     "",
     "Корчмар виклав на стіл три проблеми. Оберіть одну на столі зі справами."
   ].join("\n");

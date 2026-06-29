@@ -13,6 +13,8 @@ describe("daily Korchma round presenter", () => {
   it("renders the turn-in location as an italic lower-case place name", () => {
     const text = presentDailyKorchmaRound(turnInReadyRound());
 
+    expect(text).not.toContain("<b>Shannar de Kassal</b>");
+    expect(text).not.toContain("Шахтна Іскрознавиця");
     expect(text).toContain("Поверніться до <i>столу зі справами</i> й здайте обхід Корчмарю.");
     expect(text).not.toContain("Поверніться до Столу зі справами");
   });
@@ -20,6 +22,8 @@ describe("daily Korchma round presenter", () => {
   it("renders active scene action names without pre-spoiling descriptions or outcomes", () => {
     const text = presentDailyKorchmaRoundScene(stoolScene());
 
+    expect(text).not.toContain("<b>Shannar de Kassal</b>");
+    expect(text).not.toContain("Шахтна Іскрознавиця");
     expect(text).toContain("<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
     expect(text).not.toContain("ніжкам, що вертикальність має межі.\n\n\n<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
     expect(text).toContain("🧺 Запропонувати подушку");
@@ -32,6 +36,8 @@ describe("daily Korchma round presenter", () => {
   it("renders active scene action descriptions in help mode", () => {
     const text = presentDailyKorchmaRoundScene(stoolScene(), { mode: "help" });
 
+    expect(text).not.toContain("<b>Shannar de Kassal</b>");
+    expect(text).not.toContain("Шахтна Іскрознавиця");
     expect(text).toContain("Детальніше про дії:");
     expect(text).toContain("🧺 Запропонувати подушку\n<i>Мʼяка дипломатія без героїчного ремонту.</i>");
     expect(text).toContain("📐 Вирівняти ніжки\n<i>Практичний ремонт, який може зачепити меблеву гідність.</i>");

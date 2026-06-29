@@ -137,6 +137,8 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("Табличка прибулих");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("Останні зарубки:");
     expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; · рівень 2 · Зала корчми");
     expect(text).not.toContain("Видатні жителі");
@@ -172,6 +174,8 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("Пропамʼятна дошка");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("Видатні жителі");
     expect(text).toContain("Перші зарубки за рівні:");
     expect(text).toContain("• рівень 4: 🥇 &lt;b&gt;Дара&lt;/b&gt; · 🥈 Нестор Межовий");
@@ -225,6 +229,8 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("🏆 Переможці дуелей");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("<b>За добу</b>:");
     expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не переміг");

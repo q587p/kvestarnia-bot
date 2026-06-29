@@ -23,7 +23,7 @@ import {
 } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { presentCharacterDisplayName } from "./characterDisplay";
-import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
+import { escapeHtml, npcQuote } from "./telegramHtml";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 
 export function presentKorchmaFront(
@@ -54,7 +54,6 @@ export function presentKorchmaArrivalBoard(
 ): string {
   return [
     "📜 Табличка прибулих",
-    presentCharacterHeader(character),
     "",
     "Зліва від дверей висить дошка з іменами тих, кого корчма вже бачила й поки не заперечує.",
     "",
@@ -85,7 +84,6 @@ export function presentKorchmaMemorialBoard(
 ): string {
   return [
     "🏅 Пропамʼятна дошка",
-    presentCharacterHeader(character),
     "",
     "Справа від дверей висить дошка для тих, хто першим доріс до числа й не впав з табурета.",
     "",
@@ -104,7 +102,6 @@ export function presentKorchmaRemortMilestoneBoard(
 ): string {
   return [
     "🏅 Пропамʼятна дошка",
-    presentCharacterHeader(character),
     "",
     `Перші зарубки за рівні після реморту ${remortNumber}:`,
     "",
@@ -223,7 +220,6 @@ export function presentDuelWinnersBoard(
 
   return [
     "🏆 Переможці дуелей",
-    presentCharacterHeader(character),
     "",
     "На дошці Бійцівського кутка Корчмар рахує тільки дружні перемоги. Нагород тут немає, зате є крейда й надмірна офіційність.",
     "",

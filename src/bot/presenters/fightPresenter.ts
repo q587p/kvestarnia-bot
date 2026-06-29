@@ -108,7 +108,6 @@ export function presentFightMonsterRest(
 ): string {
   return [
     "🪜 <b>Низ просить тихіше</b>",
-    presentCharacterHeader(result.character),
     "",
     "Монстри щойно взяли коротку корчемну перерву. Кажуть, без неї вони починають випадати з ролі й просити профспілку.",
     "",
@@ -134,7 +133,6 @@ export function presentPersistentFightDifficultyChoice(
 ): string {
   return [
     "🧱 <b>Ярус I: Сутерени Корчми</b>",
-    presentCharacterHeader(result.character),
     "",
     "Підсходник сидить на нижній сходинці й крейдою малює три проходи на стіні. Каже, що Низ любить, коли вибір здається простим.",
     "",
@@ -158,7 +156,6 @@ export function presentPersistentFightPassagePreview(
 
   return [
     `${passage.icon} <b>${escapeHtml(passage.title)}</b>`,
-    presentCharacterHeader(result.character),
     "",
     ...(refreshLine ? [refreshLine, ""] : []),
     `Ви у ${passage.locative}. Попереду — <b>${escapeHtml(result.monster.name)}</b>${monsterLevel}. Увага ще не впала на вас.`,

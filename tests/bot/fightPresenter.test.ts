@@ -9,6 +9,7 @@ import {
   presentProblemQuestProgressAfterFight,
   presentProblemQuestTurnIn,
   presentQuestProgressAfterFight,
+  presentPersistentFightDifficultyChoice,
   presentPersistentFight,
   presentPersistentFightPassagePreview,
   presentPersistentFightIntro,
@@ -76,6 +77,24 @@ describe("fight presenter", () => {
     expect(presentFightNoCharacter()).toContain("/start");
   });
 
+  it("renders the Nyz level choice without a character header", () => {
+    const text = presentPersistentFightDifficultyChoice({
+      state: "persistent-ready",
+      character,
+      searchAvailability: {
+        "location:descent-to-nyz": { searchAvailable: true },
+        "location:deep-level1": { searchAvailable: true },
+        "passage:deep-left": { searchAvailable: true },
+        "passage:deep-straight": { searchAvailable: true },
+        "passage:deep-right": { searchAvailable: true }
+      }
+    });
+
+    expect(text).toContain("Ярус I: Сутерени Корчми");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
+  });
+
   it("uses neutral passage preview copy for monsters without grammar metadata", () => {
     const text = presentPersistentFightPassagePreview({
       state: "persistent-preview",
@@ -99,6 +118,8 @@ describe("fight presenter", () => {
     });
 
     expect(text).toContain("Ви у правому проході. Попереду — <b>Льохова Миша з Титулом</b> · рівень 3.");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("Поранений слід: 7/18 здоров’я.");
     expect(text).toContain("Увага ще не впала на вас.");
     expect(text).not.toContain("Він вас");
