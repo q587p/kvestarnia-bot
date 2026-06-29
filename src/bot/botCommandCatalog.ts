@@ -3,7 +3,7 @@ export interface BotCommandCatalogEntry {
   icon: string;
   description: string;
   includeInMenu: boolean;
-  devOnly?: "reset" | "grant";
+  devOnly?: "reset" | "grant" | "party";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -195,6 +195,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "reset"
   },
   {
+    command: "dev_party",
+    icon: "🪢",
+    description: "зібрати тимчасову ватагу локально",
+    includeInMenu: false,
+    devOnly: "party"
+  },
+  {
     command: "dev_reset_me",
     icon: "🧪",
     description: "скинути персонажа локально",
@@ -332,6 +339,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
 export interface DevCommandVisibility {
   includeDevReset: boolean;
   includeDevGrant?: boolean;
+  includePartySessions?: boolean;
 }
 
 export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility): BotCommandCatalogEntry[] {
@@ -342,9 +350,13 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
       return true;
     }
 
-    return entry.devOnly === "reset"
-      ? normalized.includeDevReset
-      : normalized.includeDevGrant;
+    if (entry.devOnly === "reset") {
+      return normalized.includeDevReset;
+    }
+
+    return entry.devOnly === "grant"
+      ? normalized.includeDevGrant
+      : normalized.includePartySessions;
   });
 }
 
@@ -366,12 +378,14 @@ function normalizeDevCommandVisibility(
   if (typeof visibility === "boolean") {
     return {
       includeDevReset: visibility,
-      includeDevGrant: visibility
+      includeDevGrant: visibility,
+      includePartySessions: visibility
     };
   }
 
   return {
     includeDevReset: visibility.includeDevReset,
-    includeDevGrant: visibility.includeDevGrant ?? false
+    includeDevGrant: visibility.includeDevGrant ?? false,
+    includePartySessions: visibility.includePartySessions ?? false
   };
 }

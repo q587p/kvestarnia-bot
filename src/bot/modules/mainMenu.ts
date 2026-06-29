@@ -132,7 +132,8 @@ export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void 
 
     await ctx.reply(presentHelp({
       includeDevReset: services.devReset.isEnabled(),
-      includeDevGrant: services.devGrant?.isEnabled() ?? false
+      includeDevGrant: services.devGrant?.isEnabled() ?? false,
+      includePartySessions: services.partySessions?.isEnabled() ?? false
     }), {
       reply_markup: replyMarkup
     });

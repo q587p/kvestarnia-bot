@@ -34,6 +34,7 @@ export function registerCoreBotModule(
   });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {
+    partySessionService: services.partySessions,
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence)
   });
   registerNewsCommand(bot);
@@ -65,7 +66,8 @@ async function handleMenuCallback(
   if (action === "help") {
     await safeEditMessageText(ctx, presentHelp({
       includeDevReset: services.devReset.isEnabled(),
-      includeDevGrant: services.devGrant?.isEnabled() ?? false
+      includeDevGrant: services.devGrant?.isEnabled() ?? false,
+      includePartySessions: services.partySessions?.isEnabled() ?? false
     }));
     return;
   }

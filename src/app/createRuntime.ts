@@ -105,7 +105,8 @@ export function createRuntime(input: {
 
       void bot.api.setMyCommands(dependencies.getTelegramMenuCommands({
         includeDevReset: services.devReset.isEnabled(),
-        includeDevGrant: services.devGrant?.isEnabled() === true
+        includeDevGrant: services.devGrant?.isEnabled() === true,
+        includePartySessions: services.partySessions?.isEnabled() === true
       })).catch((error) => {
         console.error("Квестарня: бокове меню команд не оновилось.", error);
       });
