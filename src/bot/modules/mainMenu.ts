@@ -29,7 +29,6 @@ import {
 sendHuntBoard
 } from "../commands/huntCommand";
 import { sendInventory } from "../commands/inventoryCommand";
-import { sendNewsList } from "../commands/newsCommand";
 import { sendOnline } from "../commands/onlineCommand";
 import {
 sendQuestHub
@@ -39,6 +38,7 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaNewsCorner,
 sendKorchmaYard,
 sendTavern,
 sendTavernBarrel
@@ -472,12 +472,7 @@ async function sendCurrentPresenceLocation(
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER) {
-    await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-      currentRaidId: null,
-      currentAdventureId: null
-    });
-    await sendNewsList(ctx, 0, "reply");
+    await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
     return;
   }
 

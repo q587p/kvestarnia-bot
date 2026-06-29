@@ -75,6 +75,7 @@ import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaMemorialBoardKeyboard,
+  buildKorchmaNewsCornerKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
@@ -298,8 +299,6 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
-      "🎁 Подарувати манатку",
-      "📮 Пошта Квестарні",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard())).toEqual([
@@ -307,8 +306,6 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
-      "v1:gift:open",
-      "v1:post:open",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
@@ -316,8 +313,6 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
-      "🎁 Подарувати манатку",
-      "📮 Пошта Квестарні",
       "🍾 Здати пляшку",
       "⬅️ До зали"
     ]);
@@ -326,9 +321,19 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
+      "v1:cellar:grownup-turn-in",
+      "v1:place:hall"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaNewsCornerKeyboard())).toEqual([
+      "📰 Вісти",
+      "🎁 Подарувати манатку",
+      "📮 Пошта Квестарні",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaNewsCornerKeyboard())).toEqual([
+      "v1:news:list:0",
       "v1:gift:open",
       "v1:post:open",
-      "v1:cellar:grownup-turn-in",
       "v1:place:hall"
     ]);
   });

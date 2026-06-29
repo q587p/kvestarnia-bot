@@ -12,6 +12,7 @@ import {
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
+  presentKorchmaNewsCorner,
   presentKorchmaRemortMilestoneBoard,
   presentKorchmaYard,
   presentPendingRaidActionBlock,
@@ -492,6 +493,16 @@ describe("tavern presenter", () => {
     expect(text).toContain("корчмаря");
     expect(text).toContain("частують пивом");
     expect(text).toContain("Що наливаємо?");
+  });
+
+  it("shows the news board as a small service location", () => {
+    const text = presentKorchmaNewsCorner(character);
+
+    expect(text).toContain("📰 Дошка вістей");
+    expect(text).toContain("<i>дошка вістей</i>");
+    expect(text).toContain("глянути вісти Квестарні");
+    expect(text).toContain("передати пакунок через пошту");
+    expect(text).toContain("Що дивимося?");
   });
 
   it("mentions available Шинок actions in the location text", () => {

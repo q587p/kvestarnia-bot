@@ -268,6 +268,20 @@ export function presentKorchmaBar(
   ].join("\n");
 }
 
+export function presentKorchmaNewsCorner(_character: CharacterSummary): string {
+  void _character;
+
+  return [
+    "📰 Дошка вістей",
+    "",
+    "Біля дверей висить <i>дошка вістей</i>. На ній свіжі оголошення, старі цвяшки й один клаптик паперу, який явно знає більше, ніж каже.",
+    "",
+    "Тут можна глянути вісти Квестарні, подарувати манатку тому, хто поруч, або передати пакунок через пошту за невелику плату. Дошка робить вигляд, що це все її ідея.",
+    "",
+    "Що дивимося?"
+  ].join("\n");
+}
+
 function presentKorchmaBarActionLines(options: {
   includeBottleTurnIn?: boolean;
   problemQuestAction?: "turn-in" | "take" | "next";

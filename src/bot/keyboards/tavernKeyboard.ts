@@ -4,6 +4,7 @@ import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbac
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
+import { makeNewsListCallbackData } from "../callbacks/newsCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeDescentSearchStartCallbackData } from "../callbacks/passageSearchCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -161,10 +162,7 @@ export function buildKorchmaBarKeyboard(
     .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
     .row()
     .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
-    .row()
-    .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
-  keyboard.text("📮 Пошта Квестарні", makeItemPostalOpenCallbackData()).row();
 
   if (options.bardPerformance) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
@@ -187,6 +185,17 @@ export function buildKorchmaBarKeyboard(
   }
 
   return keyboard
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📰 Вісти", makeNewsListCallbackData(0))
+    .row()
+    .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
+    .row()
+    .text("📮 Пошта Квестарні", makeItemPostalOpenCallbackData())
+    .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 

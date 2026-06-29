@@ -12,8 +12,6 @@ import {
   type BardPerformanceRespondResult
 } from "../../services/bardPerformanceService";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
-import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
-import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   makeShynokDrinkConfirmCallbackData,
@@ -47,10 +45,7 @@ export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): Inli
     .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
     .row()
     .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
-    .row()
-    .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
-  keyboard.text("📮 Пошта Квестарні", makeItemPostalOpenCallbackData()).row();
 
   if (
     result?.state === "ready" &&

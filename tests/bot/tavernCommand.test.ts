@@ -11,6 +11,7 @@ import {
   sendKorchmaDeepClosed,
   sendKorchmaFightingCorner,
   sendKorchmaFront,
+  sendKorchmaNewsCorner,
   sendKorchmaMemorialBoard,
   sendKorchmaRemortMilestoneBoard,
   sendTavern
@@ -29,9 +30,7 @@ const shynokActionRows = [
     { text: "🍺 Просте всім", callback_data: "v1:sh:rp:simple" },
     { text: "🍻 Якісне всім", callback_data: "v1:sh:rp:fine" }
   ],
-  [{ text: "💰 Продати манатки", callback_data: "v1:sh:so" }],
-  [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }],
-  [{ text: "📮 Пошта Квестарні", callback_data: "v1:post:open" }]
+  [{ text: "💰 Продати манатки", callback_data: "v1:sh:so" }]
 ];
 
 describe("tavern command screens", () => {
@@ -265,6 +264,32 @@ describe("tavern command screens", () => {
               callback_data: makePlaceCallbackData("hall")
             }
           ]
+        ]
+      }
+    });
+  });
+
+  it("shows the news board as a location with news, gift and postal actions", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaNewsCorner(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("📰 Дошка вістей");
+    expect(replies[0]?.text).toContain("можна глянути вісти Квестарні");
+    expect(replies[0]?.text).toContain("передати пакунок через пошту");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "📰 Вісти", callback_data: "v1:news:list:0" }],
+          [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }],
+          [{ text: "📮 Пошта Квестарні", callback_data: "v1:post:open" }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });

@@ -48,6 +48,7 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaNewsCorner,
 sendKorchmaYard,
 sendKorchmaMemorialBoard,
 sendKorchmaRemortMilestoneBoard,
@@ -785,12 +786,7 @@ async function handlePlaceCallback(
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
-  await markScenePresence(ctx, services.presence, {
-    locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-    currentRaidId: null,
-    currentAdventureId: null
-  });
-  await sendNewsList(ctx, 0);
+  await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 

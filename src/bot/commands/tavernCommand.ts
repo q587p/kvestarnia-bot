@@ -8,6 +8,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_YARD,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
@@ -37,6 +38,7 @@ import {
   buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
+  buildKorchmaNewsCornerKeyboard,
   buildKorchmaYardKeyboard,
   buildKorchmaMemorialBoardKeyboard,
   buildKorchmaRemortMilestoneBoardKeyboard,
@@ -53,6 +55,7 @@ import {
   presentKorchmaFightingCornerLevelLocked,
   presentKorchmaFront,
   presentKorchmaHall,
+  presentKorchmaNewsCorner,
   presentKorchmaYard,
   presentKorchmaMemorialBoard,
   presentKorchmaRemortMilestoneBoard,
@@ -86,6 +89,7 @@ type TavernCommandKeyboard =
       characterLevel?: number;
     }
   | "yard"
+  | "news-corner"
   | "fighting-corner"
   | "deep"
   | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
@@ -242,6 +246,42 @@ export async function sendKorchmaYard(
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_YARD);
   await sendText(ctx, mode, presentKorchmaYard(result.character), "yard");
+}
+
+export async function sendKorchmaNewsCorner(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_NEWS_CORNER);
+  await sendText(ctx, mode, presentKorchmaNewsCorner(result.character), "news-corner");
 }
 
 export async function sendKorchmaArrivalBoard(
@@ -686,6 +726,8 @@ async function sendText(
                 })
             : keyboard === "yard"
               ? buildKorchmaYardKeyboard()
+            : keyboard === "news-corner"
+              ? buildKorchmaNewsCornerKeyboard()
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
             : keyboard === "arrivals"
