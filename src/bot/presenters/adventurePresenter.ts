@@ -304,6 +304,7 @@ export function presentMimicShawarmaResult(
     body: ["Підозріла шаурма дала свідчення й записалась у навчальні пригоди."]
   };
   const methodLabel = result.method?.label ?? String(result.action);
+  const itemGrantLines = presentItemGrantLines(result.reward.itemGrants);
   const lines = [
     escapeHtml(outcome.headline),
     "",
@@ -313,7 +314,7 @@ export function presentMimicShawarmaResult(
     ...presentHpLossLines(result.hpLoss, result.character),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за пригоду" }),
-    ...presentItemGrantLines(result.reward.itemGrants)
+    ...(itemGrantLines.length > 0 ? ["", ...itemGrantLines] : [])
   ];
 
   return lines.join("\n");

@@ -6,6 +6,7 @@ import {
   presentAdventureProblem,
   presentAdventureProblemMethodHelp,
   presentMimicShawarmaMethodHelp,
+  presentMimicShawarmaResult,
   presentMimicShawarmaStart,
   presentAdventureResult
 } from "../../src/bot/presenters/adventurePresenter";
@@ -13,9 +14,11 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import {
   buildAdventureMethodOptions,
   buildApproachOptions,
+  buildStarterMethodOptions,
   type AdventureChoice,
   type AdventureProblemResult,
-  type AdventureResult
+  type AdventureResult,
+  type MimicShawarmaResult
 } from "../../src/services/adventureService";
 import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
 
@@ -256,6 +259,39 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("Підпис методу");
     expect(text).not.toContain("race+class");
     expect(text).not.toContain("Рівень підріс");
+  });
+
+  it("separates starter shawarma item reward from the reward amount", () => {
+    const method = buildStarterMethodOptions("shawarma", character)[0]!;
+    const result: Extract<MimicShawarmaResult, { state: "completed" }> = {
+      state: "completed",
+      action: method.id,
+      method,
+      grade: "success",
+      outcome: {
+        headline: "✅ Справу закрито",
+        body: ["Шаурма погодилась бути пригодою."]
+      },
+      spentGold: 0,
+      hpLoss: null,
+      character,
+      reward: {
+        xp: 8,
+        gold: 4,
+        localDate: "2026-06-12",
+        itemGrants: [{ name: "Підозрілий лавашний доказ", quantity: 1 }]
+      },
+      levelChange: {
+        oldLevel: 1,
+        newLevel: 1,
+        leveledUp: false
+      },
+      achievementUnlocks: []
+    };
+
+    expect(presentMimicShawarmaResult(result)).toContain(
+      "Винагорода за пригоду:\n<b>+8 XP\n+4 золота</b>\n\nЗдобуто: <i>Підозрілий лавашний доказ</i>"
+    );
   });
 
   it("keeps generated strong-success scene outcomes neutral for plural titles", () => {
