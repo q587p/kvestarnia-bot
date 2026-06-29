@@ -533,6 +533,26 @@ describe("adventure resolution content", () => {
     expect(bodiesByMethod.get("title-knot-crest")).toContain("Стрічка");
   });
 
+  it("keeps the runaway boots copy explicit about cause, target, and method objects", () => {
+    const problem = getAdventureProblemPoolForProfile().find((candidate) => candidate.id === "boots");
+    const scene = buildAdventureResolutionScene({
+      problemId: "boots",
+      title: "Чоботи пішли без власника",
+      character
+    });
+
+    expect(problem?.problem).toContain("образились");
+    expect(problem?.goal).toContain("вхідних дверей");
+    expect(problem?.goal).not.toContain("шкарпетки не стали свідками");
+    expect(scene.methods.map((method) => method.label)).toEqual(
+      expect.arrayContaining([
+        "🛢️ Змастити підошви, щоб чоботи збили темп",
+        "🤝 Записати чоботи в безпечну експедицію",
+        "💪 Перегнати чоботи до вхідних дверей"
+      ])
+    );
+  });
+
   it("capitalizes starter identity beats at sentence start", () => {
     const intellectualOrc = {
       ...character,

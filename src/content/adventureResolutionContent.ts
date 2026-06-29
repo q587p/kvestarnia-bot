@@ -1047,9 +1047,9 @@ const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
   ]),
   boots: scene("чоботи", "Чоботи повернулись, але планують відпустку.", "Погоня лишила героя з пилом і без частини золота.", [
     method("track-soles", "🏹 Прочитати маршрут підошов", "Слід і розум.", "investigate", ["tracking"], "dexterity", "intelligence", 68, "standard", undefined, undefined, "skill.trick-shot"),
-    method("offer-expedition", "🤝 Записати їх у безпечну експедицію", "Дипломатія взуття.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
+    method("offer-expedition", "🤝 Записати чоботи в безпечну експедицію", "Дипломатія взуття.", "negotiate", ["persuasion"], "charisma", "intelligence", 65, "standard"),
     method("lace-trap", "🪤 Звʼязати шнурки пасткою", "Точний трюк, можна впасти разом із доказом.", "craft", ["traps"], "dexterity", "intelligence", 62, "generous", "minor-injury"),
-    method("outrun-boots", "💪 Перегнати чоботи до дверей", "Гучно й ризиковано, можна добряче забитись.", "fight", ["force"], "strength", "dexterity", 57, "generous", "serious-injury")
+    method("outrun-boots", "💪 Перегнати чоботи до вхідних дверей", "Гучно й ризиковано, можна добряче забитись.", "fight", ["force"], "strength", "dexterity", 57, "generous", "serious-injury")
   ]),
   chimney: scene("комин", "Довідки зупинились, одна лишилась на героя.", "Сажа склалась у службову істоту.", [
     method("trace-stamps", "🔎 Знайти джерело печаток у сажі", "Надійне розслідування.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
@@ -1255,7 +1255,7 @@ function buildSceneNativeTopUpMethods(problemId: string): readonly AdventureMeth
     cloak: method("stitch-shadow", "🧵 Пришити тінь плаща до правильного гачка", "Тканина слухає, голка інколи сперечається.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
     spoon: method("count-quorum", "📋 Перерахувати кворум ложок до десерту", "Порядок денний без стуку по столу.", "investigate", ["authority", "investigation"], "intelligence", "charisma", 66, "modest"),
     mirror: method("pad-frame", "🧤 Притримати раму рукавицею правди", "Обережний трюк зі склом, можна постраждати.", "craft", ["craft", "force"], "strength", "intelligence", 61, "standard", "minor-injury"),
-    boots: method("oil-soles", "🛢️ Змастити підошви проти відпусткових планів", "Практично й менш героїчно за погоню.", "craft", ["craft", "tracking"], "intelligence", "dexterity", 65, "standard"),
+    boots: method("oil-soles", "🛢️ Змастити підошви, щоб чоботи збили темп", "Практично й менш героїчно за погоню.", "craft", ["craft", "tracking"], "intelligence", "dexterity", 65, "standard"),
     chimney: method("jar-soot", "🏺 Зібрати сажу в банку з етикеткою", "Ремесло й акт приймання, можна забруднитися до синця.", "craft", ["craft", "authority"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
     candle: method("trim-wick", "✂️ Підрізати ґніт до робочого настрою", "Точно, гаряче, небезпечно для пальців.", "craft", ["craft", "arcana"], "dexterity", "intelligence", 61, "standard", "minor-injury"),
     chair: method("measure-legs", "📏 Виміряти ніжки на змову меблів", "Розслідування без негайного виклику варти.", "investigate", ["investigation", "craft"], "intelligence", "dexterity", 67, "standard"),
