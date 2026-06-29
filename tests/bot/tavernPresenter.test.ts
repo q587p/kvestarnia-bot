@@ -442,7 +442,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>дошка вістей</i>");
     expect(text).toContain("<i>надвір</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
-    expect(text).toContain("Мандрівник, куди йдемо?");
+    expect(text).toContain("<b>Мандрівник</b>, куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
     expect(text).not.toContain("запалилася свічка");
   });
@@ -454,7 +454,7 @@ describe("tavern presenter", () => {
       title: "Тлумачка Підозрілих Благословень"
     });
 
-    expect(text).toContain("&lt;b&gt;Shannar de Kassal&lt;/b&gt;, куди йдемо?");
+    expect(text).toContain("<b>&lt;b&gt;Shannar de Kassal&lt;/b&gt;</b>, куди йдемо?");
     expect(text).not.toContain("Тлумачка Підозрілих Благословень");
   });
 
@@ -524,7 +524,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("</blockquote>");
-    expect(text).toContain("Мандрівник, куди йдемо?");
+    expect(text).toContain("<b>Мандрівник</b>, куди йдемо?");
   });
 
   it("says only-you only when the current player is the sole active person inside", () => {

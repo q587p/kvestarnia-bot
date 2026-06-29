@@ -134,7 +134,7 @@ export function presentKorchmaHall(
     "",
     ...presentTavernPresence(presence, viewerTelegramUserId),
     "",
-    `${escapeHtml(character.name)}, куди йдемо?`
+    `<b>${escapeHtml(character.name)}</b>, куди йдемо?`
   ].join("\n");
 }
 
