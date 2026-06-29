@@ -54,7 +54,7 @@ describe("cellar presenter", () => {
     expect(text).not.toContain("що робимо?");
   });
 
-  it("separates cellar combo title flavor from the following beat", () => {
+  it("omits cellar combo title prefix from the start action card", () => {
     const text = presentCellarStart({
       state: "ready",
       character: {
@@ -67,7 +67,9 @@ describe("cellar presenter", () => {
       }
     });
 
-    expect(text).toContain("Кандидати Бойових Наук у льосі.\n\n");
+    expect(text).not.toContain("Кандидати Бойових Наук у льосі.");
+    expect(text).not.toContain("Шахтна Іскрознавиця у льосі.");
+    expect(text).toContain("Мишача позиція отримує шанс бути розібраною етично й дуже переконливо.");
   });
 
   it("adds character-aware flavor to cellar start and outcome scenes", () => {

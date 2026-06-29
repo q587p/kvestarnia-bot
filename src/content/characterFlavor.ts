@@ -495,7 +495,7 @@ function buildCellarStartComboLines(): CharacterFlavorLine[] {
     placement: "quest.start",
     scene: "cellar",
     selector: { combos: [{ raceId, classId }] },
-    text: `{title} у льосі.\n\n${cellarComboRaceBeat(raceId)} ${cellarComboClassBeat(classId)}`
+    text: `${cellarComboRaceBeat(raceId)} ${cellarComboClassBeat(classId)}`
   }));
 }
 
