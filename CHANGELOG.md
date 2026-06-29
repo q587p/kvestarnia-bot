@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.15] - 12026-06-29 - Party Session Foundation
+## [0.2.15] - 12026-06-30 - Party Session Foundation
 
 ### Added
 - Added dev/flagged temporary party recruiting through `/dev_party` and `PARTY_SESSION_FOUNDATION_ENABLED`.

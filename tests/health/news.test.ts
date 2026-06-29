@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readNewsEntries, parseNewsEntries, renderNewsMarkdown } from "../../src/health/news";
@@ -73,4 +74,45 @@ describe("public news rendering", () => {
     expect(newsHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
     expect(newsHeading?.date).toBe(changelogHeading?.date);
   });
+
+  it("keeps the latest release date on the current Kyiv day of the commit", () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(process.cwd(), "package.json"), "utf8")
+    ) as { version: string };
+    const changelog = readFileSync(join(process.cwd(), "CHANGELOG.md"), "utf8");
+    const news = readFileSync(join(process.cwd(), "news.md"), "utf8");
+
+    const changelogHeading = changelog.match(
+      /^## \[(?<version>\d+\.\d+\.\d+)\] - (?<date>1\d{4}-\d{2}-\d{2}) - /m
+    )?.groups;
+    const newsHeading = news.match(
+      /^## (?<version>\d+\.\d+\.\d+) — (?<date>1\d{4}-\d{2}-\d{2}) — /m
+    )?.groups;
+    const headCommitDate = execFileSync("git", ["show", "-s", "--format=%cI", "HEAD"], {
+      cwd: process.cwd(),
+      encoding: "utf8"
+    }).trim();
+    const expectedDate = toKyivHoloceneDate(new Date(headCommitDate));
+
+    expect(changelogHeading).toEqual(
+      expect.objectContaining({ version: packageJson.version, date: expectedDate })
+    );
+    expect(newsHeading).toEqual(
+      expect.objectContaining({ version: packageJson.version, date: expectedDate })
+    );
+  });
 });
+
+function toKyivHoloceneDate(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Kyiv",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return `${year + 10000}-${month}-${day}`;
+}
