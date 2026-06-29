@@ -4,6 +4,7 @@ import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeNearbyDuelOpenCallbackData } from "../callbacks/nearbyDuelCallbackData";
+import { makePartySessionNearbyOpenCallbackData } from "../callbacks/partySessionCallbackData";
 import type { PartySessionService } from "../../services/partySessionService";
 import { makeShynokBardPerformanceStartCallbackData } from "../callbacks/shynokCallbackData";
 import { presentOnline } from "../presenters/presencePresenter";
@@ -65,7 +66,7 @@ async function buildNearbyActionsKeyboard(
   let hasActions = false;
 
   if (await hasLiveParty(options.partySessions, telegramUserId)) {
-    keyboard.text("🧭 Покликати у ватагу", makeNearbyDuelOpenCallbackData()).row();
+    keyboard.text("🧭 Покликати у ватагу", makePartySessionNearbyOpenCallbackData()).row();
     hasActions = true;
   }
 

@@ -100,8 +100,7 @@ export function registerSocialBotModule(
       await handleNearbyDuelCallback(ctx, callback, {
         presence: services.presence,
         duel: service,
-        tavernRaid: services.tavern,
-        partySessions: services.partySessions
+        tavernRaid: services.tavern
       });
     }
   );

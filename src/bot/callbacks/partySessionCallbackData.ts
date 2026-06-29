@@ -7,6 +7,7 @@ export type PartySessionCallback =
   | { type: "leave"; token: string }
   | { type: "cancel"; token: string }
   | { type: "expire"; token: string }
+  | { type: "nearby-open"; page: number }
   | { type: "nearby-invite"; targetTelegramUserId: bigint; page: number };
 
 export type PartySessionCallbackError =
@@ -43,6 +44,10 @@ export function makePartySessionExpireCallbackData(token: string): string {
   return `${PREFIX}:x:${token}`;
 }
 
+export function makePartySessionNearbyOpenCallbackData(page = 0): string {
+  return page === 0 ? `${PREFIX}:no` : `${PREFIX}:no:${page.toString(36)}`;
+}
+
 export function makePartySessionNearbyInviteCallbackData(
   targetTelegramUserId: bigint,
   page = 0
@@ -69,6 +74,19 @@ export function parsePartySessionCallbackData(
 
   if (section !== "party" || rest.length > 0) {
     return err("invalid-prefix");
+  }
+
+  if (action === "no") {
+    if (page !== undefined) {
+      return err("invalid-page");
+    }
+
+    const pageKey = tokenOrTarget ?? "0";
+    if (!PAGE_PATTERN.test(pageKey)) {
+      return err("invalid-page");
+    }
+
+    return ok({ type: "nearby-open", page: Number.parseInt(pageKey, 36) });
   }
 
   if (action === "ni") {

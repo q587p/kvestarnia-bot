@@ -6,6 +6,7 @@ import type {
   PartyLeaveResult,
   PartyViewResult
 } from "../../services/partySessionService";
+import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
@@ -138,6 +139,35 @@ export function presentPartyView(result: PartyViewResult): string {
     : "Ватага не знайшлася або вже стала легендою без протоколу.";
 }
 
+export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
+  if (snapshot.state === "no-character") {
+    return "Спершу створіть пригодника через /start. Ватага не записує тіні без анкети.";
+  }
+
+  const lines = [
+    "🧭 <b>Покликати у ватагу</b>",
+    "",
+    `📍 ${escapeHtml(snapshot.location.name)}`,
+    ""
+  ];
+
+  if (snapshot.total === 0) {
+    lines.push("Активних пригодників у цій локації зараз немає. Можна оновити список або запросити посиланням із картки ватаги.");
+    return lines.join("\n");
+  }
+
+  lines.push("Оберіть пригодника поруч:");
+  lines.push("");
+  lines.push(...snapshot.visible.map(presentNearbyCandidate));
+
+  if (snapshot.totalPages > 1) {
+    lines.push("");
+    lines.push(`Сторінка ${snapshot.page + 1}/${snapshot.totalPages}`);
+  }
+
+  return lines.join("\n");
+}
+
 export function presentPartySession(
   session: PartySessionRecord,
   options: {
@@ -228,6 +258,10 @@ function presentParticipantName(participant: PartyParticipantRecord): string {
     maxNameLength: 32,
     maxTitleLength: 32
   });
+}
+
+function presentNearbyCandidate(candidate: PresencePerson): string {
+  return `— ${presentCharacterDisplayName(candidate, { boldName: false })}${candidate.level ? ` · рівень ${candidate.level}` : ""}`;
 }
 
 function toDisplay(character: { name: string; activeCosmeticTitleGrantId?: string | null }): {

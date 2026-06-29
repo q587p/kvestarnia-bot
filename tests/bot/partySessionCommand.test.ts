@@ -6,6 +6,45 @@ import type { PartySessionService } from "../../src/services/partySessionService
 import type { PresenceService } from "../../src/services/presenceService";
 
 describe("handlePartySessionCallback", () => {
+  it("opens a standalone nearby party invite picker", async () => {
+    const session = makeSession("recruiting");
+    const getLiveRecruitingByTelegramUser = vi.fn().mockResolvedValue(session);
+    const getNearbyDuelCandidatesForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      location: {
+        id: "location.korchma.bar",
+        name: "Шинок"
+      },
+      page: 0,
+      pageSize: 5,
+      total: 1,
+      totalPages: 1,
+      visible: [
+        {
+          telegramUserId: 93n,
+          name: "Сусідня Пригодниця",
+          level: 8,
+          status: "active"
+        }
+      ]
+    });
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "nearby-open", page: 0 },
+      serviceWith({ getLiveRecruitingByTelegramUser }),
+      { presence: { getNearbyDuelCandidatesForTelegramUser } as unknown as PresenceService }
+    );
+
+    expect(getLiveRecruitingByTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getNearbyDuelCandidatesForTelegramUser).toHaveBeenCalledWith(42n, 0);
+    expect(messageText(editMessageText)).toContain("🧭 <b>Покликати у ватагу</b>");
+    expect(messageText(editMessageText)).not.toContain("Кинути виклик присутнім");
+    expect(keyboardJson(editMessageText)).toContain("v1:party:ni:2l:0");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:nd:");
+  });
+
   it("force-expires a live recruiting party through the dev helper when allowed", async () => {
     const session = makeSession("recruiting");
     const expired = { ...session, status: "expired" as const, activeLeaderKey: null, version: 2 };
@@ -56,6 +95,7 @@ function serviceWith(overrides: Partial<PartySessionService>): PartySessionServi
     isEnabled: () => true,
     areDevHelpersEnabled: () => false,
     forceExpireByToken: vi.fn(),
+    getLiveRecruitingByTelegramUser: vi.fn(),
     ...overrides
   } as unknown as PartySessionService;
 }

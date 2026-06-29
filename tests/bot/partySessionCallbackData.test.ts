@@ -5,6 +5,7 @@ import {
   makePartySessionJoinCallbackData,
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
+  makePartySessionNearbyOpenCallbackData,
   makePartySessionViewCallbackData,
   parsePartySessionCallbackData
 } from "../../src/bot/callbacks/partySessionCallbackData";
@@ -36,6 +37,15 @@ describe("party session callback data", () => {
   });
 
   it("round-trips nearby invite target ids without decimal ids in the payload", () => {
+    expect(parsePartySessionCallbackData(makePartySessionNearbyOpenCallbackData())).toEqual({
+      ok: true,
+      value: { type: "nearby-open", page: 0 }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionNearbyOpenCallbackData(42))).toEqual({
+      ok: true,
+      value: { type: "nearby-open", page: 42 }
+    });
+
     const data = makePartySessionNearbyInviteCallbackData(9876543210n, 42);
 
     expect(data).toBe("v1:party:ni:4jc8lii:16");

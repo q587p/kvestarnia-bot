@@ -1,12 +1,17 @@
 import { InlineKeyboard } from "grammy";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
+import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import {
   makePartySessionCancelCallbackData,
   makePartySessionExpireCallbackData,
   makePartySessionJoinCallbackData,
   makePartySessionLeaveCallbackData,
+  makePartySessionNearbyInviteCallbackData,
+  makePartySessionNearbyOpenCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
+
+const MAX_BUTTON_NAME_LENGTH = 32;
 
 export function buildPartySessionKeyboard(
   session: PartySessionRecord,
@@ -49,4 +54,45 @@ export function buildPartySessionInviteKeyboard(session: PartySessionRecord): In
     .text("🤝 Приєднатися", makePartySessionJoinCallbackData(session.inviteToken))
     .row()
     .text("🔎 Оновити", makePartySessionViewCallbackData(session.inviteToken));
+}
+
+export function buildPartySessionNearbyCandidatesKeyboard(
+  snapshot: Extract<NearbyDuelCandidatesSnapshot, { state: "ready" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const candidate of snapshot.visible) {
+    keyboard
+      .text(
+        `🧭 Покликати у ватагу: ${formatCandidateButton(candidate)}`,
+        makePartySessionNearbyInviteCallbackData(candidate.telegramUserId, snapshot.page)
+      )
+      .row();
+  }
+
+  if (snapshot.totalPages > 1) {
+    if (snapshot.page > 0) {
+      keyboard.text("⬅️", makePartySessionNearbyOpenCallbackData(snapshot.page - 1));
+    }
+
+    keyboard.text(`${snapshot.page + 1}/${snapshot.totalPages}`, makePartySessionNearbyOpenCallbackData(snapshot.page));
+
+    if (snapshot.page + 1 < snapshot.totalPages) {
+      keyboard.text("➡️", makePartySessionNearbyOpenCallbackData(snapshot.page + 1));
+    }
+
+    keyboard.row();
+  }
+
+  keyboard.text("🔎 Оновити", makePartySessionNearbyOpenCallbackData(snapshot.page));
+  return keyboard;
+}
+
+function formatCandidateButton(candidate: PresencePerson): string {
+  const level = candidate.level ? ` · ${candidate.level}` : "";
+  const name = candidate.name.length > MAX_BUTTON_NAME_LENGTH
+    ? `${candidate.name.slice(0, MAX_BUTTON_NAME_LENGTH - 1)}…`
+    : candidate.name;
+
+  return `${name}${level}`;
 }

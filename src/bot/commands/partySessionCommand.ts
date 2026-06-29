@@ -6,12 +6,17 @@ import {
   type PartySessionService
 } from "../../services/partySessionService";
 import { telegramUserIdFromContext } from "../context";
-import { buildPartySessionInviteKeyboard, buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
+import {
+  buildPartySessionInviteKeyboard,
+  buildPartySessionKeyboard,
+  buildPartySessionNearbyCandidatesKeyboard
+} from "../keyboards/partySessionKeyboard";
 import {
   presentPartyCancel,
   presentPartyCreate,
   presentPartyJoin,
   presentPartyLeave,
+  presentPartyNearbyCandidates,
   presentPartyNearbyInviteNotification,
   presentPartyNearbyInviteSent,
   presentPartyView
@@ -78,6 +83,11 @@ export async function handlePartySessionCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (callback.type === "nearby-open") {
+    await handleNearbyOpen(ctx, callback, service, options, telegramUserId);
     return;
   }
 
@@ -176,6 +186,33 @@ export async function sendPartyJoinFromStartPayload(
       : {})
   });
   return true;
+}
+
+async function handleNearbyOpen(
+  ctx: Context,
+  callback: Extract<PartySessionCallback, { type: "nearby-open" }>,
+  service: PartySessionService,
+  options: PartySessionCommandOptions,
+  telegramUserId: bigint
+): Promise<void> {
+  const session = await service.getLiveRecruitingByTelegramUser(telegramUserId);
+  if (!session) {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Спершу відкрийте живу ватагу через /dev_party.",
+      show_alert: true
+    });
+    return;
+  }
+
+  const snapshot = await options.presence.getNearbyDuelCandidatesForTelegramUser(telegramUserId, callback.page);
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentPartyNearbyCandidates(snapshot), {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(snapshot.state === "ready"
+      ? { reply_markup: buildPartySessionNearbyCandidatesKeyboard(snapshot) }
+      : {})
+  });
 }
 
 async function handleNearbyInvite(

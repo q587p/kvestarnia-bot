@@ -143,6 +143,10 @@ describe("online command", () => {
       "🧭 Покликати у ватагу",
       "🥊 Кинути виклик присутнім"
     ]);
+    expect(inlineButtonCallbacks(replies[0]?.options)).toEqual([
+      "v1:party:no",
+      "v1:nd:open"
+    ]);
   });
 
   it("does not show the Bard performance button to non-Bards nearby", async () => {
@@ -239,4 +243,11 @@ function inlineButtonTexts(options: unknown): string[] {
     (options as { reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> } })
       .reply_markup?.inline_keyboard ?? []
   ).flatMap((row) => row.map((button) => button.text));
+}
+
+function inlineButtonCallbacks(options: unknown): string[] {
+  return (
+    (options as { reply_markup?: { inline_keyboard?: Array<Array<{ callback_data: string }>> } })
+      .reply_markup?.inline_keyboard ?? []
+  ).flatMap((row) => row.map((button) => button.callback_data));
 }

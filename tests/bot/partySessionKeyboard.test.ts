@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildPartySessionKeyboard } from "../../src/bot/keyboards/partySessionKeyboard";
+import {
+  buildPartySessionKeyboard,
+  buildPartySessionNearbyCandidatesKeyboard
+} from "../../src/bot/keyboards/partySessionKeyboard";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 
 describe("party session keyboard", () => {
@@ -15,7 +18,40 @@ describe("party session keyboard", () => {
       includeDevExpire: false
     }))).not.toContain("⏱️ Dev: завершити строк");
   });
+
+  it("shows nearby party invite rows without duel actions", () => {
+    const keyboard = buildPartySessionNearbyCandidatesKeyboard({
+      state: "ready",
+      location: {
+        id: "location.korchma.bar",
+        name: "Шинок"
+      },
+      page: 0,
+      pageSize: 5,
+      total: 1,
+      totalPages: 1,
+      visible: [
+        {
+          telegramUserId: 93n,
+          name: "Shannar de Kassal",
+          level: 8,
+          status: "active"
+        }
+      ]
+    });
+
+    expect(inlineButtonTexts(keyboard)).toEqual([
+      "🧭 Покликати у ватагу: Shannar de Kassal · 8",
+      "🔎 Оновити"
+    ]);
+    expect(keyboardText(keyboard)).not.toContain("⚔️");
+    expect(keyboardText(keyboard)).not.toContain("v1:nd:");
+  });
 });
+
+function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: string }>> }): string[] {
+  return keyboard.inline_keyboard.flatMap((row) => row.map((button) => button.text));
+}
 
 function keyboardText(keyboard: unknown): string {
   return JSON.stringify(keyboard);

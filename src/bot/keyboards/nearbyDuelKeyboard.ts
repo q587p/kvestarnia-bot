@@ -6,7 +6,6 @@ import {
   makeNearbyDuelOpenCallbackData,
   makeNearbyDuelSelectCallbackData
 } from "../callbacks/nearbyDuelCallbackData";
-import { makePartySessionNearbyInviteCallbackData } from "../callbacks/partySessionCallbackData";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
 
@@ -15,21 +14,11 @@ export function buildNearbyDuelOpenKeyboard(): InlineKeyboard {
 }
 
 export function buildNearbyDuelCandidatesKeyboard(
-  snapshot: Extract<NearbyDuelCandidatesSnapshot, { state: "ready" }>,
-  options: { partyInviteEnabled?: boolean } = {}
+  snapshot: Extract<NearbyDuelCandidatesSnapshot, { state: "ready" }>
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   for (const candidate of snapshot.visible) {
-    if (options.partyInviteEnabled) {
-      keyboard
-        .text(
-          `🧭 Покликати у ватагу: ${formatCandidateButton(candidate)}`,
-          makePartySessionNearbyInviteCallbackData(candidate.telegramUserId, snapshot.page)
-        )
-        .row();
-    }
-
     keyboard
       .text(
         `⚔️ ${formatCandidateButton(candidate)}`,

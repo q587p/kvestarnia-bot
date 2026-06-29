@@ -1,7 +1,6 @@
 import type { Context } from "grammy";
 import type { NearbyDuelCallback } from "../callbacks/nearbyDuelCallbackData";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
-import type { PartySessionService } from "../../services/partySessionService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import { telegramUserIdFromContext } from "../context";
@@ -30,7 +29,6 @@ export interface NearbyDuelCommandOptions {
   presence: PresenceService;
   duel: DuelChallengeService;
   tavernRaid?: TavernRaidService;
-  partySessions?: PartySessionService | undefined;
 }
 
 export async function handleNearbyDuelCallback(
@@ -69,8 +67,7 @@ export async function handleNearbyDuelCallback(
       await safeEditMessageText(ctx, presentNearbyDuelTargetMissing(), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildNearbyDuelCandidatesKeyboard(
-          await getReadyCandidates(options.presence, telegramUserId, callback.page),
-          await getPartyInviteKeyboardOptions(options, telegramUserId)
+          await getReadyCandidates(options.presence, telegramUserId, callback.page)
         )
       });
       return;
@@ -96,8 +93,7 @@ export async function handleNearbyDuelCallback(
     await safeEditMessageText(ctx, presentNearbyDuelTargetMissing(), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildNearbyDuelCandidatesKeyboard(
-        await getReadyCandidates(options.presence, telegramUserId, 0),
-        await getPartyInviteKeyboardOptions(options, telegramUserId)
+        await getReadyCandidates(options.presence, telegramUserId, 0)
       )
     });
     return;
@@ -165,21 +161,10 @@ async function editCandidates(
     ...HTML_MESSAGE_OPTIONS,
     ...(snapshot.state === "ready"
       ? {
-          reply_markup: buildNearbyDuelCandidatesKeyboard(
-            snapshot,
-            await getPartyInviteKeyboardOptions(options, telegramUserId)
-          )
+          reply_markup: buildNearbyDuelCandidatesKeyboard(snapshot)
         }
       : {})
   });
-}
-
-async function getPartyInviteKeyboardOptions(
-  options: NearbyDuelCommandOptions,
-  telegramUserId: bigint
-): Promise<{ partyInviteEnabled?: boolean }> {
-  const live = await options.partySessions?.getLiveRecruitingByTelegramUser(telegramUserId);
-  return live ? { partyInviteEnabled: true } : {};
 }
 
 async function getReadyCandidates(
