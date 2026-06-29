@@ -4,6 +4,7 @@ import type {
   DailyKorchmaRoundSceneLookupResult,
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
+import type { DailyKorchmaRoundAction } from "../../content/dailyKorchmaRoundContent";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
@@ -81,16 +82,35 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
   ].join("\n");
 }
 
-export function presentDailyKorchmaRoundScene(result: DailyKorchmaRoundSceneLookupResult): string {
+export function presentDailyKorchmaRoundScene(
+  result: DailyKorchmaRoundSceneLookupResult,
+  options: { mode?: "compact" | "help" } = {}
+): string {
   if (result.state !== "scene") {
     return presentDailyKorchmaRoundFallback(result);
   }
+
+  const canChooseAction = !result.locked && !result.alreadyCompleted;
 
   const suffix = result.locked
     ? "\n\nЦе вже Не сьогоднішня катастрофа. Дощечка не дає мутувати третій пункт."
     : result.alreadyCompleted
       ? "\n\nЦей пункт уже має підпис. Можна лише перечитати й підозріло кивнути."
-      : "\n\nОберіть одну дію. Вона спрацює тільки тут.";
+      : "";
+
+  if (options.mode === "help" && canChooseAction && hasActionDescriptions(result.scene.actions)) {
+    return [
+      `${result.scene.icon} ${escapeHtml(result.scene.title)}`,
+      presentCharacterHeader(result.character),
+      "",
+      `<b>${escapeHtml(getLocationName(result.scene.locationId))}</b>`,
+      escapeHtml(result.scene.hook),
+      "",
+      "Детальніше про дії:",
+      "",
+      ...presentDailyKorchmaRoundActionHelp(result.scene.actions)
+    ].join("\n");
+  }
 
   return [
     `${result.scene.icon} ${escapeHtml(result.scene.title)}`,
@@ -98,8 +118,23 @@ export function presentDailyKorchmaRoundScene(result: DailyKorchmaRoundSceneLook
     "",
     `<b>${escapeHtml(getLocationName(result.scene.locationId))}</b>`,
     escapeHtml(result.scene.hook),
-    suffix
+    suffix,
+    ...(canChooseAction ? ["", "Оберіть одну дію. Вона спрацює тільки тут:", ...result.scene.actions.map((action) => escapeHtml(action.label))] : [])
   ].join("\n");
+}
+
+function hasActionDescriptions(actions: readonly DailyKorchmaRoundAction[]): boolean {
+  return actions.some((action) => Boolean(action.description));
+}
+
+function presentDailyKorchmaRoundActionHelp(
+  actions: readonly DailyKorchmaRoundAction[]
+): string[] {
+  return actions.flatMap((action, index) => [
+    escapeHtml(action.label),
+    action.description ? `<i>${escapeHtml(action.description)}</i>` : "<i>Коротка дія без додаткових пояснень.</i>",
+    ...(index === actions.length - 1 ? [] : [""])
+  ]);
 }
 
 export function presentDailyKorchmaRoundStep(result: DailyKorchmaRoundStepResult): string {

@@ -19,6 +19,7 @@ export type DailyKorchmaRoundZone = "yard" | "interior";
 export interface DailyKorchmaRoundAction {
   id: string;
   label: string;
+  description?: string;
   outcome: string;
 }
 
@@ -244,16 +245,19 @@ export const dailyKorchmaRoundScenes = [
       {
         id: "offer-cushion",
         label: "🧺 Запропонувати подушку",
+        description: "Мʼяка дипломатія без героїчного ремонту.",
         outcome: "Подушка додала табурету гідності. Він погодився стояти, але тільки з новим поглядом на працю."
       },
       {
         id: "align-legs",
         label: "📐 Вирівняти ніжки",
+        description: "Практичний ремонт, який може зачепити меблеву гідність.",
         outcome: "Ви вирівняли ніжки. Табурет буркнув, що це технічна, а не ідеологічна перемога."
       },
       {
         id: "schedule-break",
         label: "🗓️ Записати перерву",
+        description: "Бюрократичний мир: перерва існує, але не заважає залу.",
         outcome: "Перерву внесено в уявний графік. Табурет відчув себе почутим і знову став меблями."
       }
     ]

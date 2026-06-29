@@ -4,6 +4,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type DailyKorchmaRoundCallback =
   | { type: "overview"; dayToken: string }
   | { type: "scene"; dayToken: string; sceneIndex: number }
+  | { type: "scene-help"; dayToken: string; sceneIndex: number }
   | { type: "action"; dayToken: string; sceneIndex: number; actionId: string; lifeToken: number }
   | { type: "claim"; dayToken: string; lifeToken: number };
 
@@ -25,6 +26,10 @@ export function makeDailyKorchmaRoundOverviewCallbackData(dayToken: string): str
 
 export function makeDailyKorchmaRoundSceneCallbackData(dayToken: string, sceneIndex: number): string {
   return `${PREFIX}:s:${dayToken}:${sceneIndex}`;
+}
+
+export function makeDailyKorchmaRoundSceneHelpCallbackData(dayToken: string, sceneIndex: number): string {
+  return `${PREFIX}:h:${dayToken}:${sceneIndex}`;
 }
 
 export function makeDailyKorchmaRoundActionCallbackData(input: {
@@ -80,6 +85,21 @@ export function parseDailyKorchmaRoundCallbackData(
     return parsedSceneIndex === null
       ? err("invalid-scene")
       : ok({ type: "scene", dayToken, sceneIndex: parsedSceneIndex });
+  }
+
+  if (action === "h" && parts.length === 2) {
+    const dayToken = parts[0] as string;
+    const sceneIndex = parts[1] as string;
+
+    if (!isDayToken(dayToken)) {
+      return err("invalid-day");
+    }
+
+    const parsedSceneIndex = parseSceneIndex(sceneIndex);
+
+    return parsedSceneIndex === null
+      ? err("invalid-scene")
+      : ok({ type: "scene-help", dayToken, sceneIndex: parsedSceneIndex });
   }
 
   if (action === "a" && parts.length === 4) {

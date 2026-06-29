@@ -1957,6 +1957,66 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:dkr:o:20260629"]);
   });
 
+  it("adds help and back buttons for daily Korchma round scenes with action descriptions", () => {
+    const sceneResult = {
+      state: "scene",
+      character,
+      offer: {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 7,
+        requiredSteps: 2,
+        completedSceneIds: [],
+        omittedSceneId: null,
+        scenes: []
+      },
+      scene: {
+        id: "scene.hall.stool",
+        icon: "🪑",
+        title: "Табурет оголосив перерву",
+        locationId: "location.korchma.hall",
+        hook: "Серед зали табурет стоїть набік.",
+        actions: [
+          {
+            id: "offer-cushion",
+            label: "🧺 Запропонувати подушку",
+            description: "Мʼяка дипломатія без героїчного ремонту.",
+            outcome: "Подушка допомогла."
+          }
+        ]
+      },
+      sceneIndex: 1,
+      alreadyCompleted: false,
+      locked: false
+    } as const;
+
+    expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult))).toEqual([
+      "🧺 Запропонувати подушку",
+      "💡 Підказка",
+      "🧾 До обходу",
+      "🍺 До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildDailyKorchmaRoundSceneKeyboard(sceneResult))).toEqual([
+      "v1:dkr:a:20260628:1:offer-cushion:7",
+      "v1:dkr:h:20260628:1",
+      "v1:dkr:o:20260628",
+      "v1:place:hall"
+    ]);
+
+    expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult, { mode: "help" }))).toEqual([
+      "🧺 Запропонувати подушку",
+      "⬅️ Назад",
+      "🧾 До обходу",
+      "🍺 До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildDailyKorchmaRoundSceneKeyboard(sceneResult, { mode: "help" }))).toEqual([
+      "v1:dkr:a:20260628:1:offer-cushion:7",
+      "v1:dkr:s:20260628:1",
+      "v1:dkr:o:20260628",
+      "v1:place:hall"
+    ]);
+  });
+
   it("routes a daily Korchma round wrong-location step to the required scene place", () => {
     const keyboard = buildDailyKorchmaRoundStepKeyboard({
       state: "wrong-location",

@@ -253,8 +253,9 @@ async function handleDailyKorchmaRoundCallback(
     return;
   }
 
-  if (callback.type === "scene") {
+  if (callback.type === "scene" || callback.type === "scene-help") {
     const result = await services.dailyKorchmaRound.openScene(telegramUserId, callback);
+    const mode = callback.type === "scene-help" ? "help" : "compact";
 
     if (result.state === "scene") {
       await markScenePresence(ctx, services.presence, {
@@ -264,9 +265,9 @@ async function handleDailyKorchmaRoundCallback(
       });
     }
 
-    await safeEditMessageText(ctx, presentDailyKorchmaRoundScene(result), {
+    await safeEditMessageText(ctx, presentDailyKorchmaRoundScene(result, { mode }), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildDailyKorchmaRoundSceneKeyboard(result)
+      reply_markup: buildDailyKorchmaRoundSceneKeyboard(result, { mode })
     });
 
     if (result.state === "scene") {

@@ -17,7 +17,12 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_LOCATION_KORCHMA_YARD
 } from "../../services/presenceService";
-import { makeDailyKorchmaRoundActionCallbackData, makeDailyKorchmaRoundOverviewCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
+import {
+  makeDailyKorchmaRoundActionCallbackData,
+  makeDailyKorchmaRoundOverviewCallbackData,
+  makeDailyKorchmaRoundSceneCallbackData,
+  makeDailyKorchmaRoundSceneHelpCallbackData
+} from "../callbacks/dailyKorchmaRoundCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
 
 export function buildDailyKorchmaRoundOverviewKeyboard(
@@ -45,7 +50,10 @@ export function buildDailyKorchmaRoundOverviewKeyboard(
     .text("🍺 До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildDailyKorchmaRoundSceneKeyboard(result: DailyKorchmaRoundSceneLookupResult): InlineKeyboard {
+export function buildDailyKorchmaRoundSceneKeyboard(
+  result: DailyKorchmaRoundSceneLookupResult,
+  options: { mode?: "compact" | "help" } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (result.state !== "scene") {
@@ -65,6 +73,16 @@ export function buildDailyKorchmaRoundSceneKeyboard(result: DailyKorchmaRoundSce
           actionId: action.id,
           lifeToken: result.offer.lifeToken
         }))
+        .row();
+    }
+
+    if (options.mode === "help") {
+      keyboard
+        .text("⬅️ Назад", makeDailyKorchmaRoundSceneCallbackData(result.offer.dayToken, result.sceneIndex))
+        .row();
+    } else if (result.scene.actions.some((action) => Boolean(action.description))) {
+      keyboard
+        .text("💡 Підказка", makeDailyKorchmaRoundSceneHelpCallbackData(result.offer.dayToken, result.sceneIndex))
         .row();
     }
   }
