@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildHeroAchievementsKeyboard } from "../../src/bot/keyboards/achievementKeyboard";
 import {
+  buildAdventureApproachHelpKeyboard,
   buildAdventureApproachKeyboard,
+  buildMimicShawarmaMethodHelpKeyboard,
   buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
   buildAdventureResultKeyboard
@@ -9,6 +11,7 @@ import {
 import {
   buildCellarKeyboard,
   buildCellarGrownupKeyboard,
+  buildCellarMethodHelpKeyboard,
   buildCellarParticipantsKeyboard,
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
@@ -667,6 +670,12 @@ describe("main menu and scene keyboards", () => {
     expect(callbacks.slice(0, -2).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
     expect(callbacks.at(-2)).toBe("v2:adv:h:m");
     expect(callbacks.at(-1)).toBe("v1:place:quest-table");
+
+    const helpLabels = flatInlineButtonTexts(buildMimicShawarmaMethodHelpKeyboard({ ...character, classId: "class.rogue" }));
+    const helpCallbacks = flatInlineButtonCallbacks(buildMimicShawarmaMethodHelpKeyboard({ ...character, classId: "class.rogue" }));
+    expect(helpLabels.slice(0, -2)).toEqual(labels.slice(0, -2));
+    expect(helpLabels.at(-2)).toBe("⬅️ Назад");
+    expect(helpCallbacks.at(-2)).toBe("v2:adv:b:m");
   });
 
   it("uses short authored method labels on selected adventure buttons", () => {
@@ -707,6 +716,34 @@ describe("main menu and scene keyboards", () => {
     expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
     expect(labels.at(-2)).toBe("💡 Підказка");
     expect(labels.at(-1)).toBe("⬅️ Інші справи");
+
+    const helpLabels = flatInlineButtonTexts(buildAdventureApproachHelpKeyboard({
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildAdventureMethodOptions(choice, bard)
+    }));
+    const helpCallbacks = flatInlineButtonCallbacks(buildAdventureApproachHelpKeyboard({
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildAdventureMethodOptions(choice, bard)
+    }));
+    expect(helpLabels.slice(0, -2)).toEqual(labels.slice(0, -2));
+    expect(helpLabels.at(-2)).toBe("⬅️ Назад");
+    expect(helpCallbacks.at(-2)).toMatch(/^v2:adv:p:period93:q[0-9a-z]+$/u);
   });
 
   it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
@@ -744,6 +781,12 @@ describe("main menu and scene keyboards", () => {
     expect(callbacks.at(-2)).toBe("v2:cellar:h");
     expect(callbacks.at(-1)).toBe("v1:place:hall");
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual(cellarLabels);
+
+    const helpLabels = flatInlineButtonTexts(buildCellarMethodHelpKeyboard(domovyk));
+    const helpCallbacks = flatInlineButtonCallbacks(buildCellarMethodHelpKeyboard(domovyk));
+    expect(helpLabels.slice(0, -2)).toEqual(cellarLabels.slice(0, -2));
+    expect(helpLabels.at(-2)).toBe("⬅️ Назад");
+    expect(helpCallbacks.at(-2)).toBe("v2:cellar:b");
   });
 
   it("keeps fight inline buttons scoped to fight actions", () => {

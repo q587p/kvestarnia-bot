@@ -162,8 +162,8 @@ describe("adventure presenter", () => {
 
     expect(text).toContain("Детальніше про способи:");
     expect(text).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
-    expect(text).toContain("Розслідування без поспіху");
-    expect(text).toContain("Майже надійно");
+    expect(text).toContain("<i>Розслідування без поспіху.");
+    expect(text).toContain("Добрі шанси.</i>");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
   });
 
@@ -242,7 +242,7 @@ describe("adventure presenter", () => {
     expect(text).toContain("<i>Можливі способи:</i>");
     expect(text.match(/<i>/gu)?.length ?? 0).toBe(1);
     expect(presentAdventureProblemMethodHelp(result)).toContain("Детальніше про способи:");
-    expect(presentAdventureProblemMethodHelp(result)).toContain("Домовитися з канцелярським краєм\nДипломатія полів");
+    expect(presentAdventureProblemMethodHelp(result)).toContain("Домовитися з канцелярським краєм\n<i>Дипломатія полів");
   });
 
   it("shows non-complicated reward without level-up text", () => {

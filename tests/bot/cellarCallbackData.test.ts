@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeCellarCallbackData,
+  makeCellarMethodBackCallbackData,
   makeCellarMethodHelpCallbackData,
   makeCellarMethodCallbackData,
   parseCellarCallbackData
@@ -51,7 +52,12 @@ describe("cellar callback data", () => {
       ok: true,
       value: { type: "method-help" }
     });
+    expect(parseCellarCallbackData(makeCellarMethodBackCallbackData())).toEqual({
+      ok: true,
+      value: { type: "method-back" }
+    });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeCellarMethodBackCallbackData(), "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
   it("rejects invalid versions and actions", () => {

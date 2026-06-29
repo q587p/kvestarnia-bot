@@ -8,12 +8,14 @@ import { toQuestCallbackKey } from "../../src/content/questResolution";
 import {
   makeAdventureApproachCallbackData,
   makeAdventureProblemHelpCallbackData,
+  makeMimicShawarmaBackCallbackData,
   makeMimicShawarmaMethodCallbackData,
   makeMimicShawarmaHelpCallbackData,
   makeAdventureProblemCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
 import {
   makeCellarCallbackData,
+  makeCellarMethodBackCallbackData,
   makeCellarMethodHelpCallbackData,
   makeCellarMethodCallbackData
 } from "../../src/bot/callbacks/cellarCallbackData";
@@ -559,7 +561,8 @@ describe("scene callback HTML options", () => {
     expect(completeAdventureApproach).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
     expect(String(edit?.payload.text)).toContain("🎵 Продиригувати юшкою");
-    expect(String(edit?.payload.text)).toContain("Непевно");
+    expect(String(edit?.payload.text)).toContain("<i>винагорода звичайна. Непевно.</i>");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
   });
 
   it("renders starter shawarma help without completing the starter scene", async () => {
@@ -578,7 +581,28 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
     expect(String(edit?.payload.text)).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
-    expect(String(edit?.payload.text)).toContain("Розслідування без поспіху");
+    expect(String(edit?.payload.text)).toContain("<i>Розслідування без поспіху");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+  });
+
+  it("returns from starter shawarma help to the compact starter card", async () => {
+    const completeMimicShawarma = vi.fn();
+    const calls = await captureApiCalls(
+      makeMimicShawarmaBackCallbackData(),
+      servicesWith({
+        adventure: {
+          getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeMimicShawarma
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeMimicShawarma).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("🌯 Підозріла шаурма");
+    expect(String(edit?.payload.text)).toContain("<i>Можливі способи:</i>");
+    expect(String(edit?.payload.text)).not.toContain("Детальніше про способи:");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("💡 Підказка");
   });
 
   it("renders cellar method help without completing the cellar errand", async () => {
@@ -597,7 +621,28 @@ describe("scene callback HTML options", () => {
     expect(complete).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
     expect(String(edit?.payload.text)).toContain("🧀 Поставити пастку по маршруту крихт");
-    expect(String(edit?.payload.text)).toContain("Пастка й сліди");
+    expect(String(edit?.payload.text)).toContain("<i>Пастка й сліди");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+  });
+
+  it("returns from cellar method help to the compact cellar action card", async () => {
+    const complete = vi.fn();
+    const calls = await captureApiCalls(
+      makeCellarMethodBackCallbackData(),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(complete).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(edit?.payload.text)).toContain("<i>Можливі способи:</i>");
+    expect(String(edit?.payload.text)).not.toContain("Детальніше про способи:");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("💡 Підказка");
   });
 
   it("renders stale state for hidden v2 adventure method callbacks", async () => {

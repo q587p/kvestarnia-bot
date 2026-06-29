@@ -17,6 +17,7 @@ export type AdventureCallback =
   | { type: "problem-help"; periodToken: string; problemId: AdventureProblemId }
   | { type: "method"; methodId: AdventureMethodId }
   | { type: "method-help" }
+  | { type: "method-back" }
   | { type: "legacy-approach"; periodToken: string; problemId: AdventureProblemId; approach: AdventureApproach }
   | {
       type: "approach";
@@ -81,6 +82,10 @@ export function makeMimicShawarmaMethodCallbackData(methodId: AdventureMethodId)
 
 export function makeMimicShawarmaHelpCallbackData(): string {
   return `${V2_PREFIX}:h:m`;
+}
+
+export function makeMimicShawarmaBackCallbackData(): string {
+  return `${V2_PREFIX}:b:m`;
 }
 
 export function makeAdventureParticipantsCallbackData(): string {
@@ -190,6 +195,10 @@ function parseAdventureV2CallbackData(data: string): Result<AdventureCallback, A
 
   if (action === "h" && first === "m" && !second && !third) {
     return ok({ type: "method-help" });
+  }
+
+  if (action === "b" && first === "m" && !second && !third) {
+    return ok({ type: "method-back" });
   }
 
   if (action === "a" && isPeriodToken(first) && isProblemKey(second) && isKnownQuestMethodId(third)) {

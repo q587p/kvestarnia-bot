@@ -5,6 +5,7 @@ import {
   makeAdventureParticipantsCallbackData,
   makeAdventureProblemHelpCallbackData,
   makeAdventureProblemCallbackData,
+  makeMimicShawarmaBackCallbackData,
   makeMimicShawarmaHelpCallbackData,
   parseAdventureCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
@@ -146,8 +147,13 @@ describe("adventure callback data", () => {
       ok: true,
       value: { type: "method-help" }
     });
+    expect(parseAdventureCallbackData(makeMimicShawarmaBackCallbackData())).toEqual({
+      ok: true,
+      value: { type: "method-back" }
+    });
     expect(Buffer.byteLength(problemHelp, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(starterHelp, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeMimicShawarmaBackCallbackData(), "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
   it("keeps every rendered authored adventure callback within Telegram limits", () => {

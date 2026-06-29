@@ -110,7 +110,7 @@ function presentMethodHelp(
 ): string {
   const methodLines = methods.flatMap((method, index) => [
     escapeHtml(method.label),
-    escapeHtml(formatApproachHint(method.hint, method.chanceHint, method.goldCost)),
+    `<i>${escapeHtml(formatApproachHint(method.hint, method.chanceHint, method.goldCost))}</i>`,
     ...(index < methods.length - 1 ? [""] : [])
   ]);
 

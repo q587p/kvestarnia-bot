@@ -51,10 +51,12 @@ sendKorchmaBar
 import { playerFromContext } from "../context";
 import {
 buildAdventureApproachKeyboard,
+buildAdventureApproachHelpKeyboard,
 buildAdventureKeyboard,
 buildAdventureOfferKeyboard,
 buildAdventureParticipantsKeyboard,
-buildAdventureResultKeyboard
+buildAdventureResultKeyboard,
+buildMimicShawarmaMethodHelpKeyboard
 } from "../keyboards/adventureKeyboard";
 import {
 buildDailyKorchmaRoundClaimKeyboard,
@@ -89,6 +91,7 @@ presentAdventureResult,
 presentMimicShawarmaAlreadyCompleted,
 presentMimicShawarmaLevelRetired,
 presentMimicShawarmaMethodHelp,
+presentMimicShawarmaStart,
 presentMimicShawarmaResult
 } from "../presenters/adventurePresenter";
 import {
@@ -636,7 +639,7 @@ async function handleAdventureCallback(
     return;
   }
 
-  if (callback.type === "method-help") {
+  if (callback.type === "method-help" || callback.type === "method-back") {
     const result = await services.adventure.getMimicShawarmaForTelegramUser(telegramUserId);
 
     if (result.state === "no-character") {
@@ -670,10 +673,18 @@ async function handleAdventureCallback(
     });
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentMimicShawarmaMethodHelp(result.character), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildAdventureKeyboard(result.character)
-    });
+    await safeEditMessageText(
+      ctx,
+      callback.type === "method-help"
+        ? presentMimicShawarmaMethodHelp(result.character)
+        : presentMimicShawarmaStart(result.character),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: callback.type === "method-help"
+          ? buildMimicShawarmaMethodHelpKeyboard(result.character)
+          : buildAdventureKeyboard(result.character)
+      }
+    );
     return;
   }
 
@@ -734,7 +745,7 @@ async function handleAdventureCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup:
           result.state === "selected"
-            ? buildAdventureApproachKeyboard(result)
+            ? buildAdventureApproachHelpKeyboard(result)
             : result.state === "stale"
               ? buildAdventureOfferKeyboard(result.offer)
               : result.state === "combat-blocked"

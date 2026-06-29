@@ -49,7 +49,7 @@ export function presentCellarMethodHelp(
 ): string {
   const methodLines = buildCellarMethodOptions(result.character).flatMap((method, index, methods) => [
     escapeHtml(method.label),
-    escapeHtml(formatMethodHint(method)),
+    `<i>${escapeHtml(formatMethodHint(method))}</i>`,
     ...(index < methods.length - 1 ? [""] : [])
   ]);
 

@@ -48,9 +48,9 @@ describe("cellar presenter", () => {
 
     expect(text).toContain("Детальніше про способи:");
     expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
-    expect(text).toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
+    expect(text).toContain("<i>Пастка й сліди. Винагорода звичайна. Можна постраждати.</i>");
     expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
-    expect(text).toContain("Винагорода скромніша. Коштує 1 золото.");
+    expect(text).toContain("<i>Винагорода скромніша. Коштує 1 золото.</i>");
     expect(text).not.toContain("що робимо?");
   });
 

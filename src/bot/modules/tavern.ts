@@ -57,6 +57,7 @@ sendTavernBarrel
 import { playerFromContext } from "../context";
 import {
 buildCellarGrownupKeyboard,
+buildCellarMethodHelpKeyboard,
 buildCellarParticipantsKeyboard,
 buildCellarResultKeyboard
 } from "../keyboards/cellarKeyboard";
@@ -93,7 +94,8 @@ presentCellarLevelLocked,
 presentCellarLevelRetired,
 presentCellarMethodHelp,
 presentCellarNoCharacter,
-presentCellarResult
+presentCellarResult,
+presentCellarStart
 } from "../presenters/cellarPresenter";
 import {
 presentDevGrantDisabled,
@@ -1080,7 +1082,7 @@ async function handleCellarCallback(
     return;
   }
 
-  if (callback.type === "method-help") {
+  if (callback.type === "method-help" || callback.type === "method-back") {
     if (lookup.state === "on-cooldown") {
       await safeAnswerCallbackQuery(ctx);
       await safeEditMessageText(ctx, presentCellarCooldown(lookup), {
@@ -1097,10 +1099,16 @@ async function handleCellarCallback(
     });
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentCellarMethodHelp(lookup), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildCellarResultKeyboard("ready", lookup.character)
-    });
+    await safeEditMessageText(
+      ctx,
+      callback.type === "method-help" ? presentCellarMethodHelp(lookup) : presentCellarStart(lookup),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: callback.type === "method-help"
+          ? buildCellarMethodHelpKeyboard(lookup.character)
+          : buildCellarResultKeyboard("ready", lookup.character)
+      }
+    );
     return;
   }
 
