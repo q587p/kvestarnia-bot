@@ -24,7 +24,8 @@ Do:
 8. For substantial player-facing Ukrainian copy, use `$ukrainian-rpg-content` instead of pasting style rules.
 9. Add or update tests for runtime behavior.
 10. Run targeted tests first, then broader checks if useful.
-11. End with a compact PR-ready summary.
+11. Before final handoff, re-check the current Kyiv day against the latest release/news/changelog Holocene headings; same-PR follow-ups and review fixes must refresh those headings if the branch now has a newer Kyiv-day commit.
+12. End with a compact PR-ready summary.
 
 Do not:
 1. Start another feature unless the user explicitly changes the active version task.
