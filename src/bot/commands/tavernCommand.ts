@@ -78,7 +78,13 @@ type TavernCommandKeyboard =
       bardPerformance?: boolean;
     }
   | "front"
-  | { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation; dailyYard?: boolean }
+  | {
+      state: "front";
+      yegerAction: "hidden" | "hunt";
+      munchkinLocation?: MunchkinLocation;
+      dailyYard?: boolean;
+      characterLevel?: number;
+    }
   | "yard"
   | "fighting-corner"
   | "deep"
@@ -197,7 +203,8 @@ export async function sendKorchmaFront(
     state: "front",
     yegerAction,
     munchkinLocation,
-    dailyYard: result.character.level >= 3
+    dailyYard: result.character.level >= 3,
+    characterLevel: result.character.level
   });
 }
 
@@ -670,6 +677,9 @@ async function sendText(
               ? buildKorchmaFrontKeyboard({
                   yegerAction: keyboard.yegerAction,
                   dailyYard: Boolean(keyboard.dailyYard),
+                  ...(keyboard.characterLevel === undefined
+                    ? {}
+                    : { characterLevel: keyboard.characterLevel }),
                   ...(keyboard.munchkinLocation === undefined
                     ? {}
                     : { munchkinLocation: keyboard.munchkinLocation })

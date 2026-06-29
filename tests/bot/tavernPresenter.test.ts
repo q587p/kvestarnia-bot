@@ -75,10 +75,20 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<i>Дошка вістей</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
+    expect(text).toContain(
+      "не був стертий дощем. Справа від дверей висить <i>пропамʼятна дошка</i>."
+    );
     expect(text).toContain("<i>задвірок корчми</i>");
-    expect(text).toContain("<i>Манчкін-скупник</i>");
+    expect(text).not.toContain("<i>Манчкін-скупник</i>");
     expect(text).not.toContain("За дверима біля Бочки сидить <i>Єгер</i>");
     expect(text).not.toContain("сліди просить перевіряти надворі");
+  });
+
+  it("shows the front-door Munchkin paragraph from level 3", () => {
+    const text = presentKorchmaFront({ ...character, level: 3 });
+
+    expect(text).toContain("<i>Манчкін-скупник</i>");
+    expect(text).toContain("манатки, золото й рівні мають домовлятися");
   });
 
   it("hides the Munchkin paragraph from the front door at night", () => {

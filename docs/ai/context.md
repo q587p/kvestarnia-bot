@@ -69,7 +69,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/phase2-roadmap-audit/README.md` — imported post-`0.2.7` roadmap audit package; planning input only until one next slice is explicitly activated.
 - `docs/PHASE2_MVP_RELEASE_NOTES.md`, `docs/PHASE2_MVP_CLOSEOUT_PLAN.md`, `docs/PHASE2_CLOSEOUT_SMOKE.md`, `docs/PHASE2_DEFERRED_0_2.md` — `0.1.x` Phase 2 MVP closeout summary, smoke gate and `0.2.x` deferred order.
 - `docs/DAILY_KORCHMA_ROUNDS.md`, `docs/tasks/0.2.9-daily-korchma-rounds.md`, `docs/PLAYTESTING-daily-korchma-rounds-addendum.md` — shipped daily `Корчмарський обхід` design/task/QA package.
-- `docs/tasks/0.2.13-postal-mantok-delivery.md` — paid postal/courier delivery for bounded packages of eligible manatky to known recipients, plus release-candidate UX polish for compact method cards, Korchma hall wording and onboarding completion message volume.
+- `docs/tasks/0.2.13-postal-mantok-delivery.md` — paid postal/courier delivery for bounded packages of eligible manatky to known recipients, plus release-candidate UX polish for compact method cards, Korchma hall wording, onboarding completion message volume and front-door Munchkin visibility.
 
 ## Code map
 

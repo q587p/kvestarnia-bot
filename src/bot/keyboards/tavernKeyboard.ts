@@ -38,7 +38,12 @@ export function buildTavernKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaFrontKeyboard(
-  options: { yegerAction?: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation; dailyYard?: boolean } = {}
+  options: {
+    yegerAction?: "hidden" | "hunt";
+    munchkinLocation?: MunchkinLocation;
+    dailyYard?: boolean;
+    characterLevel?: number;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
@@ -46,28 +51,38 @@ export function buildKorchmaFrontKeyboard(
 
   keyboard
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
-    .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"))
-    .row();
+    .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"));
 
   let hasFrontActionRow = false;
+  const startFrontActionRow = (): void => {
+    keyboard.row();
+    hasFrontActionRow = true;
+  };
 
   if (options.dailyYard) {
+    startFrontActionRow();
     keyboard.text("🪣 У задвірок", makePlaceCallbackData("yard"));
-    hasFrontActionRow = true;
   }
 
-  if ((options.munchkinLocation ?? "front") === "front") {
+  const showMunchkin =
+    (options.characterLevel === undefined || options.characterLevel >= 3) &&
+    (options.munchkinLocation ?? "front") === "front";
+
+  if (showMunchkin) {
     if (hasFrontActionRow) {
       keyboard.row();
+    } else {
+      startFrontActionRow();
     }
 
     keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
-    hasFrontActionRow = true;
   }
 
   if (options.yegerAction === "hunt") {
     if (hasFrontActionRow) {
       keyboard.row();
+    } else {
+      startFrontActionRow();
     }
 
     keyboard.text("🏹 До полювання", makeYegerOutsideCallbackData());

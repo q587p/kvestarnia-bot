@@ -153,6 +153,11 @@ describe("main menu and scene keyboards", () => {
       "🏅 Пропамʼятна дошка",
       "🎒 Манчкін-скупник"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ characterLevel: 1 }))).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка"
+    ]);
     expect(inlineButtonRows(buildKorchmaFrontKeyboard())).toEqual([
       ["🚪 Зайти в корчму"],
       ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
@@ -171,7 +176,19 @@ describe("main menu and scene keyboards", () => {
       "🎒 Манчкін-скупник",
       "🏹 До полювання"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ characterLevel: 1, yegerAction: "hunt" }))).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка",
+      "🏹 До полювання"
+    ]);
     expect(inlineButtonRows(buildKorchmaFrontKeyboard({ dailyYard: true }))).toEqual([
+      ["🚪 Зайти в корчму"],
+      ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
+      ["🪣 У задвірок"],
+      ["🎒 Манчкін-скупник"]
+    ]);
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard({ characterLevel: 3, dailyYard: true }))).toEqual([
       ["🚪 Зайти в корчму"],
       ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
       ["🪣 У задвірок"],

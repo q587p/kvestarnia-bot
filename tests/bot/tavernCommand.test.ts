@@ -38,7 +38,7 @@ describe("tavern command screens", () => {
   const dayInKyiv = new Date("2026-06-19T09:00:00.000Z");
   const nightInKyiv = new Date("2026-06-19T19:00:00.000Z");
 
-  it("shows front-of-korchma options with an enter button", async () => {
+  it("shows starter front-of-korchma options without Munchkin", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaFront(
@@ -74,16 +74,28 @@ describe("tavern command screens", () => {
               text: "🏅 Пропамʼятна дошка",
               callback_data: makePlaceCallbackData("memorial")
             }
-          ],
-          [
-            {
-              text: "🎒 Манчкін-скупник",
-              callback_data: "v1:lvlx:open"
-            }
           ]
         ]
       }
     });
+    expect(replies[0]?.text).not.toContain("Манчкін-скупник");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:lvlx:open");
+  });
+
+  it("shows the front-door Munchkin option from level 3", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFront(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 3 }),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      { now: dayInKyiv }
+    );
+
+    expect(replies[0]?.text).toContain("Манчкін-скупник");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:lvlx:open");
   });
 
   it("hides the front-of-korchma entry hint after the player has seen it once", async () => {

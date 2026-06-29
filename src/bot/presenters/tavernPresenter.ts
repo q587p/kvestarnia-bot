@@ -36,12 +36,10 @@ export function presentKorchmaFront(
     "",
     "За дверима гуде <b>Корчма Квестарні</b>. Там видають квести, сперечаються з бочками й іноді не питають зайвого.",
     "",
-    "Зліва від дверей висить <i>табличка прибулих</i>: хто вже проходив повз і не був стертий дощем.",
-    "",
-    "Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
+    "Зліва від дверей висить <i>табличка прибулих</i>: хто вже проходив повз і не був стертий дощем. Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
     "",
     "За рогом починається <i>задвірок корчми</i>: там дрібні катастрофи сушаться біля відра й чекають слушного пригодника.",
-    ...presentFrontMunchkinLines(options.munchkinLocation ?? "front"),
+    ...presentFrontMunchkinLines(character.level, options.munchkinLocation ?? "front"),
     ...(options.showEntryHint === false
       ? []
       : [
@@ -182,8 +180,8 @@ export function presentKorchmaDeepClosed(
   ].join("\n");
 }
 
-function presentFrontMunchkinLines(location: MunchkinLocation): string[] {
-  if (location !== "front") {
+function presentFrontMunchkinLines(characterLevel: number, location: MunchkinLocation): string[] {
+  if (characterLevel < 3 || location !== "front") {
     return [];
   }
 
