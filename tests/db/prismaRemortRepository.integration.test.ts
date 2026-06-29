@@ -45,6 +45,11 @@ describe("PrismaRemortRepository integration", () => {
       characterId: "character-remort-postal-sender",
       telegramUserId: 9399n
     });
+    await seedCharacter(prisma, {
+      userId: "user-remort-postal-receiver",
+      characterId: "character-remort-postal-receiver",
+      telegramUserId: 9398n
+    });
     await seedDraft(prisma, "character-remort-solo", "token-remort-solo", now);
     await prisma.soloCombatSession.create({
       data: {
@@ -248,6 +253,42 @@ describe("PrismaRemortRepository integration", () => {
         expiresAt: new Date(now.getTime() + 5 * 60_000)
       }
     });
+    await prisma.itemTransfer.create({
+      data: {
+        id: "transfer-remort-postal-outgoing",
+        token: "token-remort-postal-outgoing",
+        transferKind: "postal",
+        senderCharacterId: "character-remort-solo",
+        receiverCharacterId: "character-remort-postal-receiver",
+        senderTelegramUserId: 9301n,
+        receiverTelegramUserId: 9398n,
+        senderName: "Ремортний відправник",
+        receiverName: "Поштовий отримувач",
+        senderRemortCount: 0,
+        receiverRemortCount: 0,
+        itemId: "item.remort-postal-outgoing",
+        itemName: "Відправницький поштовий ґудзик",
+        itemFingerprint: "remort-postal-outgoing-fingerprint",
+        quantity: 3,
+        packageJson: [{
+          itemId: "item.remort-postal-outgoing",
+          itemName: "Відправницький поштовий ґудзик",
+          quantity: 3,
+          itemFingerprint: "remort-postal-outgoing-fingerprint",
+          unitGoldValue: 17,
+          observedQuantity: 3,
+          tags: []
+        }],
+        deliveryFeeGold: 6,
+        status: "pending",
+        reservationKey: "postal:character-remort-solo",
+        resultJson: {
+          kind: "postal-test-pending",
+          postalCustody: "sender-debited"
+        },
+        expiresAt: new Date(now.getTime() + 5 * 60_000)
+      }
+    });
 
     const result = await repository.completeDraftForTelegramUser(
       9301n,
@@ -354,6 +395,26 @@ describe("PrismaRemortRepository integration", () => {
       where: {
         characterId: "character-remort-solo",
         itemId: "item.remort-postal"
+      }
+    })).resolves.toEqual([]);
+    await expect(prisma.itemTransfer.findUnique({
+      where: { id: "transfer-remort-postal-outgoing" }
+    })).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      deliveryFeeGold: 6,
+      resultJson: { kind: "remort-cancelled-gift" }
+    });
+    await expect(prisma.characterItem.findMany({
+      where: {
+        characterId: "character-remort-solo",
+        itemId: "item.remort-postal-outgoing"
+      }
+    })).resolves.toMatchObject([{ quantity: 3 }]);
+    await expect(prisma.characterItem.findMany({
+      where: {
+        characterId: "character-remort-postal-receiver",
+        itemId: "item.remort-postal-outgoing"
       }
     })).resolves.toEqual([]);
 

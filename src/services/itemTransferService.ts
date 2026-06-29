@@ -330,7 +330,7 @@ export class ItemTransferService {
       return { state: "no-character" };
     }
 
-    const eligible = sortEligible(buildItemPostalEligibleStacks({
+    const eligible = sortEligible(buildItemGiftEligibleStacks({
       stacks: snapshot.items,
       equippedItemIds: new Set(snapshot.equippedItemIds),
       reservedItemIds: new Set(snapshot.reservedItemIds),
@@ -460,7 +460,7 @@ export class ItemTransferService {
     if (!snapshot) {
       return { state: "no-character" };
     }
-    const eligible = sortEligible(buildItemGiftEligibleStacks({
+    const eligible = sortEligible(buildItemPostalEligibleStacks({
       stacks: snapshot.items,
       equippedItemIds: new Set(snapshot.equippedItemIds),
       reservedItemIds: new Set(snapshot.reservedItemIds),

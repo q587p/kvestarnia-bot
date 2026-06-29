@@ -21,8 +21,9 @@ Use two accounts with at least one completed accepted item-transfer relationship
 11. Try equipped, reserved, drifted and missing stacks; verify stale rejection without partial delivery.
 12. Lower sender gold below the fee before confirmation; verify the package is not sent, no item moves and no fee is charged.
 13. Reopen `📮 Пошта Квестарні`; verify known recipients, packages in transit and completed history appear without current location or online-status details, and pagination works once enough rows exist.
-14. Verify nearby `🎁 Подарувати манатку` still works as the old one-unit same-location gift flow.
-15. Remort sender or recipient around a pending delivery if convenient; verify stale/replay behavior and no hidden transfer.
+14. Verify nearby `🎁 Подарувати манатку` still works as the old one-unit same-location gift flow and does not list postal-only trade-blocked stacks such as bandages.
+15. Remort sender around a pending delivery; verify postal-custody items return to that sender once after remort, recipient gets nothing and the sent fee is not refunded.
+16. Remort recipient around a pending delivery if convenient; verify postal-custody items return to the original sender and never enter the receiver's new life.
 
 ## 0.2.12 — Two-Enemy Threat Simulation and Outlier Tuning smoke
 

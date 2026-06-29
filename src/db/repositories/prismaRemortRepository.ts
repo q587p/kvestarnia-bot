@@ -648,6 +648,7 @@ async function cancelShynokLifecycleForRemort(
   });
 
   await restoreIncomingPostalCustodyForRemort(tx, characterId);
+  await restoreOutgoingPostalCustodyForRemort(tx, characterId);
 
   await tx.itemTransfer.updateMany({
     where: {
@@ -703,6 +704,30 @@ async function restoreIncomingPostalCustodyForRemort(tx: TxClient, receiverChara
     }
   });
 
+  await restorePostalCustodyLinesToSenders(tx, transfers);
+}
+
+async function restoreOutgoingPostalCustodyForRemort(tx: TxClient, senderCharacterId: string): Promise<void> {
+  const transfers = await tx.itemTransfer.findMany({
+    where: {
+      transferKind: "postal",
+      senderCharacterId,
+      status: "pending"
+    },
+    select: {
+      senderCharacterId: true,
+      packageJson: true,
+      resultJson: true
+    }
+  });
+
+  await restorePostalCustodyLinesToSenders(tx, transfers);
+}
+
+async function restorePostalCustodyLinesToSenders(
+  tx: TxClient,
+  transfers: readonly { senderCharacterId: string; packageJson: unknown; resultJson: unknown }[]
+): Promise<void> {
   for (const transfer of transfers) {
     if (!isPostalSenderDebited(transfer.resultJson)) {
       continue;
