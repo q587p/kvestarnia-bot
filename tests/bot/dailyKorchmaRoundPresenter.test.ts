@@ -20,7 +20,8 @@ describe("daily Korchma round presenter", () => {
   it("renders active scene action names without pre-spoiling descriptions or outcomes", () => {
     const text = presentDailyKorchmaRoundScene(stoolScene());
 
-    expect(text).toContain("Оберіть одну дію. Вона спрацює тільки тут:");
+    expect(text).toContain("<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
+    expect(text).not.toContain("ніжкам, що вертикальність має межі.\n\n\n<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
     expect(text).toContain("🧺 Запропонувати подушку");
     expect(text).toContain("📐 Вирівняти ніжки");
     expect(text).toContain("🗓️ Записати перерву");
@@ -34,7 +35,7 @@ describe("daily Korchma round presenter", () => {
     expect(text).toContain("Детальніше про дії:");
     expect(text).toContain("🧺 Запропонувати подушку\n<i>Мʼяка дипломатія без героїчного ремонту.</i>");
     expect(text).toContain("📐 Вирівняти ніжки\n<i>Практичний ремонт, який може зачепити меблеву гідність.</i>");
-    expect(text).not.toContain("Оберіть одну дію. Вона спрацює тільки тут:");
+    expect(text).not.toContain("<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
     expect(text).not.toContain("Подушка додала табурету гідності");
   });
 });
