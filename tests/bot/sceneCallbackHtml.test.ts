@@ -560,10 +560,12 @@ describe("scene callback HTML options", () => {
       problemId: "stew"
     });
     expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(edit?.payload.parse_mode).toBe("HTML");
     expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
     expect(String(edit?.payload.text)).toContain("🎵 Продиригувати юшкою");
     expect(String(edit?.payload.text)).toContain("<i>винагорода звичайна. Непевно.</i>");
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("💡 Підказка");
   });
 
   it("renders starter shawarma help without completing the starter scene", async () => {
@@ -580,10 +582,12 @@ describe("scene callback HTML options", () => {
     const edit = calls.find((call) => call.method === "editMessageText");
 
     expect(completeMimicShawarma).not.toHaveBeenCalled();
+    expect(edit?.payload.parse_mode).toBe("HTML");
     expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
     expect(String(edit?.payload.text)).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
     expect(String(edit?.payload.text)).toContain("<i>Розслідування без поспіху");
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("💡 Підказка");
   });
 
   it("returns from starter shawarma help to the compact starter card", async () => {
@@ -604,6 +608,7 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("<i>Можливі способи:</i>");
     expect(String(edit?.payload.text)).not.toContain("Детальніше про способи:");
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("💡 Підказка");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("⬅️ Назад");
   });
 
   it("renders cellar method help without completing the cellar errand", async () => {
@@ -620,10 +625,12 @@ describe("scene callback HTML options", () => {
     const edit = calls.find((call) => call.method === "editMessageText");
 
     expect(complete).not.toHaveBeenCalled();
+    expect(edit?.payload.parse_mode).toBe("HTML");
     expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
     expect(String(edit?.payload.text)).toContain("🧀 Поставити пастку по маршруту крихт");
     expect(String(edit?.payload.text)).toContain("<i>Пастка й сліди");
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("💡 Підказка");
   });
 
   it("returns from cellar method help to the compact cellar action card", async () => {
@@ -644,6 +651,7 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("<i>Можливі способи:</i>");
     expect(String(edit?.payload.text)).not.toContain("Детальніше про способи:");
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("💡 Підказка");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("⬅️ Назад");
   });
 
   it("renders stale state for hidden v2 adventure method callbacks", async () => {
