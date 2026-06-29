@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.15] - 12026-06-29 - Party Session Foundation
+
+### Added
+- Added dev/flagged temporary party recruiting through `/dev_party` and `PARTY_SESSION_FOUNDATION_ENABLED`.
+- Added `party_sessions` and `party_participants` persistence with one opaque invite token, capacity `8`, minimum participant metadata `1`, one live leader session key and one live membership key per character.
+- Added `/start party_<token>` deep-link joins plus compact `v1:party:` callbacks for join, refresh, leave, leader cancel and dev expiry.
+- Added nearby private party invites from `👀 Хто поруч` only when the inviter already has a live recruiting party.
+- Added remort cleanup so live party memberships are left, leader remorts transfer leadership deterministically, and last-participant remort cancels the recruiting session.
+
+### Changed
+- Party join/rejoin, leave, cancel and passive expiry replay from canonical database rows instead of trusting callback payloads.
+- Terminal party states clear all live leader/membership keys while preserving roster history for stale-card replay.
+- The compact Codex context, task index, playtesting guide and security/fair-play notes now document the party-session foundation and privacy contract.
+
+### Unchanged
+- No boss combat, active rounds, HP/mana mutation, combat leases, rewards, XP, gold, items, achievements, Senior Barrel Brother route or production Barrel replacement ships in this slice.
+- Existing solo Barrel behavior, beer access, solo combat, two-enemy threat combat, gifting/postal delivery, Shynok, Daily Korchma and Adventure behavior remain unchanged.
+
 ## [0.2.14] - 12026-06-29 - Adventure Quest Readability and Local Failure
 
 ### Added

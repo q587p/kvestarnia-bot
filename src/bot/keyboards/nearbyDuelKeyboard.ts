@@ -6,6 +6,7 @@ import {
   makeNearbyDuelOpenCallbackData,
   makeNearbyDuelSelectCallbackData
 } from "../callbacks/nearbyDuelCallbackData";
+import { makePartySessionNearbyInviteCallbackData } from "../callbacks/partySessionCallbackData";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
 
@@ -14,7 +15,8 @@ export function buildNearbyDuelOpenKeyboard(): InlineKeyboard {
 }
 
 export function buildNearbyDuelCandidatesKeyboard(
-  snapshot: Extract<NearbyDuelCandidatesSnapshot, { state: "ready" }>
+  snapshot: Extract<NearbyDuelCandidatesSnapshot, { state: "ready" }>,
+  options: { partyInviteEnabled?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -25,6 +27,15 @@ export function buildNearbyDuelCandidatesKeyboard(
         makeNearbyDuelSelectCallbackData(candidate.telegramUserId, snapshot.page)
       )
       .row();
+
+    if (options.partyInviteEnabled) {
+      keyboard
+        .text(
+          `🧭 Покликати у ватагу: ${formatCandidateButton(candidate)}`,
+          makePartySessionNearbyInviteCallbackData(candidate.telegramUserId, snapshot.page)
+        )
+        .row();
+    }
   }
 
   if (snapshot.totalPages > 1) {

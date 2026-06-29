@@ -1,6 +1,7 @@
 export type StartPayload =
   | { type: "none" }
   | { type: "duel"; token: string; mode?: "quick" | "turn-based" }
+  | { type: "party"; token: string }
   | { type: "support-thanks" }
   | { type: "unknown"; raw: string; safe: boolean };
 
@@ -40,6 +41,14 @@ export function parseStartPayload(raw: string | undefined): StartPayload {
 
     if (/^[A-Za-z0-9_-]{8,24}$/.test(token)) {
       return { type: "duel", token };
+    }
+  }
+
+  if (payload.startsWith("party_")) {
+    const token = payload.slice("party_".length);
+
+    if (/^[A-Za-z0-9_-]{8,24}$/.test(token)) {
+      return { type: "party", token };
     }
   }
 

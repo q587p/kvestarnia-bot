@@ -23,6 +23,7 @@ import { PrismaLevelBarterRepository } from "../../src/db/repositories/prismaLev
 import { PrismaLevelMilestoneRepository } from "../../src/db/repositories/prismaLevelMilestoneRepository";
 import { PrismaMantokChestRepository } from "../../src/db/repositories/prismaMantokChestRepository";
 import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositories/prismaPendingPassageEncounterRepository";
+import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import { PrismaPlayerHintReceiptRepository } from "../../src/db/repositories/prismaPlayerHintReceiptRepository";
 import { PrismaPresenceRepository } from "../../src/db/repositories/prismaPresenceRepository";
 import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRepository";
@@ -47,6 +48,7 @@ import { LevelBarterService } from "../../src/services/levelBarterService";
 import { LevelMilestoneService } from "../../src/services/levelMilestoneService";
 import { MantokChestService } from "../../src/services/mantokChestService";
 import { OnboardingService } from "../../src/services/onboardingService";
+import { PartySessionService } from "../../src/services/partySessionService";
 import { PlayerHintService } from "../../src/services/playerHintService";
 import { PresenceService } from "../../src/services/presenceService";
 import { RemortService } from "../../src/services/remortService";
@@ -78,6 +80,7 @@ describe("application factory wiring", () => {
     expect(repositories.levelMilestones).toBeInstanceOf(PrismaLevelMilestoneRepository);
     expect(repositories.mantokChestRuns).toBeInstanceOf(PrismaMantokChestRepository);
     expect(repositories.pendingPassageEncounters).toBeInstanceOf(PrismaPendingPassageEncounterRepository);
+    expect(repositories.partySessions).toBeInstanceOf(PrismaPartySessionRepository);
     expect(repositories.playerHintReceipts).toBeInstanceOf(PrismaPlayerHintReceiptRepository);
     expect(repositories.presence).toBeInstanceOf(PrismaPresenceRepository);
     expect(repositories.remorts).toBeInstanceOf(PrismaRemortRepository);
@@ -108,6 +111,7 @@ describe("application factory wiring", () => {
     expect(services.levelMilestones).toBeInstanceOf(LevelMilestoneService);
     expect(services.mantokChest).toBeInstanceOf(MantokChestService);
     expect(services.onboarding).toBeInstanceOf(OnboardingService);
+    expect(services.partySessions).toBeInstanceOf(PartySessionService);
     expect(services.playerHints).toBeInstanceOf(PlayerHintService);
     expect(services.presence).toBeInstanceOf(PresenceService);
     expect(services.remort).toBeInstanceOf(RemortService);
@@ -176,6 +180,11 @@ describe("application factory wiring", () => {
       mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements)
     `));
     expect(source).toContain(compact(`
+      partySessions: new PartySessionService(repositories.partySessions, {
+        enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled
+      })
+    `));
+    expect(source).toContain(compact(`
       yeger: new YegerQuestService(
         repositories.characters,
         repositories.dailyActions,
@@ -196,7 +205,8 @@ function makeConfig(): AppConfig {
     databaseUrl: "file:./test.db",
     deployNotificationsEnabled: false,
     devGrantCommandsEnabled: false,
-    combatBalanceAnalyticsEnabled: false
+    combatBalanceAnalyticsEnabled: false,
+    partySessionFoundationEnabled: false
   };
 }
 

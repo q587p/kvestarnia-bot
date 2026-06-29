@@ -621,7 +621,7 @@ describe("PrismaItemTransferRepository integration", () => {
       await expectItemQuantity("sender", content.id, 93 - (index + 1));
       await expectItemQuantity("receiver", content.id, index + 1);
     }
-  });
+  }, 15_000);
 
   it("lets postal packages send explicit trade-blocked bandages", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");

@@ -29,7 +29,8 @@ export function registerCoreBotModule(
   registerOnlineCommand(bot, services.presence, {
     bardPerformanceEnabled: Boolean(services.bardPerformance),
     duelEnabled: Boolean(services.duel),
-    itemGiftEnabled: Boolean(services.itemTransfers)
+    itemGiftEnabled: Boolean(services.itemTransfers),
+    partySessions: services.partySessions
   });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {

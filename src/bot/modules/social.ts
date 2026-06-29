@@ -4,10 +4,12 @@ import { parseDuelCallbackData } from "../callbacks/duelCallbackData";
 import { parseItemGiftCallbackData } from "../callbacks/itemGiftCallbackData";
 import { parseItemPostalCallbackData } from "../callbacks/itemPostalCallbackData";
 import { parseNearbyDuelCallbackData } from "../callbacks/nearbyDuelCallbackData";
+import { parsePartySessionCallbackData } from "../callbacks/partySessionCallbackData";
 import { handleDuelCallback, registerDuelCommand } from "../commands/duelCommand";
 import { handleItemGiftCallback } from "../commands/itemGiftCommand";
 import { handleItemPostalCallback } from "../commands/itemPostalCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
+import { handlePartySessionCallback, registerPartySessionDevCommand } from "../commands/partySessionCommand";
 import { playerFromContext } from "../context";
 
 import {
@@ -28,6 +30,13 @@ export function registerSocialBotModule(
     registerDuelCommand(bot, services.duel, {
       presence: services.presence,
       tavernRaid: services.tavern,
+      botUsername: options.botUsername
+    });
+  }
+
+  if (services.partySessions?.isEnabled()) {
+    registerPartySessionDevCommand(bot, services.partySessions, {
+      presence: services.presence,
       botUsername: options.botUsername
     });
   }
@@ -91,7 +100,25 @@ export function registerSocialBotModule(
       await handleNearbyDuelCallback(ctx, callback, {
         presence: services.presence,
         duel: service,
-        tavernRaid: services.tavern
+        tavernRaid: services.tavern,
+        partySessions: services.partySessions
+      });
+    }
+  );
+
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:party:/,
+    (data) => parseWhenAvailable(data, parsePartySessionCallbackData, services.partySessions),
+    async (ctx, { callback, service }) => {
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+        return;
+      }
+
+      await handlePartySessionCallback(ctx, callback, service, {
+        presence: services.presence,
+        botUsername: options.botUsername
       });
     }
   );

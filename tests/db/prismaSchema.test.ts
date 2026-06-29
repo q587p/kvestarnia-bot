@@ -530,4 +530,35 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE UNIQUE INDEX \"character_remort_drafts_token_key\"");
     expect(migration).toContain("CREATE UNIQUE INDEX \"character_remorts_character_id_remort_number_key\"");
   });
+
+  it("stores party sessions and participants for replay-safe recruitment", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260629150000_party_session_foundation",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model PartySession");
+    expect(schema).toContain("model PartyParticipant");
+    expect(schema).toContain("partySessionsLed PartySession[]");
+    expect(schema).toContain("partyParticipants PartyParticipant[]");
+    expect(schema).toContain("@map(\"invite_token\")");
+    expect(schema).toContain("@unique @map(\"active_leader_key\")");
+    expect(schema).toContain("@unique @map(\"active_membership_key\")");
+    expect(schema).toContain("@@unique([sessionId, characterId])");
+    expect(schema).toContain("@@map(\"party_sessions\")");
+    expect(schema).toContain("@@map(\"party_participants\")");
+    expect(migration).toContain("CREATE TABLE \"party_sessions\"");
+    expect(migration).toContain("CREATE TABLE \"party_participants\"");
+    expect(migration).toContain("party_sessions_invite_token_key");
+    expect(migration).toContain("party_sessions_active_leader_key_key");
+    expect(migration).toContain("party_participants_active_membership_key_key");
+    expect(migration).toContain("party_participants_session_id_character_id_key");
+  });
 });

@@ -39,6 +39,7 @@ export const configSchema = z.object({
   databaseUrl: databaseUrlSchema,
   deployNotificationsEnabled: z.boolean().default(false),
   devGrantCommandsEnabled: z.boolean().default(false),
+  partySessionFoundationEnabled: z.boolean().default(false),
   combatBalanceAnalyticsEnabled: z.boolean().default(false),
   supportJarUrl: supportJarUrlSchema.optional(),
   supportJarStatus: supportJarStatusSchema
@@ -54,6 +55,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl: env.DATABASE_URL,
     deployNotificationsEnabled: parseBoolean(env.DEPLOY_NOTIFICATIONS_ENABLED),
     devGrantCommandsEnabled: parseBoolean(env.DEV_GRANT_COMMANDS_ENABLED),
+    partySessionFoundationEnabled: parseBoolean(env.PARTY_SESSION_FOUNDATION_ENABLED),
     combatBalanceAnalyticsEnabled: parseBoolean(env.COMBAT_BALANCE_ANALYTICS_ENABLED),
     supportJarUrl: blankToUndefined(env.SUPPORT_JAR_URL),
     supportJarStatus: parseSupportJarStatus(env)

@@ -11,7 +11,7 @@ const featureModuleOwners = {
   "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:mem:/", "/^v[12]:cellar:/"],
   "quest.ts": ["/^v[12]:adv:/", "/^v1:quest:/", "/^v1:dkr:/", "/^v1:hunt:/", "/^v1:ygr:/"],
   "combat.ts": ["/^v1:spar:/", "/^v1:fight:/", "/^v1:search:/"],
-  "social.ts": ["/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/"]
+  "social.ts": ["/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:party:/"]
 };
 
 const expectedCallbackInventory = Object.values(featureModuleOwners).flat();
@@ -39,7 +39,8 @@ const expectedCommandRegistrationCalls = [
   "registerQuestHubCommand",
   "registerFightCommand",
   "registerTrainingDoppelgangerCommand",
-  "registerDuelCommand"
+  "registerDuelCommand",
+  "registerPartySessionDevCommand"
 ];
 
 const expectedCommandAliasInventory = [
@@ -55,6 +56,7 @@ const expectedCommandAliasInventory = [
   "dev_adventure_reset",
   "dev_heal",
   "dev_help",
+  "dev_party",
   "dev_raid_stop",
   "dev_reset_korchma_round",
   "dev_reset_me",

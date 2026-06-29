@@ -65,6 +65,8 @@ model Character {
   duelChallengesReceived DuelChallenge[] @relation("DuelTarget")
   duelCombatSessionsAsChallenger DuelCombatSession[] @relation("DuelCombatChallenger")
   duelCombatSessionsAsTarget DuelCombatSession[] @relation("DuelCombatTarget")
+  partySessionsLed PartySession[] @relation("PartySessionLeader")
+  partyParticipants PartyParticipant[]
   activeCombatLease ActiveCombatLease?
   name      String
   pronoun   String   @default("they")
@@ -765,6 +767,55 @@ model DuelCombatAction {
   @@unique([sessionId, turn])
   @@index([actorCharacterId])
   @@map("duel_combat_actions")
+}
+
+model PartySession {
+  id                  String    @id @default(uuid())
+  inviteToken         String    @unique @map("invite_token")
+  status              String    @default("recruiting")
+  leaderCharacterId   String    @map("leader_character_id")
+  leader              Character @relation("PartySessionLeader", fields: [leaderCharacterId], references: [id], onDelete: Cascade)
+  periodId            String?   @map("period_id")
+  originLocationId    String?   @map("origin_location_id")
+  participantCap      Int       @default(8) @map("participant_cap")
+  minimumParticipants Int       @default(1) @map("minimum_participants")
+  joinUntilAt         DateTime  @map("join_until_at")
+  expiresAt           DateTime  @map("expires_at")
+  version             Int       @default(1)
+  activeLeaderKey     String?   @unique @map("active_leader_key")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  participants        PartyParticipant[]
+
+  @@index([status, joinUntilAt])
+  @@index([status, expiresAt])
+  @@index([leaderCharacterId, status])
+  @@index([periodId])
+  @@map("party_sessions")
+}
+
+model PartyParticipant {
+  id                  String    @id @default(uuid())
+  sessionId           String    @map("session_id")
+  session             PartySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  characterId         String    @map("character_id")
+  character           Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount         Int       @default(0) @map("remort_count")
+  status              String    @default("joined")
+  joinSource          String    @map("join_source")
+  joinedAt            DateTime  @map("joined_at")
+  leftAt              DateTime? @map("left_at")
+  snapshotJson        Json?     @map("snapshot_json")
+  chatId              BigInt?   @map("chat_id")
+  messageId           Int?      @map("message_id")
+  activeMembershipKey String?   @unique @map("active_membership_key")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sessionId, characterId])
+  @@index([characterId, status])
+  @@index([sessionId, status])
+  @@map("party_participants")
 }
 
 model DailyAction {

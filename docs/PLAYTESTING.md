@@ -4,6 +4,23 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.15 — Party Session Foundation smoke
+
+Use two or three local accounts. Enable `PARTY_SESSION_FOUNDATION_ENABLED=true` in production-like local config, or run in normal non-production dev mode.
+
+1. Account A runs `/dev_party`; verify the card says this is only a temporary party gathering surface with no boss, combat or rewards, and shows a Telegram deep link only when `BOT_USERNAME` is configured.
+2. Account A reruns `/dev_party`; verify it reopens the existing live party instead of creating a second one.
+3. Account B opens the deep link or taps `🤝 Приєднатися`; verify B appears once and duplicate taps replay the same membership.
+4. Try the same invite from an account without a character; verify it routes to friendly onboarding copy and creates no participant.
+5. Fill or locally edit the party to eight joined participants; verify the ninth join is rejected without partial membership.
+6. Account B taps `🚪 Вийти`; verify B is marked left and can rejoin with the same invite while the session is still recruiting.
+7. Account A leaves while other members remain; verify leadership transfers to the earliest remaining joined participant.
+8. The current leader taps `🧹 Скасувати збір`; verify old join/leave/cancel buttons replay the cancelled state and do not reopen recruitment.
+9. Open a party and tap `⏱️ Dev: завершити строк`, or wait past the short local expiry; verify old buttons show the expired state and active membership keys clear.
+10. While Account A has a live party and nearby duel candidates exist, open `/online` or `👀 Хто поруч`; verify `🧭 Покликати у ватагу` appears, sends only best-effort private invites and does not expose exact location or rejection details.
+11. Start remort for a character in a live party; verify remort removes that character from the live party, cancels the party if they were alone, or transfers leadership if needed.
+12. Run ordinary duel, Shynok, postal gift and Barrel raid smoke routes; verify the party foundation did not create combat locks, rewards, quest counters, wagers or inventory movement.
+
 ## 0.2.14 — Adventure Quest Readability and Local Failure smoke
 
 Use one level 3+ account. Local `/dev_adventure_reset` is useful for rerolling offers and duplicate-button checks.
