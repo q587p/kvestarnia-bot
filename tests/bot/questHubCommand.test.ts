@@ -60,7 +60,7 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("📋 Стіл зі справами");
     expect(replies[0]?.text).not.toContain("Бійцівський куток тепер окремо гупає збоку");
     expect(replies[0]?.text).not.toContain("тренування, дружні виклики й дошка переможців");
-    expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
+    expect(replies[0]?.text).not.toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i> — перша підозра для 1-2 рівнів.");
     expect(replies[0]?.text).toContain(
       "🧾 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
@@ -659,7 +659,7 @@ describe("quest hub command", () => {
       "reply"
     );
 
-    expect(replies[0]?.text).toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
+    expect(replies[0]?.text).not.toContain("<b>Мандрівник</b> · <i>Пересічні Пригодники</i>");
     expect(replies[0]?.text).toContain(
       "🧾 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
     );

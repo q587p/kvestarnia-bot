@@ -6,13 +6,14 @@ import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_LOCATION_KORCHMA_CELLAR
 } from "../../services/presenceService";
-import type { CellarErrandService } from "../../services/cellarErrandService";
+import type { CellarErrandLookupResult, CellarErrandService } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import { buildCellarGrownupKeyboard, buildCellarResultKeyboard } from "../keyboards/cellarKeyboard";
 import {
   presentCellarGrownupQuest,
   presentCellarCooldown,
+  presentCellarIntro,
   presentCellarLevelLocked,
   presentCellarLevelRetired,
   presentCellarNoCharacter,
@@ -153,7 +154,16 @@ export async function sendCellarErrand(
     return;
   }
 
-  await sendText(ctx, mode, presentCellarStart(result), {
+  await sendCellarReady(ctx, mode, result);
+}
+
+async function sendCellarReady(
+  ctx: Context,
+  mode: "reply" | "edit",
+  result: Extract<CellarErrandLookupResult, { state: "ready" }>
+): Promise<void> {
+  await sendText(ctx, mode, presentCellarIntro(result));
+  await sendText(ctx, "reply", presentCellarStart(result), {
     state: "ready",
     character: result.character
   });

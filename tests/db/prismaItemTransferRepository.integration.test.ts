@@ -16,6 +16,14 @@ const item: ItemContent = {
   slot: "junk",
   goldValue: 13
 };
+const postalItems: ItemContent[] = Array.from({ length: 5 }, (_value, index) => ({
+  id: `item.test-postal-${index + 1}`,
+  name: `Поштова манатка ${index + 1}`,
+  description: "Для поштового тесту.",
+  rarity: "common",
+  slot: "junk",
+  goldValue: 13 + index
+}));
 const bandage = items.find((candidate) => candidate.id === "item.responsible-panic-bandage");
 
 if (!bandage) {
@@ -468,6 +476,373 @@ describe("PrismaItemTransferRepository integration", () => {
     await expectQuantities({ sender: 1, receiver: 0 });
   });
 
+  it("discovers known postal recipients from completed transfer history without same-location presence", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.user.update({
+      where: { id: "user-receiver" },
+      data: { lastSeenLocationId: "location.korchma.yard" }
+    });
+    await seedCompletedRelationship();
+
+    const recipients = await repository.getPostalRecipientsForTelegramUser(1n, 0, 5);
+    expect(recipients).toMatchObject({
+      state: "ready",
+      total: 1,
+      visible: [expect.objectContaining({ telegramUserId: 2n, name: "Отримувач" })]
+    });
+    const draft = await repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    });
+    expect(draft).toMatchObject({ state: "created" });
+  });
+
+  it("discovers known postal recipients from accepted duels and explicit Bard reactions", async () => {
+    await seedCharacter(1n, "sender", "Поштар");
+    await seedCharacter(2n, "duelist", "Дуелянт");
+    await seedCharacter(3n, "listener", "Слухач");
+    await seedCharacter(4n, "performer", "Бардеса");
+    await seedCharacter(5n, "passive", "Мовчун");
+    await seedDuelRelationship("sender", "duelist");
+    await seedBardPerformanceReaction({
+      performanceId: "performance-sender",
+      performerId: "sender",
+      audienceId: "listener",
+      audienceTelegramUserId: 3n,
+      status: "applauded"
+    });
+    await seedBardPerformanceReaction({
+      performanceId: "performance-performer",
+      performerId: "performer",
+      audienceId: "sender",
+      audienceTelegramUserId: 1n,
+      status: "tipped"
+    });
+    await seedBardPerformanceReaction({
+      performanceId: "performance-passive",
+      performerId: "sender",
+      audienceId: "passive",
+      audienceTelegramUserId: 5n,
+      status: "offered"
+    });
+
+    const recipients = await repository.getPostalRecipientsForTelegramUser(1n, 0, 5);
+
+    expect(recipients).toMatchObject({
+      state: "ready",
+      total: 3
+    });
+    expect(recipients.state === "ready" ? recipients.visible.map((recipient) => recipient.name).sort() : [])
+      .toEqual(["Бардеса", "Дуелянт", "Слухач"]);
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-duel-token",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created" });
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-listener-token",
+      receiverTelegramUserId: 3n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created" });
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-performer-token",
+      receiverTelegramUserId: 4n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created" });
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-passive-token",
+      receiverTelegramUserId: 5n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "target-not-found" });
+  });
+
+  it("charges the sender fee at postal confirmation and moves a five-type package once", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    for (const content of postalItems) {
+      await seedItem("sender", 93, content.id);
+    }
+    const lines = postalItems.map((content, index) => packageLine(content, index + 1));
+
+    await createPostal(lines);
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 90 });
+    await expect(repository.getPostalRecipientsForTelegramUser(1n, 0, 5)).resolves.toMatchObject({
+      state: "ready",
+      inTransit: {
+        total: 1,
+        visible: [expect.objectContaining({ direction: "outgoing", otherName: "Отримувач", deliveryFeeGold: 10 })]
+      }
+    });
+    await expect(repository.getPostalRecipientsForTelegramUser(2n, 0, 5)).resolves.toMatchObject({
+      state: "ready",
+      inTransit: {
+        total: 1,
+        visible: [expect.objectContaining({ direction: "incoming", otherName: "Дарувальник", deliveryFeeGold: 10 })]
+      }
+    });
+    for (const [index, content] of postalItems.entries()) {
+      await expectItemQuantity("sender", content.id, 93 - (index + 1));
+      await expectItemQuantity("receiver", content.id, 0);
+    }
+
+    const accepted = await repository.acceptPostalForTelegramUser(2n, {
+      token: "postal-token-1",
+      itemContents: postalItems,
+      now: now(),
+      result: { kind: "postal-test-accepted" }
+    });
+    expect(accepted.state).toBe("completed");
+    const replay = await repository.acceptPostalForTelegramUser(2n, {
+      token: "postal-token-1",
+      itemContents: postalItems,
+      now: now(),
+      result: { kind: "postal-test-replay" }
+    });
+    expect(replay.state).toBe("replayed");
+
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 90 });
+    await expect(repository.getPostalRecipientsForTelegramUser(1n, 0, 5, { historyPage: 0 })).resolves.toMatchObject({
+      state: "ready",
+      history: {
+        total: 1,
+        visible: [expect.objectContaining({ direction: "outgoing", otherName: "Отримувач", deliveryFeeGold: 10 })]
+      }
+    });
+    for (const [index, content] of postalItems.entries()) {
+      await expectItemQuantity("sender", content.id, 93 - (index + 1));
+      await expectItemQuantity("receiver", content.id, index + 1);
+    }
+  });
+
+  it("lets postal packages send explicit trade-blocked bandages", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    await seedItem("sender", 2, bandage.id);
+
+    await repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      packageLines: [packageLine(bandage, 2)],
+      deliveryFeeGold: 0,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
+
+    const confirmed = await repository.confirmPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      itemContents: [bandage],
+      now: now(),
+      expiresAt: future(),
+      result: { kind: "postal-test-bandage-pending" }
+    });
+    expect(confirmed.state).toBe("created");
+    await expectItemQuantity("sender", bandage.id, 0);
+    await expectItemQuantity("receiver", bandage.id, 0);
+
+    const accepted = await repository.acceptPostalForTelegramUser(2n, {
+      token: "postal-token-1",
+      itemContents: [bandage],
+      now: now(),
+      result: { kind: "postal-test-bandage-accepted" }
+    });
+
+    expect(accepted.state).toBe("completed");
+    await expectItemQuantity("sender", bandage.id, 0);
+    await expectItemQuantity("receiver", bandage.id, 2);
+  });
+
+  it("does not create a pending postal package when sender lacks gold at confirmation", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 1 } });
+    await seedCompletedRelationship();
+    for (const content of postalItems.slice(0, 2)) {
+      await seedItem("sender", 5, content.id);
+    }
+    const lines = postalItems.slice(0, 2).map((content) => packageLine(content, 2));
+    await repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      packageLines: lines,
+      deliveryFeeGold: 0,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
+
+    const confirmed = await repository.confirmPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      itemContents: postalItems,
+      now: now(),
+      expiresAt: future(),
+      result: { kind: "postal-test-no-gold" }
+    });
+
+    expect(confirmed.state).toBe("insufficient-gold");
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 1 });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "draft", reservationKey: null });
+    for (const content of postalItems.slice(0, 2)) {
+      await expectItemQuantity("sender", content.id, 5);
+      await expectItemQuantity("receiver", content.id, 0);
+    }
+  });
+
+  it("does not move a partial postal package when one line becomes stale", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    for (const content of postalItems.slice(0, 2)) {
+      await seedItem("sender", 3, content.id);
+    }
+    const lines = postalItems.slice(0, 2).map((content) => packageLine(content, 2));
+    await createPostal(lines);
+    const staleContents = postalItems.map((content, index) => index === 1
+      ? { ...content, name: `${content.name} stale` }
+      : content);
+
+    const accepted = await repository.acceptPostalForTelegramUser(2n, {
+      token: "postal-token-1",
+      itemContents: staleContents,
+      now: now(),
+      result: { kind: "postal-test-stale" }
+    });
+
+    expect(accepted.state).toBe("stale-selection");
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 93 });
+    await expectItemQuantity("sender", postalItems[0]!.id, 1);
+    await expectItemQuantity("sender", postalItems[1]!.id, 1);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+    await expectItemQuantity("receiver", postalItems[1]!.id, 0);
+  });
+
+  it("lets the sender cancel a postal draft without moving items or charging the fee", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created", transfer: { status: "draft" } });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      packageLines: [packageLine(postalItems[0]!, 2)],
+      deliveryFeeGold: 6,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ transferKind: "postal", status: "draft" });
+
+    const cancelled = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    expect(cancelled).toMatchObject({
+      state: "cancelled",
+      transitioned: true,
+      transfer: { status: "cancelled" }
+    });
+
+    const row = await prisma.itemTransfer.findUniqueOrThrow({ where: { token: "postal-token-1" } });
+    expect(row).toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      resultJson: { kind: "cancelled" }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 100 });
+    await expectItemQuantity("sender", postalItems[0]!.id, 5);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+
+    const replay = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    expect(replay).toMatchObject({ state: "cancelled", transfer: { status: "cancelled" } });
+    expect(replay).not.toHaveProperty("transitioned");
+  });
+
+  it("keeps postal draft cancellation sender-only", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedCompletedRelationship();
+
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created", transfer: { status: "draft" } });
+
+    await expect(repository.cancelPostalForTelegramUser(2n, "postal-token-1", now()))
+      .resolves.toMatchObject({ state: "not-sender" });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "draft", reservationKey: null });
+  });
+
+  it("still lets the sender cancel a pending postal package and releases the live reservation", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+    await createPostal([packageLine(postalItems[0]!, 2)]);
+
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "pending", reservationKey: "postal:sender" });
+    await expectItemQuantity("sender", postalItems[0]!.id, 3);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+
+    const cancelled = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", new Date("2026-06-24T10:24:00.000Z"));
+    expect(cancelled).toMatchObject({ state: "cancelled", transitioned: true });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "cancelled", reservationKey: null });
+
+    const replay = await repository.cancelPostalForTelegramUser(1n, "postal-token-1", now());
+    expect(replay).toMatchObject({ state: "cancelled", transfer: { status: "cancelled" } });
+    expect(replay).not.toHaveProperty("transitioned");
+    await expect(prisma.character.findUnique({ where: { id: "sender" } })).resolves.toMatchObject({ gold: 4 });
+    await expectItemQuantity("sender", postalItems[0]!.id, 5);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+  });
+
+  it("returns a pending postal package to the sender when it expires", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+    await createPostal([packageLine(postalItems[0]!, 2)]);
+
+    const expired = await repository.acceptPostalForTelegramUser(2n, {
+      token: "postal-token-1",
+      itemContents: postalItems,
+      now: new Date("2026-06-24T10:24:00.000Z"),
+      result: { kind: "postal-test-expired-accept" }
+    });
+
+    expect(expired).toMatchObject({ state: "expired", transitioned: true });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
+      .resolves.toMatchObject({ status: "expired", reservationKey: null });
+    await expectItemQuantity("sender", postalItems[0]!.id, 5);
+    await expectItemQuantity("receiver", postalItems[0]!.id, 0);
+  });
+
   function createGift(token = "gift-token-1", expiresAt = future()) {
     return repository.createGiftForTelegramUser(1n, {
       token,
@@ -477,6 +852,28 @@ describe("PrismaItemTransferRepository integration", () => {
       now: now(),
       expiresAt
     });
+  }
+
+  async function createPostal(lines: ReturnType<typeof packageLine>[]) {
+    await repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      packageLines: lines,
+      deliveryFeeGold: 0,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
+    await expect(repository.confirmPostalDraftForTelegramUser(1n, {
+      token: "postal-token-1",
+      itemContents: postalItems,
+      now: now(),
+      expiresAt: future(),
+      result: { kind: "postal-test-pending" }
+    })).resolves.toMatchObject({ state: "created" });
   }
 
   function acceptGift(result: unknown) {
@@ -557,6 +954,101 @@ describe("PrismaItemTransferRepository integration", () => {
     });
   }
 
+  async function seedCompletedRelationship() {
+    await prisma.itemTransfer.create({
+      data: {
+        token: `relationship-${Date.now()}-${Math.random()}`,
+        transferKind: "gift",
+        senderCharacterId: "sender",
+        receiverCharacterId: "receiver",
+        senderTelegramUserId: 1n,
+        receiverTelegramUserId: 2n,
+        senderName: "Дарувальник",
+        receiverName: "Отримувач",
+        senderRemortCount: 0,
+        receiverRemortCount: 0,
+        locationId: "location.korchma.bar",
+        itemId: item.id,
+        itemName: item.name,
+        itemFingerprint: createItemGiftFingerprint(item),
+        quantity: 1,
+        status: "completed",
+        resultJson: { kind: "seed-relationship" },
+        expiresAt: future(),
+        completedAt: now(),
+        updatedAt: now()
+      }
+    });
+  }
+
+  async function seedDuelRelationship(challengerCharacterId: string, targetCharacterId: string) {
+    await prisma.duelChallenge.create({
+      data: {
+        challengerCharacterId,
+        targetCharacterId,
+        inviteToken: `duel-${challengerCharacterId}-${targetCharacterId}`,
+        mode: "quick",
+        status: "resolved",
+        expiresAt: future(),
+        resolvedAt: now(),
+        resultJson: { kind: "test-duel" },
+        updatedAt: now()
+      }
+    });
+  }
+
+  async function seedBardPerformanceReaction(input: {
+    performanceId: string;
+    performerId: string;
+    audienceId: string;
+    audienceTelegramUserId: bigint;
+    status: "offered" | "applauded" | "tipped";
+  }) {
+    await prisma.bardPerformance.create({
+      data: {
+        id: input.performanceId,
+        token: `${input.performanceId}-token`,
+        characterId: input.performerId,
+        telegramUserId: input.performerId === "sender" ? 1n : 4n,
+        performerName: input.performerId,
+        remortCount: 0,
+        techniqueId: "technique.class.bard.shynok-performance",
+        rulesVersion: "test",
+        locationId: "location.korchma.bar",
+        localDate: "12026-06-24",
+        status: "completed",
+        grade: "modest",
+        power: 13,
+        housePayoutGold: 0,
+        roleActionXp: 0,
+        audienceCount: 1,
+        statSnapshotJson: { charisma: 1, luck: 1 },
+        startedAt: now(),
+        expiresAt: future(),
+        cooldownAvailableAt: future(),
+        completedAt: now(),
+        updatedAt: now()
+      }
+    });
+    await prisma.bardPerformanceReaction.create({
+      data: {
+        id: `${input.performanceId}-reaction`,
+        performanceId: input.performanceId,
+        characterId: input.audienceId,
+        telegramUserId: input.audienceTelegramUserId,
+        audienceName: input.audienceId,
+        remortCount: 0,
+        status: input.status,
+        tipGold: input.status === "tipped" ? 5 : 0,
+        resultJson: input.status === "offered" ? undefined : { action: input.status },
+        offeredAt: now(),
+        expiresAt: future(),
+        respondedAt: input.status === "offered" ? undefined : now(),
+        updatedAt: now()
+      }
+    });
+  }
+
   async function expectQuantities(expected: { sender: number; receiver: number }) {
     const rows = await prisma.characterItem.findMany({
       where: { itemId: item.id },
@@ -566,7 +1058,26 @@ describe("PrismaItemTransferRepository integration", () => {
     expect(quantities.sender ?? 0).toBe(expected.sender);
     expect(quantities.receiver ?? 0).toBe(expected.receiver);
   }
+
+  async function expectItemQuantity(characterId: string, itemId: string, quantity: number) {
+    const row = await prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId, itemId } }
+    });
+    expect(row?.quantity ?? 0).toBe(quantity);
+  }
 });
+
+function packageLine(content: ItemContent, quantity: number) {
+  return {
+    itemId: content.id,
+    itemName: content.name,
+    quantity,
+    itemFingerprint: createItemGiftFingerprint(content),
+    unitGoldValue: content.goldValue ?? 0,
+    observedQuantity: 93,
+    tags: [...(content.tags ?? [])].sort()
+  };
+}
 
 function now(): Date {
   return new Date("2026-06-24T10:00:00.000Z");
@@ -659,6 +1170,64 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "character_remorts_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
+    `CREATE TABLE "bard_performances" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "token" TEXT NOT NULL UNIQUE,
+      "character_id" TEXT NOT NULL,
+      "telegram_user_id" BIGINT NOT NULL,
+      "performer_name" TEXT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "technique_id" TEXT NOT NULL,
+      "rules_version" TEXT NOT NULL,
+      "location_id" TEXT NOT NULL,
+      "local_date" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "live_guard" TEXT UNIQUE,
+      "grade" TEXT NOT NULL,
+      "power" INTEGER NOT NULL,
+      "house_payout_gold" INTEGER NOT NULL DEFAULT 0,
+      "role_action_xp" INTEGER NOT NULL DEFAULT 0,
+      "audience_count" INTEGER NOT NULL DEFAULT 0,
+      "stat_snapshot_json" JSONB NOT NULL,
+      "result_json" JSONB,
+      "started_at" DATETIME NOT NULL,
+      "expires_at" DATETIME NOT NULL,
+      "cooldown_available_at" DATETIME NOT NULL,
+      "completed_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE "bard_performance_reactions" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "performance_id" TEXT NOT NULL,
+      "character_id" TEXT NOT NULL,
+      "telegram_user_id" BIGINT NOT NULL,
+      "audience_name" TEXT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "status" TEXT NOT NULL DEFAULT 'offered',
+      "tip_gold" INTEGER NOT NULL DEFAULT 0,
+      "result_json" JSONB,
+      "offered_at" DATETIME NOT NULL,
+      "expires_at" DATETIME NOT NULL,
+      "responded_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX "bard_performance_reactions_performance_id_character_id_key" ON "bard_performance_reactions"("performance_id", "character_id")`,
+    `CREATE TABLE "duel_challenges" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "challenger_character_id" TEXT NOT NULL,
+      "target_character_id" TEXT,
+      "context_chat_id" BIGINT,
+      "invite_token" TEXT NOT NULL UNIQUE,
+      "mode" TEXT NOT NULL DEFAULT 'quick',
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "expires_at" DATETIME NOT NULL,
+      "resolved_at" DATETIME,
+      "result_json" JSONB,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE "mantok_chest_runs" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "character_id" TEXT NOT NULL,
@@ -712,6 +1281,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE TABLE "item_transfers" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "token" TEXT NOT NULL UNIQUE,
+      "transfer_kind" TEXT NOT NULL DEFAULT 'gift',
       "sender_character_id" TEXT NOT NULL,
       "receiver_character_id" TEXT NOT NULL,
       "sender_telegram_user_id" BIGINT NOT NULL,
@@ -725,6 +1295,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "item_name" TEXT NOT NULL,
       "item_fingerprint" TEXT NOT NULL,
       "quantity" INTEGER NOT NULL DEFAULT 1,
+      "package_json" JSONB,
+      "delivery_fee_gold" INTEGER NOT NULL DEFAULT 0,
       "status" TEXT NOT NULL DEFAULT 'pending',
       "reservation_key" TEXT UNIQUE,
       "result_json" JSONB,

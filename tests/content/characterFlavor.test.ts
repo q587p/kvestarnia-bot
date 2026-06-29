@@ -255,7 +255,12 @@ describe("character flavor content", () => {
           (candidate) => candidate.raceId === combo.raceId && candidate.classId === combo.classId
         );
 
-        if (query.placement !== "raid.prep-hint" || isSelectedComboLine) {
+        const isCellarStartSelectedComboLine =
+          query.placement === "quest.start" && query.scene === "cellar" && isSelectedComboLine;
+
+        if (isCellarStartSelectedComboLine) {
+          expect(line?.text).not.toContain(character.title);
+        } else if (query.placement !== "raid.prep-hint" || isSelectedComboLine) {
           expect(line?.text).toContain(character.title);
         }
         expect(line?.text).not.toContain("{title}");

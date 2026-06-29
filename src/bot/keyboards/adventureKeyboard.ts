@@ -7,7 +7,10 @@ import { buildStarterMethodOptions, getAdventureProblemIcon } from "../../servic
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import {
   makeAdventureApproachCallbackData,
+  makeAdventureProblemHelpCallbackData,
+  makeMimicShawarmaBackCallbackData,
   makeMimicShawarmaMethodCallbackData,
+  makeMimicShawarmaHelpCallbackData,
   makeAdventureParticipantsCallbackData,
   makeAdventureProblemCallbackData
 } from "../callbacks/adventureCallbackData";
@@ -45,7 +48,10 @@ export function buildAdventureKeyboard(offer?: AdventureOffer | CharacterSummary
         .row();
     }
 
-    keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
+    keyboard
+      .text("💡 Підказка", makeMimicShawarmaHelpCallbackData())
+      .row()
+      .text("📋 До справ", makePlaceCallbackData("quest-table"));
 
     return keyboard;
   }
@@ -56,6 +62,21 @@ export function buildAdventureKeyboard(offer?: AdventureOffer | CharacterSummary
     .text("📋 Попросити чек", "v1:adv:mimic:receipt")
     .row()
     .text("🏃 Обережно відступити", "v1:adv:mimic:flee")
+    .row()
+    .text("📋 До справ", makePlaceCallbackData("quest-table"));
+}
+
+export function buildMimicShawarmaMethodHelpKeyboard(character: CharacterSummary): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const method of buildStarterMethodOptions("shawarma", character)) {
+    keyboard
+      .text(method.buttonLabel ?? method.label, makeMimicShawarmaMethodCallbackData(method.callbackKey ?? method.id))
+      .row();
+  }
+
+  return keyboard
+    .text("⬅️ Назад", makeMimicShawarmaBackCallbackData())
     .row()
     .text("📋 До справ", makePlaceCallbackData("quest-table"));
 }
@@ -75,9 +96,39 @@ export function buildAdventureApproachKeyboard(
       .row();
   }
 
-  keyboard.text("⬅️ Інші справи", makeQuestCallbackData("adventure"));
+  keyboard
+    .text("💡 Підказка", makeAdventureProblemHelpCallbackData({
+      periodToken: result.offer.periodToken,
+      problemId: result.choice.id
+    }))
+    .row()
+    .text("⬅️ Інші справи", makeQuestCallbackData("adventure"));
 
   return keyboard;
+}
+
+export function buildAdventureApproachHelpKeyboard(
+  result: Extract<AdventureProblemResult, { state: "selected" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const approach of result.approaches) {
+    keyboard
+      .text(approach.buttonLabel ?? approach.label, makeAdventureApproachCallbackData({
+        periodToken: result.offer.periodToken,
+        problemId: result.choice.id,
+        methodId: approach.callbackKey ?? approach.id
+      }))
+      .row();
+  }
+
+  return keyboard
+    .text("⬅️ Назад", makeAdventureProblemCallbackData({
+      periodToken: result.offer.periodToken,
+      problemId: result.choice.id
+    }))
+    .row()
+    .text("⬅️ Інші справи", makeQuestCallbackData("adventure"));
 }
 
 export function buildAdventureResultKeyboard(

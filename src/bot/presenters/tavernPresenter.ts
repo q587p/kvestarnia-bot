@@ -23,7 +23,7 @@ import {
 } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { presentCharacterDisplayName } from "./characterDisplay";
-import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
+import { escapeHtml, npcQuote } from "./telegramHtml";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 
 export function presentKorchmaFront(
@@ -32,16 +32,13 @@ export function presentKorchmaFront(
 ): string {
   return [
     "🚪 Перед корчмою",
-    presentCharacterHeader(character),
     "",
     "За дверима гуде <b>Корчма Квестарні</b>. Там видають квести, сперечаються з бочками й іноді не питають зайвого.",
     "",
-    "Зліва від дверей висить <i>табличка прибулих</i>: хто вже проходив повз і не був стертий дощем.",
-    "",
-    "Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
+    "Зліва від дверей висить <i>табличка прибулих</i>: хто вже проходив повз і не був стертий дощем. Справа від дверей висить <i>пропамʼятна дошка</i>. Вона міряє рівні, але робить вигляд, що це історія.",
     "",
     "За рогом починається <i>задвірок корчми</i>: там дрібні катастрофи сушаться біля відра й чекають слушного пригодника.",
-    ...presentFrontMunchkinLines(options.munchkinLocation ?? "front"),
+    ...presentFrontMunchkinLines(character.level, options.munchkinLocation ?? "front"),
     ...(options.showEntryHint === false
       ? []
       : [
@@ -57,7 +54,6 @@ export function presentKorchmaArrivalBoard(
 ): string {
   return [
     "📜 Табличка прибулих",
-    presentCharacterHeader(character),
     "",
     "Зліва від дверей висить дошка з іменами тих, кого корчма вже бачила й поки не заперечує.",
     "",
@@ -67,10 +63,11 @@ export function presentKorchmaArrivalBoard(
   ].join("\n");
 }
 
-export function presentKorchmaYard(character: CharacterSummary): string {
+export function presentKorchmaYard(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🪣 Задвірок корчми",
-    presentCharacterHeader(character),
     "",
     "За корчмою пахне мокрим деревом, самовпевненим пилом і дрібними проблемами, які не пройшли через головні двері.",
     "",
@@ -87,7 +84,6 @@ export function presentKorchmaMemorialBoard(
 ): string {
   return [
     "🏅 Пропамʼятна дошка",
-    presentCharacterHeader(character),
     "",
     "Справа від дверей висить дошка для тих, хто першим доріс до числа й не впав з табурета.",
     "",
@@ -106,7 +102,6 @@ export function presentKorchmaRemortMilestoneBoard(
 ): string {
   return [
     "🏅 Пропамʼятна дошка",
-    presentCharacterHeader(character),
     "",
     `Перші зарубки за рівні після реморту ${remortNumber}:`,
     "",
@@ -124,27 +119,27 @@ export function presentKorchmaHall(
 ): string {
   return [
     "🍺 Зала корчми",
-    presentCharacterHeader(character),
     "",
     "Корчма Квестарні тримає тепло, шум і кілька справ, які краще не залишати без нагляду.",
     "",
     "Ліворуч гупає <i>бійцівський куток</i>, праворуч терпить життя <i>стіл зі справами</i>. Далі піниться <i>Бочка Пінного Міражу</i>, шумить <i>шинок</i>, за бочками чекає <i>спуск до Низу</i>, а поруч скромно пахне <i>льох</i>.",
     "",
-    "Біля дверей висить <i>дошка вістей</i>, а самі двері роблять вигляд, що <i>надвір</i> теж варіянт.",
+    "Біля дверей висить <i>дошка корчми</i>, а самі двері роблять вигляд, що <i>надвір</i> теж варіянт.",
     ...presentRemortCandleHint(character),
     "",
     ...presentKorchmaGreeting(character, options.flavorSeed),
     "",
     ...presentTavernPresence(presence, viewerTelegramUserId),
     "",
-    "Куди йдемо?"
+    `<b>${escapeHtml(character.name)}</b>, куди йдемо?`
   ].join("\n");
 }
 
-export function presentKorchmaFightingCorner(character: CharacterSummary): string {
+export function presentKorchmaFightingCorner(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🥊 Бійцівський куток",
-    presentCharacterHeader(character),
     "",
     "Тут не бʼються одразу. Спершу Корчмар показує пальцем на дошку правил, потім на ваші манатки, потім знову на дошку правил.",
     "",
@@ -158,12 +153,11 @@ export function presentKorchmaFightingCorner(character: CharacterSummary): strin
 }
 
 export function presentKorchmaFightingCornerLevelLocked(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   requiredLevel = 3
 ): string {
   return [
     `🥊 Бійцівський куток відкриється з ${requiredLevel} рівня`,
-    presentCharacterHeader(character),
     "",
     "Куток поки вдає, що це просто дуже підозрілий закуток. Корчмар радить спершу закрити кілька справ і не сваритися з рукавицями.",
     "",
@@ -172,20 +166,19 @@ export function presentKorchmaFightingCornerLevelLocked(
 }
 
 export function presentKorchmaDeepClosed(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   options: { munchkinLocation?: MunchkinLocation } = {}
 ): string {
   return [
     "🪜 Спуск до Низу",
-    presentCharacterHeader(character),
     "",
     "За бочками в коморі є сходи. Перші тринадцять сходинок ще пахнуть пивом і мишами. Далі — гарячим каменем, старою кров’ю і чимось, що не мало б дихати.",
     ...presentDeepMunchkinLines(options.munchkinLocation ?? "front")
   ].join("\n");
 }
 
-function presentFrontMunchkinLines(location: MunchkinLocation): string[] {
-  if (location !== "front") {
+function presentFrontMunchkinLines(characterLevel: number, location: MunchkinLocation): string[] {
+  if (characterLevel < 3 || location !== "front") {
     return [];
   }
 
@@ -207,12 +200,11 @@ function presentDeepMunchkinLines(location: MunchkinLocation): string[] {
 }
 
 export function presentKorchmaDeepLevelLocked(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   requiredLevel = 3
 ): string {
   return [
     `🪜 Низ відкриється з ${requiredLevel} рівня`,
-    presentCharacterHeader(character),
     "",
     "Сходи за бочками чемно скриплять і роблять вигляд, що їх ще не вигадали.",
     "",
@@ -228,7 +220,6 @@ export function presentDuelWinnersBoard(
 
   return [
     "🏆 Переможці дуелей",
-    presentCharacterHeader(character),
     "",
     "На дошці Бійцівського кутка Корчмар рахує тільки дружні перемоги. Нагород тут немає, зате є крейда й надмірна офіційність.",
     "",
@@ -252,7 +243,7 @@ function presentRemortCandleHint(character: CharacterSummary): string[] {
 }
 
 export function presentKorchmaBar(
-  character: CharacterSummary,
+  _character: CharacterSummary,
   options: {
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
@@ -263,7 +254,6 @@ export function presentKorchmaBar(
 
   return [
     "🍻 Шинок",
-    presentCharacterHeader(character),
     "",
     "<i>Шинок</i> тримає кухлі, чеки й корчмаря в одному місці. Корчмар каже, що це не бардак, а логістика.",
     "",
@@ -271,6 +261,20 @@ export function presentKorchmaBar(
     ...actionLines,
     "",
     "Що наливаємо?"
+  ].join("\n");
+}
+
+export function presentKorchmaNewsCorner(_character: CharacterSummary): string {
+  void _character;
+
+  return [
+    "📰 Дошка корчми",
+    "",
+    "Біля дверей висить <i>дошка корчми</i>. На ній свіжі вісти, старі цвяшки й один клаптик паперу, який явно знає більше, ніж каже.",
+    "",
+    "Тут можна глянути вісти Квестарні, подарувати манатку тому, хто поруч, або передати пакунок через пошту за невелику плату. Дошка робить вигляд, що це все її ідея.",
+    "",
+    "Що дивимося?"
   ].join("\n");
 }
 
@@ -304,10 +308,11 @@ function presentKorchmaBarActionLines(options: {
   return lines.length > 0 ? ["", ...lines] : [];
 }
 
-export function presentTavern(character: CharacterSummary): string {
+export function presentTavern(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    presentCharacterHeader(character),
     "",
     "У кутку героїчно піниться Бочка Пінного Міражу.",
     "",
@@ -317,10 +322,11 @@ export function presentTavern(character: CharacterSummary): string {
   ].join("\n");
 }
 
-export function presentTavernAlreadyRaided(character: CharacterSummary): string {
+export function presentTavernAlreadyRaided(_character: CharacterSummary): string {
+  void _character;
+
   return [
     "🛢️ Біля Бочки Пінного Міражу",
-    presentCharacterHeader(character),
     "",
     "Бочка Пінного Міражу в цьому відтинку вже пережила ваше втручання.",
     "Єгер у капюшоні все ще сидить у кутку. Схоже, він підозрював, що цим усе й скінчиться.",

@@ -241,6 +241,52 @@ describe("onboarding presenters and keyboards", () => {
     expect(text).not.toContain("Домовик");
     expect(text).not.toContain("Злодій");
   });
+
+  it("can include the Kvestarnia opened line on the created hero final screen", () => {
+    const text = presentCharacterCreated(
+      {
+        name: "Shannar de Kassal",
+        pronoun: "he",
+        pronounLabel: "Він",
+        path: "household",
+        raceId: "race.domovyk",
+        raceName: "Домовик",
+        classId: "class.rogue",
+        className: "Злодій",
+        title: "Завідувач Чужої Полиці",
+        level: 1,
+        xp: 0,
+        nextLevelXp: 10,
+        xpToNextLevel: 10,
+        gold: 0,
+        hpCurrent: 20,
+        hpMax: 20,
+        manaCurrent: 10,
+        manaMax: 10,
+        stats: {
+          strength: 6,
+          dexterity: 8,
+          intelligence: 6,
+          charisma: 6,
+          luck: 6
+        },
+        levelBonus: {
+          hpMax: 0,
+          manaMax: 0,
+          primaryStat: {
+            stat: "dexterity",
+            bonus: 0
+          }
+        }
+      },
+      true,
+      { includeKvestarniaOpened: true }
+    );
+
+    expect(text).toBe(
+      "🎒 Пригодника створено.\n\nВи отримали титул: <i>Завідувач Чужої Полиці</i>\n\n🍺 Квестарня відчинена."
+    );
+  });
 });
 
 function expectAllButtonsValid(buttons: Array<{ text: string; callback_data?: string }>): void {

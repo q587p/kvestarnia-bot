@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildHeroAchievementsKeyboard } from "../../src/bot/keyboards/achievementKeyboard";
 import {
+  buildAdventureApproachHelpKeyboard,
   buildAdventureApproachKeyboard,
+  buildMimicShawarmaMethodHelpKeyboard,
   buildAdventureParticipantsKeyboard,
   buildAdventureKeyboard,
   buildAdventureResultKeyboard
@@ -9,6 +11,7 @@ import {
 import {
   buildCellarKeyboard,
   buildCellarGrownupKeyboard,
+  buildCellarMethodHelpKeyboard,
   buildCellarParticipantsKeyboard,
   buildCellarResultKeyboard
 } from "../../src/bot/keyboards/cellarKeyboard";
@@ -58,6 +61,7 @@ import {
   buildDailyKorchmaRoundSceneKeyboard,
   buildDailyKorchmaRoundStepKeyboard
 } from "../../src/bot/keyboards/dailyKorchmaRoundKeyboard";
+import { dailyKorchmaRoundScenes } from "../../src/content/dailyKorchmaRoundContent";
 import {
   buildBackToShynokKeyboard,
   buildShynokRoundPreviewKeyboard,
@@ -72,6 +76,7 @@ import {
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
   buildKorchmaMemorialBoardKeyboard,
+  buildKorchmaNewsCornerKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
@@ -150,6 +155,11 @@ describe("main menu and scene keyboards", () => {
       "🏅 Пропамʼятна дошка",
       "🎒 Манчкін-скупник"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ characterLevel: 1 }))).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка"
+    ]);
     expect(inlineButtonRows(buildKorchmaFrontKeyboard())).toEqual([
       ["🚪 Зайти в корчму"],
       ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
@@ -168,7 +178,19 @@ describe("main menu and scene keyboards", () => {
       "🎒 Манчкін-скупник",
       "🏹 До полювання"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ characterLevel: 1, yegerAction: "hunt" }))).toEqual([
+      "🚪 Зайти в корчму",
+      "📜 Табличка прибулих",
+      "🏅 Пропамʼятна дошка",
+      "🏹 До полювання"
+    ]);
     expect(inlineButtonRows(buildKorchmaFrontKeyboard({ dailyYard: true }))).toEqual([
+      ["🚪 Зайти в корчму"],
+      ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
+      ["🪣 У задвірок"],
+      ["🎒 Манчкін-скупник"]
+    ]);
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard({ characterLevel: 3, dailyYard: true }))).toEqual([
       ["🚪 Зайти в корчму"],
       ["📜 Табличка прибулих", "🏅 Пропамʼятна дошка"],
       ["🪣 У задвірок"],
@@ -204,7 +226,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "📰 Дошка вістей",
+      "📰 Дошка корчми",
       "🐭 Льох",
       "🚪 Надвір",
       "🪜 Спуск до Низу"
@@ -225,7 +247,7 @@ describe("main menu and scene keyboards", () => {
       "📋 Стіл зі справами",
       "🛢️ Бочка",
       "🍻 Шинок",
-      "📰 Дошка вістей",
+      "📰 Дошка корчми",
       "🐭 Льох",
       "🚪 Надвір",
       "🪜 Спуск до Низу"
@@ -256,7 +278,7 @@ describe("main menu and scene keyboards", () => {
     expect(inlineButtonRows(buildKorchmaHallKeyboard())).toEqual([
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
       ["🛢️ Бочка", "🍻 Шинок"],
-      ["📰 Дошка вістей", "🐭 Льох"],
+      ["📰 Дошка корчми", "🐭 Льох"],
       ["🚪 Надвір", "🪜 Спуск до Низу"]
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
@@ -278,7 +300,6 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
-      "🎁 Подарувати манатку",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard())).toEqual([
@@ -286,7 +307,6 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
-      "v1:gift:open",
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
@@ -294,7 +314,6 @@ describe("main menu and scene keyboards", () => {
       "🍺 Просте всім",
       "🍻 Якісне всім",
       "💰 Продати манатки",
-      "🎁 Подарувати манатку",
       "🍾 Здати пляшку",
       "⬅️ До зали"
     ]);
@@ -303,8 +322,19 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:simple",
       "v1:sh:rp:fine",
       "v1:sh:so",
-      "v1:gift:open",
       "v1:cellar:grownup-turn-in",
+      "v1:place:hall"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaNewsCornerKeyboard())).toEqual([
+      "📰 Вісти",
+      "🎁 Подарувати манатку",
+      "📮 Пошта Квестарні",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaNewsCornerKeyboard())).toEqual([
+      "v1:news:list:0",
+      "v1:gift:open",
+      "v1:post:open",
       "v1:place:hall"
     ]);
   });
@@ -654,13 +684,21 @@ describe("main menu and scene keyboards", () => {
   it("keeps character-aware adventure labels on the same callback actions", () => {
     const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
 
-    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
     expect(labels).toContain("📋 Вимагати чек і походження начинки");
     expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(labels.at(-2)).toBe("💡 Підказка");
     expect(labels.at(-1)).toBe("📋 До справ");
     const callbacks = flatInlineButtonCallbacks(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
-    expect(callbacks.slice(0, -1).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.slice(0, -2).every((callback) => /^v2:adv:m:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-2)).toBe("v2:adv:h:m");
     expect(callbacks.at(-1)).toBe("v1:place:quest-table");
+
+    const helpLabels = flatInlineButtonTexts(buildMimicShawarmaMethodHelpKeyboard({ ...character, classId: "class.rogue" }));
+    const helpCallbacks = flatInlineButtonCallbacks(buildMimicShawarmaMethodHelpKeyboard({ ...character, classId: "class.rogue" }));
+    expect(helpLabels.slice(0, -2)).toEqual(labels.slice(0, -2));
+    expect(helpLabels.at(-2)).toBe("⬅️ Назад");
+    expect(helpCallbacks.at(-2)).toBe("v2:adv:b:m");
   });
 
   it("uses short authored method labels on selected adventure buttons", () => {
@@ -696,10 +734,39 @@ describe("main menu and scene keyboards", () => {
 
     const labels = flatInlineButtonTexts(keyboard);
 
-    expect(labels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(labels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
     expect(labels).toContain("🤝 Домовитися з канцелярським краєм");
     expect(labels.join("\n")).not.toMatch(/Приплив|Куплет|Співачка Без Моря|🏷️|: форму/u);
+    expect(labels.at(-2)).toBe("💡 Підказка");
     expect(labels.at(-1)).toBe("⬅️ Інші справи");
+
+    const helpLabels = flatInlineButtonTexts(buildAdventureApproachHelpKeyboard({
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildAdventureMethodOptions(choice, bard)
+    }));
+    const helpCallbacks = flatInlineButtonCallbacks(buildAdventureApproachHelpKeyboard({
+      state: "selected",
+      character: bard,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [choice]
+      },
+      choice,
+      approaches: buildAdventureMethodOptions(choice, bard)
+    }));
+    expect(helpLabels.slice(0, -2)).toEqual(labels.slice(0, -2));
+    expect(helpLabels.at(-2)).toBe("⬅️ Назад");
+    expect(helpCallbacks.at(-2)).toMatch(/^v2:adv:p:period93:q[0-9a-z]+$/u);
   });
 
   it("keeps cellar inline buttons scoped to repeatable errand actions", () => {
@@ -727,14 +794,22 @@ describe("main menu and scene keyboards", () => {
 
     const cellarLabels = flatInlineButtonTexts(buildCellarKeyboard(domovyk));
 
-    expect(cellarLabels.slice(0, -1).length).toBeGreaterThanOrEqual(5);
+    expect(cellarLabels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
     expect(cellarLabels).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
     expect(cellarLabels.join("\n")).not.toMatch(/Оголосити правилом|Витягти доказ|🏷️|Пересічні Пригодники/u);
+    expect(cellarLabels.at(-2)).toBe("💡 Підказка");
     expect(cellarLabels.at(-1)).toBe("⬅️ До зали");
     const callbacks = flatInlineButtonCallbacks(buildCellarKeyboard(domovyk));
-    expect(callbacks.slice(0, -1).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.slice(0, -2).every((callback) => /^v2:cellar:q[0-9a-z]+$/u.test(callback))).toBe(true);
+    expect(callbacks.at(-2)).toBe("v2:cellar:h");
     expect(callbacks.at(-1)).toBe("v1:place:hall");
     expect(flatInlineButtonTexts(buildCellarResultKeyboard("ready", domovyk))).toEqual(cellarLabels);
+
+    const helpLabels = flatInlineButtonTexts(buildCellarMethodHelpKeyboard(domovyk));
+    const helpCallbacks = flatInlineButtonCallbacks(buildCellarMethodHelpKeyboard(domovyk));
+    expect(helpLabels.slice(0, -2)).toEqual(cellarLabels.slice(0, -2));
+    expect(helpLabels.at(-2)).toBe("⬅️ Назад");
+    expect(helpCallbacks.at(-2)).toBe("v2:cellar:b");
   });
 
   it("keeps fight inline buttons scoped to fight actions", () => {
@@ -1886,6 +1961,93 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(keyboard)).toEqual(["🧾 До обходу"]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:dkr:o:20260629"]);
+  });
+
+  it("adds help and back buttons for daily Korchma round scenes with action descriptions", () => {
+    const sceneResult = {
+      state: "scene",
+      character,
+      offer: {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 7,
+        requiredSteps: 2,
+        completedSceneIds: [],
+        omittedSceneId: null,
+        scenes: []
+      },
+      scene: {
+        id: "scene.hall.stool",
+        icon: "🪑",
+        title: "Табурет оголосив перерву",
+        locationId: "location.korchma.hall",
+        hook: "Серед зали табурет стоїть набік.",
+        actions: [
+          {
+            id: "offer-cushion",
+            label: "🧺 Запропонувати подушку",
+            description: "Мʼяка дипломатія без героїчного ремонту.",
+            outcome: "Подушка допомогла."
+          }
+        ]
+      },
+      sceneIndex: 1,
+      alreadyCompleted: false,
+      locked: false
+    } as const;
+
+    expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult))).toEqual([
+      "🧺 Запропонувати подушку",
+      "💡 Підказка",
+      "🧾 До обходу",
+      "🍺 До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildDailyKorchmaRoundSceneKeyboard(sceneResult))).toEqual([
+      "v1:dkr:a:20260628:1:offer-cushion:7",
+      "v1:dkr:h:20260628:1",
+      "v1:dkr:o:20260628",
+      "v1:place:hall"
+    ]);
+
+    expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult, { mode: "help" }))).toEqual([
+      "🧺 Запропонувати подушку",
+      "⬅️ Назад",
+      "🧾 До обходу",
+      "🍺 До зали"
+    ]);
+    expect(flatInlineButtonCallbacks(buildDailyKorchmaRoundSceneKeyboard(sceneResult, { mode: "help" }))).toEqual([
+      "v1:dkr:a:20260628:1:offer-cushion:7",
+      "v1:dkr:s:20260628:1",
+      "v1:dkr:o:20260628",
+      "v1:place:hall"
+    ]);
+  });
+
+  it("adds help and back buttons for every shipped daily Korchma round scene", () => {
+    for (const [sceneIndex, scene] of dailyKorchmaRoundScenes.entries()) {
+      const sceneResult = {
+        state: "scene",
+        character,
+        offer: {
+          dayKey: "2026-06-28",
+          dayToken: "20260628",
+          lifeToken: 7,
+          requiredSteps: 2,
+          completedSceneIds: [],
+          omittedSceneId: null,
+          scenes: dailyKorchmaRoundScenes
+        },
+        scene,
+        sceneIndex,
+        alreadyCompleted: false,
+        locked: false
+      } as const;
+
+      expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult))).toContain("💡 Підказка");
+      expect(flatInlineButtonTexts(buildDailyKorchmaRoundSceneKeyboard(sceneResult, { mode: "help" }))).toContain(
+        "⬅️ Назад"
+      );
+    }
   });
 
   it("routes a daily Korchma round wrong-location step to the required scene place", () => {

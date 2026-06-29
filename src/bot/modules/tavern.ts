@@ -48,6 +48,7 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaNewsCorner,
 sendKorchmaYard,
 sendKorchmaMemorialBoard,
 sendKorchmaRemortMilestoneBoard,
@@ -57,6 +58,7 @@ sendTavernBarrel
 import { playerFromContext } from "../context";
 import {
 buildCellarGrownupKeyboard,
+buildCellarMethodHelpKeyboard,
 buildCellarParticipantsKeyboard,
 buildCellarResultKeyboard
 } from "../keyboards/cellarKeyboard";
@@ -86,12 +88,15 @@ buildTavernResultKeyboard
 } from "../keyboards/tavernKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
 import {
+presentCellarCooldown,
 presentCellarGrownupQuest,
 presentCellarGrownupResult,
 presentCellarLevelLocked,
 presentCellarLevelRetired,
+presentCellarMethodHelp,
 presentCellarNoCharacter,
-presentCellarResult
+presentCellarResult,
+presentCellarStart
 } from "../presenters/cellarPresenter";
 import {
 presentDevGrantDisabled,
@@ -781,12 +786,7 @@ async function handlePlaceCallback(
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
-  await markScenePresence(ctx, services.presence, {
-    locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-    currentRaidId: null,
-    currentAdventureId: null
-  });
-  await sendNewsList(ctx, 0);
+  await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
@@ -1075,6 +1075,36 @@ async function handleCellarCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildCellarParticipantsKeyboard()
     });
+    return;
+  }
+
+  if (callback.type === "method-help" || callback.type === "method-back") {
+    if (lookup.state === "on-cooldown") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentCellarCooldown(lookup), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildCellarResultKeyboard("on-cooldown", lookup.character)
+      });
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+    });
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(
+      ctx,
+      callback.type === "method-help" ? presentCellarMethodHelp(lookup) : presentCellarStart(lookup),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: callback.type === "method-help"
+          ? buildCellarMethodHelpKeyboard(lookup.character)
+          : buildCellarResultKeyboard("ready", lookup.character)
+      }
+    );
     return;
   }
 

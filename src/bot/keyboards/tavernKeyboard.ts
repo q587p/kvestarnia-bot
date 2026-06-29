@@ -2,7 +2,9 @@ import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
+import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
+import { makeNewsListCallbackData } from "../callbacks/newsCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeDescentSearchStartCallbackData } from "../callbacks/passageSearchCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -37,7 +39,12 @@ export function buildTavernKeyboard(): InlineKeyboard {
 }
 
 export function buildKorchmaFrontKeyboard(
-  options: { yegerAction?: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation; dailyYard?: boolean } = {}
+  options: {
+    yegerAction?: "hidden" | "hunt";
+    munchkinLocation?: MunchkinLocation;
+    dailyYard?: boolean;
+    characterLevel?: number;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
@@ -45,28 +52,38 @@ export function buildKorchmaFrontKeyboard(
 
   keyboard
     .text("📜 Табличка прибулих", makePlaceCallbackData("arrivals"))
-    .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"))
-    .row();
+    .text("🏅 Пропамʼятна дошка", makePlaceCallbackData("memorial"));
 
   let hasFrontActionRow = false;
+  const startFrontActionRow = (): void => {
+    keyboard.row();
+    hasFrontActionRow = true;
+  };
 
   if (options.dailyYard) {
+    startFrontActionRow();
     keyboard.text("🪣 У задвірок", makePlaceCallbackData("yard"));
-    hasFrontActionRow = true;
   }
 
-  if ((options.munchkinLocation ?? "front") === "front") {
+  const showMunchkin =
+    (options.characterLevel === undefined || options.characterLevel >= 3) &&
+    (options.munchkinLocation ?? "front") === "front";
+
+  if (showMunchkin) {
     if (hasFrontActionRow) {
       keyboard.row();
+    } else {
+      startFrontActionRow();
     }
 
     keyboard.text("🎒 Манчкін-скупник", makeLevelBarterOpenCallbackData());
-    hasFrontActionRow = true;
   }
 
   if (options.yegerAction === "hunt") {
     if (hasFrontActionRow) {
       keyboard.row();
+    } else {
+      startFrontActionRow();
     }
 
     keyboard.text("🏹 До полювання", makeYegerOutsideCallbackData());
@@ -106,7 +123,7 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
     .row();
 
   keyboard
-    .text("📰 Дошка вістей", makePlaceCallbackData("news-corner"))
+    .text("📰 Дошка корчми", makePlaceCallbackData("news-corner"))
     .text("🐭 Льох", makePlaceCallbackData("cellar"))
     .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));
@@ -145,8 +162,6 @@ export function buildKorchmaBarKeyboard(
     .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
     .row()
     .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
-    .row()
-    .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row();
 
   if (options.bardPerformance) {
@@ -170,6 +185,17 @@ export function buildKorchmaBarKeyboard(
   }
 
   return keyboard
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📰 Вісти", makeNewsListCallbackData(0))
+    .row()
+    .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
+    .row()
+    .text("📮 Пошта Квестарні", makeItemPostalOpenCallbackData())
+    .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 

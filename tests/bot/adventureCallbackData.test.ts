@@ -3,7 +3,10 @@ import {
   makeAdventureCallbackData,
   makeAdventureApproachCallbackData,
   makeAdventureParticipantsCallbackData,
+  makeAdventureProblemHelpCallbackData,
   makeAdventureProblemCallbackData,
+  makeMimicShawarmaBackCallbackData,
+  makeMimicShawarmaHelpCallbackData,
   parseAdventureCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -123,6 +126,34 @@ describe("adventure callback data", () => {
       }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("parses method help callbacks within Telegram limits", () => {
+    const problemHelp = makeAdventureProblemHelpCallbackData({
+      periodToken: "20260612",
+      problemId: "receipt"
+    });
+    const starterHelp = makeMimicShawarmaHelpCallbackData();
+
+    expect(parseAdventureCallbackData(problemHelp)).toEqual({
+      ok: true,
+      value: {
+        type: "problem-help",
+        periodToken: "20260612",
+        problemId: "receipt"
+      }
+    });
+    expect(parseAdventureCallbackData(starterHelp)).toEqual({
+      ok: true,
+      value: { type: "method-help" }
+    });
+    expect(parseAdventureCallbackData(makeMimicShawarmaBackCallbackData())).toEqual({
+      ok: true,
+      value: { type: "method-back" }
+    });
+    expect(Buffer.byteLength(problemHelp, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(starterHelp, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeMimicShawarmaBackCallbackData(), "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
   it("keeps every rendered authored adventure callback within Telegram limits", () => {

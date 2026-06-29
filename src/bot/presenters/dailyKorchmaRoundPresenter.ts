@@ -4,8 +4,9 @@ import type {
   DailyKorchmaRoundSceneLookupResult,
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
+import type { DailyKorchmaRoundAction } from "../../content/dailyKorchmaRoundContent";
 import { getLocationName } from "../../services/presenceService";
-import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import { escapeHtml } from "./telegramHtml";
 
 export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult): string {
   if (result.state === "no-character") {
@@ -15,7 +16,6 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
   if (result.state === "level-locked") {
     return [
       "🧾 Корчмарський обхід",
-      presentCharacterHeader(result.character),
       "",
       `Корчмар ховає ревізійну дощечку до ${result.requiredLevel} рівня. Каже, що здоровий глузд спершу має налякатися.`
     ].join("\n");
@@ -24,7 +24,6 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
   if (result.state === "hp-blocked") {
     return [
       "🧾 Корчмарський обхід",
-      presentCharacterHeader(result.character),
       "",
       "HP 0. Спершу трохи відновіться: ревізія здорового глузду не підписує лежачих."
     ].join("\n");
@@ -33,7 +32,6 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
   if (result.state === "active-fight") {
     return [
       "🧾 Корчмарський обхід",
-      presentCharacterHeader(result.character),
       "",
       "Спершу завершіть поточний бій. Корчмар не хоче, щоб підписи мали зуби."
     ].join("\n");
@@ -42,7 +40,6 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
   if (result.state === "pending-barrel") {
     return [
       "🧾 Корчмарський обхід",
-      presentCharacterHeader(result.character),
       "",
       "Спершу розберіться з Бочкою Пінного Міражу. Вона ревнує до будь-яких інших катастроф."
     ].join("\n");
@@ -58,7 +55,6 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
 
   return [
     "🧾 Корчмарський обхід",
-    presentCharacterHeader(result.character),
     "",
     "Корчмар видав дощечку «Ревізія здорового глузду». У корчмі три дрібні катастрофи; владнайте будь-які дві там, де вони стоять.",
     "",
@@ -81,32 +77,63 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
   ].join("\n");
 }
 
-export function presentDailyKorchmaRoundScene(result: DailyKorchmaRoundSceneLookupResult): string {
+export function presentDailyKorchmaRoundScene(
+  result: DailyKorchmaRoundSceneLookupResult,
+  options: { mode?: "compact" | "help" } = {}
+): string {
   if (result.state !== "scene") {
     return presentDailyKorchmaRoundFallback(result);
   }
+
+  const canChooseAction = !result.locked && !result.alreadyCompleted;
 
   const suffix = result.locked
     ? "\n\nЦе вже Не сьогоднішня катастрофа. Дощечка не дає мутувати третій пункт."
     : result.alreadyCompleted
       ? "\n\nЦей пункт уже має підпис. Можна лише перечитати й підозріло кивнути."
-      : "\n\nОберіть одну дію. Вона спрацює тільки тут.";
+      : "";
+
+  if (options.mode === "help" && canChooseAction && hasActionDescriptions(result.scene.actions)) {
+    return [
+      `${result.scene.icon} ${escapeHtml(result.scene.title)}`,
+      "",
+      `<b>${escapeHtml(getLocationName(result.scene.locationId))}</b>`,
+      escapeHtml(result.scene.hook),
+      "",
+      "Детальніше про дії:",
+      "",
+      ...presentDailyKorchmaRoundActionHelp(result.scene.actions)
+    ].join("\n");
+  }
 
   return [
     `${result.scene.icon} ${escapeHtml(result.scene.title)}`,
-    presentCharacterHeader(result.character),
     "",
     `<b>${escapeHtml(getLocationName(result.scene.locationId))}</b>`,
     escapeHtml(result.scene.hook),
-    suffix
+    ...(suffix ? [suffix] : []),
+    ...(canChooseAction ? ["", "<i>Оберіть одну дію. Вона спрацює тільки тут:</i>", ...result.scene.actions.map((action) => escapeHtml(action.label))] : [])
   ].join("\n");
+}
+
+function hasActionDescriptions(actions: readonly DailyKorchmaRoundAction[]): boolean {
+  return actions.some((action) => Boolean(action.description));
+}
+
+function presentDailyKorchmaRoundActionHelp(
+  actions: readonly DailyKorchmaRoundAction[]
+): string[] {
+  return actions.flatMap((action, index) => [
+    escapeHtml(action.label),
+    action.description ? `<i>${escapeHtml(action.description)}</i>` : "<i>Коротка дія без додаткових пояснень.</i>",
+    ...(index === actions.length - 1 ? [] : [""])
+  ]);
 }
 
 export function presentDailyKorchmaRoundStep(result: DailyKorchmaRoundStepResult): string {
   if (result.state === "step-completed" || result.state === "step-replayed") {
     return [
       `${result.scene.icon} ${escapeHtml(result.scene.title)}`,
-      presentCharacterHeader(result.character),
       "",
       escapeHtml(result.action.outcome),
       "",
@@ -119,7 +146,6 @@ export function presentDailyKorchmaRoundStep(result: DailyKorchmaRoundStepResult
   if (result.state === "wrong-location") {
     return [
       "🧾 Корчмарський обхід",
-      presentCharacterHeader(result.character),
       "",
       `Ця дрібниця живе в місцині «${escapeHtml(getLocationName(result.scene.locationId))}». Зараз ви в місцині «${escapeHtml(result.currentLocationName)}».`,
       "Кнопка може провести туди, але підпис ставиться тільки на місці."
@@ -129,7 +155,6 @@ export function presentDailyKorchmaRoundStep(result: DailyKorchmaRoundStepResult
   if (result.state === "third-locked") {
     return [
       "🧾 Не сьогоднішня катастрофа",
-      presentCharacterHeader(result.character),
       "",
       `${result.scene.icon} ${escapeHtml(result.scene.title)} вже не мутує: два підписи зібрано, дощечка закрилась.`
     ].join("\n");
@@ -146,7 +171,6 @@ export function presentDailyKorchmaRoundClaim(result: DailyKorchmaRoundClaimResu
   if (result.state === "reward-claimed" || result.state === "reward-replayed") {
     return [
       "🧾 Корчмарський обхід здано",
-      presentCharacterHeader(result.character),
       "",
       "Корчмар прийняв два підписи, подивився на третю катастрофу й вирішив не провокувати.",
       "",
@@ -159,7 +183,6 @@ export function presentDailyKorchmaRoundClaim(result: DailyKorchmaRoundClaimResu
   if (result.state === "not-ready") {
     return [
       "🧾 Корчмарський обхід",
-      presentCharacterHeader(result.character),
       "",
       "Корчмар показує на порожнє місце для другого підпису. Спершу владнайте ще одну дрібницю."
     ].join("\n");
@@ -168,7 +191,6 @@ export function presentDailyKorchmaRoundClaim(result: DailyKorchmaRoundClaimResu
   if (result.state === "wrong-location") {
     return [
       "🧾 Корчмарський обхід",
-      presentCharacterHeader(result.character),
       "",
       `Здати обхід можна тільки біля Столу зі справами. Зараз ви в місцині «${escapeHtml(result.currentLocationName)}».`
     ].join("\n");

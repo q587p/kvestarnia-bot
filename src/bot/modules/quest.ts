@@ -51,9 +51,12 @@ sendKorchmaBar
 import { playerFromContext } from "../context";
 import {
 buildAdventureApproachKeyboard,
+buildAdventureApproachHelpKeyboard,
+buildAdventureKeyboard,
 buildAdventureOfferKeyboard,
 buildAdventureParticipantsKeyboard,
-buildAdventureResultKeyboard
+buildAdventureResultKeyboard,
+buildMimicShawarmaMethodHelpKeyboard
 } from "../keyboards/adventureKeyboard";
 import {
 buildDailyKorchmaRoundClaimKeyboard,
@@ -83,7 +86,12 @@ import {
 presentAdventureLegacyApproachStale,
 presentAdventureNoCharacter,
 presentAdventureProblem,
+presentAdventureProblemMethodHelp,
 presentAdventureResult,
+presentMimicShawarmaAlreadyCompleted,
+presentMimicShawarmaLevelRetired,
+presentMimicShawarmaMethodHelp,
+presentMimicShawarmaStart,
 presentMimicShawarmaResult
 } from "../presenters/adventurePresenter";
 import {
@@ -245,8 +253,9 @@ async function handleDailyKorchmaRoundCallback(
     return;
   }
 
-  if (callback.type === "scene") {
+  if (callback.type === "scene" || callback.type === "scene-help") {
     const result = await services.dailyKorchmaRound.openScene(telegramUserId, callback);
+    const mode = callback.type === "scene-help" ? "help" : "compact";
 
     if (result.state === "scene") {
       await markScenePresence(ctx, services.presence, {
@@ -256,9 +265,9 @@ async function handleDailyKorchmaRoundCallback(
       });
     }
 
-    await safeEditMessageText(ctx, presentDailyKorchmaRoundScene(result), {
+    await safeEditMessageText(ctx, presentDailyKorchmaRoundScene(result, { mode }), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildDailyKorchmaRoundSceneKeyboard(result)
+      reply_markup: buildDailyKorchmaRoundSceneKeyboard(result, { mode })
     });
 
     if (result.state === "scene") {
@@ -631,6 +640,55 @@ async function handleAdventureCallback(
     return;
   }
 
+  if (callback.type === "method-help" || callback.type === "method-back") {
+    const result = await services.adventure.getMimicShawarmaForTelegramUser(telegramUserId);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    if (result.state === "level-retired") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentMimicShawarmaLevelRetired(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildAdventureResultKeyboard(result)
+      });
+      return;
+    }
+
+    if (result.state === "already-completed") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentMimicShawarmaAlreadyCompleted(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildAdventureResultKeyboard({ state: "already-completed" })
+      });
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_SHAWARMA
+    });
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(
+      ctx,
+      callback.type === "method-help"
+        ? presentMimicShawarmaMethodHelp(result.character)
+        : presentMimicShawarmaStart(result.character),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: callback.type === "method-help"
+          ? buildMimicShawarmaMethodHelpKeyboard(result.character)
+          : buildAdventureKeyboard(result.character)
+      }
+    );
+    return;
+  }
+
   if (callback.type === "problem") {
     const result = await services.adventure.selectAdventureProblem(telegramUserId, callback);
 
@@ -660,6 +718,42 @@ async function handleAdventureCallback(
               ? buildAdventureResultKeyboard({ state: "active-fight" })
               : buildAdventureResultKeyboard(result)
     });
+    return;
+  }
+
+  if (callback.type === "problem-help") {
+    const result = await services.adventure.selectAdventureProblem(telegramUserId, callback);
+
+    if (result.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentAdventureNoCharacter());
+      return;
+    }
+
+    if (result.state !== "active-fight") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      });
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(
+      ctx,
+      result.state === "selected" ? presentAdventureProblemMethodHelp(result) : presentAdventureProblem(result),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup:
+          result.state === "selected"
+            ? buildAdventureApproachHelpKeyboard(result)
+            : result.state === "stale"
+              ? buildAdventureOfferKeyboard(result.offer)
+              : result.state === "combat-blocked"
+                ? buildAdventureResultKeyboard({ state: "active-fight" })
+                : buildAdventureResultKeyboard(result)
+      }
+    );
     return;
   }
 

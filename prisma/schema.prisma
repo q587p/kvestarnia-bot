@@ -541,6 +541,7 @@ model BardPerformanceReaction {
 model ItemTransfer {
   id                     String    @id @default(uuid())
   token                  String    @unique
+  transferKind           String    @default("gift") @map("transfer_kind")
   senderCharacterId      String    @map("sender_character_id")
   senderCharacter        Character @relation("ItemTransferSender", fields: [senderCharacterId], references: [id], onDelete: Cascade)
   receiverCharacterId    String    @map("receiver_character_id")
@@ -556,6 +557,8 @@ model ItemTransfer {
   itemName               String    @map("item_name")
   itemFingerprint        String    @map("item_fingerprint")
   quantity               Int       @default(1)
+  packageJson            Json?     @map("package_json")
+  deliveryFeeGold        Int       @default(0) @map("delivery_fee_gold")
   status                 String    @default("pending")
   reservationKey         String?   @unique @map("reservation_key")
   resultJson             Json?     @map("result_json")
@@ -568,6 +571,7 @@ model ItemTransfer {
   @@index([senderCharacterId, status, expiresAt])
   @@index([receiverCharacterId, status, expiresAt])
   @@index([itemId, status])
+  @@index([transferKind, status, expiresAt])
   @@map("item_transfers")
 }
 

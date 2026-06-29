@@ -1,0 +1,224 @@
+import { describe, expect, it } from "vitest";
+import {
+  presentItemPostalConfirm,
+  presentItemPostalDraft,
+  presentItemPostalNotification,
+  presentItemPostalRecipients,
+  presentItemPostalRespond
+} from "../../src/bot/presenters/itemPostalPresenter";
+import type { ItemPostalConfirmServiceResult, ItemPostalDraftViewResult } from "../../src/services/itemTransferService";
+
+describe("item postal presenter", () => {
+  it("lists known recipients without location or online status details", () => {
+    const text = presentItemPostalRecipients({
+      state: "ready",
+      page: 0,
+      pageSize: 5,
+      total: 1,
+      totalPages: 1,
+      visible: [{ telegramUserId: 2n, name: "Дара", level: 4 }],
+      inTransit: emptyTransferPage(),
+      history: emptyTransferPage()
+    });
+
+    expect(text).toContain("📮 <b>Пошта Квестарні</b>");
+    expect(text).toContain("Дара");
+    expect(text).not.toContain("location.");
+    expect(text).not.toContain("актив");
+    expect(text).not.toContain("поруч");
+  });
+
+  it("explains empty postal recipients as known by gifts, duels or Bard reactions", () => {
+    const text = presentItemPostalRecipients({
+      state: "ready",
+      page: 0,
+      pageSize: 5,
+      total: 0,
+      totalPages: 0,
+      visible: [],
+      inTransit: emptyTransferPage(),
+      history: emptyTransferPage()
+    });
+
+    expect(text).toContain("подарунок манатки, дуель або реакція на виступ");
+    expect(text).not.toContain("передача манатки");
+    expect(presentItemPostalDraft({ state: "target-not-found" })).toContain("прийнятим подарунком манатки");
+  });
+
+  it("renders draft, notification and replay package summaries with fee", () => {
+    const draft: ItemPostalDraftViewResult = {
+      state: "draft",
+      transfer: transfer("draft"),
+      sender: character("Дарувальник"),
+      receiver: character("Отримувач"),
+      items: [{
+        index: 0,
+        itemId: "item.ribbon-spoon",
+        quantity: 2,
+        content: {
+          id: "item.ribbon-spoon",
+          name: "Ложка <бантом>",
+          description: "Тест.",
+          rarity: "common",
+          slot: "junk",
+          goldValue: 13
+        },
+        selectionGuard: "guardABC1234"
+      }],
+      page: 0,
+      pageCount: 1,
+      packageLines: transfer("draft").packageLines,
+      deliveryFeeGold: 6
+    };
+    const confirmed: ItemPostalConfirmServiceResult = {
+      state: "created",
+      transfer: transfer("pending"),
+      sender: character("Дарувальник <&>"),
+      receiver: character("Отримувач")
+    };
+
+    expect(presentItemPostalConfirm(confirmed)).toContain("Манатки передано пошті");
+    expect(presentItemPostalDraft(draft)).toContain("Ложка &lt;бантом&gt;");
+    expect(presentItemPostalDraft(draft)).toContain("Плата за дорогу з відправника: <b>6 золота</b>");
+    expect(presentItemPostalDraft(draft)).toContain("5 за дорогу + 1 за кожен різний тип манатки");
+    expect(presentItemPostalDraft(draft)).toContain("списується одразу при відправленні");
+    expect(presentItemPostalDraft(draft)).toContain("не знімається з отримувача");
+    expect(presentItemPostalNotification(confirmed)).toContain("Дарувальник &lt;&amp;&gt;");
+    expect(presentItemPostalNotification(confirmed)).toContain("Плату за дорогу вже сплатив відправник: <b>6 золота</b>");
+    expect(presentItemPostalNotification(confirmed)).toContain("З вас золото не знімається");
+    expect(presentItemPostalRespond({ state: "replayed", transfer: transfer("completed"), sender: null, receiver: null }))
+      .toContain("Пакунок уже записано");
+    expect(presentItemPostalRespond({ state: "replayed", transfer: transfer("completed"), sender: null, receiver: null }))
+      .toContain("Плата з відправника: <b>6 золота</b>");
+  });
+
+  it("speaks directly to the sender when postal gold is missing", () => {
+    expect(presentItemPostalDraft({ state: "insufficient-gold", transfer: transfer("draft") }))
+      .toContain("У вас бракує золота");
+  });
+
+  it("shows in-transit and history packages on the postal overview", () => {
+    const text = presentItemPostalRecipients({
+      state: "ready",
+      page: 0,
+      pageSize: 5,
+      total: 0,
+      totalPages: 1,
+      visible: [],
+      inTransit: {
+        page: 0,
+        pageSize: 5,
+        total: 1,
+        totalPages: 1,
+        visible: [{
+          token: "incoming-token",
+          status: "pending",
+          direction: "incoming",
+          otherName: "Дара <&>",
+          packageLines: transfer("pending").packageLines,
+          deliveryFeeGold: 6,
+          expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+          completedAt: null,
+          respondedAt: null,
+          updatedAt: new Date("2026-06-24T10:00:00.000Z")
+        }]
+      },
+      history: {
+        page: 1,
+        pageSize: 5,
+        total: 6,
+        totalPages: 2,
+        visible: [{
+          token: "history-token",
+          status: "completed",
+          direction: "outgoing",
+          otherName: "Борис",
+          packageLines: transfer("completed").packageLines,
+          deliveryFeeGold: 6,
+          expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+          completedAt: new Date("2026-06-24T10:00:00.000Z"),
+          respondedAt: null,
+          updatedAt: new Date("2026-06-24T10:00:00.000Z")
+        }]
+      }
+    });
+
+    expect(text).toContain("В дорозі:");
+    expect(text).toContain("від <b>Дара &lt;&amp;&gt;</b>");
+    expect(text).toContain("Історія:");
+    expect(text).toContain("до <b>Борис</b>");
+    expect(text).toContain("Сторінка 2/2");
+  });
+});
+
+function character(name: string) {
+  return {
+    name,
+    title: "Тестер",
+    pronoun: "they" as const,
+    path: "boundary" as const,
+    raceId: "race.human",
+    raceName: "Людина",
+    classId: "class.ranger",
+    className: "Рейнджер",
+    level: 4,
+    xp: 0,
+    nextLevelXp: 100,
+    gold: 10,
+    hpCurrent: 20,
+    hpMax: 20,
+    manaCurrent: 10,
+    manaMax: 10,
+    stats: { strength: 1, dexterity: 1, intelligence: 1, charisma: 1, luck: 1 },
+    effectiveStats: { strength: 1, dexterity: 1, intelligence: 1, charisma: 1, luck: 1 },
+    remortCount: 0
+  };
+}
+
+function transfer(status: "draft" | "pending" | "completed") {
+  return {
+    id: "postal-1",
+    token: "abcDEF12_3456789012",
+    transferKind: "postal" as const,
+    senderCharacterId: "sender",
+    receiverCharacterId: "receiver",
+    senderTelegramUserId: 1n,
+    receiverTelegramUserId: 2n,
+    senderName: "Дарувальник",
+    receiverName: "Отримувач",
+    senderRemortCount: 0,
+    receiverRemortCount: 0,
+    locationId: null,
+    itemId: "item.ribbon-spoon",
+    itemName: "Ложка <бантом>",
+    itemFingerprint: "fingerprint",
+    quantity: 2,
+    packageLines: [{
+      itemId: "item.ribbon-spoon",
+      itemName: "Ложка <бантом>",
+      quantity: 2,
+      itemFingerprint: "fingerprint",
+      unitGoldValue: 13,
+      observedQuantity: 2,
+      tags: []
+    }],
+    deliveryFeeGold: 6,
+    status,
+    result: null,
+    expiresAt: new Date("2026-06-24T10:23:00.000Z"),
+    completedAt: status === "completed" ? new Date("2026-06-24T10:00:00.000Z") : null,
+    respondedAt: null,
+    createdAt: new Date("2026-06-24T10:00:00.000Z"),
+    updatedAt: new Date("2026-06-24T10:00:00.000Z")
+  };
+}
+
+function emptyTransferPage() {
+  return {
+    page: 0,
+    pageSize: 5,
+    total: 0,
+    totalPages: 1,
+    visible: []
+  };
+}

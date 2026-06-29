@@ -6,12 +6,15 @@ import {
   presentKorchmaBar,
   presentDuelWinnersBoard,
   presentKorchmaDeepClosed,
+  presentKorchmaDeepLevelLocked,
   presentKorchmaFightingCorner,
   presentKorchmaFightingCornerLevelLocked,
   presentKorchmaFront,
   presentKorchmaHall,
   presentKorchmaMemorialBoard,
+  presentKorchmaNewsCorner,
   presentKorchmaRemortMilestoneBoard,
+  presentKorchmaYard,
   presentPendingRaidActionBlock,
   presentTavernNoCharacter,
   presentTavernRaidAuditBreak,
@@ -72,13 +75,23 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<i>Шинок</i>");
     expect(text).not.toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).not.toContain("<i>Льох</i>");
-    expect(text).not.toContain("<i>Дошка вістей</i>");
+    expect(text).not.toContain("<i>Дошка корчми</i>");
     expect(text).toContain("<i>табличка прибулих</i>");
     expect(text).toContain("<i>пропамʼятна дошка</i>");
+    expect(text).toContain(
+      "не був стертий дощем. Справа від дверей висить <i>пропамʼятна дошка</i>."
+    );
     expect(text).toContain("<i>задвірок корчми</i>");
-    expect(text).toContain("<i>Манчкін-скупник</i>");
+    expect(text).not.toContain("<i>Манчкін-скупник</i>");
     expect(text).not.toContain("За дверима біля Бочки сидить <i>Єгер</i>");
     expect(text).not.toContain("сліди просить перевіряти надворі");
+  });
+
+  it("shows the front-door Munchkin paragraph from level 3", () => {
+    const text = presentKorchmaFront({ ...character, level: 3 });
+
+    expect(text).toContain("<i>Манчкін-скупник</i>");
+    expect(text).toContain("манатки, золото й рівні мають домовлятися");
   });
 
   it("hides the Munchkin paragraph from the front door at night", () => {
@@ -86,6 +99,29 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🚪 Перед корчмою");
     expect(text).not.toContain("Манчкін-скупник");
+  });
+
+  it("omits character identity headers from plain location cards", () => {
+    const characterHeader = "<b>Мандрівник</b> · <i>Пересічний Пригодник</i>";
+    const locationCards = [
+      presentKorchmaFront(character),
+      presentKorchmaYard(character),
+      presentKorchmaHall(character),
+      presentKorchmaFightingCorner(character),
+      presentKorchmaFightingCornerLevelLocked(character),
+      presentKorchmaDeepClosed(character),
+      presentKorchmaDeepLevelLocked(character),
+      presentKorchmaBar(character),
+      presentTavern(character),
+      presentTavernAlreadyRaided(character)
+    ];
+
+    for (const text of locationCards) {
+      expect(text).not.toContain(characterHeader);
+    }
+
+    expect(presentKorchmaFront(character)).toMatch(/^🚪 Перед корчмою\n\n/u);
+    expect(presentKorchmaHall(character)).toMatch(/^🍺 Зала корчми\n\n/u);
   });
 
   it("shows a front-door arrivals plaque with escaped visitor names", () => {
@@ -101,6 +137,8 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("Табличка прибулих");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("Останні зарубки:");
     expect(text).toContain("&lt;b&gt;Дара&lt;/b&gt; · рівень 2 · Зала корчми");
     expect(text).not.toContain("Видатні жителі");
@@ -136,6 +174,8 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("Пропамʼятна дошка");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("Видатні жителі");
     expect(text).toContain("Перші зарубки за рівні:");
     expect(text).toContain("• рівень 4: 🥇 &lt;b&gt;Дара&lt;/b&gt; · 🥈 Нестор Межовий");
@@ -189,6 +229,8 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("🏆 Переможці дуелей");
+    expect(text).not.toContain("<b>Мандрівник</b>");
+    expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("<b>За добу</b>:");
     expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не переміг");
@@ -394,7 +436,7 @@ describe("tavern presenter", () => {
     const text = presentKorchmaHall({ ...character, level: 3 });
 
     expect(text).toContain("Зала корчми");
-    expect(text).toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
+    expect(text).not.toContain("<b>Мандрівник</b> · <i>Пересічний Пригодник</i>");
     expect(text).toContain("Корчма Квестарні");
     expect(text).toContain("Ліворуч гупає <i>бійцівський куток</i>");
     expect(text).toContain("праворуч терпить життя <i>стіл зі справами</i>");
@@ -402,13 +444,24 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>Бочка Пінного Міражу</i>");
     expect(text).toContain("<i>спуск до Низу</i>");
     expect(text).toContain("<i>льох</i>");
-    expect(text).toContain("<i>льох</i>.\n\nБіля дверей висить <i>дошка вістей</i>");
-    expect(text).toContain("<i>дошка вістей</i>");
+    expect(text).toContain("<i>льох</i>.\n\nБіля дверей висить <i>дошка корчми</i>");
+    expect(text).toContain("<i>дошка корчми</i>");
     expect(text).toContain("<i>надвір</i>");
     expect(text).toContain("Корчмар:\n<blockquote>");
-    expect(text).toContain("Куди йдемо?");
+    expect(text).toContain("<b>Мандрівник</b>, куди йдемо?");
     expect(text).not.toContain("Таверна Квестарні");
     expect(text).not.toContain("запалилася свічка");
+  });
+
+  it("uses only the escaped character name in the korchma hall prompt", () => {
+    const text = presentKorchmaHall({
+      ...character,
+      name: "<b>Shannar de Kassal</b>",
+      title: "Тлумачка Підозрілих Благословень"
+    });
+
+    expect(text).toContain("<b>&lt;b&gt;Shannar de Kassal&lt;/b&gt;</b>, куди йдемо?");
+    expect(text).not.toContain("Тлумачка Підозрілих Благословень");
   });
 
   it("keeps the early korchma hall prose stable while buttons stay level-gated", () => {
@@ -448,6 +501,16 @@ describe("tavern presenter", () => {
     expect(text).toContain("Що наливаємо?");
   });
 
+  it("shows the news board as a small service location", () => {
+    const text = presentKorchmaNewsCorner(character);
+
+    expect(text).toContain("📰 Дошка корчми");
+    expect(text).toContain("<i>дошка корчми</i>");
+    expect(text).toContain("глянути вісти Квестарні");
+    expect(text).toContain("передати пакунок через пошту");
+    expect(text).toContain("Що дивимося?");
+  });
+
   it("mentions available Шинок actions in the location text", () => {
     const take = presentKorchmaBar(character, { problemQuestAction: "take" });
     const turnIn = presentKorchmaBar(character, { problemQuestAction: "turn-in" });
@@ -467,7 +530,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("Корчмар:\n<blockquote>");
     expect(text).toContain("</blockquote>");
-    expect(text).toContain("Куди йдемо?");
+    expect(text).toContain("<b>Мандрівник</b>, куди йдемо?");
   });
 
   it("says only-you only when the current player is the sole active person inside", () => {
@@ -545,16 +608,16 @@ describe("tavern presenter", () => {
     expect(text).toContain("Що робимо?");
   });
 
-  it("escapes character names and titles in tavern scene headers", () => {
+  it("does not print character names and titles in tavern location headers", () => {
     const text = presentTavern({
       ...character,
       name: "<b>Мандрівник</b>",
       title: "<i>Пересічний Пригодник</i>"
     });
 
-    expect(text).toContain(
-      "<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b> · <i>&lt;i&gt;Пересічний Пригодник&lt;/i&gt;</i>"
-    );
+    expect(text).toMatch(/^🛢️ Біля Бочки Пінного Міражу\n\n/u);
+    expect(text).not.toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
+    expect(text).not.toContain("&lt;i&gt;Пересічний Пригодник&lt;/i&gt;");
     expect(text).not.toContain("<b>Мандрівник</b>");
     expect(text).not.toContain("<i>Пересічний Пригодник</i>");
   });

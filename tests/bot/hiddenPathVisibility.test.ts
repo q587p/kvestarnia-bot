@@ -53,7 +53,7 @@ describe("hidden character path visibility", () => {
       presentHero(summary),
       presentKorchmaHall(summary),
       presentTavern(summary),
-      presentAdventureStart(summary),
+      presentAdventureStart(),
       presentFightStart(summary),
       presentCellarStart({ state: "ready", character: summary }),
       presentCellarResult({

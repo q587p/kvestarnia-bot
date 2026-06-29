@@ -14,29 +14,49 @@ import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
-export function presentCellarStart(
+export function presentCellarIntro(
   result: Extract<CellarErrandLookupResult, { state: "ready" }>
 ): string {
-  const methodLines = buildCellarMethodOptions(result.character).flatMap((method) => [
-    `${escapeHtml(method.buttonLabel ?? method.label)}`,
-    `<i>${escapeHtml(formatMethodHint(method))}</i>`
-  ]);
-
   return [
-    "🐭 Льохова справа",
-    "",
     "Корчмар показує на люк під баром.",
     "",
     npcQuote("Корчмар", "Там миша. Вона мала бути побічним квестом, але вже вимагає титул."),
     "",
-    npcQuote("Миша", selectCellarStartMouseQuote(result.character)),
+    npcQuote("Миша", selectCellarStartMouseQuote(result.character))
+  ].join("\n");
+}
+
+export function presentCellarStart(
+  result: Extract<CellarErrandLookupResult, { state: "ready" }>
+): string {
+  const methodLines = buildCellarMethodOptions(result.character).map((method) =>
+    escapeHtml(method.label)
+  );
+
+  return [
+    "🐭 Льохова справа",
     ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
     "",
-    "Можливі способи:",
-    "",
+    "<i>Можливі способи:</i>",
     ...methodLines,
     "",
     `<b>${escapeHtml(result.character.name)}</b>, що робимо?`
+  ].join("\n");
+}
+
+export function presentCellarMethodHelp(
+  result: Extract<CellarErrandLookupResult, { state: "ready" }>
+): string {
+  const methodLines = buildCellarMethodOptions(result.character).flatMap((method, index, methods) => [
+    escapeHtml(method.label),
+    `<i>${escapeHtml(formatMethodHint(method))}</i>`,
+    ...(index < methods.length - 1 ? [""] : [])
+  ]);
+
+  return [
+    "Детальніше про способи:",
+    "",
+    ...methodLines
   ].join("\n");
 }
 

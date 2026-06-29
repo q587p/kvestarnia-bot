@@ -4,6 +4,28 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.13 — Postal Manatka Delivery smoke
+
+Use two accounts with at least one completed accepted item-transfer relationship. Local seeded inventory is acceptable for quantity and stale-state checks.
+
+1. Open `📰 Дошка корчми`; verify it shows a location card with `📰 Вісти`, `🎁 Подарувати манатку` and `📮 Пошта Квестарні`, while `🍻 Шинок` no longer shows gift or postal buttons. From `📰 Вісти`, verify `⬅️ Назад` returns to `📰 Дошка корчми`.
+2. Open `📮 Пошта Квестарні` as sender while the recipient is not nearby; verify recipients appear as known after accepted gift, accepted/finished duel, or explicit Bard applause/tip history without current location or online-status details.
+3. Select one eligible manatka type with quantity 1; verify the draft names the recipient, item, quantity, exact visible delivery fee and simple fee formula.
+4. Build a package with five distinct eligible manatka types, including one quantity above 1 and one quantity 93 if local data can create the stack.
+5. Try adding a sixth type; verify the UI blocks it before confirmation.
+6. Try quantity 0, 94 and quantity above the owned stack through stale/old buttons or local state edits; verify no mutation.
+7. Confirm the package and verify the recipient notice shows the full package summary and explicit accept/decline controls.
+8. Confirm as sender; verify the delivery fee is charged immediately and selected quantities leave the sender inventory for postal custody. Accept as recipient; verify every line moves exactly once and neither player is charged again.
+9. Decline, cancel and expire a pending package; verify canonical state and that postal-custody items return to the sender once.
+10. Replay accept, decline, cancel and old draft buttons; verify canonical state and no duplicate notices or item movement.
+11. Send a bandage or other trade-blocked/one-use stack explicitly; verify it can be packaged, leaves inventory on confirm and delivers on accept.
+12. Try equipped, reserved, drifted and missing stacks; verify stale rejection without partial delivery.
+13. Lower sender gold below the fee before confirmation; verify the package is not sent, no item moves and no fee is charged.
+14. Reopen `📮 Пошта Квестарні`; verify known recipients, packages in transit and completed history appear without current location or online-status details, and pagination works once enough rows exist.
+15. Verify nearby `🎁 Подарувати манатку` still works as the old one-unit same-location gift flow and does not list postal-only trade-blocked stacks such as bandages.
+16. Try to remort the sender around a confirmed pending delivery; verify remort is blocked with a clear reason, the package stays in postal custody, recipient gets nothing and the sent fee is not refunded.
+17. Remort recipient around a pending delivery if convenient; verify postal-custody items return to the original sender and never enter the receiver's new life. Draft postal rows should not block remort and should cancel without moving items.
+
 ## 0.2.12 — Two-Enemy Threat Simulation and Outlier Tuning smoke
 
 Use one level 3+ account. Local seeded setup is acceptable for forcing specific monsters.

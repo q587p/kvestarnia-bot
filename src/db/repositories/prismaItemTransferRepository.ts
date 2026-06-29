@@ -2,18 +2,31 @@ import { Prisma, type Character, type CharacterItem, type ItemTransfer, type Pri
 import type { ItemContent } from "../../content/schema";
 import {
   buildItemGiftEligibleStacks,
+  buildItemPostalEligibleStacks,
+  calculatePostalDeliveryFee,
   createItemGiftFingerprint
 } from "../../domain/itemTransfers";
+import type { ItemPostalPackageLine } from "../../domain/itemTransfers";
 import type { CharacterRecord } from "./characterRepository";
 import type { CharacterItemRecord } from "./inventoryRepository";
 import type {
+  ItemPostalConfirmInput,
+  ItemPostalConfirmResult,
+  ItemPostalDraftInput,
+  ItemPostalDraftResult,
+  ItemPostalDraftUpdateInput,
+  ItemPostalDraftUpdateResult,
+  ItemPostalRecipientsResult,
   ItemTransferCreateInput,
   ItemTransferCreateResult,
+  ItemTransferKind,
   ItemTransferRecord,
   ItemTransferRepository,
   ItemTransferRespondResult,
   ItemTransferSnapshot,
-  ItemTransferStatus
+  ItemTransferStatus,
+  ItemPostalTransferPage,
+  ItemPostalTransferSummary
 } from "./itemTransferRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
@@ -123,12 +136,278 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
     return mapTransfer(await this.prisma.itemTransfer.findFirst({
       where: {
         token,
+        transferKind: "gift",
         OR: [
           { senderTelegramUserId: telegramUserId },
           { receiverTelegramUserId: telegramUserId }
         ]
       }
     }));
+  }
+
+  async getPostalRecipientsForTelegramUser(
+    telegramUserId: bigint,
+    page: number,
+    pageSize: number,
+    pages: { inTransitPage?: number; historyPage?: number } = {}
+  ): Promise<ItemPostalRecipientsResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const sender = await findCharacter(tx, telegramUserId);
+      if (!sender) {
+        return { state: "no-character" };
+      }
+
+      const recipientIds = await getKnownPostalRecipientIds(tx, sender.id);
+      const [inTransit, history] = await Promise.all([
+        getPostalTransferPage(tx, sender.id, "transit", pages.inTransitPage ?? 0, pageSize),
+        getPostalTransferPage(tx, sender.id, "history", pages.historyPage ?? 0, pageSize)
+      ]);
+
+      const total = recipientIds.length;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const safePage = Math.max(0, Math.min(Math.trunc(page), totalPages - 1));
+      const visibleIds = recipientIds.slice(safePage * pageSize, (safePage + 1) * pageSize);
+      const characters = await tx.character.findMany({
+        where: { id: { in: visibleIds } },
+        include: {
+          user: { select: { telegramUserId: true, lastSeenLocationId: true } },
+          _count: { select: { remorts: true } }
+        }
+      });
+      const byId = new Map(characters.map((character) => [character.id, character]));
+
+      return {
+        state: "ready",
+        page: safePage,
+        pageSize,
+        total,
+        totalPages,
+        inTransit,
+        history,
+        visible: visibleIds.flatMap((id) => {
+          const character = byId.get(id);
+          return character
+            ? [{
+                telegramUserId: character.user.telegramUserId,
+                name: character.name,
+                level: character.level
+              }]
+            : [];
+        })
+      };
+    });
+  }
+
+  async createPostalDraftForTelegramUser(
+    senderTelegramUserId: bigint,
+    input: ItemPostalDraftInput
+  ): Promise<ItemPostalDraftResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const sender = await findCharacter(tx, senderTelegramUserId);
+      if (!sender) {
+        return { state: "no-character" };
+      }
+      const receiver = await findKnownPostalReceiver(tx, sender.id, input.receiverTelegramUserId);
+      if (!receiver) {
+        return { state: "target-not-found" };
+      }
+      if (sender.id === receiver.id) {
+        return { state: "self-gift" };
+      }
+
+      const transfer = await tx.itemTransfer.create({
+        data: {
+          token: input.token,
+          transferKind: "postal",
+          senderCharacterId: sender.id,
+          receiverCharacterId: receiver.id,
+          senderTelegramUserId,
+          receiverTelegramUserId: input.receiverTelegramUserId,
+          senderName: sender.name,
+          receiverName: receiver.name,
+          senderRemortCount: getIncludedRemortCount(sender),
+          receiverRemortCount: getIncludedRemortCount(receiver),
+          locationId: null,
+          itemId: "item.postal-draft",
+          itemName: "Поштова чернетка",
+          itemFingerprint: "draft",
+          quantity: 0,
+          packageJson: [],
+          deliveryFeeGold: 0,
+          status: "draft",
+          expiresAt: input.expiresAt,
+          updatedAt: input.now
+        }
+      });
+
+      return {
+        state: "created",
+        transfer: mustMapTransfer(transfer),
+        sender: toCharacterRecord(sender),
+        receiver: toCharacterRecord(receiver)
+      };
+    });
+  }
+
+  async updatePostalDraftForTelegramUser(
+    telegramUserId: bigint,
+    input: ItemPostalDraftUpdateInput
+  ): Promise<ItemPostalDraftUpdateResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const sender = await findCharacter(tx, telegramUserId);
+      if (!sender) {
+        return { state: "no-character" };
+      }
+      const transfer = mapTransfer(await tx.itemTransfer.findUnique({ where: { token: input.token } }));
+      if (!transfer || transfer.transferKind !== "postal") {
+        return { state: "invalid-token" };
+      }
+      if (transfer.senderCharacterId !== sender.id) {
+        return { state: "not-sender" };
+      }
+      if (transfer.status !== "draft" || transfer.expiresAt <= input.now) {
+        return { state: "stale-selection", transfer };
+      }
+
+      const updated = mustMapTransfer(await tx.itemTransfer.update({
+        where: { id: transfer.id },
+        data: {
+          packageJson: input.packageLines as unknown as Prisma.InputJsonArray,
+          deliveryFeeGold: input.deliveryFeeGold,
+          itemId: input.packageLines[0]?.itemId ?? "item.postal-draft",
+          itemName: input.packageLines[0]?.itemName ?? "Поштова чернетка",
+          itemFingerprint: input.packageLines[0]?.itemFingerprint ?? "draft",
+          quantity: input.packageLines.reduce((sum, line) => sum + line.quantity, 0),
+          updatedAt: input.now
+        }
+      }));
+      const receiver = await tx.character.findUniqueOrThrow({
+        where: { id: transfer.receiverCharacterId },
+        include: characterInclude
+      });
+
+      return {
+        state: "updated",
+        transfer: updated,
+        sender: toCharacterRecord(sender),
+        receiver: toCharacterRecord(receiver)
+      };
+    });
+  }
+
+  async findPostalTransferForTelegramUser(telegramUserId: bigint, token: string): Promise<ItemTransferRecord | null> {
+    return mapTransfer(await this.prisma.itemTransfer.findFirst({
+      where: {
+        token,
+        transferKind: "postal",
+        OR: [
+          { senderTelegramUserId: telegramUserId },
+          { receiverTelegramUserId: telegramUserId }
+        ]
+      }
+    }));
+  }
+
+  async confirmPostalDraftForTelegramUser(
+    telegramUserId: bigint,
+    input: ItemPostalConfirmInput
+  ): Promise<ItemPostalConfirmResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const sender = await findCharacter(tx, telegramUserId);
+        if (!sender) {
+          return { state: "no-character" };
+        }
+        const transfer = mapTransfer(await tx.itemTransfer.findUnique({ where: { token: input.token } }));
+        if (!transfer || transfer.transferKind !== "postal") {
+          return { state: "invalid-token" };
+        }
+        if (transfer.senderCharacterId !== sender.id) {
+          return { state: "not-sender" };
+        }
+        if (transfer.status !== "draft" || transfer.expiresAt <= input.now || transfer.packageLines.length < 1) {
+          return { state: "stale-selection", transfer };
+        }
+
+        const receiver = await tx.character.findUnique({
+          where: { id: transfer.receiverCharacterId },
+          include: characterInclude
+        });
+        if (!receiver || getIncludedRemortCount(receiver) !== transfer.receiverRemortCount) {
+          return { state: "stale-selection", transfer };
+        }
+        if (sender.activeCombatLease || receiver.activeCombatLease) {
+          return { state: "combat-locked", transfer };
+        }
+
+        await releaseExpiredPostalReservations(tx, sender.id, input.now);
+        const itemIds = transfer.packageLines.map((line) => line.itemId);
+        await lockSenderItemStacks(tx, sender.id, itemIds, input.now);
+
+        const validation = await validatePostalPackage(tx, sender.id, transfer, input.itemContents, input.now);
+        if (!validation.ok) {
+          return { state: "stale-selection", transfer };
+        }
+
+        const fee = calculatePostalDeliveryFee(transfer.packageLines);
+        const charged = await tx.character.updateMany({
+          where: {
+            id: sender.id,
+            gold: { gte: fee }
+          },
+          data: {
+            gold: { decrement: fee }
+          }
+        });
+        if (charged.count !== 1) {
+          return { state: "insufficient-gold", transfer: { ...transfer, deliveryFeeGold: fee } };
+        }
+
+        await movePostalPackageFromSenderToCustody(tx, sender.id, transfer);
+
+        const confirmed = await tx.itemTransfer.updateMany({
+          where: {
+            id: transfer.id,
+            status: "draft",
+            expiresAt: { gt: input.now }
+          },
+          data: {
+            status: "pending",
+            expiresAt: input.expiresAt,
+            reservationKey: createPostalReservationKey(sender.id),
+            deliveryFeeGold: fee,
+            resultJson: markPostalSenderDebited(input.result),
+            updatedAt: input.now
+          }
+        });
+        if (confirmed.count !== 1) {
+          throw new StalePostalRollback(transfer, "stale-selection");
+        }
+        const updated = mustMapTransfer(await tx.itemTransfer.findUniqueOrThrow({ where: { id: transfer.id } }));
+        const updatedSender = await tx.character.findUniqueOrThrow({
+          where: { id: sender.id },
+          include: characterInclude
+        });
+
+        return {
+          state: "created",
+          transfer: updated,
+          sender: toCharacterRecord(updatedSender),
+          receiver: toCharacterRecord(receiver)
+        };
+      });
+    } catch (error) {
+      if (error instanceof StalePostalRollback) {
+        return { state: error.state, transfer: error.transfer };
+      }
+      if (isLiveReservationConflict(error)) {
+        const transfer = await this.findPostalTransferForTelegramUser(telegramUserId, input.token);
+        if (transfer) {
+          return { state: "stale-selection", transfer };
+        }
+      }
+      throw error;
+    }
   }
 
   async cancelGiftForTelegramUser(
@@ -163,6 +442,9 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         if (!transfer || !transferRow) {
           return { state: "invalid-token" };
         }
+        if (transfer.transferKind !== "gift") {
+          return { state: "invalid-token" };
+        }
 
         if (actor.id !== transfer.receiverCharacterId) {
           return { state: "not-recipient" };
@@ -174,7 +456,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         }
 
         if (transfer.expiresAt <= input.now) {
-          return guardedTerminalResult(tx, transfer.id, "expired", input.now, { kind: "expired" }, "pending");
+          return guardedTerminalResult(tx, transfer, "expired", input.now, { kind: "expired" }, "pending");
         }
 
         const sender = await tx.character.findUnique({
@@ -311,12 +593,138 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
     }
   }
 
+  async cancelPostalForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    now: Date
+  ): Promise<ItemTransferRespondResult> {
+    return this.respondByStatus(telegramUserId, token, "cancelled", now, "sender", "postal", ["draft", "pending"]);
+  }
+
+  async declinePostalForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    now: Date
+  ): Promise<ItemTransferRespondResult> {
+    return this.respondByStatus(telegramUserId, token, "declined", now, "recipient", "postal");
+  }
+
+  async acceptPostalForTelegramUser(
+    telegramUserId: bigint,
+    input: { token: string; itemContents: readonly ItemContent[]; now: Date; result: unknown }
+  ): Promise<ItemTransferRespondResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const actor = await findCharacter(tx, telegramUserId);
+        if (!actor) {
+          return { state: "no-character" };
+        }
+
+        const transferRow = await tx.itemTransfer.findUnique({ where: { token: input.token } });
+        const transfer = mapTransfer(transferRow);
+        if (!transfer || !transferRow || transfer.transferKind !== "postal") {
+          return { state: "invalid-token" };
+        }
+
+        if (actor.id !== transfer.receiverCharacterId) {
+          return { state: "not-recipient" };
+        }
+
+        const terminal = await replayIfTerminal(tx, transfer);
+        if (terminal) {
+          return terminal;
+        }
+
+        if (transfer.status === "draft") {
+          return { state: "stale-selection", transfer };
+        }
+
+        if (transfer.expiresAt <= input.now) {
+          return guardedPostalTerminalResult(tx, transfer, "expired", input.now, { kind: "postal-expired" }, "pending");
+        }
+
+        const sender = await tx.character.findUnique({
+          where: { id: transfer.senderCharacterId },
+          include: characterInclude
+        });
+        const receiver = await tx.character.findUnique({
+          where: { id: transfer.receiverCharacterId },
+          include: characterInclude
+        });
+
+        if (!sender || !receiver) {
+          return { state: "invalid-token" };
+        }
+        if (sender.activeCombatLease || receiver.activeCombatLease) {
+          return { state: "combat-locked", transfer };
+        }
+        if (
+          getIncludedRemortCount(sender) !== transfer.senderRemortCount ||
+          getIncludedRemortCount(receiver) !== transfer.receiverRemortCount
+        ) {
+          return { state: "stale-selection", transfer };
+        }
+        const senderDebited = hasPostalSenderDebited(transfer);
+        const validation = senderDebited
+          ? validatePostalPackageContent(transfer, input.itemContents)
+          : await validatePostalPackage(tx, sender.id, transfer, input.itemContents, input.now, transfer.id);
+        if (!validation.ok) {
+          return { state: "stale-selection", transfer };
+        }
+
+        const claimed = await tx.itemTransfer.updateMany({
+          where: {
+            id: transfer.id,
+            status: "pending",
+            expiresAt: { gt: input.now }
+          },
+          data: {
+            status: "processing",
+            updatedAt: input.now
+          }
+        });
+        if (claimed.count !== 1) {
+          const replay = mapTransfer(await tx.itemTransfer.findUnique({ where: { id: transfer.id } }));
+          return replay ? replayTransfer(tx, replay) : { state: "invalid-token" };
+        }
+
+        if (!senderDebited) {
+          await movePostalPackageFromSenderToCustody(tx, sender.id, transfer);
+        }
+        await deliverPostalPackageToReceiver(tx, receiver.id, transfer);
+
+        const completed = await setTransferStatus(tx, transfer.id, "completed", input.now, input.result, "processing");
+        if (!completed.changed) {
+          return canonicalTransferResult(tx, completed.transfer);
+        }
+        const [updatedSender, updatedReceiver] = await Promise.all([
+          tx.character.findUniqueOrThrow({ where: { id: sender.id }, include: characterInclude }),
+          tx.character.findUniqueOrThrow({ where: { id: receiver.id }, include: characterInclude })
+        ]);
+
+        return {
+          state: "completed",
+          transfer: completed.transfer,
+          sender: toCharacterRecord(updatedSender),
+          receiver: toCharacterRecord(updatedReceiver)
+        };
+      });
+    } catch (error) {
+      if (error instanceof StalePostalRollback) {
+        return { state: error.state, transfer: error.transfer };
+      }
+      throw error;
+    }
+  }
+
   private async respondByStatus(
     telegramUserId: bigint,
     token: string,
     status: "cancelled" | "declined",
     now: Date,
-    actor: "sender" | "recipient"
+    actor: "sender" | "recipient",
+    transferKind: ItemTransferKind = "gift",
+    expectedStatuses: readonly string[] = ["pending"]
   ): Promise<ItemTransferRespondResult> {
     return this.prisma.$transaction(async (tx) => {
       const character = await findCharacter(tx, telegramUserId);
@@ -326,6 +734,9 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
 
       const transfer = mapTransfer(await tx.itemTransfer.findUnique({ where: { token } }));
       if (!transfer) {
+        return { state: "invalid-token" };
+      }
+      if (transfer.transferKind !== transferKind) {
         return { state: "invalid-token" };
       }
 
@@ -341,11 +752,16 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         return terminal;
       }
 
-      if (transfer.expiresAt <= now) {
-        return guardedTerminalResult(tx, transfer.id, "expired", now, { kind: "expired" }, "pending");
+      const senderCancellation = transferKind === "postal" && actor === "sender" && status === "cancelled";
+      if (transfer.expiresAt <= now && !senderCancellation) {
+        return transferKind === "postal"
+          ? guardedPostalTerminalResult(tx, transfer, "expired", now, { kind: "postal-expired" }, "pending")
+          : guardedTerminalResult(tx, transfer, "expired", now, { kind: "expired" }, "pending");
       }
 
-      return guardedTerminalResult(tx, transfer.id, status, now, { kind: status }, "pending");
+      return transferKind === "postal"
+        ? guardedPostalTerminalResult(tx, transfer, status, now, { kind: status }, expectedStatuses)
+        : guardedTerminalResult(tx, transfer, status, now, { kind: status }, expectedStatuses);
     });
   }
 }
@@ -353,6 +769,15 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
 class StaleGiftRollback extends Error {
   constructor(readonly transfer: ItemTransferRecord) {
     super("Gift selection changed during transaction.");
+  }
+}
+
+class StalePostalRollback extends Error {
+  constructor(
+    readonly transfer: ItemTransferRecord,
+    readonly state: "stale-selection" | "insufficient-gold"
+  ) {
+    super("Postal delivery changed during transaction.");
   }
 }
 
@@ -421,6 +846,18 @@ async function lockSenderItemStack(
   });
 }
 
+async function lockSenderItemStacks(
+  tx: TxClient,
+  characterId: string,
+  itemIds: readonly string[],
+  now: Date
+): Promise<void> {
+  await tx.characterItem.updateMany({
+    where: { characterId, itemId: { in: [...new Set(itemIds)] } },
+    data: { updatedAt: now }
+  });
+}
+
 async function releaseExpiredGiftReservation(
   tx: TxClient,
   senderCharacterId: string,
@@ -429,6 +866,7 @@ async function releaseExpiredGiftReservation(
 ): Promise<void> {
   await tx.itemTransfer.updateMany({
     where: {
+      transferKind: "gift",
       senderCharacterId,
       itemId,
       status: "pending",
@@ -444,6 +882,29 @@ async function releaseExpiredGiftReservation(
       }
     }
   });
+}
+
+async function releaseExpiredPostalReservations(
+  tx: TxClient,
+  senderCharacterId: string,
+  now: Date
+): Promise<void> {
+  const rows = await tx.itemTransfer.findMany({
+    where: {
+      transferKind: "postal",
+      senderCharacterId,
+      status: { in: ["draft", "pending"] },
+      expiresAt: { lte: now }
+    }
+  });
+
+  for (const row of rows) {
+    const transfer = mapTransfer(row);
+    if (!transfer) {
+      continue;
+    }
+    await guardedPostalTerminalResult(tx, transfer, "expired", now, { kind: "postal-expired" }, transfer.status);
+  }
 }
 
 async function getEquippedItemIds(tx: TxClient, characterId: string): Promise<string[]> {
@@ -515,11 +976,393 @@ async function getReservedItemIds(
   return [...reserved];
 }
 
+async function findKnownPostalReceiver(
+  tx: TxClient,
+  senderCharacterId: string,
+  receiverTelegramUserId: bigint
+) {
+  const receiver = await findCharacter(tx, receiverTelegramUserId);
+  if (!receiver) {
+    return null;
+  }
+  if (receiver.id === senderCharacterId) {
+    return receiver;
+  }
+
+  const known = await isKnownPostalRecipient(tx, senderCharacterId, receiver.id);
+  return known ? receiver : null;
+}
+
+async function getKnownPostalRecipientIds(tx: TxClient, senderCharacterId: string): Promise<string[]> {
+  const [transferRows, duelRows, bardRows] = await Promise.all([
+    tx.itemTransfer.findMany({
+      where: {
+        status: "completed",
+        OR: [
+          { senderCharacterId },
+          { receiverCharacterId: senderCharacterId }
+        ]
+      },
+      orderBy: [{ completedAt: "desc" }, { updatedAt: "desc" }],
+      select: {
+        senderCharacterId: true,
+        receiverCharacterId: true,
+        completedAt: true,
+        updatedAt: true
+      },
+      take: 200
+    }),
+    tx.duelChallenge.findMany({
+      where: {
+        status: { in: ["active", "resolved"] },
+        targetCharacterId: { not: null },
+        OR: [
+          { challengerCharacterId: senderCharacterId },
+          { targetCharacterId: senderCharacterId }
+        ]
+      },
+      orderBy: [{ resolvedAt: "desc" }, { updatedAt: "desc" }],
+      select: {
+        challengerCharacterId: true,
+        targetCharacterId: true,
+        resolvedAt: true,
+        updatedAt: true,
+        createdAt: true
+      },
+      take: 200
+    }),
+    tx.bardPerformanceReaction.findMany({
+      where: {
+        status: { in: ["applauded", "tipped"] },
+        OR: [
+          { characterId: senderCharacterId },
+          { performance: { characterId: senderCharacterId } }
+        ]
+      },
+      orderBy: [{ respondedAt: "desc" }, { updatedAt: "desc" }],
+      select: {
+        characterId: true,
+        respondedAt: true,
+        updatedAt: true,
+        performance: {
+          select: {
+            characterId: true,
+            updatedAt: true
+          }
+        }
+      },
+      take: 200
+    })
+  ]);
+
+  const contacts: Array<{ recipientId: string; interactedAt: Date }> = [];
+  for (const row of transferRows) {
+    const recipientId = row.senderCharacterId === senderCharacterId ? row.receiverCharacterId : row.senderCharacterId;
+    contacts.push({ recipientId, interactedAt: row.completedAt ?? row.updatedAt });
+  }
+  for (const row of duelRows) {
+    const recipientId = row.challengerCharacterId === senderCharacterId ? row.targetCharacterId : row.challengerCharacterId;
+    if (recipientId) {
+      contacts.push({ recipientId, interactedAt: row.resolvedAt ?? row.updatedAt ?? row.createdAt });
+    }
+  }
+  for (const row of bardRows) {
+    const recipientId = row.characterId === senderCharacterId ? row.performance.characterId : row.characterId;
+    contacts.push({ recipientId, interactedAt: row.respondedAt ?? row.updatedAt ?? row.performance.updatedAt });
+  }
+
+  const seen = new Set<string>();
+  return contacts
+    .filter((contact) => contact.recipientId !== senderCharacterId)
+    .sort((left, right) => right.interactedAt.getTime() - left.interactedAt.getTime())
+    .flatMap((contact) => {
+      if (seen.has(contact.recipientId)) {
+        return [];
+      }
+      seen.add(contact.recipientId);
+      return [contact.recipientId];
+    });
+}
+
+async function getPostalTransferPage(
+  tx: TxClient,
+  characterId: string,
+  mode: "transit" | "history",
+  page: number,
+  pageSize: number
+): Promise<ItemPostalTransferPage> {
+  const status = mode === "transit" ? "pending" : "completed";
+  const where: Prisma.ItemTransferWhereInput = {
+    transferKind: "postal",
+    status,
+    OR: [
+      { senderCharacterId: characterId },
+      { receiverCharacterId: characterId }
+    ]
+  };
+  const total = await tx.itemTransfer.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.max(0, Math.min(Math.trunc(page), totalPages - 1));
+  const rows = await tx.itemTransfer.findMany({
+    where,
+    orderBy: mode === "transit"
+      ? [{ expiresAt: "asc" }, { updatedAt: "desc" }]
+      : [{ completedAt: "desc" }, { updatedAt: "desc" }],
+    skip: safePage * pageSize,
+    take: pageSize
+  });
+
+  return {
+    page: safePage,
+    pageSize,
+    total,
+    totalPages,
+    visible: rows.flatMap((row) => {
+      const transfer = mapTransfer(row);
+      return transfer ? [presentPostalTransferSummary(transfer, characterId)] : [];
+    })
+  };
+}
+
+function presentPostalTransferSummary(
+  transfer: ItemTransferRecord,
+  characterId: string
+): ItemPostalTransferSummary {
+  const direction = transfer.senderCharacterId === characterId ? "outgoing" : "incoming";
+
+  return {
+    token: transfer.token,
+    status: transfer.status,
+    direction,
+    otherName: direction === "outgoing" ? transfer.receiverName : transfer.senderName,
+    packageLines: transfer.packageLines,
+    deliveryFeeGold: transfer.deliveryFeeGold,
+    expiresAt: transfer.expiresAt,
+    completedAt: transfer.completedAt,
+    respondedAt: transfer.respondedAt,
+    updatedAt: transfer.updatedAt
+  };
+}
+
+async function isKnownPostalRecipient(tx: TxClient, senderCharacterId: string, receiverCharacterId: string): Promise<boolean> {
+  const [transfer, duel, bardReaction] = await Promise.all([
+    tx.itemTransfer.findFirst({
+      where: {
+        status: "completed",
+        OR: [
+          { senderCharacterId, receiverCharacterId },
+          { senderCharacterId: receiverCharacterId, receiverCharacterId: senderCharacterId }
+        ]
+      },
+      select: { id: true }
+    }),
+    tx.duelChallenge.findFirst({
+      where: {
+        status: { in: ["active", "resolved"] },
+        OR: [
+          { challengerCharacterId: senderCharacterId, targetCharacterId: receiverCharacterId },
+          { challengerCharacterId: receiverCharacterId, targetCharacterId: senderCharacterId }
+        ]
+      },
+      select: { id: true }
+    }),
+    tx.bardPerformanceReaction.findFirst({
+      where: {
+        status: { in: ["applauded", "tipped"] },
+        OR: [
+          {
+            characterId: senderCharacterId,
+            performance: { characterId: receiverCharacterId }
+          },
+          {
+            characterId: receiverCharacterId,
+            performance: { characterId: senderCharacterId }
+          }
+        ]
+      },
+      select: { id: true }
+    })
+  ]);
+
+  return Boolean(transfer || duel || bardReaction);
+}
+
+async function validatePostalPackage(
+  tx: TxClient,
+  senderCharacterId: string,
+  transfer: ItemTransferRecord,
+  itemContents: readonly ItemContent[],
+  now: Date,
+  exceptTransferId?: string
+): Promise<{ ok: boolean }> {
+  const lines = transfer.packageLines;
+  if (lines.length < 1 || lines.length > 5) {
+    return { ok: false };
+  }
+  const seen = new Set<string>();
+  for (const line of lines) {
+    if (
+      seen.has(line.itemId) ||
+      !Number.isInteger(line.quantity) ||
+      line.quantity < 1 ||
+      line.quantity > 93
+    ) {
+      return { ok: false };
+    }
+    seen.add(line.itemId);
+  }
+
+  const [items, equipment, reservedItemIds] = await Promise.all([
+    getItems(tx, senderCharacterId),
+    getEquippedItemIds(tx, senderCharacterId),
+    getReservedItemIds(tx, senderCharacterId, now, exceptTransferId)
+  ]);
+  const eligible = buildItemPostalEligibleStacks({
+    stacks: items,
+    equippedItemIds: new Set(equipment),
+    reservedItemIds: new Set(reservedItemIds),
+    itemContents
+  });
+  const byId = new Map(eligible.map((stack) => [stack.itemId, stack]));
+
+  for (const line of lines) {
+    const current = byId.get(line.itemId);
+    if (
+      !current ||
+      current.quantity < line.quantity ||
+      current.fingerprint !== line.itemFingerprint ||
+      current.content.name !== line.itemName ||
+      createItemGiftFingerprint(current.content) !== line.itemFingerprint
+    ) {
+      return { ok: false };
+    }
+  }
+
+  return { ok: true };
+}
+
+function validatePostalPackageContent(
+  transfer: ItemTransferRecord,
+  itemContents: readonly ItemContent[]
+): { ok: boolean } {
+  const lines = transfer.packageLines;
+  if (lines.length < 1 || lines.length > 5) {
+    return { ok: false };
+  }
+  const seen = new Set<string>();
+  const contentById = new Map(itemContents.map((item) => [item.id, item]));
+  for (const line of lines) {
+    if (
+      seen.has(line.itemId) ||
+      !Number.isInteger(line.quantity) ||
+      line.quantity < 1 ||
+      line.quantity > 93
+    ) {
+      return { ok: false };
+    }
+    seen.add(line.itemId);
+
+    const current = contentById.get(line.itemId);
+    if (
+      !current ||
+      current.name !== line.itemName ||
+      createItemGiftFingerprint(current) !== line.itemFingerprint ||
+      !sameStringList([...(current.tags ?? [])].sort(), [...line.tags].sort())
+    ) {
+      return { ok: false };
+    }
+  }
+
+  return { ok: true };
+}
+
+async function movePostalPackageFromSenderToCustody(
+  tx: TxClient,
+  senderCharacterId: string,
+  transfer: ItemTransferRecord
+): Promise<void> {
+  for (const line of transfer.packageLines) {
+    const consumed = await tx.characterItem.updateMany({
+      where: {
+        characterId: senderCharacterId,
+        itemId: line.itemId,
+        quantity: { gte: line.quantity }
+      },
+      data: {
+        quantity: { decrement: line.quantity }
+      }
+    });
+    if (consumed.count !== 1) {
+      throw new StalePostalRollback(transfer, "stale-selection");
+    }
+  }
+
+  await tx.characterItem.deleteMany({
+    where: {
+      characterId: senderCharacterId,
+      quantity: { lte: 0 }
+    }
+  });
+}
+
+async function restorePostalPackageToSender(tx: TxClient, transfer: ItemTransferRecord): Promise<void> {
+  await upsertPostalPackageToCharacter(tx, transfer.senderCharacterId, transfer);
+}
+
+async function deliverPostalPackageToReceiver(
+  tx: TxClient,
+  receiverCharacterId: string,
+  transfer: ItemTransferRecord
+): Promise<void> {
+  await upsertPostalPackageToCharacter(tx, receiverCharacterId, transfer);
+}
+
+async function upsertPostalPackageToCharacter(
+  tx: TxClient,
+  characterId: string,
+  transfer: ItemTransferRecord
+): Promise<void> {
+  for (const line of transfer.packageLines) {
+    await tx.characterItem.upsert({
+      where: {
+        characterId_itemId: {
+          characterId,
+          itemId: line.itemId
+        }
+      },
+      create: {
+        characterId,
+        itemId: line.itemId,
+        quantity: line.quantity
+      },
+      update: {
+        quantity: { increment: line.quantity }
+      }
+    });
+  }
+}
+
+function markPostalSenderDebited(result: unknown): Prisma.InputJsonObject {
+  const base = isRecord(result) ? result : {};
+  return {
+    ...base,
+    postalCustody: "sender-debited"
+  };
+}
+
+function hasPostalSenderDebited(transfer: ItemTransferRecord): boolean {
+  return isRecord(transfer.result) && transfer.result.postalCustody === "sender-debited";
+}
+
+function sameStringList(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 async function replayIfTerminal(
   tx: TxClient,
   transfer: ItemTransferRecord
 ): Promise<ItemTransferRespondResult | null> {
-  if (transfer.status === "pending" || transfer.status === "processing") {
+  if (transfer.status === "draft" || transfer.status === "pending" || transfer.status === "processing") {
     return null;
   }
 
@@ -536,15 +1379,34 @@ async function replayIfTerminal(
 
 async function guardedTerminalResult(
   tx: TxClient,
-  transferId: string,
+  transfer: ItemTransferRecord,
   status: "declined" | "expired" | "cancelled",
   now: Date,
   result: unknown,
-  expectedStatus: string
+  expectedStatus: string | readonly string[]
 ): Promise<ItemTransferRespondResult> {
-  const transition = await setTransferStatus(tx, transferId, status, now, result, expectedStatus);
+  const transition = await setTransferStatus(tx, transfer.id, status, now, result, expectedStatus);
   if (transition.changed) {
-    return { state: status, transfer: transition.transfer, transitioned: true };
+    return { state: status, transfer: transition.transfer, transitioned: true, transitionedFrom: transfer.status };
+  }
+
+  return canonicalTransferResult(tx, transition.transfer);
+}
+
+async function guardedPostalTerminalResult(
+  tx: TxClient,
+  transfer: ItemTransferRecord,
+  status: "declined" | "expired" | "cancelled",
+  now: Date,
+  result: unknown,
+  expectedStatus: string | readonly string[]
+): Promise<ItemTransferRespondResult> {
+  const transition = await setTransferStatus(tx, transfer.id, status, now, result, expectedStatus);
+  if (transition.changed) {
+    if (transfer.status === "pending" && hasPostalSenderDebited(transfer)) {
+      await restorePostalPackageToSender(tx, transfer);
+    }
+    return { state: status, transfer: transition.transfer, transitioned: true, transitionedFrom: transfer.status };
   }
 
   return canonicalTransferResult(tx, transition.transfer);
@@ -593,7 +1455,7 @@ async function setTransferStatus(
   status: "completed" | "declined" | "expired" | "cancelled",
   now: Date,
   result: unknown,
-  expectedStatus?: string
+  expectedStatus?: string | readonly string[]
 ): Promise<{ transfer: ItemTransferRecord; changed: boolean }> {
   const data = {
     status,
@@ -604,8 +1466,9 @@ async function setTransferStatus(
   };
 
   if (expectedStatus) {
+    const expectedStatuses = typeof expectedStatus === "string" ? [expectedStatus] : Array.from(expectedStatus);
     const changed = await tx.itemTransfer.updateMany({
-      where: { id: transferId, status: expectedStatus },
+      where: { id: transferId, status: { in: expectedStatuses } },
       data
     });
 
@@ -680,6 +1543,7 @@ function mapTransfer(record: ItemTransfer | null): ItemTransferRecord | null {
   return {
     id: record.id,
     token: record.token,
+    transferKind: parseTransferKind(record.transferKind),
     senderCharacterId: record.senderCharacterId,
     receiverCharacterId: record.receiverCharacterId,
     senderTelegramUserId: record.senderTelegramUserId,
@@ -693,6 +1557,8 @@ function mapTransfer(record: ItemTransfer | null): ItemTransferRecord | null {
     itemName: record.itemName,
     itemFingerprint: record.itemFingerprint,
     quantity: record.quantity,
+    packageLines: parsePackageLines(record.packageJson),
+    deliveryFeeGold: record.deliveryFeeGold,
     status: parseStatus(record.status),
     result: record.resultJson,
     expiresAt: record.expiresAt,
@@ -704,7 +1570,8 @@ function mapTransfer(record: ItemTransfer | null): ItemTransferRecord | null {
 }
 
 function parseStatus(status: string): ItemTransferStatus {
-  return status === "processing" ||
+  return status === "draft" ||
+    status === "processing" ||
     status === "completed" ||
     status === "declined" ||
     status === "expired" ||
@@ -713,8 +1580,74 @@ function parseStatus(status: string): ItemTransferStatus {
     : "pending";
 }
 
+function parseTransferKind(kind: string): ItemTransferKind {
+  return kind === "postal" ? "postal" : "gift";
+}
+
+function mustMapTransfer(record: ItemTransfer): ItemTransferRecord {
+  const transfer = mapTransfer(record);
+  if (!transfer) {
+    throw new Error("Item transfer mapping failed.");
+  }
+
+  return transfer;
+}
+
 function createTransferReservationKey(senderCharacterId: string, itemId: string): string {
   return `gift:${senderCharacterId}:${itemId}`;
+}
+
+function createPostalReservationKey(senderCharacterId: string): string {
+  return `postal:${senderCharacterId}`;
+}
+
+function parsePackageLines(value: unknown): ItemPostalPackageLine[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry): ItemPostalPackageLine[] => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+    const itemId = stringOrNull(entry.itemId);
+    const itemName = stringOrNull(entry.itemName);
+    const itemFingerprint = stringOrNull(entry.itemFingerprint);
+    const quantity = integerOrNull(entry.quantity);
+    const unitGoldValue = integerOrNull(entry.unitGoldValue);
+    const observedQuantity = integerOrNull(entry.observedQuantity);
+    if (
+      !itemId ||
+      !itemName ||
+      !itemFingerprint ||
+      quantity === null ||
+      unitGoldValue === null ||
+      observedQuantity === null
+    ) {
+      return [];
+    }
+
+    return [{
+      itemId,
+      itemName,
+      itemFingerprint,
+      quantity,
+      unitGoldValue,
+      observedQuantity,
+      tags: Array.isArray(entry.tags)
+        ? entry.tags.filter((tag): tag is string => typeof tag === "string")
+        : []
+    }];
+  });
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function integerOrNull(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isInteger(number) ? number : null;
 }
 
 function isLiveReservationConflict(error: unknown): boolean {

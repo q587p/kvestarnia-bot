@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   presentShynokGate,
+  presentShynokOverview,
   presentShynokDrinkMenu,
   presentShynokDrinkPreview,
   presentShynokDrinkConfirmResult,
@@ -15,6 +16,7 @@ import {
 import type {
   ShynokDrinkConfirmResult,
   ShynokDrinkOrderResult,
+  ShynokOverviewResult,
   ShynokRoundConfirmResult,
   ShynokRoundOfferRespondResult,
   ShynokRoundPreviewResult,
@@ -55,6 +57,26 @@ describe("shynokPresenter", () => {
     expect(presentShynokGate({ state: "pending-raid" })).toBe(
       "🍻 Корчмар ховає кухоль. Спершу завершіть рейд на Бочку в цьому відтинку."
     );
+  });
+
+  it("omits character identity headers from the shynok overview", () => {
+    const result: ShynokOverviewResult = {
+      state: "ready",
+      character: {
+        ...character,
+        name: "<b>Дара</b>",
+        title: "<i>Шинкова Тестерка</i>"
+      },
+      activeDrink: null,
+      openRoundOffers: []
+    };
+    const html = presentShynokOverview(result);
+
+    expect(html).toMatch(/^🍻 Шинок\n\n/u);
+    expect(html).not.toContain("&lt;b&gt;Дара&lt;/b&gt;");
+    expect(html).not.toContain("&lt;i&gt;Шинкова Тестерка&lt;/i&gt;");
+    expect(html).not.toContain("<b>Дара</b>");
+    expect(html).not.toContain("<i>Шинкова Тестерка</i>");
   });
 
   it("shows current gold on the self-drink menu", () => {

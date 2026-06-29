@@ -9,7 +9,7 @@ import { buildStarterMethodOptions, getAdventureProblemIcon } from "../../servic
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
-import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
+import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureOffer(
   result: Extract<AdventureLookupResult, { state: "ready" }>
@@ -22,16 +22,14 @@ export function presentAdventureOffer(
 
   return [
     "🪧 Три справи на найближчий час",
-    presentCharacterHeader(result.character),
     "",
     ...choiceLines
   ].join("\n");
 }
 
-export function presentAdventureStart(character: CharacterSummary): string {
+export function presentAdventureStart(): string {
   return [
     "🪧 Три справи на найближчий час",
-    presentCharacterHeader(character),
     "",
     "Корчмар виклав на стіл три проблеми. Оберіть одну на столі зі справами."
   ].join("\n");
@@ -39,11 +37,7 @@ export function presentAdventureStart(character: CharacterSummary): string {
 
 export function presentMimicShawarmaStart(character: CharacterSummary): string {
   const flavor = presentCharacterFlavor(character, "quest.start", "shawarma");
-  const methodLines = buildStarterMethodOptions("shawarma", character).flatMap((method, index, methods) => [
-    `${escapeHtml(method.label)}`,
-    `<i>${escapeHtml(formatApproachHint(method.hint, method.chanceHint, method.goldCost))}</i>`,
-    ...(index < methods.length - 1 ? [""] : [])
-  ]);
+  const methodLines = formatMethodLabelLines(buildStarterMethodOptions("shawarma", character));
 
   return [
     "🌯 Підозріла шаурма",
@@ -53,12 +47,15 @@ export function presentMimicShawarmaStart(character: CharacterSummary): string {
     npcQuote("Корчмар", "То не моя."),
     ...flavor,
     "",
-    "Можливі способи:",
-    "",
+    "<i>Можливі способи:</i>",
     ...methodLines,
     "",
     `<b>${escapeHtml(character.name)}</b>, що робимо?`
   ].join("\n");
+}
+
+export function presentMimicShawarmaMethodHelp(character: CharacterSummary): string {
+  return presentMethodHelp(buildStarterMethodOptions("shawarma", character));
 }
 
 export function presentAdventureProblem(
@@ -80,22 +77,45 @@ export function presentAdventureProblem(
     return presentAdventureAlreadyCompleted();
   }
 
-  const methodLines = result.approaches.flatMap((approach, index) => [
-    `${escapeHtml(approach.label)}`,
-    `<i>${escapeHtml(formatApproachHint(approach.hint, approach.chanceHint, approach.goldCost))}</i>`,
-    ...(index < result.approaches.length - 1 ? [""] : [])
-  ]);
+  const methodLines = formatMethodLabelLines(result.approaches);
 
   return [
     `📌 <b>${escapeHtml(result.choice.title)}</b>`,
     "",
     escapeHtml(result.choice.hook),
     "",
-    "Можливі способи:",
-    "",
+    "<i>Можливі способи:</i>",
     ...methodLines,
     "",
     npcQuote("Корчмар", "Метод оберіть самі. Потім не кажіть, що метод обрав вас.")
+  ].join("\n");
+}
+
+export function presentAdventureProblemMethodHelp(
+  result: Extract<AdventureProblemResult, { state: "selected" }>
+): string {
+  return presentMethodHelp(result.approaches);
+}
+
+function formatMethodLabelLines(
+  methods: ReadonlyArray<{ label: string }>
+): string[] {
+  return methods.map((method) => escapeHtml(method.label));
+}
+
+function presentMethodHelp(
+  methods: ReadonlyArray<{ label: string; hint: string; chanceHint?: string | undefined; goldCost?: number | undefined }>
+): string {
+  const methodLines = methods.flatMap((method, index) => [
+    escapeHtml(method.label),
+    `<i>${escapeHtml(formatApproachHint(method.hint, method.chanceHint, method.goldCost))}</i>`,
+    ...(index < methods.length - 1 ? [""] : [])
+  ]);
+
+  return [
+    "Детальніше про способи:",
+    "",
+    ...methodLines
   ].join("\n");
 }
 
@@ -282,6 +302,7 @@ export function presentMimicShawarmaResult(
     body: ["Підозріла шаурма дала свідчення й записалась у навчальні пригоди."]
   };
   const methodLabel = result.method?.label ?? String(result.action);
+  const itemGrantLines = presentItemGrantLines(result.reward.itemGrants);
   const lines = [
     escapeHtml(outcome.headline),
     "",
@@ -291,7 +312,7 @@ export function presentMimicShawarmaResult(
     ...presentHpLossLines(result.hpLoss, result.character),
     "",
     presentRewardAmount({ ...result.reward, label: "Винагорода за пригоду" }),
-    ...presentItemGrantLines(result.reward.itemGrants)
+    ...(itemGrantLines.length > 0 ? ["", ...itemGrantLines] : [])
   ];
 
   return lines.join("\n");

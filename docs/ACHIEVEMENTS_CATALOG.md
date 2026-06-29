@@ -9,6 +9,7 @@ Runtime rules:
 - Disabled future definitions are not shown to players and do not count in visible completion totals unless a character already has an older stored row for that id.
 - New player-facing mechanics should add matching achievements/hooks for visible actions, milestones or odd outcomes, or explicitly document why no durable event exists yet.
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
+- `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
 Current count: 110 enabled achievements and 12 disabled hidden future placeholders.
 

@@ -11,6 +11,7 @@ import {
   sendKorchmaDeepClosed,
   sendKorchmaFightingCorner,
   sendKorchmaFront,
+  sendKorchmaNewsCorner,
   sendKorchmaMemorialBoard,
   sendKorchmaRemortMilestoneBoard,
   sendTavern
@@ -29,15 +30,14 @@ const shynokActionRows = [
     { text: "🍺 Просте всім", callback_data: "v1:sh:rp:simple" },
     { text: "🍻 Якісне всім", callback_data: "v1:sh:rp:fine" }
   ],
-  [{ text: "💰 Продати манатки", callback_data: "v1:sh:so" }],
-  [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }]
+  [{ text: "💰 Продати манатки", callback_data: "v1:sh:so" }]
 ];
 
 describe("tavern command screens", () => {
   const dayInKyiv = new Date("2026-06-19T09:00:00.000Z");
   const nightInKyiv = new Date("2026-06-19T19:00:00.000Z");
 
-  it("shows front-of-korchma options with an enter button", async () => {
+  it("shows starter front-of-korchma options without Munchkin", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
     await sendKorchmaFront(
@@ -73,16 +73,28 @@ describe("tavern command screens", () => {
               text: "🏅 Пропамʼятна дошка",
               callback_data: makePlaceCallbackData("memorial")
             }
-          ],
-          [
-            {
-              text: "🎒 Манчкін-скупник",
-              callback_data: "v1:lvlx:open"
-            }
           ]
         ]
       }
     });
+    expect(replies[0]?.text).not.toContain("Манчкін-скупник");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:lvlx:open");
+  });
+
+  it("shows the front-door Munchkin option from level 3", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFront(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 3 }),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      { now: dayInKyiv }
+    );
+
+    expect(replies[0]?.text).toContain("Манчкін-скупник");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:lvlx:open");
   });
 
   it("hides the front-of-korchma entry hint after the player has seen it once", async () => {
@@ -252,6 +264,32 @@ describe("tavern command screens", () => {
               callback_data: makePlaceCallbackData("hall")
             }
           ]
+        ]
+      }
+    });
+  });
+
+  it("shows the news board as a location with news, gift and postal actions", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaNewsCorner(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("📰 Дошка корчми");
+    expect(replies[0]?.text).toContain("можна глянути вісти Квестарні");
+    expect(replies[0]?.text).toContain("передати пакунок через пошту");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "📰 Вісти", callback_data: "v1:news:list:0" }],
+          [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }],
+          [{ text: "📮 Пошта Квестарні", callback_data: "v1:post:open" }],
+          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });

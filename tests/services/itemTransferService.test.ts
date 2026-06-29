@@ -21,6 +21,11 @@ import type {
 
 const fixedNow = new Date("2026-06-24T12:00:00.000Z");
 const [earlierItem, selectedItem, shiftedItem] = pickOrderedEligibleItems();
+const bandage = items.find((item) => item.id === "item.responsible-panic-bandage");
+
+if (!bandage) {
+  throw new Error("Expected responsible panic bandage content.");
+}
 
 describe("ItemTransferService gift selection guards", () => {
   it("uses the guarded item when an earlier-sorting item is inserted before tap", async () => {
@@ -176,6 +181,34 @@ describe("ItemTransferService gift selection guards", () => {
     expect(result).toEqual({ state: "stale-selection" });
     expect(repository.createdInputs).toHaveLength(0);
   });
+
+  it("keeps trade-blocked bandages out of Safe Gifting selection while postal can list them", async () => {
+    const repository = new FakeItemTransferRepository([
+      stack(selectedItem),
+      stack(bandage)
+    ]);
+    const service = makeService(repository);
+
+    const giftSelection = await service.getSelectionForTelegramUser(1n, 2n);
+    expect(giftSelection.state).toBe("selection");
+    expect(giftSelection.state === "selection"
+      ? giftSelection.items.map((item) => item.itemId)
+      : []
+    ).toContain(selectedItem.id);
+    expect(giftSelection.state === "selection"
+      ? giftSelection.items.map((item) => item.itemId)
+      : []
+    ).not.toContain(bandage.id);
+
+    repository.postalTransfer = postalDraftRecord();
+    const postalDraft = await service.getPostalDraftForTelegramUser(1n, "postal-token", 0);
+
+    expect(postalDraft.state).toBe("draft");
+    expect(postalDraft.state === "draft"
+      ? postalDraft.items.map((item) => item.itemId)
+      : []
+    ).toContain(bandage.id);
+  });
 });
 
 function makeService(repository: FakeItemTransferRepository): ItemTransferService {
@@ -257,6 +290,7 @@ class FakeItemTransferRepository implements ItemTransferRepository {
   items: ItemTransferSnapshot["items"];
   equippedItemIds: string[] = [];
   reservedItemIds: string[] = [];
+  postalTransfer: ItemTransferRecord | null = null;
   readonly createdInputs: ItemTransferCreateInput[] = [];
 
   constructor(itemsSnapshot: ItemTransferSnapshot["items"]) {
@@ -290,6 +324,38 @@ class FakeItemTransferRepository implements ItemTransferRepository {
     throw new Error("Not used in these tests.");
   }
 
+  getPostalRecipientsForTelegramUser(): Promise<never> {
+    throw new Error("Not used in these tests.");
+  }
+
+  createPostalDraftForTelegramUser(): Promise<never> {
+    throw new Error("Not used in these tests.");
+  }
+
+  updatePostalDraftForTelegramUser(): Promise<never> {
+    throw new Error("Not used in these tests.");
+  }
+
+  findPostalTransferForTelegramUser(): Promise<ItemTransferRecord | null> {
+    return Promise.resolve(this.postalTransfer);
+  }
+
+  confirmPostalDraftForTelegramUser(): Promise<never> {
+    throw new Error("Not used in these tests.");
+  }
+
+  cancelPostalForTelegramUser(): Promise<never> {
+    throw new Error("Not used in these tests.");
+  }
+
+  declinePostalForTelegramUser(): Promise<never> {
+    throw new Error("Not used in these tests.");
+  }
+
+  acceptPostalForTelegramUser(): Promise<never> {
+    throw new Error("Not used in these tests.");
+  }
+
   cancelGiftForTelegramUser(): Promise<never> {
     throw new Error("Not used in these tests.");
   }
@@ -316,10 +382,13 @@ function transferFromInput(input: ItemTransferCreateInput): ItemTransferRecord {
     senderRemortCount: 0,
     receiverRemortCount: 0,
     locationId: "location.korchma.bar",
+    transferKind: "gift",
     itemId: input.item.id,
     itemName: input.item.name,
     itemFingerprint: input.itemFingerprint,
     quantity: 1,
+    packageLines: [],
+    deliveryFeeGold: 0,
     status: "pending",
     result: null,
     expiresAt: input.expiresAt,
@@ -327,5 +396,35 @@ function transferFromInput(input: ItemTransferCreateInput): ItemTransferRecord {
     respondedAt: null,
     createdAt: input.now,
     updatedAt: input.now
+  };
+}
+
+function postalDraftRecord(): ItemTransferRecord {
+  return {
+    id: "postal-transfer-1",
+    token: "postal-token",
+    senderCharacterId: "sender",
+    receiverCharacterId: "receiver",
+    senderTelegramUserId: 1n,
+    receiverTelegramUserId: 2n,
+    senderName: "Sender",
+    receiverName: "Receiver",
+    senderRemortCount: 0,
+    receiverRemortCount: 0,
+    locationId: null,
+    transferKind: "postal",
+    itemId: "postal-package",
+    itemName: "Postal package",
+    itemFingerprint: "postal-package",
+    quantity: 0,
+    packageLines: [],
+    deliveryFeeGold: 0,
+    status: "draft",
+    result: null,
+    expiresAt: new Date(fixedNow.getTime() + 60_000),
+    completedAt: null,
+    respondedAt: null,
+    createdAt: fixedNow,
+    updatedAt: fixedNow
   };
 }

@@ -96,7 +96,7 @@ Current repeatable slice:
 Status:
 - Closed by `0.1.25 — Phase 2 MVP Closeout`.
 - `0.1.x` should receive only emergency hotfixes after this closeout.
-- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, multi-enemy foundation shipped in `0.2.1`, architecture stabilization shipped in `0.2.2`, ordinary threat escalation shipped in `0.2.3`, item tags/one-use bandages shipped in `0.2.4`, Bard Performance shipped in `0.2.5`, Passage Search shipped in `0.2.6`, Player Abilities shipped in `0.2.7`, rewardless achievements/cosmetic title records shipped in `0.2.8`, Daily Korchma Rounds shipped in `0.2.9`, Active Cosmetic Title Selection shipped in `0.2.10`, Combat Balance / Monster Signature Proof shipped in `0.2.11`, and Two-Enemy Threat Simulation / Outlier Tuning shipped in `0.2.12`.
+- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, multi-enemy foundation shipped in `0.2.1`, architecture stabilization shipped in `0.2.2`, ordinary threat escalation shipped in `0.2.3`, item tags/one-use bandages shipped in `0.2.4`, Bard Performance shipped in `0.2.5`, Passage Search shipped in `0.2.6`, Player Abilities shipped in `0.2.7`, rewardless achievements/cosmetic title records shipped in `0.2.8`, Daily Korchma Rounds shipped in `0.2.9`, Active Cosmetic Title Selection shipped in `0.2.10`, Combat Balance / Monster Signature Proof shipped in `0.2.11`, Two-Enemy Threat Simulation / Outlier Tuning shipped in `0.2.12`, and Postal Manatka Delivery shipped in `0.2.13`.
 
 Current order:
 1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
@@ -130,7 +130,7 @@ Canonical docs:
 Closeout cutline:
 - `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
 - `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
-- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice; `0.2.5` shipped the first no-XP Bard Performance social technique; `0.2.6` shipped the first no-XP Passage Search side action for `Спуск до Низу` and passage previews; `0.2.7` shipped player class/race combat abilities; `0.2.8` shipped rewardless achievement browsing and cosmetic title grant records; `0.2.9` shipped the once-per-Kyiv-day Daily Korchma Round route; `0.2.10` shipped active cosmetic title selection; `0.2.11` shipped a bounded combat-balance and monster-signature readability proof; `0.2.12` shipped two-enemy threat simulation, backup pressure guards and targeted outlier tuning. Broader trading, equipment rebalance, profession engines, in-combat item catalogs, active title abilities and party/raid runtime stay in later `0.2.x+` slices.
+- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice; `0.2.5` shipped the first no-XP Bard Performance social technique; `0.2.6` shipped the first no-XP Passage Search side action for `Спуск до Низу` and passage previews; `0.2.7` shipped player class/race combat abilities; `0.2.8` shipped rewardless achievement browsing and cosmetic title grant records; `0.2.9` shipped the once-per-Kyiv-day Daily Korchma Round route; `0.2.10` shipped active cosmetic title selection; `0.2.11` shipped a bounded combat-balance and monster-signature readability proof; `0.2.12` shipped two-enemy threat simulation, backup pressure guards and targeted outlier tuning; `0.2.13` shipped paid postal delivery for bounded manatka packages to known recipients. Broader trading, equipment rebalance, profession engines, in-combat item catalogs, active title abilities and party/raid runtime stay in later `0.2.x+` slices.
 - The next implementation prompt should be chosen from the current `0.2.x` task docs, with active title abilities and selected signature techniques split into separate evidence-gated follow-ups.
 
 Deliverables:
@@ -150,7 +150,7 @@ Deliverables:
 - `0.2.10` Active Cosmetic Title Selection: shipped `🏷️ Титули` from `/hero`, owned title browsing, one active cosmetic title pointer, clear action, remort-count stale callback protection, safe archive rows and a separate no-power hero-card display.
 - `0.2.11` Combat Balance and Monster Signature Proof: shipped a bounded generic monster stat-curve tune, selected class ability constant tightening and presentation-only monster signature lines for stored skill/telegraph ids in active cards, multi-enemy responses and journal replay, with no reward/economy/schema/title-power changes.
 - `0.2.12` Two-Enemy Threat Simulation and Outlier Tuning: shipped deterministic one-enemy/two-enemy simulator modes with race aggregates, backup threat pressure guards and narrow tax-dragon/siege-varenyk/race guardrail tuning, with no reward/economy/schema/achievement changes.
-- Later postal/courier gifting: paid delivery of one eligible манатка to a known recipient without same-location presence, after safe gifting proves stable.
+- `0.2.13` Postal Manatka Delivery MVP: shipped `📮 Пошта Квестарні` for paid delivery of 1-5 distinct eligible `itemId` stack types, 1-93 units each, to known recipients from completed transfer history, with explicit recipient acceptance, no location/online leak, sender-paid send-time fee, postal custody while packages are pending, one-week pending packages, explicit bandage/tag-blocked manual package support, in-transit/history overview rows and all-or-nothing replay-safe package movement.
 - Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
 - Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
 - Threat escalation follow-up: broader tiers, Yeger/Adventure integration, location pools and reward scaling remain deferred beyond the `0.2.3` ordinary-only MVP; see `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md` as design input, not shipped scope.
@@ -211,7 +211,7 @@ Done when:
 Deliverables:
 - Friendly Chest / Манатко-скриня as the first item-volume sink.
 - Safe gifting/trading grows beyond the first Phase 2 MVP only after audit/idempotency proves stable.
-- Postal/courier delivery can extend gifting to non-nearby known recipients only with an explicit delivery fee, recipient opt-in, privacy-safe recipient selection and the same reservation rules as safe gifting.
+- Postal/courier delivery shipped a first known-recipient package slice in `0.2.13`; future expansion must keep explicit delivery fees, recipient opt-in, privacy-safe recipient selection and the same reservation rules as safe gifting.
 - Repair/enchant/reroll.
 - Simple crafting.
 - Item sink.

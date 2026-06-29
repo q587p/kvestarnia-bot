@@ -3,7 +3,7 @@ import { items } from "../../content";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { buildCellarMethodOptions } from "../../services/cellarErrandService";
 import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "../../services/itemGrant";
-import { makeCellarCallbackData, makeCellarMethodCallbackData } from "../callbacks/cellarCallbackData";
+import { makeCellarCallbackData, makeCellarMethodBackCallbackData, makeCellarMethodCallbackData, makeCellarMethodHelpCallbackData } from "../callbacks/cellarCallbackData";
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -20,7 +20,10 @@ export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboar
         .row();
     }
 
-    keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
+    keyboard
+      .text("💡 Підказка", makeCellarMethodHelpCallbackData())
+      .row()
+      .text("⬅️ До зали", makePlaceCallbackData("hall"));
 
     return keyboard;
   }
@@ -31,6 +34,21 @@ export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboar
     .text("🧹 Підмести хоробро", makeCellarCallbackData("sweep-bravely"))
     .row()
     .text("🤝 Домовитись із мишею", makeCellarCallbackData("negotiate"))
+    .row()
+    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildCellarMethodHelpKeyboard(character: CharacterSummary): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const method of buildCellarMethodOptions(character)) {
+    keyboard
+      .text(method.buttonLabel ?? method.label, makeCellarMethodCallbackData(method.callbackKey ?? method.id))
+      .row();
+  }
+
+  return keyboard
+    .text("⬅️ Назад", makeCellarMethodBackCallbackData())
     .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }

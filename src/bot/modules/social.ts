@@ -2,9 +2,11 @@ import { type Bot } from "grammy";
 import { type CallbackParseResult, registerParsedCallbackRoute } from "../callbackRoute";
 import { parseDuelCallbackData } from "../callbacks/duelCallbackData";
 import { parseItemGiftCallbackData } from "../callbacks/itemGiftCallbackData";
+import { parseItemPostalCallbackData } from "../callbacks/itemPostalCallbackData";
 import { parseNearbyDuelCallbackData } from "../callbacks/nearbyDuelCallbackData";
 import { handleDuelCallback, registerDuelCommand } from "../commands/duelCommand";
 import { handleItemGiftCallback } from "../commands/itemGiftCommand";
+import { handleItemPostalCallback } from "../commands/itemPostalCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
 import { playerFromContext } from "../context";
 
@@ -41,6 +43,20 @@ export function registerSocialBotModule(
       }
 
       await handleItemGiftCallback(ctx, callback, service);
+    }
+  );
+
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:post:/,
+    (data) => parseWhenAvailable(data, parseItemPostalCallbackData, services.itemTransfers),
+    async (ctx, { callback, service }) => {
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+        return;
+      }
+
+      await handleItemPostalCallback(ctx, callback, service);
     }
   );
 

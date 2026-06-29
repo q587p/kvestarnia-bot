@@ -426,17 +426,24 @@ async function handleOnboardingCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
+  const achievementText = presentAchievementUnlockNotification(result.value.achievementUnlocks);
+  const mainMenuKeyboard = buildMainMenuKeyboard();
   await safeEditMessageText(
     ctx,
-    presentCharacterCreated(result.value.character, result.value.created),
+    presentCharacterCreated(result.value.character, result.value.created, {
+      includeKvestarniaOpened: Boolean(achievementText)
+    }),
     HTML_MESSAGE_OPTIONS
   );
-  const achievementText = presentAchievementUnlockNotification(result.value.achievementUnlocks);
   if (achievementText) {
-    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    await ctx.reply(achievementText, {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: mainMenuKeyboard
+    });
+    return;
   }
   await ctx.reply("🍺 Квестарня відчинена.", {
-    reply_markup: buildMainMenuKeyboard()
+    reply_markup: mainMenuKeyboard
   });
 }
 

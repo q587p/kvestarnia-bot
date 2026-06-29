@@ -29,7 +29,6 @@ import {
 sendHuntBoard
 } from "../commands/huntCommand";
 import { sendInventory } from "../commands/inventoryCommand";
-import { sendNewsList } from "../commands/newsCommand";
 import { sendOnline } from "../commands/onlineCommand";
 import {
 sendQuestHub
@@ -39,12 +38,14 @@ sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
 sendKorchmaFront,
+sendKorchmaNewsCorner,
 sendKorchmaYard,
 sendTavern,
 sendTavernBarrel
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
 import { parseFightCallbackData } from "../callbacks/fightCallbackData";
+import { parseOnboardingCallbackData } from "../callbacks/onboardingCallbackData";
 import {
 buildMainMenuKeyboard,
 getMainMenuLocationButtonPresenceId,
@@ -159,6 +160,11 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
   bot.on("callback_query:data", async (ctx, next) => {
     const isPlaceCallback = parsePlaceCallbackData(ctx.callbackQuery.data).ok;
     if (isPlaceCallback) {
+      await next();
+      return;
+    }
+    const isOnboardingCallback = parseOnboardingCallbackData(ctx.callbackQuery.data).ok;
+    if (isOnboardingCallback) {
       await next();
       return;
     }
@@ -466,12 +472,7 @@ async function sendCurrentPresenceLocation(
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER) {
-    await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
-      currentRaidId: null,
-      currentAdventureId: null
-    });
-    await sendNewsList(ctx, 0, "reply");
+    await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
     return;
   }
 

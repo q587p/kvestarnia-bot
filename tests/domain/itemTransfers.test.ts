@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildItemGiftEligibleStacks,
+  buildItemPostalEligibleStacks,
+  calculatePostalDeliveryFee,
   createItemGiftFingerprint,
+  packageLineFromEligibleStack,
+  validatePostalPackageLines,
   selectGiftStackByIndex
 } from "../../src/domain/itemTransfers";
 import type { ItemContent } from "../../src/content/schema";
@@ -75,6 +79,25 @@ describe("item gift eligibility", () => {
     expect(eligible.map((stack) => stack.itemId)).toEqual([giftable.id]);
   });
 
+  it("allows explicit postal packages to include owned blocked or priceless stacks", () => {
+    const eligible = buildItemPostalEligibleStacks({
+      stacks: [
+        { itemId: giftable.id, quantity: 1 },
+        { itemId: tradeBlocked.id, quantity: 2 },
+        { itemId: soulbound.id, quantity: 3 },
+        { itemId: priceless.id, quantity: 4 }
+      ],
+      itemContents: [giftable, tradeBlocked, soulbound, priceless]
+    });
+
+    expect(eligible.map((stack) => [stack.itemId, stack.quantity])).toEqual([
+      [giftable.id, 1],
+      [tradeBlocked.id, 2],
+      [soulbound.id, 3],
+      [priceless.id, 4]
+    ]);
+  });
+
   it("includes transfer tags in the gift fingerprint so tag edits stale old selections", () => {
     expect(createItemGiftFingerprint(giftable)).not.toBe(createItemGiftFingerprint({
       ...giftable,
@@ -90,6 +113,34 @@ describe("item gift eligibility", () => {
 
     expect(selectGiftStackByIndex(eligible, 0)?.itemId).toBe(giftable.id);
     expect(selectGiftStackByIndex(eligible, 1)).toBeNull();
+  });
+
+  it("enforces postal package caps and fee formula", () => {
+    const eligible = buildItemGiftEligibleStacks({
+      stacks: [{ itemId: giftable.id, quantity: 100 }],
+      itemContents: [giftable]
+    });
+    const line = packageLineFromEligibleStack(eligible[0]!, 93);
+
+    expect(line).toMatchObject({ itemId: giftable.id, quantity: 93, observedQuantity: 100 });
+    expect(validatePostalPackageLines([line])).toBe(true);
+    expect(validatePostalPackageLines([{ ...line, quantity: 0 }])).toBe(false);
+    expect(validatePostalPackageLines([{ ...line, quantity: 94 }])).toBe(false);
+    expect(validatePostalPackageLines([line, { ...line }])).toBe(false);
+    expect(validatePostalPackageLines([
+      line,
+      { ...line, itemId: "item.2" },
+      { ...line, itemId: "item.3" },
+      { ...line, itemId: "item.4" },
+      { ...line, itemId: "item.5" },
+      { ...line, itemId: "item.6" }
+    ])).toBe(false);
+    expect(calculatePostalDeliveryFee([{ quantity: 93 }])).toBe(6);
+    expect(calculatePostalDeliveryFee([
+      { quantity: 1 },
+      { quantity: 93 },
+      { quantity: 42 }
+    ])).toBe(8);
   });
 });
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   presentCellarCooldown,
   presentCellarGrownupQuest,
+  presentCellarIntro,
+  presentCellarMethodHelp,
   presentCellarGrownupResult,
   presentCellarResult,
   presentCellarStart
@@ -13,23 +15,46 @@ import type {
 import type { CellarGrownupQuestLookupResult } from "../../src/services/cellarGrownupQuestService";
 
 describe("cellar presenter", () => {
-  it("renders cellar start scene with method descriptions and HTML quote", () => {
+  it("renders cellar intro as a separate scene header", () => {
+    const text = presentCellarIntro(ready);
+
+    expect(text).toContain("Корчмар показує на люк під баром.");
+    expect(text).toContain("<blockquote>");
+    expect(text).toContain("Корчмар:");
+    expect(text).toContain("Миша:");
+    expect(text).not.toContain("🐭 Льохова справа");
+    expect(text).not.toContain("Можливі способи");
+    expect(text).not.toContain("що робимо?");
+  });
+
+  it("renders cellar start action card with a compact method list", () => {
     const text = presentCellarStart(ready);
 
     expect(text).toContain("🐭 Льохова справа");
-    expect(text).toContain("<blockquote>");
-    expect(text).toContain("Миша:");
-    expect(text).toContain("Можливі способи:");
+    expect(text).not.toContain("<blockquote>");
+    expect(text).not.toContain("Корчмар показує на люк");
+    expect(text).toContain("<i>Можливі способи:</i>");
+    expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
+    expect(text).not.toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
+    expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
+    expect(text).not.toContain("Винагорода скромніша. Коштує 1 золото.");
+    expect(text).not.toMatch(/Шанси \d|Підпис методу|race\+class/u);
+    expect(text).toContain("що робимо?");
+    expect(text.split("\n").length).toBeLessThanOrEqual(24);
+  });
+
+  it("renders cellar method help separately", () => {
+    const text = presentCellarMethodHelp(ready);
+
+    expect(text).toContain("Детальніше про способи:");
     expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
     expect(text).toContain("<i>Пастка й сліди. Винагорода звичайна. Можна постраждати.</i>");
     expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
     expect(text).toContain("<i>Винагорода скромніша. Коштує 1 золото.</i>");
-    expect(text).not.toMatch(/Шанси \d|Підпис методу|race\+class/u);
-    expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(30);
+    expect(text).not.toContain("що робимо?");
   });
 
-  it("separates cellar combo title flavor from the following beat", () => {
+  it("omits cellar combo title prefix from the start action card", () => {
     const text = presentCellarStart({
       state: "ready",
       character: {
@@ -42,7 +67,9 @@ describe("cellar presenter", () => {
       }
     });
 
-    expect(text).toContain("Кандидати Бойових Наук у льосі.\n\n");
+    expect(text).not.toContain("Кандидати Бойових Наук у льосі.");
+    expect(text).not.toContain("Шахтна Іскрознавиця у льосі.");
+    expect(text).toContain("Мишача позиція отримує шанс бути розібраною етично й дуже переконливо.");
   });
 
   it("adds character-aware flavor to cellar start and outcome scenes", () => {
@@ -52,7 +79,7 @@ describe("cellar presenter", () => {
       raceName: "Домовик"
     };
 
-    expect(presentCellarStart({ state: "ready", character: domovyk })).toContain(
+    expect(presentCellarIntro({ state: "ready", character: domovyk })).toContain(
       "не плутати мою автономію з вашим житловим фондом"
     );
     expect(

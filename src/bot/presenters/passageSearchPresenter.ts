@@ -4,7 +4,7 @@ import type {
   PassageSearchStartResult
 } from "../../services/passageSearchService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1 } from "../../services/presenceService";
-import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import { escapeHtml } from "./telegramHtml";
 
 type SearchResult = PassageSearchStartResult | PassageSearchCheckResult | PassageSearchCancelPreviewResult;
 
@@ -14,7 +14,6 @@ export function presentPassageSearch(result: SearchResult): string {
     case "running":
       return [
         "🔎 <b>Пошук триває</b>",
-        presentCharacterHeader(result.character),
         "",
         `${presentNodeLine(result.action.payload)} Пригодник порпається обережно, бо Низ любить різкі висновки.`,
         "",
@@ -23,7 +22,6 @@ export function presentPassageSearch(result: SearchResult): string {
     case "confirm-cancel":
       return [
         "✋ <b>Збити пошук?</b>",
-        presentCharacterHeader(result.character),
         "",
         "Якщо припинити зараз, знахідки не буде, а місцевий пошуковий настрій уже піде на перерву.",
         "",
@@ -32,7 +30,6 @@ export function presentPassageSearch(result: SearchResult): string {
     case "cooldown":
       return [
         "🔎 <b>Тут щойно шукали</b>",
-        presentCharacterHeader(result.character),
         "",
         "Пил ще не встиг осісти, а Низ дуже цінує драматичну паузу.",
         "",
@@ -41,14 +38,12 @@ export function presentPassageSearch(result: SearchResult): string {
     case "needs-rest":
       return [
         "❤️ <b>Не до пошуків</b>",
-        presentCharacterHeader(result.character),
         "",
         "Пригодник тримається на настільки чесному слові, що навіть пил відмовляється співпрацювати."
       ].join("\n");
     case "completed":
       return [
         "🎒 <b>Щось знайшлося</b>",
-        presentCharacterHeader(result.character),
         "",
         "Низ бурчить, але віддає кілька доказів чужого оптимізму.",
         "",
@@ -57,28 +52,24 @@ export function presentPassageSearch(result: SearchResult): string {
     case "nothing":
       return [
         "🕳️ <b>Порожньо</b>",
-        presentCharacterHeader(result.character),
         "",
         "Ви знайшли пил, сумнів і дуже переконливий камінець. Камінець лишився на місці."
       ].join("\n");
     case "cancelled":
       return [
         "✋ <b>Пошук збито</b>",
-        presentCharacterHeader(result.character),
         "",
         "Пригодник відступив від пилу. Пил записав це як перемовини."
       ].join("\n");
     case "monster-attack":
       return [
         "⚔️ <b>Пошук образив місцевого мешканця</b>",
-        presentCharacterHeader(result.character),
         "",
         "Перший хід за монстром: ви були зайняті пошуками."
       ].join("\n");
     case "no-reward":
       return [
         "🔎 <b>Пошук не склався</b>",
-        presentCharacterHeader(result.character),
         "",
         result.reason === "dead"
           ? "Пригодник зараз не в стані оцінювати знахідки."

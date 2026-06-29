@@ -30,6 +30,8 @@ type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
 const SUPPORTED_REMORT_COMBAT_LEASE_KIND = "solo-combat";
 const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
+const OUTGOING_POSTAL_CUSTODY_REMORT_REASON =
+  "Спершу скасуйте відправлений пакунок або дочекайтеся відповіді чи завершення строку. Пошта не пускає манатки між життями.";
 
 export class PrismaRemortRepository implements RemortRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -230,6 +232,10 @@ export class PrismaRemortRepository implements RemortRepository {
 
       if (validation.state === "invalid-draft") {
         return validation;
+      }
+
+      if (await hasOutgoingPostalCustodyForRemort(tx, character.id)) {
+        return { state: "invalid-draft", reason: OUTGOING_POSTAL_CUSTODY_REMORT_REASON };
       }
 
       const activeCombat = await prepareActiveCombatForRemort(tx, character.id, input.now);
@@ -647,6 +653,8 @@ async function cancelShynokLifecycleForRemort(
     }
   });
 
+  await restoreIncomingPostalCustodyForRemort(tx, characterId);
+
   await tx.itemTransfer.updateMany({
     where: {
       OR: [
@@ -654,7 +662,7 @@ async function cancelShynokLifecycleForRemort(
         { receiverCharacterId: characterId }
       ],
       status: {
-        in: ["pending", "processing"]
+        in: ["draft", "pending", "processing"]
       }
     },
     data: {
@@ -685,6 +693,71 @@ async function cancelShynokLifecycleForRemort(
       }
     }
   });
+}
+
+async function restoreIncomingPostalCustodyForRemort(tx: TxClient, receiverCharacterId: string): Promise<void> {
+  const transfers = await tx.itemTransfer.findMany({
+    where: {
+      transferKind: "postal",
+      receiverCharacterId,
+      status: "pending"
+    },
+    select: {
+      senderCharacterId: true,
+      packageJson: true,
+      resultJson: true
+    }
+  });
+
+  await restorePostalCustodyLinesToSenders(tx, transfers);
+}
+
+async function hasOutgoingPostalCustodyForRemort(tx: TxClient, senderCharacterId: string): Promise<boolean> {
+  const transfers = await tx.itemTransfer.findMany({
+    where: {
+      transferKind: "postal",
+      senderCharacterId,
+      status: {
+        in: ["pending", "processing"]
+      }
+    },
+    select: {
+      resultJson: true
+    }
+  });
+
+  return transfers.some((transfer) => isPostalSenderDebited(transfer.resultJson));
+}
+
+async function restorePostalCustodyLinesToSenders(
+  tx: TxClient,
+  transfers: readonly { senderCharacterId: string; packageJson: unknown; resultJson: unknown }[]
+): Promise<void> {
+  for (const transfer of transfers) {
+    if (!isPostalSenderDebited(transfer.resultJson)) {
+      continue;
+    }
+    for (const line of parsePostalPackageItems(transfer.packageJson)) {
+      const updated = await tx.characterItem.updateMany({
+        where: {
+          characterId: transfer.senderCharacterId,
+          itemId: line.itemId
+        },
+        data: {
+          quantity: { increment: line.quantity }
+        }
+      });
+      if (updated.count === 0) {
+        await tx.characterItem.create({
+          data: {
+            characterId: transfer.senderCharacterId,
+            itemId: line.itemId,
+            quantity: line.quantity
+          }
+        });
+      }
+    }
+  }
 }
 
 async function resetCurrentLifeStateForRemort(tx: TxClient, characterId: string): Promise<void> {
@@ -928,6 +1001,25 @@ function parseKeptItems(value: unknown): Array<{ itemId: string; quantity: numbe
 
     return quantity > 0 ? [{ itemId: entry.itemId, quantity }] : [];
   });
+}
+
+function parsePostalPackageItems(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.itemId !== "string") {
+      return [];
+    }
+
+    const quantity = intOrZero(entry.quantity);
+    return quantity > 0 ? [{ itemId: entry.itemId, quantity }] : [];
+  });
+}
+
+function isPostalSenderDebited(value: unknown): boolean {
+  return isRecord(value) && value.postalCustody === "sender-debited";
 }
 
 function toCharacterRecord(

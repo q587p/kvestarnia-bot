@@ -7,11 +7,16 @@ import {
 import { toQuestCallbackKey } from "../../src/content/questResolution";
 import {
   makeAdventureApproachCallbackData,
+  makeAdventureProblemHelpCallbackData,
+  makeMimicShawarmaBackCallbackData,
   makeMimicShawarmaMethodCallbackData,
+  makeMimicShawarmaHelpCallbackData,
   makeAdventureProblemCallbackData
 } from "../../src/bot/callbacks/adventureCallbackData";
 import {
   makeCellarCallbackData,
+  makeCellarMethodBackCallbackData,
+  makeCellarMethodHelpCallbackData,
   makeCellarMethodCallbackData
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
@@ -27,6 +32,7 @@ import {
   makeLevelBarterAutoCallbackData,
   makeLevelBarterOpenCallbackData
 } from "../../src/bot/callbacks/levelBarterCallbackData";
+import { makeConfirmCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
@@ -521,6 +527,131 @@ describe("scene callback HTML options", () => {
     expect(String(edits[0]?.payload.text)).toContain("1");
     expect(String(edits[1]?.payload.text)).not.toContain("Сирний фонд офіційно зашаршів");
     expect(String(edits[1]?.payload.text)).not.toContain("Списано");
+  });
+
+  it("renders adventure method help without completing the selected problem", async () => {
+    const completeAdventureApproach = vi.fn();
+    const selectAdventureProblem = vi.fn(() =>
+      Promise.resolve({
+        state: "selected" as const,
+        character,
+        offer: adventureOffer,
+        choice: adventureChoice,
+        approaches: [adventureApproach]
+      })
+    );
+    const calls = await captureApiCalls(
+      makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      servicesWith({
+        adventure: {
+          selectAdventureProblem,
+          completeAdventureApproach
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(selectAdventureProblem).toHaveBeenCalledWith(42n, {
+      type: "problem-help",
+      periodToken: "period93",
+      problemId: "stew"
+    });
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(edit?.payload.parse_mode).toBe("HTML");
+    expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
+    expect(String(edit?.payload.text)).toContain("🎵 Продиригувати юшкою");
+    expect(String(edit?.payload.text)).toContain("<i>винагорода звичайна. Непевно.</i>");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("💡 Підказка");
+  });
+
+  it("renders starter shawarma help without completing the starter scene", async () => {
+    const completeMimicShawarma = vi.fn();
+    const calls = await captureApiCalls(
+      makeMimicShawarmaHelpCallbackData(),
+      servicesWith({
+        adventure: {
+          getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeMimicShawarma
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeMimicShawarma).not.toHaveBeenCalled();
+    expect(edit?.payload.parse_mode).toBe("HTML");
+    expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
+    expect(String(edit?.payload.text)).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
+    expect(String(edit?.payload.text)).toContain("<i>Розслідування без поспіху");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("💡 Підказка");
+  });
+
+  it("returns from starter shawarma help to the compact starter card", async () => {
+    const completeMimicShawarma = vi.fn();
+    const calls = await captureApiCalls(
+      makeMimicShawarmaBackCallbackData(),
+      servicesWith({
+        adventure: {
+          getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          completeMimicShawarma
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(completeMimicShawarma).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("🌯 Підозріла шаурма");
+    expect(String(edit?.payload.text)).toContain("<i>Можливі способи:</i>");
+    expect(String(edit?.payload.text)).not.toContain("Детальніше про способи:");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("💡 Підказка");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("⬅️ Назад");
+  });
+
+  it("renders cellar method help without completing the cellar errand", async () => {
+    const complete = vi.fn();
+    const calls = await captureApiCalls(
+      makeCellarMethodHelpCallbackData(),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(complete).not.toHaveBeenCalled();
+    expect(edit?.payload.parse_mode).toBe("HTML");
+    expect(String(edit?.payload.text)).toContain("Детальніше про способи:");
+    expect(String(edit?.payload.text)).toContain("🧀 Поставити пастку по маршруту крихт");
+    expect(String(edit?.payload.text)).toContain("<i>Пастка й сліди");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ Назад");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("💡 Підказка");
+  });
+
+  it("returns from cellar method help to the compact cellar action card", async () => {
+    const complete = vi.fn();
+    const calls = await captureApiCalls(
+      makeCellarMethodBackCallbackData(),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character }),
+          complete
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(complete).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(edit?.payload.text)).toContain("<i>Можливі способи:</i>");
+    expect(String(edit?.payload.text)).not.toContain("Детальніше про способи:");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("💡 Підказка");
+    expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("⬅️ Назад");
   });
 
   it("renders stale state for hidden v2 adventure method callbacks", async () => {
@@ -2550,7 +2681,8 @@ describe("scene callback HTML options", () => {
     const messages = calls.filter((call) => call.method === "sendMessage");
 
     expect(String(messages[0]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
-    expect(String(messages[1]?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(messages[1]?.payload.text)).toContain("Корчмар показує на люк під баром.");
+    expect(String(messages[2]?.payload.text)).toContain("🐭 Льохова справа");
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: "location.korchma.cellar",
@@ -2787,6 +2919,56 @@ describe("scene callback HTML options", () => {
     ]);
     expect(markAction.mock.calls.some(([input]) => input.locationId === "location.korchma.deep.level1")).toBe(false);
     expect(recordPersistentFightMessageReference).toHaveBeenCalledTimes(1);
+  });
+
+  it("combines onboarding completion with the Kvestarnia opened line without an outdoor movement notice", async () => {
+    const calls = await captureApiCalls(
+      makeConfirmCallbackData("he", "race.human-ish", "class.warrior"),
+      servicesWith({
+        onboarding: {
+          complete: () => Promise.resolve({
+            ok: true as const,
+            value: {
+              character,
+              created: true,
+              achievementUnlocks: [
+                {
+                  id: "achievement.character.created",
+                  title: "Де тут вихід?",
+                  cosmeticTitleGrantId: "cosmetic-title.first-ink",
+                  unlockedAt: new Date("2026-06-28T09:00:00.000Z")
+                }
+              ]
+            }
+          })
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.front",
+              locationName: "Перед корчмою",
+              insideKorchma: false
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const messages = calls.filter((call) => call.method === "sendMessage");
+    const achievement = messages.find((call) => String(call.payload.text).includes("Нова ачівка"));
+
+    expect(String(edit?.payload.text)).toContain("🎒 Пригодника створено.");
+    expect(String(edit?.payload.text)).toContain("🍺 Квестарня відчинена.");
+    expect(messages.some((call) => String(call.payload.text) === "🍺 Квестарня відчинена.")).toBe(false);
+    expect(messages.some((call) => String(call.payload.text).includes("Ви вийшли надвір."))).toBe(false);
+    expect(JSON.stringify(achievement?.payload.reply_markup)).toContain(mainMenuButtons.hero);
   });
 
   it("uses an outdoor movement notice when leaving the korchma", async () => {

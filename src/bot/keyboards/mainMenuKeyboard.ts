@@ -38,7 +38,7 @@ export const mainMenuLocationButtons = {
   bar: "🍻 Шинок",
   cellar: "🧹 Льох корчми",
   barrel: "🛢️ Біля Бочки",
-  newsCorner: "📰 Дошка вістей",
+  newsCorner: "📰 Дошка корчми",
   rangerCorner: "🏹 Єгерський куток",
   fightingCorner: "🥊 Бійцівський куток",
   deep: "🪜 Низ",

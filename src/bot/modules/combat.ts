@@ -394,7 +394,7 @@ async function handleFightCallback(
         return;
       }
       if (gate.state === "persistent-ready") {
-        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
+        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(), {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPersistentFightDifficultyKeyboard({
             searchAvailable: await isPassageSearchAvailable(
@@ -449,7 +449,7 @@ async function handleFightCallback(
         return;
       }
       if (gate.state === "persistent-ready") {
-        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(gate), {
+        await safeEditMessageText(ctx, presentPersistentFightDifficultyChoice(), {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPersistentFightDifficultyKeyboard({
             searchAvailable: await isPassageSearchAvailable(

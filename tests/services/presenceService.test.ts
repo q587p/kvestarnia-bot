@@ -536,7 +536,7 @@ describe("PresenceService", () => {
         {
           telegramUserId: 2n,
           name: "Дара",
-          activeCosmeticTitle: "Перший пергамент не зʼїв"
+          activeCosmeticTitle: "Перший писар"
         }
       ]
     });

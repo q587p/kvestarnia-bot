@@ -413,7 +413,7 @@ describe("DuelChallengeService", () => {
       challenger: {
         name: "Старе Імʼя",
         level: 3,
-        activeCosmeticTitle: "Перший пергамент не зʼїв"
+        activeCosmeticTitle: "Перший писар"
       }
     });
     if (replay.state === "resolved") {
@@ -994,7 +994,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-1",
           name: "Пані Сила",
-          activeCosmeticTitle: "Перший пергамент не зʼїв",
+          activeCosmeticTitle: "Перший писар",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -1002,7 +1002,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
-          activeCosmeticTitle: "Табурет навчився хитатися",
+          activeCosmeticTitle: "Табуретник",
           winCount: 0,
           drawCount: 1,
           lossCount: 1
@@ -1012,7 +1012,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-1",
           name: "Пані Сила",
-          activeCosmeticTitle: "Перший пергамент не зʼїв",
+          activeCosmeticTitle: "Перший писар",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -1020,7 +1020,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
-          activeCosmeticTitle: "Табурет навчився хитатися",
+          activeCosmeticTitle: "Табуретник",
           winCount: 0,
           drawCount: 1,
           lossCount: 1
@@ -1030,7 +1030,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-1",
           name: "Пані Сила",
-          activeCosmeticTitle: "Перший пергамент не зʼїв",
+          activeCosmeticTitle: "Перший писар",
           winCount: 1,
           drawCount: 1,
           lossCount: 0
@@ -1038,7 +1038,7 @@ describe("DuelChallengeService", () => {
         {
           characterId: "character-2",
           name: "Пан Обережний",
-          activeCosmeticTitle: "Табурет навчився хитатися",
+          activeCosmeticTitle: "Табуретник",
           winCount: 0,
           drawCount: 1,
           lossCount: 1
