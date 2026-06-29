@@ -21,13 +21,17 @@ describe("bot command catalog", () => {
       "quest",
       "inventory",
       "news",
-      "help"
+      "help",
+      "support"
     ]);
     expect(commands.find((entry) => entry.command === "hero")?.description).toBe(
       "👤 персонаж і прогрес"
     );
     expect(commands.find((entry) => entry.command === "help")?.description).toBe("📖 допомога");
-    expect(commands).toHaveLength(6);
+    expect(commands.find((entry) => entry.command === "support")?.description).toBe(
+      "🫙 добровільна підтримка без бонусів"
+    );
+    expect(commands).toHaveLength(7);
     expect(commands.some((entry) => entry.command === "profile")).toBe(false);
     expect(commands.some((entry) => entry.command === "me")).toBe(false);
     expect(commands.some((entry) => entry.command === "tavern")).toBe(false);
@@ -49,7 +53,6 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "guild")).toBe(false);
     expect(commands.some((entry) => entry.command === "restart")).toBe(false);
     expect(commands.some((entry) => entry.command === "version")).toBe(false);
-    expect(commands.some((entry) => entry.command === "support")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_help")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_me")).toBe(false);
