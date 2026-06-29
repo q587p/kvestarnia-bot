@@ -3,19 +3,22 @@ import { describe, expect, it } from "vitest";
 import { registerHelpCommand } from "../../src/bot/commands/helpCommand";
 import type { DevGrantService } from "../../src/services/devGrantService";
 import type { DevResetService } from "../../src/services/devResetService";
+import type { PartySessionService } from "../../src/services/partySessionService";
 
 describe("help command", () => {
   it("shows local dev commands through /dev_help", async () => {
     const replies: string[] = [];
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => true },
-      devGrant: { isEnabled: () => true }
+      devGrant: { isEnabled: () => true },
+      partySessions: { isEnabled: () => true }
     });
 
     await bot.handleUpdate(commandUpdate("/dev_help"));
 
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain("🧰 Dev-довідка Квестарні");
+    expect(replies[0]).toContain("/dev_party");
     expect(replies[0]).toContain("/dev_raid_stop");
     expect(replies[0]).toContain("/dev_reset_korchma_round");
     expect(replies[0]).toContain("/dev_add_xp");
@@ -29,6 +32,7 @@ function createTestBot(
   services: {
     devReset: Pick<DevResetService, "isEnabled">;
     devGrant?: Pick<DevGrantService, "isEnabled">;
+    partySessions?: Pick<PartySessionService, "isEnabled">;
   }
 ): Bot {
   const bot = new Bot("test-token", {
@@ -52,7 +56,10 @@ function createTestBot(
   registerHelpCommand(
     bot,
     services.devReset as DevResetService,
-    services.devGrant
+    services.devGrant,
+    {
+      partySessionService: services.partySessions
+    }
   );
   return bot;
 }

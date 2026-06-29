@@ -21,13 +21,17 @@ describe("bot command catalog", () => {
       "quest",
       "inventory",
       "news",
-      "help"
+      "help",
+      "support"
     ]);
     expect(commands.find((entry) => entry.command === "hero")?.description).toBe(
       "👤 персонаж і прогрес"
     );
     expect(commands.find((entry) => entry.command === "help")?.description).toBe("📖 допомога");
-    expect(commands).toHaveLength(6);
+    expect(commands.find((entry) => entry.command === "support")?.description).toBe(
+      "🫙 добровільна підтримка без бонусів"
+    );
+    expect(commands).toHaveLength(7);
     expect(commands.some((entry) => entry.command === "profile")).toBe(false);
     expect(commands.some((entry) => entry.command === "me")).toBe(false);
     expect(commands.some((entry) => entry.command === "tavern")).toBe(false);
@@ -49,8 +53,8 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "guild")).toBe(false);
     expect(commands.some((entry) => entry.command === "restart")).toBe(false);
     expect(commands.some((entry) => entry.command === "version")).toBe(false);
-    expect(commands.some((entry) => entry.command === "support")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_help")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_me")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_adventure_reset")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(false);
@@ -71,6 +75,7 @@ describe("bot command catalog", () => {
   it("keeps local dev commands in help but not in the side menu", () => {
     for (const command of [
       "dev_help",
+      "dev_party",
       "dev_reset_me",
       "dev_adventure_reset",
       "dev_reset_korchma_round",
@@ -84,8 +89,14 @@ describe("bot command catalog", () => {
 
     const resetOnly = getHelpCommandEntries({ includeDevReset: true, includeDevGrant: false });
     const grantsOnly = getHelpCommandEntries({ includeDevReset: false, includeDevGrant: true });
+    const partyOnly = getHelpCommandEntries({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includePartySessions: true
+    });
 
     expect(resetOnly.some((entry) => entry.command === "dev_help")).toBe(true);
+    expect(resetOnly.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(resetOnly.some((entry) => entry.command === "dev_reset_me")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_adventure_reset")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(true);
@@ -93,12 +104,19 @@ describe("bot command catalog", () => {
     expect(resetOnly.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_add_level")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_help")).toBe(false);
+    expect(grantsOnly.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_me")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_adventure_reset")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_raid_stop")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_add_level")).toBe(true);
+    expect(partyOnly.some((entry) => entry.command === "dev_party")).toBe(true);
+    expect(getTelegramMenuCommands({
+      includeDevReset: true,
+      includeDevGrant: true,
+      includePartySessions: true
+    }).some((entry) => entry.command === "dev_party")).toBe(false);
 
     for (const command of [
       "dev_add_level",

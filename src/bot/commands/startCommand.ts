@@ -1,6 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { OnboardingService } from "../../services/onboardingService";
+import type { PartySessionService } from "../../services/partySessionService";
 import { playerFromContext } from "../context";
 import {
   buildDuelAcceptConfirmationKeyboard,
@@ -18,9 +19,11 @@ import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
 import { presentSupportThanks } from "../presenters/supportPresenter";
 import { parseStartPayload } from "../startPayload";
+import { sendPartyJoinFromStartPayload } from "./partySessionCommand";
 
 export interface StartCommandOptions {
   duel?: DuelChallengeService;
+  partySessions?: PartySessionService;
   duelBotUsername?: string | undefined;
 }
 
@@ -44,6 +47,12 @@ export function registerStartCommand(
     if (!player) {
       await ctx.reply("Квестарня не впізнала мандрівника. Спробуйте ще раз із особистого акаунта.");
       return;
+    }
+
+    if (payload.type === "party" && options.partySessions) {
+      if (await sendPartyJoinFromStartPayload(ctx, options.partySessions, payload.token)) {
+        return;
+      }
     }
 
     if (payload.type === "duel" && options.duel) {

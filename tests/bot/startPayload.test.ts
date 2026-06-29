@@ -34,6 +34,15 @@ describe("start payload parser", () => {
       raw: "duel_turnbased_abc123",
       safe: true
     });
+    expect(parseStartPayload("party_abCD_123-xy")).toEqual({
+      type: "party",
+      token: "abCD_123-xy"
+    });
+    expect(parseStartPayload("party_short")).toEqual({
+      type: "unknown",
+      raw: "party_short",
+      safe: true
+    });
   });
 
   it("marks long or invalid payloads unsafe without throwing", () => {

@@ -1,0 +1,348 @@
+import type { Bot, Context } from "grammy";
+import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
+import type { PresencePerson, PresenceService } from "../../services/presenceService";
+import {
+  buildPartyInviteUrl,
+  type PartySessionService
+} from "../../services/partySessionService";
+import { telegramUserIdFromContext } from "../context";
+import {
+  buildPartySessionInviteKeyboard,
+  buildPartySessionKeyboard,
+  buildPartySessionNearbyCandidatesKeyboard
+} from "../keyboards/partySessionKeyboard";
+import {
+  presentPartyCancel,
+  presentPartyCreate,
+  presentPartyJoin,
+  presentPartyLeave,
+  presentPartyNearbyCandidates,
+  presentPartyNearbyInviteNotification,
+  presentPartyNearbyInviteSent,
+  presentPartyView
+} from "../presenters/partySessionPresenter";
+import { presentInvalidCallback } from "../presenters/onboardingPresenter";
+import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
+import { safeEditMessageText } from "../safeEditMessageText";
+
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
+
+export interface PartySessionCommandOptions {
+  botUsername?: string | undefined;
+  presence: PresenceService;
+}
+
+export function registerPartySessionDevCommand(
+  bot: Bot,
+  service: PartySessionService,
+  options: PartySessionCommandOptions
+): void {
+  bot.command("dev_party", async (ctx) => {
+    await sendPartyCreate(ctx, service, options, "reply");
+  });
+}
+
+export async function sendPartyCreate(
+  ctx: Context,
+  service: PartySessionService,
+  options: PartySessionCommandOptions,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала пригодника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await service.createForTelegramUser(telegramUserId, {
+    chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+    messageId: ctx.callbackQuery?.message?.message_id ?? null
+  });
+  const session = "session" in result ? result.session : null;
+  const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
+
+  await sendText(ctx, mode, presentPartyCreate(result, { inviteUrl }), session
+    ? {
+        session,
+        viewerCharacterId: getViewerCharacterId(session, telegramUserId),
+        includeDevExpire: service.areDevHelpersEnabled()
+      }
+    : false);
+}
+
+export async function handlePartySessionCallback(
+  ctx: Context,
+  callback: PartySessionCallback,
+  service: PartySessionService,
+  options: PartySessionCommandOptions
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (callback.type === "nearby-open") {
+    await handleNearbyOpen(ctx, callback, service, options, telegramUserId);
+    return;
+  }
+
+  if (callback.type === "nearby-invite") {
+    await handleNearbyInvite(ctx, callback, service, options, telegramUserId);
+    return;
+  }
+
+  if (callback.type === "view") {
+    const result = await service.getByToken(callback.token);
+    await safeAnswerCallbackQuery(ctx);
+    await sendPartyView(ctx, "edit", result, service, telegramUserId);
+    return;
+  }
+
+  if (callback.type === "join") {
+    const result = await service.joinByTokenForTelegramUser(telegramUserId, callback.token, {
+      source: "nearby",
+      chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+      messageId: ctx.callbackQuery?.message?.message_id ?? null
+    });
+    await safeAnswerCallbackQuery(ctx);
+    await sendText(ctx, "edit", presentPartyJoin(result), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+          includeDevExpire: service.areDevHelpersEnabled()
+        }
+      : false);
+    return;
+  }
+
+  if (callback.type === "leave") {
+    const result = await service.leaveByTokenForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(ctx);
+    await sendText(ctx, "edit", presentPartyLeave(result), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+          includeDevExpire: service.areDevHelpersEnabled()
+        }
+      : false);
+    return;
+  }
+
+  if (callback.type === "cancel") {
+    const result = await service.cancelByTokenForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "not-leader" ? { text: "Скасувати може тільки лідер ватаги." } : undefined
+    );
+    await sendText(ctx, "edit", presentPartyCancel(result), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+          includeDevExpire: service.areDevHelpersEnabled()
+        }
+      : false);
+    return;
+  }
+
+  if (!service.areDevHelpersEnabled()) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await service.forceExpireByToken(callback.token);
+  await safeAnswerCallbackQuery(ctx, { text: "Строк збору завершено." });
+  await sendPartyView(ctx, "edit", result, service, telegramUserId);
+}
+
+export async function sendPartyJoinFromStartPayload(
+  ctx: Context,
+  service: PartySessionService,
+  token: string
+): Promise<boolean> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    return false;
+  }
+
+  const result = await service.joinByTokenForTelegramUser(telegramUserId, token, {
+    source: "deep-link",
+    chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
+  });
+
+  await ctx.reply(presentPartyJoin(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    ...("session" in result
+      ? {
+          reply_markup: buildPartySessionKeyboard(result.session, {
+            viewerCharacterId: getViewerCharacterId(result.session, telegramUserId)
+          })
+        }
+      : {})
+  });
+  return true;
+}
+
+async function handleNearbyOpen(
+  ctx: Context,
+  callback: Extract<PartySessionCallback, { type: "nearby-open" }>,
+  service: PartySessionService,
+  options: PartySessionCommandOptions,
+  telegramUserId: bigint
+): Promise<void> {
+  const session = await service.getLiveRecruitingByTelegramUser(telegramUserId);
+  if (!session) {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Спершу відкрийте живу ватагу через /dev_party.",
+      show_alert: true
+    });
+    return;
+  }
+
+  const snapshot = await options.presence.getNearbyDuelCandidatesForTelegramUser(telegramUserId, callback.page);
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentPartyNearbyCandidates(snapshot), {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(snapshot.state === "ready"
+      ? { reply_markup: buildPartySessionNearbyCandidatesKeyboard(snapshot) }
+      : {})
+  });
+}
+
+async function handleNearbyInvite(
+  ctx: Context,
+  callback: Extract<PartySessionCallback, { type: "nearby-invite" }>,
+  service: PartySessionService,
+  options: PartySessionCommandOptions,
+  telegramUserId: bigint
+): Promise<void> {
+  const session = await service.getLiveRecruitingByTelegramUser(telegramUserId);
+  if (!session) {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Спершу відкрийте живу ватагу через /dev_party.",
+      show_alert: true
+    });
+    return;
+  }
+
+  if (!(await options.presence.isNearbyDuelTargetAvailable(telegramUserId, callback.targetTelegramUserId))) {
+    await safeAnswerCallbackQuery(ctx, { text: "Цей пригодник уже не активний поруч." });
+    await sendText(ctx, "edit", presentPartyView({ state: "ready", session }), {
+      session,
+      viewerCharacterId: getViewerCharacterId(session, telegramUserId),
+      includeDevExpire: service.areDevHelpersEnabled()
+    });
+    return;
+  }
+
+  const target = await findNearbyTarget(options.presence, telegramUserId, callback.targetTelegramUserId, callback.page);
+  const inviteUrl = buildPartyInviteUrl(options.botUsername, session.inviteToken);
+
+  try {
+    await ctx.api.sendMessage(
+      Number(callback.targetTelegramUserId),
+      presentPartyNearbyInviteNotification(session, inviteUrl),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPartySessionInviteKeyboard(session)
+      }
+    );
+  } catch {
+    // Private invite delivery is best-effort; the party row remains canonical.
+  }
+
+  await safeAnswerCallbackQuery(ctx, { text: "Запрошення передано, якщо Telegram не зачинив двері." });
+  const view = await service.getByToken(session.inviteToken);
+  if (view.state === "ready") {
+    await sendText(
+      ctx,
+      "edit",
+      presentPartyNearbyInviteSent(view, target?.name ?? "пригодника поруч"),
+      {
+        session: view.session,
+        viewerCharacterId: getViewerCharacterId(view.session, telegramUserId),
+        includeDevExpire: service.areDevHelpersEnabled()
+      }
+    );
+  }
+}
+
+async function sendPartyView(
+  ctx: Context,
+  mode: "reply" | "edit",
+  result: Awaited<ReturnType<PartySessionService["getByToken"]>>,
+  service: PartySessionService,
+  telegramUserId: bigint
+): Promise<void> {
+  await sendText(ctx, mode, presentPartyView(result), result.state === "ready"
+    ? {
+        session: result.session,
+        viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+        includeDevExpire: service.areDevHelpersEnabled()
+      }
+    : false);
+}
+
+async function sendText(
+  ctx: Context,
+  mode: "reply" | "edit",
+  text: string,
+  keyboard:
+    | false
+    | {
+        session: Parameters<typeof buildPartySessionKeyboard>[0];
+        viewerCharacterId?: string | null | undefined;
+        includeDevExpire?: boolean | undefined;
+      } = false
+): Promise<void> {
+  const options = {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(keyboard
+      ? {
+          reply_markup: buildPartySessionKeyboard(keyboard.session, {
+            viewerCharacterId: keyboard.viewerCharacterId,
+            includeDevExpire: keyboard.includeDevExpire
+          })
+        }
+      : {})
+  };
+
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, options);
+    return;
+  }
+
+  await ctx.reply(text, options);
+}
+
+function getViewerCharacterId(
+  session: Parameters<typeof buildPartySessionKeyboard>[0],
+  telegramUserId: bigint
+): string | null {
+  const participant = session.participants.find(
+    (row) => row.character.telegramUserId === telegramUserId && row.status === "joined"
+  );
+
+  return participant?.characterId ?? null;
+}
+
+async function findNearbyTarget(
+  presence: PresenceService,
+  telegramUserId: bigint,
+  targetTelegramUserId: bigint,
+  page: number
+): Promise<PresencePerson | null> {
+  const snapshot = await presence.getNearbyDuelCandidatesForTelegramUser(telegramUserId, page);
+
+  if (snapshot.state !== "ready") {
+    return null;
+  }
+
+  return snapshot.visible.find((candidate) => candidate.telegramUserId === targetTelegramUserId) ?? null;
+}

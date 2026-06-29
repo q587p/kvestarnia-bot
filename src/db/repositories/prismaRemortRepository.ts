@@ -300,6 +300,7 @@ export class PrismaRemortRepository implements RemortRepository {
       });
 
       await resetCurrentLifeStateForRemort(tx, character.id);
+      await cancelLivePartySessionsForRemort(tx, character.id, input.now);
 
       for (const item of validation.keptItems) {
         await tx.characterItem.create({
@@ -775,6 +776,115 @@ async function resetCurrentLifeStateForRemort(tx: TxClient, characterId: string)
       where: { characterId }
     })
   ]);
+}
+
+async function cancelLivePartySessionsForRemort(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<void> {
+  await tx.partySession.updateMany({
+    where: {
+      status: "recruiting",
+      expiresAt: {
+        lte: now
+      }
+    },
+    data: {
+      status: "expired",
+      activeLeaderKey: null,
+      version: {
+        increment: 1
+      }
+    }
+  });
+  await tx.partyParticipant.updateMany({
+    where: {
+      activeMembershipKey: {
+        not: null
+      },
+      session: {
+        status: "expired"
+      }
+    },
+    data: {
+      activeMembershipKey: null
+    }
+  });
+
+  const memberships = await tx.partyParticipant.findMany({
+    where: {
+      characterId,
+      status: "joined",
+      activeMembershipKey: `party-member:${characterId}`,
+      session: {
+        status: "recruiting"
+      }
+    },
+    include: {
+      session: true
+    }
+  });
+
+  for (const membership of memberships) {
+    await tx.partyParticipant.update({
+      where: {
+        id: membership.id
+      },
+      data: {
+        status: "left",
+        leftAt: now,
+        activeMembershipKey: null
+      }
+    });
+
+    const remaining = await tx.partyParticipant.findMany({
+      where: {
+        sessionId: membership.sessionId,
+        status: "joined"
+      },
+      orderBy: [
+        {
+          joinedAt: "asc"
+        },
+        {
+          id: "asc"
+        }
+      ]
+    });
+
+    if (remaining.length === 0) {
+      await tx.partySession.update({
+        where: {
+          id: membership.sessionId
+        },
+        data: {
+          status: "cancelled",
+          activeLeaderKey: null,
+          version: {
+            increment: 1
+          }
+        }
+      });
+      continue;
+    }
+
+    if (membership.session.leaderCharacterId === characterId) {
+      const nextLeader = remaining[0]!;
+      await tx.partySession.update({
+        where: {
+          id: membership.sessionId
+        },
+        data: {
+          leaderCharacterId: nextLeader.characterId,
+          activeLeaderKey: `party-leader:${nextLeader.characterId}`,
+          version: {
+            increment: 1
+          }
+        }
+      });
+    }
+  }
 }
 
 async function getSnapshot(

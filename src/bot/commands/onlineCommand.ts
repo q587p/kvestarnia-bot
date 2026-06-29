@@ -4,6 +4,8 @@ import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeNearbyDuelOpenCallbackData } from "../callbacks/nearbyDuelCallbackData";
+import { makePartySessionNearbyOpenCallbackData } from "../callbacks/partySessionCallbackData";
+import type { PartySessionService } from "../../services/partySessionService";
 import { makeShynokBardPerformanceStartCallbackData } from "../callbacks/shynokCallbackData";
 import { presentOnline } from "../presenters/presencePresenter";
 
@@ -15,6 +17,7 @@ export interface OnlineCommandOptions {
   bardPerformanceEnabled?: boolean;
   duelEnabled?: boolean;
   itemGiftEnabled?: boolean;
+  partySessions?: PartySessionService | undefined;
 }
 
 export function registerOnlineCommand(
@@ -40,7 +43,7 @@ export async function sendOnline(
   }
 
   const snapshot = await presenceService.getOnlineForTelegramUser(telegramUserId);
-  const nearbyActionsKeyboard = buildNearbyActionsKeyboard(snapshot, telegramUserId, options);
+  const nearbyActionsKeyboard = await buildNearbyActionsKeyboard(snapshot, telegramUserId, options);
 
   await ctx.reply(presentOnline(snapshot), {
     ...HTML_MESSAGE_OPTIONS,
@@ -50,17 +53,22 @@ export async function sendOnline(
   });
 }
 
-function buildNearbyActionsKeyboard(
+async function buildNearbyActionsKeyboard(
   snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
   telegramUserId: bigint,
   options: OnlineCommandOptions
-): InlineKeyboard | null {
+): Promise<InlineKeyboard | null> {
   if (!hasOtherActiveNearby(snapshot, telegramUserId)) {
     return null;
   }
 
   const keyboard = new InlineKeyboard();
   let hasActions = false;
+
+  if (await hasLiveParty(options.partySessions, telegramUserId)) {
+    keyboard.text("🧭 Покликати у ватагу", makePartySessionNearbyOpenCallbackData()).row();
+    hasActions = true;
+  }
 
   if (options.duelEnabled) {
     keyboard.text("🥊 Кинути виклик присутнім", makeNearbyDuelOpenCallbackData()).row();
@@ -79,6 +87,13 @@ function buildNearbyActionsKeyboard(
   }
 
   return hasActions ? keyboard : null;
+}
+
+async function hasLiveParty(
+  service: PartySessionService | null | undefined,
+  telegramUserId: bigint
+): Promise<boolean> {
+  return Boolean(await service?.getLiveRecruitingByTelegramUser(telegramUserId));
 }
 
 function isEligibleNearbyBard(

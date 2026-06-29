@@ -49,7 +49,7 @@ export async function handleNearbyDuelCallback(
 
   if (callback.type === "open") {
     await safeAnswerCallbackQuery(ctx);
-    await editCandidates(ctx, options.presence, telegramUserId, callback.page);
+    await editCandidates(ctx, options, telegramUserId, callback.page);
     return;
   }
 
@@ -152,15 +152,17 @@ export async function handleNearbyDuelCallback(
 
 async function editCandidates(
   ctx: Context,
-  presence: PresenceService,
+  options: NearbyDuelCommandOptions,
   telegramUserId: bigint,
   page: number
 ): Promise<void> {
-  const snapshot = await presence.getNearbyDuelCandidatesForTelegramUser(telegramUserId, page);
+  const snapshot = await options.presence.getNearbyDuelCandidatesForTelegramUser(telegramUserId, page);
   await safeEditMessageText(ctx, presentNearbyDuelCandidates(snapshot), {
     ...HTML_MESSAGE_OPTIONS,
     ...(snapshot.state === "ready"
-      ? { reply_markup: buildNearbyDuelCandidatesKeyboard(snapshot) }
+      ? {
+          reply_markup: buildNearbyDuelCandidatesKeyboard(snapshot)
+        }
       : {})
   });
 }

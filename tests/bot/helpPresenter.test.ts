@@ -36,6 +36,7 @@ describe("help presenter", () => {
     expect(text).toContain("/support");
     expect(text).toContain("/help");
     expect(text).not.toContain("/dev_help");
+    expect(text).not.toContain("/dev_party");
     expect(text).not.toContain("/dev_reset_me");
     expect(text).not.toContain("/dev_adventure_reset");
     expect(text).not.toContain("/dev_reset_korchma_round");
@@ -83,8 +84,14 @@ describe("help presenter", () => {
   it("includes dev reset and value grants only when each gate is enabled", () => {
     const resetOnly = presentHelp({ includeDevReset: true, includeDevGrant: false });
     const grantsEnabled = presentHelp({ includeDevReset: true, includeDevGrant: true });
+    const partyEnabled = presentHelp({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includePartySessions: true
+    });
 
     expect(resetOnly).toContain("🧪 /dev_help");
+    expect(resetOnly).not.toContain("/dev_party");
     expect(resetOnly).toContain("/dev_reset_me");
     expect(resetOnly).toContain("/dev_adventure_reset");
     expect(resetOnly).toContain("/dev_reset_korchma_round");
@@ -103,6 +110,7 @@ describe("help presenter", () => {
     expect(resetOnly).toContain("допомога\n\n🧪");
 
     expect(grantsEnabled).toContain("🧪 /dev_help");
+    expect(grantsEnabled).not.toContain("/dev_party");
     expect(grantsEnabled).toContain("/dev_reset_me");
     expect(grantsEnabled).toContain("/dev_adventure_reset");
     expect(grantsEnabled).toContain("/dev_reset_korchma_round");
@@ -118,15 +126,23 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
     expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
     expect(grantsEnabled).toContain("🎶 /dev_reset_bard_performance");
+    expect(partyEnabled).toContain("🪢 /dev_party — зібрати тимчасову ватагу локально");
+    expect(partyEnabled).not.toContain("/dev_help");
   });
 
   it("renders a compact dev-only help screen from available dev commands", () => {
     const resetOnly = presentDevHelp({ includeDevReset: true, includeDevGrant: false });
     const grantsEnabled = presentDevHelp({ includeDevReset: true, includeDevGrant: true });
+    const partyEnabled = presentDevHelp({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includePartySessions: true
+    });
     const disabled = presentDevHelp({ includeDevReset: false, includeDevGrant: false });
 
     expect(resetOnly).toContain("🧰 Dev-довідка Квестарні");
     expect(resetOnly).toContain("🧰 /dev_help");
+    expect(resetOnly).not.toContain("/dev_party");
     expect(resetOnly).toContain("🧪 /dev_reset_me");
     expect(resetOnly).toContain("⏱️ /dev_adventure_reset");
     expect(resetOnly).toContain("⏹️ /dev_raid_stop");
@@ -139,6 +155,8 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
     expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
     expect(grantsEnabled).toContain("🎶 /dev_reset_bard_performance");
+    expect(partyEnabled).toContain("🪢 /dev_party — зібрати тимчасову ватагу локально");
+    expect(partyEnabled).not.toContain("/dev_help");
     expect(disabled).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
   });
 });

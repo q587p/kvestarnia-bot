@@ -4,12 +4,13 @@ interface HelpCommandGroup {
   commands: string[];
   icon: string;
   description: string;
-  devOnly?: "reset" | "grant";
+  devOnly?: "reset" | "grant" | "party";
 }
 
 export interface HelpVisibility {
   includeDevReset: boolean;
   includeDevGrant?: boolean;
+  includePartySessions?: boolean;
 }
 
 const helpCommandGroups: readonly HelpCommandGroup[] = [
@@ -102,6 +103,12 @@ const helpCommandGroups: readonly HelpCommandGroup[] = [
     commands: ["help"],
     icon: "📖",
     description: "допомога"
+  },
+  {
+    commands: ["dev_party"],
+    icon: "🪢",
+    description: "зібрати тимчасову ватагу локально",
+    devOnly: "party"
   },
   {
     commands: [
@@ -241,21 +248,27 @@ function isHelpGroupVisible(
     return true;
   }
 
-  return group.devOnly === "reset"
-    ? visibility.includeDevReset
-    : visibility.includeDevGrant;
+  if (group.devOnly === "reset") {
+    return visibility.includeDevReset;
+  }
+
+  return group.devOnly === "grant"
+    ? visibility.includeDevGrant
+    : visibility.includePartySessions;
 }
 
 function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required<HelpVisibility> {
   if (typeof visibility === "boolean") {
     return {
       includeDevReset: visibility,
-      includeDevGrant: visibility
+      includeDevGrant: visibility,
+      includePartySessions: visibility
     };
   }
 
   return {
     includeDevReset: visibility.includeDevReset,
-    includeDevGrant: visibility.includeDevGrant ?? false
+    includeDevGrant: visibility.includeDevGrant ?? false,
+    includePartySessions: visibility.includePartySessions ?? false
   };
 }

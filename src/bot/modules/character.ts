@@ -88,12 +88,11 @@ export function registerCharacterBotModule(
   registerStartCommand(
     bot,
     services.onboarding,
-    services.duel
-      ? {
-          duel: services.duel,
-          duelBotUsername: options.botUsername
-        }
-      : undefined
+    {
+      ...(services.duel ? { duel: services.duel } : {}),
+      ...(services.partySessions ? { partySessions: services.partySessions } : {}),
+      duelBotUsername: options.botUsername
+    }
   );
   registerHeroCommand(bot, services.hero, {
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence)

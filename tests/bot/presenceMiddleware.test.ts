@@ -30,6 +30,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_RAID_FRIDAY_BARREL,
   type MarkPlayerPresenceInput,
+  type OnlineSnapshot,
   type PresenceGroup
 } from "../../src/services/presenceService";
 
@@ -432,6 +433,50 @@ describe("presence middleware", () => {
     ]);
   });
 
+  it("shows the party invite picker from the nearby menu button", async () => {
+    const presence = new CapturingPresenceService();
+    presence.onlineSnapshot = {
+      state: "ready",
+      globalTotal: 2,
+      location: {
+        id: PRESENCE_LOCATION_KORCHMA_BAR,
+        name: "Шинок",
+        people: {
+          active: [
+            { telegramUserId: 42n, name: "Мандрівник", status: "active" },
+            { telegramUserId: 93n, name: "Сусід", status: "active" }
+          ],
+          idle: [],
+          total: 2
+        }
+      },
+      activity: null
+    };
+
+    const bot = createTestBot(presence, {
+      duel: duelServiceWithCreateCounter(),
+      partySessions: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        getLiveRecruitingByTelegramUser: () => Promise.resolve({ id: "party-1" })
+      } as unknown as NonNullable<BotServices["partySessions"]>
+    });
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+    bot.api.config.use((prev, method, payload, signal) => {
+      calls.push({ method, payload });
+      return prev(method, payload, signal);
+    });
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("👀 Хто поруч"));
+
+    const sendMessage = calls.find((call) => call.method === "sendMessage");
+    const payload = JSON.stringify(sendMessage?.payload);
+    expect(payload).toContain("🧭 Покликати у ватагу");
+    expect(payload).toContain("v1:party:no");
+    expect(payload).toContain("🥊 Кинути виклик присутнім");
+  });
+
   it("marks successful cellar action callbacks with cellar presence after handler gates", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence, {
@@ -728,6 +773,7 @@ describe("presence middleware", () => {
 
 class CapturingPresenceService {
   readonly marks: MarkPlayerPresenceInput[] = [];
+  onlineSnapshot: OnlineSnapshot = { state: "no-character" };
   currentPlace: {
     state: "ready";
     locationId: string;
@@ -753,8 +799,8 @@ class CapturingPresenceService {
     return Promise.resolve({ state: "no-character" });
   }
 
-  getOnlineForTelegramUser(): Promise<{ state: "no-character" }> {
-    return Promise.resolve({ state: "no-character" });
+  getOnlineForTelegramUser(): Promise<OnlineSnapshot> {
+    return Promise.resolve(this.onlineSnapshot);
   }
 
   getLookForTelegramUser(): Promise<{ state: "no-character" }> {
