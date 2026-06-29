@@ -20,6 +20,7 @@ import type { LevelMilestoneService } from "../services/levelMilestoneService";
 import type { MantokChestService } from "../services/mantokChestService";
 import type { OnboardingService } from "../services/onboardingService";
 import type { PassageSearchService } from "../services/passageSearchService";
+import type { PartyBossService } from "../services/partyBossService";
 import type { PartySessionService } from "../services/partySessionService";
 import type { PlayerHintService } from "../services/playerHintService";
 import type { PresenceService } from "../services/presenceService";
@@ -43,6 +44,7 @@ export interface BotServices {
   yeger: YegerQuestService;
   onboarding: OnboardingService;
   passageSearch?: PassageSearchService;
+  partyBoss?: PartyBossService;
   partySessions?: PartySessionService;
   playerHints: PlayerHintService;
   hero: HeroService;

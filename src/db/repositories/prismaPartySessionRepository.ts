@@ -20,6 +20,7 @@ type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySess
 type CharacterRow = Prisma.CharacterGetPayload<{ include: typeof partyCharacterInclude }>;
 
 const LIVE_STATUS = "recruiting";
+const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 
 const partyCharacterInclude = {
   user: {
@@ -531,7 +532,9 @@ async function findLiveMembershipSession(
       activeMembershipKey: membershipKey(characterId),
       status: "joined",
       session: {
-        status: LIVE_STATUS
+        status: {
+          in: [...LIVE_MEMBERSHIP_STATUSES]
+        }
       }
     },
     include: {

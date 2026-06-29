@@ -614,6 +614,81 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.characterRemort.count({ where: { characterId: "character-remort-stale-lease" } })).resolves.toBe(1);
   });
 
+  it("cancels active party boss proof and clears leases during remort", async () => {
+    const now = new Date("2026-06-22T12:30:00.000Z");
+    await seedCharacter(prisma, {
+      userId: "user-remort-party-boss",
+      characterId: "character-remort-party-boss",
+      telegramUserId: 9315n
+    });
+    await seedDraft(prisma, "character-remort-party-boss", "token-remort-party-boss", now);
+    await prisma.partySession.create({
+      data: {
+        id: "party-remort-boss",
+        inviteToken: "party-remort-boss-token",
+        status: "active",
+        leaderCharacterId: "character-remort-party-boss",
+        participantCap: 8,
+        minimumParticipants: 1,
+        joinUntilAt: new Date(now.getTime() + 60_000),
+        expiresAt: new Date(now.getTime() + 60_000),
+        activeLeaderKey: "party-leader:character-remort-party-boss",
+        participants: {
+          create: {
+            id: "participant-remort-party-boss",
+            characterId: "character-remort-party-boss",
+            status: "joined",
+            joinSource: "leader",
+            joinedAt: now,
+            activeMembershipKey: "party-member:character-remort-party-boss"
+          }
+        }
+      }
+    });
+    await prisma.partyBossSession.create({
+      data: {
+        id: "boss-remort-party",
+        partySessionId: "party-remort-boss",
+        leaderCharacterId: "character-remort-party-boss",
+        status: "active",
+        turn: 1,
+        version: 1,
+        rulesVersion: "party-boss-proof-v1",
+        bossKey: "party-boss-proof-one",
+        stateJson: {
+          status: "active",
+          turn: 1,
+          participants: [{ characterId: "character-remort-party-boss" }]
+        },
+        turnExpiresAt: new Date(now.getTime() + 23_000)
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-remort-party-boss",
+        characterId: "character-remort-party-boss",
+        kind: "party-boss",
+        referenceId: "party-remort-boss"
+      }
+    });
+
+    await expect(repository.completeDraftForTelegramUser(
+      9315n,
+      makeCompletionInput("token-remort-party-boss", now)
+    )).resolves.toMatchObject({ state: "completed" });
+    const bossSession = await prisma.partyBossSession.findUnique({ where: { id: "boss-remort-party" } });
+    const bossResult = bossSession?.resultJson;
+
+    expect(bossSession?.status).toBe("cancelled");
+    expect(bossResult && typeof bossResult === "object" && !Array.isArray(bossResult)
+      ? bossResult.reason
+      : undefined).toBe("remort");
+    await expect(prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: "party-remort-boss" } })).resolves.toBe(0);
+    await expect(prisma.partyParticipant.findUnique({ where: { id: "participant-remort-party-boss" } })).resolves.toMatchObject({
+      activeMembershipKey: null
+    });
+  });
+
   it("expires unreadable legacy solo state without rewards or character resource rollback", async () => {
     const now = new Date("2026-06-22T13:00:00.000Z");
     await seedCharacter(prisma, {
@@ -781,6 +856,32 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE party_boss_sessions (
+      id TEXT PRIMARY KEY,
+      party_session_id TEXT NOT NULL,
+      leader_character_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      turn INTEGER NOT NULL DEFAULT 1,
+      version INTEGER NOT NULL DEFAULT 1,
+      rules_version TEXT NOT NULL,
+      boss_key TEXT NOT NULL,
+      state_json JSONB NOT NULL,
+      result_json JSONB,
+      turn_expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE party_boss_actions (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      actor_character_id TEXT NOT NULL,
+      turn INTEGER NOT NULL,
+      action_key TEXT NOT NULL,
+      result_json JSONB,
+      submitted_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE UNIQUE INDEX party_sessions_invite_token_key ON party_sessions(invite_token)`,
     `CREATE UNIQUE INDEX party_sessions_active_leader_key_key ON party_sessions(active_leader_key)`,
     `CREATE INDEX party_sessions_status_expires_at_idx ON party_sessions(status, expires_at)`,
@@ -788,6 +889,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE UNIQUE INDEX party_participants_session_id_character_id_key ON party_participants(session_id, character_id)`,
     `CREATE INDEX party_participants_character_id_status_idx ON party_participants(character_id, status)`,
     `CREATE INDEX party_participants_session_id_status_idx ON party_participants(session_id, status)`,
+    `CREATE UNIQUE INDEX party_boss_sessions_party_session_id_key ON party_boss_sessions(party_session_id)`,
+    `CREATE UNIQUE INDEX party_boss_actions_session_id_turn_actor_character_id_key ON party_boss_actions(session_id, turn, actor_character_id)`,
     `CREATE TABLE character_cooldowns (
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,

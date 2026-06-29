@@ -29,6 +29,7 @@ import {
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
 const SUPPORTED_REMORT_COMBAT_LEASE_KIND = "solo-combat";
+const PARTY_BOSS_COMBAT_LEASE_KIND = "party-boss";
 const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 const OUTGOING_POSTAL_CUSTODY_REMORT_REASON =
   "Спершу скасуйте відправлений пакунок або дочекайтеся відповіді чи завершення строку. Пошта не пускає манатки між життями.";
@@ -465,6 +466,11 @@ async function prepareActiveCombatForRemort(
     return { state: "ready" };
   }
 
+  if (lease.kind === PARTY_BOSS_COMBAT_LEASE_KIND) {
+    await cancelPartyBossForRemort(tx, lease.referenceId, now);
+    return { state: "ready" };
+  }
+
   if (lease.kind !== SUPPORTED_REMORT_COMBAT_LEASE_KIND) {
     return { state: "locked" };
   }
@@ -528,6 +534,79 @@ async function prepareActiveCombatForRemort(
   });
 
   return { state: "ready" };
+}
+
+async function cancelPartyBossForRemort(
+  tx: TxClient,
+  partySessionId: string,
+  now: Date
+): Promise<void> {
+  const session = await tx.partyBossSession.findUnique({
+    where: {
+      partySessionId
+    }
+  });
+
+  if (session?.status === "active") {
+    const stateJson = session.stateJson;
+    const state = stateJson && typeof stateJson === "object" && !Array.isArray(stateJson)
+      ? {
+          ...stateJson,
+          status: "cancelled",
+          completedAt: now.toISOString()
+        }
+      : {
+          status: "cancelled",
+          completedAt: now.toISOString()
+        };
+
+    await tx.partyBossSession.update({
+      where: {
+        id: session.id
+      },
+      data: {
+        status: "cancelled",
+        stateJson: state,
+        resultJson: {
+          status: "cancelled",
+          completedAt: now.toISOString(),
+          reason: "remort"
+        },
+        completedAt: now
+      }
+    });
+  }
+
+  await tx.activeCombatLease.deleteMany({
+    where: {
+      kind: PARTY_BOSS_COMBAT_LEASE_KIND,
+      referenceId: partySessionId
+    }
+  });
+  await tx.partySession.updateMany({
+    where: {
+      id: partySessionId,
+      status: "active"
+    },
+    data: {
+      status: "completed",
+      activeLeaderKey: null,
+      version: {
+        increment: 1
+      }
+    }
+  });
+  await tx.partyParticipant.updateMany({
+    where: {
+      sessionId: partySessionId,
+      activeMembershipKey: {
+        not: null
+      }
+    },
+    data: {
+      activeMembershipKey: null
+    }
+  });
 }
 
 async function deleteOwnedPendingTrainingCooldown(

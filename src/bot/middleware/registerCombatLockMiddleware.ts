@@ -20,12 +20,14 @@ import {
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildTurnBasedDuelKeyboard } from "../keyboards/duelKeyboard";
+import { buildPartyBossKeyboard } from "../keyboards/partySessionKeyboard";
 import { isMainMenuLocationButtonText, mainMenuButtons } from "../keyboards/mainMenuKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
 import { editPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import { presentFightStart, presentPersistentFight } from "../presenters/fightPresenter";
 import { presentTrainingDoppelganger } from "../presenters/trainingDoppelgangerPresenter";
 import { presentTurnBasedDuel } from "../presenters/duelPresenter";
+import { presentPartyBoss } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -86,6 +88,8 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:fight:item:") &&
       !data.startsWith("v1:spar:turn:") &&
       !data.startsWith("v1:duel:t:") &&
+      !data.startsWith("v1:party:ba:") &&
+      !data.startsWith("v1:party:bt:") &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );
@@ -175,6 +179,10 @@ async function redirectCombatLockIfNeeded(
     return true;
   }
 
+  if (await redirectPartyBossLockIfNeeded(ctx, telegramUserId, services)) {
+    return true;
+  }
+
   if (typeof services.fight.getFightOverviewForTelegramUser !== "function") {
     return false;
   }
@@ -250,6 +258,36 @@ async function redirectCombatLockIfNeeded(
   }
 
   return false;
+}
+
+async function redirectPartyBossLockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<boolean> {
+  if (!services.partyBoss || typeof services.partyBoss.getActiveForTelegramUser !== "function") {
+    return false;
+  }
+
+  const active = await services.partyBoss.getActiveForTelegramUser(telegramUserId);
+  if (!active) {
+    return false;
+  }
+
+  const viewerCharacterId = active.participants.find((participant) => participant.telegramUserId === telegramUserId)?.id ?? null;
+  await answerCombatLockCallback(ctx);
+  await refreshCombatLockPresence(ctx, services.presence, {
+    locationId: active.participants.find((participant) => participant.telegramUserId === telegramUserId)?.currentLocationId ?? PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+    currentRaidId: active.id,
+    currentAdventureId: null
+  });
+  await sendCombatLockText(ctx, presentCombatLockRedirect(presentPartyBoss(active, { viewerCharacterId })), {
+    reply_markup: buildPartyBossKeyboard(active, viewerCharacterId, {
+      includeDevTimeout: services.partyBoss.isEnabled()
+    })
+  });
+
+  return true;
 }
 
 async function redirectTurnBasedDuelLockIfNeeded(

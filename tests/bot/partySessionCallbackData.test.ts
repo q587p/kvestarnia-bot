@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  makePartyBossActionCallbackData,
+  makePartyBossStartCallbackData,
+  makePartyBossTimeoutCallbackData,
   makePartySessionCancelCallbackData,
   makePartySessionExpireCallbackData,
   makePartySessionJoinCallbackData,
@@ -33,6 +36,18 @@ describe("party session callback data", () => {
     expect(parsePartySessionCallbackData(makePartySessionExpireCallbackData(token))).toEqual({
       ok: true,
       value: { type: "expire", token }
+    });
+    expect(parsePartySessionCallbackData(makePartyBossStartCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "boss-start", token }
+    });
+    expect(parsePartySessionCallbackData(makePartyBossTimeoutCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "boss-timeout", token }
+    });
+    expect(parsePartySessionCallbackData(makePartyBossActionCallbackData(token, 42, "skill"))).toEqual({
+      ok: true,
+      value: { type: "boss-action", token, turn: 42, action: "skill" }
     });
   });
 
@@ -75,6 +90,10 @@ describe("party session callback data", () => {
     expect(parsePartySessionCallbackData("v1:party:ni:bad_target:1")).toEqual({
       ok: false,
       error: "invalid-target"
+    });
+    expect(parsePartySessionCallbackData("v1:party:ba:abCD_123-xy:1:bad")).toEqual({
+      ok: false,
+      error: "invalid-action"
     });
     expect(parsePartySessionCallbackData(`v1:party:v:${"x".repeat(80)}`)).toEqual({
       ok: false,

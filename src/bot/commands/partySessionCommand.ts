@@ -1,5 +1,6 @@
 import type { Bot, Context } from "grammy";
 import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
+import type { PartyBossService } from "../../services/partyBossService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
   buildPartyInviteUrl,
@@ -8,11 +9,15 @@ import {
 import { telegramUserIdFromContext } from "../context";
 import {
   buildPartySessionInviteKeyboard,
+  buildPartyBossKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../keyboards/partySessionKeyboard";
 import {
   presentPartyCancel,
+  presentPartyBoss,
+  presentPartyBossAction,
+  presentPartyBossStart,
   presentPartyCreate,
   presentPartyJoin,
   presentPartyLeave,
@@ -32,6 +37,7 @@ const HTML_MESSAGE_OPTIONS = {
 export interface PartySessionCommandOptions {
   botUsername?: string | undefined;
   presence: PresenceService;
+  partyBoss?: PartyBossService | undefined;
 }
 
 export function registerPartySessionDevCommand(
@@ -96,9 +102,88 @@ export async function handlePartySessionCallback(
     return;
   }
 
+  if (callback.type === "boss-start") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await options.partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(ctx, result.state === "blocked" ? { text: "Хтось уже в бою." } : undefined);
+    const viewerCharacterId = "session" in result
+      ? getBossViewerCharacterId(result.session, telegramUserId)
+      : null;
+    await sendBossText(ctx, "edit", presentPartyBossStart(result, viewerCharacterId), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId,
+          includeDevTimeout: options.partyBoss.isEnabled()
+        }
+      : false);
+    return;
+  }
+
+  if (callback.type === "boss-action") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await options.partyBoss.submitActionForTelegramUser(
+      telegramUserId,
+      callback.token,
+      callback.turn,
+      callback.action
+    );
+    await safeAnswerCallbackQuery(ctx, result.state === "duplicate" ? { text: "Дію вже записано." } : undefined);
+    const viewerCharacterId = "session" in result
+      ? getBossViewerCharacterId(result.session, telegramUserId)
+      : null;
+    await sendBossText(ctx, "edit", presentPartyBossAction(result, viewerCharacterId), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId,
+          includeDevTimeout: options.partyBoss.isEnabled()
+        }
+      : false);
+    return;
+  }
+
+  if (callback.type === "boss-timeout") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await options.partyBoss.resolveTimedOutByToken(callback.token);
+    await safeAnswerCallbackQuery(ctx, { text: "Хід перевірено." });
+    const viewerCharacterId = "session" in result
+      ? getBossViewerCharacterId(result.session, telegramUserId)
+      : null;
+    await sendBossText(ctx, "edit", presentPartyBossAction(result, viewerCharacterId), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId,
+          includeDevTimeout: options.partyBoss.isEnabled()
+        }
+      : false);
+    return;
+  }
+
   if (callback.type === "view") {
-    const result = await service.getByToken(callback.token);
+    const boss = await options.partyBoss?.getByPartyInviteToken(callback.token);
     await safeAnswerCallbackQuery(ctx);
+    if (boss) {
+      const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+      await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
+        session: boss,
+        viewerCharacterId,
+        includeDevTimeout: options.partyBoss?.isEnabled()
+      });
+      return;
+    }
+
+    const result = await service.getByToken(callback.token);
     await sendPartyView(ctx, "edit", result, service, telegramUserId);
     return;
   }
@@ -321,6 +406,37 @@ async function sendText(
   await ctx.reply(text, options);
 }
 
+async function sendBossText(
+  ctx: Context,
+  mode: "reply" | "edit",
+  text: string,
+  keyboard:
+    | false
+    | {
+        session: Parameters<typeof buildPartyBossKeyboard>[0];
+        viewerCharacterId?: string | null | undefined;
+        includeDevTimeout?: boolean | undefined;
+      } = false
+): Promise<void> {
+  const options = {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(keyboard
+      ? {
+          reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
+            includeDevTimeout: keyboard.includeDevTimeout
+          })
+        }
+      : {})
+  };
+
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, options);
+    return;
+  }
+
+  await ctx.reply(text, options);
+}
+
 function getViewerCharacterId(
   session: Parameters<typeof buildPartySessionKeyboard>[0],
   telegramUserId: bigint
@@ -330,6 +446,14 @@ function getViewerCharacterId(
   );
 
   return participant?.characterId ?? null;
+}
+
+function getBossViewerCharacterId(
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  telegramUserId: bigint
+): string | null {
+  const participant = session.participants.find((row) => row.telegramUserId === telegramUserId);
+  return participant?.id ?? null;
 }
 
 async function findNearbyTarget(

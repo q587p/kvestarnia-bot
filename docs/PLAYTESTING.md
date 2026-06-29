@@ -4,6 +4,21 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.16 — Party Vs One Boss MVP smoke
+
+Use two or three local accounts. Run in non-production mode or enable `PARTY_SESSION_DEV_HELPERS_ENABLED=true`; this proof remains dev/flag-gated and is not Senior Barrel Brother.
+
+1. Account A runs `/dev_party`; Account B and optionally C join through the deep link or private nearby invite.
+2. As leader, tap `🧪 Dev: бос-проба`; verify the card says this is a proof, not the real raid route, and shows one shared boss.
+3. From Account A, tap `⚔️ Вдарити`; verify A cannot submit a second different action for the same turn.
+4. Leave Account B idle; tap `⏱️ Dev: добити хід` and verify B is treated as timeout defend, not an extra attack.
+5. Replay old action buttons from the previous turn; verify canonical state appears and HP/mana/contribution do not mutate twice.
+6. Open the active proof from a shared/non-participant context if convenient; verify shared cards do not expose private HP, mana, selected actions or Telegram ids.
+7. Finish the proof by resolving turns; verify the result grants no XP, gold, items, manatky, achievements, Barrel success or loot.
+8. After terminal state, replay result/refresh buttons; verify the same stored result appears and `party-boss` combat leases are gone.
+9. Start remort for a participant during active proof on a disposable local character; verify the proof cancels and leaves no active membership key or combat lease orphan.
+10. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
+
 ## 0.2.15 — Party Session Foundation smoke
 
 Use two or three local accounts. Enable `PARTY_SESSION_FOUNDATION_ENABLED=true` in production-like local config, or run in normal non-production dev mode. The forced expiry button appears only in non-production mode or when `PARTY_SESSION_DEV_HELPERS_ENABLED=true` is explicitly set for manual QA.

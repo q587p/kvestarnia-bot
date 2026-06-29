@@ -24,6 +24,7 @@ import { LevelMilestoneService } from "../services/levelMilestoneService";
 import { MantokChestService } from "../services/mantokChestService";
 import { OnboardingService } from "../services/onboardingService";
 import { PassageSearchService } from "../services/passageSearchService";
+import { PartyBossService } from "../services/partyBossService";
 import { PartySessionService } from "../services/partySessionService";
 import { PlayerHintService } from "../services/playerHintService";
 import { PresenceService } from "../services/presenceService";
@@ -141,6 +142,9 @@ export function createServices(
     mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements),
     onboarding: new OnboardingService(repositories.users, repositories.characters, achievements),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
+    partyBoss: new PartyBossService(repositories.partyBossSessions, {
+      enabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
+    }),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled,
       devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled

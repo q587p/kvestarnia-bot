@@ -1,7 +1,11 @@
 import { InlineKeyboard } from "grammy";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
+import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import {
+  makePartyBossActionCallbackData,
+  makePartyBossStartCallbackData,
+  makePartyBossTimeoutCallbackData,
   makePartySessionCancelCallbackData,
   makePartySessionExpireCallbackData,
   makePartySessionJoinCallbackData,
@@ -41,12 +45,40 @@ export function buildPartySessionKeyboard(
       keyboard.text("🧹 Скасувати збір", makePartySessionCancelCallbackData(token)).row();
     }
 
+    if (options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
+      keyboard.text("🧪 Dev: бос-проба", makePartyBossStartCallbackData(token)).row();
+    }
+
     if (options.includeDevExpire) {
       keyboard.text("⏱️ Dev: завершити строк", makePartySessionExpireCallbackData(token)).row();
     }
   }
 
   return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(token));
+}
+
+export function buildPartyBossKeyboard(
+  session: PartyBossSessionRecord,
+  viewerCharacterId: string | null,
+  options: { includeDevTimeout?: boolean | undefined } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (session.status === "active" && viewerCharacterId) {
+    keyboard
+      .text("⚔️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
+      .text("🛡️ Захист", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
+      .row()
+      .text("✨ Вміння", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "skill"))
+      .text("🧬 Раса", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "race"))
+      .row();
+  }
+
+  if (session.status === "active" && options.includeDevTimeout) {
+    keyboard.text("⏱️ Dev: добити хід", makePartyBossTimeoutCallbackData(session.partyInviteToken)).row();
+  }
+
+  return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
 }
 
 export function buildPartySessionInviteKeyboard(session: PartySessionRecord): InlineKeyboard {

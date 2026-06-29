@@ -78,12 +78,12 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Ватага навчилася збиратися без бійки");
-    expect(text).toContain("перший технічний крок до майбутніх групових пригод");
+    expect(text).toContain("Ватага штовхнула одного великого клопота");
+    expect(text).toContain("наступну пробу майбутніх групових пригод");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("під прапорцем або в dev-режимі можна відкрити збір тимчасової ватаги");
+    expect(text).toContain("під прапорцем або в dev-режимі лідер зібраної ватаги може запустити бос-пробу");
     expect(text).toContain(
-      "сам рейдовий бій і нагороди"
+      "справжній рейдовий маршрут, постійний бос і нагороди"
     );
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");

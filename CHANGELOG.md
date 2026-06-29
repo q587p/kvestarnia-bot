@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP
+
+### Added
+- Added a dev/flag-gated `🧪 Dev: бос-проба` start path from an existing recruiting temporary party.
+- Added durable `party_boss_sessions` and `party_boss_actions` rows for one shared boss target, frozen participant state, per-turn action uniqueness and restart-safe replay.
+- Added a pure party-boss reducer with one shared boss, compact participant actions (`attack`, `defend`, class skill, race action), deterministic timeout defend fallback and a five-turn proof cap.
+- Added active combat leases with `kind = "party-boss"` for every active participant, released on terminal proof completion or remort cancellation.
+- Added combat-lock redirect support so active participants are returned to their party boss card from ordinary routes.
+- Added focused reducer, callback parser, keyboard and repository integration coverage for timeout fallback, duplicate actions, terminal release and compact action payloads.
+
+### Changed
+- Temporary party membership now treats `active` party sessions as live memberships, so participants cannot join or create another live party while a party-boss proof is active.
+- Remort cleanup now explicitly cancels an active party-boss proof and clears party-boss leases/live membership keys instead of leaving unsupported combat locks.
+- The compact Codex context, task index, roadmap, playtesting guide and security/fair-play notes now document the one-boss proof boundary.
+
+### Unchanged
+- This is not Senior Barrel Brother and not the production raid route.
+- No XP, gold, items, manatky, trophies, achievements, Barrel success, group loot table, guild, matchmaking, public roster, Mini App, market, trade or crafting ships in this slice.
+- Existing solo combat, turn-based duels, postal delivery, Safe Gifting, Shynok, Adventure, Daily Korchma, Barrel legacy behavior and temporary party recruiting remain on their existing contracts.
+
 ## [0.2.15] - 12026-06-30 - Party Session Foundation
 
 ### Added

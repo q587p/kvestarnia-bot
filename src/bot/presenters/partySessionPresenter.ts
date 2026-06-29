@@ -8,6 +8,7 @@ import type {
 } from "../../services/partySessionService";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
+import type { PartyBossActionResult, PartyBossSessionRecord, PartyBossStartResult } from "../../db/repositories/partyBossRepository";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
@@ -139,6 +140,153 @@ export function presentPartyView(result: PartyViewResult): string {
     : "Ватага не знайшлася або вже стала легендою без протоколу.";
 }
 
+export function presentPartyBossStart(result: PartyBossStartResult, viewerCharacterId?: string | null): string {
+  if (result.state === "disabled") {
+    return "🧪 Бос-проба вимкнена. Корчмар прибрав картонного боса в комору.";
+  }
+
+  if (result.state === "no-character") {
+    return "Спершу створіть пригодника через /start.";
+  }
+
+  if (result.state === "not-found") {
+    return "Ватага не знайшлася.";
+  }
+
+  if (result.state === "not-leader") {
+    return "Бос-пробу може почати тільки лідер ватаги.";
+  }
+
+  if (result.state === "expired") {
+    return "Строк збору минув. Старі кнопки не запускають новий протокол.";
+  }
+
+  if (result.state === "too-small") {
+    return "У ватазі замало пригодників навіть для контрольного боса з фанери.";
+  }
+
+  if (result.state === "blocked") {
+    return result.blockerName
+      ? `Бос-проба не стартувала: «${escapeHtml(result.blockerName)}» уже в іншому активному бою.`
+      : "Бос-проба не стартувала: хтось із ватаги вже в іншому активному бою.";
+  }
+
+  if (result.state === "not-recruiting") {
+    return result.session
+      ? presentPartyBoss(result.session, { viewerCharacterId })
+      : "Ця ватага вже не в режимі збору.";
+  }
+
+  if (!("session" in result)) {
+    return "Бос-проба не стартувала. Показати канонічну картку не вдалося.";
+  }
+
+  return presentPartyBoss(result.session, {
+    viewerCharacterId,
+    notice: result.state === "started"
+      ? "Бос-пробу запущено. Це не Старший Брат Бочки і не справжній рейдовий маршрут."
+      : "Показую поточну бос-пробу."
+  });
+}
+
+export function presentPartyBossAction(result: PartyBossActionResult, viewerCharacterId?: string | null): string {
+  if (result.state === "disabled") {
+    return "🧪 Бос-проба вимкнена.";
+  }
+
+  if (result.state === "no-character") {
+    return "Квестарня не впізнала пригодника. Спробуйте ще раз.";
+  }
+
+  if (result.state === "not-found") {
+    return "Бос-проба не знайшлася.";
+  }
+
+  if (result.state === "not-participant") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Ця кнопка не належить вашій участі у ватазі."
+    });
+  }
+
+  if (result.state === "stale") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Ця кнопка зі старого ходу. Показую канонічний стан."
+    });
+  }
+
+  if (result.state === "duplicate") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Вашу дію для цього ходу вже прийнято. Друга кнопка не додає другого ліктя."
+    });
+  }
+
+  if (result.state === "queued") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Дію записано. Якщо хтось зависне, dev-таймаут поставить його в захист."
+    });
+  }
+
+  return presentPartyBoss(result.session, { viewerCharacterId });
+}
+
+export function presentPartyBoss(
+  session: PartyBossSessionRecord,
+  options: {
+    viewerCharacterId?: string | null | undefined;
+    notice?: string;
+  } = {}
+): string {
+  const state = session.state;
+  const viewer = options.viewerCharacterId
+    ? state.participants.find((participant) => participant.characterId === options.viewerCharacterId)
+    : null;
+  const lines = [
+    "🧪 <b>Бос-проба ватаги</b>",
+    "",
+    getBossStatusLine(session),
+    `Бос: ${escapeHtml(state.boss.name ?? "Контрольний бос")} · HP ${state.boss.hp}/${state.boss.hpMax}`,
+    `Учасники: ${state.participants.length}`,
+    ""
+  ];
+
+  if (options.notice) {
+    lines.push(escapeHtml(options.notice), "");
+  }
+
+  lines.push(...state.participants.map((participant) => {
+    const marker = participant.status === "knocked-out" ? "▫️" : "▪️";
+    return `${marker} ${escapeHtml(participant.name)} · ${participant.contribution.damageDealt} шкоди`;
+  }));
+
+  const lastRound = state.roundLog.at(-1);
+  if (lastRound) {
+    lines.push("", `<b>Останній хід:</b> ${lastRound.turn}`);
+    lines.push(`Бос отримав: ${lastRound.bossDamage}`);
+    if (lastRound.bossRetaliations.length > 0) {
+      lines.push(`Бос огризнувся по ${lastRound.bossRetaliations.length} учасниках.`);
+    }
+  }
+
+  if (viewer && session.status === "active") {
+    lines.push("", `<b>Ваш стан:</b> HP ${viewer.resources.hp}/${viewer.resources.hpMax} · мана ${viewer.resources.mana}/${viewer.resources.manaMax}`);
+    lines.push("Оберіть одну дію для цього ходу. Старі або повторні кнопки лише покажуть актуальну картку.");
+  } else if (session.status === "active") {
+    lines.push("", "Спільна картка не показує приватні HP, ману чи вибрані дії учасників.");
+  }
+
+  if (session.status !== "active") {
+    lines.push("", session.status === "won"
+      ? "Ватага перемогла контрольного боса. Нагород тут немає: це proof, а не рейдовий лут."
+      : "Бос-пробу завершено без рейдової нагороди.");
+  }
+
+  return lines.join("\n");
+}
+
 export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
   if (snapshot.state === "no-character") {
     return "Спершу створіть пригодника через /start. Ватага не записує тіні без анкети.";
@@ -247,6 +395,22 @@ function getStatusLine(session: PartySessionRecord): string {
   }
 
   return `Стан: збір відкрито до ${formatTime(session.expiresAt)}`;
+}
+
+function getBossStatusLine(session: PartyBossSessionRecord): string {
+  if (session.status === "won") {
+    return "Стан: перемога proof-протоколу";
+  }
+
+  if (session.status === "lost") {
+    return "Стан: бос пережив коротку перевірку";
+  }
+
+  if (session.status === "cancelled") {
+    return "Стан: скасовано";
+  }
+
+  return `Стан: ${session.turn} хід до ${formatTime(session.turnExpiresAt)}`;
 }
 
 function getJoinedParticipants(session: PartySessionRecord): PartyParticipantRecord[] {
