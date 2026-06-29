@@ -500,6 +500,69 @@ describe("PrismaItemTransferRepository integration", () => {
     expect(draft).toMatchObject({ state: "created" });
   });
 
+  it("discovers known postal recipients from accepted duels and explicit Bard reactions", async () => {
+    await seedCharacter(1n, "sender", "Поштар");
+    await seedCharacter(2n, "duelist", "Дуелянт");
+    await seedCharacter(3n, "listener", "Слухач");
+    await seedCharacter(4n, "performer", "Бардеса");
+    await seedCharacter(5n, "passive", "Мовчун");
+    await seedDuelRelationship("sender", "duelist");
+    await seedBardPerformanceReaction({
+      performanceId: "performance-sender",
+      performerId: "sender",
+      audienceId: "listener",
+      audienceTelegramUserId: 3n,
+      status: "applauded"
+    });
+    await seedBardPerformanceReaction({
+      performanceId: "performance-performer",
+      performerId: "performer",
+      audienceId: "sender",
+      audienceTelegramUserId: 1n,
+      status: "tipped"
+    });
+    await seedBardPerformanceReaction({
+      performanceId: "performance-passive",
+      performerId: "sender",
+      audienceId: "passive",
+      audienceTelegramUserId: 5n,
+      status: "offered"
+    });
+
+    const recipients = await repository.getPostalRecipientsForTelegramUser(1n, 0, 5);
+
+    expect(recipients).toMatchObject({
+      state: "ready",
+      total: 3
+    });
+    expect(recipients.state === "ready" ? recipients.visible.map((recipient) => recipient.name).sort() : [])
+      .toEqual(["Бардеса", "Дуелянт", "Слухач"]);
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-duel-token",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created" });
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-listener-token",
+      receiverTelegramUserId: 3n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created" });
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-performer-token",
+      receiverTelegramUserId: 4n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "created" });
+    await expect(repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-passive-token",
+      receiverTelegramUserId: 5n,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "target-not-found" });
+  });
+
   it("moves a five-type postal package once and charges the sender fee at acceptance", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
@@ -811,6 +874,74 @@ describe("PrismaItemTransferRepository integration", () => {
     });
   }
 
+  async function seedDuelRelationship(challengerCharacterId: string, targetCharacterId: string) {
+    await prisma.duelChallenge.create({
+      data: {
+        challengerCharacterId,
+        targetCharacterId,
+        inviteToken: `duel-${challengerCharacterId}-${targetCharacterId}`,
+        mode: "quick",
+        status: "resolved",
+        expiresAt: future(),
+        resolvedAt: now(),
+        resultJson: { kind: "test-duel" },
+        updatedAt: now()
+      }
+    });
+  }
+
+  async function seedBardPerformanceReaction(input: {
+    performanceId: string;
+    performerId: string;
+    audienceId: string;
+    audienceTelegramUserId: bigint;
+    status: "offered" | "applauded" | "tipped";
+  }) {
+    await prisma.bardPerformance.create({
+      data: {
+        id: input.performanceId,
+        token: `${input.performanceId}-token`,
+        characterId: input.performerId,
+        telegramUserId: input.performerId === "sender" ? 1n : 4n,
+        performerName: input.performerId,
+        remortCount: 0,
+        techniqueId: "technique.class.bard.shynok-performance",
+        rulesVersion: "test",
+        locationId: "location.korchma.bar",
+        localDate: "12026-06-24",
+        status: "completed",
+        grade: "modest",
+        power: 13,
+        housePayoutGold: 0,
+        roleActionXp: 0,
+        audienceCount: 1,
+        statSnapshotJson: { charisma: 1, luck: 1 },
+        startedAt: now(),
+        expiresAt: future(),
+        cooldownAvailableAt: future(),
+        completedAt: now(),
+        updatedAt: now()
+      }
+    });
+    await prisma.bardPerformanceReaction.create({
+      data: {
+        id: `${input.performanceId}-reaction`,
+        performanceId: input.performanceId,
+        characterId: input.audienceId,
+        telegramUserId: input.audienceTelegramUserId,
+        audienceName: input.audienceId,
+        remortCount: 0,
+        status: input.status,
+        tipGold: input.status === "tipped" ? 5 : 0,
+        resultJson: input.status === "offered" ? undefined : { action: input.status },
+        offeredAt: now(),
+        expiresAt: future(),
+        respondedAt: input.status === "offered" ? undefined : now(),
+        updatedAt: now()
+      }
+    });
+  }
+
   async function expectQuantities(expected: { sender: number; receiver: number }) {
     const rows = await prisma.characterItem.findMany({
       where: { itemId: item.id },
@@ -931,6 +1062,64 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "completed_at" DATETIME NOT NULL,
       "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "character_remorts_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE TABLE "bard_performances" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "token" TEXT NOT NULL UNIQUE,
+      "character_id" TEXT NOT NULL,
+      "telegram_user_id" BIGINT NOT NULL,
+      "performer_name" TEXT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "technique_id" TEXT NOT NULL,
+      "rules_version" TEXT NOT NULL,
+      "location_id" TEXT NOT NULL,
+      "local_date" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "live_guard" TEXT UNIQUE,
+      "grade" TEXT NOT NULL,
+      "power" INTEGER NOT NULL,
+      "house_payout_gold" INTEGER NOT NULL DEFAULT 0,
+      "role_action_xp" INTEGER NOT NULL DEFAULT 0,
+      "audience_count" INTEGER NOT NULL DEFAULT 0,
+      "stat_snapshot_json" JSONB NOT NULL,
+      "result_json" JSONB,
+      "started_at" DATETIME NOT NULL,
+      "expires_at" DATETIME NOT NULL,
+      "cooldown_available_at" DATETIME NOT NULL,
+      "completed_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE "bard_performance_reactions" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "performance_id" TEXT NOT NULL,
+      "character_id" TEXT NOT NULL,
+      "telegram_user_id" BIGINT NOT NULL,
+      "audience_name" TEXT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "status" TEXT NOT NULL DEFAULT 'offered',
+      "tip_gold" INTEGER NOT NULL DEFAULT 0,
+      "result_json" JSONB,
+      "offered_at" DATETIME NOT NULL,
+      "expires_at" DATETIME NOT NULL,
+      "responded_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX "bard_performance_reactions_performance_id_character_id_key" ON "bard_performance_reactions"("performance_id", "character_id")`,
+    `CREATE TABLE "duel_challenges" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "challenger_character_id" TEXT NOT NULL,
+      "target_character_id" TEXT,
+      "context_chat_id" BIGINT,
+      "invite_token" TEXT NOT NULL UNIQUE,
+      "mode" TEXT NOT NULL DEFAULT 'quick',
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "expires_at" DATETIME NOT NULL,
+      "resolved_at" DATETIME,
+      "result_json" JSONB,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE "mantok_chest_runs" (
       "id" TEXT NOT NULL PRIMARY KEY,

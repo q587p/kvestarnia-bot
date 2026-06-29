@@ -8,7 +8,7 @@
 
 Use two accounts with at least one completed accepted item-transfer relationship. Local seeded inventory is acceptable for quantity and stale-state checks.
 
-1. Open `📮 Пошта Квестарні` as sender while the recipient is not nearby; verify the recipient appears as known without current location or online-status details.
+1. Open `📮 Пошта Квестарні` as sender while the recipient is not nearby; verify recipients appear as known after accepted gift, accepted/finished duel, or explicit Bard applause/tip history without current location or online-status details.
 2. Select one eligible manatka type with quantity 1; verify the draft names the recipient, item, quantity and exact visible delivery fee.
 3. Build a package with five distinct eligible manatka types, including one quantity above 1 and one quantity 93 if local data can create the stack.
 4. Try adding a sixth type; verify the UI blocks it before confirmation.

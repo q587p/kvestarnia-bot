@@ -51,7 +51,7 @@ item_transfers
 - Confirmation copy says this is not selling and not a gold faucet.
 - Repeated callbacks replay completed/expired state.
 - Postal delivery must be framed as paid delivery, not a way to reveal where a player currently is.
-- Shipped postal delivery uses completed transfer history for known recipients, not public search or exact-location discovery.
+- Shipped postal delivery uses explicit durable social history for known recipients: completed transfers, accepted/active/resolved duels, or Bard reactions with applause/tips. Passive audience snapshots, public search and exact-location discovery do not count.
 
 ## Acceptance criteria
 

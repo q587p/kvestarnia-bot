@@ -11,7 +11,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added `📮 Пошта Квестарні`, a paid courier delivery flow for sending a bounded package of eligible manatky to a known recipient without requiring same-location presence.
-- Added postal recipient discovery from completed item-transfer history in either direction, without exposing recipient current location or online status.
+- Added postal recipient discovery from completed item-transfer history, accepted duel history and explicit Bard performance reactions in either direction, without exposing recipient current location or online status.
 - Added tokenized postal draft/package callbacks under `v1:post:` with add/remove/quantity/confirm controls and Telegram byte-limit parser coverage.
 - Extended `item_transfers` with `transfer_kind`, `package_json` and `delivery_fee_gold` so Safe Gifting and postal delivery replay from explicit stored state.
 - Added repository integration coverage for known-recipient discovery, five-line package acceptance, duplicate accept replay, insufficient sender fee gold and stale-line all-or-nothing rollback.

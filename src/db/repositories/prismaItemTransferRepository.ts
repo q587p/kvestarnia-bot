@@ -153,30 +153,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         return { state: "no-character" };
       }
 
-      const rows = await tx.itemTransfer.findMany({
-        where: {
-          status: "completed",
-          OR: [
-            { senderCharacterId: sender.id },
-            { receiverCharacterId: sender.id }
-          ]
-        },
-        orderBy: { completedAt: "desc" },
-        select: {
-          senderCharacterId: true,
-          receiverCharacterId: true
-        },
-        take: 200
-      });
-      const recipientIds: string[] = [];
-      const seen = new Set<string>();
-      for (const row of rows) {
-        const recipientId = row.senderCharacterId === sender.id ? row.receiverCharacterId : row.senderCharacterId;
-        if (recipientId !== sender.id && !seen.has(recipientId)) {
-          seen.add(recipientId);
-          recipientIds.push(recipientId);
-        }
-      }
+      const recipientIds = await getKnownPostalRecipientIds(tx, sender.id);
 
       const total = recipientIds.length;
       const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -1017,18 +994,142 @@ async function findKnownPostalReceiver(
     return receiver;
   }
 
-  const relationship = await tx.itemTransfer.findFirst({
-    where: {
-      status: "completed",
-      OR: [
-        { senderCharacterId, receiverCharacterId: receiver.id },
-        { senderCharacterId: receiver.id, receiverCharacterId: senderCharacterId }
-      ]
-    },
-    select: { id: true }
-  });
+  const known = await isKnownPostalRecipient(tx, senderCharacterId, receiver.id);
+  return known ? receiver : null;
+}
 
-  return relationship ? receiver : null;
+async function getKnownPostalRecipientIds(tx: TxClient, senderCharacterId: string): Promise<string[]> {
+  const [transferRows, duelRows, bardRows] = await Promise.all([
+    tx.itemTransfer.findMany({
+      where: {
+        status: "completed",
+        OR: [
+          { senderCharacterId },
+          { receiverCharacterId: senderCharacterId }
+        ]
+      },
+      orderBy: [{ completedAt: "desc" }, { updatedAt: "desc" }],
+      select: {
+        senderCharacterId: true,
+        receiverCharacterId: true,
+        completedAt: true,
+        updatedAt: true
+      },
+      take: 200
+    }),
+    tx.duelChallenge.findMany({
+      where: {
+        status: { in: ["active", "resolved"] },
+        targetCharacterId: { not: null },
+        OR: [
+          { challengerCharacterId: senderCharacterId },
+          { targetCharacterId: senderCharacterId }
+        ]
+      },
+      orderBy: [{ resolvedAt: "desc" }, { updatedAt: "desc" }],
+      select: {
+        challengerCharacterId: true,
+        targetCharacterId: true,
+        resolvedAt: true,
+        updatedAt: true,
+        createdAt: true
+      },
+      take: 200
+    }),
+    tx.bardPerformanceReaction.findMany({
+      where: {
+        status: { in: ["applauded", "tipped"] },
+        OR: [
+          { characterId: senderCharacterId },
+          { performance: { characterId: senderCharacterId } }
+        ]
+      },
+      orderBy: [{ respondedAt: "desc" }, { updatedAt: "desc" }],
+      select: {
+        characterId: true,
+        respondedAt: true,
+        updatedAt: true,
+        performance: {
+          select: {
+            characterId: true,
+            updatedAt: true
+          }
+        }
+      },
+      take: 200
+    })
+  ]);
+
+  const contacts: Array<{ recipientId: string; interactedAt: Date }> = [];
+  for (const row of transferRows) {
+    const recipientId = row.senderCharacterId === senderCharacterId ? row.receiverCharacterId : row.senderCharacterId;
+    contacts.push({ recipientId, interactedAt: row.completedAt ?? row.updatedAt });
+  }
+  for (const row of duelRows) {
+    const recipientId = row.challengerCharacterId === senderCharacterId ? row.targetCharacterId : row.challengerCharacterId;
+    if (recipientId) {
+      contacts.push({ recipientId, interactedAt: row.resolvedAt ?? row.updatedAt ?? row.createdAt });
+    }
+  }
+  for (const row of bardRows) {
+    const recipientId = row.characterId === senderCharacterId ? row.performance.characterId : row.characterId;
+    contacts.push({ recipientId, interactedAt: row.respondedAt ?? row.updatedAt ?? row.performance.updatedAt });
+  }
+
+  const seen = new Set<string>();
+  return contacts
+    .filter((contact) => contact.recipientId !== senderCharacterId)
+    .sort((left, right) => right.interactedAt.getTime() - left.interactedAt.getTime())
+    .flatMap((contact) => {
+      if (seen.has(contact.recipientId)) {
+        return [];
+      }
+      seen.add(contact.recipientId);
+      return [contact.recipientId];
+    });
+}
+
+async function isKnownPostalRecipient(tx: TxClient, senderCharacterId: string, receiverCharacterId: string): Promise<boolean> {
+  const [transfer, duel, bardReaction] = await Promise.all([
+    tx.itemTransfer.findFirst({
+      where: {
+        status: "completed",
+        OR: [
+          { senderCharacterId, receiverCharacterId },
+          { senderCharacterId: receiverCharacterId, receiverCharacterId: senderCharacterId }
+        ]
+      },
+      select: { id: true }
+    }),
+    tx.duelChallenge.findFirst({
+      where: {
+        status: { in: ["active", "resolved"] },
+        OR: [
+          { challengerCharacterId: senderCharacterId, targetCharacterId: receiverCharacterId },
+          { challengerCharacterId: receiverCharacterId, targetCharacterId: senderCharacterId }
+        ]
+      },
+      select: { id: true }
+    }),
+    tx.bardPerformanceReaction.findFirst({
+      where: {
+        status: { in: ["applauded", "tipped"] },
+        OR: [
+          {
+            characterId: senderCharacterId,
+            performance: { characterId: receiverCharacterId }
+          },
+          {
+            characterId: receiverCharacterId,
+            performance: { characterId: senderCharacterId }
+          }
+        ]
+      },
+      select: { id: true }
+    })
+  ]);
+
+  return Boolean(transfer || duel || bardReaction);
 }
 
 async function validatePostalPackage(
