@@ -44,6 +44,7 @@ export type QuestConsequenceKind =
   | "fight-handoff"
   | "minor-injury"
   | "serious-injury"
+  | "local-failure"
   | "cosmetic-mess";
 
 export type QuestRewardProfile = "modest" | "standard" | "generous";

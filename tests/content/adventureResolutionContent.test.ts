@@ -7,7 +7,10 @@ import {
   getGeneralAdventureResolutionProblemIds
 } from "../../src/content/adventureResolutionContent";
 import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
-import { ADVENTURE_PROBLEM_IDS } from "../../src/services/adventureService";
+import {
+  ADVENTURE_PROBLEM_IDS,
+  getAdventureProblemPoolForProfile
+} from "../../src/services/adventureService";
 import {
   findQuestMethodByLegacyAction,
   getQuestMethodAffordanceKey,
@@ -44,6 +47,53 @@ describe("adventure resolution content", () => {
       expect(methods.length, problemId).toBeGreaterThanOrEqual(3);
       expect(new Set(methods.map((method) => method.id)).size, problemId).toBe(methods.length);
       expect(new Set(callbackKeys).size, problemId).toBe(callbackKeys.length);
+    }
+  });
+
+  it("gives every active adventure problem concrete selected-card objective copy", () => {
+    const problemById = new Map(
+      getAdventureProblemPoolForProfile().map((problem) => [problem.id, problem])
+    );
+    for (const race of activeRaces) {
+      for (const problem of getAdventureProblemPoolForProfile({ raceId: race.id })) {
+        problemById.set(problem.id, problem);
+      }
+    }
+    for (const heroClass of classes) {
+      for (const problem of getAdventureProblemPoolForProfile({ classId: heroClass.id })) {
+        problemById.set(problem.id, problem);
+      }
+    }
+    for (const title of getKnownComboTitleValues()) {
+      for (const problem of getAdventureProblemPoolForProfile({ title })) {
+        problemById.set(problem.id, problem);
+      }
+    }
+    const pool = [...problemById.values()];
+    const genericPlaceholders = [
+      "проблема потребує вирішення",
+      "треба розібратися",
+      "допоможіть клієнту",
+      "цими методами",
+      "закрити справу",
+      "вирішити ситуацію"
+    ];
+
+    expect(pool.map((problem) => problem.id).sort()).toEqual([...ADVENTURE_PROBLEM_IDS].sort());
+
+    for (const problem of pool) {
+      expect(problem.client.trim().length, `${problem.id}:client`).toBeGreaterThan(8);
+      expect(problem.problem.trim().length, `${problem.id}:problem`).toBeGreaterThan(24);
+      expect(problem.goal.trim().length, `${problem.id}:goal`).toBeGreaterThan(24);
+      expect(problem.problem, `${problem.id}:problem`).not.toBe(problem.hook);
+      expect(problem.goal, `${problem.id}:goal`).not.toBe(problem.hook);
+      expect(problem.problem, `${problem.id}:problem`).not.toMatch(/\brace\b|\bclass\b|signature|grade|consequence/iu);
+      expect(problem.goal, `${problem.id}:goal`).not.toMatch(/\brace\b|\bclass\b|signature|grade|consequence/iu);
+
+      const normalized = `${problem.problem}\n${problem.goal}`.toLocaleLowerCase("uk-UA");
+      for (const placeholder of genericPlaceholders) {
+        expect(normalized, `${problem.id}:${placeholder}`).not.toContain(placeholder);
+      }
     }
   });
 
@@ -204,7 +254,7 @@ describe("adventure resolution content", () => {
   });
 
   it("keeps active problem sets risk-owned without global punishment copy", () => {
-    const riskyConsequences = new Set(["minor-injury", "serious-injury", "fight-handoff"]);
+    const riskyConsequences = new Set(["minor-injury", "serious-injury", "fight-handoff", "local-failure"]);
     const fallbackCopy = [
       "обраний підхід",
       "обраний метод",
@@ -699,6 +749,10 @@ describe("adventure resolution content", () => {
 
         if (consequence === "fight-handoff") {
           expect(method.hint, method.id).toMatch(/бійк|бій|істот|мешканц|поклик|виліз|варта/i);
+        }
+
+        if (consequence === "local-failure") {
+          expect(method.hint, method.id).toMatch(/не закрит|без винагород|провал|не вдаст/i);
         }
       }
     }

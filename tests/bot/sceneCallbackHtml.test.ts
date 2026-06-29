@@ -5516,7 +5516,9 @@ const adventureChoice = {
   id: "stew" as const,
   title: "Казанок репетирує оперу",
   hook: "Юшка вимагає райдер.",
-  client: "Кухар"
+  client: "Кухар",
+  problem: "Юшка співає.",
+  goal: "Стишити казанок."
 };
 
 const adventureApproach = {
@@ -5549,13 +5551,17 @@ const adventureOffer = {
       id: "barrel" as const,
       title: "Бочка вимагає орендну угоду",
       hook: "Бочка стала юридичною.",
-      client: "Корчмар"
+      client: "Корчмар",
+      problem: "Бочка вимагає оренду.",
+      goal: "Повернути бочку до тари."
     },
     {
       id: "helmet" as const,
       title: "Шолом памʼятає чужу славу",
       hook: "Шолом просить овацій.",
-      client: "Зброяр"
+      client: "Зброяр",
+      problem: "Шолом хвалиться чужим.",
+      goal: "Відділити славу від заліза."
     }
   ]
 };

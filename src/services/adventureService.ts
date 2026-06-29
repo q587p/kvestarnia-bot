@@ -108,6 +108,8 @@ export interface AdventureChoice {
   title: string;
   hook: string;
   client: string;
+  problem: string;
+  goal: string;
 }
 
 export interface AdventureProblem extends AdventureChoice {
@@ -117,6 +119,8 @@ export interface AdventureProblem extends AdventureChoice {
     title?: string;
   };
 }
+
+type AdventureProblemBase = Omit<AdventureProblem, "problem" | "goal">;
 
 export interface AdventureOfferProfile {
   id: string;
@@ -1180,7 +1184,9 @@ export function buildApproachOptions(character: CharacterSummary): AdventureAppr
       id: "stew",
       title: "Казанок репетирує оперу",
       hook: "",
-      client: ""
+      client: "",
+      problem: "",
+      goal: ""
     },
     character
   ).slice(0, 3);
@@ -1226,7 +1232,7 @@ function buildQuestReward(
     return reward;
   }
 
-  if (consequence === "fight-handoff") {
+  if (consequence === "fight-handoff" || consequence === "local-failure") {
     return { xp: 0, gold: 0 };
   }
 
@@ -1313,7 +1319,7 @@ function buildAdventureChoiceItemGrants(input: {
   grade: QuestResolutionGrade;
   consequence: QuestConsequenceKind;
 }): Array<{ itemId: string; quantity: number }> {
-  if (input.consequence === "fight-handoff") {
+  if (input.consequence === "fight-handoff" || input.consequence === "local-failure") {
     return [];
   }
 
@@ -1687,7 +1693,7 @@ const GENERAL_ADVENTURE_PROBLEMS = [
     hook: "Кожен дзвінок кличе або офіціянта, або дрібну проблему з блокнотом. Відрізнити важко.",
     client: "Офіціянт, який просить не дзвонити в реальність"
   }
-] as const satisfies AdventureProblem[];
+] as const satisfies readonly AdventureProblemBase[];
 
 interface AdventureNameForms {
   genitive: string;
@@ -1765,7 +1771,7 @@ const CLASS_ADVENTURE_TEMPLATES = [
   }
 ] as const;
 
-function buildRaceAdventureProblems(): AdventureProblem[] {
+function buildRaceAdventureProblems(): AdventureProblemBase[] {
   return activeRaces.flatMap((race) =>
     RACE_ADVENTURE_TEMPLATES.map((template) => ({
       id: `race-${raceIdToKey(race.id)}-${template.suffix}`,
@@ -1779,7 +1785,7 @@ function buildRaceAdventureProblems(): AdventureProblem[] {
   );
 }
 
-function buildClassAdventureProblems(): AdventureProblem[] {
+function buildClassAdventureProblems(): AdventureProblemBase[] {
   return classes.flatMap((characterClass) =>
     CLASS_ADVENTURE_TEMPLATES.map((template) => ({
       id: `class-${classIdToKey(characterClass.id)}-${template.suffix}`,
@@ -1793,7 +1799,7 @@ function buildClassAdventureProblems(): AdventureProblem[] {
   );
 }
 
-function buildTitleAdventureProblems(): AdventureProblem[] {
+function buildTitleAdventureProblems(): AdventureProblemBase[] {
   return getKnownComboTitleValues().map((title, index) => ({
     id: `title-${index.toString(36)}`,
     title: "Титул просить окрему чергу",
@@ -1817,11 +1823,170 @@ function getAdventureClassNameForms(classId: string, className: string): Adventu
   };
 }
 
+const GENERAL_ADVENTURE_OBJECTIVE_COPY = {
+  stew: {
+    problem: "юшка співає замість бути першою стравою й вимагає райдер, як артист із кришкою.",
+    goal: "стишити казанок так, щоб вечеря знову стала їжею, а не оперою в тарілці."
+  },
+  barrel: {
+    problem: "бочка оголосила порожнечу мешканцем і вимагає оренду за місце між клепками.",
+    goal: "повернути бочку до стану «тара», не «гуртожиток для ніщо»."
+  },
+  helmet: {
+    problem: "шолом розповідає чужі подвиги як власні й збирає овації просто на столі.",
+    goal: "відокремити стару славу від заліза, доки вона не записалась у герої."
+  },
+  calendar: {
+    problem: "календар розмножив пʼятниці й витіснив четвер із тижня.",
+    goal: "зібрати тиждень назад так, щоб обід не провалився між датами."
+  },
+  receipt: {
+    problem: "чек відкрив малий портал і тягне з нього протяг, дрібне золото та підписи.",
+    goal: "закрити паперовий прохід, не випустивши з нього касову істоту."
+  },
+  bench: {
+    problem: "лава видає незручні пророцтва всім, хто хотів просто сісти.",
+    goal: "зняти з дошок дар віщування й повернути відвідувачам право на спокійну поставу."
+  },
+  cloak: {
+    problem: "плащ став у чергу замість власника й поводиться як поважний пан із підкладкою.",
+    goal: "повернути плащ на гачок або до власника, не давши тканині керувати чергою."
+  },
+  spoon: {
+    problem: "ложка скликала раду приборів і затягує вечерю порядком денним.",
+    goal: "розпустити столову політику до того, як десерт попросить міністерство."
+  },
+  mirror: {
+    problem: "дзеркало показує не відбиття, а найгіршу позу для геройського портрета.",
+    goal: "змусити скло знову відбивати людей, а не редагувати їхню гідність."
+  },
+  boots: {
+    problem: "чоботи пішли корчмою без власника й планують експедицію самостійно.",
+    goal: "повернути пару до ніг або хоча б до дверей, поки шкарпетки не стали свідками."
+  },
+  chimney: {
+    problem: "комин сипле довідками з сажі й оформлює дим як стажера.",
+    goal: "припинити вентиляційну канцелярію та лишити кухні звичайний дим."
+  },
+  candle: {
+    problem: "свічка світить лише за контрактом і оплесками, а тіні вже радяться про страйк.",
+    goal: "домовитися зі світлом так, щоб у корчмі знову було видно ложки й підозри."
+  },
+  chair: {
+    problem: "стілець оголосив себе троном і не пускає нікого без церемонії.",
+    goal: "повернути меблі до сидіння, не заснувавши монархію біля столу."
+  },
+  broom: {
+    problem: "мітла замітає докази, рахунки й нервову картоплю під килим.",
+    goal: "врятувати свідчення та пояснити мітлі, що чистота не скасовує правду."
+  },
+  door: {
+    problem: "двері беруть чайові за вихід і відкривають філософський диспут замість проходу.",
+    goal: "відкрити нормальний вихід без мита, петльових лекцій і кухонних обхідних шляхів."
+  },
+  map: {
+    problem: "мапа перетворила корчму на континент із морем підливи та горами кухлів.",
+    goal: "повернути карті масштаб, за яким стіл лишається столом, а не стихійним лихом."
+  },
+  teapot: {
+    problem: "чайник шепоче стратегії облоги й кожну пораду зводить до кипʼятіння.",
+    goal: "перекласти свист у мовчання або корисний план, який не атакує кухню."
+  },
+  menu: {
+    problem: "меню переписало ціни на емоції й продає компот із наслідками.",
+    goal: "повернути цінам їжу, а емоціям місце поза рахунком."
+  },
+  sign: {
+    problem: "вивіска просить вихідний, перекошує «Корчму» й уже приваблює рибу.",
+    goal: "поставити назву рівно, щоб гості знову шукали корчму, а не кормчу."
+  },
+  portrait: {
+    problem: "портрет попереднього героя підморгує гостям і прикривається історією.",
+    goal: "змусити раму й фарбу поводитись як памʼять, не як соціяльний скандал."
+  },
+  key: {
+    problem: "ключ підходить до всіх замків, окрім потрібного, і пишається широтою інтересів.",
+    goal: "нагадати ключу його призначення до того, як комірка образиться остаточно."
+  },
+  ledger: {
+    problem: "журнал рахує борги у римах і щоразу доводить, що корчмар правий.",
+    goal: "повернути арифметику на сторінки, а поезію — туди, де вона менше винна."
+  },
+  rug: {
+    problem: "килим проковтнув важливий слід, монету й чужу впевненість.",
+    goal: "витягти доказ із ворсу, не давши текстилю оформити алібі."
+  },
+  bell: {
+    problem: "дзвінок кличе не лише офіціянта, а й дрібні проблеми з блокнотом.",
+    goal: "налаштувати дзвін так, щоб на поклик приходила служба, а не нова катастрофа."
+  }
+} as const satisfies Record<GeneralAdventureProblemId, { problem: string; goal: string }>;
+
+function withAdventureProblemObjective(problem: AdventureProblemBase): AdventureProblem {
+  const copy = GENERAL_ADVENTURE_PROBLEM_IDS.includes(problem.id as GeneralAdventureProblemId)
+    ? GENERAL_ADVENTURE_OBJECTIVE_COPY[problem.id as GeneralAdventureProblemId]
+    : buildGeneratedAdventureObjectiveCopy(problem.id);
+
+  return {
+    ...problem,
+    ...copy
+  };
+}
+
+function buildGeneratedAdventureObjectiveCopy(problemId: string): { problem: string; goal: string } {
+  if (problemId.startsWith("race-") && problemId.endsWith("-survey")) {
+    return {
+      problem: "анкета втекла з власної графи й намагається оформити собі окреме громадянство.",
+      goal: "повернути папір у реєстр так, щоб графа знову вміщала відповідь."
+    };
+  }
+
+  if (problemId.startsWith("race-") && problemId.endsWith("-mug")) {
+    return {
+      problem: "персональний кухоль вимагає інструктаж, підставку й церемонію перед кожним наливом.",
+      goal: "навчити кухоль бути посудом, а не малим обрядовим начальником."
+    };
+  }
+
+  if (problemId.startsWith("race-") && problemId.endsWith("-portrait")) {
+    return {
+      problem: "портрет сперечається з рамою про героїчність і вже виходить за краї.",
+      goal: "вмістити образ у раму без сварки між фарбою, славою й здоровим глуздом."
+    };
+  }
+
+  if (problemId.startsWith("class-") && problemId.endsWith("-manual")) {
+    return {
+      problem: "підручник ожив, оцінює відвідувачів і плутає теорію з практикою.",
+      goal: "закрити урок так, щоб знання лишилось, а сторінки перестали командувати."
+    };
+  }
+
+  if (problemId.startsWith("class-") && problemId.endsWith("-uniform")) {
+    return {
+      problem: "професійна форма не влазить у клітинку й подає скаргу на формат.",
+      goal: "розширити або приборкати бланк, не давши клітинці стати окремою установою."
+    };
+  }
+
+  if (problemId.startsWith("class-") && problemId.endsWith("-exam")) {
+    return {
+      problem: "іспит почав ставити питання викладачеві й вимагати перездачу реальности.",
+      goal: "повернути тест до ролі перевірки, а не маленького педагогічного бунту."
+    };
+  }
+
+  return {
+    problem: "титул записався в чергу окремо від пригодника й вимагає печатку слави.",
+    goal: "поставити репутацію на місце, щоб слава не штовхалась біля журналу."
+  };
+}
+
 const ADVENTURE_PROBLEMS = [
   ...GENERAL_ADVENTURE_PROBLEMS,
   ...buildRaceAdventureProblems(),
   ...buildClassAdventureProblems(),
   ...buildTitleAdventureProblems()
-] satisfies AdventureProblem[];
+].map(withAdventureProblemObjective) satisfies AdventureProblem[];
 
 export const ADVENTURE_PROBLEM_IDS = ADVENTURE_PROBLEMS.map((problem) => problem.id);

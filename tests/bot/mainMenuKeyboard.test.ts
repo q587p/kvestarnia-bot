@@ -664,9 +664,30 @@ describe("main menu and scene keyboards", () => {
       periodToken: "period93",
       expiresAt: new Date("2026-06-12T11:23:00.000Z"),
       choices: [
-        { id: "key", title: "Ключ забув, що він відкриває", hook: "Ключ пишається.", client: "Комірник" },
-        { id: "door", title: "Двері беруть плату за вихід", hook: "Двері чекають.", client: "Гості" },
-        { id: "cloak", title: "Плащ став у чергу замість власника", hook: "Плащ штовхається.", client: "Власник" }
+        {
+          id: "key",
+          title: "Ключ забув, що він відкриває",
+          hook: "Ключ пишається.",
+          client: "Комірник",
+          problem: "Ключ забув замок.",
+          goal: "Нагадати ключу призначення."
+        },
+        {
+          id: "door",
+          title: "Двері беруть плату за вихід",
+          hook: "Двері чекають.",
+          client: "Гості",
+          problem: "Двері беруть мито.",
+          goal: "Відкрити вихід без плати."
+        },
+        {
+          id: "cloak",
+          title: "Плащ став у чергу замість власника",
+          hook: "Плащ штовхається.",
+          client: "Власник",
+          problem: "Плащ тримає чергу.",
+          goal: "Повернути тканину власнику."
+        }
       ]
     });
 
@@ -716,7 +737,9 @@ describe("main menu and scene keyboards", () => {
       id: "class-bard-uniform",
       title: "Форма для «Барда» не влазить у клітинку",
       hook: "Клітинка просить ширини.",
-      client: "Клітинка"
+      client: "Клітинка",
+      problem: "Форма сперечається з клітинкою.",
+      goal: "Повернути бланк до робочого стану."
     };
 
     const keyboard = buildAdventureApproachKeyboard({

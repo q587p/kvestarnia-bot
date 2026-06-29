@@ -245,7 +245,7 @@ describe("adventure command", () => {
     await sendAdventure(ctx, adventureService, "reply");
 
     expect(replies).toHaveLength(1);
-    expect(replies[0]?.text).toContain("Справу на найближчий час уже закрито");
+    expect(replies[0]?.text).toContain("Спробу на найближчий час уже використано");
     expect(replies[0]?.text).toContain("/hero");
     expect(replies[0]?.text).not.toContain("що робимо");
     expect(replies[0]?.options).toMatchObject({
@@ -289,7 +289,7 @@ describe("adventure command", () => {
       requireKorchmaInterior: true
     });
 
-    expect(replies[0]?.text).toContain("Справу на найближчий час уже закрито");
+    expect(replies[0]?.text).toContain("Спробу на найближчий час уже використано");
     expect(presence.marks).toHaveLength(1);
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -399,19 +399,25 @@ const offer = {
       id: "stew" as const,
       title: "Казанок репетирує оперу",
       hook: "Юшка вимагає райдер.",
-      client: "Кухар"
+      client: "Кухар",
+      problem: "Юшка співає.",
+      goal: "Стишити казанок."
     },
     {
       id: "barrel" as const,
       title: "Бочка вимагає орендну угоду",
       hook: "Бочка стала юридичною.",
-      client: "Корчмар"
+      client: "Корчмар",
+      problem: "Бочка вимагає оренду.",
+      goal: "Повернути бочку до тари."
     },
     {
       id: "helmet" as const,
       title: "Шолом памʼятає чужу славу",
       hook: "Шолом просить овацій.",
-      client: "Зброяр"
+      client: "Зброяр",
+      problem: "Шолом хвалиться чужим.",
+      goal: "Відділити славу від заліза."
     }
   ]
 };

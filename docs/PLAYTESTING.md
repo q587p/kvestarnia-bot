@@ -4,6 +4,21 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.14 — Adventure Quest Readability and Local Failure smoke
+
+Use one level 3+ account. Local `/dev_adventure_reset` is useful for rerolling offers and duplicate-button checks.
+
+1. Open the Adventure Choice table and select several general problems.
+2. Verify each selected card shows the title, hook, `Замовник`, `Проблема`, `Ціль`, then `Можливі способи`.
+3. Verify the offer list stays compact and does not show the new problem/goal block before selection.
+4. Select generated race, class and title problems when forceable; verify their problem/goal text fits the concrete family and does not expose `race`, `class`, `signature`, grade names, exact odds or future rewards.
+5. Open `💡 Підказка`; verify method details remain qualitative and return with `⬅️ Назад`.
+6. Complete an ordinary success or mixed result; verify reward and result framing still match the authored method.
+7. Force or sample a local failure method; verify the result says `Справу не закрито`, grants 0 XP, 0 золота and no item, starts no fight and shows no HP injury.
+8. Replay the same local-failure callback; verify the attempt is already used and no reward, item, HP loss or fight is duplicated.
+9. Complete a fight-handoff complication separately; verify rollback/idempotency behavior is unchanged.
+10. Reopen the Adventure table after the period claim; verify already-used copy fits both success and failed attempts.
+
 ## 0.2.13 — Postal Manatka Delivery smoke
 
 Use two accounts with at least one completed accepted item-transfer relationship. Local seeded inventory is acceptable for quantity and stale-state checks.

@@ -1023,7 +1023,7 @@ const GENERAL_SCENE_SEEDS: Record<string, AdventureSceneSeed> = {
   ]),
   bench: scene("лаву", "Пророцтво замовкло, лишивши пораду про шкарпетки.", "Лава сказала зайве, і тепер усім ніяково.", [
     method("cross-examine", "📋 Допитати лаву про джерела", "Розумний тиск без бійки.", "investigate", ["authority", "investigation"], "intelligence", "charisma", 68, "standard"),
-    method("out-prophesy", "🎵 Відповісти кращим пророцтвом", "Сценічно й трохи непевно.", "negotiate", ["performance"], "charisma", "luck", 62, "standard"),
+    method("out-prophesy", "🎵 Відповісти кращим пророцтвом", "Сценічно й трохи непевно; можна лишитися без закритої справи.", "negotiate", ["performance"], "charisma", "luck", 62, "standard", "local-failure"),
     method("sand-splinter", "🪡 Прибрати тріску з даром", "Точна робота, скромна винагорода.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 70, "modest"),
     method("sit-defiantly", "💪 Сісти й витримати правду поставою", "Грубо, смішно, небезпечно для гідности й спини.", "fight", ["force"], "strength", "luck", 57, "generous", "minor-injury")
   ]),
@@ -1229,7 +1229,7 @@ function generated(kind: GeneratedSceneKind): AdventureSceneSeed {
     exam: scene("іспит", "іспиту", "Іспит визнав героя питанням підвищеної складности.", "Викладач попросив перездачу реальности.", [
       method("exam-read-rubric", "🔎 Вичитати критерії іспиту", "Ретельний розбір умов.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("exam-appeal", "🤝 Подати апеляцію до здорового глузду", "Переговори з оцінюванням.", "negotiate", ["persuasion", "authority"], "charisma", "intelligence", 64, "standard"),
-      method("exam-question-swap", "🗝️ Поміняти місцями питання й відповідь", "Непевний фокус із білетом, можна постраждати від оцінювання.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
+      method("exam-question-swap", "🗝️ Поміняти місцями питання й відповідь", "Непевний фокус із білетом; спроба може провалитися без винагороди.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "local-failure"),
       method("exam-ritual-silence", "🕯️ Провести ритуал тиші в аудиторії", "Містично, але без мани.", "ritual", ["ritual"], "charisma", "intelligence", 62, "standard")
     ]),
     title: scene("титул", "титулу", "Черга прийняла титул, але просить печатку слави.", "Журнал почав питати, чи репутація має ноги.", [
@@ -1656,6 +1656,12 @@ function withRiskHint(hint: string, consequence: QuestConsequenceKind): string {
       : `${hint} Ризик бійки.`;
   }
 
+  if (consequence === "local-failure") {
+    return /не закрит|без винагород|провал|не вдаст/i.test(hint)
+      ? hint
+      : `${hint} Спроба може не закрити справу.`;
+  }
+
   return hint;
 }
 
@@ -1693,7 +1699,8 @@ function buildSceneOutcomeText(
     strong: beats.strong,
     success: beats.success,
     mixed: beats.mixed,
-    complication: beats.complication
+    complication: beats.complication,
+    complicationConsequence: seed.consequence
   });
 }
 
@@ -1716,7 +1723,8 @@ function buildProfileOutcomeText(input: {
     strong: `${beats.strong} ${input.identity.strong}`,
     success: `${beats.success} ${input.identity.success}`,
     mixed: `${beats.mixed} ${input.identity.mixed}`,
-    complication: `${beats.complication} ${input.identity.complication}`
+    complication: `${beats.complication} ${input.identity.complication}`,
+    complicationConsequence: input.seed.consequence
   });
 }
 
@@ -1737,7 +1745,10 @@ function buildOutcomeText(input: {
   success: string;
   mixed: string;
   complication: string;
+  complicationConsequence?: QuestConsequenceKind | undefined;
 }): Record<QuestResolutionGrade, QuestMethodOutcomeText> {
+  const isLocalFailure = input.complicationConsequence === "local-failure";
+
   return {
     "strong-success": {
       headline: "✨ Справу закрито блискуче",
@@ -1752,7 +1763,7 @@ function buildOutcomeText(input: {
       body: [input.sceneTitle, "", input.mixed]
     },
     complication: {
-      headline: "⚠️ Метод зачепив не той нерв",
+      headline: isLocalFailure ? "❌ Справу не закрито" : "⚠️ Метод зачепив не той нерв",
       body: [input.sceneTitle, "", input.complication]
     }
   };

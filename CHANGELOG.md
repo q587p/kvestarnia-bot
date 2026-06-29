@@ -7,6 +7,25 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.14] - 12026-06-29 - Adventure Quest Readability and Local Failure
+
+### Added
+- Added explicit selected-card objective copy for every active level 3+ Adventure Choice problem: the card now renders `Замовник`, `Проблема` and `Ціль` before the method list.
+- Added objective-copy coverage for all 24 general Adventure problems plus generated race survey/mug/portrait, class manual/uniform/exam and title problem families.
+- Added `local-failure` as a method-owned quest consequence for a small authored slice of risky methods.
+- Added focused tests for objective copy coverage, selected-card rendering, local-failure zero rewards, no item grants, no fight handoff and replay safety.
+
+### Changed
+- Selected Adventure Choice cards now explain the concrete problem and intended objective without exposing race/class/signature, grade, consequence names, exact odds or future rewards.
+- The already-used Adventure period copy now says the attempt was used rather than assuming the affair was successfully closed, so it fits both successful and failed attempts.
+- `local-failure` complications consume the existing 93-minute Adventure claim, persist through the existing result JSON path, grant 0 XP, 0 gold and no items, start no fight and do not apply HP injury.
+- Local-failure result cards use `❌ Справу не закрито`, show the chosen method and explicit zero reward, and mention the next Adventure period after the attempt.
+
+### Unchanged
+- No global failure roll was added; failure remains deterministic and owned by the selected authored method.
+- Existing paid-method safety, HP injury behavior, fight handoff rollback, stale callback handling, reward envelope and starter/onboarding fallbacks are unchanged.
+- This slice adds no new player action, durable milestone or resettable state beyond the existing Adventure claim, so no new achievement hook, `/dev_*` command, schema change or remort reset behavior ships here.
+
 ## [0.2.13] - 12026-06-29 - Postal Manatka Delivery MVP
 
 ### Added

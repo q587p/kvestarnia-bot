@@ -328,6 +328,45 @@ describe("AdventureService", () => {
     });
   });
 
+  it("records a local failure as a no-reward consumed adventure claim", async () => {
+    const found = await findResolvedAdventure((result) => result.consequence === "local-failure");
+
+    expect(found.result.state).toBe("completed");
+    if (found.result.state === "completed") {
+      expect(found.result.complication).toBe(true);
+      expect(found.result.fightHandoff).toBe(false);
+      expect(found.result.fightEncounter).toBeNull();
+      expect(found.result.hpLoss).toBeNull();
+      expect(found.result.reward).toMatchObject({
+        xp: 0,
+        gold: 0,
+        itemGrants: []
+      });
+      expect(found.result.outcome.headline).not.toContain("Справу закрито");
+    }
+    expect(found.dailyActions.createCount).toBe(1);
+    expect(found.dailyActions.records[0]).toMatchObject({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: buildAdventurePeriod(fixedClock()).storageKey,
+      rewardXp: 0,
+      rewardGold: 0
+    });
+    expect(found.dailyActions.records[0]?.resultJson).toMatchObject({
+      consequence: "local-failure",
+      reward: {
+        xp: 0,
+        gold: 0,
+        itemGrants: []
+      },
+      fightHandoff: null
+    });
+
+    const repeated = await found.service.completeAdventureApproach(found.userId, found.input);
+
+    expect(repeated.state).toBe("already-completed");
+    expect(found.dailyActions.createCount).toBe(1);
+  });
+
   it("rolls back a failed fight handoff through the stored claim identity", async () => {
     const found = await findResolvedAdventure((result) => result.fightHandoff);
 
@@ -804,7 +843,9 @@ describe("AdventureService", () => {
         id: "barrel",
         title: "Бочка уклала угоду з порожнечею",
         hook: "",
-        client: ""
+        client: "",
+        problem: "",
+        goal: ""
       },
       characterSummary()
     );
