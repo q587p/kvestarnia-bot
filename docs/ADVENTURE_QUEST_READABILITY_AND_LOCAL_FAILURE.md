@@ -123,6 +123,7 @@ Behavior:
 - Does not spend extra gold beyond already-committed explicit method cost; for paid methods, be careful whether failure should retain the visible cost. If this is ambiguous, do not put local failure on paid methods in this slice.
 - Replays safely from the stored claim/result JSON.
 - The already-completed copy must not imply that the quest was successfully closed; use wording like `спробу на найближчий час уже використано`.
+- Does not count as a resolved Adventure achievement. Monster-flavored Adventure complication achievements count stored fight handoffs, not local no-fight failures.
 
 Recommended result-copy direction:
 

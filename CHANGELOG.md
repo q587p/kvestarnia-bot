@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The already-used Adventure period copy now says the attempt was used rather than assuming the affair was successfully closed, so it fits both successful and failed attempts.
 - `local-failure` complications consume the existing 93-minute Adventure claim, persist through the existing result JSON path, grant 0 XP, 0 gold and no items, start no fight and do not apply HP injury.
 - Local-failure result cards use `❌ Справу не закрито`, show the chosen method and explicit zero reward, and mention the next Adventure period after the attempt.
+- Local-failure Adventure claims no longer advance resolved-affair achievements, and monster-complication Adventure achievements now count only stored fight handoffs.
 
 ### Unchanged
 - No global failure roll was added; failure remains deterministic and owned by the selected authored method.

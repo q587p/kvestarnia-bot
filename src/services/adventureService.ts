@@ -542,17 +542,18 @@ export class AdventureService {
       };
     }
 
+    const achievementEvents = [
+      ...(consequence === "local-failure" ? [] : ["adventure.choice.completed" as const]),
+      ...(check.grade === "strong-success" ? ["adventure.choice.strong-success" as const] : []),
+      ...(consequence === "fight-handoff" ? ["adventure.choice.complication" as const] : [])
+    ];
     const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
       characterId: claim.character.id,
       sourceId: claim.action.id,
       occurredAt: claim.action.createdAt,
       levelChange: claim.levelChange,
       itemGrants: claim.itemGrants,
-      events: [
-        "adventure.choice.completed",
-        ...(check.grade === "strong-success" ? ["adventure.choice.strong-success" as const] : []),
-        ...(check.grade === "complication" ? ["adventure.choice.complication" as const] : [])
-      ]
+      events: achievementEvents
     });
 
     return {
