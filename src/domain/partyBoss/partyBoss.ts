@@ -181,8 +181,12 @@ export function resolvePartyBossRound(input: {
   const actionSummaries: PartyBossParticipantActionSummary[] = [];
   let bossDamage = 0;
 
-  for (const participant of next.participants) {
-    if (participant.status !== "active" || participant.resources.hp <= 0 || next.boss.hp <= 0) {
+  const roundParticipants = next.participants.filter(
+    (participant) => participant.status === "active" && participant.resources.hp > 0
+  );
+
+  for (const participant of roundParticipants) {
+    if (participant.status !== "active" || participant.resources.hp <= 0) {
       continue;
     }
 

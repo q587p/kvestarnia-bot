@@ -42,6 +42,46 @@ describe("party boss reducer", () => {
     expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.timeoutActions).toBe(1);
   });
 
+  it("keeps already submitted same-round actions when an earlier actor drops the boss", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-simultaneous-finish",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { strength: 30, dexterity: 30 }),
+        participant("character-2", "Друга", { strength: 30, dexterity: 30 })
+      ]
+    });
+    const wounded = {
+      ...state,
+      boss: {
+        ...state.boss,
+        hp: 1,
+        hpMax: 1,
+        armor: 0,
+        resist: 0,
+        dexterity: 0
+      }
+    };
+
+    const result = resolvePartyBossRound({
+      state: wounded,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "simultaneous-finish",
+      actions: [
+        { characterId: "character-1", action: "attack", origin: "manual" },
+        { characterId: "character-2", action: "attack", origin: "manual" }
+      ]
+    });
+
+    expect(result.state.status).toBe("won");
+    expect(result.round.actions.map((action) => action.characterId)).toEqual([
+      "character-1",
+      "character-2"
+    ]);
+    expect(result.state.participants.find((entry) => entry.characterId === "character-1")?.contribution.submittedActions).toBe(1);
+    expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.submittedActions).toBe(1);
+  });
+
   it("stays active past the old five-turn proof cap while the boss and a participant are alive", () => {
     let state = createPartyBossState({
       partySessionId: "party-old-cap",
