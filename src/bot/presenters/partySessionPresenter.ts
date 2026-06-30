@@ -9,6 +9,7 @@ import type {
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossActionResult, PartyBossSessionRecord, PartyBossStartResult } from "../../db/repositories/partyBossRepository";
+import { getPartyBossRetaliationPlan } from "../../domain/partyBoss/partyBoss";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
@@ -250,6 +251,8 @@ export function presentPartyBoss(
     ? state.participants.find((participant) => participant.characterId === options.viewerCharacterId)
     : null;
   const viewerCanAct = viewer?.status === "active" && viewer.resources.hp > 0;
+  const retaliationPlan = getPartyBossRetaliationPlan(state);
+  const targetedCharacterIds = new Set(retaliationPlan.characterIds);
   const lines = [
     big ? "🛢️ <b>Старший Брат Бочки</b>" : "🧪 <b>Бос-проба ватаги</b>",
     "",
@@ -263,8 +266,16 @@ export function presentPartyBoss(
     lines.push(escapeHtml(options.notice), "");
   }
 
+  if (big && session.status === "active") {
+    lines.push(presentRetaliationPlan(retaliationPlan, state.participants));
+  }
+
   lines.push(...state.participants.map((participant) => {
-    const marker = participant.status === "knocked-out" ? "▫️" : "▪️";
+    const marker = participant.status === "knocked-out"
+      ? "▫️"
+      : targetedCharacterIds.has(participant.characterId)
+        ? "🎯"
+        : "▪️";
     return `${marker} ${escapeHtml(participant.name)} · ${participant.contribution.damageDealt} шкоди`;
   }));
 
@@ -305,7 +316,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord): string
   const rounds = session.state.roundLog;
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
   const lines = [
-    "📜 <b>Журнал бос-проби</b>",
+    isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал бос-проби</b>",
     "",
     getBossStatusLine(session)
   ];
@@ -328,7 +339,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord): string
     const retaliationDamage = round.bossRetaliations.reduce((sum, retaliation) => sum + retaliation.damage, 0);
     lines.push(`Бос отримав: ${round.bossDamage}. HP після ходу: ${round.bossHpAfter}/${session.state.boss.hpMax}.`);
     if (round.bossRetaliations.length > 0) {
-      lines.push(`Бос огризнувся: ${round.bossRetaliations.length} цілей, ${retaliationDamage} шкоди разом.`);
+      lines.push(`Бос огризнувся: ${presentRetaliationNames(round.bossRetaliations.map((retaliation) => retaliation.characterId), names)} · ${retaliationDamage} шкоди разом.`);
     }
     if (round.statusAfter !== "active") {
       lines.push(`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`);
@@ -336,6 +347,29 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord): string
   }
 
   return lines.join("\n");
+}
+
+function presentRetaliationPlan(
+  plan: ReturnType<typeof getPartyBossRetaliationPlan>,
+  participants: PartyBossSessionRecord["state"]["participants"]
+): string {
+  if (plan.kind === "broad") {
+    return "Увага боса: вся жива ватага.";
+  }
+
+  if (plan.kind === "focused") {
+    const targetId = plan.characterIds[0];
+    const targetName = participants.find((participant) => participant.characterId === targetId)?.name ?? "учасник";
+    return `Увага боса: ${escapeHtml(targetName)}.`;
+  }
+
+  return "Увага боса: ніхто не підписався, але протокол нервує.";
+}
+
+function presentRetaliationNames(characterIds: string[], names: Map<string, string>): string {
+  return characterIds
+    .map((characterId) => escapeHtml(names.get(characterId) ?? "учасник"))
+    .join(", ");
 }
 
 export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {

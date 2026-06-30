@@ -31,10 +31,10 @@ describe("party session keyboard", () => {
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
       includeDevTimeout: true
     }))).toEqual([
-      "⚔️ Вдарити",
-      "🛡️ Захист",
-      "✨ Вміння",
-      "🧬 Раса",
+      "🗡️ Вдарити",
+      "🛡 Захищатися",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
       "⏱️ Dev: добити хід",
       "📜 Журнал",
       "🔎 Оновити"
@@ -78,6 +78,18 @@ describe("party session keyboard", () => {
     ]);
   });
 
+  it("hides unavailable concrete party boss skills like ordinary combat", () => {
+    const session = makeBossSession({ classId: "class.mage", mana: 0 });
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
+      "🗡️ Вдарити",
+      "🛡 Захищатися",
+      "🧰 Практична імпровізація",
+      "📜 Журнал",
+      "🔎 Оновити"
+    ]);
+  });
+
   it("shows nearby party invite rows without duel actions", () => {
     const keyboard = buildPartySessionNearbyCandidatesKeyboard({
       state: "ready",
@@ -113,7 +125,7 @@ function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: stri
 }
 
 function makeBossSession(
-  participantOverrides: { status?: "active" | "knocked-out"; hp?: number } = {}
+  participantOverrides: { status?: "active" | "knocked-out"; hp?: number; mana?: number; classId?: string } = {}
 ): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
   const participant = makeCharacter("character-1", 42n);
@@ -167,12 +179,12 @@ function makeBossSession(
             charisma: 5,
             luck: 5,
             raceId: "race.human-ish",
-            classId: "class.warrior"
+            classId: participantOverrides.classId ?? "class.warrior"
           },
           resources: {
             hp: participantOverrides.hp ?? 25,
             hpMax: 25,
-            mana: 10,
+            mana: participantOverrides.mana ?? 10,
             manaMax: 10
           },
           contribution: {

@@ -477,7 +477,7 @@ async function settleTerminalPartyBoss(
       continue;
     }
 
-    if (!remortMatches || current.level < 8) {
+    if (!remortMatches || !isBigBarrelEligible(current.level, remortCount)) {
       if (remortMatches) {
         await settleBigParticipantResources(tx, participant, now);
       }
@@ -615,7 +615,7 @@ async function hasIneligibleBigBarrelParticipant(
   }
 
   if (joined.some((participant) =>
-    participant.character.level < 8 ||
+    !isBigBarrelEligible(participant.character.level, participant.character._count.remorts) ||
     participant.character._count.remorts !== participant.remortCount
   )) {
     return true;
@@ -647,6 +647,12 @@ async function hasIneligibleBigBarrelParticipant(
   ]);
 
   return Boolean(activeLease || existingSuccess);
+}
+
+function isBigBarrelEligible(level: number, remortCount: number): boolean {
+  return remortCount >= 1
+    ? level >= 3
+    : level >= 8;
 }
 
 async function settleBigParticipantResources(

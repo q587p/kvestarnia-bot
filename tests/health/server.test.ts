@@ -81,7 +81,7 @@ describe("health server", () => {
     expect(text).toContain("Старший Брат Бочки підняв кришку");
     expect(text).toContain("перший справжній гуртовий маршрут");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("пригодники 8+ рівня можуть зібрати ватагу");
+    expect(text).toContain("пригодники 8+ рівня або пригодники з памʼяттю реморту після 3 рівня");
     expect(text).toContain(
       "перемога зараховує Бочку цього періоду"
     );

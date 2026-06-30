@@ -15,6 +15,7 @@ export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
 export const PARTY_BOSS_PROOF_BOSS_KEY = "party-boss-proof-one";
 export const BIG_BARREL_BROTHER_BOSS_KEY = "big-barrel-brother";
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
+const BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS = 4;
 
 export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race">;
 export type PartyBossParticipantStatus = "active" | "knocked-out";
@@ -76,6 +77,11 @@ export interface PartyBossRetaliationSummary {
   characterId: string;
   damage: number;
   hpAfter: number;
+}
+
+export interface PartyBossRetaliationPlan {
+  kind: "none" | "focused" | "broad";
+  characterIds: string[];
 }
 
 export interface PartyBossResult {
@@ -330,8 +336,12 @@ function cloneAbilityCooldowns(
 function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummary[] {
   const retaliations: PartyBossRetaliationSummary[] = [];
   const big = isBigBarrelBrotherState(state);
+  const broadBigRetaliation = big && isBigBarrelBroadRetaliationTurn(state);
+  const targetIds = big ? getPartyBossRetaliationPlan(state).characterIds : state.participants.map((participant) => participant.characterId);
+  const targetIdSet = new Set(targetIds);
+  const targets = state.participants.filter((participant) => targetIdSet.has(participant.characterId));
 
-  for (const participant of state.participants) {
+  for (const participant of targets) {
     if (participant.status !== "active" || participant.resources.hp <= 0) {
       continue;
     }
@@ -341,7 +351,8 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
       : 1;
     const rawDamage = Math.max(1, state.boss.attack - Math.floor((participant.combatStats.armor ?? 0) / 2));
     const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
-    const damage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction));
+    const focusMultiplier = big && !broadBigRetaliation ? 2.23 : 1;
+    const damage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
 
@@ -359,9 +370,64 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
   return retaliations;
 }
 
+export function getPartyBossRetaliationPlan(state: PartyBossState): PartyBossRetaliationPlan {
+  if (!isBigBarrelBrotherState(state) || state.status !== "active") {
+    return { kind: "none", characterIds: [] };
+  }
+
+  const living = state.participants.filter(
+    (participant) => participant.status === "active" && participant.resources.hp > 0
+  );
+
+  if (living.length === 0) {
+    return { kind: "none", characterIds: [] };
+  }
+
+  if (isBigBarrelBroadRetaliationTurn(state)) {
+    return { kind: "broad", characterIds: living.map((participant) => participant.characterId) };
+  }
+
+  const focused = selectBigBarrelRetaliationTarget(state, living);
+  return focused
+    ? { kind: "focused", characterIds: [focused.characterId] }
+    : { kind: "none", characterIds: [] };
+}
+
+function isBigBarrelBroadRetaliationTurn(state: PartyBossState): boolean {
+  return state.turn % BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS === 0;
+}
+
+function selectBigBarrelRetaliationTarget(
+  state: PartyBossState,
+  living: PartyBossParticipantState[]
+): PartyBossParticipantState | null {
+  const leader = living[0] ?? null;
+  const previousRound = state.roundLog.at(-1);
+
+  if (!previousRound) {
+    return leader;
+  }
+
+  const positionByCharacterId = new Map(
+    state.participants.map((participant, index) => [participant.characterId, index])
+  );
+  const bestPreviousDamage = previousRound.actions
+    .filter((action) =>
+      action.damage > 0 && living.some((participant) => participant.characterId === action.characterId)
+    )
+    .sort((left, right) =>
+      right.damage - left.damage ||
+      (positionByCharacterId.get(left.characterId) ?? 0) - (positionByCharacterId.get(right.characterId) ?? 0)
+    )[0];
+
+  return bestPreviousDamage
+    ? living.find((participant) => participant.characterId === bestPreviousDamage.characterId) ?? leader
+    : leader;
+}
+
 function getBigBarrelBossHp(raidLevel: number, participantCount: number): number {
   const count = clamp(Math.floor(participantCount), 1, 8);
-  const baseHp = count === 1 ? 150 : 105;
+  const baseHp = count === 1 ? 150 : 132;
 
   return (
     baseHp +

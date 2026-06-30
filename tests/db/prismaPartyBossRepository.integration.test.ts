@@ -379,6 +379,81 @@ describe("PrismaPartyBossRepository integration", () => {
     })).toBe(0);
   });
 
+  it("allows a remorted level 3 participant to start and settle Big Barrel Brother", async () => {
+    await seedCharacter(prisma, "big-remort-eligible-user", 5151n, "Памʼятлива Лідерка", {
+      hp: 80,
+      level: 3,
+      strength: 24,
+      dexterity: 24
+    });
+    await seedRemort(prisma, "big-remort-eligible-user-character", 1);
+    await partyRepository.createForTelegramUser(5151n, {
+      ...partyInput("party-token-big-remort-eligible"),
+      periodId: "2026-06-30T11:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5151n, {
+      partyInviteToken: "party-token-big-remort-eligible",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    expect(started.session.state.participants[0]?.remortCount).toBe(1);
+
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      5151n,
+      "party-token-big-remort-eligible",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(latest.status).toBe("won");
+    expect(await prisma.dailyAction.count({
+      where: {
+        characterId: "big-remort-eligible-user-character",
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T11:23"
+      }
+    })).toBe(1);
+  });
+
+  it("blocks Big Barrel Brother start when a remorted participant is below level 3", async () => {
+    await seedCharacter(prisma, "big-remort-underlevel-user", 5152n, "Занадто Свіжа", {
+      hp: 80,
+      level: 2,
+      strength: 24,
+      dexterity: 24
+    });
+    await seedRemort(prisma, "big-remort-underlevel-user-character", 1);
+    await partyRepository.createForTelegramUser(5152n, {
+      ...partyInput("party-token-big-remort-underlevel"),
+      periodId: "2026-06-30T11:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5152n, {
+      partyInviteToken: "party-token-big-remort-underlevel",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started).toEqual({ state: "ineligible" });
+    expect(await prisma.partyBossSession.count({
+      where: {
+        partySession: {
+          inviteToken: "party-token-big-remort-underlevel"
+        }
+      }
+    })).toBe(0);
+  });
+
   it("skips duplicate Big Barrel Brother success and rewards if the participant completed the frozen period before settlement", async () => {
     await seedCharacter(prisma, "big-duplicate-user", 5201n, "Облікована Лідерка", {
       hp: 80,
@@ -596,7 +671,7 @@ async function forceBossToOneHp(
         ...state,
         boss: {
           ...state.boss,
-          hp: 1,
+          hp: 0,
           hpMax: 1,
           dexterity: 0
         }
@@ -662,6 +737,22 @@ async function seedCharacter(
           }
         }
       }
+    }
+  });
+}
+
+async function seedRemort(prisma: PrismaClient, characterId: string, remortNumber: number): Promise<void> {
+  await prisma.characterRemort.create({
+    data: {
+      id: `${characterId}-remort-${remortNumber}`,
+      characterId,
+      token: `${characterId}-remort-token-${remortNumber}`,
+      remortNumber,
+      previousLevel: 13,
+      previousXp: 587,
+      previousGold: 42,
+      displayNameSnapshot: "Памʼять Бочки",
+      preservedPayloadJson: {}
     }
   });
 }

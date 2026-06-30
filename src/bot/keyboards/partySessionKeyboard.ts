@@ -1,7 +1,13 @@
 import { InlineKeyboard } from "grammy";
+import {
+  getActorCombatActionAvailability,
+  getCombatRaceAbilityProfile,
+  getCombatSkillProfile
+} from "../../domain/combat";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import {
   makePartyBossActionCallbackData,
   makePartyBossJournalCallbackData,
@@ -71,15 +77,32 @@ export function buildPartyBossKeyboard(
     ? session.state.participants.find((participant) => participant.characterId === viewerCharacterId)
     : null;
   const canAct = viewer?.status === "active" && viewer.resources.hp > 0;
+  const availability = viewer
+    ? getActorCombatActionAvailability(viewer.resources, viewer.combatStats)
+    : null;
 
   if (session.status === "active" && viewerCharacterId && canAct) {
     keyboard
-      .text("⚔️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
-      .text("🛡️ Захист", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
-      .row()
-      .text("✨ Вміння", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "skill"))
-      .text("🧬 Раса", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "race"))
+      .text("🗡️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
+      .text("🛡 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
       .row();
+
+    if (availability?.skill.available !== false) {
+      keyboard.text(
+        getPartyBossSkillButtonLabel(viewer.combatStats.classId),
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "skill")
+      );
+    }
+
+    const raceLabel = getPartyBossRaceAbilityButtonLabel(viewer.combatStats.raceId);
+    if (raceLabel && availability?.race.available) {
+      keyboard.text(
+        raceLabel,
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "race")
+      );
+    }
+
+    keyboard.row();
   }
 
   if (session.status === "active" && options.includeDevTimeout) {
@@ -136,4 +159,23 @@ function formatCandidateButton(candidate: PresencePerson): string {
     : candidate.name;
 
   return `${name}${level}`;
+}
+
+function getPartyBossSkillButtonLabel(classId: string | undefined): string {
+  const skill = getCombatSkillProfile(classId);
+  const display = getCombatSkillDisplay(skill.id);
+
+  return `${display.icon} ${display.name}`;
+}
+
+function getPartyBossRaceAbilityButtonLabel(raceId: string | undefined): string | null {
+  const ability = getCombatRaceAbilityProfile(raceId);
+
+  if (!ability) {
+    return null;
+  }
+
+  const display = getCombatSkillDisplay(ability.id);
+
+  return `${display.icon} ${display.name}`;
 }

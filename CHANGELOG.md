@@ -11,21 +11,23 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added `BIG_BARREL_BROTHER_RAID_ENABLED` for the first feature-flagged Big Barrel Brother route.
-- Added a level `8+` Barrel route that creates/opens Big Barrel Brother recruiting parties from `/raid` / the Barrel location while the flag is enabled, reusing the existing `PartySession` token for deep links and nearby invites.
+- Added a Barrel route that creates/opens Big Barrel Brother recruiting parties from `/raid` / the Barrel location while the flag is enabled for non-remorted level `8+` characters and remorted level `3+` characters, reusing the existing `PartySession` token for deep links and nearby invites.
 - Added Big party-boss state with `rulesVersion = big-barrel-brother-v1`, `bossKey = big-barrel-brother`, frozen roster/resources/period and a single shared boss target.
 - Added Big Barrel Brother victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
 - Added focused Big reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
 - Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement.
 - Added focused hardening coverage for Big participant eligibility, duplicate frozen-period success, remort-life drift, and production-vs-dev timeout resolution.
+- Added a narrow Big Barrel Brother focus rule: ordinary retaliations first hit the party leader, then follow the previous round's top living damage contributor, while every fourth turn keeps a broad hit against all living participants until a future explicit threat/taunt system replaces it.
 
 ### Changed
-- Level `1-7`, disabled-flag level `8+`, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
+- Non-remorted level `1-7`, remorted level `1-2`, disabled-flag eligible characters, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
 - Big Barrel Brother runtime inherits the party-boss one-action-per-turn, duplicate/stale callback no-op, deterministic timeout defend and active combat lease release contracts from `0.2.16`.
-- Big Barrel Brother start now rejects the whole joined roster with a generic ineligible result when any participant is not currently eligible for the frozen Barrel period, and settlement rechecks level, remort life and existing Barrel success before granting XP/gold/items.
+- Big Barrel Brother start now rejects the whole joined roster with a generic ineligible result when any participant is not currently eligible for the frozen Barrel period, and settlement rechecks the remort-aware level gate, remort life and existing Barrel success before granting XP/gold/items.
 - Production `boss-timeout` callbacks now resolve only when the turn deadline is due; early force-timeout remains available only through dev-helper mode.
 - Party recruiting cards now show a real `🛢️ Почати рейд` leader button for Big Barrel Brother parties without exposing dev proof controls.
 - Big Barrel Brother boss cards use production raid copy and explain victory/failure without exposing private participant HP/mana/actions on shared cards.
-- Big balance tuning now uses 13 rounds only as a deterministic simulation/QA horizon: solo baseline `0/400` wins (`0%`), prepared 3-player entry party `162/400` wins (`40.5%`), both with `0` unresolved-by-horizon in the checked matrix.
+- Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.
+- Big balance tuning now uses 13 rounds only as a deterministic simulation/QA horizon: solo baseline `0/400` wins (`0%`), prepared 3-player entry party `181/400` wins (`45.25%`), both with `0` unresolved-by-horizon in the checked matrix.
 - The Big balance docs now explicitly remove the older round-7 terminal pressure proposal from the runtime contract.
 
 ### Unchanged

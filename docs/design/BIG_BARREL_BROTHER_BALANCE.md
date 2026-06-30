@@ -91,7 +91,8 @@ Target selection must be deterministic from the session/round seed and fair:
 
 - prefer living participants not hit by the previous heavy action;
 - do not hit one participant with more than two consecutive targeted boss actions when alternatives exist;
-- do not use hidden damage ranking as permanent aggro in MVP;
+- use previous-round top damage only as the temporary ordinary focus rule in `0.2.17`, not as permanent aggro;
+- keep a broad all-living-participant hit on a deterministic fourth-turn cadence until fuller threat/taunt mechanics replace it;
 - show every heavy mark before the damaging round.
 
 ## Ability kit
@@ -316,7 +317,7 @@ The feature-flagged MVP checks a narrow CI-stable reducer probe by the 13-round 
 | Scenario | Runs | Wins | Losses | Unresolved by horizon | Win rate |
 |---|---:|---:|---:|---:|---:|
 | Solo baseline, no manatky/remort/external buffs/items | 400 | 0 | 400 | 0 | `0%` |
-| Prepared 3-player entry party | 400 | 162 | 238 | 0 | `40.5%` |
+| Prepared 3-player entry party | 400 | 181 | 219 | 0 | `45.25%` |
 
 These are internal balance checks, not player-facing odds.
 

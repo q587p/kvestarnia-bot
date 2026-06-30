@@ -82,6 +82,108 @@ describe("party boss reducer", () => {
     expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.submittedActions).toBe(1);
   });
 
+  it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {
+    let state = createPartyBossState({
+      partySessionId: "big-focus",
+      variant: "big-barrel",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("leader", "Голова", { hp: 120, level: 8, strength: 8, dexterity: 8 }),
+        participant("striker", "Шкодійка", { hp: 120, level: 8, strength: 30, dexterity: 30 })
+      ]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        hp: 300,
+        hpMax: 300,
+        armor: 0,
+        resist: 0,
+        dexterity: 0
+      }
+    };
+
+    const first = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "big-focus",
+      actions: [
+        { characterId: "leader", action: "defend", origin: "manual" },
+        { characterId: "striker", action: "attack", origin: "manual" }
+      ]
+    });
+
+    expect(first.round.bossRetaliations.map((retaliation) => retaliation.characterId)).toEqual(["leader"]);
+    expect(first.round.actions.find((action) => action.characterId === "striker")?.damage).toBeGreaterThan(0);
+
+    const second = resolvePartyBossRound({
+      state: first.state,
+      now: new Date("2026-06-30T10:00:46.000Z"),
+      seed: "big-focus",
+      actions: [
+        { characterId: "leader", action: "defend", origin: "manual" },
+        { characterId: "striker", action: "defend", origin: "manual" }
+      ]
+    });
+
+    expect(second.round.bossRetaliations.map((retaliation) => retaliation.characterId)).toEqual(["striker"]);
+  });
+
+  it("keeps Big Barrel Brother broad retaliation on a fixed fourth-turn cadence", () => {
+    let state = createPartyBossState({
+      partySessionId: "big-broad-cadence",
+      variant: "big-barrel",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("leader", "Голова", { hp: 160, level: 8, strength: 8, dexterity: 8 }),
+        participant("striker", "Шкодійка", { hp: 160, level: 8, strength: 30, dexterity: 30 })
+      ]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        hp: 500,
+        hpMax: 500,
+        armor: 0,
+        resist: 0,
+        dexterity: 0
+      }
+    };
+
+    for (let turn = 1; turn <= 3; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:0${turn}:00.000Z`),
+        seed: "big-broad-cadence",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" },
+          { characterId: "striker", action: "attack", origin: "manual" }
+        ]
+      });
+
+      expect(resolved.round.bossRetaliations).toHaveLength(1);
+      state = resolved.state;
+    }
+
+    const fourth = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:04:00.000Z"),
+      seed: "big-broad-cadence",
+      actions: [
+        { characterId: "leader", action: "defend", origin: "manual" },
+        { characterId: "striker", action: "defend", origin: "manual" }
+      ]
+    });
+
+    expect(fourth.round.turn).toBe(4);
+    expect(fourth.round.bossRetaliations.map((retaliation) => retaliation.characterId)).toEqual([
+      "leader",
+      "striker"
+    ]);
+  });
+
   it("stays active past the old five-turn proof cap while the boss and a participant are alive", () => {
     let state = createPartyBossState({
       partySessionId: "party-old-cap",
