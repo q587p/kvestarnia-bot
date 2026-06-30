@@ -335,7 +335,7 @@ export function presentPartyBoss(
   if (lastRound) {
     lines.push("", `<b>Остання дія</b>`);
     lines.push(...presentLastRoundLines(lastRound, state.participants, bossName));
-    const nextFocus = big ? presentNextRetaliationFocus(state) : null;
+    const nextFocus = big ? presentNextRetaliationFocus(state, lastRound) : null;
     if (nextFocus) {
       lines.push(nextFocus);
     }
@@ -697,8 +697,14 @@ function presentBossTerminalStatus(status: string): string {
   }
 }
 
-function presentNextRetaliationFocus(state: PartyBossSessionRecord["state"]): string | null {
+function presentNextRetaliationFocus(
+  state: PartyBossSessionRecord["state"],
+  previousRound: PartyBossSessionRecord["state"]["roundLog"][number]
+): string | null {
   const plan = getPartyBossRetaliationPlan(state);
+  if (isSameRetaliationFocus(plan.characterIds, previousRound.bossRetaliations.map((retaliation) => retaliation.characterId))) {
+    return null;
+  }
 
   if (plan.kind === "broad") {
     return "🎯 Увага боса перемкнулася на всю живу ватагу.";
@@ -734,9 +740,19 @@ function presentNextRetaliationFocusAfterRound(
     )[0];
   const fallbackLeaderId = session.state.participants[0]?.characterId;
   const targetId = topDamage?.characterId ?? fallbackLeaderId;
+  if (targetId && isSameRetaliationFocus([targetId], round.bossRetaliations.map((retaliation) => retaliation.characterId))) {
+    return null;
+  }
+
   const targetName = session.state.participants.find((participant) => participant.characterId === targetId)?.name;
 
   return targetName ? `🎯 На наступний хід увага боса переходить на ${escapeHtml(targetName)}.` : null;
+}
+
+function isSameRetaliationFocus(nextCharacterIds: string[], previousCharacterIds: string[]): boolean {
+  return previousCharacterIds.length > 0 &&
+    nextCharacterIds.length === previousCharacterIds.length &&
+    nextCharacterIds.every((characterId, index) => characterId === previousCharacterIds[index]);
 }
 
 function formatSecondsLong(milliseconds: number): string {

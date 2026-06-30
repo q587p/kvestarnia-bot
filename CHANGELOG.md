@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.17] - 12026-06-30 - Big Barrel Brother Raid MVP
+## [0.2.17] - 12026-07-01 - Big Barrel Brother Raid MVP
 
 ### Added
 - Added `BIG_BARREL_BROTHER_RAID_ENABLED` for the first feature-flagged Big Barrel Brother route.
@@ -37,6 +37,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother starts now send a separate intervention intro card before the action card, and due active turns now resolve automatically through the runtime scheduler instead of requiring a manual timeout callback.
 - Big Barrel Brother intervention intro cards now reuse the existing character-flavor `Порада дня` (`raid.prep-hint` / Barrel scene) per participant instead of a separate hard-coded raid tip.
 - Big Barrel Brother battle journals now open only after terminal state, render one stored round per page, include action outcome descriptions, record boss target/focus-switch information, use beginning/end pagination, and return to the terminal result card.
+- Big Barrel Brother active cards and journals now suppress focus-switch lines when the boss is still targeting the same participant instead of claiming the attention "switched" to the current target again.
 - Big Barrel Brother party deep links now open the active or completed boss card/result before falling back to recruiting join, so old invites replay the real raid outcome after battle.
 - Big Barrel Brother recruiting join/leave now best-effort refreshes stored recruiting cards for other joined participants, including the leader's original card.
 - Joining a selected Big Barrel Brother recruiting group now cancels the player's own solo Big Barrel recruiting group first, so `👀 Хто поруч` and deep-link joins can move from a personal one-person draft into another leader's raid without getting stuck on the old card.

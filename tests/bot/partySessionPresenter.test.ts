@@ -104,6 +104,36 @@ describe("party session presenter", () => {
     expect(text).toContain("🎯 Увага боса перемкнулася на Шкодійка.");
   });
 
+  it("does not claim the Big Barrel Brother focus switched when it stayed on the same participant", () => {
+    const session = makeBigBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [{
+          characterId: "leader",
+          action: "attack",
+          origin: "manual",
+          outcome: "hit",
+          damage: 13,
+          manaSpent: 0
+        }],
+        bossDamage: 13,
+        bossHpAfter: 42,
+        bossRetaliations: [
+          { characterId: "leader", damage: 5, hpAfter: 55 }
+        ],
+        statusAfter: "active"
+      }]
+    });
+
+    const text = presentPartyBoss(session);
+    const journal = presentPartyBossJournal(session);
+
+    expect(text).toContain("— Старший Брат Бочки влучає у Голова на 5.");
+    expect(text).not.toContain("🎯 Увага боса перемкнулася на Голова.");
+    expect(journal).not.toContain("🎯 На наступний хід увага боса переходить на Голова.");
+  });
+
   it("explains a Big Barrel Brother loss with remaining boss HP and attempt XP", () => {
     const text = presentPartyBoss(makeBigBossSession({
       status: "lost",
