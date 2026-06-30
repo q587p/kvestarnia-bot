@@ -113,6 +113,8 @@ function isCombatLockSafeCallback(data: string): boolean {
     data.startsWith("v1:item:") ||
     data.startsWith("v1:use:") ||
     data.startsWith("v1:equip:") ||
+    data.startsWith("v1:party:v:") ||
+    data.startsWith("v1:party:bj:") ||
     data.startsWith("v1:restart:") ||
     data.startsWith("v1:rm:")
   );

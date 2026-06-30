@@ -20,6 +20,8 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Temporary party membership now treats `active` party sessions as live memberships, so participants cannot join or create another live party while a party-boss proof is active.
 - Remort cleanup now explicitly cancels an active party-boss proof and clears party-boss leases/live membership keys instead of leaving unsupported combat locks.
+- Party-boss start and resolved turns now best-effort push fresh private boss cards to other active participants, while party-boss refresh and journal callbacks bypass the active combat lock.
+- Party-boss cards now include a compact `📜 Журнал` view backed by stored round logs, showing resolved round damage/actions without private HP/mana or Telegram ids.
 - Solo combat item use now clears the player's own active bandage-use preview, including stuck `processing` orders, before spending the bandage as a combat turn.
 - Active fight cards now explain when a class or race combat action is hidden because it needs more mana after its cooldown has ended.
 - Local `/dev_restore_mana` now bypasses the active combat lock for battle QA, matching `/dev_heal`.

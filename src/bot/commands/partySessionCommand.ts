@@ -17,6 +17,7 @@ import {
   presentPartyCancel,
   presentPartyBoss,
   presentPartyBossAction,
+  presentPartyBossJournal,
   presentPartyBossStart,
   presentPartyCreate,
   presentPartyJoin,
@@ -120,6 +121,12 @@ export async function handlePartySessionCallback(
           includeDevTimeout: options.partyBoss.isEnabled()
         }
       : false);
+    if (result.state === "started") {
+      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        includeDevTimeout: options.partyBoss.isEnabled(),
+        notice: "Бос-пробу запущено. Ваша приватна картка вже тут."
+      });
+    }
     return;
   }
 
@@ -146,6 +153,14 @@ export async function handlePartySessionCallback(
           includeDevTimeout: options.partyBoss.isEnabled()
         }
       : false);
+    if (result.state === "resolved" || result.state === "terminal") {
+      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        includeDevTimeout: options.partyBoss.isEnabled(),
+        notice: result.session.status === "active"
+          ? "Хід оновлено. Показую новий стан бос-проби."
+          : "Бос-пробу завершено. Показую підсумок."
+      });
+    }
     return;
   }
 
@@ -167,6 +182,36 @@ export async function handlePartySessionCallback(
           includeDevTimeout: options.partyBoss.isEnabled()
         }
       : false);
+    if (result.state === "resolved" || result.state === "terminal") {
+      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        includeDevTimeout: options.partyBoss.isEnabled(),
+        notice: result.session.status === "active"
+          ? "Dev-таймаут добив хід. Показую новий стан бос-проби."
+          : "Dev-таймаут завершив бос-пробу. Показую підсумок."
+      });
+    }
+    return;
+  }
+
+  if (callback.type === "boss-journal") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const boss = await options.partyBoss.getByPartyInviteToken(callback.token);
+    await safeAnswerCallbackQuery(ctx);
+    if (!boss) {
+      await sendBossText(ctx, "edit", "Бос-проба не знайшлася.", false);
+      return;
+    }
+
+    const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+    await sendBossText(ctx, "edit", presentPartyBossJournal(boss), {
+      session: boss,
+      viewerCharacterId,
+      includeDevTimeout: options.partyBoss.isEnabled()
+    });
     return;
   }
 
@@ -435,6 +480,40 @@ async function sendBossText(
   }
 
   await ctx.reply(text, options);
+}
+
+async function notifyPartyBossParticipants(
+  ctx: Context,
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  actorTelegramUserId: bigint,
+  options: {
+    includeDevTimeout?: boolean | undefined;
+    notice: string;
+  }
+): Promise<void> {
+  for (const participant of session.participants) {
+    if (participant.telegramUserId === actorTelegramUserId) {
+      continue;
+    }
+
+    try {
+      await ctx.api.sendMessage(
+        Number(participant.telegramUserId),
+        presentPartyBoss(session, {
+          viewerCharacterId: participant.id,
+          notice: options.notice
+        }),
+        {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPartyBossKeyboard(session, participant.id, {
+            includeDevTimeout: options.includeDevTimeout
+          })
+        }
+      );
+    } catch {
+      // Best-effort private push; refresh callbacks still replay the canonical state.
+    }
+  }
 }
 
 function getViewerCharacterId(

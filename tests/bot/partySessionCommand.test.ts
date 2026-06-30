@@ -1,8 +1,10 @@
 import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { handlePartySessionCallback } from "../../src/bot/commands/partySessionCommand";
+import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { PartySessionService } from "../../src/services/partySessionService";
+import type { PartyBossService } from "../../src/services/partyBossService";
 import type { PresenceService } from "../../src/services/presenceService";
 
 describe("handlePartySessionCallback", () => {
@@ -88,6 +90,121 @@ describe("handlePartySessionCallback", () => {
     });
     expect(editMessageText).not.toHaveBeenCalled();
   });
+
+  it("pushes the started boss card to other participants", async () => {
+    const session = makeBossSession();
+    const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "started", session });
+    const { ctx, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: session.partyInviteToken },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ startFromPartyForTelegramUser })
+      }
+    );
+
+    expect(startFromPartyForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken);
+    expect(messageText(editMessageText)).toContain("Бос-пробу запущено");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(93);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Бос-пробу запущено");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:ba");
+  });
+
+  it("pushes the next boss turn to participants who acted earlier", async () => {
+    const session = makeBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "character-42",
+            action: "attack",
+            origin: "manual",
+            outcome: "hit",
+            damage: 7,
+            manaSpent: 0
+          },
+          {
+            characterId: "character-93",
+            action: "defend",
+            origin: "manual",
+            outcome: "defended",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 7,
+        bossHpAfter: 58,
+        bossRetaliations: [
+          { characterId: "character-42", damage: 4, hpAfter: 21 },
+          { characterId: "character-93", damage: 3, hpAfter: 22 }
+        ],
+        statusAfter: "active"
+      }]
+    });
+    const submitActionForTelegramUser = vi.fn().mockResolvedValue({ state: "resolved", session });
+    const { ctx, editMessageText, sendMessage } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-action", token: session.partyInviteToken, turn: 1, action: "defend" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitActionForTelegramUser })
+      }
+    );
+
+    expect(submitActionForTelegramUser).toHaveBeenCalledWith(93n, session.partyInviteToken, 1, "defend");
+    expect(messageText(editMessageText)).toContain("2 хід");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Хід оновлено");
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
+  });
+
+  it("opens the boss journal from the stored round log", async () => {
+    const session = makeBossSession({
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "character-42",
+            action: "attack",
+            origin: "manual",
+            outcome: "hit",
+            damage: 7,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 7,
+        bossHpAfter: 58,
+        bossRetaliations: [{ characterId: "character-42", damage: 4, hpAfter: 21 }],
+        statusAfter: "active"
+      }]
+    });
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-journal", token: session.partyInviteToken },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ getByPartyInviteToken })
+      }
+    );
+
+    expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(messageText(editMessageText)).toContain("📜 <b>Журнал бос-проби</b>");
+    expect(messageText(editMessageText)).toContain("Хід 1");
+    expect(messageText(editMessageText)).toContain("Тестова Лідерка: удар, 7 шкоди");
+  });
 });
 
 function serviceWith(overrides: Partial<PartySessionService>): PartySessionService {
@@ -100,21 +217,40 @@ function serviceWith(overrides: Partial<PartySessionService>): PartySessionServi
   } as unknown as PartySessionService;
 }
 
+function partyBossWith(overrides: Partial<PartyBossService>): PartyBossService {
+  return {
+    isEnabled: () => true,
+    startFromPartyForTelegramUser: vi.fn(),
+    submitActionForTelegramUser: vi.fn(),
+    resolveTimedOutByToken: vi.fn(),
+    getByPartyInviteToken: vi.fn(),
+    ...overrides
+  } as unknown as PartyBossService;
+}
+
 function createCallbackContext(): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
+  sendMessage: ReturnType<typeof vi.fn>;
+}
+function createCallbackContext(telegramUserId = 42): {
+  ctx: Context;
+  answerCallbackQuery: ReturnType<typeof vi.fn>;
+  editMessageText: ReturnType<typeof vi.fn>;
+  sendMessage: ReturnType<typeof vi.fn>;
 } {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn().mockResolvedValue(true);
+  const sendMessage = vi.fn().mockResolvedValue(true);
   const ctx = {
     from: {
-      id: 42,
+      id: telegramUserId,
       is_bot: false,
       first_name: "Тест"
     },
     chat: {
-      id: 42,
+      id: telegramUserId,
       type: "private"
     },
     callbackQuery: {
@@ -122,16 +258,19 @@ function createCallbackContext(): {
       message: {
         message_id: 13,
         chat: {
-          id: 42,
+          id: telegramUserId,
           type: "private"
         }
       }
     },
     answerCallbackQuery,
-    editMessageText
+    editMessageText,
+    api: {
+      sendMessage
+    }
   } as unknown as Context;
 
-  return { ctx, answerCallbackQuery, editMessageText };
+  return { ctx, answerCallbackQuery, editMessageText, sendMessage };
 }
 
 function messageText(editMessageText: ReturnType<typeof vi.fn>): string {
@@ -180,6 +319,95 @@ function makeSession(status: PartySessionRecord["status"]): PartySessionRecord {
         character: makeCharacter()
       }
     ]
+  };
+}
+
+function makeBossSession(overrides: Partial<PartyBossSessionRecord["state"]> = {}): PartyBossSessionRecord {
+  const now = new Date("2026-06-30T10:00:00.000Z");
+  const leader = makeCharacter();
+  const member = {
+    ...makeCharacter(),
+    id: "character-93",
+    userId: "user-93",
+    telegramUserId: 93n,
+    name: "Друга Учасниця"
+  };
+  const state: PartyBossSessionRecord["state"] = {
+    rulesVersion: "party-boss-proof-v1",
+    partySessionId: "party-1",
+    status: "active",
+    turn: 1,
+    boss: {
+      monsterId: "party-boss-proof-one",
+      name: "Контрольний Бос",
+      level: 3,
+      hp: 65,
+      hpMax: 65,
+      attack: 8,
+      armor: 2,
+      resist: 1,
+      dexterity: 5,
+      tags: ["party-boss-proof"]
+    },
+    participants: [
+      makeBossParticipant("character-42", "Тестова Лідерка"),
+      makeBossParticipant("character-93", "Друга Учасниця")
+    ],
+    roundLog: [],
+    startedAt: now.toISOString(),
+    ...overrides
+  };
+
+  return {
+    id: "boss-1",
+    partySessionId: "party-1",
+    partyInviteToken: "partyABC12",
+    leaderCharacterId: "character-42",
+    status: state.status,
+    turn: state.turn,
+    version: 1,
+    rulesVersion: "party-boss-proof-v1",
+    bossKey: "party-boss-proof-one",
+    state,
+    result: null,
+    turnExpiresAt: new Date("2026-06-30T10:00:23.000Z"),
+    completedAt: null,
+    participants: [leader, member]
+  };
+}
+
+function makeBossParticipant(characterId: string, name: string): PartyBossSessionRecord["state"]["participants"][number] {
+  return {
+    characterId,
+    name,
+    remortCount: 0,
+    status: "active",
+    combatStats: {
+      level: 3,
+      hpMax: 25,
+      manaMax: 10,
+      hpCurrent: 25,
+      manaCurrent: 10,
+      strength: 5,
+      dexterity: 5,
+      intelligence: 5,
+      charisma: 5,
+      luck: 5,
+      raceId: "race.human-ish",
+      classId: "class.warrior"
+    },
+    resources: {
+      hp: 25,
+      hpMax: 25,
+      mana: 10,
+      manaMax: 10
+    },
+    contribution: {
+      submittedActions: 0,
+      timeoutActions: 0,
+      damageDealt: 0,
+      damageTaken: 0
+    }
   };
 }
 

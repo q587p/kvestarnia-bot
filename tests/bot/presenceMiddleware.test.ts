@@ -9,10 +9,12 @@ import {
   makeFightTurnCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
+import { makePartySessionViewCallbackData } from "../../src/bot/callbacks/partySessionCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeRemortConfirmCallbackData } from "../../src/bot/callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
+import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import {
@@ -274,6 +276,32 @@ describe("presence middleware", () => {
     expect(presence.marks).not.toContainEqual(expect.objectContaining({
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     }));
+  });
+
+  it("lets party boss refresh bypass the active combat lock", async () => {
+    const presence = new CapturingPresenceService();
+    const boss = activePartyBossSession();
+    let refreshed = false;
+    const bot = createTestBot(presence, {
+      partySessions: {
+        isEnabled: () => true
+      } as NonNullable<BotServices["partySessions"]>,
+      partyBoss: {
+        isEnabled: () => true,
+        getActiveForTelegramUser: () => {
+          throw new Error("party refresh should not be intercepted by the combat lock");
+        },
+        getByPartyInviteToken: () => {
+          refreshed = true;
+          return Promise.resolve(boss);
+        }
+      } as unknown as NonNullable<BotServices["partyBoss"]>
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makePartySessionViewCallbackData(boss.partyInviteToken)));
+
+    expect(refreshed).toBe(true);
   });
 
   it("keeps active training combat presence instead of stamping blocked tavern destination", async () => {
@@ -912,6 +940,7 @@ function characterRecord() {
   return {
     id: "character-42",
     userId: "user-42",
+    telegramUserId: 42n,
     name: character.name,
     pronoun: character.pronoun,
     path: character.path,
@@ -926,7 +955,82 @@ function characterRecord() {
     manaCurrent: character.manaCurrent,
     manaMax: character.manaMax,
     manaRegenAt: null,
-    statsJson: character.stats
+    activeCosmeticTitleGrantId: null,
+    statsJson: character.stats,
+    remortCount: 0
+  };
+}
+
+function activePartyBossSession(): PartyBossSessionRecord {
+  const now = new Date("2026-06-30T10:00:00.000Z");
+  const record = characterRecord();
+
+  return {
+    id: "boss-1",
+    partySessionId: "party-1",
+    partyInviteToken: "partyABC12",
+    leaderCharacterId: record.id,
+    status: "active",
+    turn: 1,
+    version: 1,
+    rulesVersion: "party-boss-proof-v1",
+    bossKey: "party-boss-proof-one",
+    state: {
+      rulesVersion: "party-boss-proof-v1",
+      partySessionId: "party-1",
+      status: "active",
+      turn: 1,
+      boss: {
+        monsterId: "party-boss-proof-one",
+        name: "Контрольний Бос",
+        level: 3,
+        hp: 42,
+        hpMax: 42,
+        attack: 8,
+        armor: 2,
+        resist: 1,
+        dexterity: 5,
+        tags: ["party-boss-proof"]
+      },
+      participants: [{
+        characterId: record.id,
+        name: record.name,
+        remortCount: 0,
+        status: "active",
+        combatStats: {
+          level: 3,
+          hpMax: record.hpMax,
+          manaMax: record.manaMax,
+          hpCurrent: record.hpCurrent,
+          manaCurrent: record.manaCurrent,
+          strength: 5,
+          dexterity: 5,
+          intelligence: 5,
+          charisma: 5,
+          luck: 5,
+          raceId: record.raceId,
+          classId: record.classId
+        },
+        resources: {
+          hp: record.hpCurrent,
+          hpMax: record.hpMax,
+          mana: record.manaCurrent,
+          manaMax: record.manaMax
+        },
+        contribution: {
+          submittedActions: 0,
+          timeoutActions: 0,
+          damageDealt: 0,
+          damageTaken: 0
+        }
+      }],
+      roundLog: [],
+      startedAt: now.toISOString()
+    },
+    result: null,
+    turnExpiresAt: new Date("2026-06-30T10:00:23.000Z"),
+    completedAt: null,
+    participants: [record]
   };
 }
 

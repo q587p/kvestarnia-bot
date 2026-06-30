@@ -287,6 +287,44 @@ export function presentPartyBoss(
   return lines.join("\n");
 }
 
+export function presentPartyBossJournal(session: PartyBossSessionRecord): string {
+  const rounds = session.state.roundLog;
+  const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
+  const lines = [
+    "📜 <b>Журнал бос-проби</b>",
+    "",
+    getBossStatusLine(session)
+  ];
+
+  if (rounds.length === 0) {
+    lines.push("", "Журнал поки порожній. Корчмар уже відкрив чорнильницю, але хід ще не розписався.");
+    return lines.join("\n");
+  }
+
+  for (const round of rounds) {
+    lines.push("", `<b>Хід ${round.turn}</b>`);
+
+    for (const action of round.actions) {
+      const name = names.get(action.characterId) ?? "Учасник";
+      const timeout = action.origin === "timeout" ? " · таймаут" : "";
+      lines.push(
+        `— ${escapeHtml(name)}: ${presentBossActionLabel(action.action)}${timeout}, ${action.damage} шкоди`
+      );
+    }
+
+    const retaliationDamage = round.bossRetaliations.reduce((sum, retaliation) => sum + retaliation.damage, 0);
+    lines.push(`Бос отримав: ${round.bossDamage}. HP після ходу: ${round.bossHpAfter}/${session.state.boss.hpMax}.`);
+    if (round.bossRetaliations.length > 0) {
+      lines.push(`Бос огризнувся: ${round.bossRetaliations.length} цілей, ${retaliationDamage} шкоди разом.`);
+    }
+    if (round.statusAfter !== "active") {
+      lines.push(`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
   if (snapshot.state === "no-character") {
     return "Спершу створіть пригодника через /start. Ватага не записує тіні без анкети.";
@@ -411,6 +449,34 @@ function getBossStatusLine(session: PartyBossSessionRecord): string {
   }
 
   return `Стан: ${session.turn} хід до ${formatTime(session.turnExpiresAt)}`;
+}
+
+function presentBossActionLabel(action: string): string {
+  switch (action) {
+    case "attack":
+      return "удар";
+    case "defend":
+      return "захист";
+    case "skill":
+      return "вміння";
+    case "race":
+      return "расова дія";
+    default:
+      return "дія";
+  }
+}
+
+function presentBossTerminalStatus(status: string): string {
+  switch (status) {
+    case "won":
+      return "перемога ватаги";
+    case "lost":
+      return "бос вистояв";
+    case "cancelled":
+      return "скасовано";
+    default:
+      return "бій триває";
+  }
 }
 
 function getJoinedParticipants(session: PartySessionRecord): PartyParticipantRecord[] {

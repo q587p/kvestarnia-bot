@@ -4,6 +4,7 @@ import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepo
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossJournalCallbackData,
   makePartyBossStartCallbackData,
   makePartyBossTimeoutCallbackData,
   makePartySessionCancelCallbackData,
@@ -78,6 +79,7 @@ export function buildPartyBossKeyboard(
     keyboard.text("⏱️ Dev: добити хід", makePartyBossTimeoutCallbackData(session.partyInviteToken)).row();
   }
 
+  keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
   return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
 }
 

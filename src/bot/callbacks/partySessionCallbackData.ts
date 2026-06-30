@@ -10,6 +10,7 @@ export type PartySessionCallback =
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
   | { type: "boss-timeout"; token: string }
+  | { type: "boss-journal"; token: string }
   | { type: "nearby-open"; page: number }
   | { type: "nearby-invite"; targetTelegramUserId: bigint; page: number };
 
@@ -63,6 +64,10 @@ export function makePartyBossActionCallbackData(
 
 export function makePartyBossTimeoutCallbackData(token: string): string {
   return `${PREFIX}:bt:${token}`;
+}
+
+export function makePartyBossJournalCallbackData(token: string): string {
+  return `${PREFIX}:bj:${token}`;
 }
 
 export function makePartySessionNearbyOpenCallbackData(page = 0): string {
@@ -183,6 +188,10 @@ export function parsePartySessionCallbackData(
 
   if (action === "bt") {
     return ok({ type: "boss-timeout", token: tokenOrTarget });
+  }
+
+  if (action === "bj") {
+    return ok({ type: "boss-journal", token: tokenOrTarget });
   }
 
   return err("invalid-action");

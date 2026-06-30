@@ -36,9 +36,11 @@ describe("party session keyboard", () => {
       "✨ Вміння",
       "🧬 Раса",
       "⏱️ Dev: добити хід",
+      "📜 Журнал",
       "🔎 Оновити"
     ]);
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, null))).toEqual([
+      "📜 Журнал",
       "🔎 Оновити"
     ]);
   });
