@@ -35,6 +35,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.
 - Big Barrel Brother active battle cards now follow the ordinary fight rhythm more closely: turn heading, boss HP first, party HP/mana rows, visible boss target marker, concrete action buttons, 23-second turn hint and no live journal button until terminal state.
 - Big Barrel Brother starts now send a separate intervention intro card before the action card, and due active turns now resolve automatically through the runtime scheduler instead of requiring a manual timeout callback.
+- Big Barrel Brother intervention intro cards now reuse the existing character-flavor `Порада дня` (`raid.prep-hint` / Barrel scene) per participant instead of a separate hard-coded raid tip.
 - Big Barrel Brother battle journals now open only after terminal state, render one stored round per page, include action outcome descriptions, record boss target/focus-switch information, use beginning/end pagination, and return to the terminal result card.
 - Big Barrel Brother party deep links now open the active or completed boss card/result before falling back to recruiting join, so old invites replay the real raid outcome after battle.
 - Big Barrel Brother recruiting join/leave now best-effort refreshes stored recruiting cards for other joined participants, including the leader's original card.

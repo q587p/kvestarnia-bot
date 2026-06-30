@@ -144,7 +144,7 @@ export async function handlePartySessionCallback(
       ? getBossViewerCharacterId(result.session, telegramUserId)
       : null;
     if (result.state === "started") {
-      await sendText(ctx, "edit", presentPartyBossIntro(result.session), false);
+      await sendText(ctx, "edit", presentPartyBossIntro(result.session, viewerCharacterId), false);
       await sendBossText(ctx, "reply", presentPartyBossStart(result, viewerCharacterId), {
         session: result.session,
         viewerCharacterId,
@@ -752,7 +752,7 @@ async function notifyPartyBossParticipants(
       if (options.includeIntro) {
         await ctx.api.sendMessage(
           Number(participant.telegramUserId),
-          presentPartyBossIntro(session),
+          presentPartyBossIntro(session, participant.id),
           HTML_MESSAGE_OPTIONS
         );
       }

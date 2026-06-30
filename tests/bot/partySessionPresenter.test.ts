@@ -30,12 +30,13 @@ describe("party session presenter", () => {
   });
 
   it("renders the Big Barrel Brother intro as a separate start card", () => {
-    const text = presentPartyBossIntro(makeBigBossSession());
+    const text = presentPartyBossIntro(makeBigBossSession(), "leader");
 
     expect(text).toContain("🛢️ <b>Старший Брат Бочки втрутився</b>");
     expect(text).toContain("👥 Ватага: Голова, Шкодійка");
     expect(text).toContain("👹 Проти вас: Старший Брат Бочки · рівень 9");
-    expect(text).toContain("💡 Порада дня:");
+    expect(text).toContain("<i>Порада дня:");
+    expect(text).not.toContain("зайдіть у бойову картку");
   });
 
   it("renders Big Barrel Brother journal hits with player names", () => {
@@ -186,7 +187,21 @@ function makeBigBossSession(
     result: null,
     turnExpiresAt: new Date("2026-06-30T10:00:23.000Z"),
     completedAt: null,
-    participants: []
+    participants: [
+      bossParticipantSnapshot("leader", "Голова", 42n),
+      bossParticipantSnapshot("striker", "Шкодійка", 93n)
+    ]
+  };
+}
+
+function bossParticipantSnapshot(
+  id: string,
+  name: string,
+  telegramUserId: bigint
+): PartyBossSessionRecord["participants"][number] {
+  return {
+    ...makePartyCharacter(id, name, telegramUserId),
+    remortCount: 0
   };
 }
 

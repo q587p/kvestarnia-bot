@@ -1,4 +1,5 @@
 import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import type {
   PartyCancelResult,
   PartyCreateResult,
@@ -9,6 +10,7 @@ import type {
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossActionResult, PartyBossSessionRecord, PartyBossStartResult } from "../../db/repositories/partyBossRepository";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import { getPartyBossRetaliationPlan, PARTY_BOSS_TURN_MS } from "../../domain/partyBoss/partyBoss";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
@@ -219,10 +221,14 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
   });
 }
 
-export function presentPartyBossIntro(session: PartyBossSessionRecord): string {
+export function presentPartyBossIntro(
+  session: PartyBossSessionRecord,
+  viewerCharacterId?: string | null
+): string {
   const state = session.state;
   const big = isBigPartyBossSession(session);
   const participantNames = state.participants.map((participant) => escapeHtml(participant.name)).join(", ");
+  const startTip = presentPartyBossStartTip(session, viewerCharacterId);
 
   if (!big) {
     return [
@@ -231,7 +237,7 @@ export function presentPartyBossIntro(session: PartyBossSessionRecord): string {
       `👥 Ватага: ${participantNames || "протокол ще шукає учасників"}`,
       `👹 Проти вас: ${escapeHtml(state.boss.name ?? "Контрольний бос")} · рівень ${state.boss.level}`,
       "",
-      "💡 Порада дня: відкрийте бойову картку й оберіть дію."
+      startTip ?? "💡 Порада дня: відкрийте бойову картку й оберіть дію."
     ].join("\n");
   }
 
@@ -243,7 +249,7 @@ export function presentPartyBossIntro(session: PartyBossSessionRecord): string {
     `👥 Ватага: ${participantNames || "Корчмар рахує пальці"}`,
     `👹 Проти вас: ${escapeHtml(state.boss.name ?? "Старший Брат Бочки")} · рівень ${state.boss.level}`,
     "",
-    "💡 Порада дня: зайдіть у бойову картку й полікуйтеся або бийте. Якщо зависнути, Корчма поставить вас у захист."
+    ...(startTip ? [startTip] : [])
   ].join("\n");
 }
 
@@ -608,6 +614,29 @@ function isBigPartyBossSession(session: PartyBossSessionRecord): boolean {
   return session.rulesVersion === "big-barrel-brother-v1" ||
     session.bossKey === "big-barrel-brother" ||
     session.state.boss.monsterId === "big-barrel-brother";
+}
+
+function presentPartyBossStartTip(
+  session: PartyBossSessionRecord,
+  viewerCharacterId: string | null | undefined
+): string | null {
+  const participant = viewerCharacterId
+    ? session.participants.find((candidate) => candidate.id === viewerCharacterId)
+    : session.participants[0] ?? null;
+
+  if (!participant) {
+    return null;
+  }
+
+  const flavor = selectCharacterFlavorLine(summarizeCharacter(participant, {
+    remortCount: participant.remortCount
+  }), {
+    placement: "raid.prep-hint",
+    scene: "barrel",
+    seed: `party-boss-start:${session.id}:${viewerCharacterId ?? participant.id}`
+  });
+
+  return flavor ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>` : null;
 }
 
 function presentBossActionLabel(action: string): string {

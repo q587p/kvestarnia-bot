@@ -103,7 +103,7 @@ async function notifyParticipants(
     if (reason === "started") {
       await bot.api.sendMessage(
         Number(participant.telegramUserId),
-        presentPartyBossIntro(session),
+        presentPartyBossIntro(session, participant.id),
         HTML_MESSAGE_OPTIONS
       );
     }
