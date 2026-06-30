@@ -717,35 +717,188 @@ function formatSecondsLong(milliseconds: number): string {
 
 function presentPartyInviteLine(session: PartySessionRecord, inviteUrl: string): string {
   const flavor = isBigBarrelParty(session)
-    ? BIG_BARREL_INVITE_LINES[pickInviteTemplateIndex(session.inviteToken)] ?? BIG_BARREL_INVITE_LINES[0]
+    ? BIG_BARREL_INVITE_TEMPLATES[pickInviteTemplateIndex(session.inviteToken)]?.body[0] ?? BIG_BARREL_INVITE_TEMPLATES[0]?.body[0]
     : "Передайте це посилання тому, хто має прийти у ватагу:";
 
   return `${flavor}\nЗапрошення: <a href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a>`;
 }
 
-const BIG_BARREL_INVITE_LINES = [
-  "Бочка підозріло хлюпає. Покличте ще когось, поки вона не навчилася рахувати:",
-  "Корчмар видав рейдові двері й попросив не грюкати ними по реальності:",
-  "Старший Брат Бочки вже дивиться у журнал. Ватага ще може стати більшою:",
-  "Піна шепоче, що самотні пригодники швидше стають легендами. Краще покличте підмогу:",
-  "Біля Бочки відкрився гуртовий протокол. Він не кусається першим:",
-  "Рейдовий кухоль просить більше рук і менше самовпевненості:",
-  "Корчма дозволяє форвардити цей шматок героїзму без довідки:",
-  "Якщо хтось питає, де починається біда, покажіть ці двері:",
-  "Бочка не проти глядачів, але корисніші ті, хто натискає кнопки:",
-  "Старший Брат Бочки любить повні списки. Допишіть ще пригодників:",
-  "Це посилання пахне піною, ризиком і дуже офіційним «ну спробуйте»:",
-  "Ватага ще збирається. Саме час покликати того, хто завжди «майже готовий»:",
-  "Корчмар лишив рейдові двері прочиненими рівно настільки, щоб їх переслати:"
+export function presentPartyInviteShare(
+  session: PartySessionRecord,
+  inviteUrl: string,
+  options: { templateIndex: number }
+): string {
+  const template = BIG_BARREL_INVITE_TEMPLATES[normalizeBigBarrelInviteTemplateIndex(options.templateIndex)] ??
+    BIG_BARREL_INVITE_TEMPLATES[0];
+
+  if (!template) {
+    throw new Error("Big Barrel invite templates must not be empty.");
+  }
+
+  const leaderName = presentCharacterDisplayName(session.leader);
+  const participantCount = session.participants.filter((participant) => participant.status === "joined").length;
+
+  return [
+    `<b>${template.header}</b>`,
+    "",
+    ...template.body.flatMap((line) => [line, ""]).slice(0, -1),
+    "",
+    `Ватажок: ${leaderName}`,
+    `Учасників: <b>${participantCount}/${session.participantCap}</b>`,
+    "Формат: гуртовий рейд проти Старшого Брата Бочки.",
+    "",
+    escapeHtml(inviteUrl)
+  ].join("\n");
+}
+
+export function getInitialBigBarrelInviteTemplateIndex(token: string): number {
+  return stableIndex(token, BIG_BARREL_INVITE_TEMPLATES.length);
+}
+
+export function getNextBigBarrelInviteTemplateIndex(token: string, currentIndex: number): number {
+  const current = normalizeBigBarrelInviteTemplateIndex(currentIndex);
+
+  if (BIG_BARREL_INVITE_TEMPLATES.length <= 1) {
+    return current;
+  }
+
+  const offset = stableIndex(`${token}:step`, BIG_BARREL_INVITE_TEMPLATES.length - 1) + 1;
+
+  return (current + offset) % BIG_BARREL_INVITE_TEMPLATES.length;
+}
+
+export function normalizeBigBarrelInviteTemplateIndex(value: number): number {
+  if (!Number.isInteger(value) || value < 0 || value >= BIG_BARREL_INVITE_TEMPLATES.length) {
+    return 0;
+  }
+
+  return value;
+}
+
+export const BIG_BARREL_INVITE_TEMPLATES = [
+  {
+    id: "barrel-counts",
+    header: "🛢️ Рейдові двері біля Бочки",
+    body: [
+      "Бочка підозріло хлюпає. Покличте ще когось, поки вона не навчилася рахувати.",
+      "Переходьте за посиланням, заходьте у збір і полікуйтеся до старту."
+    ]
+  },
+  {
+    id: "official-foam",
+    header: "📜 Пінний протокол відкрито",
+    body: [
+      "Корчмар видав рейдові двері й попросив не грюкати ними по реальності.",
+      "Старший Брат Бочки вже дивиться у журнал. Ватага ще може стати більшою."
+    ]
+  },
+  {
+    id: "solo-legends",
+    header: "🍺 Самовпевненість просить підмогу",
+    body: [
+      "Піна шепоче, що самотні пригодники швидше стають легендами.",
+      "Краще перейти за посиланням і додати себе до списку до того, як Корчма зробить це за вас."
+    ]
+  },
+  {
+    id: "group-protocol",
+    header: "🧾 Гуртовий протокол Бочки",
+    body: [
+      "Біля Бочки відкрився гуртовий протокол. Він не кусається першим.",
+      "Переходьте за посиланням, доки протокол не згадав, що вміє закриватися."
+    ]
+  },
+  {
+    id: "more-hands",
+    header: "🤲 Рейдовий кухоль кличе руки",
+    body: [
+      "Рейдовий кухоль просить більше рук і менше самовпевненості.",
+      "Усередині буде Старший Брат Бочки, тож героїзм краще приносити гуртом."
+    ]
+  },
+  {
+    id: "forward-heroism",
+    header: "📣 Героїзм для пересилання",
+    body: [
+      "Корчма дозволяє форвардити цей шматок героїзму без довідки.",
+      "Посилання веде просто у збір. Далі Корчмар рахуватиме тих, хто встиг."
+    ]
+  },
+  {
+    id: "where-trouble-starts",
+    header: "🚪 Де починається біда",
+    body: [
+      "Якщо хтось питає, де починається біда, покажіть ці двері.",
+      "Біда офіційна, пінна й дуже хоче, щоб учасників було більше одного."
+    ]
+  },
+  {
+    id: "useful-witnesses",
+    header: "👀 Свідки корисніші з кнопками",
+    body: [
+      "Бочка не проти глядачів, але корисніші ті, хто натискає кнопки.",
+      "Переходьте за посиланням і станьте не просто свідком, а рядком у рейдовому списку."
+    ]
+  },
+  {
+    id: "full-list",
+    header: "🗂️ Старший Брат любить списки",
+    body: [
+      "Старший Брат Бочки любить повні списки. Допишіть ще пригодників.",
+      "Посилання нижче веде до збору, де список поки не дивиться на вас осудливо."
+    ]
+  },
+  {
+    id: "smells-like-try",
+    header: "🫧 Пахне піною й ризиком",
+    body: [
+      "Це посилання пахне піною, ризиком і дуже офіційним «ну спробуйте».",
+      "Заходьте у збір, перевірте HP і ману, а тоді вже сперечайтеся з Бочкою."
+    ]
+  },
+  {
+    id: "almost-ready",
+    header: "⏳ Для тих, хто майже готовий",
+    body: [
+      "Ватага ще збирається. Саме час покликати того, хто завжди «майже готовий».",
+      "Переходьте за посиланням: Корчма терпляча, але таймер ні."
+    ]
+  },
+  {
+    id: "open-enough",
+    header: "🔓 Двері прочинені рівно настільки",
+    body: [
+      "Корчмар лишив рейдові двері прочиненими рівно настільки, щоб їх переслати.",
+      "Далі двері можуть зачинитися, а Старший Брат Бочки — почати виховну роботу."
+    ]
+  },
+  {
+    id: "foam-audit",
+    header: "🧮 Пінна ревізія учасників",
+    body: [
+      "Бочка почала рахувати образи й підозріло швидко дійшла до ватаги.",
+      "Переходьте за посиланням, поки ревізія ще приймає добровольців."
+    ]
+  }
 ] as const;
 
 function pickInviteTemplateIndex(token: string): number {
-  let hash = 0;
-  for (const char of token) {
-    hash = (hash * 31 + char.charCodeAt(0)) % BIG_BARREL_INVITE_LINES.length;
+  return getInitialBigBarrelInviteTemplateIndex(token);
+}
+
+function stableIndex(seed: string, modulo: number): number {
+  if (modulo <= 0) {
+    return 0;
   }
 
-  return hash;
+  let hash = 2166136261;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0) % modulo;
 }
 
 function clampPage(page: number, total: number): number {

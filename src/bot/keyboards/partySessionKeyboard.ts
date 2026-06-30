@@ -15,10 +15,12 @@ import {
   makePartyBossTimeoutCallbackData,
   makePartySessionCancelCallbackData,
   makePartySessionExpireCallbackData,
+  makePartySessionInviteRotateCallbackData,
   makePartySessionJoinCallbackData,
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
 
@@ -61,6 +63,7 @@ export function buildPartySessionKeyboard(
     }
 
     if (session.originLocationId === "barrel.big-brother" && options.inviteUrl) {
+      keyboard.text("📣 Текст запрошення", makePartySessionShareCallbackData(token)).row();
       keyboard.url("🔗 Запросити в рейд", buildTelegramShareUrl(options.inviteUrl)).row();
     }
 
@@ -152,6 +155,13 @@ export function buildPartySessionInviteKeyboard(session: PartySessionRecord): In
     .text("🤝 Приєднатися", makePartySessionJoinCallbackData(session.inviteToken))
     .row()
     .text("🔎 Оновити", makePartySessionViewCallbackData(session.inviteToken));
+}
+
+export function buildPartySessionInviteShareKeyboard(token: string, templateIndex: number): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "🎲 Інший текст",
+    makePartySessionInviteRotateCallbackData(token, templateIndex)
+  );
 }
 
 export function buildPartySessionNearbyCandidatesKeyboard(

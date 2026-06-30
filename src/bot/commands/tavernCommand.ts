@@ -55,6 +55,7 @@ import {
 } from "../keyboards/tavernKeyboard";
 import {
   buildPartyBossKeyboard,
+  buildPartySessionInviteShareKeyboard,
   buildPartySessionKeyboard
 } from "../keyboards/partySessionKeyboard";
 import {
@@ -80,7 +81,9 @@ import {
 } from "../presenters/tavernPresenter";
 import {
   presentPartyBoss,
-  presentPartyCreate
+  presentPartyCreate,
+  presentPartyInviteShare,
+  getInitialBigBarrelInviteTemplateIndex
 } from "../presenters/partySessionPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
@@ -727,6 +730,9 @@ export async function sendTavernBarrel(
           includeDevExpire: options.partySessions.areDevHelpersEnabled()
         }
       : false);
+    if ((party.state === "created" || party.state === "live-membership") && session && inviteUrl) {
+      await sendBigBarrelInviteShare(ctx, session, inviteUrl);
+    }
     return true;
   }
 
@@ -793,6 +799,22 @@ async function sendBigPartyText(
   }
 
   await ctx.reply(text, options);
+}
+
+async function sendBigBarrelInviteShare(
+  ctx: Context,
+  session: Parameters<typeof presentPartyInviteShare>[0],
+  inviteUrl: string
+): Promise<void> {
+  if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID || session.status !== "recruiting") {
+    return;
+  }
+
+  const templateIndex = getInitialBigBarrelInviteTemplateIndex(session.inviteToken);
+  await ctx.reply(presentPartyInviteShare(session, inviteUrl, { templateIndex }), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildPartySessionInviteShareKeyboard(session.inviteToken, templateIndex)
+  });
 }
 
 async function sendBigBossText(

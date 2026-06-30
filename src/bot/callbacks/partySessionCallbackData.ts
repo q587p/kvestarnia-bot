@@ -11,6 +11,8 @@ export type PartySessionCallback =
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
   | { type: "boss-timeout"; token: string }
   | { type: "boss-journal"; token: string; page: number | null }
+  | { type: "share"; token: string }
+  | { type: "invite"; token: string; templateIndex: number }
   | { type: "nearby-open"; page: number }
   | { type: "nearby-invite"; targetTelegramUserId: bigint; page: number };
 
@@ -68,6 +70,14 @@ export function makePartyBossTimeoutCallbackData(token: string): string {
 
 export function makePartyBossJournalCallbackData(token: string, page?: number): string {
   return page === undefined ? `${PREFIX}:bj:${token}` : `${PREFIX}:bj:${token}:${page.toString(36)}`;
+}
+
+export function makePartySessionShareCallbackData(token: string): string {
+  return `${PREFIX}:sh:${token}`;
+}
+
+export function makePartySessionInviteRotateCallbackData(token: string, templateIndex: number): string {
+  return `${PREFIX}:in:${token}:${templateIndex.toString(36)}`;
 }
 
 export function makePartySessionNearbyOpenCallbackData(page = 0): string {
@@ -174,6 +184,22 @@ export function parsePartySessionCallbackData(
     });
   }
 
+  if (action === "in") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    return ok({
+      type: "invite",
+      token: tokenOrTarget,
+      templateIndex: Number.parseInt(page, 36)
+    });
+  }
+
   if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {
     return err("invalid-token");
   }
@@ -204,6 +230,10 @@ export function parsePartySessionCallbackData(
 
   if (action === "bt") {
     return ok({ type: "boss-timeout", token: tokenOrTarget });
+  }
+
+  if (action === "sh") {
+    return ok({ type: "share", token: tokenOrTarget });
   }
 
   return err("invalid-action");

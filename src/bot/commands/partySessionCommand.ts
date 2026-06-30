@@ -10,6 +10,7 @@ import {
 import { telegramUserIdFromContext } from "../context";
 import {
   buildPartySessionInviteKeyboard,
+  buildPartySessionInviteShareKeyboard,
   buildPartyBossKeyboard,
   buildPartyBossJournalKeyboard,
   buildPartySessionKeyboard,
@@ -28,6 +29,9 @@ import {
   presentPartyNearbyCandidates,
   presentPartyNearbyInviteNotification,
   presentPartyNearbyInviteSent,
+  presentPartyInviteShare,
+  getInitialBigBarrelInviteTemplateIndex,
+  getNextBigBarrelInviteTemplateIndex,
   presentPartyView
 } from "../presenters/partySessionPresenter";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
@@ -105,6 +109,11 @@ export async function handlePartySessionCallback(
 
   if (callback.type === "nearby-invite") {
     await handleNearbyInvite(ctx, callback, service, options, telegramUserId);
+    return;
+  }
+
+  if (callback.type === "share" || callback.type === "invite") {
+    await handlePartyInviteShare(ctx, callback, service, options, telegramUserId);
     return;
   }
 
@@ -317,6 +326,7 @@ export async function handlePartySessionCallback(
         }
       : false);
     if (result.state === "joined") {
+      await sendBigBarrelInviteShareIfPossible(ctx, result.session, inviteUrl);
       await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
     }
     return;
@@ -541,6 +551,22 @@ async function sendPartyView(
     : false);
 }
 
+async function sendBigBarrelInviteShareIfPossible(
+  ctx: Context,
+  session: Parameters<typeof presentPartyInviteShare>[0],
+  inviteUrl: string | null
+): Promise<void> {
+  if (!inviteUrl || !isBigBarrelParty(session) || session.status !== "recruiting") {
+    return;
+  }
+
+  const templateIndex = getInitialBigBarrelInviteTemplateIndex(session.inviteToken);
+  await ctx.reply(presentPartyInviteShare(session, inviteUrl, { templateIndex }), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildPartySessionInviteShareKeyboard(session.inviteToken, templateIndex)
+  });
+}
+
 async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
@@ -606,6 +632,51 @@ async function sendBossText(
   }
 
   await ctx.reply(text, options);
+}
+
+async function handlePartyInviteShare(
+  ctx: Context,
+  callback: Extract<PartySessionCallback, { type: "share" | "invite" }>,
+  service: PartySessionService,
+  options: PartySessionCommandOptions,
+  telegramUserId: bigint
+): Promise<void> {
+  const result = await service.getByToken(callback.token);
+
+  if (result.state !== "ready" || !isBigBarrelParty(result.session) || result.session.status !== "recruiting") {
+    await safeAnswerCallbackQuery(ctx, { text: "Цей рейдовий збір уже не редагує запрошення." });
+    return;
+  }
+
+  if (!isJoinedParticipant(result.session, telegramUserId)) {
+    await safeAnswerCallbackQuery(ctx, { text: "Запрошення можуть крутити тільки учасники збору." });
+    return;
+  }
+
+  const inviteUrl = buildPartyInviteUrl(options.botUsername, result.session.inviteToken);
+  if (!inviteUrl) {
+    await safeAnswerCallbackQuery(ctx, { text: "Посилання ще не зібралося: бот не знає свій username." });
+    return;
+  }
+
+  const templateIndex = callback.type === "share"
+    ? getInitialBigBarrelInviteTemplateIndex(result.session.inviteToken)
+    : getNextBigBarrelInviteTemplateIndex(result.session.inviteToken, callback.templateIndex);
+
+  await safeAnswerCallbackQuery(ctx);
+
+  const text = presentPartyInviteShare(result.session, inviteUrl, { templateIndex });
+  const optionsWithKeyboard = {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildPartySessionInviteShareKeyboard(result.session.inviteToken, templateIndex)
+  };
+
+  if (callback.type === "share") {
+    await ctx.reply(text, optionsWithKeyboard);
+    return;
+  }
+
+  await safeEditMessageText(ctx, text, optionsWithKeyboard);
 }
 
 async function sendBossJournalText(
@@ -718,6 +789,16 @@ function getViewerCharacterId(
 
 function isBigBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[0]): boolean {
   return session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+}
+
+function isJoinedParticipant(
+  session: Parameters<typeof buildPartySessionKeyboard>[0],
+  telegramUserId: bigint
+): boolean {
+  return session.participants.some((participant) =>
+    participant.status === "joined" &&
+    participant.character.telegramUserId === telegramUserId
+  );
 }
 
 function isBigBossSession(session: Parameters<typeof buildPartyBossKeyboard>[0]): boolean {

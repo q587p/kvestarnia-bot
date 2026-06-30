@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPartyBossKeyboard,
   buildPartyBossJournalKeyboard,
+  buildPartySessionInviteShareKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../../src/bot/keyboards/partySessionKeyboard";
@@ -61,11 +62,20 @@ describe("party session keyboard", () => {
       "🚪 Вийти",
       "🧹 Скасувати збір",
       "🛢️ Почати рейд",
+      "📣 Текст запрошення",
       "🔗 Запросити в рейд",
       "🔎 Оновити"
     ]);
     expect(keyboardText(keyboard)).toContain("https://t.me/share/url");
     expect(keyboardText(keyboard)).toContain("party_partyABC12");
+    expect(keyboardText(keyboard)).toContain("v1:party:sh:partyABC12");
+  });
+
+  it("rotates Big Barrel Brother invite-card text", () => {
+    const keyboard = buildPartySessionInviteShareKeyboard("partyABC12", 12);
+
+    expect(inlineButtonTexts(keyboard)).toEqual(["🎲 Інший текст"]);
+    expect(keyboardText(keyboard)).toContain("v1:party:in:partyABC12:c");
   });
 
   it("hides party boss action buttons from knocked-out participants", () => {

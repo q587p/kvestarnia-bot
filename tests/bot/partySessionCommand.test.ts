@@ -377,6 +377,54 @@ describe("handlePartySessionCallback", () => {
     expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("href=\"https://t.me/kvestarnia_test_bot?start=party_partyABC12\"");
   });
 
+  it("sends a forwardable Big Barrel Brother invite card to joined participants", async () => {
+    const session = {
+      ...makeSessionWithMember(),
+      originLocationId: "barrel.big-brother"
+    };
+    const getByToken = vi.fn().mockResolvedValue({ state: "ready", session });
+    const { ctx, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "share", token: session.inviteToken },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(getByToken).toHaveBeenCalledWith(session.inviteToken);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("https://t.me/kvestarnia_test_bot?start=party_partyABC12");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Учасників: <b>2/8</b>");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🎲 Інший текст");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("v1:party:in:partyABC12");
+  });
+
+  it("lets any joined Big Barrel Brother participant rotate invite-card text", async () => {
+    const session = {
+      ...makeSessionWithMember(),
+      originLocationId: "barrel.big-brother"
+    };
+    const getByToken = vi.fn().mockResolvedValue({ state: "ready", session });
+    const { ctx, editMessageText } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "invite", token: session.inviteToken, templateIndex: 0 },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(messageText(editMessageText)).toContain("https://t.me/kvestarnia_test_bot?start=party_partyABC12");
+    expect(messageText(editMessageText)).toContain("Формат: гуртовий рейд проти Старшого Брата Бочки.");
+    expect(keyboardJson(editMessageText)).toContain("🎲 Інший текст");
+  });
+
   it("opens a completed party boss result from a party deep link before falling back to recruiting join", async () => {
     const session = makeBossSession({ status: "won" });
     const getByPartyInviteToken = vi.fn().mockResolvedValue(session);

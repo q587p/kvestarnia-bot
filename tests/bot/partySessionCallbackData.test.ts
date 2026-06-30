@@ -6,10 +6,12 @@ import {
   makePartyBossTimeoutCallbackData,
   makePartySessionCancelCallbackData,
   makePartySessionExpireCallbackData,
+  makePartySessionInviteRotateCallbackData,
   makePartySessionJoinCallbackData,
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionShareCallbackData,
   makePartySessionViewCallbackData,
   parsePartySessionCallbackData
 } from "../../src/bot/callbacks/partySessionCallbackData";
@@ -53,6 +55,14 @@ describe("party session callback data", () => {
     expect(parsePartySessionCallbackData(makePartyBossJournalCallbackData(token, 12))).toEqual({
       ok: true,
       value: { type: "boss-journal", token, page: 12 }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionShareCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "share", token }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionInviteRotateCallbackData(token, 12))).toEqual({
+      ok: true,
+      value: { type: "invite", token, templateIndex: 12 }
     });
     expect(parsePartySessionCallbackData(makePartyBossActionCallbackData(token, 42, "skill"))).toEqual({
       ok: true,

@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused hardening coverage for Big participant eligibility, duplicate frozen-period success, remort-life drift, and production-vs-dev timeout resolution.
 - Added a narrow Big Barrel Brother focus rule: ordinary retaliations first hit the party leader, then follow the previous round's top living damage contributor, while every fourth turn keeps a broad hit against all living participants until a future explicit threat/taunt system replaces it.
 - Added automatic Big Barrel Brother recruiting start after the recruiting deadline, plus `👀 Хто поруч` listings/buttons for live Barrel recruiting groups.
+- Added a forwardable Big Barrel Brother invite-card with 13 stable Ukrainian templates and `🎲 Інший текст` rotation for joined recruiting participants.
 
 ### Changed
 - Non-remorted level `1-7`, remorted level `1-2`, disabled-flag eligible characters, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
@@ -28,7 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Production `boss-timeout` callbacks now resolve only when the turn deadline is due; early force-timeout remains available only through dev-helper mode.
 - Party recruiting cards now show a real `🛢️ Почати рейд` leader button for Big Barrel Brother parties without exposing dev proof controls.
 - Plain Barrel place entry and current-location resume keep the familiar Barrel card first; eligible players opt into Big Barrel Brother with `🍺 У рейд на бочку` instead of being dropped straight into recruiting.
-- Big Barrel Brother recruiting cards opened through `/raid` and the explicit Barrel raid action now receive the configured bot username, keep the invite visible while recruiting, render the full `/start party_<token>` URL as an active Telegram link, and add a participant-visible invite URL button for forwarding.
+- Big Barrel Brother recruiting cards opened through `/raid` and the explicit Barrel raid action now receive the configured bot username, keep the invite visible while recruiting, render the full `/start party_<token>` URL as an active Telegram link, add a participant-visible invite URL button for forwarding, and offer `📣 Текст запрошення` to resend the forwardable card.
 - Big Barrel Brother boss cards use production raid copy, show the whole party resource state to participants, mark the boss target on the participant row, and explain victory/failure with the boss HP that remained.
 - Big Barrel Brother participant resource snapshots now use the hero's effective level/equipment HP and mana maxima, preserving real missing resources such as `13/50` instead of clamping raid cards to stored base maxima like `20/10`.
 - Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.

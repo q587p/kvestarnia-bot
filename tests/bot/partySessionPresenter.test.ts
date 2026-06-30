@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  BIG_BARREL_INVITE_TEMPLATES,
+  getInitialBigBarrelInviteTemplateIndex,
+  getNextBigBarrelInviteTemplateIndex,
+  presentPartyInviteShare,
   presentPartyBoss,
   presentPartyBossIntro,
   presentPartyBossJournal
 } from "../../src/bot/presenters/partySessionPresenter";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
+import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -112,6 +117,29 @@ describe("party session presenter", () => {
     expect(text).toContain("Старший Брат Бочки вистояв із 104/216 HP.");
     expect(text).toContain("досвід за спробу");
   });
+
+  it("renders a forwardable Big Barrel Brother invite card with visible URL and rotating text", () => {
+    expect(BIG_BARREL_INVITE_TEMPLATES).toHaveLength(13);
+
+    const session = makePartySession();
+    const initial = getInitialBigBarrelInviteTemplateIndex(session.inviteToken);
+    const next = getNextBigBarrelInviteTemplateIndex(session.inviteToken, initial);
+    const firstText = presentPartyInviteShare(
+      session,
+      "https://t.me/kvestarnia_test_bot?start=party_partyBIG12",
+      { templateIndex: initial }
+    );
+    const nextText = presentPartyInviteShare(
+      session,
+      "https://t.me/kvestarnia_test_bot?start=party_partyBIG12",
+      { templateIndex: next }
+    );
+
+    expect(firstText).toContain("https://t.me/kvestarnia_test_bot?start=party_partyBIG12");
+    expect(firstText).toContain("Ватажок: <b>Голова</b>");
+    expect(firstText).toContain("Учасників: <b>2/8</b>");
+    expect(nextText).not.toBe(firstText);
+  });
 });
 
 function makeBigBossSession(
@@ -197,5 +225,83 @@ function participant(
       damageDealt: 0,
       damageTaken: 0
     }
+  };
+}
+
+function makePartySession(): PartySessionRecord {
+  const now = new Date("2026-06-30T10:00:00.000Z");
+  const leader = makePartyCharacter("leader", "Голова", 42n);
+  const member = makePartyCharacter("striker", "Шкодійка", 93n);
+
+  return {
+    id: "party-big",
+    inviteToken: "partyBIG12",
+    status: "recruiting",
+    leaderCharacterId: leader.id,
+    periodId: "12026-06-30T10:23",
+    originLocationId: "barrel.big-brother",
+    participantCap: 8,
+    minimumParticipants: 1,
+    joinUntilAt: new Date("2026-06-30T10:13:00.000Z"),
+    expiresAt: new Date("2026-06-30T10:13:00.000Z"),
+    version: 1,
+    activeLeaderKey: "party-leader:leader",
+    createdAt: now,
+    updatedAt: now,
+    leader,
+    participants: [
+      partyParticipant("participant-leader", leader, now),
+      partyParticipant("participant-striker", member, now)
+    ]
+  };
+}
+
+function partyParticipant(
+  id: string,
+  character: PartySessionRecord["leader"],
+  joinedAt: Date
+): PartySessionRecord["participants"][number] {
+  return {
+    id,
+    sessionId: "party-big",
+    characterId: character.id,
+    remortCount: 0,
+    status: "joined",
+    joinSource: "nearby",
+    joinedAt,
+    leftAt: null,
+    chatId: character.telegramUserId,
+    messageId: 13,
+    character
+  };
+}
+
+function makePartyCharacter(
+  id: string,
+  name: string,
+  telegramUserId: bigint
+): PartySessionRecord["leader"] {
+  return {
+    id,
+    userId: `user-${id}`,
+    telegramUserId,
+    currentLocationId: "location.korchma.barrel",
+    name,
+    pronoun: "they",
+    path: "path.boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 8,
+    xp: 42,
+    gold: 13,
+    hpCurrent: 60,
+    hpMax: 60,
+    manaCurrent: 20,
+    manaMax: 20,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
   };
 }
