@@ -203,7 +203,7 @@ If thresholds are crossed early, do not stack two major phase actions in one bos
 
 ## Participant resources
 
-- Use frozen current HP/mana after canonical lazy recovery.
+- Use frozen current HP/mana after canonical lazy recovery, with each participant's effective level/equipment HP and mana maxima rather than stored base maxima.
 - Use canonical effective stats, item effects, armor, resist, weapon/spell power and cooldown rules.
 - A participant at zero raid HP is knocked out and stops acting.
 - No resurrection in v1.

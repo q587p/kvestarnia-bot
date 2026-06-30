@@ -47,6 +47,11 @@ const partyCharacterInclude = {
       lastSeenLocationId: true
     }
   },
+  equipment: {
+    orderBy: {
+      slot: "asc" as const
+    }
+  },
   _count: {
     select: {
       remorts: true
@@ -191,7 +196,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           characterId: participant.characterId,
           name: participant.character.name,
           remortCount: participant.character._count.remorts,
-          combatStats: buildPartyBossCombatStats(mapCharacter(participant.character))
+          combatStats: buildPartyBossCombatStats(mapCharacterForCombat(participant.character))
         }))
       });
 
@@ -929,6 +934,15 @@ function mapCharacter(row: CharacterRow): PartyBossParticipantSnapshot {
     statsJson: row.statsJson,
     telegramUserId: row.user.telegramUserId,
     remortCount: row._count.remorts
+  };
+}
+
+function mapCharacterForCombat(
+  row: CharacterRow
+): PartyBossParticipantSnapshot & { equipment: CharacterRow["equipment"] } {
+  return {
+    ...mapCharacter(row),
+    equipment: row.equipment
   };
 }
 

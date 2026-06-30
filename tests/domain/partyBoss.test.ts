@@ -145,27 +145,27 @@ describe("party boss reducer", () => {
     expect(state.boss.level).toBe(13);
   });
 
-  it("keeps real missing resources and clamps impossible over-max snapshots at boss start", () => {
+  it("keeps real missing resources and clamps impossible over-max snapshots to the participant max", () => {
     const state = createPartyBossState({
       partySessionId: "resource-clamp",
       now: new Date("2026-06-30T10:00:00.000Z"),
       participants: [
-        participant("wounded", "Поранена", { hp: 20, mana: 10, hpCurrent: 13, manaCurrent: 4 }),
-        participant("overmax", "Переповнена", { hp: 20, mana: 10, hpCurrent: 51, manaCurrent: 26 })
+        participant("wounded", "Поранена", { hp: 51, mana: 26, hpCurrent: 13, manaCurrent: 4 }),
+        participant("overmax", "Переповнена", { hp: 51, mana: 26, hpCurrent: 93, manaCurrent: 42 })
       ]
     });
 
     expect(state.participants.find((entry) => entry.characterId === "wounded")?.resources).toMatchObject({
       hp: 13,
-      hpMax: 20,
+      hpMax: 51,
       mana: 4,
-      manaMax: 10
+      manaMax: 26
     });
     expect(state.participants.find((entry) => entry.characterId === "overmax")?.resources).toMatchObject({
-      hp: 20,
-      hpMax: 20,
-      mana: 10,
-      manaMax: 10
+      hp: 51,
+      hpMax: 51,
+      mana: 26,
+      manaMax: 26
     });
   });
 

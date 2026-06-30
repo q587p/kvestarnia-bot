@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Plain Barrel place entry and current-location resume keep the familiar Barrel card first; eligible players opt into Big Barrel Brother with `🍺 У рейд на бочку` instead of being dropped straight into recruiting.
 - Big Barrel Brother recruiting cards opened through `/raid` and the explicit Barrel raid action now receive the configured bot username, keep the invite visible while recruiting, and render the `/start party_<token>` URL as an active Telegram link.
 - Big Barrel Brother boss cards use production raid copy and explain victory/failure without exposing private participant HP/mana/actions on shared cards.
+- Big Barrel Brother participant resource snapshots now use the hero's effective level/equipment HP and mana maxima, preserving real missing resources such as `13/50` instead of clamping raid cards to stored base maxima like `20/10`.
 - Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.
 - Big Barrel Brother active battle cards now follow the ordinary fight rhythm more closely: turn heading, viewer HP/mana, boss HP, visible boss target on participants, 23-second turn hint and no live journal button until terminal state.
 - Big Barrel Brother battle journals now open only after terminal state, render one stored round per page, include action outcome descriptions and record boss target/focus-switch information.

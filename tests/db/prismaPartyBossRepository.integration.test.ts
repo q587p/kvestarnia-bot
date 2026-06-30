@@ -90,6 +90,45 @@ describe("PrismaPartyBossRepository integration", () => {
     })).toBe(2);
   });
 
+  it("freezes participant resources from effective level and equipment max at boss start", async () => {
+    await seedCharacter(prisma, "effective-resources-user", 1101n, "Екіпірована", {
+      hpCurrent: 13,
+      hpMax: 20,
+      manaCurrent: 25,
+      manaMax: 10,
+      level: 8,
+      strength: 16,
+      dexterity: 11,
+      equipment: [
+        { slot: "chest", itemId: "item.apron-of-foam-resistance" },
+        { slot: "accessory", itemId: "item.hourglass-with-deadline-teeth" }
+      ]
+    });
+    await partyRepository.createForTelegramUser(1101n, partyInput("party-token-effective-resources"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1101n, {
+      partyInviteToken: "party-token-effective-resources",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    const participant = started.session.state.participants.find(
+      (entry) => entry.characterId === "effective-resources-user-character"
+    );
+
+    expect(participant?.resources).toMatchObject({
+      hp: 13,
+      hpMax: 50,
+      mana: 25,
+      manaMax: 26
+    });
+  });
+
   it("releases leases and live party keys when timeout resolution knocks out all participants", async () => {
     await seedCharacter(prisma, "knockout-leader-user", 2001n, "Крихка Лідерка", { hp: 1 });
     await seedCharacter(prisma, "knockout-joiner-user", 2002n, "Крихкий Помічник", { hp: 1 });
@@ -772,7 +811,17 @@ async function seedCharacter(
   userId: string,
   telegramUserId: bigint,
   name: string,
-  options: { hp?: number; level?: number; strength?: number; dexterity?: number } = {}
+  options: {
+    hp?: number;
+    hpCurrent?: number;
+    hpMax?: number;
+    manaCurrent?: number;
+    manaMax?: number;
+    level?: number;
+    strength?: number;
+    dexterity?: number;
+    equipment?: Array<{ slot: string; itemId: string }>;
+  } = {}
 ): Promise<void> {
   const hp = options.hp ?? 25;
   const strength = options.strength ?? 8;
@@ -789,15 +838,24 @@ async function seedCharacter(
           raceId: "race.human-ish",
           classId: "class.warrior",
           level: options.level ?? 3,
-          hpCurrent: hp,
-          hpMax: hp,
+          hpCurrent: options.hpCurrent ?? hp,
+          hpMax: options.hpMax ?? hp,
+          manaCurrent: options.manaCurrent ?? 10,
+          manaMax: options.manaMax ?? 10,
           statsJson: {
             strength,
             dexterity,
             intelligence: 5,
             charisma: 5,
             luck: 5
-          }
+          },
+          ...(options.equipment
+            ? {
+                equipment: {
+                  create: options.equipment
+                }
+              }
+            : {})
         }
       }
     }
@@ -954,6 +1012,14 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_equipment (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE UNIQUE INDEX party_sessions_invite_token_key ON party_sessions(invite_token)`,
     `CREATE UNIQUE INDEX party_sessions_active_leader_key_key ON party_sessions(active_leader_key)`,
     `CREATE UNIQUE INDEX party_participants_active_membership_key_key ON party_participants(active_membership_key)`,
@@ -961,7 +1027,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE UNIQUE INDEX party_boss_sessions_party_session_id_key ON party_boss_sessions(party_session_id)`,
     `CREATE UNIQUE INDEX party_boss_actions_session_id_turn_actor_character_id_key ON party_boss_actions(session_id, turn, actor_character_id)`,
     `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`,
-    `CREATE UNIQUE INDEX character_items_character_id_item_id_key ON character_items(character_id, item_id)`
+    `CREATE UNIQUE INDEX character_items_character_id_item_id_key ON character_items(character_id, item_id)`,
+    `CREATE UNIQUE INDEX character_equipment_character_id_slot_key ON character_equipment(character_id, slot)`
   ]) {
     await prisma.$executeRawUnsafe(statement);
   }
