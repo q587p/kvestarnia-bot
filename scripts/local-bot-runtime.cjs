@@ -477,27 +477,60 @@ function backupRuntimeDatabase(paths) {
   return backupPath;
 }
 
+function removeRuntimeDatabaseFiles(paths) {
+  const prismaDirectory = path.join(paths.runtimeRoot, "prisma");
+  for (const fileName of PRISMA_RUNTIME_FILES) {
+    removeFileIfPresent(path.join(prismaDirectory, fileName));
+  }
+}
+
+function prepareRuntimeDatabaseWithPush(paths, options = {}) {
+  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+  const args = ["prisma", "db", "push", "--skip-generate"];
+
+  if (options.acceptDataLoss) {
+    args.push("--accept-data-loss");
+  }
+
+  log("Synchronizing the isolated runtime database from prisma/schema.prisma...");
+  log("This uses prisma db push for the disposable local-bot database only.");
+  return runCommand(npx, args, paths.runtimeRoot);
+}
+
 async function preparePrisma(paths) {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+  const prepareMode = (process.env.KVESTARNIA_LOCAL_BOT_DB_PREPARE || "push").toLowerCase();
 
   log("Generating Prisma Client inside the isolated runtime...");
   if (!runCommand(npm, ["run", "db:generate"], paths.runtimeRoot)) {
     fail("Prisma Client generation failed inside the isolated runtime.");
   }
 
-  log("Applying migrations to the isolated runtime database...");
-  if (runCommand(npm, ["run", "db:migrate"], paths.runtimeRoot)) {
+  if (prepareMode === "migrate") {
+    log("Applying migrations to the isolated runtime database...");
+    if (runCommand(npm, ["run", "db:migrate"], paths.runtimeRoot)) {
+      return;
+    }
+
+    warn("Migration failed. Falling back to schema push for the disposable isolated runtime database.");
+  } else if (prepareMode !== "push") {
+    warn(
+      `Unknown KVESTARNIA_LOCAL_BOT_DB_PREPARE=${prepareMode}; ` +
+        "using prisma db push for the isolated runtime database.",
+    );
+  }
+
+  if (prepareRuntimeDatabaseWithPush(paths)) {
     return;
   }
 
-  warn("Migration failed. The isolated SQLite database may have drift after branch changes.");
+  warn("Prisma db push failed. The isolated SQLite database may have incompatible local drift.");
   const shouldReset = await promptYesNo(
-    "Back up and reset only the ISOLATED runtime prisma/dev.db, then reapply migrations?",
+    "Back up and recreate only the ISOLATED runtime prisma/dev.db from prisma/schema.prisma?",
   );
 
   if (!shouldReset) {
-    fail("Runtime database reset was declined.");
+    fail("Runtime database recreation was declined.");
   }
 
   const backupPath = backupRuntimeDatabase(paths);
@@ -505,14 +538,10 @@ async function preparePrisma(paths) {
     log(`Runtime database backup saved to ${backupPath}`);
   }
 
-  if (
-    !runCommand(
-      npx,
-      ["prisma", "migrate", "reset", "--force", "--skip-seed"],
-      paths.runtimeRoot,
-    )
-  ) {
-    fail("Resetting the isolated runtime database failed.");
+  removeRuntimeDatabaseFiles(paths);
+
+  if (!prepareRuntimeDatabaseWithPush(paths, { acceptDataLoss: true })) {
+    fail("Recreating the isolated runtime database from prisma/schema.prisma failed.");
   }
 }
 
