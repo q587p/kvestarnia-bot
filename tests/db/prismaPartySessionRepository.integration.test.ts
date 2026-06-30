@@ -76,6 +76,40 @@ describe("PrismaPartySessionRepository integration", () => {
     })).toBe(1);
   });
 
+  it("switches from own solo Big Barrel recruiting into a selected Big Barrel raid", async () => {
+    await seedCharacter(prisma, "switcher-user", 2101n, "Перемикач");
+    await seedCharacter(prisma, "target-leader-user", 2102n, "Ватажок");
+
+    const own = await repository.createForTelegramUser(2101n, bigBarrelInput("party-token-switch-own"));
+    const target = await repository.createForTelegramUser(2102n, bigBarrelInput("party-token-switch-target"));
+    expect(own.state).toBe("created");
+    expect(target.state).toBe("created");
+
+    const joined = await repository.joinByTokenForTelegramUser(
+      2101n,
+      "party-token-switch-target",
+      joinInput("nearby")
+    );
+
+    expect(joined.state).toBe("joined");
+    expect("session" in joined ? joined.session.inviteToken : null).toBe("party-token-switch-target");
+    expect("session" in joined ? joined.session.participants.filter((row) => row.status === "joined").map((row) => row.character.telegramUserId).sort() : []).toEqual([2101n, 2102n]);
+    expect(await prisma.partySession.findUnique({
+      where: { inviteToken: "party-token-switch-own" },
+      select: { status: true, activeLeaderKey: true }
+    })).toEqual({ status: "cancelled", activeLeaderKey: null });
+    expect(await prisma.partyParticipant.count({
+      where: {
+        session: {
+          inviteToken: "party-token-switch-own"
+        },
+        activeMembershipKey: {
+          not: null
+        }
+      }
+    })).toBe(0);
+  });
+
   it("transfers leadership on leader leave and cancels when the last member leaves", async () => {
     await seedCharacter(prisma, "leader-three-user", 3001n, "Перша");
     await seedCharacter(prisma, "joiner-three-user", 3002n, "Друга");
@@ -225,6 +259,13 @@ function partyInput(inviteToken: string) {
     originLocationId: "korchma.board",
     chatId: 587n,
     messageId: 13
+  };
+}
+
+function bigBarrelInput(inviteToken: string) {
+  return {
+    ...partyInput(inviteToken),
+    originLocationId: "barrel.big-brother"
   };
 }
 

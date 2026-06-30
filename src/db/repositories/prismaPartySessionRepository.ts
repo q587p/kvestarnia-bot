@@ -181,11 +181,6 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "already-joined", session: mapSession(session) };
       }
 
-      const liveMembership = await findLiveMembershipSession(tx, character.id);
-      if (liveMembership && liveMembership.id !== session.id) {
-        return { state: "live-membership", session: mapSession(liveMembership) };
-      }
-
       const joinedCount = await tx.partyParticipant.count({
         where: {
           sessionId: session.id,
@@ -195,6 +190,15 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (joinedCount >= session.participantCap) {
         return { state: "full", session: mapSession(session) };
+      }
+
+      const liveMembership = await findLiveMembershipSession(tx, character.id);
+      if (liveMembership && liveMembership.id !== session.id) {
+        if (isPersonalBigBarrelRecruitingSession(liveMembership, character.id)) {
+          await terminalizeSessionTx(tx, liveMembership.id, "cancelled");
+        } else {
+          return { state: "live-membership", session: mapSession(liveMembership) };
+        }
       }
 
       if (existing) {
@@ -716,6 +720,18 @@ function mapSession(row: PartySessionRow): PartySessionRecord {
     leader: mapCharacter(row.leader),
     participants: row.participants.map(mapParticipant)
   };
+}
+
+function isPersonalBigBarrelRecruitingSession(session: PartySessionRow, characterId: string): boolean {
+  const joined = session.participants.filter((participant) => participant.status === "joined");
+
+  return (
+    session.status === LIVE_STATUS &&
+    session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
+    session.leaderCharacterId === characterId &&
+    joined.length === 1 &&
+    joined[0]?.characterId === characterId
+  );
 }
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {
