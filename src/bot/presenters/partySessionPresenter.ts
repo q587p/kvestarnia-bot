@@ -559,7 +559,7 @@ export function presentPartySession(
     lines.push(...joined.map((participant, index) => `${index + 1}. ${presentParticipantName(participant)}`));
   }
 
-  if (session.status === "recruiting" && options.inviteUrl) {
+  if (session.status === "recruiting" && options.inviteUrl && !big) {
     lines.push("", presentPartyInviteLine(session, options.inviteUrl));
   }
 

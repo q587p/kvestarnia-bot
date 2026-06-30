@@ -55,7 +55,7 @@ describe("Big Barrel Brother invite routing", () => {
     expect(createForTelegramUser).not.toHaveBeenCalled();
   });
 
-  it("opens Big recruiting from /raid for a remorted level 3 character with an active invite link", async () => {
+  it("opens Big recruiting from /raid for a remorted level 3 character with invite controls but no inline card URL", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
       partyCharacter: { level: 3, remortCount: 1 }
@@ -64,11 +64,13 @@ describe("Big Barrel Brother invite routing", () => {
       botUsername: BOT_USERNAME
     });
 
-    expect(calls.some(hasActiveInviteLink)).toBe(true);
+    expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
+    expect(calls.some(hasForwardableInviteUrl)).toBe(true);
+    expect(calls.some(hasShareInviteButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
   });
 
-  it("threads botUsername into the explicit Barrel raid start card as an active link for a remorted level 3 character", async () => {
+  it("threads botUsername into explicit Barrel raid invite controls for a remorted level 3 character", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
       partyCharacter: { level: 3, remortCount: 1 }
@@ -77,7 +79,9 @@ describe("Big Barrel Brother invite routing", () => {
       botUsername: BOT_USERNAME
     });
 
-    expect(calls.some(hasActiveInviteLink)).toBe(true);
+    expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
+    expect(calls.some(hasForwardableInviteUrl)).toBe(true);
+    expect(calls.some(hasShareInviteButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
   });
 
@@ -113,7 +117,9 @@ describe("Big Barrel Brother invite routing", () => {
       botUsername: BOT_USERNAME
     });
 
-    expect(calls.some(hasActiveInviteLink)).toBe(true);
+    expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
+    expect(calls.some(hasForwardableInviteUrl)).toBe(true);
+    expect(calls.some(hasShareInviteButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
   });
 });
@@ -123,9 +129,22 @@ interface ApiCall {
   payload: Record<string, unknown>;
 }
 
-function hasActiveInviteLink(call: ApiCall): boolean {
+function hasBigRecruitingCardInviteLine(call: ApiCall): boolean {
   return (call.method === "sendMessage" || call.method === "editMessageText") &&
-    String(call.payload.text).includes(`href="${PARTY_INVITE_URL}"`);
+    String(call.payload.text).includes("Збір до Старшого Брата Бочки") &&
+    String(call.payload.text).includes(PARTY_INVITE_URL);
+}
+
+function hasForwardableInviteUrl(call: ApiCall): boolean {
+  return call.method === "sendMessage" &&
+    !String(call.payload.text).includes("Збір до Старшого Брата Бочки") &&
+    String(call.payload.text).includes(PARTY_INVITE_URL);
+}
+
+function hasShareInviteButton(call: ApiCall): boolean {
+  return (call.method === "sendMessage" || call.method === "editMessageText") &&
+    JSON.stringify(call.payload.reply_markup ?? {}).includes("https://t.me/share/url") &&
+    JSON.stringify(call.payload.reply_markup ?? {}).includes(`party_${PARTY_TOKEN}`);
 }
 
 async function captureCallbackApiCalls(

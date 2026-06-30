@@ -4,6 +4,7 @@ import {
   getInitialBigBarrelInviteTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
   presentPartyInviteShare,
+  presentPartySession,
   presentPartyBoss,
   presentPartyBossIntro,
   presentPartyBossJournal
@@ -240,6 +241,16 @@ describe("party session presenter", () => {
     expect(firstText).toContain("Ватажок: <b>Голова</b>");
     expect(firstText).toContain("Учасників: <b>2/8</b>");
     expect(nextText).not.toBe(firstText);
+  });
+
+  it("keeps the Big Barrel Brother recruiting card free of the invite URL", () => {
+    const text = presentPartySession(makePartySession(), {
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyBIG12"
+    });
+
+    expect(text).toContain("🛢️ <b>Збір до Старшого Брата Бочки</b>");
+    expect(text).not.toContain("Запрошення:");
+    expect(text).not.toContain("https://t.me/kvestarnia_test_bot?start=party_partyBIG12");
   });
 });
 
