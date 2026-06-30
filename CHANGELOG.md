@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Temporary party membership now treats `active` party sessions as live memberships, so participants cannot join or create another live party while a party-boss proof is active.
 - Remort cleanup now explicitly cancels an active party-boss proof and clears party-boss leases/live membership keys instead of leaving unsupported combat locks.
+- Solo combat item use now clears the player's own active bandage-use preview, including stuck `processing` orders, before spending the bandage as a combat turn.
 - The compact Codex context, task index, roadmap, playtesting guide and security/fair-play notes now document the one-boss proof boundary.
 
 ### Unchanged

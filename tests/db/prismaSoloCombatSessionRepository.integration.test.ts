@@ -1580,7 +1580,7 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toMatchObject({ quantity: 1 });
   });
 
-  it("lets combat item use replace the player's own pending item-use preview", async () => {
+  it("lets combat item use replace the player's own active item-use preview", async () => {
     await seedCharacter(prisma, {
       userId: "user-combat-item-own-use-preview",
       characterId: "character-combat-item-own-use-preview",
@@ -1665,6 +1665,31 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
         updatedAt: new Date("2026-06-24T14:00:00.000Z")
       }
     });
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-combat-processing-replaced",
+        token: "combatprocessingreplaced",
+        characterId: "character-combat-item-own-use-preview",
+        telegramUserId: 9403n,
+        itemId: "item.responsible-panic-bandage",
+        itemName: "Бинт відповідальної паніки",
+        itemFingerprint: "test-fingerprint",
+        quantity: 1,
+        effectKind: "heal-hp",
+        status: "processing",
+        reservationKey: "use:character-combat-item-own-use-preview:item.responsible-panic-bandage:processing",
+        previewJson: {
+          mode: "single",
+          rulesVersion: "item-use-v1",
+          healAmount: 7,
+          hpBefore: 10,
+          hpAfter: 17
+        },
+        expiresAt: new Date("2026-06-24T14:10:00.000Z"),
+        createdAt: new Date("2026-06-24T13:59:30.000Z"),
+        updatedAt: new Date("2026-06-24T14:00:00.000Z")
+      }
+    });
 
     await expect(repository.applyCombatItemTurnById("combat-item-own-use-preview", 1, {
       telegramUserId: 9403n,
@@ -1707,6 +1732,13 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     });
     await expect(prisma.itemUseOrder.findUnique({
       where: { id: "item-use-combat-old-replaced" }
+    })).resolves.toMatchObject({
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: new Date("2026-06-24T14:00:00.000Z")
+    });
+    await expect(prisma.itemUseOrder.findUnique({
+      where: { id: "item-use-combat-processing-replaced" }
     })).resolves.toMatchObject({
       status: "cancelled",
       reservationKey: null,
