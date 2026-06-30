@@ -143,11 +143,17 @@ export function createServices(
     onboarding: new OnboardingService(repositories.users, repositories.characters, achievements),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
-      enabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
+      enabled: config.nodeEnv !== "production" ||
+        config.partySessionDevHelpersEnabled ||
+        config.seniorBarrelBrotherRaidEnabled,
+      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
     }),
     partySessions: new PartySessionService(repositories.partySessions, {
-      enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled,
-      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
+      enabled: config.nodeEnv !== "production" ||
+        config.partySessionFoundationEnabled ||
+        config.seniorBarrelBrotherRaidEnabled,
+      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled,
+      seniorBarrelBrotherEnabled: config.seniorBarrelBrotherRaidEnabled
     }),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,

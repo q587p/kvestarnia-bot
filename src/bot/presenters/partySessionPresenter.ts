@@ -241,12 +241,13 @@ export function presentPartyBoss(
   } = {}
 ): string {
   const state = session.state;
+  const senior = isSeniorPartyBossSession(session);
   const viewer = options.viewerCharacterId
     ? state.participants.find((participant) => participant.characterId === options.viewerCharacterId)
     : null;
   const viewerCanAct = viewer?.status === "active" && viewer.resources.hp > 0;
   const lines = [
-    "🧪 <b>Бос-проба ватаги</b>",
+    senior ? "🛢️ <b>Старший Брат Бочки</b>" : "🧪 <b>Бос-проба ватаги</b>",
     "",
     getBossStatusLine(session),
     `Бос: ${escapeHtml(state.boss.name ?? "Контрольний бос")} · HP ${state.boss.hp}/${state.boss.hpMax}`,
@@ -276,15 +277,21 @@ export function presentPartyBoss(
     lines.push("", `<b>Ваш стан:</b> HP ${viewer.resources.hp}/${viewer.resources.hpMax} · мана ${viewer.resources.mana}/${viewer.resources.manaMax}`);
     lines.push(viewerCanAct
       ? "Оберіть одну дію для цього ходу. Старі або повторні кнопки лише покажуть актуальну картку."
-      : "Ви вибиті з proof-бою. Картка лишається для спостереження й оновлення.");
+      : senior
+        ? "Ви вибиті з рейду. Картка лишається для спостереження й оновлення."
+        : "Ви вибиті з proof-бою. Картка лишається для спостереження й оновлення.");
   } else if (session.status === "active") {
     lines.push("", "Спільна картка не показує приватні HP, ману чи вибрані дії учасників.");
   }
 
   if (session.status !== "active") {
     lines.push("", session.status === "won"
-      ? "Ватага перемогла контрольного боса. Нагород тут немає: це proof, а не рейдовий лут."
-      : "Бос-пробу завершено без рейдової нагороди.");
+      ? senior
+        ? "Ватага перемогла. Участь зараховано як успішну Бочку цього періоду; нагороди збережено й не дублюються."
+        : "Ватага перемогла контрольного боса. Нагород тут немає: це proof, а не рейдовий лут."
+      : senior
+        ? "Рейд завершено без успіху Бочки. Старі кнопки покажуть цей самий підсумок."
+        : "Бос-пробу завершено без рейдової нагороди.");
   }
 
   return lines.join("\n");
@@ -365,8 +372,9 @@ export function presentPartySession(
 ): string {
   const joined = getJoinedParticipants(session);
   const leader = joined.find((participant) => participant.characterId === session.leaderCharacterId);
+  const senior = session.originLocationId === "barrel.senior";
   const lines = [
-    "🧭 <b>Рейдова ватага</b>",
+    senior ? "🛢️ <b>Збір до Старшого Брата Бочки</b>" : "🧭 <b>Рейдова ватага</b>",
     "",
     getStatusLine(session),
     `Учасники: ${joined.length}/${session.participantCap}`,
@@ -390,7 +398,9 @@ export function presentPartySession(
   }
 
   if (session.status === "recruiting") {
-    lines.push("", "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
+    lines.push("", senior
+      ? "Це справжній ризиковий маршрут для 8+ рівня: один спільний бос, приховані дії раунду й участь без точного прогнозу винагород."
+      : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
   return lines.join("\n");
@@ -438,12 +448,13 @@ function getStatusLine(session: PartySessionRecord): string {
 }
 
 function getBossStatusLine(session: PartyBossSessionRecord): string {
+  const senior = isSeniorPartyBossSession(session);
   if (session.status === "won") {
-    return "Стан: перемога proof-протоколу";
+    return senior ? "Стан: Старшого Брата Бочки приборкано" : "Стан: перемога proof-протоколу";
   }
 
   if (session.status === "lost") {
-    return "Стан: бос пережив коротку перевірку";
+    return senior ? "Стан: Старший Брат Бочки пережив рейд" : "Стан: бос пережив коротку перевірку";
   }
 
   if (session.status === "cancelled") {
@@ -451,6 +462,12 @@ function getBossStatusLine(session: PartyBossSessionRecord): string {
   }
 
   return `Стан: ${session.turn} хід до ${formatTime(session.turnExpiresAt)}`;
+}
+
+function isSeniorPartyBossSession(session: PartyBossSessionRecord): boolean {
+  return session.rulesVersion === "senior-barrel-brother-v1" ||
+    session.bossKey === "senior-barrel-brother" ||
+    session.state.boss.monsterId === "senior-barrel-brother";
 }
 
 function presentBossActionLabel(action: string): string {

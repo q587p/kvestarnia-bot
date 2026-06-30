@@ -10,6 +10,7 @@ import { systemClock, type Clock } from "../shared/time";
 
 export interface PartyBossServiceOptions {
   enabled: boolean;
+  devHelpersEnabled?: boolean;
 }
 
 export class PartyBossService {
@@ -21,6 +22,10 @@ export class PartyBossService {
 
   isEnabled(): boolean {
     return this.options.enabled;
+  }
+
+  areDevHelpersEnabled(): boolean {
+    return this.isEnabled() && this.options.devHelpersEnabled === true;
   }
 
   async startFromPartyForTelegramUser(

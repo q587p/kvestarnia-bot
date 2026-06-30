@@ -113,6 +113,12 @@ describe("loadConfig", () => {
     expect(config.partySessionDevHelpersEnabled).toBe(false);
   });
 
+  it("keeps Senior Barrel Brother raid disabled by default", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.seniorBarrelBrotherRaidEnabled).toBe(false);
+  });
+
   it("can enable deploy notifications explicitly", () => {
     const config = loadConfig({
       ...validEnv,
@@ -163,6 +169,15 @@ describe("loadConfig", () => {
     });
 
     expect(config.partySessionDevHelpersEnabled).toBe(true);
+  });
+
+  it("can enable Senior Barrel Brother raid explicitly", () => {
+    const config = loadConfig({
+      ...validEnv,
+      SENIOR_BARREL_BROTHER_RAID_ENABLED: "true"
+    });
+
+    expect(config.seniorBarrelBrotherRaidEnabled).toBe(true);
   });
 
   it("parses the dev grant flag in production but leaves production blocking to the service", () => {

@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.17] - 12026-06-30 - Senior Barrel Brother Raid MVP
+
+### Added
+- Added `SENIOR_BARREL_BROTHER_RAID_ENABLED` for the first feature-flagged Senior Barrel Brother route.
+- Added a level `8+` Barrel route that creates/opens Senior recruiting parties from `/raid` / the Barrel location while the flag is enabled, reusing the existing `PartySession` token for deep links and nearby invites.
+- Added Senior party-boss state with `rulesVersion = senior-barrel-brother-v1`, `bossKey = senior-barrel-brother`, frozen roster/resources/period and a single shared boss target.
+- Added Senior victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
+- Added focused Senior reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
+
+### Changed
+- Level `1-7`, disabled-flag level `8+`, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
+- Senior runtime inherits the party-boss one-action-per-turn, duplicate/stale callback no-op, deterministic timeout defend and active combat lease release contracts from `0.2.16`.
+- Party recruiting cards now show a real `🛢️ Почати рейд` leader button for Senior parties without exposing dev proof controls.
+- Senior boss cards use production raid copy and explain victory/failure without exposing private participant HP/mana/actions on shared cards.
+- Senior balance tuning now uses 13 rounds only as a deterministic simulation/QA horizon: solo baseline `0/400` wins (`0%`), prepared 3-player entry party `162/400` wins (`40.5%`), both with `0` unresolved-by-horizon in the checked matrix.
+- The Senior balance docs now explicitly remove the older round-7 terminal pressure proposal from the runtime contract.
+
+### Unchanged
+- No runtime round cap, round-7 final window, 13-round auto-loss, enrage timer or hidden terminal-by-turn rule ships in this slice.
+- Failure grants no Barrel success, gold, items or consolation XP in this MVP.
+- Affinity spotlight, first-win trophy, combat items/one-use manatky, targetable adds, guilds, matchmaking, permanent parties, market, trade, crafting and Mini App remain deferred.
+
 ## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP
 
 ### Added

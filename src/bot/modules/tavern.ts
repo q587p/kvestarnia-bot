@@ -160,7 +160,7 @@ const HTML_MESSAGE_OPTIONS = {
 
 export function registerTavernBotModule(
   bot: Bot,
-  { services }: BotModuleDependencies
+  { services, options }: BotModuleDependencies
 ): void {
   bot.command(["tavern", "raid", "cellar"], async (ctx, next) => {
     await guardActivePassageSearchCommand(ctx, services, next);
@@ -172,7 +172,11 @@ export function registerTavernBotModule(
     services.tavern,
     services.cellarGrownup
   );
-  registerTavernCommand(bot, services.tavern, services.presence);
+  registerTavernCommand(bot, services.tavern, services.presence, {
+    botUsername: options.botUsername,
+    partyBoss: services.partyBoss,
+    partySessions: services.partySessions
+  });
   registerBardPerformanceDevResetHandler(bot, services);
   registerPassageSearchDevResetHandler(bot, services);
 
@@ -635,7 +639,10 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
+    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
+      partyBoss: services.partyBoss,
+      partySessions: services.partySessions
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }

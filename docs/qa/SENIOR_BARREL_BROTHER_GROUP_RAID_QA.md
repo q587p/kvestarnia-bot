@@ -29,7 +29,7 @@ Keep dev commands/config restricted to non-production environments.
 - marked heavy guard and class mitigation;
 - enrage outgoing/defense modifiers;
 - boss death cancels its action;
-- round-7 final window;
+- no hidden runtime round cap; round 13 is simulation/QA horizon only;
 - contribution tiers for damage, defend, disrupt, knockout, withdrawal and AFK;
 - reward formulas and affinity fallback;
 - deterministic seed replay.

@@ -205,6 +205,79 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(stale.state).toBe("stale");
     expect(await prisma.partyBossAction.count({ where: { sessionId: started.session.id } })).toBe(0);
   });
+
+  it("settles Senior Barrel Brother victory through the canonical Barrel success key exactly once", async () => {
+    await seedCharacter(prisma, "senior-leader-user", 5001n, "Старша Лідерка", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await partyRepository.createForTelegramUser(5001n, {
+      ...partyInput("party-token-senior"),
+      periodId: "2026-06-30T10:23",
+      originLocationId: "barrel.senior"
+    });
+    expect(await prisma.partySession.findUnique({
+      where: { inviteToken: "party-token-senior" },
+      select: { originLocationId: true }
+    })).toEqual({ originLocationId: "barrel.senior" });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5001n, {
+      partyInviteToken: "party-token-senior",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: {
+        stateJson: {
+          ...started.session.state,
+          boss: {
+            ...started.session.state.boss,
+            hp: 1,
+            hpMax: 1,
+            dexterity: 0
+          }
+        }
+      }
+    });
+
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      5001n,
+      "party-token-senior",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(resolved.state).toBe("resolved");
+    expect(latest.status).toBe("won");
+    expect(latest.rulesVersion).toBe("senior-barrel-brother-v1");
+    expect(await prisma.dailyAction.count({
+      where: {
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T10:23"
+      }
+    })).toBe(1);
+
+    const replay = await bossRepository.resolveTimedOutByToken("party-token-senior", resolveInput());
+
+    expect(replay.state).toBe("terminal");
+    expect(await prisma.dailyAction.count({
+      where: {
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T10:23"
+      }
+    })).toBe(1);
+    expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
+  });
 });
 
 function now(): Date {
@@ -247,9 +320,11 @@ async function seedCharacter(
   userId: string,
   telegramUserId: bigint,
   name: string,
-  options: { hp?: number } = {}
+  options: { hp?: number; level?: number; strength?: number; dexterity?: number } = {}
 ): Promise<void> {
   const hp = options.hp ?? 25;
+  const strength = options.strength ?? 8;
+  const dexterity = options.dexterity ?? 6;
   await prisma.user.create({
     data: {
       id: userId,
@@ -261,12 +336,12 @@ async function seedCharacter(
           name,
           raceId: "race.human-ish",
           classId: "class.warrior",
-          level: 3,
+          level: options.level ?? 3,
           hpCurrent: hp,
           hpMax: hp,
           statsJson: {
-            strength: 8,
-            dexterity: 6,
+            strength,
+            dexterity,
             intelligence: 5,
             charisma: 5,
             luck: 5
@@ -392,12 +467,33 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       submitted_at DATETIME NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE daily_actions (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      local_date TEXT NOT NULL,
+      reward_xp INTEGER NOT NULL DEFAULT 0,
+      reward_gold INTEGER NOT NULL DEFAULT 0,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_items (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE UNIQUE INDEX party_sessions_invite_token_key ON party_sessions(invite_token)`,
     `CREATE UNIQUE INDEX party_sessions_active_leader_key_key ON party_sessions(active_leader_key)`,
     `CREATE UNIQUE INDEX party_participants_active_membership_key_key ON party_participants(active_membership_key)`,
     `CREATE UNIQUE INDEX party_participants_session_id_character_id_key ON party_participants(session_id, character_id)`,
     `CREATE UNIQUE INDEX party_boss_sessions_party_session_id_key ON party_boss_sessions(party_session_id)`,
-    `CREATE UNIQUE INDEX party_boss_actions_session_id_turn_actor_character_id_key ON party_boss_actions(session_id, turn, actor_character_id)`
+    `CREATE UNIQUE INDEX party_boss_actions_session_id_turn_actor_character_id_key ON party_boss_actions(session_id, turn, actor_character_id)`,
+    `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`,
+    `CREATE UNIQUE INDEX character_items_character_id_item_id_key ON character_items(character_id, item_id)`
   ]) {
     await prisma.$executeRawUnsafe(statement);
   }

@@ -186,7 +186,7 @@ Raid-specific logic owns:
 - the `Нагляд` shared objective;
 - watcher hazard stacks;
 - multi-target boss action fan-out;
-- seven-round terminal pressure;
+- no hidden runtime round cap; simulation horizons are reporting tools, not terminal rules;
 - group contribution and settlement.
 
 ## Buff and equipment rules

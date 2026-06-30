@@ -45,6 +45,24 @@ describe("party session keyboard", () => {
     ]);
   });
 
+  it("shows the Senior raid start without dev proof helpers", () => {
+    const session = {
+      ...makeSession(),
+      originLocationId: "barrel.senior"
+    };
+
+    expect(inlineButtonTexts(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      includeBossStart: true,
+      includeDevExpire: false
+    }))).toEqual([
+      "🚪 Вийти",
+      "🧹 Скасувати збір",
+      "🛢️ Почати рейд",
+      "🔎 Оновити"
+    ]);
+  });
+
   it("hides party boss action buttons from knocked-out participants", () => {
     const session = makeBossSession({
       status: "knocked-out",

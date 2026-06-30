@@ -286,7 +286,7 @@ async function redirectPartyBossLockIfNeeded(
   });
   await sendCombatLockText(ctx, presentCombatLockRedirect(presentPartyBoss(active, { viewerCharacterId })), {
     reply_markup: buildPartyBossKeyboard(active, viewerCharacterId, {
-      includeDevTimeout: services.partyBoss.isEnabled()
+      includeDevTimeout: services.partyBoss.areDevHelpersEnabled()
     })
   });
 

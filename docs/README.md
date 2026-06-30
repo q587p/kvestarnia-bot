@@ -71,7 +71,7 @@
 
 ## Phase 2 roadmap reset
 
-Phase 2 більше не починається з великого групового рейду. `0.1.25` закриває перший **Social Combat & Interactions** MVP: opt-in дуелі, реванші, картки результатів, nearby invites, combat locks, remort boundaries, Nyz preview memory and Shynok economy prep. Далі `0.2.x` починається з safe gifting, multi-enemy foundation, architecture stabilization, threat escalation and the first item-tag/one-use bandage slice; broader trading, equipment rebalance, party combat / real raids remain later slices.
+Phase 2 більше не починається з великого групового рейду. `0.1.25` закриває перший **Social Combat & Interactions** MVP: opt-in дуелі, реванші, картки результатів, nearby invites, combat locks, remort boundaries, Nyz preview memory and Shynok economy prep. Далі `0.2.x` починається з safe gifting, multi-enemy foundation, architecture stabilization, threat escalation and the first item-tag/one-use bandage slice; `0.2.17` adds the first feature-flagged Senior Barrel Brother route, while broader trading, equipment rebalance and fuller raid mechanics remain later slices.
 
 - [PHASE2_MVP_RELEASE_NOTES.md](PHASE2_MVP_RELEASE_NOTES.md) — канонічний підсумок `0.1.25` Phase 2 MVP closeout.
 - [PHASE2_MVP_CLOSEOUT_PLAN.md](PHASE2_MVP_CLOSEOUT_PLAN.md) — межа `0.1.x`, Phase 2 MVP DoD, backlog disposition і порядок closeout.
@@ -88,7 +88,7 @@ Phase 2 більше не починається з великого групо�
 
 ## Future raid planning package
 
-The Senior Barrel Brother package is preserved as docs-only future design input. It does not implement party sessions, raids, schema changes, runtime callbacks or rewards in the current PR.
+The Senior Barrel Brother package is preserved as future design input. `0.2.17` ships a feature-flagged MVP on the existing party-boss runtime; the fuller package below still describes later mechanics such as richer phases, buffs, trophies, spotlight rewards, expanded QA and targetable-add follow-ups.
 
 - [SENIOR_BARREL_BROTHER_GROUP_RAID_PACKAGE.md](SENIOR_BARREL_BROTHER_GROUP_RAID_PACKAGE.md) — package overview and recommended ordering.
 - [SENIOR_BARREL_BROTHER_GROUP_RAID_MANIFEST.md](SENIOR_BARREL_BROTHER_GROUP_RAID_MANIFEST.md) — source manifest and scope statement.
@@ -99,7 +99,7 @@ The Senior Barrel Brother package is preserved as docs-only future design input.
 - [implementation/REPOSITORY_CHANGE_MAP.md](implementation/REPOSITORY_CHANGE_MAP.md) — future repository change map.
 - [tasks/0.2.x-raid-party-session-foundation.md](tasks/0.2.x-raid-party-session-foundation.md) — draft prerequisite task for party sessions.
 - [tasks/0.2.x-party-vs-one-boss.md](tasks/0.2.x-party-vs-one-boss.md) — draft bridge from temporary party sessions to real raids.
-- [tasks/0.2.x-senior-barrel-brother-group-raid.md](tasks/0.2.x-senior-barrel-brother-group-raid.md) — draft production raid task after the temporary party and one-boss proof.
+- [tasks/0.2.x-senior-barrel-brother-group-raid.md](tasks/0.2.x-senior-barrel-brother-group-raid.md) — draft fuller raid task after the feature-flagged Senior MVP.
 - [qa/SENIOR_BARREL_BROTHER_GROUP_RAID_QA.md](qa/SENIOR_BARREL_BROTHER_GROUP_RAID_QA.md) — future automated and manual QA matrix.
 - [backlog/SENIOR_BARREL_BROTHER_TARGETABLE_ADDS.md](backlog/SENIOR_BARREL_BROTHER_TARGETABLE_ADDS.md) — deferred targetable-adds slice.
 - [references/RAID_INSPIRATION_NOTES.md](references/RAID_INSPIRATION_NOTES.md) — inspiration notes without copying external content.

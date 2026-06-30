@@ -13,6 +13,13 @@ import {
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
+import type { PartyBossService } from "../../services/partyBossService";
+import {
+  buildPartyInviteUrl,
+  SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  type PartySessionService
+} from "../../services/partySessionService";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
@@ -46,6 +53,10 @@ import {
   buildTavernResultKeyboard
 } from "../keyboards/tavernKeyboard";
 import {
+  buildPartyBossKeyboard,
+  buildPartySessionKeyboard
+} from "../keyboards/partySessionKeyboard";
+import {
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
   presentDuelWinnersBoard,
@@ -66,6 +77,10 @@ import {
   presentTavernRaidPending,
   presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
+import {
+  presentPartyBoss,
+  presentPartyCreate
+} from "../presenters/partySessionPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
 
@@ -102,17 +117,28 @@ type TavernCommandKeyboard =
   | "barrel-pending"
   | "barrel-participants";
 
+export interface TavernCommandOptions {
+  botUsername?: string | undefined;
+  partyBoss?: PartyBossService | undefined;
+  partySessions?: PartySessionService | undefined;
+}
+
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
+
 export function registerTavernCommand(
   bot: Bot,
   tavernRaidService: TavernRaidService,
-  presenceService: PresenceService
+  presenceService: PresenceService,
+  options: TavernCommandOptions = {}
 ): void {
   bot.command("tavern", async (ctx) => {
     await sendTavern(ctx, tavernRaidService, presenceService, "reply");
   });
 
   bot.command("raid", async (ctx) => {
-    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply");
+    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply", options);
   });
 }
 
@@ -608,7 +634,8 @@ export async function sendTavernBarrel(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: TavernCommandOptions = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -648,6 +675,44 @@ export async function sendTavernBarrel(
     return;
   }
 
+  if (
+    result.character.level >= 8 &&
+    options.partySessions?.isSeniorBarrelBrotherEnabled()
+  ) {
+    const activeBoss = await options.partyBoss?.getActiveForTelegramUser(telegramUserId);
+    if (activeBoss) {
+      await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+      const viewerCharacterId = getBossViewerCharacterId(activeBoss, telegramUserId);
+      await sendSeniorBossText(ctx, mode, presentPartyBoss(activeBoss, { viewerCharacterId }), {
+        session: activeBoss,
+        viewerCharacterId,
+        includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
+      });
+      return;
+    }
+
+    const period = getBarrelRaidPeriod(new Date());
+    const party = await options.partySessions.createForTelegramUser(telegramUserId, {
+      chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+      messageId: ctx.callbackQuery?.message?.message_id ?? null,
+      periodId: period.id,
+      originLocationId: SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID
+    });
+    const session = "session" in party ? party.session : null;
+    const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
+
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
+    await sendSeniorPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
+      ? {
+          session,
+          viewerCharacterId: getPartyViewerCharacterId(session, telegramUserId),
+          includeBossStart: session.originLocationId === SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID,
+          includeDevExpire: options.partySessions.areDevHelpersEnabled()
+        }
+      : false);
+    return;
+  }
+
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
   await sendText(ctx, mode, presentTavern(result.character), true);
 }
@@ -670,6 +735,84 @@ async function markTavernPlace(
     currentRaidId: inPendingRaid ? PRESENCE_RAID_FRIDAY_BARREL : null,
     currentAdventureId: null
   });
+}
+
+async function sendSeniorPartyText(
+  ctx: Context,
+  mode: "reply" | "edit",
+  text: string,
+  keyboard:
+    | false
+    | {
+        session: Parameters<typeof buildPartySessionKeyboard>[0];
+        viewerCharacterId?: string | null | undefined;
+        includeBossStart?: boolean | undefined;
+        includeDevExpire?: boolean | undefined;
+      }
+): Promise<void> {
+  const options = {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(keyboard
+      ? {
+          reply_markup: buildPartySessionKeyboard(keyboard.session, {
+            viewerCharacterId: keyboard.viewerCharacterId,
+            includeBossStart: keyboard.includeBossStart,
+            includeDevExpire: keyboard.includeDevExpire
+          })
+        }
+      : {})
+  };
+
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, options);
+    return;
+  }
+
+  await ctx.reply(text, options);
+}
+
+async function sendSeniorBossText(
+  ctx: Context,
+  mode: "reply" | "edit",
+  text: string,
+  keyboard: {
+    session: Parameters<typeof buildPartyBossKeyboard>[0];
+    viewerCharacterId?: string | null | undefined;
+    includeDevTimeout?: boolean | undefined;
+  }
+): Promise<void> {
+  const options = {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
+      includeDevTimeout: keyboard.includeDevTimeout
+    })
+  };
+
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, options);
+    return;
+  }
+
+  await ctx.reply(text, options);
+}
+
+function getPartyViewerCharacterId(
+  session: Parameters<typeof buildPartySessionKeyboard>[0],
+  telegramUserId: bigint
+): string | null {
+  const participant = session.participants.find(
+    (row) => row.character.telegramUserId === telegramUserId && row.status === "joined"
+  );
+
+  return participant?.characterId ?? null;
+}
+
+function getBossViewerCharacterId(
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  telegramUserId: bigint
+): string | null {
+  const participant = session.participants.find((row) => row.telegramUserId === telegramUserId);
+  return participant?.id ?? null;
 }
 
 async function sendText(

@@ -2,11 +2,13 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   buildResult,
   createPartyBossState,
-  PARTY_BOSS_RULES_VERSION,
+  isSeniorBarrelBrotherState,
   resolvePartyBossRound,
+  SENIOR_BARREL_BROTHER_RULES_VERSION,
   type PartyBossActionKey,
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
+import { getLevelForXp } from "../../domain/progression/level";
 import {
   buildPartyBossCombatStats,
   type PartyBossActionResult,
@@ -18,6 +20,12 @@ import {
   type PartyBossStartInput,
   type PartyBossStartResult
 } from "./partyBossRepository";
+import {
+  buildBarrelRaidItemGrants,
+  FRIDAY_BARREL_RAID_KEY
+} from "../../services/tavernRaidService";
+import { recordLevelMilestones } from "./levelMilestoneRepository";
+import { countCharacterRemorts } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -27,6 +35,7 @@ type CharacterRow = PartyRow["participants"][number]["character"];
 const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
+const SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.senior";
 
 const partyCharacterInclude = {
   user: {
@@ -157,6 +166,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       const state = createPartyBossState({
         partySessionId: party.id,
+        variant: party.originLocationId === SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID ? "senior-barrel" : "proof",
         now: input.now,
         participants: joined.map((participant) => ({
           characterId: participant.characterId,
@@ -189,7 +199,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           status: "active",
           turn: state.turn,
           version: 1,
-          rulesVersion: PARTY_BOSS_RULES_VERSION,
+          rulesVersion: state.rulesVersion,
           bossKey: state.boss.monsterId,
           stateJson: state as unknown as Prisma.InputJsonValue,
           turnExpiresAt: input.turnExpiresAt
@@ -409,6 +419,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       if (status !== "active") {
+        await settleTerminalPartyBoss(tx, session, resolved.state, input.now);
         await releasePartyBossLocks(tx, session.partySessionId);
       }
 
@@ -420,6 +431,202 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       return current ? mapSession(current) : null;
     });
   }
+}
+
+async function settleTerminalPartyBoss(
+  tx: TxClient,
+  session: PartyBossRow,
+  state: PartyBossState,
+  now: Date
+): Promise<void> {
+  if (!isSeniorBarrelBrotherState(state)) {
+    return;
+  }
+
+  const periodId = session.partySession.periodId;
+
+  for (const participant of state.participants) {
+    const remortCount = await countCharacterRemorts(tx, participant.characterId);
+    if (remortCount !== participant.remortCount) {
+      continue;
+    }
+
+    const current = await tx.character.findUnique({
+      where: {
+        id: participant.characterId
+      }
+    });
+    if (!current) {
+      continue;
+    }
+
+    if (!periodId || state.status !== "won") {
+      await settleSeniorParticipantResources(tx, participant, now);
+      continue;
+    }
+
+    const existing = await tx.dailyAction.findUnique({
+      where: {
+        characterId_key_localDate: {
+          characterId: participant.characterId,
+          key: FRIDAY_BARREL_RAID_KEY,
+          localDate: periodId
+        }
+      }
+    });
+    if (existing) {
+      await settleSeniorParticipantResources(tx, participant, now);
+      continue;
+    }
+
+    const reward = buildSeniorBarrelReward(state, participant);
+    if (!reward.meaningful) {
+      await settleSeniorParticipantResources(tx, participant, now);
+      continue;
+    }
+
+    const itemGrants = reward.meaningful ? buildBarrelRaidItemGrants(periodId) : [];
+    const oldLevel = Math.max(current.level, getLevelForXp(current.xp, { remortCount }));
+    const nextXp = current.xp + reward.xp;
+    const newLevel = Math.max(current.level, getLevelForXp(nextXp, { remortCount }));
+
+    const action = await tx.dailyAction.create({
+      data: {
+        characterId: participant.characterId,
+        key: FRIDAY_BARREL_RAID_KEY,
+        localDate: periodId,
+        rewardXp: reward.xp,
+        rewardGold: reward.gold,
+        spentGold: 0,
+        resultJson: {
+          kind: "senior-barrel-brother-victory",
+          rulesVersion: SENIOR_BARREL_BROTHER_RULES_VERSION,
+          partyBossSessionId: session.id,
+          partySessionId: session.partySessionId,
+          reward,
+          resources: {
+            hp: participant.resources.hp,
+            mana: participant.resources.mana
+          }
+        }
+      }
+    });
+
+    await tx.character.update({
+      where: {
+        id: participant.characterId
+      },
+      data: {
+        xp: nextXp,
+        gold: {
+          increment: reward.gold
+        },
+        level: newLevel,
+        hpCurrent: Math.max(0, Math.floor(participant.resources.hp)),
+        manaCurrent: Math.max(0, Math.floor(participant.resources.mana)),
+        hpRegenAt: now,
+        manaRegenAt: now
+      }
+    });
+    await recordLevelMilestones(tx, participant.characterId, oldLevel, newLevel, undefined, {
+      remortCount
+    });
+
+    const appliedItemGrants = [];
+    for (const grant of itemGrants) {
+      if (grant.quantity <= 0) {
+        continue;
+      }
+
+      await tx.characterItem.upsert({
+        where: {
+          characterId_itemId: {
+            characterId: participant.characterId,
+            itemId: grant.itemId
+          }
+        },
+        create: {
+          characterId: participant.characterId,
+          itemId: grant.itemId,
+          quantity: grant.quantity
+        },
+        update: {
+          quantity: {
+            increment: grant.quantity
+          }
+        }
+      });
+      appliedItemGrants.push(grant);
+    }
+
+    if (appliedItemGrants.length > 0) {
+      await tx.dailyAction.update({
+        where: {
+          id: action.id
+        },
+        data: {
+          resultJson: {
+            kind: "senior-barrel-brother-victory",
+            rulesVersion: SENIOR_BARREL_BROTHER_RULES_VERSION,
+            partyBossSessionId: session.id,
+            partySessionId: session.partySessionId,
+            reward: {
+              ...reward,
+              appliedItemGrants
+            },
+            resources: {
+              hp: participant.resources.hp,
+              mana: participant.resources.mana
+            }
+          }
+        }
+      });
+    }
+  }
+}
+
+async function settleSeniorParticipantResources(
+  tx: TxClient,
+  participant: PartyBossState["participants"][number],
+  now: Date
+): Promise<void> {
+  await tx.character.updateMany({
+    where: {
+      id: participant.characterId
+    },
+    data: {
+      hpCurrent: Math.max(0, Math.floor(participant.resources.hp)),
+      manaCurrent: Math.max(0, Math.floor(participant.resources.mana)),
+      hpRegenAt: now,
+      manaRegenAt: now
+    }
+  });
+}
+
+function buildSeniorBarrelReward(
+  state: PartyBossState,
+  participant: PartyBossState["participants"][number]
+): { meaningful: boolean; tier: "none" | "partial" | "full"; xp: number; gold: number } {
+  const meaningful =
+    participant.contribution.submittedActions > 0 ||
+    participant.contribution.damageDealt > 0 ||
+    participant.contribution.damageTaken > 0;
+  const availableRounds = Math.max(1, state.roundLog.length);
+  const full =
+    meaningful &&
+    participant.contribution.submittedActions >= Math.ceil(availableRounds / 2) &&
+    (participant.contribution.damageDealt > 0 || participant.contribution.damageTaken > 0);
+  const tier = full ? "full" : meaningful ? "partial" : "none";
+  const raidLevel = clamp(state.boss.level - 1, 8, 13);
+  const tierXp = tier === "full" ? 13 : tier === "partial" ? 5 : 0;
+  const tierGold = tier === "full" ? 8 : tier === "partial" ? 3 : 0;
+
+  return {
+    meaningful,
+    tier,
+    xp: meaningful ? 23 + 3 * (raidLevel - 8) + tierXp : 0,
+    gold: meaningful ? 13 + 2 * (raidLevel - 8) + tierGold : 0
+  };
 }
 
 async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Promise<void> {
@@ -592,4 +799,8 @@ function isParticipant(session: PartyBossRow, characterId: string): boolean {
 
 function isUniqueConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

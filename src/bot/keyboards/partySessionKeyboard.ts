@@ -23,6 +23,7 @@ export function buildPartySessionKeyboard(
   options: {
     viewerCharacterId?: string | null | undefined;
     includeDevExpire?: boolean | undefined;
+    includeBossStart?: boolean | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -46,7 +47,9 @@ export function buildPartySessionKeyboard(
       keyboard.text("🧹 Скасувати збір", makePartySessionCancelCallbackData(token)).row();
     }
 
-    if (options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
+    if (options.includeBossStart && options.viewerCharacterId === session.leaderCharacterId) {
+      keyboard.text("🛢️ Почати рейд", makePartyBossStartCallbackData(token)).row();
+    } else if (options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🧪 Dev: бос-проба", makePartyBossStartCallbackData(token)).row();
     }
 

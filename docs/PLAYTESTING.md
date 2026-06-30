@@ -4,6 +4,23 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.17 — Senior Barrel Brother Raid MVP smoke
+
+Use two or three local accounts with level 8+ characters and `SENIOR_BARREL_BROTHER_RAID_ENABLED=true`. Keep `PARTY_SESSION_DEV_HELPERS_ENABLED=true` only for timeout/expiry shortcuts; production Senior creation is controlled by the Senior flag.
+
+1. On a level 7 account, open `🛢️ Бочка`; verify the legacy Barrel route still appears.
+2. On a level 8+ account with the Senior flag disabled, open `🛢️ Бочка`; verify it still uses the legacy route.
+3. Enable the Senior flag, reopen `🛢️ Бочка` on level 8+, and verify the Senior recruiting card appears without exact reward amounts or odds.
+4. Join the same party from a deep link and from `👀 Хто поруч`; verify duplicate joins replay the same membership.
+5. Start the raid as leader; verify the shared boss card names `Старший Брат Бочки`, while private cards show only the viewer's own HP/mana/action controls.
+6. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice.
+7. Use the dev timeout control or wait for timeout; verify missing participants defend deterministically.
+8. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
+9. Force or finish a victory; replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate.
+10. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written.
+11. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
+12. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
+
 ## 0.2.16 — Party Vs One Boss MVP smoke
 
 Use two or three local accounts. Run in non-production mode or enable `PARTY_SESSION_DEV_HELPERS_ENABLED=true`; this proof remains dev/flag-gated and is not Senior Barrel Brother.

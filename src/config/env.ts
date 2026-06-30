@@ -41,6 +41,7 @@ export const configSchema = z.object({
   devGrantCommandsEnabled: z.boolean().default(false),
   partySessionFoundationEnabled: z.boolean().default(false),
   partySessionDevHelpersEnabled: z.boolean().default(false),
+  seniorBarrelBrotherRaidEnabled: z.boolean().default(false),
   combatBalanceAnalyticsEnabled: z.boolean().default(false),
   supportJarUrl: supportJarUrlSchema.optional(),
   supportJarStatus: supportJarStatusSchema
@@ -58,6 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     devGrantCommandsEnabled: parseBoolean(env.DEV_GRANT_COMMANDS_ENABLED),
     partySessionFoundationEnabled: parseBoolean(env.PARTY_SESSION_FOUNDATION_ENABLED),
     partySessionDevHelpersEnabled: parseBoolean(env.PARTY_SESSION_DEV_HELPERS_ENABLED),
+    seniorBarrelBrotherRaidEnabled: parseBoolean(env.SENIOR_BARREL_BROTHER_RAID_ENABLED),
     combatBalanceAnalyticsEnabled: parseBoolean(env.COMBAT_BALANCE_ANALYTICS_ENABLED),
     supportJarUrl: blankToUndefined(env.SUPPORT_JAR_URL),
     supportJarStatus: parseSupportJarStatus(env)

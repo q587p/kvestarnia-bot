@@ -102,7 +102,10 @@ describe("handlePartySessionCallback", () => {
       serviceWith({}),
       {
         presence: {} as PresenceService,
-        partyBoss: partyBossWith({ startFromPartyForTelegramUser })
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => true,
+          startFromPartyForTelegramUser
+        })
       }
     );
 
@@ -112,6 +115,34 @@ describe("handlePartySessionCallback", () => {
     expect(sendMessage.mock.calls[0]?.[0]).toBe(93);
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Бос-пробу запущено");
     expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:ba");
+  });
+
+  it("rejects non-senior boss starts when dev helper mode is disabled", async () => {
+    const session = makeSession("recruiting");
+    const getByToken = vi.fn().mockResolvedValue({ state: "ready", session });
+    const startFromPartyForTelegramUser = vi.fn();
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: session.inviteToken },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => false,
+          startFromPartyForTelegramUser
+        })
+      }
+    );
+
+    expect(getByToken).toHaveBeenCalledWith(session.inviteToken);
+    expect(startFromPartyForTelegramUser).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Ця кнопка вже втратила магію. Спробуйте /start ще раз.",
+      show_alert: true
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it("pushes the next boss turn to participants who acted earlier", async () => {
@@ -230,6 +261,7 @@ function serviceWith(overrides: Partial<PartySessionService>): PartySessionServi
 function partyBossWith(overrides: Partial<PartyBossService>): PartyBossService {
   return {
     isEnabled: () => true,
+    areDevHelpersEnabled: () => false,
     startFromPartyForTelegramUser: vi.fn(),
     submitActionForTelegramUser: vi.fn(),
     resolveTimedOutByToken: vi.fn(),

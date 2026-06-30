@@ -469,7 +469,10 @@ async function sendCurrentPresenceLocation(
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_BARREL) {
-    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
+    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
+      partyBoss: services.partyBoss,
+      partySessions: services.partySessions
+    });
     return;
   }
 

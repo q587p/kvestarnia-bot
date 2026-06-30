@@ -180,9 +180,20 @@ describe("application factory wiring", () => {
       mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements)
     `));
     expect(source).toContain(compact(`
-      partySessions: new PartySessionService(repositories.partySessions, {
-        enabled: config.nodeEnv !== "production" || config.partySessionFoundationEnabled,
+      partyBoss: new PartyBossService(repositories.partyBossSessions, {
+        enabled: config.nodeEnv !== "production" ||
+          config.partySessionDevHelpersEnabled ||
+          config.seniorBarrelBrotherRaidEnabled,
         devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
+      })
+    `));
+    expect(source).toContain(compact(`
+      partySessions: new PartySessionService(repositories.partySessions, {
+        enabled: config.nodeEnv !== "production" ||
+          config.partySessionFoundationEnabled ||
+          config.seniorBarrelBrotherRaidEnabled,
+        devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled,
+        seniorBarrelBrotherEnabled: config.seniorBarrelBrotherRaidEnabled
       })
     `));
     expect(source).toContain(compact(`
@@ -208,7 +219,8 @@ function makeConfig(): AppConfig {
     devGrantCommandsEnabled: false,
     combatBalanceAnalyticsEnabled: false,
     partySessionFoundationEnabled: false,
-    partySessionDevHelpersEnabled: false
+    partySessionDevHelpersEnabled: false,
+    seniorBarrelBrotherRaidEnabled: false
   };
 }
 

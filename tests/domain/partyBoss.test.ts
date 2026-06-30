@@ -119,10 +119,73 @@ describe("party boss reducer", () => {
     expect(report.winRate).toBeGreaterThanOrEqual(0.35);
     expect(report.winRate).toBeLessThanOrEqual(0.49);
   });
+
+  it("keeps Senior Barrel Brother active beyond the 13-round simulation horizon when no terminal condition occurs", () => {
+    let state = createPartyBossState({
+      partySessionId: "senior-no-cap",
+      variant: "senior-barrel",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("senior-tank", "Стійка", { hp: 500, level: 8 })]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        hp: 500,
+        hpMax: 500,
+        attack: 1
+      }
+    };
+
+    for (let turn = 1; turn <= 14; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:${turn.toString().padStart(2, "0")}:00.000Z`),
+        seed: "senior-no-cap",
+        actions: [{
+          characterId: "senior-tank",
+          action: "defend",
+          origin: "manual"
+        }]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.status).toBe("active");
+    expect(state.turn).toBe(15);
+  });
+
+  it("keeps the Senior solo no-manatka/no-remort baseline below 13 percent by the 13-round horizon", () => {
+    const report = simulatePartyBoss({
+      label: "senior solo baseline",
+      variant: "senior-barrel",
+      participants: [participant("solo", "Соло", { level: 8, hp: 52, mana: 18, strength: 14, dexterity: 10, intelligence: 8, charisma: 8, luck: 8 })],
+      actionFor: () => "attack"
+    });
+
+    expect(report.winRate).toBeLessThanOrEqual(0.13);
+  });
+
+  it("keeps the prepared Senior entry party near 42 percent by the 13-round horizon", () => {
+    const report = simulatePartyBoss({
+      label: "senior prepared entry party",
+      variant: "senior-barrel",
+      participants: [
+        participant("warrior", "Воїн", { hp: 58, mana: 18, level: 8, strength: 16, dexterity: 11, intelligence: 8, charisma: 8, luck: 8 }),
+        participant("mage", "Маг", { hp: 50, mana: 28, level: 8, strength: 8, dexterity: 10, intelligence: 17, charisma: 9, luck: 8, classId: "class.mage" }),
+        participant("bard", "Бард", { hp: 52, mana: 26, level: 8, strength: 9, dexterity: 11, intelligence: 9, charisma: 17, luck: 9, classId: "class.bard" })
+      ],
+      actionFor: (_participant, turn) => turn % 3 === 0 ? "skill" : "attack"
+    });
+
+    expect(report.winRate).toBeGreaterThanOrEqual(0.35);
+    expect(report.winRate).toBeLessThanOrEqual(0.49);
+  });
 });
 
 function simulatePartyBoss(input: {
   label: string;
+  variant?: "proof" | "senior-barrel";
   participants: ReturnType<typeof participant>[];
   actionFor: (participant: PartyBossState["participants"][number], turn: number) => PartyBossActionKey;
 }): { label: string; wins: number; losses: number; unresolvedByHorizon: number; winRate: number } {
@@ -133,6 +196,7 @@ function simulatePartyBoss(input: {
   for (let run = 0; run < PARTY_BOSS_SIMULATION_RUNS; run += 1) {
     let state = createPartyBossState({
       partySessionId: `${input.label}:${run}`,
+      variant: input.variant,
       now: new Date("2026-06-30T10:00:00.000Z"),
       participants: input.participants.map((entry, index) => ({
         ...entry,

@@ -284,10 +284,12 @@ describe("presence middleware", () => {
     let refreshed = false;
     const bot = createTestBot(presence, {
       partySessions: {
-        isEnabled: () => true
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false
       } as NonNullable<BotServices["partySessions"]>,
       partyBoss: {
         isEnabled: () => true,
+        areDevHelpersEnabled: () => false,
         getActiveForTelegramUser: () => {
           throw new Error("party refresh should not be intercepted by the combat lock");
         },
