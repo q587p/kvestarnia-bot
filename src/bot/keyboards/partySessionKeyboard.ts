@@ -63,7 +63,7 @@ export function buildPartySessionKeyboard(
     }
 
     if (session.originLocationId === "barrel.big-brother" && options.inviteUrl) {
-      keyboard.text("📣 Текст запрошення", makePartySessionShareCallbackData(token)).row();
+      keyboard.text("📣 Запрошення на рейд", makePartySessionShareCallbackData(token)).row();
       keyboard.url("🔗 Запросити в рейд", buildTelegramShareUrl(options.inviteUrl)).row();
     }
 

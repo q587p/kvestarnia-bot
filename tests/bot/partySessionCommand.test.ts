@@ -348,7 +348,7 @@ describe("handlePartySessionCallback", () => {
   it("refreshes the leader recruiting card after another player joins", async () => {
     const session = makeSessionWithMember();
     const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "joined", session });
-    const { ctx, editMessageText, apiEditMessageText } = createCallbackContext(93);
+    const { ctx, editMessageText, apiEditMessageText, reply } = createCallbackContext(93);
 
     await handlePartySessionCallback(
       ctx,
@@ -375,6 +375,7 @@ describe("handlePartySessionCallback", () => {
       })
     );
     expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("href=\"https://t.me/kvestarnia_test_bot?start=party_partyABC12\"");
+    expect(reply).not.toHaveBeenCalled();
   });
 
   it("shows generic copy for ineligible Big Barrel Brother nearby joins without participant refresh", async () => {
@@ -432,7 +433,7 @@ describe("handlePartySessionCallback", () => {
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).not.toContain("Приєднатися");
   });
 
-  it("sends a forwardable Big Barrel Brother invite card to joined participants", async () => {
+  it("sends a forwardable Big Barrel Brother invite card after explicit share press", async () => {
     const session = {
       ...makeSessionWithMember(),
       originLocationId: "barrel.big-brother"

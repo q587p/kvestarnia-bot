@@ -327,7 +327,6 @@ export async function handlePartySessionCallback(
         }
       : false);
     if (result.state === "joined") {
-      await sendBigBarrelInviteShareIfPossible(ctx, result.session, inviteUrl);
       await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
     }
     return;
@@ -550,22 +549,6 @@ async function sendPartyView(
         includeBossStart: isBigBarrelParty(result.session)
       }
     : false);
-}
-
-async function sendBigBarrelInviteShareIfPossible(
-  ctx: Context,
-  session: Parameters<typeof presentPartyInviteShare>[0],
-  inviteUrl: string | null
-): Promise<void> {
-  if (!inviteUrl || !isBigBarrelParty(session) || session.status !== "recruiting") {
-    return;
-  }
-
-  const templateIndex = getInitialBigBarrelInviteTemplateIndex(session.inviteToken);
-  await ctx.reply(presentPartyInviteShare(session, inviteUrl, { templateIndex }), {
-    ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildPartySessionInviteShareKeyboard(session.inviteToken, templateIndex)
-  });
 }
 
 async function sendText(
