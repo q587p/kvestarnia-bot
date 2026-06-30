@@ -189,7 +189,9 @@ export function registerTavernBotModule(
   });
 
   registerParsedCallbackRoute(bot, /^v1:place:/, parsePlaceCallbackData, async (ctx, action) => {
-    await handlePlaceCallback(ctx, action, services);
+    await handlePlaceCallback(ctx, action, services, {
+      botUsername: options.botUsername
+    });
   });
 
   registerParsedCallbackRoute(bot, /^v1:mem:/, parseMemorialCallbackData, async (ctx, action) => {
@@ -551,7 +553,8 @@ function registerPassageSearchDevResetHandler(bot: Bot, services: BotServices): 
 async function handlePlaceCallback(
   ctx: Context,
   action: PlaceCallback,
-  services: BotServices
+  services: BotServices,
+  options: { botUsername?: string | undefined } = {}
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -640,6 +643,7 @@ async function handlePlaceCallback(
       return;
     }
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
+      botUsername: options.botUsername,
       partyBoss: services.partyBoss,
       partySessions: services.partySessions
     });

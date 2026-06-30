@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother start now rejects the whole joined roster with a generic ineligible result when any participant is not currently eligible for the frozen Barrel period, and settlement rechecks the remort-aware level gate, remort life and existing Barrel success before granting XP/gold/items.
 - Production `boss-timeout` callbacks now resolve only when the turn deadline is due; early force-timeout remains available only through dev-helper mode.
 - Party recruiting cards now show a real `🛢️ Почати рейд` leader button for Big Barrel Brother parties without exposing dev proof controls.
+- Big Barrel Brother recruiting cards opened through `/raid`, the Barrel place callback, and current-location resume now all receive the configured bot username, so copied `/start party_<token>` deep links render consistently.
 - Big Barrel Brother boss cards use production raid copy and explain victory/failure without exposing private participant HP/mana/actions on shared cards.
 - Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.
 - Big balance tuning now uses 13 rounds only as a deterministic simulation/QA horizon: solo baseline `0/400` wins (`0%`), prepared 3-player entry party `181/400` wins (`45.25%`), both with `0` unresolved-by-horizon in the checked matrix.
