@@ -44,9 +44,9 @@ describe("PrismaPartyBossRepository integration", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("starts from recruiting party, dedupes actions, timeout-resolves, and releases leases on terminal", async () => {
-    await seedCharacter(prisma, "leader-user", 1001n, "Лідерка");
-    await seedCharacter(prisma, "joiner-user", 1002n, "Помічник");
+  it("starts from recruiting party, dedupes actions, and timeout-resolves past the old cap without terminalizing by turn count", async () => {
+    await seedCharacter(prisma, "leader-user", 1001n, "Лідерка", { hp: 300 });
+    await seedCharacter(prisma, "joiner-user", 1002n, "Помічник", { hp: 300 });
     await partyRepository.createForTelegramUser(1001n, partyInput("party-token-a"));
     await partyRepository.joinByTokenForTelegramUser(1002n, "party-token-a", joinInput());
 
@@ -67,7 +67,7 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(await prisma.partyBossAction.count()).toBe(1);
 
     let latest = expectPartyBossSession(duplicate);
-    for (let turn = latest.turn; turn <= 5 && latest.status === "active"; turn += 1) {
+    for (let turn = latest.turn; turn <= 6; turn += 1) {
       const resolved = await bossRepository.resolveTimedOutByToken("party-token-a", {
         now: new Date(`2026-06-30T10:0${turn}:00.000Z`),
         nextTurnExpiresAt: new Date(`2026-06-30T10:0${turn}:23.000Z`)
@@ -76,15 +76,93 @@ describe("PrismaPartyBossRepository integration", () => {
       latest = expectPartyBossSession(resolved);
     }
 
-    expect(latest.status).not.toBe("active");
-    expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss" } })).toBe(0);
+    expect(latest.status).toBe("active");
+    expect(latest.turn).toBe(7);
+    expect(latest.state.boss.hp).toBeGreaterThan(0);
+    expect(latest.state.participants.some((participant) => participant.resources.hp > 0)).toBe(true);
+    expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss" } })).toBe(2);
     expect(await prisma.partyParticipant.count({
       where: {
         activeMembershipKey: {
           not: null
         }
       }
+    })).toBe(2);
+  });
+
+  it("releases leases and live party keys when timeout resolution knocks out all participants", async () => {
+    await seedCharacter(prisma, "knockout-leader-user", 2001n, "Крихка Лідерка", { hp: 1 });
+    await seedCharacter(prisma, "knockout-joiner-user", 2002n, "Крихкий Помічник", { hp: 1 });
+    await partyRepository.createForTelegramUser(2001n, partyInput("party-token-knockout"));
+    await partyRepository.joinByTokenForTelegramUser(2002n, "party-token-knockout", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(2001n, {
+      partyInviteToken: "party-token-knockout",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started.state).toBe("started");
+    const resolved = await bossRepository.resolveTimedOutByToken("party-token-knockout", {
+      now: new Date("2026-06-30T10:01:00.000Z"),
+      nextTurnExpiresAt: new Date("2026-06-30T10:01:23.000Z")
+    });
+    const latest = expectPartyBossSession(resolved);
+
+    expect(resolved.state).toBe("resolved");
+    expect(latest.status).toBe("lost");
+    expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
+    expect(await prisma.partyParticipant.count({
+      where: {
+        sessionId: latest.partySessionId,
+        activeMembershipKey: {
+          not: null
+        }
+      }
     })).toBe(0);
+  });
+
+  it("treats knocked-out participant action callbacks as stale without creating an action row", async () => {
+    await seedCharacter(prisma, "stale-knockout-leader-user", 3001n, "Вибита Лідерка", { hp: 25 });
+    await partyRepository.createForTelegramUser(3001n, partyInput("party-token-stale-knockout"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(3001n, {
+      partyInviteToken: "party-token-stale-knockout",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    const knockedOutState = {
+      ...started.session.state,
+      participants: started.session.state.participants.map((participant) => ({
+        ...participant,
+        status: "knocked-out" as const,
+        resources: {
+          ...participant.resources,
+          hp: 0
+        }
+      }))
+    };
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: {
+        stateJson: knockedOutState
+      }
+    });
+
+    const stale = await bossRepository.submitActionForTelegramUser(
+      3001n,
+      "party-token-stale-knockout",
+      1,
+      "attack",
+      resolveInput()
+    );
+
+    expect(stale.state).toBe("stale");
+    expect(await prisma.partyBossAction.count({ where: { sessionId: started.session.id } })).toBe(0);
   });
 });
 
@@ -127,8 +205,10 @@ async function seedCharacter(
   prisma: PrismaClient,
   userId: string,
   telegramUserId: bigint,
-  name: string
+  name: string,
+  options: { hp?: number } = {}
 ): Promise<void> {
+  const hp = options.hp ?? 25;
   await prisma.user.create({
     data: {
       id: userId,
@@ -141,6 +221,8 @@ async function seedCharacter(
           raceId: "race.human-ish",
           classId: "class.warrior",
           level: 3,
+          hpCurrent: hp,
+          hpMax: hp,
           statsJson: {
             strength: 8,
             dexterity: 6,

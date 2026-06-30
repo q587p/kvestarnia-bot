@@ -11,7 +11,6 @@ import type {
 import { SeededRandomSource } from "../../shared/random";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
-export const PARTY_BOSS_MAX_TURNS = 5;
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
 
 export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race">;
@@ -220,7 +219,7 @@ export function resolvePartyBossRound(input: {
   );
   const statusAfter: PartyBossStatus = next.boss.hp <= 0
     ? "won"
-    : livingParticipants.length === 0 || next.turn >= PARTY_BOSS_MAX_TURNS
+    : livingParticipants.length === 0
       ? "lost"
       : "active";
   const round: PartyBossRoundSummary = {

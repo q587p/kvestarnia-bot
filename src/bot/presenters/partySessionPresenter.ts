@@ -244,6 +244,7 @@ export function presentPartyBoss(
   const viewer = options.viewerCharacterId
     ? state.participants.find((participant) => participant.characterId === options.viewerCharacterId)
     : null;
+  const viewerCanAct = viewer?.status === "active" && viewer.resources.hp > 0;
   const lines = [
     "🧪 <b>Бос-проба ватаги</b>",
     "",
@@ -273,7 +274,9 @@ export function presentPartyBoss(
 
   if (viewer && session.status === "active") {
     lines.push("", `<b>Ваш стан:</b> HP ${viewer.resources.hp}/${viewer.resources.hpMax} · мана ${viewer.resources.mana}/${viewer.resources.manaMax}`);
-    lines.push("Оберіть одну дію для цього ходу. Старі або повторні кнопки лише покажуть актуальну картку.");
+    lines.push(viewerCanAct
+      ? "Оберіть одну дію для цього ходу. Старі або повторні кнопки лише покажуть актуальну картку."
+      : "Ви вибиті з proof-бою. Картка лишається для спостереження й оновлення.");
   } else if (session.status === "active") {
     lines.push("", "Спільна картка не показує приватні HP, ману чи вибрані дії учасників.");
   }

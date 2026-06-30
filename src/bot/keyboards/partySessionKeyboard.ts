@@ -64,8 +64,12 @@ export function buildPartyBossKeyboard(
   options: { includeDevTimeout?: boolean | undefined } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const viewer = viewerCharacterId
+    ? session.state.participants.find((participant) => participant.characterId === viewerCharacterId)
+    : null;
+  const canAct = viewer?.status === "active" && viewer.resources.hp > 0;
 
-  if (session.status === "active" && viewerCharacterId) {
+  if (session.status === "active" && viewerCharacterId && canAct) {
     keyboard
       .text("⚔️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
       .text("🛡️ Захист", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))

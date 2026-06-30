@@ -45,6 +45,21 @@ describe("party session keyboard", () => {
     ]);
   });
 
+  it("hides party boss action buttons from knocked-out participants", () => {
+    const session = makeBossSession({
+      status: "knocked-out",
+      hp: 0
+    });
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
+      includeDevTimeout: true
+    }))).toEqual([
+      "⏱️ Dev: добити хід",
+      "📜 Журнал",
+      "🔎 Оновити"
+    ]);
+  });
+
   it("shows nearby party invite rows without duel actions", () => {
     const keyboard = buildPartySessionNearbyCandidatesKeyboard({
       state: "ready",
@@ -79,7 +94,9 @@ function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: stri
   return keyboard.inline_keyboard.flatMap((row) => row.map((button) => button.text));
 }
 
-function makeBossSession(): PartyBossSessionRecord {
+function makeBossSession(
+  participantOverrides: { status?: "active" | "knocked-out"; hp?: number } = {}
+): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
   const participant = makeCharacter("character-1", 42n);
 
@@ -119,7 +136,7 @@ function makeBossSession(): PartyBossSessionRecord {
           characterId: "character-1",
           name: "Тестовий Лідер",
           remortCount: 0,
-          status: "active",
+          status: participantOverrides.status ?? "active",
           combatStats: {
             level: 3,
             hpMax: 25,
@@ -135,7 +152,7 @@ function makeBossSession(): PartyBossSessionRecord {
             classId: "class.warrior"
           },
           resources: {
-            hp: 25,
+            hp: participantOverrides.hp ?? 25,
             hpMax: 25,
             mana: 10,
             manaMax: 10

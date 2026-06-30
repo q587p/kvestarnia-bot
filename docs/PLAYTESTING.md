@@ -14,10 +14,11 @@ Use two or three local accounts. Run in non-production mode or enable `PARTY_SES
 4. Leave Account B idle; tap `⏱️ Dev: добити хід` and verify B is treated as timeout defend, not an extra attack.
 5. Replay old action buttons from the previous turn; verify canonical state appears and HP/mana/contribution do not mutate twice.
 6. Open the active proof from a shared/non-participant context if convenient; verify shared cards do not expose private HP, mana, selected actions or Telegram ids.
-7. Finish the proof by resolving turns; verify the result grants no XP, gold, items, manatky, achievements, Barrel success or loot.
-8. After terminal state, replay result/refresh buttons; verify the same stored result appears and `party-boss` combat leases are gone.
-9. Start remort for a participant during active proof on a disposable local character; verify the proof cancels and leaves no active membership key or combat lease orphan.
-10. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
+7. If the proof reaches a sixth resolved turn while the boss and at least one participant are still alive, verify it remains active instead of losing because of turn count.
+8. Finish the proof by resolving turns; verify the result grants no XP, gold, items, manatky, achievements, Barrel success or loot.
+9. After terminal state, replay result/refresh buttons; verify the same stored result appears and `party-boss` combat leases are gone.
+10. Start remort for a participant during active proof on a disposable local character; verify the proof cancels and leaves no active membership key or combat lease orphan.
+11. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
 
 ## 0.2.15 — Party Session Foundation smoke
 

@@ -240,6 +240,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "stale", session: mapSession(session) };
       }
 
+      const state = parseState(session);
+      const actor = state.participants.find((participant) => participant.characterId === character.id);
+      if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
+        return { state: "stale", session: mapSession(session) };
+      }
+
       const created = await tx.partyBossAction.create({
         data: {
           sessionId: session.id,
