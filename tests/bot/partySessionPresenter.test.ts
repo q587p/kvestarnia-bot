@@ -126,6 +126,12 @@ describe("party session presenter", () => {
         }
       }
     };
+    striker.resources.cooldowns = {
+      skill: {
+        id: "skill.ricochet-shot",
+        remainingTurns: 2
+      }
+    };
     const text = presentPartyBoss(makeBigBossSession({
       turn: 2,
       participants: [leader, striker],
@@ -163,6 +169,9 @@ describe("party session presenter", () => {
     expect(text).toContain("Шкодійка: Корчма не дочекалася вибору й поставила в захист: ворогові важче влучити, а удар буде слабшим.");
     expect(text).toContain("Старший Брат Бочки атакує Голова у відповідь і завдає 5 шкоди.");
     expect(text).toContain("🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 4 ходи.");
+    expect(text).toContain("<b>Останні дії:</b>");
+    expect(text.indexOf("🫁 🌀 <i>Крок крізь Межу</i> відсапується")).toBeLessThan(text.indexOf("<b>Останні дії:</b>"));
+    expect(text).not.toContain("Рикошетний постріл відсапується");
     expect(text).not.toContain("Ватага зняла");
   });
 

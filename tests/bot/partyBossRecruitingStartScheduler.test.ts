@@ -107,7 +107,7 @@ describe("party boss recruiting start scheduler", () => {
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Таймер ходу спрацював.");
     expect(sendMessage.mock.calls[0]?.[1]).toContain("🛢️ <b>Бій: 2 хід</b>");
-    expect(sendMessage.mock.calls[0]?.[1]).toContain("Остання дія");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Останні дії:");
     expect(sendMessage.mock.calls[0]?.[1]).not.toContain("Старший Брат Бочки втрутився");
   });
 });

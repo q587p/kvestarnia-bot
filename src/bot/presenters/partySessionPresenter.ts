@@ -342,10 +342,11 @@ export function presentPartyBoss(
     viewerCharacterId: viewer?.characterId ?? null,
     targetedCharacterIds
   }));
+  lines.push(...presentPartyBossCooldownLines(viewer ?? null));
 
   const lastRound = state.roundLog.at(-1);
   if (lastRound) {
-    lines.push("", `<b>Остання дія</b>`);
+    lines.push("", `<b>Останні дії:</b>`);
     lines.push(...presentLastRoundLines(lastRound, state.participants, bossName, {
       isBig: big,
       viewerCharacterId: viewer?.characterId ?? null
@@ -487,9 +488,6 @@ function presentLastRoundLines(
   } else if (round.statusAfter === "active") {
     lines.push(`${escapeHtml(bossName)} не завдав шкоди цього ходу.`);
   }
-
-  lines.push(...presentPartyBossCooldownLines(participants, options.viewerCharacterId));
-
   return lines;
 }
 
@@ -773,20 +771,16 @@ function presentPartyBossActionSubject(
 }
 
 function presentPartyBossCooldownLines(
-  participants: PartyBossSessionRecord["state"]["participants"],
-  viewerCharacterId: string | null
+  viewer: PartyBossSessionRecord["state"]["participants"][number] | null
 ): string[] {
-  return participants.flatMap((participant) => {
-    const entries = getCooldownEntries(participant.resources.cooldowns);
-    const prefix = viewerCharacterId && participant.characterId === viewerCharacterId
-      ? ""
-      : `${escapeHtml(participant.name)}: `;
+  if (!viewer) {
+    return [];
+  }
 
-    return entries.map((cooldown) => {
-      const skill = getCombatSkillDisplay(cooldown.id);
+  return getCooldownEntries(viewer.resources.cooldowns).map((cooldown) => {
+    const skill = getCombatSkillDisplay(cooldown.id);
 
-      return `🫁 ${prefix}${skill.icon} <i>${escapeHtml(skill.name)}</i> відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
-    });
+    return `🫁 ${skill.icon} <i>${escapeHtml(skill.name)}</i> відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
   });
 }
 
