@@ -317,6 +317,7 @@ export async function handlePartySessionCallback(
       ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
       : null;
     await sendText(ctx, "edit", presentPartyJoin(result, { inviteUrl }), "session" in result
+      && result.state !== "ineligible"
       ? {
           session: result.session,
           inviteUrl,
@@ -421,7 +422,7 @@ export async function sendPartyJoinFromStartPayload(
     : null;
   await ctx.reply(presentPartyJoin(result, { inviteUrl }), {
     ...HTML_MESSAGE_OPTIONS,
-    ...("session" in result
+    ...("session" in result && result.state !== "ineligible"
       ? {
           reply_markup: buildPartySessionKeyboard(result.session, {
             viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),

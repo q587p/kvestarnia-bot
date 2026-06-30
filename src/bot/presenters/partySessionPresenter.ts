@@ -75,6 +75,10 @@ export function presentPartyJoin(
     });
   }
 
+  if (result.state === "ineligible") {
+    return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
+  }
+
   if (result.state === "full") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,

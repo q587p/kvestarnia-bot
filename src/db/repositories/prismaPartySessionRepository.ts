@@ -14,6 +14,8 @@ import type {
   PartyParticipantStatus,
   PartyJoinSource
 } from "./partySessionRepository";
+import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
+import { FRIDAY_BARREL_RAID_KEY } from "../../services/tavernRaidService";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -174,6 +176,10 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
       if (!character) {
         return { state: "no-character" };
+      }
+
+      if (await isIneligibleBigBarrelJoin(tx, session, character)) {
+        return { state: "ineligible", session: mapSession(session) };
       }
 
       const existing = session.participants.find((row) => row.characterId === character.id);
@@ -732,6 +738,47 @@ function isPersonalBigBarrelRecruitingSession(session: PartySessionRow, characte
     joined.length === 1 &&
     joined[0]?.characterId === characterId
   );
+}
+
+async function isIneligibleBigBarrelJoin(
+  tx: TxClient,
+  session: PartySessionRow,
+  character: CharacterRow
+): Promise<boolean> {
+  if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+    return false;
+  }
+
+  if (!isBigBarrelEligible(character.level, character._count.remorts)) {
+    return true;
+  }
+
+  const [activeLease, existingSuccess] = await Promise.all([
+    tx.activeCombatLease.findUnique({
+      where: {
+        characterId: character.id
+      },
+      select: {
+        id: true
+      }
+    }),
+    session.periodId
+      ? tx.dailyAction.findUnique({
+          where: {
+            characterId_key_localDate: {
+              characterId: character.id,
+              key: FRIDAY_BARREL_RAID_KEY,
+              localDate: session.periodId
+            }
+          },
+          select: {
+            id: true
+          }
+        })
+      : Promise.resolve(null)
+  ]);
+
+  return Boolean(activeLease || existingSuccess);
 }
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {

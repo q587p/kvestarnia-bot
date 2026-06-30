@@ -74,6 +74,7 @@ export type PartyJoinRepositoryResult =
   | { state: "not-found" }
   | { state: "joined" | "already-joined"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
+  | { state: "ineligible"; session: PartySessionRecord }
   | { state: "full" | "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyLeaveRepositoryResult =

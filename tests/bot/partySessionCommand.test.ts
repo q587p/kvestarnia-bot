@@ -377,6 +377,61 @@ describe("handlePartySessionCallback", () => {
     expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("href=\"https://t.me/kvestarnia_test_bot?start=party_partyABC12\"");
   });
 
+  it("shows generic copy for ineligible Big Barrel Brother nearby joins without participant refresh", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originLocationId: "barrel.big-brother"
+    };
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "ineligible", session });
+    const { ctx, editMessageText, apiEditMessageText, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: session.inviteToken },
+      serviceWith({ joinByTokenForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      source: "nearby",
+      chatId: 93n,
+      messageId: 13
+    });
+    expect(messageText(editMessageText)).toContain("Рейдова канцелярія відсіяла запис");
+    expect(messageText(editMessageText)).not.toContain("Ви приєдналися");
+    expect(keyboardJson(editMessageText)).toBeUndefined();
+    expect(apiEditMessageText).not.toHaveBeenCalled();
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it("shows generic copy for ineligible Big Barrel Brother deep-link joins without a joined card", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originLocationId: "barrel.big-brother"
+    };
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "ineligible", session });
+    const { ctx, reply } = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWith({ joinByTokenForTelegramUser }),
+      session.inviteToken,
+      { botUsername: "kvestarnia_test_bot" }
+    );
+
+    expect(handled).toBe(true);
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      source: "deep-link",
+      chatId: 93n
+    });
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Рейдова канцелярія відсіяла запис");
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("Ви приєдналися");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).not.toContain("Приєднатися");
+  });
+
   it("sends a forwardable Big Barrel Brother invite card to joined participants", async () => {
     const session = {
       ...makeSessionWithMember(),

@@ -542,7 +542,27 @@ describe("PrismaPartyBossRepository integration", () => {
       periodId: "2026-06-30T11:23",
       originLocationId: "barrel.big-brother"
     });
-    await partyRepository.joinByTokenForTelegramUser(5102n, "party-token-big-underlevel", joinInput());
+    const party = await prisma.partySession.findUniqueOrThrow({
+      where: {
+        inviteToken: "party-token-big-underlevel"
+      },
+      select: {
+        id: true
+      }
+    });
+    await prisma.partyParticipant.create({
+      data: {
+        id: "big-underlevel-legacy-participant",
+        sessionId: party.id,
+        characterId: "big-underlevel-joiner-user-character",
+        remortCount: 0,
+        status: "joined",
+        joinSource: "deep-link",
+        joinedAt: now(),
+        snapshotJson: {},
+        activeMembershipKey: "party-member:big-underlevel-joiner-user-character"
+      }
+    });
 
     const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5101n, {
       partyInviteToken: "party-token-big-underlevel",
