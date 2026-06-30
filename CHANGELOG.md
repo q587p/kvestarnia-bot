@@ -46,6 +46,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother now freezes boss level from the current party leader instead of the roster average, with large-party HP scaling tuned so lower-level joiners no longer soften a high-level starter's raid.
 - Big balance tuning now uses 13 rounds only as a deterministic simulation/QA horizon: solo baseline `0/400` wins (`0%`), prepared 3-player entry party `181/400` wins (`45.25%`), full same-level level-8 party `350/400` wins (`87.5%`), full same-level level-13 party `345/400` wins (`86.25%`), and level-13 leader with seven lower-level joiners `0/400` wins (`0%`) in the checked matrix.
 - The Big balance docs now explicitly remove the older round-7 terminal pressure proposal from the runtime contract.
+- Inventory item detail cards now say combat-usable bandages can be used in active solo combat or outside combat when the fight action is available, matching the existing combat-use button instead of showing only out-of-combat wording.
 - Lazy `/hero` and `/fight` resource synchronization no longer displays the old delayed full-HP recovery notice; durable timely recovery notifications remain a separate future task.
 
 ### Unchanged

@@ -160,13 +160,22 @@ async function handleItemCallback(
   const canUse = itemUse?.state === "usable" && !(combatUse?.combatLocked && !combatUse.action);
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview, itemUse }), {
-    ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
-      canUse,
-      ...(combatUse?.action ? { combatUse: combatUse.action } : {})
-    })
-  });
+  await safeEditMessageText(
+    ctx,
+    presentItemDetail(result, {
+      equippedSlot,
+      equipPreview,
+      itemUse,
+      combatUseAvailable: Boolean(combatUse?.action)
+    }),
+    {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
+        canUse,
+        ...(combatUse?.action ? { combatUse: combatUse.action } : {})
+      })
+    }
+  );
 }
 
 async function getCombatUseStateForItem(
