@@ -308,6 +308,28 @@ export function isBigBarrelEligible(level: number, remortCount = 0): boolean {
     : safeLevel >= 8;
 }
 
+export function buildBigBarrelLossXp(
+  state: PartyBossState,
+  participant: PartyBossState["participants"][number]
+): number {
+  if (!isMeaningfulBigBarrelParticipant(participant)) {
+    return 0;
+  }
+
+  const raidLevel = clamp(state.boss.level, 8, 13);
+  const actionBonus = participant.contribution.submittedActions > 0 ? 2 : 0;
+  const contactBonus = participant.contribution.damageDealt > 0 || participant.contribution.damageTaken > 0 ? 2 : 0;
+
+  return 5 + (raidLevel - 8) + actionBonus + contactBonus;
+}
+
+export function isMeaningfulBigBarrelParticipant(participant: PartyBossState["participants"][number]): boolean {
+  return participant.contribution.submittedActions > 0 ||
+    participant.contribution.damageDealt > 0 ||
+    participant.contribution.damageTaken > 0 ||
+    participant.contribution.timeoutActions > 0;
+}
+
 export function clonePartyBossState(state: PartyBossState): PartyBossState {
   return {
     ...state,

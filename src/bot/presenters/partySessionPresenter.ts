@@ -11,9 +11,17 @@ import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../service
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossActionResult, PartyBossSessionRecord, PartyBossStartResult } from "../../db/repositories/partyBossRepository";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
-import { getPartyBossRetaliationPlan, PARTY_BOSS_TURN_MS } from "../../domain/partyBoss/partyBoss";
+import {
+  buildBigBarrelLossXp,
+  getPartyBossRetaliationPlan,
+  isMeaningfulBigBarrelParticipant,
+  PARTY_BOSS_TURN_MS
+} from "../../domain/partyBoss/partyBoss";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
+
+const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
 export function presentPartyCreate(
   result: PartyCreateResult,
@@ -334,7 +342,10 @@ export function presentPartyBoss(
   const lastRound = state.roundLog.at(-1);
   if (lastRound) {
     lines.push("", `<b>Остання дія</b>`);
-    lines.push(...presentLastRoundLines(lastRound, state.participants, bossName));
+    lines.push(...presentLastRoundLines(lastRound, state.participants, bossName, {
+      isBig: big,
+      viewerCharacterId: viewer?.characterId ?? null
+    }));
     const nextFocus = big ? presentNextRetaliationFocus(state, lastRound) : null;
     if (nextFocus) {
       lines.push(nextFocus);
@@ -358,7 +369,7 @@ export function presentPartyBoss(
         ? "Ватага перемогла. Участь зараховано як успішну Бочку цього періоду; нагороди збережено й не дублюються."
         : "Ватага перемогла контрольного боса. Нагород тут немає: це тестовий бій, а не рейдовий лут."
       : big
-        ? `Старший Брат Бочки вистояв із ${state.boss.hp}/${state.boss.hpMax} HP. Успіх Бочки не зараховано, але учасники з реальною участю отримали досвід за спробу.`
+        ? presentBigBarrelLossResult(state, viewer?.characterId ?? null)
         : "Тестовий бій завершено без рейдової нагороди.");
   }
 
@@ -368,6 +379,7 @@ export function presentPartyBoss(
 export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {
   const rounds = session.state.roundLog;
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
+  const participantsByCharacterId = new Map(session.state.participants.map((participant) => [participant.characterId, participant]));
   const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
   const lines = [
     isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
@@ -389,17 +401,18 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   lines.push("", `${pageMarker}: хід <b>${round.turn}</b> · ${page + 1}/${rounds.length}`);
 
   for (const action of round.actions) {
-    const name = names.get(action.characterId) ?? "Учасник";
-    lines.push(
-      `— ${escapeHtml(name)}: ${presentBossActionSummary(action)}`
-    );
+    lines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
   }
 
   const retaliationDamage = round.bossRetaliations.reduce((sum, retaliation) => sum + retaliation.damage, 0);
   lines.push(`Бос отримав: ${round.bossDamage}. HP після ходу: ${round.bossHpAfter}/${session.state.boss.hpMax}.`);
   if (round.bossRetaliations.length > 0) {
-    lines.push(`🎯 Ціль боса: ${presentRetaliationNames(round.bossRetaliations.map((retaliation) => retaliation.characterId), names)}.`);
-    lines.push(`Бос огризнувся: ${retaliationDamage} шкоди разом.`);
+    if (isBigPartyBossSession(session) && round.bossRetaliations.length > 1) {
+      lines.push(presentBigBarrelAoeRetaliationLine(round.bossRetaliations, names, "застосував"));
+    } else {
+      lines.push(`🎯 Ціль боса: ${presentRetaliationNames(round.bossRetaliations.map((retaliation) => retaliation.characterId), names)}.`);
+      lines.push(`Бос огризнувся: ${retaliationDamage} шкоди разом.`);
+    }
   }
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
   if (nextFocus) {
@@ -446,28 +459,46 @@ function presentParticipantResourceRows(
 function presentLastRoundLines(
   round: PartyBossSessionRecord["state"]["roundLog"][number],
   participants: PartyBossSessionRecord["state"]["participants"],
-  bossName: string
+  bossName: string,
+  options: { isBig: boolean; viewerCharacterId: string | null }
 ): string[] {
-  const names = new Map(participants.map((participant) => [participant.characterId, participant.name]));
-  const lines = round.actions.map((action) => {
-    const name = names.get(action.characterId) ?? "Учасник";
-    return `— ${escapeHtml(name)}: ${presentBossActionSummary(action)}.`;
-  });
-
-  if (round.bossDamage > 0) {
-    lines.push(`— Ватага зняла з ${escapeHtml(bossName)} ${round.bossDamage} HP.`);
-  }
+  const byCharacterId = new Map(participants.map((participant) => [participant.characterId, participant]));
+  const lines = round.actions.map((action) =>
+    presentPartyBossActionLine(action, byCharacterId.get(action.characterId), options.viewerCharacterId)
+  );
 
   if (round.bossRetaliations.length > 0) {
-    for (const retaliation of round.bossRetaliations) {
-      const name = names.get(retaliation.characterId) ?? "учасника";
-      lines.push(`— ${escapeHtml(bossName)} влучає у ${escapeHtml(name)} на ${retaliation.damage}.`);
+    if (options.isBig && round.bossRetaliations.length > 1) {
+      lines.push(presentBigBarrelAoeRetaliationLine(
+        round.bossRetaliations,
+        new Map(participants.map((participant) => [participant.characterId, participant.name])),
+        "застосовує"
+      ));
+    } else {
+      for (const retaliation of round.bossRetaliations) {
+        const name = byCharacterId.get(retaliation.characterId)?.name ?? "учасника";
+        lines.push(`${escapeHtml(bossName)} атакує ${escapeHtml(name)} у відповідь і завдає ${retaliation.damage} шкоди.`);
+      }
     }
   } else if (round.statusAfter === "active") {
-    lines.push(`— ${escapeHtml(bossName)} не встиг огризнутися.`);
+    lines.push(`${escapeHtml(bossName)} не завдав шкоди цього ходу.`);
   }
 
+  lines.push(...presentPartyBossCooldownLines(participants, options.viewerCharacterId));
+
   return lines;
+}
+
+function presentBigBarrelAoeRetaliationLine(
+  retaliations: PartyBossSessionRecord["state"]["roundLog"][number]["bossRetaliations"],
+  names: Map<string, string>,
+  verb: "застосовує" | "застосував"
+): string {
+  const targets = retaliations
+    .map((retaliation) => `${escapeHtml(names.get(retaliation.characterId) ?? "учасник")} отримує ${retaliation.damage} шкоди`)
+    .join("; ");
+
+  return `Старший Брат Бочки ${verb} ${BIG_BARREL_AOE_ATTACK_LABEL}: ${targets}.`;
 }
 
 export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
@@ -610,6 +641,33 @@ function getBossStatusLine(session: PartyBossSessionRecord): string {
   return "Стан: бій триває";
 }
 
+function presentBigBarrelLossResult(
+  state: PartyBossSessionRecord["state"],
+  viewerCharacterId: string | null
+): string {
+  const viewer = viewerCharacterId
+    ? state.participants.find((participant) => participant.characterId === viewerCharacterId)
+    : null;
+  const xpValues = (viewer ? [viewer] : state.participants)
+    .filter(isMeaningfulBigBarrelParticipant)
+    .map((participant) => buildBigBarrelLossXp(state, participant))
+    .filter((xp) => xp > 0);
+  const uniqueXpValues = [...new Set(xpValues)].sort((left, right) => left - right);
+  const rewardLine = uniqueXpValues.length === 0
+    ? "XP не нараховано: журнал не побачив реальної участі."
+    : uniqueXpValues.length === 1
+      ? `+${uniqueXpValues[0]} XP`
+      : `+${uniqueXpValues[0]}-${uniqueXpValues.at(-1)} XP залежно від участі`;
+
+  return [
+    `💤 Ви програли. Старший Брат Бочки вистояв із ${state.boss.hp}/${state.boss.hpMax} HP.`,
+    "Пива цього разу не виставити: Бочка поставила кухлі під нагляд.",
+    "",
+    "🎒 За спробу:",
+    rewardLine
+  ].join("\n");
+}
+
 function isBigPartyBossSession(session: PartyBossSessionRecord): boolean {
   return session.rulesVersion === "big-barrel-brother-v1" ||
     session.bossKey === "big-barrel-brother" ||
@@ -639,49 +697,114 @@ function presentPartyBossStartTip(
   return flavor ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>` : null;
 }
 
-function presentBossActionLabel(action: string): string {
-  switch (action) {
-    case "attack":
-      return "удар";
-    case "defend":
-      return "захист";
-    case "skill":
-      return "вміння";
-    case "race":
-      return "расова дія";
+function presentPartyBossActionLine(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
+  participant: PartyBossSessionRecord["state"]["participants"][number] | undefined,
+  viewerCharacterId: string | null
+): string {
+  const isViewer = Boolean(viewerCharacterId && action.characterId === viewerCharacterId);
+  const name = escapeHtml(participant?.name ?? "Учасник");
+
+  if (action.outcome === "defended") {
+    if (action.origin === "timeout") {
+      return isViewer
+        ? "Корчма не дочекалася вашого вибору й поставила вас у захист: ворогові важче влучити, а удар буде слабшим."
+        : `${name}: Корчма не дочекалася вибору й поставила в захист: ворогові важче влучити, а удар буде слабшим.`;
+    }
+
+    return isViewer
+      ? "Ви стали в захист: ворогові важче влучити, а удар буде слабшим."
+      : `${name} у захисті: ворогові важче влучити, а удар буде слабшим.`;
+  }
+
+  const subject = presentPartyBossActionSubject(action, name, isViewer);
+
+  switch (action.outcome) {
+    case "miss":
+      return `${subject} не влучає.`;
+    case "not-enough-mana":
+      return `${subject} не спрацьовує: не вистачило мани.`;
+    case "skill-on-cooldown":
+      return `${subject} не спрацьовує: ще відсапується.`;
+    case "critical-fumble":
+      return `${subject} зривається критично.`;
+    case "critical-hit":
+      return action.damage > 0
+        ? `${subject} критично влучає на ${action.damage} шкоди.`
+        : `${subject} критично спрацьовує без прямої шкоди.`;
+    case "won":
+      return action.damage > 0
+        ? `${subject} влучає на ${action.damage} шкоди й добиває боса.`
+        : `${subject} ставить фінальну крапку без прямої шкоди.`;
+    case "hit":
+      return action.damage > 0
+        ? `${subject} влучає на ${action.damage} шкоди.`
+        : `${subject} спрацьовує без прямої шкоди.`;
     default:
-      return "дія";
+      return action.damage > 0
+        ? `${subject} влучає на ${action.damage} шкоди.`
+        : `${subject} спрацьовує без прямої шкоди.`;
   }
 }
 
-function presentBossActionSummary(
-  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
+function presentPartyBossActionSubject(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
+  name: string,
+  isViewer: boolean
 ): string {
-  const timeout = action.origin === "timeout" ? " · таймаут" : "";
-  const label = `${presentBossActionLabel(action.action)}${timeout}`;
+  if (action.action === "skill" || action.action === "race") {
+    const skill = getCombatSkillDisplay(action.skillId);
+    const skillLabel = `${skill.icon} <i>${escapeHtml(skill.name)}</i>`;
 
-  switch (action.outcome) {
-    case "defended":
-      return `${label}: захист без прямої шкоди`;
-    case "miss":
-      return `${label}: промах`;
-    case "not-enough-mana":
-      return `${label}: не вистачило мани`;
-    case "skill-on-cooldown":
-      return `${label}: дія ще відсапується`;
-    case "critical-fumble":
-      return `${label}: критичний збій`;
-    case "hit":
-      return action.damage > 0
-        ? `${label}: ${action.damage} шкоди`
-        : `${label}: ефект без прямої шкоди`;
-    case "critical-hit":
-      return `${label}: критично, ${action.damage} шкоди`;
-    case "won":
-      return `${label}: ${action.damage} шкоди, добито`;
-    default:
-      return `${label}: ${action.damage} шкоди`;
+    return isViewer
+      ? `Ваше вміння ${skillLabel}`
+      : `${name} застосовує ${skillLabel}`;
   }
+
+  if (action.action === "attack") {
+    return isViewer ? "Ваша атака" : `Атака ${name}`;
+  }
+
+  return isViewer ? "Ваша дія" : `Дія ${name}`;
+}
+
+function presentPartyBossCooldownLines(
+  participants: PartyBossSessionRecord["state"]["participants"],
+  viewerCharacterId: string | null
+): string[] {
+  return participants.flatMap((participant) => {
+    const entries = getCooldownEntries(participant.resources.cooldowns);
+    const prefix = viewerCharacterId && participant.characterId === viewerCharacterId
+      ? ""
+      : `${escapeHtml(participant.name)}: `;
+
+    return entries.map((cooldown) => {
+      const skill = getCombatSkillDisplay(cooldown.id);
+
+      return `🫁 ${prefix}${skill.icon} <i>${escapeHtml(skill.name)}</i> відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+    });
+  });
+}
+
+function getCooldownEntries(
+  cooldowns: PartyBossSessionRecord["state"]["participants"][number]["resources"]["cooldowns"]
+): Array<{ id: string; remainingTurns: number }> {
+  const entries: Array<{ id: string; remainingTurns: number }> = [];
+  const seen = new Set<string>();
+
+  if (cooldowns?.skill?.remainingTurns) {
+    entries.push(cooldowns.skill);
+    seen.add(cooldowns.skill.id);
+  }
+
+  for (const cooldown of Object.values(cooldowns?.abilities ?? {})) {
+    if (cooldown.remainingTurns > 0 && !seen.has(cooldown.id)) {
+      entries.push(cooldown);
+      seen.add(cooldown.id);
+    }
+  }
+
+  return entries;
 }
 
 function presentBossTerminalStatus(status: string): string {
@@ -758,6 +881,12 @@ function isSameRetaliationFocus(nextCharacterIds: string[], previousCharacterIds
 function formatSecondsLong(milliseconds: number): string {
   const seconds = Math.max(1, Math.round(milliseconds / 1000));
   return `${seconds} ${pluralizeUk(seconds, "секунда", "секунди", "секунд")}`;
+}
+
+function formatTurns(turns: number): string {
+  const safeTurns = Math.max(1, Math.floor(turns));
+
+  return `${safeTurns} ${pluralizeUk(safeTurns, "хід", "ходи", "ходів")}`;
 }
 
 function presentPartyInviteLine(session: PartySessionRecord, inviteUrl: string): string {

@@ -322,8 +322,8 @@ describe("handlePartySessionCallback", () => {
     expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
     expect(messageText(editMessageText)).toContain("📜 <b>Журнал тестового бою</b>");
     expect(messageText(editMessageText)).toContain("Початок: хід <b>1</b> · 1/1");
-    expect(messageText(editMessageText)).toContain("Тестова Лідерка: удар: 7 шкоди");
-    expect(messageText(editMessageText)).toContain("Друга Учасниця: расова дія: ефект без прямої шкоди");
+    expect(messageText(editMessageText)).toContain("Атака Тестова Лідерка влучає на 7 шкоди.");
+    expect(messageText(editMessageText)).toContain("Друга Учасниця застосовує 🪨 <i>Низький центр ваги</i> спрацьовує без прямої шкоди.");
   });
 
   it("keeps the boss journal closed while the battle is active", async () => {

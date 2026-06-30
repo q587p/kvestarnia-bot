@@ -1,11 +1,12 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  BIG_BARREL_BROTHER_RULES_VERSION,
+  buildBigBarrelLossXp,
   buildResult,
   createPartyBossState,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
   resolvePartyBossRound,
-  BIG_BARREL_BROTHER_RULES_VERSION,
   type PartyBossActionKey,
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
@@ -996,28 +997,6 @@ function mapCharacter(row: CharacterRow): PartyBossParticipantSnapshot {
     telegramUserId: row.user.telegramUserId,
     remortCount: row._count.remorts
   };
-}
-
-function buildBigBarrelLossXp(
-  state: PartyBossState,
-  participant: PartyBossState["participants"][number]
-): number {
-  if (!isMeaningfulBigBarrelParticipant(participant)) {
-    return 0;
-  }
-
-  const raidLevel = clamp(state.boss.level, 8, 13);
-  const actionBonus = participant.contribution.submittedActions > 0 ? 2 : 0;
-  const contactBonus = participant.contribution.damageDealt > 0 || participant.contribution.damageTaken > 0 ? 2 : 0;
-
-  return 5 + (raidLevel - 8) + actionBonus + contactBonus;
-}
-
-function isMeaningfulBigBarrelParticipant(participant: PartyBossState["participants"][number]): boolean {
-  return participant.contribution.submittedActions > 0 ||
-    participant.contribution.damageDealt > 0 ||
-    participant.contribution.damageTaken > 0 ||
-    participant.contribution.timeoutActions > 0;
 }
 
 function mapCharacterForCombat(

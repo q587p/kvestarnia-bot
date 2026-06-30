@@ -33,10 +33,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother boss cards use production raid copy, show the whole party resource state to participants, mark the boss target on the participant row, and explain victory/failure with the boss HP that remained.
 - Big Barrel Brother participant resource snapshots now use the hero's effective level/equipment HP and mana maxima, preserving real missing resources such as `13/50` instead of clamping raid cards to stored base maxima like `20/10`.
 - Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.
-- Big Barrel Brother active battle cards now follow the ordinary fight rhythm more closely: turn heading, boss HP first, party HP/mana rows, visible boss target marker, concrete action buttons, 23-second turn hint and no live journal button until terminal state.
+- Big Barrel Brother active battle cards now follow the ordinary fight rhythm more closely: turn heading, boss HP first, party HP/mana rows, visible boss target marker, concrete action buttons, player action summaries with named class/race abilities, cooldown lines, named broad `Бочковий гуркіт` boss attacks, 23-second turn hint and no live journal button until terminal state.
 - Big Barrel Brother starts now send a separate intervention intro card before the action card, and due active turns now resolve automatically through the runtime scheduler instead of requiring a manual timeout callback.
 - Big Barrel Brother intervention intro cards now reuse the existing character-flavor `Порада дня` (`raid.prep-hint` / Barrel scene) per participant instead of a separate hard-coded raid tip.
-- Big Barrel Brother battle journals now open only after terminal state, render one stored round per page, include action outcome descriptions, record boss target/focus-switch information, use beginning/end pagination, and return to the terminal result card.
+- Big Barrel Brother battle journals now open only after terminal state, render one stored round per page, include action outcome descriptions and named broad boss attacks, record boss target/focus-switch information, use beginning/end pagination, and return to the terminal result card.
 - Big Barrel Brother active cards and journals now suppress focus-switch lines when the boss is still targeting the same participant instead of claiming the attention "switched" to the current target again.
 - Big Barrel Brother party deep links now open the active or completed boss card/result before falling back to recruiting join, so old invites replay the real raid outcome after battle.
 - Big Barrel Brother recruiting join/leave now best-effort refreshes stored recruiting cards for other joined participants, including the leader's original card.
@@ -48,7 +48,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Unchanged
 - No runtime round cap, round-7 final window, 13-round auto-loss, enrage timer or hidden terminal-by-turn rule ships in this slice.
-- Failure grants no Barrel success, gold or items; meaningful participants now receive a small replay-safe XP attempt reward on loss.
+- Failure grants no Barrel success, gold or items; meaningful participants now receive a small replay-safe XP attempt reward on loss, and terminal loss cards show the exact post-fight attempt XP line.
 - Affinity spotlight, first-win trophy, combat items/one-use manatky, targetable adds, ґільдії, matchmaking, permanent parties, market, trade and crafting remain deferred; Mini App is not a planned track for this release line.
 
 ## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP

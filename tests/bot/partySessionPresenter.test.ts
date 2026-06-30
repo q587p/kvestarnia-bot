@@ -73,35 +73,96 @@ describe("party session presenter", () => {
 
     expect(text).toContain("📜 <b>Журнал бою</b>");
     expect(text).toContain("Початок: хід <b>4</b> · 1/1");
-    expect(text).toContain("🎯 Ціль боса: Голова, Шкодійка.");
-    expect(text).toContain("Бос огризнувся: 12 шкоди разом.");
+    expect(text).toContain("Старший Брат Бочки застосував 🛢️ <i>Бочковий гуркіт</i>: Голова отримує 5 шкоди; Шкодійка отримує 7 шкоди.");
     expect(text).toContain("🎯 На наступний хід увага боса переходить на Шкодійка.");
   });
 
-  it("declines singular participant wording in the last Big Barrel Brother action", () => {
+  it("names the Big Barrel Brother broad attack in the active battle card", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      turn: 5,
+      roundLog: [{
+        turn: 4,
+        actions: [
+          {
+            characterId: "leader",
+            action: "attack",
+            origin: "manual",
+            outcome: "hit",
+            damage: 8,
+            manaSpent: 0
+          },
+          {
+            characterId: "striker",
+            action: "attack",
+            origin: "manual",
+            outcome: "miss",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 8,
+        bossHpAfter: 42,
+        bossRetaliations: [
+          { characterId: "leader", damage: 5, hpAfter: 55 },
+          { characterId: "striker", damage: 7, hpAfter: 53 }
+        ],
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("Старший Брат Бочки застосовує 🛢️ <i>Бочковий гуркіт</i>: Голова отримує 5 шкоди; Шкодійка отримує 7 шкоди.");
+    expect(text).not.toContain("Старший Брат Бочки зачіпає Голова");
+  });
+
+  it("renders the last Big Barrel Brother action like an ordinary battle scene", () => {
+    const leader = participant("leader", "Голова");
+    const striker = participant("striker", "Шкодійка");
+    leader.resources.cooldowns = {
+      abilities: {
+        "ability.race.step-through-the-border": {
+          id: "ability.race.step-through-the-border",
+          remainingTurns: 4
+        }
+      }
+    };
     const text = presentPartyBoss(makeBigBossSession({
       turn: 2,
+      participants: [leader, striker],
       roundLog: [{
         turn: 1,
-        actions: [{
-          characterId: "striker",
-          action: "attack",
-          origin: "manual",
-          outcome: "hit",
-          damage: 13,
-          manaSpent: 0
-        }],
-        bossDamage: 13,
+        actions: [
+          {
+            characterId: "leader",
+            action: "race",
+            origin: "manual",
+            outcome: "hit",
+            damage: 10,
+            manaSpent: 1,
+            skillId: "ability.race.step-through-the-border"
+          },
+          {
+            characterId: "striker",
+            action: "defend",
+            origin: "timeout",
+            outcome: "defended",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 10,
         bossHpAfter: 42,
         bossRetaliations: [
           { characterId: "leader", damage: 5, hpAfter: 55 }
         ],
         statusAfter: "active"
       }]
-    }));
+    }), { viewerCharacterId: "leader" });
 
-    expect(text).toContain("— Старший Брат Бочки влучає у Голова на 5.");
-    expect(text).toContain("🎯 Увага боса перемкнулася на Шкодійка.");
+    expect(text).toContain("Ваше вміння 🌀 <i>Крок крізь Межу</i> влучає на 10 шкоди.");
+    expect(text).toContain("Шкодійка: Корчма не дочекалася вибору й поставила в захист: ворогові важче влучити, а удар буде слабшим.");
+    expect(text).toContain("Старший Брат Бочки атакує Голова у відповідь і завдає 5 шкоди.");
+    expect(text).toContain("🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 4 ходи.");
+    expect(text).not.toContain("Ватага зняла");
   });
 
   it("does not claim the Big Barrel Brother focus switched when it stayed on the same participant", () => {
@@ -129,24 +190,33 @@ describe("party session presenter", () => {
     const text = presentPartyBoss(session);
     const journal = presentPartyBossJournal(session);
 
-    expect(text).toContain("— Старший Брат Бочки влучає у Голова на 5.");
+    expect(text).toContain("Старший Брат Бочки атакує Голова у відповідь і завдає 5 шкоди.");
     expect(text).not.toContain("🎯 Увага боса перемкнулася на Голова.");
     expect(journal).not.toContain("🎯 На наступний хід увага боса переходить на Голова.");
   });
 
   it("explains a Big Barrel Brother loss with remaining boss HP and attempt XP", () => {
+    const leader = participant("leader", "Голова");
+    leader.contribution = {
+      submittedActions: 1,
+      timeoutActions: 0,
+      damageDealt: 12,
+      damageTaken: 5
+    };
     const text = presentPartyBoss(makeBigBossSession({
       status: "lost",
       boss: {
         ...makeBigBossSession().state.boss,
         hp: 104,
         hpMax: 216
-      }
-    }));
+      },
+      participants: [leader, participant("striker", "Шкодійка")]
+    }), { viewerCharacterId: "leader" });
 
     expect(text).toContain("Стан: Старший Брат Бочки пережив рейд");
-    expect(text).toContain("Старший Брат Бочки вистояв із 104/216 HP.");
-    expect(text).toContain("досвід за спробу");
+    expect(text).toContain("💤 Ви програли. Старший Брат Бочки вистояв із 104/216 HP.");
+    expect(text).toContain("Пива цього разу не виставити");
+    expect(text).toContain("🎒 За спробу:\n+10 XP");
   });
 
   it("renders a forwardable Big Barrel Brother invite card with visible URL and rotating text", () => {
