@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Party-boss start and resolved turns now best-effort push fresh private boss cards to other active participants, while party-boss refresh and journal callbacks bypass the active combat lock.
 - Party-boss cards now include a compact `📜 Журнал` view backed by stored round logs, showing resolved round damage/actions without private HP/mana or Telegram ids.
 - Party-boss runtime no longer loses only because a fixed proof turn cap was reached; turns keep incrementing while the boss and at least one participant remain alive.
+- Party-boss `⏱️ Dev: добити хід` now force-resolves the current turn immediately for manual QA, filling missing active participants with timeout defend without waiting for the 23-second deadline.
 - Knocked-out party-boss participants no longer receive action buttons, and stale action callbacks from them replay the canonical state without creating useful action rows.
 - Solo combat item use now clears the player's own active bandage-use preview, including stuck `processing` orders, before spending the bandage as a combat turn.
 - Active fight cards now explain when a class or race combat action is hidden because it needs more mana after its cooldown has ended.

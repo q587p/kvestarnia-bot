@@ -122,6 +122,47 @@ describe("PrismaPartyBossRepository integration", () => {
     })).toBe(0);
   });
 
+  it("manual dev timeout force-resolves missing actions before the turn deadline", async () => {
+    await seedCharacter(prisma, "force-timeout-leader-user", 4001n, "Лідерка Швидка", { hp: 300 });
+    await seedCharacter(prisma, "force-timeout-joiner-user", 4002n, "Помічник Мовчазний", { hp: 300 });
+    await partyRepository.createForTelegramUser(4001n, partyInput("party-token-force-timeout"));
+    await partyRepository.joinByTokenForTelegramUser(4002n, "party-token-force-timeout", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(4001n, {
+      partyInviteToken: "party-token-force-timeout",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started.state).toBe("started");
+    await bossRepository.submitActionForTelegramUser(
+      4001n,
+      "party-token-force-timeout",
+      1,
+      "attack",
+      resolveInput()
+    );
+
+    const resolved = await bossRepository.resolveTimedOutByToken("party-token-force-timeout", {
+      now: new Date("2026-06-30T10:00:05.000Z"),
+      nextTurnExpiresAt: new Date("2026-06-30T10:00:28.000Z")
+    });
+    const latest = expectPartyBossSession(resolved);
+
+    expect(resolved.state).toBe("resolved");
+    expect(latest.status).toBe("active");
+    expect(latest.turn).toBe(2);
+    const silentParticipant = latest.state.participants.find(
+      (participant) => participant.characterId !== latest.leaderCharacterId
+    );
+    expect(latest.state.roundLog.at(-1)?.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ characterId: latest.leaderCharacterId, origin: "manual" }),
+        expect.objectContaining({ characterId: silentParticipant?.characterId, action: "defend", origin: "timeout" })
+      ])
+    );
+  });
+
   it("treats knocked-out participant action callbacks as stale without creating an action row", async () => {
     await seedCharacter(prisma, "stale-knockout-leader-user", 3001n, "Вибита Лідерка", { hp: 25 });
     await partyRepository.createForTelegramUser(3001n, partyInput("party-token-stale-knockout"));

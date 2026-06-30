@@ -363,10 +363,6 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
-      if (mode === "timeout" && session.turnExpiresAt > input.now && !hasAllActions) {
-        return null;
-      }
-
       const resolved = resolvePartyBossRound({
         state,
         now: input.now,
