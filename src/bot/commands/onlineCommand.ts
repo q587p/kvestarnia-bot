@@ -1,10 +1,15 @@
 import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { PresenceService } from "../../services/presenceService";
+import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../services/presenceService";
 import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeNearbyDuelOpenCallbackData } from "../callbacks/nearbyDuelCallbackData";
-import { makePartySessionNearbyOpenCallbackData } from "../callbacks/partySessionCallbackData";
+import {
+  makePartySessionJoinCallbackData,
+  makePartySessionNearbyOpenCallbackData
+} from "../callbacks/partySessionCallbackData";
+import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartySessionService } from "../../services/partySessionService";
 import { makeShynokBardPerformanceStartCallbackData } from "../callbacks/shynokCallbackData";
 import { presentOnline } from "../presenters/presencePresenter";
@@ -43,9 +48,15 @@ export async function sendOnline(
   }
 
   const snapshot = await presenceService.getOnlineForTelegramUser(telegramUserId);
-  const nearbyActionsKeyboard = await buildNearbyActionsKeyboard(snapshot, telegramUserId, options);
+  const recruitingParties = await getVisibleRecruitingParties(snapshot, options);
+  const nearbyActionsKeyboard = await buildNearbyActionsKeyboard(
+    snapshot,
+    telegramUserId,
+    options,
+    recruitingParties
+  );
 
-  await ctx.reply(presentOnline(snapshot), {
+  await ctx.reply(presentOnline(snapshot, { recruitingParties }), {
     ...HTML_MESSAGE_OPTIONS,
     ...(nearbyActionsKeyboard
       ? { reply_markup: nearbyActionsKeyboard }
@@ -56,14 +67,23 @@ export async function sendOnline(
 async function buildNearbyActionsKeyboard(
   snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
   telegramUserId: bigint,
-  options: OnlineCommandOptions
+  options: OnlineCommandOptions,
+  recruitingParties: readonly PartySessionRecord[] = []
 ): Promise<InlineKeyboard | null> {
-  if (!hasOtherActiveNearby(snapshot, telegramUserId)) {
+  if (!hasOtherActiveNearby(snapshot, telegramUserId) && recruitingParties.length === 0) {
     return null;
   }
 
   const keyboard = new InlineKeyboard();
   let hasActions = false;
+
+  for (const session of recruitingParties) {
+    keyboard.text(
+      `🤝 До рейду: ${formatLeaderButton(session.leader.name)}`,
+      makePartySessionJoinCallbackData(session.inviteToken)
+    ).row();
+    hasActions = true;
+  }
 
   if (await hasLiveParty(options.partySessions, telegramUserId)) {
     keyboard.text("🧭 Покликати у ватагу", makePartySessionNearbyOpenCallbackData()).row();
@@ -87,6 +107,17 @@ async function buildNearbyActionsKeyboard(
   }
 
   return hasActions ? keyboard : null;
+}
+
+async function getVisibleRecruitingParties(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  options: OnlineCommandOptions
+): Promise<PartySessionRecord[]> {
+  if (snapshot.state !== "ready" || snapshot.location.id !== PRESENCE_LOCATION_KORCHMA_BARREL) {
+    return [];
+  }
+
+  return options.partySessions?.listRecruitingBigBarrelBrother() ?? [];
 }
 
 async function hasLiveParty(
@@ -118,4 +149,8 @@ function hasOtherActiveNearby(
     snapshot.state === "ready" &&
     snapshot.location.people.active.some((person) => person.telegramUserId !== telegramUserId)
   );
+}
+
+function formatLeaderButton(name: string): string {
+  return name.length > 28 ? `${name.slice(0, 27)}…` : name;
 }

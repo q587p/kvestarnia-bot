@@ -5,6 +5,7 @@ import { createCombatTurnTimeoutScheduler } from "../bot/combatTurnTimeoutSchedu
 import { createBot } from "../bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "../bot/duelTurnTimeoutScheduler";
 import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
+import { createPartyBossRecruitingStartScheduler } from "../bot/partyBossRecruitingStartScheduler";
 import type { AppConfig } from "../config/env";
 import { startHealthServer } from "../health/server";
 import type { ApplicationServices } from "./createServices";
@@ -21,6 +22,7 @@ interface RuntimeDependencies {
   createCombatTurnTimeoutScheduler: typeof createCombatTurnTimeoutScheduler;
   createDuelTurnTimeoutScheduler: typeof createDuelTurnTimeoutScheduler;
   createPassageSearchCompletionScheduler: typeof createPassageSearchCompletionScheduler;
+  createPartyBossRecruitingStartScheduler: typeof createPartyBossRecruitingStartScheduler;
   getTelegramMenuCommands: typeof getTelegramMenuCommands;
   startHealthServer: typeof startHealthServer;
 }
@@ -37,6 +39,7 @@ export function createRuntime(input: {
     createCombatTurnTimeoutScheduler,
     createDuelTurnTimeoutScheduler,
     createPassageSearchCompletionScheduler,
+    createPartyBossRecruitingStartScheduler,
     getTelegramMenuCommands,
     startHealthServer,
     ...input.dependencies
@@ -55,6 +58,7 @@ export function createRuntime(input: {
   let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
   let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
+  let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
 
   return {
     start() {
@@ -98,6 +102,13 @@ export function createRuntime(input: {
         }, bot);
         passageSearchCompletionScheduler.start();
       }
+      if (services.partySessions && services.partyBoss && services.partySessions.isBigBarrelBrotherEnabled()) {
+        partyBossRecruitingStartScheduler = dependencies.createPartyBossRecruitingStartScheduler({
+          partySessions: services.partySessions,
+          partyBoss: services.partyBoss
+        }, bot);
+        partyBossRecruitingStartScheduler.start();
+      }
 
       void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
         console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);
@@ -131,6 +142,7 @@ export function createRuntime(input: {
         combatTurnTimeoutScheduler?.stop();
         duelTurnTimeoutScheduler?.stop();
         passageSearchCompletionScheduler?.stop();
+        partyBossRecruitingStartScheduler?.stop();
 
         try {
           if (bot) {

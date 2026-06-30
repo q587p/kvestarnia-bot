@@ -6,6 +6,7 @@ import type {
   PresenceGroup,
   PresencePerson
 } from "../../services/presenceService";
+import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_HUNT_BOARD,
@@ -24,7 +25,10 @@ interface PresencePeoplePresentationOptions {
   suppressTitleForTelegramUserIds?: ReadonlySet<bigint>;
 }
 
-export function presentOnline(snapshot: OnlineSnapshot): string {
+export function presentOnline(
+  snapshot: OnlineSnapshot,
+  options: { recruitingParties?: readonly PartySessionRecord[] } = {}
+): string {
   if (snapshot.state === "no-character") {
     return "Спершу створіть пригодника через /start. Квестарня не рахує тіні без анкети.";
   }
@@ -34,6 +38,13 @@ export function presentOnline(snapshot: OnlineSnapshot): string {
     "",
     ...presentLocationBlock(snapshot.location.name, snapshot.location.people)
   ];
+
+  const recruitingParties = options.recruitingParties ?? [];
+
+  if (recruitingParties.length > 0) {
+    lines.push("");
+    lines.push(...presentRecruitingParties(recruitingParties));
+  }
 
   if (snapshot.activity) {
     const renderedLocationPeople =
@@ -140,6 +151,23 @@ function presentActivitySummary(
     `${prefix} «${activityName}»: ${activity.people.total}`,
     ...presentPeople([...activity.people.active, ...activity.people.idle], options)
   ];
+}
+
+function presentRecruitingParties(sessions: readonly PartySessionRecord[]): string[] {
+  return sessions.flatMap((session, index) => {
+    const joined = session.participants.filter((participant) => participant.status === "joined");
+    const header = `🍺 У груповому рейді «Старший Брат Бочки»: ${joined.length}`;
+    const participants = joined.map((participant) =>
+      `— ${presentCharacterDisplayName(participant.character, {
+        maxNameLength: MAX_PRESENCE_NAME_LENGTH,
+        maxTitleLength: 48
+      })}`
+    );
+
+    return index === 0
+      ? [header, ...participants]
+      : ["", header, ...participants];
+  });
 }
 
 function presentActivityName(activity: PresenceActivitySnapshot): string {

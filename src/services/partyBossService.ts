@@ -30,7 +30,8 @@ export class PartyBossService {
 
   async startFromPartyForTelegramUser(
     telegramUserId: bigint,
-    partyInviteToken: string
+    partyInviteToken: string,
+    options: { allowExpiredRecruiting?: boolean } = {}
   ): Promise<PartyBossStartResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
@@ -40,7 +41,8 @@ export class PartyBossService {
     return this.sessions.startFromRecruitingPartyForTelegramUser(telegramUserId, {
       partyInviteToken,
       now,
-      turnExpiresAt: nextTurnDeadline(now)
+      turnExpiresAt: nextTurnDeadline(now),
+      ...(options.allowExpiredRecruiting ? { allowExpiredRecruiting: true } : {})
     });
   }
 

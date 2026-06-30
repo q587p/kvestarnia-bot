@@ -24,6 +24,7 @@ import { sendPartyJoinFromStartPayload } from "./partySessionCommand";
 export interface StartCommandOptions {
   duel?: DuelChallengeService;
   partySessions?: PartySessionService;
+  botUsername?: string | undefined;
   duelBotUsername?: string | undefined;
 }
 
@@ -50,7 +51,9 @@ export function registerStartCommand(
     }
 
     if (payload.type === "party" && options.partySessions) {
-      if (await sendPartyJoinFromStartPayload(ctx, options.partySessions, payload.token)) {
+      if (await sendPartyJoinFromStartPayload(ctx, options.partySessions, payload.token, {
+        botUsername: options.botUsername
+      })) {
         return;
       }
     }

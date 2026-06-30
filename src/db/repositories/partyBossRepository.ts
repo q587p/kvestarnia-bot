@@ -53,6 +53,7 @@ export interface PartyBossStartInput {
   partyInviteToken: string;
   now: Date;
   turnExpiresAt: Date;
+  allowExpiredRecruiting?: boolean;
 }
 
 export interface PartyBossResolveInput {

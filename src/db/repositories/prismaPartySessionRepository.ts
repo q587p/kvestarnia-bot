@@ -21,6 +21,7 @@ type CharacterRow = Prisma.CharacterGetPayload<{ include: typeof partyCharacterI
 
 const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
+const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 
 const partyCharacterInclude = {
   user: {
@@ -158,9 +159,16 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: terminalState, session: mapSession(session) };
       }
 
-      if (session.status !== LIVE_STATUS || session.expiresAt <= input.now) {
+      if (
+        session.status !== LIVE_STATUS ||
+        (session.expiresAt <= input.now && session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
+      ) {
         const expired = await expireSessionTx(tx, session.id);
         return expired ? { state: "expired", session: mapSession(expired) } : { state: "not-found" };
+      }
+
+      if (session.expiresAt <= input.now) {
+        return { state: "expired", session: mapSession(session) };
       }
 
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
@@ -388,6 +396,55 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     return session ? mapSession(session) : null;
   }
 
+  async listRecruitingByOrigin(
+    originLocationId: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    await this.expireRecruiting(now);
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originLocationId,
+        expiresAt: {
+          gt: now
+        }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
+  }
+
+  async listDueRecruitingByOrigin(
+    originLocationId: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originLocationId,
+        expiresAt: {
+          lte: now
+        }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
+  }
+
   async expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       await expireTokenIfNeededTx(tx, inviteToken, now);
@@ -556,11 +613,16 @@ async function expireTokenIfNeededTx(tx: TxClient, inviteToken: string, now: Dat
     select: {
       id: true,
       status: true,
+      originLocationId: true,
       expiresAt: true
     }
   });
 
-  if (session?.status === LIVE_STATUS && session.expiresAt <= now) {
+  if (
+    session?.status === LIVE_STATUS &&
+    session.expiresAt <= now &&
+    session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+  ) {
     await terminalizeSessionTx(tx, session.id, "expired");
   }
 }
@@ -581,6 +643,9 @@ async function expireRecruitingTx(
   const sessions = await prisma.partySession.findMany({
     where: {
       status: LIVE_STATUS,
+      originLocationId: {
+        not: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+      },
       expiresAt: {
         lte: now
       }

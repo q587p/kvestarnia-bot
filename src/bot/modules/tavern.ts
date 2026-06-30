@@ -185,7 +185,9 @@ export function registerTavernBotModule(
   });
 
   registerParsedCallbackRoute(bot, /^v1:tavern:/, parseTavernCallbackData, async (ctx, action) => {
-    await handleTavernCallback(ctx, action, services, bot);
+    await handleTavernCallback(ctx, action, services, bot, {
+      botUsername: options.botUsername
+    });
   });
 
   registerParsedCallbackRoute(bot, /^v1:place:/, parsePlaceCallbackData, async (ctx, action) => {
@@ -833,7 +835,8 @@ async function handleTavernCallback(
   ctx: Context,
   action: TavernCallback,
   services: BotServices,
-  bot: Bot
+  bot: Bot,
+  options: { botUsername?: string | undefined } = {}
 ): Promise<void> {
   const tavernRaidService = services.tavern;
   const yegerQuestService = services.yeger;
@@ -937,6 +940,21 @@ async function handleTavernCallback(
       reply_markup: buildKorchmaRoundResultKeyboard(result)
     });
     return;
+  }
+
+  if (action === "raid" && services.partySessions?.isBigBarrelBrotherEnabled()) {
+    const bigHandled = await sendTavernBarrel(ctx, tavernRaidService, presenceService, "edit", {
+      botUsername: options.botUsername,
+      partyBoss: services.partyBoss,
+      partySessions: services.partySessions,
+      openBigBarrelRecruiting: true,
+      onlyBigBarrelRecruiting: true
+    });
+
+    if (bigHandled) {
+      await safeAnswerCallbackQuery(ctx);
+      return;
+    }
   }
 
   const result = await tavernRaidService.advanceFridayBarrelRaid(telegramUserId);

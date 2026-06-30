@@ -2,6 +2,7 @@ import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { sendCurrentLocation } from "../../src/bot/modules/mainMenu";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -13,20 +14,18 @@ const PARTY_TOKEN = "partyABC12";
 const PARTY_INVITE_URL = `https://t.me/${BOT_USERNAME}?start=party_${PARTY_TOKEN}`;
 
 describe("Big Barrel Brother invite routing", () => {
-  it("threads botUsername into the Korchma Barrel place callback card", async () => {
-    const { services } = servicesForBigBarrelRoute();
+  it("keeps the Korchma Barrel place callback on the old Barrel card without auto-creating a party", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute();
     const calls = await captureCallbackApiCalls(makePlaceCallbackData("barrel"), services, {
       botUsername: BOT_USERNAME
     });
 
-    expect(calls.some((call) =>
-      call.method === "sendMessage" &&
-      String(call.payload.text).includes(PARTY_INVITE_URL)
-    )).toBe(true);
+    expect(calls.some((call) => String(call.payload.text).includes(PARTY_INVITE_URL))).toBe(false);
+    expect(createForTelegramUser).not.toHaveBeenCalled();
   });
 
-  it("threads botUsername into current-location Barrel resume cards", async () => {
-    const { services } = servicesForBigBarrelRoute();
+  it("keeps current-location Barrel resume on the old Barrel card without auto-creating a party", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute();
     const reply = vi.fn().mockResolvedValue({ message_id: 1 });
     const ctx = {
       from: {
@@ -46,7 +45,21 @@ describe("Big Barrel Brother invite routing", () => {
 
     await sendCurrentLocation(ctx, services, { botUsername: BOT_USERNAME });
 
-    expect(reply.mock.calls.some((call) => String(call[0]).includes(PARTY_INVITE_URL))).toBe(true);
+    expect(reply.mock.calls.some((call) => String(call[0]).includes(PARTY_INVITE_URL))).toBe(false);
+    expect(createForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("threads botUsername into the explicit Barrel raid start card as an active link", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute();
+    const calls = await captureCallbackApiCalls(makeTavernCallbackData("raid"), services, {
+      botUsername: BOT_USERNAME
+    });
+
+    expect(calls.some((call) =>
+      call.method === "editMessageText" &&
+      String(call.payload.text).includes(`href="${PARTY_INVITE_URL}"`)
+    )).toBe(true);
+    expect(createForTelegramUser).toHaveBeenCalledOnce();
   });
 });
 
@@ -115,8 +128,16 @@ async function captureCallbackApiCalls(
   return calls;
 }
 
-function servicesForBigBarrelRoute(): { services: BotServices; session: PartySessionRecord } {
+function servicesForBigBarrelRoute(): {
+  services: BotServices;
+  session: PartySessionRecord;
+  createForTelegramUser: ReturnType<typeof vi.fn>;
+} {
   const session = makePartySession();
+  const createForTelegramUser = vi.fn().mockResolvedValue({
+    state: "created",
+    session
+  });
   const services = {
     achievements: {},
     adventure: {},
@@ -148,10 +169,7 @@ function servicesForBigBarrelRoute(): { services: BotServices; session: PartySes
     partySessions: {
       areDevHelpersEnabled: () => false,
       isBigBarrelBrotherEnabled: () => true,
-      createForTelegramUser: vi.fn().mockResolvedValue({
-        state: "created",
-        session
-      })
+      createForTelegramUser
     },
     playerHints: {},
     presence: {
@@ -188,7 +206,7 @@ function servicesForBigBarrelRoute(): { services: BotServices; session: PartySes
     yeger: {}
   } as unknown as BotServices;
 
-  return { services, session };
+  return { services, session, createForTelegramUser };
 }
 
 function makePartySession(): PartySessionRecord {

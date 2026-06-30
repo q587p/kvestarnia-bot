@@ -141,7 +141,9 @@ export async function handlePartySessionCallback(
     if (result.state === "started") {
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
-        notice: "Бос-пробу запущено. Ваша приватна картка вже тут."
+        notice: isBigBossSession(result.session)
+          ? "Старший Брат Бочки втрутився. Ваша приватна картка вже тут."
+          : "Бос-пробу запущено. Ваша приватна картка вже тут."
       });
     }
     return;
@@ -253,7 +255,7 @@ export async function handlePartySessionCallback(
     }
 
     const result = await service.getByToken(callback.token);
-    await sendPartyView(ctx, "edit", result, service, telegramUserId);
+    await sendPartyView(ctx, "edit", result, service, telegramUserId, options.botUsername);
     return;
   }
 
@@ -264,11 +266,15 @@ export async function handlePartySessionCallback(
       messageId: ctx.callbackQuery?.message?.message_id ?? null
     });
     await safeAnswerCallbackQuery(ctx);
-    await sendText(ctx, "edit", presentPartyJoin(result), "session" in result
+    const inviteUrl = "session" in result
+      ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
+      : null;
+    await sendText(ctx, "edit", presentPartyJoin(result, { inviteUrl }), "session" in result
       ? {
           session: result.session,
           viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-          includeDevExpire: service.areDevHelpersEnabled()
+          includeDevExpire: service.areDevHelpersEnabled(),
+          includeBossStart: isBigBarrelParty(result.session)
         }
       : false);
     return;
@@ -277,11 +283,15 @@ export async function handlePartySessionCallback(
   if (callback.type === "leave") {
     const result = await service.leaveByTokenForTelegramUser(telegramUserId, callback.token);
     await safeAnswerCallbackQuery(ctx);
-    await sendText(ctx, "edit", presentPartyLeave(result), "session" in result
+    const inviteUrl = "session" in result
+      ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
+      : null;
+    await sendText(ctx, "edit", presentPartyLeave(result, { inviteUrl }), "session" in result
       ? {
           session: result.session,
           viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-          includeDevExpire: service.areDevHelpersEnabled()
+          includeDevExpire: service.areDevHelpersEnabled(),
+          includeBossStart: isBigBarrelParty(result.session)
         }
       : false);
     return;
@@ -293,11 +303,15 @@ export async function handlePartySessionCallback(
       ctx,
       result.state === "not-leader" ? { text: "Скасувати може тільки лідер ватаги." } : undefined
     );
-    await sendText(ctx, "edit", presentPartyCancel(result), "session" in result
+    const inviteUrl = "session" in result
+      ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
+      : null;
+    await sendText(ctx, "edit", presentPartyCancel(result, { inviteUrl }), "session" in result
       ? {
           session: result.session,
           viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-          includeDevExpire: service.areDevHelpersEnabled()
+          includeDevExpire: service.areDevHelpersEnabled(),
+          includeBossStart: isBigBarrelParty(result.session)
         }
       : false);
     return;
@@ -310,13 +324,14 @@ export async function handlePartySessionCallback(
 
   const result = await service.forceExpireByToken(callback.token);
   await safeAnswerCallbackQuery(ctx, { text: "Строк збору завершено." });
-  await sendPartyView(ctx, "edit", result, service, telegramUserId);
+  await sendPartyView(ctx, "edit", result, service, telegramUserId, options.botUsername);
 }
 
 export async function sendPartyJoinFromStartPayload(
   ctx: Context,
   service: PartySessionService,
-  token: string
+  token: string,
+  options: { botUsername?: string | undefined } = {}
 ): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -329,7 +344,10 @@ export async function sendPartyJoinFromStartPayload(
     chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
   });
 
-  await ctx.reply(presentPartyJoin(result), {
+  const inviteUrl = "session" in result
+    ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
+    : null;
+  await ctx.reply(presentPartyJoin(result, { inviteUrl }), {
     ...HTML_MESSAGE_OPTIONS,
     ...("session" in result
       ? {
@@ -388,7 +406,12 @@ async function handleNearbyInvite(
 
   if (!(await options.presence.isNearbyDuelTargetAvailable(telegramUserId, callback.targetTelegramUserId))) {
     await safeAnswerCallbackQuery(ctx, { text: "Цей пригодник уже не активний поруч." });
-    await sendText(ctx, "edit", presentPartyView({ state: "ready", session }), {
+    await sendText(ctx, "edit", presentPartyView({
+      state: "ready",
+      session
+    }, {
+      inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken)
+    }), {
       session,
       viewerCharacterId: getViewerCharacterId(session, telegramUserId),
       includeDevExpire: service.areDevHelpersEnabled(),
@@ -435,9 +458,14 @@ async function sendPartyView(
   mode: "reply" | "edit",
   result: Awaited<ReturnType<PartySessionService["getByToken"]>>,
   service: PartySessionService,
-  telegramUserId: bigint
+  telegramUserId: bigint,
+  botUsername?: string
 ): Promise<void> {
-  await sendText(ctx, mode, presentPartyView(result), result.state === "ready"
+  const inviteUrl = result.state === "ready"
+    ? buildPartyInviteUrl(botUsername, result.session.inviteToken)
+    : null;
+
+  await sendText(ctx, mode, presentPartyView(result, { inviteUrl }), result.state === "ready"
     ? {
         session: result.session,
         viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
@@ -455,6 +483,7 @@ async function sendText(
     | false
     | {
         session: Parameters<typeof buildPartySessionKeyboard>[0];
+        inviteUrl?: string | null | undefined;
         viewerCharacterId?: string | null | undefined;
         includeDevExpire?: boolean | undefined;
         includeBossStart?: boolean | undefined;
@@ -559,6 +588,12 @@ function getViewerCharacterId(
 
 function isBigBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[0]): boolean {
   return session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+}
+
+function isBigBossSession(session: Parameters<typeof buildPartyBossKeyboard>[0]): boolean {
+  return session.rulesVersion === "big-barrel-brother-v1" ||
+    session.bossKey === "big-barrel-brother" ||
+    session.state.boss.monsterId === "big-barrel-brother";
 }
 
 function getBossViewerCharacterId(

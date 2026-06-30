@@ -109,7 +109,9 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "no-character" };
       }
 
-      await expireRecruitingPartyIfNeeded(tx, input.partyInviteToken, input.now);
+      await expireRecruitingPartyIfNeeded(tx, input.partyInviteToken, input.now, {
+        allowBigBarrelExpiredRecruiting: input.allowExpiredRecruiting === true
+      });
       const party = await tx.partySession.findUnique({
         where: { inviteToken: input.partyInviteToken },
         include: partyInclude
@@ -133,6 +135,14 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       if (party.leaderCharacterId !== character.id) {
         return { state: "not-leader" };
+      }
+
+      if (
+        party.status === RECRUITING_PARTY_STATUS &&
+        party.expiresAt <= input.now &&
+        !(input.allowExpiredRecruiting === true && party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
+      ) {
+        return { state: "expired" };
       }
 
       if (party.status === "expired") {
@@ -731,17 +741,28 @@ async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Prom
   });
 }
 
-async function expireRecruitingPartyIfNeeded(tx: TxClient, inviteToken: string, now: Date): Promise<void> {
+async function expireRecruitingPartyIfNeeded(
+  tx: TxClient,
+  inviteToken: string,
+  now: Date,
+  options: { allowBigBarrelExpiredRecruiting?: boolean } = {}
+): Promise<void> {
   const party = await tx.partySession.findUnique({
     where: { inviteToken },
     select: {
       id: true,
       status: true,
+      originLocationId: true,
       expiresAt: true
     }
   });
 
-  if (party?.status === RECRUITING_PARTY_STATUS && party.expiresAt <= now) {
+  if (
+    party?.status === RECRUITING_PARTY_STATUS &&
+    party.expiresAt <= now &&
+    !(options.allowBigBarrelExpiredRecruiting === true &&
+      party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
+  ) {
     await tx.partySession.update({
       where: { id: party.id },
       data: {

@@ -140,6 +140,22 @@ export class PartySessionService {
     return this.sessions.findLiveRecruitingByTelegramUser(telegramUserId, this.clock());
   }
 
+  async listRecruitingBigBarrelBrother(): Promise<PartySessionRecord[]> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return [];
+    }
+
+    return this.sessions.listRecruitingByOrigin(BIG_BARREL_PARTY_ORIGIN_LOCATION_ID, this.clock());
+  }
+
+  async listDueRecruitingBigBarrelBrother(): Promise<PartySessionRecord[]> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return [];
+    }
+
+    return this.sessions.listDueRecruitingByOrigin(BIG_BARREL_PARTY_ORIGIN_LOCATION_ID, this.clock());
+  }
+
   async expireByToken(inviteToken: string): Promise<PartyViewResult> {
     if (!this.isEnabled()) {
       return { state: "not-found" };

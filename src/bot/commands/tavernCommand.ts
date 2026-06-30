@@ -121,6 +121,8 @@ export interface TavernCommandOptions {
   botUsername?: string | undefined;
   partyBoss?: PartyBossService | undefined;
   partySessions?: PartySessionService | undefined;
+  openBigBarrelRecruiting?: boolean | undefined;
+  onlyBigBarrelRecruiting?: boolean | undefined;
 }
 
 const HTML_MESSAGE_OPTIONS = {
@@ -138,7 +140,10 @@ export function registerTavernCommand(
   });
 
   bot.command("raid", async (ctx) => {
-    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply", options);
+    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply", {
+      ...options,
+      openBigBarrelRecruiting: true
+    });
   });
 }
 
@@ -636,47 +641,47 @@ export async function sendTavernBarrel(
   presenceService: PresenceService,
   mode: "reply" | "edit",
   options: TavernCommandOptions = {}
-): Promise<void> {
+): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
   if (!telegramUserId) {
     await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
-    return;
+    return true;
   }
 
   const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentTavernNoCharacter());
-    return;
+    return true;
   }
 
   if (result.state === "already-completed") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), "barrel-result");
-    return;
+    return true;
   }
 
   if (result.state === "audit-break") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendText(ctx, mode, presentTavernRaidAuditBreak(result), "barrel-result");
-    return;
+    return true;
   }
 
   if (result.state === "pending") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
     await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
-    return;
+    return true;
   }
 
   if (result.state === "pending-complete") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
     await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
-    return;
+    return true;
   }
 
   if (
-    result.character.level >= 8 &&
+    isBigBarrelEligible(result.character) &&
     options.partySessions?.isBigBarrelBrotherEnabled()
   ) {
     const activeBoss = await options.partyBoss?.getActiveForTelegramUser(telegramUserId);
@@ -688,7 +693,17 @@ export async function sendTavernBarrel(
         viewerCharacterId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
-      return;
+      return true;
+    }
+
+    if (!options.openBigBarrelRecruiting) {
+      if (options.onlyBigBarrelRecruiting) {
+        return false;
+      }
+
+      await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
+      await sendText(ctx, mode, presentTavern(result.character), true);
+      return true;
     }
 
     const period = getBarrelRaidPeriod(new Date());
@@ -710,11 +725,22 @@ export async function sendTavernBarrel(
           includeDevExpire: options.partySessions.areDevHelpersEnabled()
         }
       : false);
-    return;
+    return true;
+  }
+
+  if (options.onlyBigBarrelRecruiting) {
+    return false;
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
   await sendText(ctx, mode, presentTavern(result.character), true);
+  return true;
+}
+
+function isBigBarrelEligible(character: { level: number; remortCount?: number | undefined }): boolean {
+  const remortCount = character.remortCount ?? 0;
+
+  return remortCount >= 1 ? character.level >= 3 : character.level >= 8;
 }
 
 async function markTavernPlace(

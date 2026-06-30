@@ -11,13 +11,14 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added `BIG_BARREL_BROTHER_RAID_ENABLED` for the first feature-flagged Big Barrel Brother route.
-- Added a Barrel route that creates/opens Big Barrel Brother recruiting parties from `/raid` / the Barrel location while the flag is enabled for non-remorted level `8+` characters and remorted level `3+` characters, reusing the existing `PartySession` token for deep links and nearby invites.
+- Added a Barrel route that creates/opens Big Barrel Brother recruiting parties from `/raid` or the explicit Barrel card action while the flag is enabled for non-remorted level `8+` characters and remorted level `3+` characters, reusing the existing `PartySession` token for deep links and nearby invites.
 - Added Big party-boss state with `rulesVersion = big-barrel-brother-v1`, `bossKey = big-barrel-brother`, frozen roster/resources/period and a single shared boss target.
 - Added Big Barrel Brother victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
 - Added focused Big reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
 - Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement.
 - Added focused hardening coverage for Big participant eligibility, duplicate frozen-period success, remort-life drift, and production-vs-dev timeout resolution.
 - Added a narrow Big Barrel Brother focus rule: ordinary retaliations first hit the party leader, then follow the previous round's top living damage contributor, while every fourth turn keeps a broad hit against all living participants until a future explicit threat/taunt system replaces it.
+- Added automatic Big Barrel Brother recruiting start after the recruiting deadline, plus `👀 Хто поруч` listings/buttons for live Barrel recruiting groups.
 
 ### Changed
 - Non-remorted level `1-7`, remorted level `1-2`, disabled-flag eligible characters, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
@@ -25,7 +26,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother start now rejects the whole joined roster with a generic ineligible result when any participant is not currently eligible for the frozen Barrel period, and settlement rechecks the remort-aware level gate, remort life and existing Barrel success before granting XP/gold/items.
 - Production `boss-timeout` callbacks now resolve only when the turn deadline is due; early force-timeout remains available only through dev-helper mode.
 - Party recruiting cards now show a real `🛢️ Почати рейд` leader button for Big Barrel Brother parties without exposing dev proof controls.
-- Big Barrel Brother recruiting cards opened through `/raid`, the Barrel place callback, and current-location resume now all receive the configured bot username, so copied `/start party_<token>` deep links render consistently.
+- Plain Barrel place entry and current-location resume keep the familiar Barrel card first; eligible players opt into Big Barrel Brother with `🍺 У рейд на бочку` instead of being dropped straight into recruiting.
+- Big Barrel Brother recruiting cards opened through `/raid` and the explicit Barrel raid action now receive the configured bot username, keep the invite visible while recruiting, and render the `/start party_<token>` URL as an active Telegram link.
 - Big Barrel Brother boss cards use production raid copy and explain victory/failure without exposing private participant HP/mana/actions on shared cards.
 - Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.
 - Big Barrel Brother now freezes boss level from the current party leader instead of the roster average, with large-party HP scaling tuned so lower-level joiners no longer soften a high-level starter's raid.
