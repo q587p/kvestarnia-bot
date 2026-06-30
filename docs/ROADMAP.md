@@ -174,7 +174,7 @@ Done when:
 Non-goals for the first Phase 2 runtime slice:
 - No item loss, gold steal, wagers, auction house, guild wars, paid power or forced PvP.
 - No full MMO raid engine before smaller social sessions work.
-- No Mini App dependency.
+- No Mini App dependency or planned Mini App track.
 
 ## Phase 3 — Closed alpha
 Мета: перевірити retention, гумор, UX, баланс і перші соціяльні взаємодії.
@@ -225,18 +225,6 @@ Deliverables:
 Done when:
 - Gold inflation контролюється.
 - У гравця є вибір, куди витрачати валюту.
-
-## Phase 6 — Mini App optional
-Мета: покращити складні екрани, не замінюючи текстову гру.
-
-Deliverables:
-- Hero profile UI.
-- Inventory UI.
-- Collection/codex UI.
-- Cosmetic shop/supporter UI.
-
-Done when:
-- Mini App покращує UX, але основна гра залишається playable через bot buttons.
 
 Very-later platform note:
 - Повноцінний web-клієнт і боти для інших месенджерів на кшталт WhatsApp/Viber лишаються дуже далеким напрямом після стабілізації core loop, соціяльних систем і adapter boundaries. Це не частина `0.1.x` і не public promise.

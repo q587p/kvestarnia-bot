@@ -35,7 +35,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Unchanged
 - No runtime round cap, round-7 final window, 13-round auto-loss, enrage timer or hidden terminal-by-turn rule ships in this slice.
 - Failure grants no Barrel success, gold, items or consolation XP in this MVP.
-- Affinity spotlight, first-win trophy, combat items/one-use manatky, targetable adds, guilds, matchmaking, permanent parties, market, trade, crafting and Mini App remain deferred.
+- Affinity spotlight, first-win trophy, combat items/one-use manatky, targetable adds, ґільдії, matchmaking, permanent parties, market, trade and crafting remain deferred; Mini App is not a planned track for this release line.
 
 ## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP
 
