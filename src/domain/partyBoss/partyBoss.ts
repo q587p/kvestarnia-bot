@@ -142,25 +142,30 @@ export function createPartyBossState(input: {
       dexterity: 5 + Math.floor(bossLevel / 2),
       tags: isBig ? ["boss", "construct", "barrel", "surveillance"] : ["party-boss-proof"]
     },
-    participants: input.participants.map((participant) => ({
-      characterId: participant.characterId,
-      name: participant.name,
-      remortCount: participant.remortCount,
-      status: "active",
-      combatStats: participant.combatStats,
-      resources: {
-        hp: Math.max(0, Math.floor(participant.combatStats.hpCurrent)),
-        hpMax: Math.max(1, Math.floor(participant.combatStats.hpMax)),
-        mana: Math.max(0, Math.floor(participant.combatStats.manaCurrent)),
-        manaMax: Math.max(0, Math.floor(participant.combatStats.manaMax))
-      },
-      contribution: {
-        submittedActions: 0,
-        timeoutActions: 0,
-        damageDealt: 0,
-        damageTaken: 0
-      }
-    })),
+    participants: input.participants.map((participant) => {
+      const hpMax = Math.max(1, Math.floor(participant.combatStats.hpMax));
+      const manaMax = Math.max(0, Math.floor(participant.combatStats.manaMax));
+
+      return {
+        characterId: participant.characterId,
+        name: participant.name,
+        remortCount: participant.remortCount,
+        status: "active",
+        combatStats: participant.combatStats,
+        resources: {
+          hp: clamp(Math.floor(participant.combatStats.hpCurrent), 0, hpMax),
+          hpMax,
+          mana: clamp(Math.floor(participant.combatStats.manaCurrent), 0, manaMax),
+          manaMax
+        },
+        contribution: {
+          submittedActions: 0,
+          timeoutActions: 0,
+          damageDealt: 0,
+          damageTaken: 0
+        }
+      };
+    }),
     roundLog: [],
     startedAt: input.now.toISOString()
   };

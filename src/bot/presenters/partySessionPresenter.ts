@@ -9,7 +9,7 @@ import type {
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossActionResult, PartyBossSessionRecord, PartyBossStartResult } from "../../db/repositories/partyBossRepository";
-import { getPartyBossRetaliationPlan } from "../../domain/partyBoss/partyBoss";
+import { getPartyBossRetaliationPlan, PARTY_BOSS_TURN_MS } from "../../domain/partyBoss/partyBoss";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
@@ -164,7 +164,7 @@ export function presentPartyView(
 
 export function presentPartyBossStart(result: PartyBossStartResult, viewerCharacterId?: string | null): string {
   if (result.state === "disabled") {
-    return "🧪 Бос-проба вимкнена. Корчмар прибрав картонного боса в комору.";
+    return "🧪 Тестовий бос вимкнений. Корчмар прибрав картонного боса в комору.";
   }
 
   if (result.state === "no-character") {
@@ -176,7 +176,7 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
   }
 
   if (result.state === "not-leader") {
-    return "Бос-пробу може почати тільки лідер ватаги.";
+    return "Бій із босом може почати тільки лідер ватаги.";
   }
 
   if (result.state === "expired") {
@@ -189,8 +189,8 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
 
   if (result.state === "blocked") {
     return result.blockerName
-      ? `Бос-проба не стартувала: «${escapeHtml(result.blockerName)}» уже в іншому активному бою.`
-      : "Бос-проба не стартувала: хтось із ватаги вже в іншому активному бою.";
+      ? `Бій не стартував: «${escapeHtml(result.blockerName)}» уже в іншому активному бою.`
+      : "Бій не стартував: хтось із ватаги вже в іншому активному бою.";
   }
 
   if (result.state === "ineligible") {
@@ -204,24 +204,24 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
   }
 
   if (!("session" in result)) {
-    return "Бос-проба не стартувала. Показати канонічну картку не вдалося.";
+    return "Бій не стартував. Показати канонічну картку не вдалося.";
   }
 
   return presentPartyBoss(result.session, {
     viewerCharacterId,
     notice: result.state === "started"
       ? isBigPartyBossSession(result.session)
-        ? "Старший Брат Бочки втрутився. Бій почався, журнал відкрито, піна свідчить проти всіх."
-        : "Бос-пробу запущено. Це не Старший Брат Бочки і не справжній рейдовий маршрут."
+        ? "Старший Брат Бочки втрутився. Бій почався, піна свідчить проти всіх."
+        : "Тестового боса запущено. Це не Старший Брат Бочки і не справжній рейдовий маршрут."
       : isBigPartyBossSession(result.session)
         ? "Показую поточний рейд Старшого Брата Бочки."
-        : "Показую поточну бос-пробу."
+        : "Показую поточний тестовий бій."
   });
 }
 
 export function presentPartyBossAction(result: PartyBossActionResult, viewerCharacterId?: string | null): string {
   if (result.state === "disabled") {
-    return "🧪 Бос-проба вимкнена.";
+    return "🧪 Тестовий бос вимкнений.";
   }
 
   if (result.state === "no-character") {
@@ -229,7 +229,7 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
   }
 
   if (result.state === "not-found") {
-    return "Бос-проба не знайшлася.";
+    return "Бій не знайшовся.";
   }
 
   if (result.state === "not-participant") {
@@ -254,9 +254,12 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
   }
 
   if (result.state === "queued") {
+    const big = isBigPartyBossSession(result.session);
     return presentPartyBoss(result.session, {
       viewerCharacterId,
-      notice: "Дію записано. Якщо хтось зависне, dev-таймаут поставить його в захист."
+      notice: big
+        ? "Дію записано. Якщо хтось зависне, таймер поставить його в захист."
+        : "Дію записано. Якщо хтось зависне, таймер поставить його в захист."
     });
   }
 
@@ -278,23 +281,29 @@ export function presentPartyBoss(
   const viewerCanAct = viewer?.status === "active" && viewer.resources.hp > 0;
   const retaliationPlan = getPartyBossRetaliationPlan(state);
   const targetedCharacterIds = new Set(retaliationPlan.characterIds);
-  const lines = [
-    big ? "🛢️ <b>Старший Брат Бочки</b>" : "🧪 <b>Бос-проба ватаги</b>",
-    "",
-    getBossStatusLine(session),
-    `Бос: ${escapeHtml(state.boss.name ?? "Контрольний бос")} · HP ${state.boss.hp}/${state.boss.hpMax}`,
-    `Учасники: ${state.participants.length}`,
-    ""
-  ];
+  const title = big ? `🛢️ <b>Бій: ${session.turn} хід</b>` : `🧪 <b>Бій: ${session.turn} хід</b>`;
+  const lines = [title, "", getBossStatusLine(session)];
 
   if (options.notice) {
     lines.push(escapeHtml(options.notice), "");
   }
 
-  if (big && session.status === "active") {
-    lines.push(presentRetaliationPlan(retaliationPlan, state.participants));
+  if (viewer) {
+    lines.push(`❤️ Ви: HP ${viewer.resources.hp}/${viewer.resources.hpMax} · мана ${viewer.resources.mana}/${viewer.resources.manaMax}`);
+  } else if (session.status === "active") {
+    lines.push("❤️ Ви: спільна картка не показує приватні HP і ману.");
   }
 
+  lines.push(
+    `👹 ${escapeHtml(state.boss.name ?? "Контрольний бос")}: HP ${state.boss.hp}/${state.boss.hpMax}`,
+    `👥 Учасники: ${state.participants.length}`
+  );
+
+  if (big && session.status === "active") {
+    lines.push(`🎯 ${presentRetaliationPlan(retaliationPlan, state.participants)}`);
+  }
+
+  lines.push("");
   lines.push(...state.participants.map((participant) => {
     const marker = participant.status === "knocked-out"
       ? "▫️"
@@ -306,42 +315,47 @@ export function presentPartyBoss(
 
   const lastRound = state.roundLog.at(-1);
   if (lastRound) {
-    lines.push("", `<b>Останній хід:</b> ${lastRound.turn}`);
-    lines.push(`Бос отримав: ${lastRound.bossDamage}`);
+    lines.push("", `<b>Остання дія</b>`);
+    lines.push(`Ватага завдала ${lastRound.bossDamage} шкоди.`);
     if (lastRound.bossRetaliations.length > 0) {
-      lines.push(`Бос огризнувся по ${lastRound.bossRetaliations.length} учасниках.`);
+      lines.push(`Бос огризнувся по ${formatParticipantCount(lastRound.bossRetaliations.length)}.`);
+    }
+    const nextFocus = big ? presentNextRetaliationFocus(state) : null;
+    if (nextFocus) {
+      lines.push(nextFocus);
     }
   }
 
   if (viewer && session.status === "active") {
-    lines.push("", `<b>Ваш стан:</b> HP ${viewer.resources.hp}/${viewer.resources.hpMax} · мана ${viewer.resources.mana}/${viewer.resources.manaMax}`);
+    lines.push("");
     lines.push(viewerCanAct
-      ? "Оберіть одну дію для цього ходу. Старі або повторні кнопки лише покажуть актуальну картку."
+      ? `Оберіть одну дію. ⏳ На хід є ${formatSeconds(PARTY_BOSS_TURN_MS)}. Потім Квестарня поставить тих, хто завис, у захист.`
       : big
         ? "Ви вибиті з рейду. Картка лишається для спостереження й оновлення."
-        : "Ви вибиті з proof-бою. Картка лишається для спостереження й оновлення.");
+        : "Ви вибиті з тестового бою. Картка лишається для спостереження й оновлення.");
   } else if (session.status === "active") {
-    lines.push("", "Спільна картка не показує приватні HP, ману чи вибрані дії учасників.");
+    lines.push("", `⏳ На хід є ${formatSeconds(PARTY_BOSS_TURN_MS)}. Потім Квестарня поставить тих, хто завис, у захист.`);
   }
 
   if (session.status !== "active") {
     lines.push("", session.status === "won"
       ? big
         ? "Ватага перемогла. Участь зараховано як успішну Бочку цього періоду; нагороди збережено й не дублюються."
-        : "Ватага перемогла контрольного боса. Нагород тут немає: це proof, а не рейдовий лут."
+        : "Ватага перемогла контрольного боса. Нагород тут немає: це тестовий бій, а не рейдовий лут."
       : big
         ? "Рейд завершено без успіху Бочки. Старі кнопки покажуть цей самий підсумок."
-        : "Бос-пробу завершено без рейдової нагороди.");
+        : "Тестовий бій завершено без рейдової нагороди.");
   }
 
   return lines.join("\n");
 }
 
-export function presentPartyBossJournal(session: PartyBossSessionRecord): string {
+export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {
   const rounds = session.state.roundLog;
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
+  const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
   const lines = [
-    isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал бос-проби</b>",
+    isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
     "",
     getBossStatusLine(session)
   ];
@@ -351,24 +365,28 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord): string
     return lines.join("\n");
   }
 
-  for (const round of rounds) {
-    lines.push("", `<b>Хід ${round.turn}</b>`);
+  const round = rounds[page]!;
+  lines.push("", `Хід <b>${round.turn}</b> · запис ${page + 1}/${rounds.length}`);
 
-    for (const action of round.actions) {
-      const name = names.get(action.characterId) ?? "Учасник";
-      lines.push(
-        `— ${escapeHtml(name)}: ${presentBossActionSummary(action)}`
-      );
-    }
+  for (const action of round.actions) {
+    const name = names.get(action.characterId) ?? "Учасник";
+    lines.push(
+      `— ${escapeHtml(name)}: ${presentBossActionSummary(action)}`
+    );
+  }
 
-    const retaliationDamage = round.bossRetaliations.reduce((sum, retaliation) => sum + retaliation.damage, 0);
-    lines.push(`Бос отримав: ${round.bossDamage}. HP після ходу: ${round.bossHpAfter}/${session.state.boss.hpMax}.`);
-    if (round.bossRetaliations.length > 0) {
-      lines.push(`Бос огризнувся: ${presentRetaliationNames(round.bossRetaliations.map((retaliation) => retaliation.characterId), names)} · ${retaliationDamage} шкоди разом.`);
-    }
-    if (round.statusAfter !== "active") {
-      lines.push(`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`);
-    }
+  const retaliationDamage = round.bossRetaliations.reduce((sum, retaliation) => sum + retaliation.damage, 0);
+  lines.push(`Бос отримав: ${round.bossDamage}. HP після ходу: ${round.bossHpAfter}/${session.state.boss.hpMax}.`);
+  if (round.bossRetaliations.length > 0) {
+    lines.push(`🎯 Ціль боса: ${presentRetaliationNames(round.bossRetaliations.map((retaliation) => retaliation.characterId), names)}.`);
+    lines.push(`Бос огризнувся: ${retaliationDamage} шкоди разом.`);
+  }
+  const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
+  if (nextFocus) {
+    lines.push(nextFocus);
+  }
+  if (round.statusAfter !== "active") {
+    lines.push(`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`);
   }
 
   return lines.join("\n");
@@ -379,16 +397,16 @@ function presentRetaliationPlan(
   participants: PartyBossSessionRecord["state"]["participants"]
 ): string {
   if (plan.kind === "broad") {
-    return "Увага боса: вся жива ватага.";
+    return "Ціль боса: вся жива ватага.";
   }
 
   if (plan.kind === "focused") {
     const targetId = plan.characterIds[0];
     const targetName = participants.find((participant) => participant.characterId === targetId)?.name ?? "учасник";
-    return `Увага боса: ${escapeHtml(targetName)}.`;
+    return `Ціль боса: ${escapeHtml(targetName)}.`;
   }
 
-  return "Увага боса: ніхто не підписався, але протокол нервує.";
+  return "Ціль боса: ніхто не підписався, але протокол нервує.";
 }
 
 function presentRetaliationNames(characterIds: string[], names: Map<string, string>): string {
@@ -461,7 +479,7 @@ export function presentPartySession(
 
   if (session.status === "recruiting") {
     lines.push("", big
-      ? "Це справжній ризиковий маршрут для 8+ рівня: один спільний бос, приховані дії раунду й участь без точного прогнозу винагород."
+      ? "Це справжній ризиковий маршрут: один спільний бос, приватні бойові картки й участь без точного прогнозу винагород."
       : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
@@ -595,6 +613,79 @@ function presentBossTerminalStatus(status: string): string {
     default:
       return "бій триває";
   }
+}
+
+function presentNextRetaliationFocus(state: PartyBossSessionRecord["state"]): string | null {
+  const plan = getPartyBossRetaliationPlan(state);
+
+  if (plan.kind === "broad") {
+    return "🎯 Увага боса перемкнулася на всю живу ватагу.";
+  }
+
+  if (plan.kind === "focused") {
+    const targetName = state.participants.find((participant) => participant.characterId === plan.characterIds[0])?.name;
+
+    return targetName ? `🎯 Увага боса перемкнулася на ${escapeHtml(targetName)}.` : null;
+  }
+
+  return null;
+}
+
+function presentNextRetaliationFocusAfterRound(
+  session: PartyBossSessionRecord,
+  round: PartyBossSessionRecord["state"]["roundLog"][number]
+): string | null {
+  if (!isBigPartyBossSession(session) || round.statusAfter !== "active") {
+    return null;
+  }
+
+  if ((round.turn + 1) % 4 === 0) {
+    return "🎯 На наступний хід увага боса переходить на всю живу ватагу.";
+  }
+
+  const byPosition = new Map(session.state.participants.map((participant, index) => [participant.characterId, index]));
+  const topDamage = round.actions
+    .filter((action) => action.damage > 0)
+    .sort((left, right) =>
+      right.damage - left.damage ||
+      (byPosition.get(left.characterId) ?? 0) - (byPosition.get(right.characterId) ?? 0)
+    )[0];
+  const fallbackLeaderId = session.state.participants[0]?.characterId;
+  const targetId = topDamage?.characterId ?? fallbackLeaderId;
+  const targetName = session.state.participants.find((participant) => participant.characterId === targetId)?.name;
+
+  return targetName ? `🎯 На наступний хід увага боса переходить на ${escapeHtml(targetName)}.` : null;
+}
+
+function formatParticipantCount(count: number): string {
+  return `${count} ${pluralizeUk(count, "учаснику", "учасниках", "учасниках")}`;
+}
+
+function formatSeconds(milliseconds: number): string {
+  return `${Math.max(1, Math.round(milliseconds / 1000))} с`;
+}
+
+function clampPage(page: number, total: number): number {
+  if (!Number.isFinite(page)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(0, Math.floor(page)), Math.max(0, total - 1));
+}
+
+function pluralizeUk(count: number, one: string, few: string, many: string): string {
+  const mod10 = Math.abs(count) % 10;
+  const mod100 = Math.abs(count) % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+
+  return many;
 }
 
 function getJoinedParticipants(session: PartySessionRecord): PartyParticipantRecord[] {

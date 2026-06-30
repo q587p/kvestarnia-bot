@@ -145,6 +145,30 @@ describe("party boss reducer", () => {
     expect(state.boss.level).toBe(13);
   });
 
+  it("keeps real missing resources and clamps impossible over-max snapshots at boss start", () => {
+    const state = createPartyBossState({
+      partySessionId: "resource-clamp",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("wounded", "Поранена", { hp: 20, mana: 10, hpCurrent: 13, manaCurrent: 4 }),
+        participant("overmax", "Переповнена", { hp: 20, mana: 10, hpCurrent: 51, manaCurrent: 26 })
+      ]
+    });
+
+    expect(state.participants.find((entry) => entry.characterId === "wounded")?.resources).toMatchObject({
+      hp: 13,
+      hpMax: 20,
+      mana: 4,
+      manaMax: 10
+    });
+    expect(state.participants.find((entry) => entry.characterId === "overmax")?.resources).toMatchObject({
+      hp: 20,
+      hpMax: 20,
+      mana: 10,
+      manaMax: 10
+    });
+  });
+
   it("keeps Big Barrel Brother broad retaliation on a fixed fourth-turn cadence", () => {
     let state = createPartyBossState({
       partySessionId: "big-broad-cadence",
@@ -473,6 +497,8 @@ function participant(
     charisma?: number;
     luck?: number;
     classId?: string;
+    hpCurrent?: number;
+    manaCurrent?: number;
   } = {}
 ) {
   const strength = overrides.strength ?? 8;
@@ -486,8 +512,8 @@ function participant(
       level: overrides.level ?? 3,
       hpMax: overrides.hp ?? 30,
       manaMax: overrides.mana ?? 12,
-      hpCurrent: overrides.hp ?? 30,
-      manaCurrent: overrides.mana ?? 12,
+      hpCurrent: overrides.hpCurrent ?? overrides.hp ?? 30,
+      manaCurrent: overrides.manaCurrent ?? overrides.mana ?? 12,
       strength,
       dexterity: overrides.dexterity ?? 6,
       intelligence,

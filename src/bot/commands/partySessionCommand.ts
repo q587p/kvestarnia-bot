@@ -11,6 +11,7 @@ import { telegramUserIdFromContext } from "../context";
 import {
   buildPartySessionInviteKeyboard,
   buildPartyBossKeyboard,
+  buildPartyBossJournalKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../keyboards/partySessionKeyboard";
@@ -143,7 +144,7 @@ export async function handlePartySessionCallback(
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: isBigBossSession(result.session)
           ? "Старший Брат Бочки втрутився. Ваша приватна картка вже тут."
-          : "Бос-пробу запущено. Ваша приватна картка вже тут."
+          : "Тестового боса запущено. Ваша приватна картка вже тут."
       });
     }
     return;
@@ -173,11 +174,16 @@ export async function handlePartySessionCallback(
         }
       : false);
     if (result.state === "resolved" || result.state === "terminal") {
+      const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: result.session.status === "active"
-          ? "Хід оновлено. Показую новий стан бос-проби."
-          : "Бос-пробу завершено. Показую підсумок."
+          ? big
+            ? "Хід оновлено. Показую новий стан рейду."
+            : "Хід оновлено. Показую новий стан тестового бою."
+          : big
+            ? "Рейд завершено. Показую підсумок."
+            : "Тестовий бій завершено. Показую підсумок."
       });
     }
     return;
@@ -205,15 +211,24 @@ export async function handlePartySessionCallback(
         }
       : false);
     if (result.state === "resolved" || result.state === "terminal") {
+      const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: result.session.status === "active"
           ? canForceTimeout
-            ? "Dev-таймаут добив хід. Показую новий стан бос-проби."
-            : "Таймер ходу спрацював. Показую новий стан бос-проби."
+            ? big
+              ? "Dev-таймер добив хід. Показую новий стан рейду."
+              : "Dev-таймер добив хід. Показую новий стан тестового бою."
+            : big
+              ? "Таймер ходу спрацював. Показую новий стан рейду."
+              : "Таймер ходу спрацював. Показую новий стан тестового бою."
           : canForceTimeout
-            ? "Dev-таймаут завершив бос-пробу. Показую підсумок."
-            : "Таймер ходу завершив бос-пробу. Показую підсумок."
+            ? big
+              ? "Dev-таймер завершив рейд. Показую підсумок."
+              : "Dev-таймер завершив тестовий бій. Показую підсумок."
+            : big
+              ? "Таймер ходу завершив рейд. Показую підсумок."
+              : "Таймер ходу завершив тестовий бій. Показую підсумок."
       });
     }
     return;
@@ -228,15 +243,26 @@ export async function handlePartySessionCallback(
     const boss = await options.partyBoss.getByPartyInviteToken(callback.token);
     await safeAnswerCallbackQuery(ctx);
     if (!boss) {
-      await sendBossText(ctx, "edit", "Бос-проба не знайшлася.", false);
+      await sendBossText(ctx, "edit", "Бій не знайшовся.", false);
       return;
     }
 
     const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
-    await sendBossText(ctx, "edit", presentPartyBossJournal(boss), {
+    if (boss.status === "active") {
+      await sendBossText(ctx, "edit", presentPartyBoss(boss, {
+        viewerCharacterId,
+        notice: "Журнал відкриється після бою. Поки що Корчмар тримає чорнило подалі від піни."
+      }), {
+        session: boss,
+        viewerCharacterId,
+        includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
+      });
+      return;
+    }
+
+    await sendBossJournalText(ctx, presentPartyBossJournal(boss, callback.page), {
       session: boss,
-      viewerCharacterId,
-      includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
+      page: callback.page ?? boss.state.roundLog.length - 1
     });
     return;
   }
@@ -277,6 +303,9 @@ export async function handlePartySessionCallback(
           includeBossStart: isBigBarrelParty(result.session)
         }
       : false);
+    if (result.state === "joined") {
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+    }
     return;
   }
 
@@ -294,6 +323,9 @@ export async function handlePartySessionCallback(
           includeBossStart: isBigBarrelParty(result.session)
         }
       : false);
+    if (result.state === "left" || result.state === "leader-transferred") {
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+    }
     return;
   }
 
@@ -331,12 +363,27 @@ export async function sendPartyJoinFromStartPayload(
   ctx: Context,
   service: PartySessionService,
   token: string,
-  options: { botUsername?: string | undefined } = {}
+  options: { botUsername?: string | undefined; partyBoss?: PartyBossService | undefined } = {}
 ): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
   if (!telegramUserId) {
     return false;
+  }
+
+  const partyBoss = options.partyBoss;
+  if (partyBoss) {
+    const boss = await partyBoss.getByPartyInviteToken(token);
+    if (boss) {
+      const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+      await ctx.reply(presentPartyBoss(boss, { viewerCharacterId }), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPartyBossKeyboard(boss, viewerCharacterId, {
+          includeDevTimeout: partyBoss.areDevHelpersEnabled()
+        })
+      });
+      return true;
+    }
   }
 
   const result = await service.joinByTokenForTelegramUser(telegramUserId, token, {
@@ -539,6 +586,59 @@ async function sendBossText(
   }
 
   await ctx.reply(text, options);
+}
+
+async function sendBossJournalText(
+  ctx: Context,
+  text: string,
+  keyboard: {
+    session: Parameters<typeof buildPartyBossJournalKeyboard>[0];
+    page: number;
+  }
+): Promise<void> {
+  await safeEditMessageText(ctx, text, {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildPartyBossJournalKeyboard(keyboard.session, keyboard.page)
+  });
+}
+
+async function notifyPartySessionParticipants(
+  ctx: Context,
+  session: Parameters<typeof buildPartySessionKeyboard>[0],
+  actorTelegramUserId: bigint,
+  botUsername: string | undefined,
+  service: PartySessionService
+): Promise<void> {
+  const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
+
+  for (const participant of session.participants) {
+    if (
+      participant.character.telegramUserId === actorTelegramUserId ||
+      participant.status !== "joined" ||
+      !participant.chatId ||
+      !participant.messageId
+    ) {
+      continue;
+    }
+
+    try {
+      await ctx.api.editMessageText(
+        Number(participant.chatId),
+        participant.messageId,
+        presentPartyView({ state: "ready", session }, { inviteUrl }),
+        {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPartySessionKeyboard(session, {
+            viewerCharacterId: participant.characterId,
+            includeDevExpire: service.areDevHelpersEnabled(),
+            includeBossStart: isBigBarrelParty(session)
+          })
+        }
+      );
+    } catch {
+      // Best-effort card refresh; the stored party state remains canonical for manual refresh.
+    }
+  }
 }
 
 async function notifyPartyBossParticipants(

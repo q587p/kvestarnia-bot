@@ -44,12 +44,15 @@ describe("party boss recruiting start scheduler", () => {
     );
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
-    expect(sendMessage.mock.calls[0]?.[1]).toContain("Збір завершився. Старший Брат Бочки відкрив журнал і почав бій.");
-    expect(sendMessage.mock.calls[0]?.[1]).toContain("🛢️ <b>Старший Брат Бочки</b>");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Збір завершився. Старший Брат Бочки підняв кришку й почав бій.");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("🛢️ <b>Бій: 1 хід</b>");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("👹 Старший Брат Бочки: HP 174/174");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("⏳ На хід є 23 с.");
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
       parse_mode: "HTML"
     });
     expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:ba:partyABC12:1:a");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).not.toContain("📜 Журнал");
   });
 });
 

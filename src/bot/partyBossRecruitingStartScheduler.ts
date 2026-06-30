@@ -88,7 +88,7 @@ async function notifyParticipants(
       Number(participant.telegramUserId),
       presentPartyBoss(session, {
         viewerCharacterId: participant.id,
-        notice: "Збір завершився. Старший Брат Бочки відкрив журнал і почав бій."
+        notice: "Збір завершився. Старший Брат Бочки підняв кришку й почав бій."
       }),
       {
         ...HTML_MESSAGE_OPTIONS,

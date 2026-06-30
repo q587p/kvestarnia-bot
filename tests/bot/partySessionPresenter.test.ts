@@ -9,15 +9,17 @@ describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
     const text = presentPartyBoss(makeBigBossSession());
 
-    expect(text).toContain("Увага боса: Голова.");
+    expect(text).toContain("🛢️ <b>Бій: 1 хід</b>");
+    expect(text).toContain("🎯 Ціль боса: Голова.");
     expect(text).toContain("🎯 Голова · 0 шкоди");
     expect(text).toContain("▪️ Шкодійка · 0 шкоди");
+    expect(text).toContain("⏳ На хід є 23 с.");
   });
 
   it("marks every living participant on the Big Barrel Brother broad-turn cadence", () => {
     const text = presentPartyBoss(makeBigBossSession({ turn: 4 }));
 
-    expect(text).toContain("Увага боса: вся жива ватага.");
+    expect(text).toContain("🎯 Ціль боса: вся жива ватага.");
     expect(text).toContain("🎯 Голова · 0 шкоди");
     expect(text).toContain("🎯 Шкодійка · 0 шкоди");
   });
@@ -55,7 +57,36 @@ describe("party session presenter", () => {
     }));
 
     expect(text).toContain("📜 <b>Журнал бою</b>");
-    expect(text).toContain("Бос огризнувся: Голова, Шкодійка · 12 шкоди разом.");
+    expect(text).toContain("Хід <b>4</b> · запис 1/1");
+    expect(text).toContain("🎯 Ціль боса: Голова, Шкодійка.");
+    expect(text).toContain("Бос огризнувся: 12 шкоди разом.");
+    expect(text).toContain("🎯 На наступний хід увага боса переходить на Шкодійка.");
+  });
+
+  it("declines singular participant wording in the last Big Barrel Brother action", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [{
+          characterId: "striker",
+          action: "attack",
+          origin: "manual",
+          outcome: "hit",
+          damage: 13,
+          manaSpent: 0
+        }],
+        bossDamage: 13,
+        bossHpAfter: 42,
+        bossRetaliations: [
+          { characterId: "leader", damage: 5, hpAfter: 55 }
+        ],
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("Бос огризнувся по 1 учаснику.");
+    expect(text).toContain("🎯 Увага боса перемкнулася на Шкодійка.");
   });
 });
 

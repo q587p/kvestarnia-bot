@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPartyBossKeyboard,
+  buildPartyBossJournalKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../../src/bot/keyboards/partySessionKeyboard";
@@ -36,11 +37,9 @@ describe("party session keyboard", () => {
       "🪓 Силовий замах",
       "🧰 Практична імпровізація",
       "⏱️ Dev: добити хід",
-      "📜 Журнал",
       "🔎 Оновити"
     ]);
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, null))).toEqual([
-      "📜 Журнал",
       "🔎 Оновити"
     ]);
   });
@@ -73,7 +72,6 @@ describe("party session keyboard", () => {
       includeDevTimeout: true
     }))).toEqual([
       "⏱️ Dev: добити хід",
-      "📜 Журнал",
       "🔎 Оновити"
     ]);
   });
@@ -85,7 +83,29 @@ describe("party session keyboard", () => {
       "🗡️ Вдарити",
       "🛡 Захищатися",
       "🧰 Практична імпровізація",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("shows the party boss journal only after the battle ends", () => {
+    const session = makeBossSession({}, { status: "won" });
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
       "📜 Журнал",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("paginates terminal party boss journal entries", () => {
+    const session = makeBossSession({}, {
+      status: "won",
+      roundLogLength: 3
+    });
+
+    expect(inlineButtonTexts(buildPartyBossJournalKeyboard(session, 1))).toEqual([
+      "⬅️",
+      "2/3",
+      "➡️",
       "🔎 Оновити"
     ]);
   });
@@ -125,7 +145,8 @@ function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: stri
 }
 
 function makeBossSession(
-  participantOverrides: { status?: "active" | "knocked-out"; hp?: number; mana?: number; classId?: string } = {}
+  participantOverrides: { status?: "active" | "knocked-out"; hp?: number; mana?: number; classId?: string } = {},
+  sessionOverrides: { status?: PartyBossSessionRecord["status"]; roundLogLength?: number } = {}
 ): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
   const participant = makeCharacter("character-1", 42n);
@@ -135,7 +156,7 @@ function makeBossSession(
     partySessionId: "party-1",
     partyInviteToken: "partyABC12",
     leaderCharacterId: "character-1",
-    status: "active",
+    status: sessionOverrides.status ?? "active",
     turn: 1,
     version: 1,
     rulesVersion: "party-boss-proof-v1",
@@ -147,7 +168,7 @@ function makeBossSession(
     state: {
       rulesVersion: "party-boss-proof-v1",
       partySessionId: "party-1",
-      status: "active",
+      status: sessionOverrides.status ?? "active",
       turn: 1,
       boss: {
         monsterId: "party-boss-proof-one",
@@ -195,7 +216,14 @@ function makeBossSession(
           }
         }
       ],
-      roundLog: [],
+      roundLog: Array.from({ length: sessionOverrides.roundLogLength ?? 0 }, (_unused, index) => ({
+        turn: index + 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 42,
+        bossRetaliations: [],
+        statusAfter: index + 1 === (sessionOverrides.roundLogLength ?? 0) ? "won" : "active"
+      })),
       startedAt: now.toISOString()
     }
   };

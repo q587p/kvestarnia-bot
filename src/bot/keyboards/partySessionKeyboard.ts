@@ -109,7 +109,34 @@ export function buildPartyBossKeyboard(
     keyboard.text("⏱️ Dev: добити хід", makePartyBossTimeoutCallbackData(session.partyInviteToken)).row();
   }
 
-  keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
+  if (session.status !== "active") {
+    keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
+  }
+  return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
+}
+
+export function buildPartyBossJournalKeyboard(
+  session: PartyBossSessionRecord,
+  page: number
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  const total = Math.max(1, session.state.roundLog.length);
+  const current = clampPage(page, total);
+
+  if (total > 1) {
+    if (current > 0) {
+      keyboard.text("⬅️", makePartyBossJournalCallbackData(session.partyInviteToken, current - 1));
+    }
+
+    keyboard.text(`${current + 1}/${total}`, makePartyBossJournalCallbackData(session.partyInviteToken, current));
+
+    if (current + 1 < total) {
+      keyboard.text("➡️", makePartyBossJournalCallbackData(session.partyInviteToken, current + 1));
+    }
+
+    keyboard.row();
+  }
+
   return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
 }
 
@@ -159,6 +186,14 @@ function formatCandidateButton(candidate: PresencePerson): string {
     : candidate.name;
 
   return `${name}${level}`;
+}
+
+function clampPage(page: number, total: number): number {
+  if (!Number.isFinite(page)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(0, Math.floor(page)), Math.max(0, total - 1));
 }
 
 function getPartyBossSkillButtonLabel(classId: string | undefined): string {

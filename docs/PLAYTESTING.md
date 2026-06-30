@@ -12,19 +12,20 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 2. On an eligible account with the Big Barrel Brother flag disabled, open `🛢️ Бочка`; verify it still uses the legacy route.
 3. Enable the Big Barrel Brother flag, reopen `🛢️ Бочка` on non-remorted level 8+ and remorted level 3+ accounts, and verify the familiar Barrel card appears first with `🍺 У рейд на бочку`; it must not auto-create recruiting.
 4. Tap `🍺 У рейд на бочку`; verify the Big Barrel Brother recruiting card appears without exact reward amounts or odds, includes an active invite link when `BOT_USERNAME` is configured, and starts with the Старший Брат Бочки intervention message.
-5. Join the same party from a deep link and from `👀 Хто поруч`; verify duplicate joins replay the same membership and the invite link remains visible on recruiting refresh/join/leave cards.
+5. Join the same party from a deep link and from `👀 Хто поруч`; verify duplicate joins replay the same membership, the invite link remains visible on recruiting refresh/join/leave cards, and the leader's original recruiting card updates to include the new participant.
 6. With two recruiting groups open at the Barrel, open `👀 Хто поруч`; verify each group lists participant names and the join buttons identify the leader.
 7. Let recruiting time expire without pressing leader start; verify the fight starts automatically even if the roster is not full.
-8. Start another raid manually as leader; verify the shared boss card names `Старший Брат Бочки`, while private cards show only the viewer's own HP/mana/action controls.
+8. Start another raid manually as leader; verify the shared boss card names `Старший Брат Бочки`, while private cards follow ordinary fight shape: turn heading, viewer HP/mana, boss HP, visible target marker on participants, concrete action controls and the `23 с` turn hint.
 9. Verify private action buttons use concrete class/race ability names, matching ordinary combat availability when mana/cooldowns make an action unavailable.
 10. Add an under-level, remorted level-2, or already-completed participant through an old/deep-link route; verify start blocks with a generic raid-office line and creates no boss session or `party-boss` lease.
 11. In a two-person raid, let the non-leader deal the most damage in round 1; verify ordinary boss hits first go to the leader, then switch to the previous round's top damage contributor, while turn 4 hits all living participants.
-12. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice.
+12. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice. Verify `📜 Журнал` is not available while the battle is active.
 13. With dev helpers disabled, replay or forge a `boss-timeout` callback before the deadline; verify the turn stays on the same number and no timeout action row is added.
 14. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
 15. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.
 16. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
-17. Force or finish a victory; replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate.
+17. Force or finish a victory; replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
+17a. Open the original `https://t.me/<bot>?start=party_<token>` invite after the victory or loss; verify it opens the stored raid result instead of an expired recruiting message.
 18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary.
 19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written.
 20. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
