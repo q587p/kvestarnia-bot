@@ -1,5 +1,5 @@
 import type { DevMonsterRestCooldownResetResult } from "../../services/fightService";
-import type { TavernDevRaidStopResult } from "../../services/tavernRaidService";
+import type { TavernDevRaidResetResult, TavernDevRaidStopResult } from "../../services/tavernRaidService";
 
 export function presentDevResetDisabled(): string {
   return "Ця команда доступна лише в локальній майстерні.";
@@ -92,4 +92,28 @@ export function presentDevRaidStopResult(result: TavernDevRaidStopResult): strin
   }
 
   return "Зупиняти нічого: пригодника ще не створено. /start чекає біля дверей.";
+}
+
+export function presentDevRaidResetResult(result: TavernDevRaidResetResult): string {
+  if (result.state === "reset") {
+    const cleared = [
+      result.clearedPending ? "таймер очікування" : null,
+      result.clearedCompletion ? "зарахований відтинок" : null
+    ].filter(Boolean);
+
+    return [
+      "Рейдовий таймер Бочки скинуто для локального тесту.",
+      `Очищено: ${cleared.join(", ")}.`
+    ].join("\n");
+  }
+
+  if (result.state === "nothing-to-reset") {
+    return "Для Бочки немає активного таймера чи зарахованого відтинку. Вона й так готова до тесту.";
+  }
+
+  if (result.state === "unavailable") {
+    return "Скидання рейду недоступне: сховище не має потрібного гачка.";
+  }
+
+  return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
 }

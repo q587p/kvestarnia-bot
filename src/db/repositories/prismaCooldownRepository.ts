@@ -228,6 +228,35 @@ export class PrismaCooldownRepository implements CooldownRepository {
     });
   }
 
+  async deleteForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<"deleted" | "missing" | "no-character"> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return "no-character";
+    }
+
+    const deleted = await this.prisma.characterCooldown.deleteMany({
+      where: {
+        characterId: character.id,
+        key: input.key
+      }
+    });
+
+    return deleted.count > 0 ? "deleted" : "missing";
+  }
+
   private async rewardCharacter(
     tx: TxClient,
     character: CharacterRecord,

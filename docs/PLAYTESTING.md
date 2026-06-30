@@ -17,9 +17,10 @@ Use two or three local accounts with level 8+ characters and `SENIOR_BARREL_BROT
 7. Use the dev timeout control or wait for timeout; verify missing participants defend deterministically.
 8. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
 9. Force or finish a victory; replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate.
-10. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written.
-11. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
-12. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
+10. Use `/dev_raid_reset` locally when the same account needs another Barrel/Senior attempt in the same raid period without waiting for the next `:23` period boundary.
+11. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written.
+12. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
+13. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
 
 ## 0.2.16 — Party Vs One Boss MVP smoke
 
@@ -692,6 +693,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
+- `/dev_raid_reset` — у локальному режимі скидає pending-таймер і зарахований поточний відтинок Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 

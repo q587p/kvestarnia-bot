@@ -97,6 +97,60 @@ describe("dev adventure reset command", () => {
     expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
   });
 
+  it("resets the barrel raid timer in local environments", async () => {
+    const replies: string[] = [];
+    const seenUserIds: bigint[] = [];
+    const bot = createTestBot(replies, {
+      devReset: enabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      tavern: {
+        stopPendingFridayBarrelRaidForDev: () => Promise.resolve({ state: "no-pending", character: {} }),
+        resetFridayBarrelRaidForDev: (telegramUserId: bigint) => {
+          seenUserIds.push(telegramUserId);
+          return Promise.resolve({
+            state: "reset",
+            periodId: "2026-06-12T13:23",
+            clearedPending: true,
+            clearedCompletion: true,
+            character: {}
+          });
+        }
+      } as unknown as TavernRaidService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_raid_reset"));
+
+    expect(seenUserIds).toEqual([42n]);
+    expect(replies).toEqual([
+      "Рейдовий таймер Бочки скинуто для локального тесту.\nОчищено: таймер очікування, зарахований відтинок."
+    ]);
+  });
+
+  it("keeps dev raid reset disabled in production", async () => {
+    const replies: string[] = [];
+    let called = false;
+    const bot = createTestBot(replies, {
+      devReset: disabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      tavern: {
+        stopPendingFridayBarrelRaidForDev: () => Promise.resolve({ state: "no-pending", character: {} }),
+        resetFridayBarrelRaidForDev: () => {
+          called = true;
+          return Promise.resolve({ state: "nothing-to-reset", character: {}, periodId: "2026-06-12T13:23" });
+        }
+      } as unknown as TavernRaidService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_raid_reset"));
+
+    expect(called).toBe(false);
+    expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
+  });
+
   it("resets the daily Korchma round in local environments", async () => {
     const replies: string[] = [];
     const seenUserIds: bigint[] = [];
@@ -293,7 +347,7 @@ function createTestBot(
   services: {
     devReset: Pick<DevResetService, "isEnabled" | "resetCurrentUser">;
     adventure: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">;
-    tavern?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">;
+    tavern?: Pick<TavernRaidService, "resetFridayBarrelRaidForDev" | "stopPendingFridayBarrelRaidForDev">;
     dailyKorchmaRound?: Pick<DailyKorchmaRoundService, "resetTodayForDev">;
     fight?: Pick<
       FightService,

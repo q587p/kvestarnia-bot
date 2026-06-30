@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added Senior party-boss state with `rulesVersion = senior-barrel-brother-v1`, `bossKey = senior-barrel-brother`, frozen roster/resources/period and a single shared boss target.
 - Added Senior victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
 - Added focused Senior reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
+- Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement.
 
 ### Changed
 - Level `1-7`, disabled-flag level `8+`, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.

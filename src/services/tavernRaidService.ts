@@ -133,6 +133,18 @@ export type TavernDevRaidStopResult =
   | { state: "completed"; result: Extract<TavernRaidResult, { state: "completed" }> }
   | { state: "already-completed"; result: Extract<TavernRaidResult, { state: "already-completed" }> };
 
+export type TavernDevRaidResetResult =
+  | { state: "no-character" }
+  | { state: "unavailable" }
+  | {
+      state: "reset";
+      character: CharacterSummary;
+      periodId: string;
+      clearedPending: boolean;
+      clearedCompletion: boolean;
+    }
+  | { state: "nothing-to-reset"; character: CharacterSummary; periodId: string };
+
 interface PendingFridayBarrelRaid {
   availableAt: Date | null;
   startedAt: Date | null;
@@ -385,6 +397,50 @@ export class TavernRaidService {
     }
 
     return { state: "no-character" };
+  }
+
+  async resetFridayBarrelRaidForDev(
+    telegramUserId: bigint
+  ): Promise<TavernDevRaidResetResult> {
+    if (!this.dailyActions.deleteForTelegramUser || !this.pendingRaids?.deleteForTelegramUser) {
+      return { state: "unavailable" };
+    }
+
+    const now = this.clock();
+    const period = getBarrelRaidPeriod(now);
+    const pending = await this.findRelevantPendingFridayBarrelRaid(telegramUserId, period);
+
+    if (!pending) {
+      return { state: "no-character" };
+    }
+
+    const pendingDeleted = await this.pendingRaids.deleteForTelegramUser(telegramUserId, {
+      key: buildFridayBarrelRaidPendingKey(pending.periodId)
+    });
+    const completionDeleted = await this.dailyActions.deleteForTelegramUser(telegramUserId, {
+      key: FRIDAY_BARREL_RAID_KEY,
+      localDate: period.id
+    });
+
+    if (pendingDeleted === "no-character" || completionDeleted === "no-character") {
+      return { state: "no-character" };
+    }
+
+    if (pendingDeleted === "missing" && completionDeleted === "missing") {
+      return {
+        state: "nothing-to-reset",
+        character: summarizeCharacter(pending.character),
+        periodId: period.id
+      };
+    }
+
+    return {
+      state: "reset",
+      character: summarizeCharacter(pending.character),
+      periodId: period.id,
+      clearedPending: pendingDeleted === "deleted",
+      clearedCompletion: completionDeleted === "deleted"
+    };
   }
 
   private async startFridayBarrelRaid(

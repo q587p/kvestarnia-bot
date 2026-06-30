@@ -11,6 +11,7 @@ import { buildDevResetKeyboard } from "../keyboards/mainMenuKeyboard";
 import {
   presentDevAdventureResetResult,
   presentDevKorchmaRoundResetResult,
+  presentDevRaidResetResult,
   presentDevMonsterRestResetResult,
   presentDevRaidStopResult,
   presentDevResetDisabled,
@@ -27,7 +28,7 @@ export function registerDevResetCommand(
   bot: Bot,
   devResetService: DevResetService,
   adventureService?: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">,
-  tavernRaidService?: Pick<TavernRaidService, "stopPendingFridayBarrelRaidForDev">,
+  tavernRaidService?: Pick<TavernRaidService, "resetFridayBarrelRaidForDev" | "stopPendingFridayBarrelRaidForDev">,
   dailyKorchmaRoundService?: Pick<DailyKorchmaRoundService, "resetTodayForDev">,
   fightService?: Pick<
     FightService,
@@ -126,6 +127,29 @@ export function registerDevResetCommand(
         await ctx.reply(levelUpText, { parse_mode: "HTML" });
       }
     }
+  });
+
+  bot.command("dev_raid_reset", async (ctx) => {
+    if (!devResetService.isEnabled()) {
+      await ctx.reply(presentDevResetDisabled());
+      return;
+    }
+
+    if (!tavernRaidService) {
+      await ctx.reply(presentDevRaidResetResult({ state: "unavailable" }));
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+    if (!telegramUserId) {
+      await ctx.reply(presentDevRaidResetResult({ state: "no-character" }));
+      return;
+    }
+
+    const result = await tavernRaidService.resetFridayBarrelRaidForDev(telegramUserId);
+
+    await ctx.reply(presentDevRaidResetResult(result));
   });
 
   bot.command("dev_reset_monster_rest", async (ctx) => {
