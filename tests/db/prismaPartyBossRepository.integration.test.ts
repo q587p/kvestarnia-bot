@@ -71,7 +71,7 @@ describe("PrismaPartyBossRepository integration", () => {
       const resolved = await bossRepository.resolveTimedOutByToken("party-token-a", {
         now: new Date(`2026-06-30T10:0${turn}:00.000Z`),
         nextTurnExpiresAt: new Date(`2026-06-30T10:0${turn}:23.000Z`)
-      });
+      }, "due");
       expect(resolved.state).toBe("resolved");
       latest = expectPartyBossSession(resolved);
     }
@@ -106,7 +106,7 @@ describe("PrismaPartyBossRepository integration", () => {
     const resolved = await bossRepository.resolveTimedOutByToken("party-token-knockout", {
       now: new Date("2026-06-30T10:01:00.000Z"),
       nextTurnExpiresAt: new Date("2026-06-30T10:01:23.000Z")
-    });
+    }, "due");
     const latest = expectPartyBossSession(resolved);
 
     expect(resolved.state).toBe("resolved");
@@ -146,7 +146,7 @@ describe("PrismaPartyBossRepository integration", () => {
     const resolved = await bossRepository.resolveTimedOutByToken("party-token-force-timeout", {
       now: new Date("2026-06-30T10:00:05.000Z"),
       nextTurnExpiresAt: new Date("2026-06-30T10:00:28.000Z")
-    });
+    }, "force-dev");
     const latest = expectPartyBossSession(resolved);
 
     expect(resolved.state).toBe("resolved");
@@ -159,6 +159,63 @@ describe("PrismaPartyBossRepository integration", () => {
       expect.arrayContaining([
         expect.objectContaining({ characterId: latest.leaderCharacterId, origin: "manual" }),
         expect.objectContaining({ characterId: silentParticipant?.characterId, action: "defend", origin: "timeout" })
+      ])
+    );
+  });
+
+  it("keeps a production due-timeout callback queued before the turn deadline when actions are missing", async () => {
+    await seedCharacter(prisma, "early-due-leader-user", 4101n, "Лідерка Рання", { hp: 300 });
+    await seedCharacter(prisma, "early-due-joiner-user", 4102n, "Помічник Ранній", { hp: 300 });
+    await partyRepository.createForTelegramUser(4101n, partyInput("party-token-early-due"));
+    await partyRepository.joinByTokenForTelegramUser(4102n, "party-token-early-due", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(4101n, {
+      partyInviteToken: "party-token-early-due",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const queued = await bossRepository.resolveTimedOutByToken("party-token-early-due", {
+      now: new Date("2026-06-30T10:00:05.000Z"),
+      nextTurnExpiresAt: new Date("2026-06-30T10:00:28.000Z")
+    }, "due");
+    const latest = expectPartyBossSession(queued);
+
+    expect(queued.state).toBe("queued");
+    expect(latest.turn).toBe(1);
+    expect(latest.state.roundLog).toHaveLength(0);
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: latest.id
+      }
+    })).toBe(0);
+  });
+
+  it("resolves production due-timeout after the turn deadline", async () => {
+    await seedCharacter(prisma, "due-timeout-leader-user", 4201n, "Лідерка Пізня", { hp: 300 });
+    await seedCharacter(prisma, "due-timeout-joiner-user", 4202n, "Помічник Пізній", { hp: 300 });
+    await partyRepository.createForTelegramUser(4201n, partyInput("party-token-due-timeout"));
+    await partyRepository.joinByTokenForTelegramUser(4202n, "party-token-due-timeout", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(4201n, {
+      partyInviteToken: "party-token-due-timeout",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const resolved = await bossRepository.resolveTimedOutByToken("party-token-due-timeout", {
+      now: new Date("2026-06-30T10:00:24.000Z"),
+      nextTurnExpiresAt: new Date("2026-06-30T10:00:47.000Z")
+    }, "due");
+    const latest = expectPartyBossSession(resolved);
+
+    expect(resolved.state).toBe("resolved");
+    expect(latest.turn).toBe(2);
+    expect(latest.state.roundLog.at(-1)?.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ origin: "timeout", action: "defend" })
       ])
     );
   });
@@ -267,7 +324,7 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     })).toBe(1);
 
-    const replay = await bossRepository.resolveTimedOutByToken("party-token-big", resolveInput());
+    const replay = await bossRepository.resolveTimedOutByToken("party-token-big", resolveInput(), "due");
 
     expect(replay.state).toBe("terminal");
     expect(await prisma.dailyAction.count({
@@ -277,6 +334,242 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     })).toBe(1);
     expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
+  });
+
+  it("blocks Big Barrel Brother start when a joined participant is under-level", async () => {
+    await seedCharacter(prisma, "big-underlevel-leader-user", 5101n, "Досвідчена Лідерка", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await seedCharacter(prisma, "big-underlevel-joiner-user", 5102n, "Ранній Запис", {
+      hp: 40,
+      level: 7,
+      strength: 8,
+      dexterity: 8
+    });
+    await partyRepository.createForTelegramUser(5101n, {
+      ...partyInput("party-token-big-underlevel"),
+      periodId: "2026-06-30T11:23",
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(5102n, "party-token-big-underlevel", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5101n, {
+      partyInviteToken: "party-token-big-underlevel",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started).toEqual({ state: "ineligible" });
+    expect(await prisma.partyBossSession.count({
+      where: {
+        partySession: {
+          inviteToken: "party-token-big-underlevel"
+        }
+      }
+    })).toBe(0);
+    expect(await prisma.activeCombatLease.count({
+      where: {
+        characterId: {
+          in: ["big-underlevel-leader-user-character", "big-underlevel-joiner-user-character"]
+        }
+      }
+    })).toBe(0);
+  });
+
+  it("skips duplicate Big Barrel Brother success and rewards if the participant completed the frozen period before settlement", async () => {
+    await seedCharacter(prisma, "big-duplicate-user", 5201n, "Облікована Лідерка", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await partyRepository.createForTelegramUser(5201n, {
+      ...partyInput("party-token-big-duplicate"),
+      periodId: "2026-06-30T12:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5201n, {
+      partyInviteToken: "party-token-big-duplicate",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await prisma.dailyAction.create({
+      data: {
+        characterId: "big-duplicate-user-character",
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T12:23",
+        rewardXp: 1,
+        rewardGold: 1,
+        spentGold: 0,
+        resultJson: { kind: "legacy-test-success" }
+      }
+    });
+    const before = await prisma.character.findUniqueOrThrow({
+      where: { id: "big-duplicate-user-character" },
+      select: { xp: true, gold: true }
+    });
+
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      5201n,
+      "party-token-big-duplicate",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(latest.status).toBe("won");
+    expect(await prisma.dailyAction.count({
+      where: {
+        characterId: "big-duplicate-user-character",
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T12:23"
+      }
+    })).toBe(1);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "big-duplicate-user-character" },
+      select: { xp: true, gold: true }
+    })).resolves.toEqual(before);
+    expect(await prisma.characterItem.count({
+      where: { characterId: "big-duplicate-user-character" }
+    })).toBe(0);
+  });
+
+  it("skips Big Barrel Brother rewards when current level drops below the frozen eligibility gate before settlement", async () => {
+    await seedCharacter(prisma, "big-level-drop-user", 5301n, "Занижена Лідерка", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await partyRepository.createForTelegramUser(5301n, {
+      ...partyInput("party-token-big-level-drop"),
+      periodId: "2026-06-30T13:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5301n, {
+      partyInviteToken: "party-token-big-level-drop",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await prisma.character.update({
+      where: { id: "big-level-drop-user-character" },
+      data: { level: 7 }
+    });
+    const before = await prisma.character.findUniqueOrThrow({
+      where: { id: "big-level-drop-user-character" },
+      select: { xp: true, gold: true }
+    });
+
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      5301n,
+      "party-token-big-level-drop",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(latest.status).toBe("won");
+    expect(await prisma.dailyAction.count({
+      where: {
+        characterId: "big-level-drop-user-character",
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T13:23"
+      }
+    })).toBe(0);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "big-level-drop-user-character" },
+      select: { xp: true, gold: true }
+    })).resolves.toEqual(before);
+    expect(await prisma.characterItem.count({
+      where: { characterId: "big-level-drop-user-character" }
+    })).toBe(0);
+  });
+
+  it("skips Big Barrel Brother rewards when current remort count no longer matches the frozen participant", async () => {
+    await seedCharacter(prisma, "big-remort-user", 5401n, "Нова Лідерка", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await partyRepository.createForTelegramUser(5401n, {
+      ...partyInput("party-token-big-remort"),
+      periodId: "2026-06-30T14:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5401n, {
+      partyInviteToken: "party-token-big-remort",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await prisma.characterRemort.create({
+      data: {
+        id: "big-remort-user-remort-1",
+        characterId: "big-remort-user-character",
+        token: "big-remort-token-1",
+        remortNumber: 1,
+        previousLevel: 8,
+        previousXp: 0,
+        previousGold: 0,
+        displayNameSnapshot: "Нова Лідерка",
+        preservedPayloadJson: {}
+      }
+    });
+    const before = await prisma.character.findUniqueOrThrow({
+      where: { id: "big-remort-user-character" },
+      select: { xp: true, gold: true, hpCurrent: true, manaCurrent: true }
+    });
+
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      5401n,
+      "party-token-big-remort",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(latest.status).toBe("won");
+    expect(await prisma.dailyAction.count({
+      where: {
+        characterId: "big-remort-user-character",
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T14:23"
+      }
+    })).toBe(0);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "big-remort-user-character" },
+      select: { xp: true, gold: true, hpCurrent: true, manaCurrent: true }
+    })).resolves.toEqual(before);
+    expect(await prisma.characterItem.count({
+      where: { characterId: "big-remort-user-character" }
+    })).toBe(0);
   });
 });
 
@@ -289,6 +582,27 @@ function resolveInput() {
     now: now(),
     nextTurnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
   };
+}
+
+async function forceBossToOneHp(
+  prisma: PrismaClient,
+  sessionId: string,
+  state: PartyBossSessionRecord["state"]
+): Promise<void> {
+  await prisma.partyBossSession.update({
+    where: { id: sessionId },
+    data: {
+      stateJson: {
+        ...state,
+        boss: {
+          ...state.boss,
+          hp: 1,
+          hpMax: 1,
+          dexterity: 0
+        }
+      }
+    }
+  });
 }
 
 function partyInput(inviteToken: string) {

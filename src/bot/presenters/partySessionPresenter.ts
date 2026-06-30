@@ -171,6 +171,10 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
       : "Бос-проба не стартувала: хтось із ватаги вже в іншому активному бою.";
   }
 
+  if (result.state === "ineligible") {
+    return "Рейдова канцелярія відсіяла частину записів. Старший Брат Бочки приймає лише чинні записи без боргів у бочковому архіві.";
+  }
+
   if (result.state === "not-recruiting") {
     return result.session
       ? presentPartyBoss(result.session, { viewerCharacterId })

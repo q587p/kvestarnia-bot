@@ -36,7 +36,11 @@ export type PartyBossStartResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-leader"; session?: PartyBossSessionRecord }
-  | { state: "not-recruiting" | "expired" | "too-small" | "blocked"; blockerName?: string; session?: PartyBossSessionRecord }
+  | {
+      state: "not-recruiting" | "expired" | "too-small" | "blocked" | "ineligible";
+      blockerName?: string;
+      session?: PartyBossSessionRecord;
+    }
   | { state: "started" | "already-active" | "terminal"; session: PartyBossSessionRecord };
 
 export type PartyBossActionResult =
@@ -56,6 +60,8 @@ export interface PartyBossResolveInput {
   nextTurnExpiresAt: Date;
 }
 
+export type PartyBossTimeoutMode = "due" | "force-dev";
+
 export interface PartyBossRepository {
   startFromRecruitingPartyForTelegramUser(
     telegramUserId: bigint,
@@ -72,7 +78,8 @@ export interface PartyBossRepository {
 
   resolveTimedOutByToken(
     partyInviteToken: string,
-    input: PartyBossResolveInput
+    input: PartyBossResolveInput,
+    mode: PartyBossTimeoutMode
   ): Promise<PartyBossActionResult>;
 
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<PartyBossSessionRecord | null>;

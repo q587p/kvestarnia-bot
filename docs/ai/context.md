@@ -71,7 +71,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/DAILY_KORCHMA_ROUNDS.md`, `docs/tasks/0.2.9-daily-korchma-rounds.md`, `docs/PLAYTESTING-daily-korchma-rounds-addendum.md` — shipped daily `Корчмарський обхід` design/task/QA package.
 - `docs/tasks/0.2.13-postal-mantok-delivery.md` — paid postal/courier delivery for bounded packages of eligible manatky to known recipients, plus release-candidate UX polish for compact method cards, Korchma hall wording, onboarding completion message volume, front-door Munchkin visibility and news-board social/postal entry points.
 - `docs/tasks/0.2.14-adventure-quest-readability-and-local-failure.md`, `docs/ADVENTURE_QUEST_READABILITY_AND_LOCAL_FAILURE.md` — selected Adventure Choice cards state client/problem/goal before methods and add a narrow authored local no-reward failure consequence.
-- `docs/tasks/0.2.15-party-session-foundation.md`, `docs/tasks/0.2.16-party-vs-one-boss.md`, `docs/tasks/0.2.17-big-barrel-brother-raid-mvp.md`, `docs/architecture/GROUP_RAID_SESSION_MODEL.md` — dev/flagged temporary party recruiting/session foundation, one-boss proof and the feature-flagged Big Barrel Brother MVP; fuller raid mechanics remain future work.
+- `docs/tasks/0.2.15-party-session-foundation.md`, `docs/tasks/0.2.16-party-vs-one-boss.md`, `docs/tasks/0.2.17-big-barrel-brother-raid-mvp.md`, `docs/architecture/GROUP_RAID_SESSION_MODEL.md` — dev/flagged temporary party recruiting/session foundation, one-boss proof and the feature-flagged Big Barrel Brother MVP; Big start/reward settlement rechecks participant eligibility, production timeout is deadline-gated, and fuller raid mechanics remain future work.
 
 ## Code map
 

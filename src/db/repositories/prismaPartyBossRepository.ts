@@ -18,7 +18,8 @@ import {
   type PartyBossSessionRecord,
   type PartyBossSessionStatus,
   type PartyBossStartInput,
-  type PartyBossStartResult
+  type PartyBossStartResult,
+  type PartyBossTimeoutMode
 } from "./partyBossRepository";
 import {
   buildBarrelRaidItemGrants,
@@ -147,6 +148,11 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "too-small" };
       }
 
+      const isBigBarrelParty = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+      if (isBigBarrelParty && await hasIneligibleBigBarrelParticipant(tx, party, joined)) {
+        return { state: "ineligible" };
+      }
+
       const blocker = await tx.activeCombatLease.findFirst({
         where: {
           characterId: {
@@ -166,7 +172,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       const state = createPartyBossState({
         partySessionId: party.id,
-        variant: party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ? "big-barrel" : "proof",
+        variant: isBigBarrelParty ? "big-barrel" : "proof",
         now: input.now,
         participants: joined.map((participant) => ({
           characterId: participant.characterId,
@@ -297,7 +303,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
   async resolveTimedOutByToken(
     partyInviteToken: string,
-    input: PartyBossResolveInput
+    input: PartyBossResolveInput,
+    mode: PartyBossTimeoutMode
   ): Promise<PartyBossActionResult> {
     const session = await findByInviteToken(this.prisma, partyInviteToken);
     if (!session) {
@@ -308,7 +315,11 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       return { state: "terminal", session: mapSession(session) };
     }
 
-    const resolved = await this.resolveIfReady(session.id, "timeout", input);
+    const resolved = await this.resolveIfReady(
+      session.id,
+      mode === "force-dev" ? "timeout-force-dev" : "timeout-due",
+      input
+    );
     return resolved
       ? { state: "resolved", session: resolved }
       : { state: "queued", session: mapSession(session) };
@@ -347,7 +358,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
   private async resolveIfReady(
     sessionId: string,
-    mode: "all-actions" | "timeout",
+    mode: "all-actions" | "timeout-due" | "timeout-force-dev",
     input: PartyBossResolveInput
   ): Promise<PartyBossSessionRecord | null> {
     return this.prisma.$transaction(async (tx): Promise<PartyBossSessionRecord | null> => {
@@ -370,6 +381,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       );
 
       if (mode === "all-actions" && !hasAllActions) {
+        return null;
+      }
+
+      if (mode === "timeout-due" && !hasAllActions && session.turnExpiresAt > input.now) {
         return null;
       }
 
@@ -447,10 +462,6 @@ async function settleTerminalPartyBoss(
 
   for (const participant of state.participants) {
     const remortCount = await countCharacterRemorts(tx, participant.characterId);
-    if (remortCount !== participant.remortCount) {
-      continue;
-    }
-
     const current = await tx.character.findUnique({
       where: {
         id: participant.characterId
@@ -460,8 +471,16 @@ async function settleTerminalPartyBoss(
       continue;
     }
 
+    const remortMatches = remortCount === participant.remortCount;
     if (!periodId || state.status !== "won") {
       await settleBigParticipantResources(tx, participant, now);
+      continue;
+    }
+
+    if (!remortMatches || current.level < 8) {
+      if (remortMatches) {
+        await settleBigParticipantResources(tx, participant, now);
+      }
       continue;
     }
 
@@ -583,6 +602,51 @@ async function settleTerminalPartyBoss(
       });
     }
   }
+}
+
+async function hasIneligibleBigBarrelParticipant(
+  tx: TxClient,
+  party: PartyRow,
+  joined: PartyRow["participants"]
+): Promise<boolean> {
+  const characterIds = joined.map((participant) => participant.characterId);
+  if (!party.periodId || characterIds.length === 0) {
+    return true;
+  }
+
+  if (joined.some((participant) =>
+    participant.character.level < 8 ||
+    participant.character._count.remorts !== participant.remortCount
+  )) {
+    return true;
+  }
+
+  const [activeLease, existingSuccess] = await Promise.all([
+    tx.activeCombatLease.findFirst({
+      where: {
+        characterId: {
+          in: characterIds
+        }
+      },
+      select: {
+        id: true
+      }
+    }),
+    tx.dailyAction.findFirst({
+      where: {
+        characterId: {
+          in: characterIds
+        },
+        key: FRIDAY_BARREL_RAID_KEY,
+        localDate: party.periodId
+      },
+      select: {
+        id: true
+      }
+    })
+  ]);
+
+  return Boolean(activeLease || existingSuccess);
 }
 
 async function settleBigParticipantResources(

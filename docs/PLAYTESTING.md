@@ -13,14 +13,17 @@ Use two or three local accounts with level 8+ characters and `BIG_BARREL_BROTHER
 3. Enable the Big Barrel Brother flag, reopen `🛢️ Бочка` on level 8+, and verify the Big Barrel Brother recruiting card appears without exact reward amounts or odds.
 4. Join the same party from a deep link and from `👀 Хто поруч`; verify duplicate joins replay the same membership.
 5. Start the raid as leader; verify the shared boss card names `Старший Брат Бочки`, while private cards show only the viewer's own HP/mana/action controls.
-6. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice.
-7. Use the dev timeout control or wait for timeout; verify missing participants defend deterministically.
-8. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
-9. Force or finish a victory; replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate.
-10. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary.
-11. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written.
-12. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
-13. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
+6. Add an under-level or already-completed participant through an old/deep-link route; verify start blocks with a generic raid-office line and creates no boss session or `party-boss` lease.
+7. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice.
+8. With dev helpers disabled, replay or forge a `boss-timeout` callback before the deadline; verify the turn stays on the same number and no timeout action row is added.
+9. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
+10. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.
+11. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
+12. Force or finish a victory; replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate.
+13. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary.
+14. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written.
+15. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
+16. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
 
 ## 0.2.16 — Party Vs One Boss MVP smoke
 

@@ -198,6 +198,79 @@ describe("handlePartySessionCallback", () => {
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
   });
 
+  it("routes forged non-dev boss timeout callbacks through the due-timeout path only", async () => {
+    const session = makeBossSession();
+    const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({ state: "queued", session });
+    const forceResolveTimedOutByToken = vi.fn();
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-timeout", token: session.partyInviteToken },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => false,
+          resolveDueTimedOutByToken,
+          forceResolveTimedOutByToken
+        })
+      }
+    );
+
+    expect(resolveDueTimedOutByToken).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(forceResolveTimedOutByToken).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Хід перевірено." });
+    expect(messageText(editMessageText)).toContain("1 хід");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("uses the dev force-timeout path when helper mode is enabled", async () => {
+    const session = makeBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "character-42",
+            action: "defend",
+            origin: "timeout",
+            outcome: "defended",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 65,
+        bossRetaliations: [],
+        statusAfter: "active"
+      }]
+    });
+    const resolveDueTimedOutByToken = vi.fn();
+    const forceResolveTimedOutByToken = vi.fn().mockResolvedValue({ state: "resolved", session });
+    const { ctx, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-timeout", token: session.partyInviteToken },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => true,
+          resolveDueTimedOutByToken,
+          forceResolveTimedOutByToken
+        })
+      }
+    );
+
+    expect(forceResolveTimedOutByToken).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(resolveDueTimedOutByToken).not.toHaveBeenCalled();
+    expect(messageText(editMessageText)).toContain("2 хід");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Dev-таймаут добив хід");
+  });
+
   it("opens the boss journal from the stored round log", async () => {
     const session = makeBossSession({
       roundLog: [{
@@ -264,7 +337,8 @@ function partyBossWith(overrides: Partial<PartyBossService>): PartyBossService {
     areDevHelpersEnabled: () => false,
     startFromPartyForTelegramUser: vi.fn(),
     submitActionForTelegramUser: vi.fn(),
-    resolveTimedOutByToken: vi.fn(),
+    resolveDueTimedOutByToken: vi.fn(),
+    forceResolveTimedOutByToken: vi.fn(),
     getByPartyInviteToken: vi.fn(),
     ...overrides
   } as unknown as PartyBossService;

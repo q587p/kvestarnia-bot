@@ -16,10 +16,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added Big Barrel Brother victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
 - Added focused Big reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
 - Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement.
+- Added focused hardening coverage for Big participant eligibility, duplicate frozen-period success, remort-life drift, and production-vs-dev timeout resolution.
 
 ### Changed
 - Level `1-7`, disabled-flag level `8+`, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
 - Big Barrel Brother runtime inherits the party-boss one-action-per-turn, duplicate/stale callback no-op, deterministic timeout defend and active combat lease release contracts from `0.2.16`.
+- Big Barrel Brother start now rejects the whole joined roster with a generic ineligible result when any participant is not currently eligible for the frozen Barrel period, and settlement rechecks level, remort life and existing Barrel success before granting XP/gold/items.
+- Production `boss-timeout` callbacks now resolve only when the turn deadline is due; early force-timeout remains available only through dev-helper mode.
 - Party recruiting cards now show a real `🛢️ Почати рейд` leader button for Big Barrel Brother parties without exposing dev proof controls.
 - Big Barrel Brother boss cards use production raid copy and explain victory/failure without exposing private participant HP/mana/actions on shared cards.
 - Big balance tuning now uses 13 rounds only as a deterministic simulation/QA horizon: solo baseline `0/400` wins (`0%`), prepared 3-player entry party `162/400` wins (`40.5%`), both with `0` unresolved-by-horizon in the checked matrix.

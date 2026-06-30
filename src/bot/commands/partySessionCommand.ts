@@ -120,7 +120,14 @@ export async function handlePartySessionCallback(
     }
 
     const result = await options.partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token);
-    await safeAnswerCallbackQuery(ctx, result.state === "blocked" ? { text: "Хтось уже в бою." } : undefined);
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "blocked"
+        ? { text: "Хтось уже в бою." }
+        : result.state === "ineligible"
+          ? { text: "Рейдова канцелярія відсіяла частину записів." }
+          : undefined
+    );
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
       : null;
@@ -180,7 +187,10 @@ export async function handlePartySessionCallback(
       return;
     }
 
-    const result = await options.partyBoss.resolveTimedOutByToken(callback.token);
+    const canForceTimeout = options.partyBoss.areDevHelpersEnabled();
+    const result = canForceTimeout
+      ? await options.partyBoss.forceResolveTimedOutByToken(callback.token)
+      : await options.partyBoss.resolveDueTimedOutByToken(callback.token);
     await safeAnswerCallbackQuery(ctx, { text: "Хід перевірено." });
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
@@ -196,8 +206,12 @@ export async function handlePartySessionCallback(
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: result.session.status === "active"
-          ? "Dev-таймаут добив хід. Показую новий стан бос-проби."
-          : "Dev-таймаут завершив бос-пробу. Показую підсумок."
+          ? canForceTimeout
+            ? "Dev-таймаут добив хід. Показую новий стан бос-проби."
+            : "Таймер ходу спрацював. Показую новий стан бос-проби."
+          : canForceTimeout
+            ? "Dev-таймаут завершив бос-пробу. Показую підсумок."
+            : "Таймер ходу завершив бос-пробу. Показую підсумок."
       });
     }
     return;

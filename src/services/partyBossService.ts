@@ -61,7 +61,7 @@ export class PartyBossService {
     });
   }
 
-  async resolveTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {
+  async resolveDueTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
@@ -70,7 +70,19 @@ export class PartyBossService {
     return this.sessions.resolveTimedOutByToken(partyInviteToken, {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
-    });
+    }, "due");
+  }
+
+  async forceResolveTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const now = this.clock();
+    return this.sessions.resolveTimedOutByToken(partyInviteToken, {
+      now,
+      nextTurnExpiresAt: nextTurnDeadline(now)
+    }, "force-dev");
   }
 
   async getActiveForTelegramUser(telegramUserId: bigint): Promise<PartyBossSessionRecord | null> {
