@@ -217,6 +217,7 @@ Avoid:
 ## Isolated local bot runtime
 
 - `run-local-bot.cmd` runs the manual-test bot from an external isolated snapshot with separate `node_modules`, Prisma Client, and SQLite database. See `docs/LOCAL_BOT_RUNTIME.md`.
+- Use `$kvestarnia-local-runtime` for launcher/runtime/Prisma/Windows lock work instead of pasting local-runtime rules into prompts.
 - During normal implementation/review, do not stop, refresh, or replace the isolated bot unless the user explicitly asks.
 - Run lint, typecheck, build, Prisma generation, and tests in the main checkout; they must not depend on the running manual-test bot.
 - Never use a global `taskkill node.exe` or stop unrelated Node processes.

@@ -35,6 +35,7 @@ Repo-specific skills in `.agents/skills/`:
 - `$kvestarnia-second-codex-readonly` — second Codex read-only review, changed-files default.
 - `$kvestarnia-telegram-qa` — compact/full Telegram QA plans.
 - `$kvestarnia-release-checklist` — release readiness and handoff.
+- `$kvestarnia-local-runtime` — isolated local bot scripts, Prisma/SQLite, and Windows DLL/process-lock issues.
 - `$balance-review` — combat, loot, progression, and economy risks.
 - `$ukrainian-rpg-content` — Ukrainian player-facing battle/tip/location/news/content copy.
 
@@ -63,6 +64,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/SECURITY_AND_FAIR_PLAY.md` — privacy, anti-abuse, idempotency.
 - `docs/DEVELOPER_SETUP.md` — local setup and deployment notes.
 - `docs/PLAYTESTING.md` — manual smoke tests.
+- `docs/LOCAL_BOT_RUNTIME.md` — isolated local manual-test bot snapshot, Prisma/SQLite, and Windows lock workflow.
 - `CHANGELOG.md` — detailed release history.
 - `news.md` — player-facing spoiler-light release news.
 - `docs/refactoring-audit/README.md` — imported refactoring audit package with future task candidates and prompts.
