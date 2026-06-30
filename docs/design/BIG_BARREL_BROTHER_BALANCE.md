@@ -1,7 +1,7 @@
-# Senior Barrel Brother Balance Proposal
+# Big Barrel Brother Balance Proposal
 
 Status: starting numbers for simulation, not production proof
-Balance version seed: `senior-barrel-brother-v1`
+Balance version seed: `big-barrel-brother-v1`
 
 ## Design targets
 

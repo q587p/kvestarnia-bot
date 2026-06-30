@@ -183,7 +183,7 @@ describe("application factory wiring", () => {
       partyBoss: new PartyBossService(repositories.partyBossSessions, {
         enabled: config.nodeEnv !== "production" ||
           config.partySessionDevHelpersEnabled ||
-          config.seniorBarrelBrotherRaidEnabled,
+          config.bigBarrelBrotherRaidEnabled,
         devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
       })
     `));
@@ -191,9 +191,9 @@ describe("application factory wiring", () => {
       partySessions: new PartySessionService(repositories.partySessions, {
         enabled: config.nodeEnv !== "production" ||
           config.partySessionFoundationEnabled ||
-          config.seniorBarrelBrotherRaidEnabled,
+          config.bigBarrelBrotherRaidEnabled,
         devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled,
-        seniorBarrelBrotherEnabled: config.seniorBarrelBrotherRaidEnabled
+        bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
       })
     `));
     expect(source).toContain(compact(`
@@ -220,7 +220,7 @@ function makeConfig(): AppConfig {
     combatBalanceAnalyticsEnabled: false,
     partySessionFoundationEnabled: false,
     partySessionDevHelpersEnabled: false,
-    seniorBarrelBrotherRaidEnabled: false
+    bigBarrelBrotherRaidEnabled: false
   };
 }
 

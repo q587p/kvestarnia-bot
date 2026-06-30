@@ -633,7 +633,8 @@ describe("tavern presenter", () => {
     expect(text).toContain("Єгер у капюшоні все ще сидить у кутку");
     expect(text).toContain("лічильник клацне на 23-й хвилині");
     expect(text).not.toContain("За столами:");
-    expect(text).toContain("/hero");
+    expect(text).toContain("Поки що можна пригостити всіх пивом.");
+    expect(text).not.toContain("/hero");
     expect(text).not.toContain("Дві-три хвилини. Максимум");
     expect(text).not.toContain("Що робимо?");
   });

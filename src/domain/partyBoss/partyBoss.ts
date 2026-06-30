@@ -11,9 +11,9 @@ import type {
 import { SeededRandomSource } from "../../shared/random";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
-export const SENIOR_BARREL_BROTHER_RULES_VERSION = "senior-barrel-brother-v1";
+export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
 export const PARTY_BOSS_PROOF_BOSS_KEY = "party-boss-proof-one";
-export const SENIOR_BARREL_BROTHER_BOSS_KEY = "senior-barrel-brother";
+export const BIG_BARREL_BROTHER_BOSS_KEY = "big-barrel-brother";
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
 
 export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race">;
@@ -36,7 +36,7 @@ export interface PartyBossParticipantState {
 }
 
 export interface PartyBossState {
-  rulesVersion: typeof PARTY_BOSS_RULES_VERSION | typeof SENIOR_BARREL_BROTHER_RULES_VERSION;
+  rulesVersion: typeof PARTY_BOSS_RULES_VERSION | typeof BIG_BARREL_BROTHER_RULES_VERSION;
   partySessionId: string;
   status: PartyBossStatus;
   turn: number;
@@ -93,7 +93,7 @@ export interface PartyBossResult {
 
 export function createPartyBossState(input: {
   partySessionId: string;
-  variant?: "proof" | "senior-barrel";
+  variant?: "proof" | "big-barrel";
   participants: Array<{
     characterId: string;
     name: string;
@@ -110,29 +110,29 @@ export function createPartyBossState(input: {
     meanLevel
   );
   const participantCount = Math.max(1, input.participants.length);
-  const isSenior = input.variant === "senior-barrel";
-  const seniorRaidLevel = clamp(Math.ceil((meanLevel + maxLevel) / 2), 8, 13);
-  const bossLevel = isSenior ? Math.min(13, seniorRaidLevel + 1) : level;
-  const bossHpMax = isSenior
-    ? getSeniorBarrelBossHp(seniorRaidLevel, participantCount)
+  const isBig = input.variant === "big-barrel";
+  const bigRaidLevel = clamp(Math.ceil((meanLevel + maxLevel) / 2), 8, 13);
+  const bossLevel = isBig ? Math.min(13, bigRaidLevel + 1) : level;
+  const bossHpMax = isBig
+    ? getBigBarrelBossHp(bigRaidLevel, participantCount)
     : 23 + level * 8 + participantCount * 13;
 
   return {
-    rulesVersion: isSenior ? SENIOR_BARREL_BROTHER_RULES_VERSION : PARTY_BOSS_RULES_VERSION,
+    rulesVersion: isBig ? BIG_BARREL_BROTHER_RULES_VERSION : PARTY_BOSS_RULES_VERSION,
     partySessionId: input.partySessionId,
     status: "active",
     turn: 1,
     boss: {
-      monsterId: isSenior ? SENIOR_BARREL_BROTHER_BOSS_KEY : PARTY_BOSS_PROOF_BOSS_KEY,
-      name: isSenior ? "Старший Брат Бочки" : "Контрольний Бос Одинарного Зразка",
+      monsterId: isBig ? BIG_BARREL_BROTHER_BOSS_KEY : PARTY_BOSS_PROOF_BOSS_KEY,
+      name: isBig ? "Старший Брат Бочки" : "Контрольний Бос Одинарного Зразка",
       level: bossLevel,
       hp: bossHpMax,
       hpMax: bossHpMax,
-      attack: isSenior ? 5 + bossLevel : 4 + level + participantCount,
-      armor: isSenior ? 2 + Math.floor(bossLevel / 4) : 2 + Math.floor(level / 3),
-      resist: isSenior ? 1 + Math.floor(bossLevel / 5) : 1 + Math.floor(level / 4),
+      attack: isBig ? 5 + bossLevel : 4 + level + participantCount,
+      armor: isBig ? 2 + Math.floor(bossLevel / 4) : 2 + Math.floor(level / 3),
+      resist: isBig ? 1 + Math.floor(bossLevel / 5) : 1 + Math.floor(level / 4),
       dexterity: 5 + Math.floor(bossLevel / 2),
-      tags: isSenior ? ["boss", "construct", "barrel", "surveillance"] : ["party-boss-proof"]
+      tags: isBig ? ["boss", "construct", "barrel", "surveillance"] : ["party-boss-proof"]
     },
     participants: input.participants.map((participant) => ({
       characterId: participant.characterId,
@@ -277,9 +277,9 @@ export function buildResult(state: PartyBossState, now: Date): PartyBossResult |
   };
 }
 
-export function isSeniorBarrelBrotherState(state: PartyBossState): boolean {
-  return state.rulesVersion === SENIOR_BARREL_BROTHER_RULES_VERSION ||
-    state.boss.monsterId === SENIOR_BARREL_BROTHER_BOSS_KEY;
+export function isBigBarrelBrotherState(state: PartyBossState): boolean {
+  return state.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION ||
+    state.boss.monsterId === BIG_BARREL_BROTHER_BOSS_KEY;
 }
 
 export function clonePartyBossState(state: PartyBossState): PartyBossState {
@@ -325,7 +325,7 @@ function cloneAbilityCooldowns(
 
 function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummary[] {
   const retaliations: PartyBossRetaliationSummary[] = [];
-  const senior = isSeniorBarrelBrotherState(state);
+  const big = isBigBarrelBrotherState(state);
 
   for (const participant of state.participants) {
     if (participant.status !== "active" || participant.resources.hp <= 0) {
@@ -336,8 +336,8 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
       ? participant.resources.guard.consecutiveDefends >= 2 ? 0.5 : 0.65
       : 1;
     const rawDamage = Math.max(1, state.boss.attack - Math.floor((participant.combatStats.armor ?? 0) / 2));
-    const seniorPressure = senior ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
-    const damage = Math.max(1, Math.floor((rawDamage + seniorPressure) * guardReduction));
+    const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
+    const damage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction));
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
 
@@ -355,7 +355,7 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
   return retaliations;
 }
 
-function getSeniorBarrelBossHp(raidLevel: number, participantCount: number): number {
+function getBigBarrelBossHp(raidLevel: number, participantCount: number): number {
   const count = clamp(Math.floor(participantCount), 1, 8);
   const baseHp = count === 1 ? 150 : 105;
 

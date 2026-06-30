@@ -81,7 +81,7 @@ Goal: first production party combat proof. One party, one boss-like enemy, compa
 
 ### Later
 
-- Senior Barrel Brother / real raids;
+- Big Barrel Brother / real raids;
 - item-for-item trade;
 - Shynok resale/recycling;
 - full equipment rework;

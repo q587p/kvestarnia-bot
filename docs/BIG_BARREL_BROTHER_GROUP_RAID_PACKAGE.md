@@ -24,8 +24,8 @@
 2. `0.2.4` — **Item Tags / One-Use Manatky**, with one narrow consumable candidate such as `бинти` if balance still supports it;
 3. наступний вільний `0.2.x` — **Raid Party Session Foundation** as a temporary party/session slice;
 4. наступний вільний `0.2.x` — **Party Vs One Boss** as the first production party-combat proof;
-5. `0.2.17` — **Senior Barrel Brother Raid MVP** as the first feature-flagged real route on the existing party-boss runtime.
-6. later `0.2.x+` — fuller **Senior Barrel Brother Group Raid** mechanics from this package after MVP evidence.
+5. `0.2.17` — **Big Barrel Brother Raid MVP** as the first feature-flagged real route on the existing party-boss runtime.
+6. later `0.2.x+` — fuller **Big Barrel Brother Group Raid** mechanics from this package after MVP evidence.
 
 За нинішньої черги party/raid сходинки починаються орієнтовно з `0.2.5+`, але перед роботою файли `0.2.x-*` треба перейменувати на фактичні вільні версії. Номери PR до назв артефактів не додавати.
 
@@ -39,9 +39,9 @@ Dev-only або feature-flagged фундамент: сесія, учасники
 
 Production proof: тимчасова party входить у бій проти одного спільного боса без targetable adds, broad party-vs-many runtime або raid-scale reward faucet. Цей slice доводить UI, черги ходів, stale callbacks, AFK fallback, restart recovery й exactly-once settlement на меншому ризику.
 
-### 3. Senior Barrel Brother MVP and later fuller raid
+### 3. Big Barrel Brother MVP and later fuller raid
 
-`0.2.17` activates the narrow level 8+ Senior route behind `SENIOR_BARREL_BROTHER_RAID_ENABLED`, reusing the party-boss runtime, frozen Barrel period and exactly-once Barrel success settlement. Fuller mechanics in this package, such as richer phases, eligible PvE buffs, trophies, spotlight rewards and targetable-add follow-ups, remain later slices.
+`0.2.17` activates the narrow level 8+ Big route behind `BIG_BARREL_BROTHER_RAID_ENABLED`, reusing the party-boss runtime, frozen Barrel period and exactly-once Barrel success settlement. Fuller mechanics in this package, such as richer phases, eligible PvE buffs, trophies, spotlight rewards and targetable-add follow-ups, remain later slices.
 
 Це не роздуває один PR одночасно міграцією, соціяльним маршрутом, новим combat runtime, економікою, real-raid content і великим обсягом тексту.
 

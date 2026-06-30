@@ -1,4 +1,4 @@
-# Deferred: Targetable Adds for Senior Barrel Brother
+# Deferred: Targetable Adds for Big Barrel Brother
 
 Status: optional later `0.2.x` slice; no version assigned
 

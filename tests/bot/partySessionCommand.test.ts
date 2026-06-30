@@ -117,7 +117,7 @@ describe("handlePartySessionCallback", () => {
     expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:ba");
   });
 
-  it("rejects non-senior boss starts when dev helper mode is disabled", async () => {
+  it("rejects non-Big Barrel Brother boss starts when dev helper mode is disabled", async () => {
     const session = makeSession("recruiting");
     const getByToken = vi.fn().mockResolvedValue({ state: "ready", session });
     const startFromPartyForTelegramUser = vi.fn();

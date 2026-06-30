@@ -45,10 +45,10 @@ describe("party session keyboard", () => {
     ]);
   });
 
-  it("shows the Senior raid start without dev proof helpers", () => {
+  it("shows the Big Barrel Brother raid start without dev proof helpers", () => {
     const session = {
       ...makeSession(),
-      originLocationId: "barrel.senior"
+      originLocationId: "barrel.big-brother"
     };
 
     expect(inlineButtonTexts(buildPartySessionKeyboard(session, {

@@ -17,7 +17,7 @@ import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { PartyBossService } from "../../services/partyBossService";
 import {
   buildPartyInviteUrl,
-  SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
   type PartySessionService
 } from "../../services/partySessionService";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
@@ -677,13 +677,13 @@ export async function sendTavernBarrel(
 
   if (
     result.character.level >= 8 &&
-    options.partySessions?.isSeniorBarrelBrotherEnabled()
+    options.partySessions?.isBigBarrelBrotherEnabled()
   ) {
     const activeBoss = await options.partyBoss?.getActiveForTelegramUser(telegramUserId);
     if (activeBoss) {
       await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
       const viewerCharacterId = getBossViewerCharacterId(activeBoss, telegramUserId);
-      await sendSeniorBossText(ctx, mode, presentPartyBoss(activeBoss, { viewerCharacterId }), {
+      await sendBigBossText(ctx, mode, presentPartyBoss(activeBoss, { viewerCharacterId }), {
         session: activeBoss,
         viewerCharacterId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
@@ -696,17 +696,17 @@ export async function sendTavernBarrel(
       chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
       messageId: ctx.callbackQuery?.message?.message_id ?? null,
       periodId: period.id,
-      originLocationId: SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID
+      originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
     });
     const session = "session" in party ? party.session : null;
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
 
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-    await sendSeniorPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
+    await sendBigPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
       ? {
           session,
           viewerCharacterId: getPartyViewerCharacterId(session, telegramUserId),
-          includeBossStart: session.originLocationId === SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID,
+          includeBossStart: session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
           includeDevExpire: options.partySessions.areDevHelpersEnabled()
         }
       : false);
@@ -737,7 +737,7 @@ async function markTavernPlace(
   });
 }
 
-async function sendSeniorPartyText(
+async function sendBigPartyText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
@@ -771,7 +771,7 @@ async function sendSeniorPartyText(
   await ctx.reply(text, options);
 }
 
-async function sendSeniorBossText(
+async function sendBigBossText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,

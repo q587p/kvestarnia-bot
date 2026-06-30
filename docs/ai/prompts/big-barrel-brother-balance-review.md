@@ -1,11 +1,11 @@
-# Codex prompt - Senior Barrel Brother balance review
+# Codex prompt - Big Barrel Brother balance review
 
 ```text
 Use $balance-review.
 
-Review the implemented Senior Barrel Brother raid against:
-docs/design/SENIOR_BARREL_BROTHER_BALANCE.md
-docs/tasks/<actual-version>-senior-barrel-brother-group-raid.md
+Review the implemented Big Barrel Brother raid against:
+docs/design/BIG_BARREL_BROTHER_BALANCE.md
+docs/tasks/<actual-version>-big-barrel-brother-group-raid.md
 
 Mode:
 - inspect the implementation diff and direct combat/reward dependencies

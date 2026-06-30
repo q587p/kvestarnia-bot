@@ -100,7 +100,7 @@ Small runtime proof: 5–8 ordinary monsters отримують authored signatu
 
 ### 6. `0.2.13+` — Party Foundation → Party vs One Boss → Real Raid
 
-Тільки після identity, daily, combat/balance and item clarity. Перший party PR має бути foundation/dev/feature-flagged recruiting state, not boss. Потім one boss. Лише після цього Senior Barrel Brother або інший реальний raid.
+Тільки після identity, daily, combat/balance and item clarity. Перший party PR має бути foundation/dev/feature-flagged recruiting state, not boss. Потім one boss. Лише після цього Big Barrel Brother або інший реальний raid.
 
 ## Що змінити в планах
 

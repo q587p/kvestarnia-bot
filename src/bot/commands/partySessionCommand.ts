@@ -4,7 +4,7 @@ import type { PartyBossService } from "../../services/partyBossService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
   buildPartyInviteUrl,
-  SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
   type PartySessionService
 } from "../../services/partySessionService";
 import { telegramUserIdFromContext } from "../context";
@@ -77,7 +77,7 @@ export async function sendPartyCreate(
         session,
         viewerCharacterId: getViewerCharacterId(session, telegramUserId),
         includeDevExpire: service.areDevHelpersEnabled(),
-        includeBossStart: isSeniorBarrelParty(session)
+        includeBossStart: isBigBarrelParty(session)
       }
     : false);
 }
@@ -113,7 +113,7 @@ export async function handlePartySessionCallback(
 
     if (!options.partyBoss.areDevHelpersEnabled()) {
       const party = await service.getByToken(callback.token);
-      if (!("session" in party) || !isSeniorBarrelParty(party.session)) {
+      if (!("session" in party) || !isBigBarrelParty(party.session)) {
         await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
         return;
       }
@@ -321,7 +321,7 @@ export async function sendPartyJoinFromStartPayload(
       ? {
           reply_markup: buildPartySessionKeyboard(result.session, {
             viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
-            includeBossStart: isSeniorBarrelParty(result.session)
+            includeBossStart: isBigBarrelParty(result.session)
           })
         }
       : {})
@@ -378,7 +378,7 @@ async function handleNearbyInvite(
       session,
       viewerCharacterId: getViewerCharacterId(session, telegramUserId),
       includeDevExpire: service.areDevHelpersEnabled(),
-      includeBossStart: isSeniorBarrelParty(session)
+      includeBossStart: isBigBarrelParty(session)
     });
     return;
   }
@@ -410,7 +410,7 @@ async function handleNearbyInvite(
         session: view.session,
         viewerCharacterId: getViewerCharacterId(view.session, telegramUserId),
         includeDevExpire: service.areDevHelpersEnabled(),
-        includeBossStart: isSeniorBarrelParty(view.session)
+        includeBossStart: isBigBarrelParty(view.session)
       }
     );
   }
@@ -428,7 +428,7 @@ async function sendPartyView(
         session: result.session,
         viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
         includeDevExpire: service.areDevHelpersEnabled(),
-        includeBossStart: isSeniorBarrelParty(result.session)
+        includeBossStart: isBigBarrelParty(result.session)
       }
     : false);
 }
@@ -543,8 +543,8 @@ function getViewerCharacterId(
   return participant?.characterId ?? null;
 }
 
-function isSeniorBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[0]): boolean {
-  return session.originLocationId === SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID;
+function isBigBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[0]): boolean {
+  return session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
 }
 
 function getBossViewerCharacterId(

@@ -25,7 +25,7 @@ Hard scope:
 - restart/concurrency/privacy coverage
 
 Do not implement:
-- production Senior Barrel Brother route
+- production Big Barrel Brother route
 - combat, rounds, HP/mana, boss, leases or rewards
 - matchmaking, guilds, permanent parties, Redis/BullMQ or Mini App
 

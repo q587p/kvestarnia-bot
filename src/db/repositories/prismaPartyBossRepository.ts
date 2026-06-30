@@ -2,9 +2,9 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   buildResult,
   createPartyBossState,
-  isSeniorBarrelBrotherState,
+  isBigBarrelBrotherState,
   resolvePartyBossRound,
-  SENIOR_BARREL_BROTHER_RULES_VERSION,
+  BIG_BARREL_BROTHER_RULES_VERSION,
   type PartyBossActionKey,
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
@@ -35,7 +35,7 @@ type CharacterRow = PartyRow["participants"][number]["character"];
 const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
-const SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.senior";
+const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 
 const partyCharacterInclude = {
   user: {
@@ -166,7 +166,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       const state = createPartyBossState({
         partySessionId: party.id,
-        variant: party.originLocationId === SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID ? "senior-barrel" : "proof",
+        variant: party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ? "big-barrel" : "proof",
         now: input.now,
         participants: joined.map((participant) => ({
           characterId: participant.characterId,
@@ -439,7 +439,7 @@ async function settleTerminalPartyBoss(
   state: PartyBossState,
   now: Date
 ): Promise<void> {
-  if (!isSeniorBarrelBrotherState(state)) {
+  if (!isBigBarrelBrotherState(state)) {
     return;
   }
 
@@ -461,7 +461,7 @@ async function settleTerminalPartyBoss(
     }
 
     if (!periodId || state.status !== "won") {
-      await settleSeniorParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now);
       continue;
     }
 
@@ -475,13 +475,13 @@ async function settleTerminalPartyBoss(
       }
     });
     if (existing) {
-      await settleSeniorParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now);
       continue;
     }
 
-    const reward = buildSeniorBarrelReward(state, participant);
+    const reward = buildBigBarrelReward(state, participant);
     if (!reward.meaningful) {
-      await settleSeniorParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now);
       continue;
     }
 
@@ -499,8 +499,8 @@ async function settleTerminalPartyBoss(
         rewardGold: reward.gold,
         spentGold: 0,
         resultJson: {
-          kind: "senior-barrel-brother-victory",
-          rulesVersion: SENIOR_BARREL_BROTHER_RULES_VERSION,
+          kind: "big-barrel-brother-victory",
+          rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
           partyBossSessionId: session.id,
           partySessionId: session.partySessionId,
           reward,
@@ -566,8 +566,8 @@ async function settleTerminalPartyBoss(
         },
         data: {
           resultJson: {
-            kind: "senior-barrel-brother-victory",
-            rulesVersion: SENIOR_BARREL_BROTHER_RULES_VERSION,
+            kind: "big-barrel-brother-victory",
+            rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
             partyBossSessionId: session.id,
             partySessionId: session.partySessionId,
             reward: {
@@ -585,7 +585,7 @@ async function settleTerminalPartyBoss(
   }
 }
 
-async function settleSeniorParticipantResources(
+async function settleBigParticipantResources(
   tx: TxClient,
   participant: PartyBossState["participants"][number],
   now: Date
@@ -603,7 +603,7 @@ async function settleSeniorParticipantResources(
   });
 }
 
-function buildSeniorBarrelReward(
+function buildBigBarrelReward(
   state: PartyBossState,
   participant: PartyBossState["participants"][number]
 ): { meaningful: boolean; tier: "none" | "partial" | "full"; xp: number; gold: number } {

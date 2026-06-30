@@ -12,7 +12,7 @@ import { systemClock, type Clock } from "../shared/time";
 export const PARTY_SESSION_PARTICIPANT_CAP = 8;
 export const PARTY_SESSION_MINIMUM_PARTICIPANTS = 1;
 export const PARTY_SESSION_TTL_MS = 13 * 60 * 1000;
-export const SENIOR_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.senior";
+export const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 
 export type PartyCreateResult =
   | { state: "disabled" }
@@ -26,7 +26,7 @@ export type PartyCancelResult = PartyCancelRepositoryResult;
 export interface PartySessionServiceOptions {
   enabled: boolean;
   devHelpersEnabled?: boolean;
-  seniorBarrelBrotherEnabled?: boolean;
+  bigBarrelBrotherEnabled?: boolean;
 }
 
 export class PartySessionService {
@@ -44,8 +44,8 @@ export class PartySessionService {
     return this.isEnabled() && this.options.devHelpersEnabled === true;
   }
 
-  isSeniorBarrelBrotherEnabled(): boolean {
-    return this.isEnabled() && this.options.seniorBarrelBrotherEnabled === true;
+  isBigBarrelBrotherEnabled(): boolean {
+    return this.isEnabled() && this.options.bigBarrelBrotherEnabled === true;
   }
 
   async createForTelegramUser(

@@ -28,10 +28,10 @@ Exact paths should follow the architecture state after stabilization.
 
 ```text
 src/domain/raids/groupRaidSession.ts
-src/domain/raids/seniorBarrelBrother.ts
+src/domain/raids/bigBarrelBrother.ts
 src/domain/raids/groupRaidBalance.ts
 src/domain/raids/groupRaidContribution.ts
-src/content/seniorBarrelBrother.ts
+src/content/bigBarrelBrother.ts
 src/services/groupRaidService.ts
 src/db/repositories/groupRaidRepository.ts
 src/db/repositories/prismaGroupRaidRepository.ts

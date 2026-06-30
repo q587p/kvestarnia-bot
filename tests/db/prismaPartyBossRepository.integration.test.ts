@@ -206,25 +206,25 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(await prisma.partyBossAction.count({ where: { sessionId: started.session.id } })).toBe(0);
   });
 
-  it("settles Senior Barrel Brother victory through the canonical Barrel success key exactly once", async () => {
-    await seedCharacter(prisma, "senior-leader-user", 5001n, "Старша Лідерка", {
+  it("settles Big Barrel Brother victory through the canonical Barrel success key exactly once", async () => {
+    await seedCharacter(prisma, "big-leader-user", 5001n, "Старша Лідерка", {
       hp: 80,
       level: 8,
       strength: 24,
       dexterity: 24
     });
     await partyRepository.createForTelegramUser(5001n, {
-      ...partyInput("party-token-senior"),
+      ...partyInput("party-token-big"),
       periodId: "2026-06-30T10:23",
-      originLocationId: "barrel.senior"
+      originLocationId: "barrel.big-brother"
     });
     expect(await prisma.partySession.findUnique({
-      where: { inviteToken: "party-token-senior" },
+      where: { inviteToken: "party-token-big" },
       select: { originLocationId: true }
-    })).toEqual({ originLocationId: "barrel.senior" });
+    })).toEqual({ originLocationId: "barrel.big-brother" });
 
     const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5001n, {
-      partyInviteToken: "party-token-senior",
+      partyInviteToken: "party-token-big",
       now: now(),
       turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
     });
@@ -250,7 +250,7 @@ describe("PrismaPartyBossRepository integration", () => {
 
     const resolved = await bossRepository.submitActionForTelegramUser(
       5001n,
-      "party-token-senior",
+      "party-token-big",
       1,
       "attack",
       resolveInput()
@@ -259,7 +259,7 @@ describe("PrismaPartyBossRepository integration", () => {
 
     expect(resolved.state).toBe("resolved");
     expect(latest.status).toBe("won");
-    expect(latest.rulesVersion).toBe("senior-barrel-brother-v1");
+    expect(latest.rulesVersion).toBe("big-barrel-brother-v1");
     expect(await prisma.dailyAction.count({
       where: {
         key: "tavern.friday-barrel-raid",
@@ -267,7 +267,7 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     })).toBe(1);
 
-    const replay = await bossRepository.resolveTimedOutByToken("party-token-senior", resolveInput());
+    const replay = await bossRepository.resolveTimedOutByToken("party-token-big", resolveInput());
 
     expect(replay.state).toBe("terminal");
     expect(await prisma.dailyAction.count({

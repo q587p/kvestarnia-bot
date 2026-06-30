@@ -145,15 +145,15 @@ export function createServices(
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: config.nodeEnv !== "production" ||
         config.partySessionDevHelpersEnabled ||
-        config.seniorBarrelBrotherRaidEnabled,
+        config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
     }),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: config.nodeEnv !== "production" ||
         config.partySessionFoundationEnabled ||
-        config.seniorBarrelBrotherRaidEnabled,
+        config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled,
-      seniorBarrelBrotherEnabled: config.seniorBarrelBrotherRaidEnabled
+      bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
     }),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
