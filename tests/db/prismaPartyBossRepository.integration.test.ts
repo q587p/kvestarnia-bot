@@ -297,8 +297,10 @@ describe("PrismaPartyBossRepository integration", () => {
           ...started.session.state,
           boss: {
             ...started.session.state.boss,
-            hp: 1,
+            hp: 0,
             hpMax: 1,
+            armor: 0,
+            resist: 0,
             dexterity: 0
           }
         }
