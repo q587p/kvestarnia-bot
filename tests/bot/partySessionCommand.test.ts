@@ -179,6 +179,15 @@ describe("handlePartySessionCallback", () => {
             outcome: "hit",
             damage: 7,
             manaSpent: 0
+          },
+          {
+            characterId: "character-93",
+            action: "race",
+            origin: "manual",
+            outcome: "hit",
+            damage: 0,
+            manaSpent: 0,
+            skillId: "ability.race.low-center-of-gravity"
           }
         ],
         bossDamage: 7,
@@ -203,7 +212,8 @@ describe("handlePartySessionCallback", () => {
     expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
     expect(messageText(editMessageText)).toContain("📜 <b>Журнал бос-проби</b>");
     expect(messageText(editMessageText)).toContain("Хід 1");
-    expect(messageText(editMessageText)).toContain("Тестова Лідерка: удар, 7 шкоди");
+    expect(messageText(editMessageText)).toContain("Тестова Лідерка: удар: 7 шкоди");
+    expect(messageText(editMessageText)).toContain("Друга Учасниця: расова дія: ефект без прямої шкоди");
   });
 });
 

@@ -309,9 +309,8 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord): string
 
     for (const action of round.actions) {
       const name = names.get(action.characterId) ?? "Учасник";
-      const timeout = action.origin === "timeout" ? " · таймаут" : "";
       lines.push(
-        `— ${escapeHtml(name)}: ${presentBossActionLabel(action.action)}${timeout}, ${action.damage} шкоди`
+        `— ${escapeHtml(name)}: ${presentBossActionSummary(action)}`
       );
     }
 
@@ -466,6 +465,36 @@ function presentBossActionLabel(action: string): string {
       return "расова дія";
     default:
       return "дія";
+  }
+}
+
+function presentBossActionSummary(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
+): string {
+  const timeout = action.origin === "timeout" ? " · таймаут" : "";
+  const label = `${presentBossActionLabel(action.action)}${timeout}`;
+
+  switch (action.outcome) {
+    case "defended":
+      return `${label}: захист без прямої шкоди`;
+    case "miss":
+      return `${label}: промах`;
+    case "not-enough-mana":
+      return `${label}: не вистачило мани`;
+    case "skill-on-cooldown":
+      return `${label}: дія ще відсапується`;
+    case "critical-fumble":
+      return `${label}: критичний збій`;
+    case "hit":
+      return action.damage > 0
+        ? `${label}: ${action.damage} шкоди`
+        : `${label}: ефект без прямої шкоди`;
+    case "critical-hit":
+      return `${label}: критично, ${action.damage} шкоди`;
+    case "won":
+      return `${label}: ${action.damage} шкоди, добито`;
+    default:
+      return `${label}: ${action.damage} шкоди`;
   }
 }
 
