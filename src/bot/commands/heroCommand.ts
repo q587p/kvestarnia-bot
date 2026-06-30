@@ -5,10 +5,6 @@ import { telegramUserIdFromContext } from "../context";
 import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
-import {
-  prefixResourceRecoveryNotice,
-  presentResourceRecoveryNotice
-} from "../presenters/resourceRecoveryPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 export interface HeroCommandOptions {
@@ -55,10 +51,6 @@ export async function sendHero(
       inventoryGoldValue: result.inventoryGoldValue
     });
 
-    if (result.recoveryNotice && mode === "reply") {
-      await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
-    }
-
     const heroKeyboard = buildHeroAchievementsKeyboard({
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
@@ -70,9 +62,7 @@ export async function sendHero(
     await sendText(
       ctx,
       mode,
-      mode === "edit"
-        ? prefixResourceRecoveryNotice(heroText, result.recoveryNotice)
-        : heroText,
+      heroText,
       true,
       heroKeyboard ?? options.mainMenuKeyboard
     );

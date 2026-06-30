@@ -44,10 +44,6 @@ import {
   presentPersistentFightIntro
 } from "../presenters/fightPresenter";
 import { presentKorchmaDeepClosed } from "../presenters/tavernPresenter";
-import {
-  prefixResourceRecoveryNotice,
-  presentResourceRecoveryNotice
-} from "../presenters/resourceRecoveryPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
@@ -266,18 +262,7 @@ export async function sendFight(
     text: string,
     keyboard: Parameters<typeof sendText>[3] = false
   ): Promise<number | null> {
-    if (result.state !== "no-character" && result.recoveryNotice && mode === "reply") {
-      await sendText(ctx, "reply", presentResourceRecoveryNotice(result.recoveryNotice));
-    }
-
-    return sendText(
-      ctx,
-      mode,
-      result.state !== "no-character" && mode === "edit"
-        ? prefixResourceRecoveryNotice(text, result.recoveryNotice)
-        : text,
-      keyboard
-    );
+    return sendText(ctx, mode, text, keyboard);
   }
 }
 
