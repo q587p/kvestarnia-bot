@@ -50,16 +50,22 @@ describe("party session keyboard", () => {
       originLocationId: "barrel.big-brother"
     };
 
-    expect(inlineButtonTexts(buildPartySessionKeyboard(session, {
+    const keyboard = buildPartySessionKeyboard(session, {
       viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyABC12",
       includeBossStart: true,
       includeDevExpire: false
-    }))).toEqual([
+    });
+
+    expect(inlineButtonTexts(keyboard)).toEqual([
       "🚪 Вийти",
       "🧹 Скасувати збір",
       "🛢️ Почати рейд",
+      "🔗 Запросити в рейд",
       "🔎 Оновити"
     ]);
+    expect(keyboardText(keyboard)).toContain("https://t.me/share/url");
+    expect(keyboardText(keyboard)).toContain("party_partyABC12");
   });
 
   it("hides party boss action buttons from knocked-out participants", () => {
@@ -103,10 +109,12 @@ describe("party session keyboard", () => {
     });
 
     expect(inlineButtonTexts(buildPartyBossJournalKeyboard(session, 1))).toEqual([
-      "⬅️",
+      "⏮️ Початок",
+      "◀️ Назад",
       "2/3",
-      "➡️",
-      "🔎 Оновити"
+      "Далі ▶️",
+      "Кінець ⏭️",
+      "↩️ До результатів"
     ]);
   });
 

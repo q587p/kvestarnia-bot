@@ -108,6 +108,14 @@ export class PartyBossService {
     return this.sessions.findByPartyInviteToken(partyInviteToken);
   }
 
+  async listDueTimedOutSessions(options: { limit?: number } = {}): Promise<PartyBossSessionRecord[]> {
+    if (!this.isEnabled()) {
+      return [];
+    }
+
+    return this.sessions.listDueTimedOutSessions(this.clock(), options);
+  }
+
   async forceBigBarrelWinForTelegramUser(telegramUserId: bigint): Promise<PartyBossDevRaidWinResult> {
     if (!this.areDevHelpersEnabled()) {
       return { state: "disabled" };

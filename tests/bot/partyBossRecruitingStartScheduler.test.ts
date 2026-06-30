@@ -25,6 +25,7 @@ describe("party boss recruiting start scheduler", () => {
         } as unknown as PartySessionService,
         partyBoss: {
           isEnabled: () => true,
+          listDueTimedOutSessions: vi.fn().mockResolvedValue([]),
           startFromPartyForTelegramUser
         } as unknown as PartyBossService
       },
@@ -42,17 +43,72 @@ describe("party boss recruiting start scheduler", () => {
       "partyABC12",
       { allowExpiredRecruiting: true }
     );
-    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenCalledTimes(4);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
-    expect(sendMessage.mock.calls[0]?.[1]).toContain("Збір завершився. Старший Брат Бочки підняв кришку й почав бій.");
-    expect(sendMessage.mock.calls[0]?.[1]).toContain("🛢️ <b>Бій: 1 хід</b>");
-    expect(sendMessage.mock.calls[0]?.[1]).toContain("👹 Старший Брат Бочки: HP 174/174");
-    expect(sendMessage.mock.calls[0]?.[1]).toContain("⏳ На хід є 23 с.");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("🛢️ <b>Старший Брат Бочки втрутився</b>");
+    expect(sendMessage.mock.calls[2]?.[1]).toContain("Збір завершився. Старший Брат Бочки підняв кришку й почав бій.");
+    expect(sendMessage.mock.calls[2]?.[1]).toContain("🛢️ <b>Бій: 1 хід</b>");
+    expect(sendMessage.mock.calls[2]?.[1]).toContain("👹 Старший Брат Бочки: HP 174/174");
+    expect(sendMessage.mock.calls[2]?.[1]).toContain("⏳ На хід є 23 секунди.");
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
       parse_mode: "HTML"
     });
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:ba:partyABC12:1:a");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).not.toContain("📜 Журнал");
+    expect(JSON.stringify(sendMessage.mock.calls[2]?.[2])).toContain("v1:party:ba:partyABC12:1:a");
+    expect(JSON.stringify(sendMessage.mock.calls[2]?.[2])).not.toContain("📜 Журнал");
+  });
+
+  it("resolves due active party boss turns and sends updated battle cards", async () => {
+    const dueSession = makeBossSession();
+    const resolvedSession = makeBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [{
+          characterId: "character-42",
+          action: "defend",
+          origin: "timeout",
+          outcome: "defended",
+          damage: 0,
+          manaSpent: 0
+        }],
+        bossDamage: 0,
+        bossHpAfter: 174,
+        bossRetaliations: [{ characterId: "character-42", damage: 3, hpAfter: 57 }],
+        statusAfter: "active"
+      }]
+    });
+    const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({
+      state: "resolved",
+      session: resolvedSession
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const scheduler = createPartyBossRecruitingStartScheduler(
+      {
+        partySessions: {
+          isBigBarrelBrotherEnabled: () => false,
+          listDueRecruitingBigBarrelBrother: vi.fn()
+        } as unknown as PartySessionService,
+        partyBoss: {
+          isEnabled: () => true,
+          listDueTimedOutSessions: vi.fn().mockResolvedValue([dueSession]),
+          resolveDueTimedOutByToken
+        } as unknown as PartyBossService
+      },
+      {
+        api: {
+          sendMessage
+        }
+      } as unknown as Bot
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+
+    expect(resolveDueTimedOutByToken).toHaveBeenCalledWith("partyABC12");
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Таймер ходу спрацював.");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("🛢️ <b>Бій: 2 хід</b>");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Остання дія");
+    expect(sendMessage.mock.calls[0]?.[1]).not.toContain("Старший Брат Бочки втрутився");
   });
 });
 
@@ -93,7 +149,9 @@ function makePartySession(): PartySessionRecord {
   };
 }
 
-function makeBossSession(): PartyBossSessionRecord {
+function makeBossSession(
+  stateOverrides: Partial<PartyBossSessionRecord["state"]> = {}
+): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:13:00.000Z");
   const leader = makeCharacter("character-42", 42n, "Тестова Лідерка");
   const member = makeCharacter("character-93", 93n, "Друга Учасниця");
@@ -119,7 +177,8 @@ function makeBossSession(): PartyBossSessionRecord {
       makeBossParticipant("character-93", "Друга Учасниця")
     ],
     roundLog: [],
-    startedAt: now.toISOString()
+    startedAt: now.toISOString(),
+    ...stateOverrides
   };
 
   return {
@@ -128,7 +187,7 @@ function makeBossSession(): PartyBossSessionRecord {
     partyInviteToken: "partyABC12",
     leaderCharacterId: "character-42",
     status: "active",
-    turn: 1,
+    turn: state.turn,
     version: 1,
     rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
     bossKey: BIG_BARREL_BROTHER_BOSS_KEY,

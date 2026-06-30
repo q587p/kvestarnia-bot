@@ -244,6 +244,9 @@ describe("PrismaPartyBossRepository integration", () => {
     });
     expect(started.state).toBe("started");
 
+    expect((await bossRepository.listDueTimedOutSessions(new Date("2026-06-30T10:00:24.000Z")))
+      .map((session) => session.partyInviteToken)).toContain("party-token-due-timeout");
+
     const resolved = await bossRepository.resolveTimedOutByToken("party-token-due-timeout", {
       now: new Date("2026-06-30T10:00:24.000Z"),
       nextTurnExpiresAt: new Date("2026-06-30T10:00:47.000Z")
@@ -436,6 +439,73 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(latest.status).toBe("won");
     expect(latest.result?.status).toBe("won");
     expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
+  });
+
+  it("grants Big Barrel Brother attempt XP on loss without writing Barrel success", async () => {
+    await seedCharacter(prisma, "big-loss-xp-user", 5061n, "Смілива Програвальниця", {
+      hp: 1,
+      level: 8,
+      strength: 8,
+      dexterity: 8
+    });
+    await partyRepository.createForTelegramUser(5061n, {
+      ...partyInput("party-token-big-loss-xp"),
+      periodId: "2026-06-30T10:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5061n, {
+      partyInviteToken: "party-token-big-loss-xp",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: {
+        stateJson: {
+          ...started.session.state,
+          participants: started.session.state.participants.map((participant) => ({
+            ...participant,
+            status: "knocked-out" as const,
+            resources: {
+              ...participant.resources,
+              hp: 0
+            },
+            contribution: {
+              ...participant.contribution,
+              damageTaken: 1
+            }
+          }))
+        }
+      }
+    });
+
+    const resolved = await bossRepository.resolveTimedOutByToken(
+      "party-token-big-loss-xp",
+      resolveInput(),
+      "due"
+    );
+    const latest = expectPartyBossSession(resolved);
+    const character = await prisma.character.findUnique({
+      where: { id: "big-loss-xp-user-character" },
+      select: { xp: true, gold: true }
+    });
+
+    expect(latest.status).toBe("lost");
+    expect(character?.xp).toBeGreaterThan(0);
+    expect(character?.gold).toBe(0);
+    expect(await prisma.dailyAction.count({
+      where: {
+        characterId: "big-loss-xp-user-character",
+        key: "tavern.friday-barrel-raid",
+        localDate: "2026-06-30T10:23"
+      }
+    })).toBe(0);
   });
 
   it("blocks Big Barrel Brother start when a joined participant is under-level", async () => {

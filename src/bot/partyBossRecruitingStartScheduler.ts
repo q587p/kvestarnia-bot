@@ -2,7 +2,7 @@ import type { Bot } from "grammy";
 import type { PartyBossService } from "../services/partyBossService";
 import type { PartySessionService } from "../services/partySessionService";
 import { buildPartyBossKeyboard } from "./keyboards/partySessionKeyboard";
-import { presentPartyBoss } from "./presenters/partySessionPresenter";
+import { presentPartyBoss, presentPartyBossIntro } from "./presenters/partySessionPresenter";
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
@@ -22,31 +22,46 @@ export function createPartyBossRecruitingStartScheduler(
   let running = false;
 
   const tick = async (): Promise<number> => {
-    if (running || !services.partySessions.isBigBarrelBrotherEnabled() || !services.partyBoss.isEnabled()) {
+    if (running || !services.partyBoss.isEnabled()) {
       return 0;
     }
 
     running = true;
     try {
-      const due = await services.partySessions.listDueRecruitingBigBarrelBrother();
-      let started = 0;
+      let processed = 0;
 
-      for (const party of due) {
-        const result = await services.partyBoss.startFromPartyForTelegramUser(
-          party.leader.telegramUserId,
-          party.inviteToken,
-          { allowExpiredRecruiting: true }
-        );
+      if (services.partySessions.isBigBarrelBrotherEnabled()) {
+        const due = await services.partySessions.listDueRecruitingBigBarrelBrother();
 
-        if (!("session" in result) || result.state !== "started") {
+        for (const party of due) {
+          const result = await services.partyBoss.startFromPartyForTelegramUser(
+            party.leader.telegramUserId,
+            party.inviteToken,
+            { allowExpiredRecruiting: true }
+          );
+
+          if (!("session" in result) || result.state !== "started") {
+            continue;
+          }
+
+          processed += 1;
+          await notifyParticipants(bot, result.session, "started");
+        }
+      }
+
+      const dueTurns = await services.partyBoss.listDueTimedOutSessions();
+      for (const session of dueTurns) {
+        const result = await services.partyBoss.resolveDueTimedOutByToken(session.partyInviteToken);
+
+        if (result.state !== "resolved" && result.state !== "terminal") {
           continue;
         }
 
-        started += 1;
-        await notifyParticipants(bot, result.session);
+        processed += 1;
+        await notifyParticipants(bot, result.session, result.session.status === "active" ? "timeout" : "terminal");
       }
 
-      return started;
+      return processed;
     } finally {
       running = false;
     }
@@ -81,19 +96,41 @@ export function createPartyBossRecruitingStartScheduler(
 
 async function notifyParticipants(
   bot: Bot,
-  session: Parameters<typeof buildPartyBossKeyboard>[0]
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  reason: "started" | "timeout" | "terminal"
 ): Promise<void> {
-  await Promise.allSettled(session.participants.map((participant) =>
-    bot.api.sendMessage(
+  await Promise.allSettled(session.participants.map(async (participant) => {
+    if (reason === "started") {
+      await bot.api.sendMessage(
+        Number(participant.telegramUserId),
+        presentPartyBossIntro(session),
+        HTML_MESSAGE_OPTIONS
+      );
+    }
+
+    await bot.api.sendMessage(
       Number(participant.telegramUserId),
       presentPartyBoss(session, {
         viewerCharacterId: participant.id,
-        notice: "Збір завершився. Старший Брат Бочки підняв кришку й почав бій."
+        notice: presentNotificationNotice(reason)
       }),
       {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPartyBossKeyboard(session, participant.id)
       }
-    )
-  ));
+    );
+  }));
+}
+
+function presentNotificationNotice(reason: "started" | "timeout" | "terminal"): string {
+  switch (reason) {
+    case "started":
+      return "Збір завершився. Старший Брат Бочки підняв кришку й почав бій.";
+    case "timeout":
+      return "Таймер ходу спрацював. Корчма поставила мовчунів у захист.";
+    case "terminal":
+      return "Таймер ходу завершив рейд. Показую підсумок.";
+    default:
+      return "Рейд оновлено.";
+  }
 }

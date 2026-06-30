@@ -721,6 +721,7 @@ export async function sendTavernBarrel(
     await sendBigPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
       ? {
           session,
+          inviteUrl,
           viewerCharacterId: getPartyViewerCharacterId(session, telegramUserId),
           includeBossStart: session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
           includeDevExpire: options.partySessions.areDevHelpersEnabled()
@@ -766,6 +767,7 @@ async function sendBigPartyText(
     | false
     | {
         session: Parameters<typeof buildPartySessionKeyboard>[0];
+        inviteUrl?: string | null | undefined;
         viewerCharacterId?: string | null | undefined;
         includeBossStart?: boolean | undefined;
         includeDevExpire?: boolean | undefined;
@@ -777,6 +779,7 @@ async function sendBigPartyText(
       ? {
           reply_markup: buildPartySessionKeyboard(keyboard.session, {
             viewerCharacterId: keyboard.viewerCharacterId,
+            inviteUrl: keyboard.inviteUrl,
             includeBossStart: keyboard.includeBossStart,
             includeDevExpire: keyboard.includeDevExpire
           })

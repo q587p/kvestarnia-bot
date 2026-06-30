@@ -102,7 +102,7 @@ export function createRuntime(input: {
         }, bot);
         passageSearchCompletionScheduler.start();
       }
-      if (services.partySessions && services.partyBoss && services.partySessions.isBigBarrelBrotherEnabled()) {
+      if (services.partySessions && services.partyBoss && services.partyBoss.isEnabled()) {
         partyBossRecruitingStartScheduler = dependencies.createPartyBossRecruitingStartScheduler({
           partySessions: services.partySessions,
           partyBoss: services.partyBoss

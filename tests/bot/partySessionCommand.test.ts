@@ -94,7 +94,7 @@ describe("handlePartySessionCallback", () => {
   it("pushes the started boss card to other participants", async () => {
     const session = makeBossSession();
     const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "started", session });
-    const { ctx, editMessageText, sendMessage } = createCallbackContext();
+    const { ctx, editMessageText, reply, sendMessage } = createCallbackContext();
 
     await handlePartySessionCallback(
       ctx,
@@ -110,11 +110,16 @@ describe("handlePartySessionCallback", () => {
     );
 
     expect(startFromPartyForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken);
-    expect(messageText(editMessageText)).toContain("Тестового боса запущено");
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(messageText(editMessageText)).toContain("🧪 <b>Контрольний бос прокинувся</b>");
+    expect(reply).toHaveBeenCalledWith(
+      expect.stringContaining("Тестового боса запущено"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(93);
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Тестового боса запущено");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:ba");
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("🧪 <b>Контрольний бос прокинувся</b>");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Бойова картка тестового боса готова.");
+    expect(JSON.stringify(sendMessage.mock.calls[1]?.[2])).toContain("v1:party:ba");
   });
 
   it("rejects non-Big Barrel Brother boss starts when dev helper mode is disabled", async () => {
@@ -316,7 +321,7 @@ describe("handlePartySessionCallback", () => {
 
     expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
     expect(messageText(editMessageText)).toContain("📜 <b>Журнал тестового бою</b>");
-    expect(messageText(editMessageText)).toContain("Хід <b>1</b> · запис 1/1");
+    expect(messageText(editMessageText)).toContain("Початок: хід <b>1</b> · 1/1");
     expect(messageText(editMessageText)).toContain("Тестова Лідерка: удар: 7 шкоди");
     expect(messageText(editMessageText)).toContain("Друга Учасниця: расова дія: ефект без прямої шкоди");
   });

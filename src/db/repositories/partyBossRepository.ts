@@ -92,6 +92,7 @@ export interface PartyBossRepository {
 
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<PartyBossSessionRecord | null>;
   findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null>;
+  listDueTimedOutSessions(now: Date, options?: { limit?: number }): Promise<PartyBossSessionRecord[]>;
   forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult>;
 }
 

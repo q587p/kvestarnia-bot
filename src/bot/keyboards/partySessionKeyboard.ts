@@ -28,6 +28,7 @@ export function buildPartySessionKeyboard(
   session: PartySessionRecord,
   options: {
     viewerCharacterId?: string | null | undefined;
+    inviteUrl?: string | null | undefined;
     includeDevExpire?: boolean | undefined;
     includeBossStart?: boolean | undefined;
   } = {}
@@ -57,6 +58,10 @@ export function buildPartySessionKeyboard(
       keyboard.text("🛢️ Почати рейд", makePartyBossStartCallbackData(token)).row();
     } else if (options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🧪 Dev: бос-проба", makePartyBossStartCallbackData(token)).row();
+    }
+
+    if (session.originLocationId === "barrel.big-brother" && options.inviteUrl) {
+      keyboard.url("🔗 Запросити в рейд", buildTelegramShareUrl(options.inviteUrl)).row();
     }
 
     if (options.includeDevExpire) {
@@ -125,19 +130,21 @@ export function buildPartyBossJournalKeyboard(
 
   if (total > 1) {
     if (current > 0) {
-      keyboard.text("⬅️", makePartyBossJournalCallbackData(session.partyInviteToken, current - 1));
+      keyboard.text("⏮️ Початок", makePartyBossJournalCallbackData(session.partyInviteToken, 0));
+      keyboard.text("◀️ Назад", makePartyBossJournalCallbackData(session.partyInviteToken, current - 1));
+      keyboard.row();
     }
 
-    keyboard.text(`${current + 1}/${total}`, makePartyBossJournalCallbackData(session.partyInviteToken, current));
+    keyboard.text(`${current + 1}/${total}`, makePartyBossJournalCallbackData(session.partyInviteToken, current)).row();
 
     if (current + 1 < total) {
-      keyboard.text("➡️", makePartyBossJournalCallbackData(session.partyInviteToken, current + 1));
+      keyboard.text("Далі ▶️", makePartyBossJournalCallbackData(session.partyInviteToken, current + 1));
+      keyboard.text("Кінець ⏭️", makePartyBossJournalCallbackData(session.partyInviteToken, total - 1));
+      keyboard.row();
     }
-
-    keyboard.row();
   }
 
-  return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
+  return keyboard.text(session.status === "active" ? "↩️ До бою" : "↩️ До результатів", makePartySessionViewCallbackData(session.partyInviteToken));
 }
 
 export function buildPartySessionInviteKeyboard(session: PartySessionRecord): InlineKeyboard {
@@ -194,6 +201,12 @@ function clampPage(page: number, total: number): number {
   }
 
   return Math.min(Math.max(0, Math.floor(page)), Math.max(0, total - 1));
+}
+
+function buildTelegramShareUrl(inviteUrl: string): string {
+  const text = "Квестарня кличе у рейд до Старшого Брата Бочки.";
+
+  return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
 }
 
 function getPartyBossSkillButtonLabel(classId: string | undefined): string {

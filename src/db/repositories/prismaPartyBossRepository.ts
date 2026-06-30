@@ -374,6 +374,25 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     return session ? mapSession(session) : null;
   }
 
+  async listDueTimedOutSessions(now: Date, options: { limit?: number } = {}): Promise<PartyBossSessionRecord[]> {
+    const sessions = await this.prisma.partyBossSession.findMany({
+      where: {
+        status: "active",
+        turnExpiresAt: {
+          lte: now
+        }
+      },
+      orderBy: [
+        { turnExpiresAt: "asc" },
+        { id: "asc" }
+      ],
+      take: options.limit ?? 25,
+      include: partyBossInclude
+    });
+
+    return sessions.map(mapSession);
+  }
+
   async forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult> {
     return this.prisma.$transaction(async (tx): Promise<PartyBossDevWinResult> => {
       const session = await tx.partyBossSession.findFirst({
@@ -561,6 +580,14 @@ async function settleTerminalPartyBoss(
     }
 
     const remortMatches = remortCount === participant.remortCount;
+    if (state.status === "lost") {
+      const lossXp = remortMatches && isBigBarrelEligible(current.level, remortCount)
+        ? buildBigBarrelLossXp(state, participant)
+        : 0;
+      await settleBigParticipantAttempt(tx, current, participant, now, remortCount, lossXp);
+      continue;
+    }
+
     if (!periodId || state.status !== "won") {
       await settleBigParticipantResources(tx, participant, now);
       continue;
@@ -756,6 +783,40 @@ async function settleBigParticipantResources(
   });
 }
 
+async function settleBigParticipantAttempt(
+  tx: TxClient,
+  current: { id: string; level: number; xp: number },
+  participant: PartyBossState["participants"][number],
+  now: Date,
+  remortCount: number,
+  xp: number
+): Promise<void> {
+  const safeXp = Math.max(0, Math.floor(xp));
+  const oldLevel = Math.max(current.level, getLevelForXp(current.xp, { remortCount }));
+  const nextXp = current.xp + safeXp;
+  const newLevel = Math.max(current.level, getLevelForXp(nextXp, { remortCount }));
+
+  await tx.character.update({
+    where: {
+      id: participant.characterId
+    },
+    data: {
+      xp: nextXp,
+      level: newLevel,
+      hpCurrent: Math.max(0, Math.floor(participant.resources.hp)),
+      manaCurrent: Math.max(0, Math.floor(participant.resources.mana)),
+      hpRegenAt: now,
+      manaRegenAt: now
+    }
+  });
+
+  if (newLevel > oldLevel) {
+    await recordLevelMilestones(tx, participant.characterId, oldLevel, newLevel, undefined, {
+      remortCount
+    });
+  }
+}
+
 function buildBigBarrelReward(
   state: PartyBossState,
   participant: PartyBossState["participants"][number]
@@ -935,6 +996,28 @@ function mapCharacter(row: CharacterRow): PartyBossParticipantSnapshot {
     telegramUserId: row.user.telegramUserId,
     remortCount: row._count.remorts
   };
+}
+
+function buildBigBarrelLossXp(
+  state: PartyBossState,
+  participant: PartyBossState["participants"][number]
+): number {
+  if (!isMeaningfulBigBarrelParticipant(participant)) {
+    return 0;
+  }
+
+  const raidLevel = clamp(state.boss.level, 8, 13);
+  const actionBonus = participant.contribution.submittedActions > 0 ? 2 : 0;
+  const contactBonus = participant.contribution.damageDealt > 0 || participant.contribution.damageTaken > 0 ? 2 : 0;
+
+  return 5 + (raidLevel - 8) + actionBonus + contactBonus;
+}
+
+function isMeaningfulBigBarrelParticipant(participant: PartyBossState["participants"][number]): boolean {
+  return participant.contribution.submittedActions > 0 ||
+    participant.contribution.damageDealt > 0 ||
+    participant.contribution.damageTaken > 0 ||
+    participant.contribution.timeoutActions > 0;
 }
 
 function mapCharacterForCombat(

@@ -211,12 +211,40 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
     viewerCharacterId,
     notice: result.state === "started"
       ? isBigPartyBossSession(result.session)
-        ? "Старший Брат Бочки втрутився. Бій почався, піна свідчить проти всіх."
+        ? "Бойова картка рейду."
         : "Тестового боса запущено. Це не Старший Брат Бочки і не справжній рейдовий маршрут."
       : isBigPartyBossSession(result.session)
         ? "Показую поточний рейд Старшого Брата Бочки."
         : "Показую поточний тестовий бій."
   });
+}
+
+export function presentPartyBossIntro(session: PartyBossSessionRecord): string {
+  const state = session.state;
+  const big = isBigPartyBossSession(session);
+  const participantNames = state.participants.map((participant) => escapeHtml(participant.name)).join(", ");
+
+  if (!big) {
+    return [
+      "🧪 <b>Контрольний бос прокинувся</b>",
+      "",
+      `👥 Ватага: ${participantNames || "протокол ще шукає учасників"}`,
+      `👹 Проти вас: ${escapeHtml(state.boss.name ?? "Контрольний бос")} · рівень ${state.boss.level}`,
+      "",
+      "💡 Порада дня: відкрийте бойову картку й оберіть дію."
+    ].join("\n");
+  }
+
+  return [
+    "🛢️ <b>Старший Брат Бочки втрутився</b>",
+    "",
+    "Бочку довго ображали, штовхали й називали меблями. Тепер із піни виліз старший родич і попросив журнал пригодників.",
+    "",
+    `👥 Ватага: ${participantNames || "Корчмар рахує пальці"}`,
+    `👹 Проти вас: ${escapeHtml(state.boss.name ?? "Старший Брат Бочки")} · рівень ${state.boss.level}`,
+    "",
+    "💡 Порада дня: зайдіть у бойову картку й полікуйтеся або бийте. Якщо зависнути, Корчма поставить вас у захист."
+  ].join("\n");
 }
 
 export function presentPartyBossAction(result: PartyBossActionResult, viewerCharacterId?: string | null): string {
@@ -282,44 +310,25 @@ export function presentPartyBoss(
   const retaliationPlan = getPartyBossRetaliationPlan(state);
   const targetedCharacterIds = new Set(retaliationPlan.characterIds);
   const title = big ? `🛢️ <b>Бій: ${session.turn} хід</b>` : `🧪 <b>Бій: ${session.turn} хід</b>`;
-  const lines = [title, "", getBossStatusLine(session)];
+  const bossName = state.boss.name ?? (big ? "Старший Брат Бочки" : "Контрольний бос");
+  const lines = session.status === "active"
+    ? [title, ""]
+    : [title, "", getBossStatusLine(session), ""];
 
   if (options.notice) {
     lines.push(escapeHtml(options.notice), "");
   }
 
-  if (viewer) {
-    lines.push(`❤️ Ви: HP ${viewer.resources.hp}/${viewer.resources.hpMax} · мана ${viewer.resources.mana}/${viewer.resources.manaMax}`);
-  } else if (session.status === "active") {
-    lines.push("❤️ Ви: спільна картка не показує приватні HP і ману.");
-  }
-
-  lines.push(
-    `👹 ${escapeHtml(state.boss.name ?? "Контрольний бос")}: HP ${state.boss.hp}/${state.boss.hpMax}`,
-    `👥 Учасники: ${state.participants.length}`
-  );
-
-  if (big && session.status === "active") {
-    lines.push(`🎯 ${presentRetaliationPlan(retaliationPlan, state.participants)}`);
-  }
-
-  lines.push("");
-  lines.push(...state.participants.map((participant) => {
-    const marker = participant.status === "knocked-out"
-      ? "▫️"
-      : targetedCharacterIds.has(participant.characterId)
-        ? "🎯"
-        : "▪️";
-    return `${marker} ${escapeHtml(participant.name)} · ${participant.contribution.damageDealt} шкоди`;
+  lines.push(`👹 ${escapeHtml(bossName)}: HP ${state.boss.hp}/${state.boss.hpMax}`);
+  lines.push(...presentParticipantResourceRows(state.participants, {
+    viewerCharacterId: viewer?.characterId ?? null,
+    targetedCharacterIds
   }));
 
   const lastRound = state.roundLog.at(-1);
   if (lastRound) {
     lines.push("", `<b>Остання дія</b>`);
-    lines.push(`Ватага завдала ${lastRound.bossDamage} шкоди.`);
-    if (lastRound.bossRetaliations.length > 0) {
-      lines.push(`Бос огризнувся по ${formatParticipantCount(lastRound.bossRetaliations.length)}.`);
-    }
+    lines.push(...presentLastRoundLines(lastRound, state.participants, bossName));
     const nextFocus = big ? presentNextRetaliationFocus(state) : null;
     if (nextFocus) {
       lines.push(nextFocus);
@@ -329,12 +338,12 @@ export function presentPartyBoss(
   if (viewer && session.status === "active") {
     lines.push("");
     lines.push(viewerCanAct
-      ? `Оберіть одну дію. ⏳ На хід є ${formatSeconds(PARTY_BOSS_TURN_MS)}. Потім Квестарня поставить тих, хто завис, у захист.`
+      ? `<b>${escapeHtml(viewer.name)}</b>, що робимо?\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`
       : big
         ? "Ви вибиті з рейду. Картка лишається для спостереження й оновлення."
         : "Ви вибиті з тестового бою. Картка лишається для спостереження й оновлення.");
   } else if (session.status === "active") {
-    lines.push("", `⏳ На хід є ${formatSeconds(PARTY_BOSS_TURN_MS)}. Потім Квестарня поставить тих, хто завис, у захист.`);
+    lines.push("", `⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить мовчунів у захист.`);
   }
 
   if (session.status !== "active") {
@@ -343,7 +352,7 @@ export function presentPartyBoss(
         ? "Ватага перемогла. Участь зараховано як успішну Бочку цього періоду; нагороди збережено й не дублюються."
         : "Ватага перемогла контрольного боса. Нагород тут немає: це тестовий бій, а не рейдовий лут."
       : big
-        ? "Рейд завершено без успіху Бочки. Старі кнопки покажуть цей самий підсумок."
+        ? `Старший Брат Бочки вистояв із ${state.boss.hp}/${state.boss.hpMax} HP. Успіх Бочки не зараховано, але учасники з реальною участю отримали досвід за спробу.`
         : "Тестовий бій завершено без рейдової нагороди.");
   }
 
@@ -366,7 +375,12 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   }
 
   const round = rounds[page]!;
-  lines.push("", `Хід <b>${round.turn}</b> · запис ${page + 1}/${rounds.length}`);
+  const pageMarker = page === 0
+    ? "Початок"
+    : page === rounds.length - 1 && round.statusAfter !== "active"
+      ? "Кінець"
+      : "Запис";
+  lines.push("", `${pageMarker}: хід <b>${round.turn}</b> · ${page + 1}/${rounds.length}`);
 
   for (const action of round.actions) {
     const name = names.get(action.characterId) ?? "Учасник";
@@ -392,27 +406,62 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   return lines.join("\n");
 }
 
-function presentRetaliationPlan(
-  plan: ReturnType<typeof getPartyBossRetaliationPlan>,
-  participants: PartyBossSessionRecord["state"]["participants"]
-): string {
-  if (plan.kind === "broad") {
-    return "Ціль боса: вся жива ватага.";
-  }
-
-  if (plan.kind === "focused") {
-    const targetId = plan.characterIds[0];
-    const targetName = participants.find((participant) => participant.characterId === targetId)?.name ?? "учасник";
-    return `Ціль боса: ${escapeHtml(targetName)}.`;
-  }
-
-  return "Ціль боса: ніхто не підписався, але протокол нервує.";
-}
-
 function presentRetaliationNames(characterIds: string[], names: Map<string, string>): string {
   return characterIds
     .map((characterId) => escapeHtml(names.get(characterId) ?? "учасник"))
     .join(", ");
+}
+
+function presentParticipantResourceRows(
+  participants: PartyBossSessionRecord["state"]["participants"],
+  options: {
+    viewerCharacterId: string | null;
+    targetedCharacterIds: Set<string>;
+  }
+): string[] {
+  const ordered = [
+    ...participants.filter((participant) => participant.characterId === options.viewerCharacterId),
+    ...participants.filter((participant) => participant.characterId !== options.viewerCharacterId)
+  ];
+
+  return ordered.map((participant) => {
+    const isViewer = participant.characterId === options.viewerCharacterId;
+    const icon = isViewer ? "❤️" : participant.status === "knocked-out" ? "▫️" : "▪️";
+    const name = isViewer ? "Ви" : escapeHtml(participant.name);
+    const target = options.targetedCharacterIds.has(participant.characterId) && participant.status === "active"
+      ? " ← 🎯 ціль боса"
+      : "";
+    const knocked = participant.status === "knocked-out" ? " · вибито" : "";
+
+    return `${icon} ${name}: HP ${participant.resources.hp}/${participant.resources.hpMax} · мана ${participant.resources.mana}/${participant.resources.manaMax}${knocked}${target}`;
+  });
+}
+
+function presentLastRoundLines(
+  round: PartyBossSessionRecord["state"]["roundLog"][number],
+  participants: PartyBossSessionRecord["state"]["participants"],
+  bossName: string
+): string[] {
+  const names = new Map(participants.map((participant) => [participant.characterId, participant.name]));
+  const lines = round.actions.map((action) => {
+    const name = names.get(action.characterId) ?? "Учасник";
+    return `— ${escapeHtml(name)}: ${presentBossActionSummary(action)}.`;
+  });
+
+  if (round.bossDamage > 0) {
+    lines.push(`— Ватага зняла з ${escapeHtml(bossName)} ${round.bossDamage} HP.`);
+  }
+
+  if (round.bossRetaliations.length > 0) {
+    for (const retaliation of round.bossRetaliations) {
+      const name = names.get(retaliation.characterId) ?? "учасника";
+      lines.push(`— ${escapeHtml(bossName)} влучає у ${escapeHtml(name)} на ${retaliation.damage}.`);
+    }
+  } else if (round.statusAfter === "active") {
+    lines.push(`— ${escapeHtml(bossName)} не встиг огризнутися.`);
+  }
+
+  return lines;
 }
 
 export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
@@ -474,12 +523,12 @@ export function presentPartySession(
   }
 
   if (session.status === "recruiting" && options.inviteUrl) {
-    lines.push("", `Запрошення: <a href="${escapeHtml(options.inviteUrl)}">відчинити рейдові двері</a>`);
+    lines.push("", presentPartyInviteLine(session, options.inviteUrl));
   }
 
   if (session.status === "recruiting") {
     lines.push("", big
-      ? "Це справжній ризиковий маршрут: один спільний бос, приватні бойові картки й участь без точного прогнозу винагород."
+      ? "Це справжній ризиковий маршрут: один спільний бос, видимий стан ватаги й жодного точного прогнозу винагород. Коли час добіжить, рейд почнеться автоматично."
       : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
@@ -514,7 +563,7 @@ export function presentPartyNearbyInviteNotification(
     big
       ? "Це збір до групового рейду: бій почнеться після старту ватаги або коли добіжить час збору."
       : "Це поки збір тимчасової ватаги: без боса, нагород і бойового зобовʼязання.",
-    ...(inviteUrl ? ["", `Запрошення: <a href="${escapeHtml(inviteUrl)}">відчинити рейдові двері</a>`] : [])
+    ...(inviteUrl ? ["", presentPartyInviteLine(session, inviteUrl)] : [])
   ].join("\n");
 }
 
@@ -529,6 +578,10 @@ function getStatusLine(session: PartySessionRecord): string {
 
   if (session.status !== "recruiting") {
     return "Стан: архівний запис";
+  }
+
+  if (isBigBarrelParty(session)) {
+    return `Стан: рейд почнеться автоматично о ${formatTime(session.expiresAt)}. До того зайдіть у збір і полікуйтеся.`;
   }
 
   return `Стан: збір відкрито до ${formatTime(session.expiresAt)}`;
@@ -548,7 +601,7 @@ function getBossStatusLine(session: PartyBossSessionRecord): string {
     return "Стан: скасовано";
   }
 
-  return `Стан: ${session.turn} хід до ${formatTime(session.turnExpiresAt)}`;
+  return "Стан: бій триває";
 }
 
 function isBigPartyBossSession(session: PartyBossSessionRecord): boolean {
@@ -657,12 +710,42 @@ function presentNextRetaliationFocusAfterRound(
   return targetName ? `🎯 На наступний хід увага боса переходить на ${escapeHtml(targetName)}.` : null;
 }
 
-function formatParticipantCount(count: number): string {
-  return `${count} ${pluralizeUk(count, "учаснику", "учасниках", "учасниках")}`;
+function formatSecondsLong(milliseconds: number): string {
+  const seconds = Math.max(1, Math.round(milliseconds / 1000));
+  return `${seconds} ${pluralizeUk(seconds, "секунда", "секунди", "секунд")}`;
 }
 
-function formatSeconds(milliseconds: number): string {
-  return `${Math.max(1, Math.round(milliseconds / 1000))} с`;
+function presentPartyInviteLine(session: PartySessionRecord, inviteUrl: string): string {
+  const flavor = isBigBarrelParty(session)
+    ? BIG_BARREL_INVITE_LINES[pickInviteTemplateIndex(session.inviteToken)] ?? BIG_BARREL_INVITE_LINES[0]
+    : "Передайте це посилання тому, хто має прийти у ватагу:";
+
+  return `${flavor}\nЗапрошення: <a href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a>`;
+}
+
+const BIG_BARREL_INVITE_LINES = [
+  "Бочка підозріло хлюпає. Покличте ще когось, поки вона не навчилася рахувати:",
+  "Корчмар видав рейдові двері й попросив не грюкати ними по реальності:",
+  "Старший Брат Бочки вже дивиться у журнал. Ватага ще може стати більшою:",
+  "Піна шепоче, що самотні пригодники швидше стають легендами. Краще покличте підмогу:",
+  "Біля Бочки відкрився гуртовий протокол. Він не кусається першим:",
+  "Рейдовий кухоль просить більше рук і менше самовпевненості:",
+  "Корчма дозволяє форвардити цей шматок героїзму без довідки:",
+  "Якщо хтось питає, де починається біда, покажіть ці двері:",
+  "Бочка не проти глядачів, але корисніші ті, хто натискає кнопки:",
+  "Старший Брат Бочки любить повні списки. Допишіть ще пригодників:",
+  "Це посилання пахне піною, ризиком і дуже офіційним «ну спробуйте»:",
+  "Ватага ще збирається. Саме час покликати того, хто завжди «майже готовий»:",
+  "Корчмар лишив рейдові двері прочиненими рівно настільки, щоб їх переслати:"
+] as const;
+
+function pickInviteTemplateIndex(token: string): number {
+  let hash = 0;
+  for (const char of token) {
+    hash = (hash * 31 + char.charCodeAt(0)) % BIG_BARREL_INVITE_LINES.length;
+  }
+
+  return hash;
 }
 
 function clampPage(page: number, total: number): number {
