@@ -22,40 +22,41 @@ Freeze at combat start:
 
 ```text
 N = eligible participant count, clamp 1..8
-meanLevel = arithmetic mean of participant levels
-maxLevel = highest participant level
-raidLevel = clamp(ceil((meanLevel + maxLevel) / 2), 8, 13)
-bossLevel = min(13, raidLevel + 1)
+leaderLevel = current party leader level
+bossLevel = clamp(leaderLevel, 1, 13)
+rewardLevel = clamp(bossLevel, 8, 13)
 ```
 
-Weighting the maximum level prevents a high-level carry from lowering the boss tier by adding several level-8 characters. Equipment, remort memory, food, drinks and one-use items do not enter `raidLevel`.
+The boss follows the current party leader instead of the average roster, so a level-13 starter cannot lower the boss tier by inviting several lower-level characters. Equipment, remort memory, food, drinks and one-use items do not enter `bossLevel`.
 
 ## Starting boss HP formula
 
 ```text
-baseHp = N == 1 ? 150 : 105
+baseHp = N == 1 ? 150 : 132
+levelDelta = max(bossLevel - 8, 0)
 
 bossHp =
   baseHp
-  + 7 * (raidLevel - 8)
   + 42 * min(max(N - 1, 0), 4)
-  + 13 * max(N - 5, 0)
+  + 200 * max(N - 5, 0)
+  + 7 * levelDelta
+  + 11 * levelDelta * N
 ```
 
 Interpretation:
 
 - the higher solo base keeps solo entry possible as an opt-in challenge without making solo look reliable by default;
-- players `2–5` add a full action-economy tax;
-- players `6–8` add less HP so a larger party feels helpful;
-- larger groups are challenged mainly by more marked targets, watcher stacks and coordination, not only by a larger sponge.
+- players `2–5` add the entry action-economy tax used by the 3-player probe;
+- players `6–8` add a large-party coordination tax so a full group is favored but not automatic;
+- higher leader levels add both a flat tier bump and a per-participant tier tax, making low-level joiners under a high-level leader substantially riskier.
 
 ### HP table
 
-| Frozen raid level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+| Boss/leader level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 8 | 150 | 147 | 189 | 231 | 273 | 286 | 299 | 312 |
-| 10 | 164 | 161 | 203 | 245 | 287 | 300 | 313 | 326 |
-| 13 | 185 | 182 | 224 | 266 | 308 | 321 | 334 | 347 |
+| 8 | 150 | 174 | 216 | 258 | 300 | 500 | 700 | 900 |
+| 10 | 186 | 232 | 296 | 360 | 424 | 646 | 868 | 1090 |
+| 13 | 240 | 319 | 416 | 513 | 610 | 865 | 1120 | 1375 |
 
 The higher solo base is intentional for this feature-flagged MVP: solo entry is allowed, but it is not the baseline and should not look reliable without future explicit solo-preparation rules.
 
@@ -216,7 +217,7 @@ Rewards are individual, stored, replay-safe and never previewed exactly before c
 ### XP
 
 ```text
-participationXp = 23 + 3 * (raidLevel - 8)
+participationXp = 23 + 3 * (rewardLevel - 8)
 contributionXp = 0 | 5 | 13
 xp = participationXp + contributionXp
 ```
@@ -234,7 +235,7 @@ Typical successful range: `23–51 XP`.
 ### Gold
 
 ```text
-participationGold = 13 + 2 * (raidLevel - 8)
+participationGold = 13 + 2 * (rewardLevel - 8)
 contributionGold = 0 | 3 | 8
 gold = participationGold + contributionGold
 ```
@@ -250,7 +251,7 @@ A meaningful contributor receives stored `1 XP`, no gold, no item, and no succes
 Every full contributor receives one personal roll:
 
 - base chance `42%`;
-- level profile based on `raidLevel` with `lootPowerOffset +1` relative to ordinary center-route loot;
+- level profile based on `rewardLevel` with `lootPowerOffset +1` relative to ordinary center-route loot;
 - maximum one ordinary personal item;
 - reuse canonical candidate filtering, item grants, level requirements and replay storage;
 - no hidden duplicate grant on callback replay.
@@ -300,6 +301,8 @@ These are tuning targets, not public odds:
 | 4 solid players | `60–82%` |
 | 5 solid players | `72–90%` |
 | 6–8 baseline/solid players | `78–93%` |
+| full 8-player party at the same level as the leader/boss | `75–93%` |
+| level-13 leader with mostly lower-level joiners | substantially below the same-level full-party band |
 
 Additional gates:
 
@@ -318,6 +321,9 @@ The feature-flagged MVP checks a narrow CI-stable reducer probe by the 13-round 
 |---|---:|---:|---:|---:|---:|
 | Solo baseline, no manatky/remort/external buffs/items | 400 | 0 | 400 | 0 | `0%` |
 | Prepared 3-player entry party | 400 | 181 | 219 | 0 | `45.25%` |
+| Full same-level level-8 party | 400 | 350 | 48 | 2 | `87.5%` |
+| Full same-level level-13 party | 400 | 345 | 4 | 51 | `86.25%` |
+| Level-13 leader with seven lower-level joiners | 400 | 0 | 400 | 0 | `0%` |
 
 These are internal balance checks, not player-facing odds.
 

@@ -130,6 +130,21 @@ describe("party boss reducer", () => {
     expect(second.round.bossRetaliations.map((retaliation) => retaliation.characterId)).toEqual(["striker"]);
   });
 
+  it("scales Big Barrel Brother level from the current party leader instead of the average roster", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-leader-level",
+      variant: "big-barrel",
+      leaderCharacterId: "leader-13",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("helper-8", "Молодша", { hp: 58, level: 8, strength: 16, dexterity: 11 }),
+        participant("leader-13", "Ватажок", { hp: 82, level: 13, strength: 22, dexterity: 15 })
+      ]
+    });
+
+    expect(state.boss.level).toBe(13);
+  });
+
   it("keeps Big Barrel Brother broad retaliation on a fixed fourth-turn cadence", () => {
     let state = createPartyBossState({
       partySessionId: "big-broad-cadence",
@@ -323,11 +338,47 @@ describe("party boss reducer", () => {
     expect(report.winRate).toBeGreaterThanOrEqual(0.35);
     expect(report.winRate).toBeLessThanOrEqual(0.49);
   });
+
+  it("keeps full same-level Big Barrel Brother parties inside the 75 to 93 percent target band", () => {
+    const level8Report = simulatePartyBoss({
+      label: "big full same-level party: level 8",
+      variant: "big-barrel",
+      participants: fullBigBarrelParty(8),
+      actionFor: (_participant, turn) => turn % 3 === 0 ? "skill" : "attack"
+    });
+    const level13Report = simulatePartyBoss({
+      label: "big full same-level party: level 13",
+      variant: "big-barrel",
+      participants: fullBigBarrelParty(13),
+      actionFor: (_participant, turn) => turn % 3 === 0 ? "skill" : "attack"
+    });
+
+    expect(level8Report.winRate).toBeGreaterThanOrEqual(0.75);
+    expect(level8Report.winRate).toBeLessThanOrEqual(0.93);
+    expect(level13Report.winRate).toBeGreaterThanOrEqual(0.75);
+    expect(level13Report.winRate).toBeLessThanOrEqual(0.93);
+  });
+
+  it("makes a level 13 Big Barrel Brother leader with lower-level joiners substantially harder", () => {
+    const report = simulatePartyBoss({
+      label: "big level 13 leader with lower-level joiners",
+      variant: "big-barrel",
+      leaderCharacterId: "leader",
+      participants: [
+        participant("leader", "Ватажок", { hp: 82, mana: 20, level: 13, strength: 22, dexterity: 15, intelligence: 8, charisma: 8, luck: 8 }),
+        ...fullBigBarrelParty(8).slice(1)
+      ],
+      actionFor: (_participant, turn) => turn % 3 === 0 ? "skill" : "attack"
+    });
+
+    expect(report.winRate).toBeLessThanOrEqual(0.13);
+  });
 });
 
 function simulatePartyBoss(input: {
   label: string;
   variant?: "proof" | "big-barrel";
+  leaderCharacterId?: string;
   participants: ReturnType<typeof participant>[];
   actionFor: (participant: PartyBossState["participants"][number], turn: number) => PartyBossActionKey;
 }): { label: string; wins: number; losses: number; unresolvedByHorizon: number; winRate: number } {
@@ -336,14 +387,22 @@ function simulatePartyBoss(input: {
   let unresolvedByHorizon = 0;
 
   for (let run = 0; run < PARTY_BOSS_SIMULATION_RUNS; run += 1) {
+    const participants = input.participants.map((entry, index) => ({
+      ...entry,
+      characterId: `${entry.characterId}-${run}-${index}`
+    }));
+    const leaderIndex = input.leaderCharacterId
+      ? input.participants.findIndex((entry) => entry.characterId === input.leaderCharacterId)
+      : -1;
+    const leaderInput = leaderIndex >= 0 && participants[leaderIndex]
+      ? { leaderCharacterId: participants[leaderIndex].characterId }
+      : {};
     let state = createPartyBossState({
       partySessionId: `${input.label}:${run}`,
       variant: input.variant,
+      ...leaderInput,
       now: new Date("2026-06-30T10:00:00.000Z"),
-      participants: input.participants.map((entry, index) => ({
-        ...entry,
-        characterId: `${entry.characterId}-${run}-${index}`
-      }))
+      participants
     });
 
     for (
@@ -384,6 +443,21 @@ function simulatePartyBoss(input: {
     unresolvedByHorizon,
     winRate: wins / PARTY_BOSS_SIMULATION_RUNS
   };
+}
+
+function fullBigBarrelParty(level: 8 | 13): ReturnType<typeof participant>[] {
+  const high = level >= 13;
+
+  return [
+    participant("warrior-1", "Воїн 1", { hp: high ? 82 : 58, mana: 20, level, strength: high ? 22 : 16, dexterity: high ? 15 : 11, intelligence: 8, charisma: 8, luck: 8 }),
+    participant("warrior-2", "Воїн 2", { hp: high ? 82 : 58, mana: 20, level, strength: high ? 22 : 16, dexterity: high ? 15 : 11, intelligence: 8, charisma: 8, luck: 8 }),
+    participant("mage-1", "Маг 1", { hp: high ? 70 : 50, mana: high ? 36 : 28, level, strength: 9, dexterity: high ? 14 : 10, intelligence: high ? 24 : 17, charisma: 9, luck: 8, classId: "class.mage" }),
+    participant("mage-2", "Маг 2", { hp: high ? 70 : 50, mana: high ? 36 : 28, level, strength: 9, dexterity: high ? 14 : 10, intelligence: high ? 24 : 17, charisma: 9, luck: 8, classId: "class.mage" }),
+    participant("bard-1", "Бард 1", { hp: high ? 72 : 52, mana: high ? 34 : 26, level, strength: 9, dexterity: high ? 14 : 11, intelligence: 9, charisma: high ? 24 : 17, luck: 9, classId: "class.bard" }),
+    participant("bard-2", "Бард 2", { hp: high ? 72 : 52, mana: high ? 34 : 26, level, strength: 9, dexterity: high ? 14 : 11, intelligence: 9, charisma: high ? 24 : 17, luck: 9, classId: "class.bard" }),
+    participant("rogue-1", "Розбій 1", { hp: high ? 76 : 54, mana: 22, level, strength: high ? 18 : 14, dexterity: high ? 24 : 17, intelligence: 9, charisma: 10, luck: high ? 15 : 10, classId: "class.rogue" }),
+    participant("rogue-2", "Розбій 2", { hp: high ? 76 : 54, mana: 22, level, strength: high ? 18 : 14, dexterity: high ? 24 : 17, intelligence: 9, charisma: 10, luck: high ? 15 : 10, classId: "class.rogue" })
+  ];
 }
 
 function participant(

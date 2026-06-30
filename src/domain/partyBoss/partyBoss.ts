@@ -100,6 +100,7 @@ export interface PartyBossResult {
 export function createPartyBossState(input: {
   partySessionId: string;
   variant?: "proof" | "big-barrel";
+  leaderCharacterId?: string;
   participants: Array<{
     characterId: string;
     name: string;
@@ -110,17 +111,18 @@ export function createPartyBossState(input: {
 }): PartyBossState {
   const levels = input.participants.map((participant) => participant.combatStats.level);
   const meanLevel = Math.round(levels.reduce((sum, level) => sum + level, 0) / Math.max(1, levels.length));
-  const maxLevel = Math.max(...levels, 1);
   const level = Math.max(
     1,
     meanLevel
   );
   const participantCount = Math.max(1, input.participants.length);
   const isBig = input.variant === "big-barrel";
-  const bigRaidLevel = clamp(Math.ceil((meanLevel + maxLevel) / 2), 8, 13);
-  const bossLevel = isBig ? Math.min(13, bigRaidLevel + 1) : level;
+  const leader = input.leaderCharacterId
+    ? input.participants.find((participant) => participant.characterId === input.leaderCharacterId)
+    : input.participants[0];
+  const bossLevel = isBig ? clamp(Math.floor(leader?.combatStats.level ?? level), 1, 13) : level;
   const bossHpMax = isBig
-    ? getBigBarrelBossHp(bigRaidLevel, participantCount)
+    ? getBigBarrelBossHp(bossLevel, participantCount)
     : 23 + level * 8 + participantCount * 13;
 
   return {
@@ -425,15 +427,17 @@ function selectBigBarrelRetaliationTarget(
     : leader;
 }
 
-function getBigBarrelBossHp(raidLevel: number, participantCount: number): number {
+function getBigBarrelBossHp(bossLevel: number, participantCount: number): number {
   const count = clamp(Math.floor(participantCount), 1, 8);
   const baseHp = count === 1 ? 150 : 132;
+  const levelDelta = Math.max(0, bossLevel - 8);
 
   return (
     baseHp +
-    7 * (raidLevel - 8) +
     42 * Math.min(Math.max(count - 1, 0), 4) +
-    13 * Math.max(count - 5, 0)
+    200 * Math.max(count - 5, 0) +
+    7 * levelDelta +
+    11 * levelDelta * count
   );
 }
 

@@ -173,6 +173,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const state = createPartyBossState({
         partySessionId: party.id,
         variant: isBigBarrelParty ? "big-barrel" : "proof",
+        leaderCharacterId: party.leaderCharacterId,
         now: input.now,
         participants: joined.map((participant) => ({
           characterId: participant.characterId,
@@ -687,7 +688,7 @@ function buildBigBarrelReward(
     participant.contribution.submittedActions >= Math.ceil(availableRounds / 2) &&
     (participant.contribution.damageDealt > 0 || participant.contribution.damageTaken > 0);
   const tier = full ? "full" : meaningful ? "partial" : "none";
-  const raidLevel = clamp(state.boss.level - 1, 8, 13);
+  const raidLevel = clamp(state.boss.level, 8, 13);
   const tierXp = tier === "full" ? 13 : tier === "partial" ? 5 : 0;
   const tierGold = tier === "full" ? 8 : tier === "partial" ? 3 : 0;
 
