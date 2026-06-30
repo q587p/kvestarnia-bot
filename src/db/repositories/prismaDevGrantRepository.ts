@@ -1,6 +1,9 @@
 import type { Character, Prisma, PrismaClient } from "@prisma/client";
 import { items } from "../../content";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import type { CombatState } from "../../domain/combat";
+import type { PartyBossState } from "../../domain/partyBoss/partyBoss";
+import type { TurnBasedDuelState } from "../../domain/duels/turnBasedDuel";
 import { getLevelForXp } from "../../domain/progression/level";
 import type { CharacterRecord } from "./characterRepository";
 import type {
@@ -14,6 +17,7 @@ import type {
 import type { ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
+import { parseCombatState } from "./prismaSoloCombatSessionRepository";
 
 export class PrismaDevGrantRepository implements DevGrantRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -156,13 +160,15 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
         },
         include: currentLocationInclude
       });
+      const combat = await healActiveCombatForCharacter(tx, character.id, amount);
 
       return {
         character: {
           ...toCharacterRecord(updated),
           hpCurrent: Math.min(nextHp, hpMax),
           hpMax
-        }
+        },
+        ...(combat ? { combat } : {})
       };
     });
   }
@@ -329,6 +335,224 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
       };
     });
   }
+}
+
+async function healActiveCombatForCharacter(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  amount?: number
+): Promise<DevGrantCharacterResult["combat"] | null> {
+  const lease = await tx.activeCombatLease.findUnique({
+    where: { characterId }
+  });
+
+  if (!lease) {
+    return null;
+  }
+
+  if (lease.kind === "solo-combat") {
+    return healActiveSoloCombat(tx, lease.referenceId, amount);
+  }
+
+  if (lease.kind === "party-boss") {
+    return healActivePartyBossCombat(tx, lease.referenceId, characterId, amount);
+  }
+
+  if (lease.kind === "turn-based-duel") {
+    return healActiveTurnBasedDuelCombat(tx, lease.referenceId, characterId, amount);
+  }
+
+  return null;
+}
+
+async function healActiveSoloCombat(
+  tx: Prisma.TransactionClient,
+  sessionId: string,
+  amount?: number
+): Promise<DevGrantCharacterResult["combat"] | null> {
+  const session = await tx.soloCombatSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      status: true,
+      stateJson: true
+    }
+  });
+  const state = session?.status === "active" ? parseCombatState(session.stateJson) : null;
+
+  if (!session || !state || state.status !== "active") {
+    return null;
+  }
+
+  const nextHp = applyDevHealAmount(state.hero.hp, state.hero.hpMax, amount);
+  const nextState: CombatState = {
+    ...state,
+    hero: {
+      ...state.hero,
+      hp: nextHp
+    }
+  };
+
+  await tx.soloCombatSession.update({
+    where: { id: session.id },
+    data: {
+      stateJson: nextState as unknown as Prisma.InputJsonValue
+    }
+  });
+
+  return {
+    kind: "solo-combat",
+    hpCurrent: nextHp,
+    hpMax: state.hero.hpMax
+  };
+}
+
+async function healActivePartyBossCombat(
+  tx: Prisma.TransactionClient,
+  partySessionId: string,
+  characterId: string,
+  amount?: number
+): Promise<DevGrantCharacterResult["combat"] | null> {
+  const session = await tx.partyBossSession.findUnique({
+    where: { partySessionId },
+    select: {
+      id: true,
+      status: true,
+      version: true,
+      stateJson: true
+    }
+  });
+  const state = session?.status === "active"
+    ? parsePartyBossStateForDevHeal(session.stateJson)
+    : null;
+  const participant = state?.participants.find((candidate) => candidate.characterId === characterId);
+
+  if (!session || !state || !participant) {
+    return null;
+  }
+
+  const nextHp = applyDevHealAmount(participant.resources.hp, participant.resources.hpMax, amount);
+  const nextState: PartyBossState = {
+    ...state,
+    participants: state.participants.map((candidate) =>
+      candidate.characterId === characterId
+        ? {
+            ...candidate,
+            status: nextHp > 0 ? "active" : candidate.status,
+            resources: {
+              ...candidate.resources,
+              hp: nextHp
+            }
+          }
+        : candidate
+    )
+  };
+
+  await tx.partyBossSession.update({
+    where: { id: session.id },
+    data: {
+      version: session.version + 1,
+      stateJson: nextState as unknown as Prisma.InputJsonValue
+    }
+  });
+
+  return {
+    kind: "party-boss",
+    hpCurrent: nextHp,
+    hpMax: participant.resources.hpMax
+  };
+}
+
+async function healActiveTurnBasedDuelCombat(
+  tx: Prisma.TransactionClient,
+  sessionId: string,
+  characterId: string,
+  amount?: number
+): Promise<DevGrantCharacterResult["combat"] | null> {
+  const session = await tx.duelCombatSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      status: true,
+      version: true,
+      stateJson: true
+    }
+  });
+  const state = session?.status === "active"
+    ? parseTurnBasedDuelStateForDevHeal(session.stateJson)
+    : null;
+  const side = state ? findDuelParticipantSide(state, characterId) : null;
+
+  if (!session || !state || !side) {
+    return null;
+  }
+
+  const participant = state.participants[side];
+  const nextHp = applyDevHealAmount(participant.hp, participant.hpMax, amount);
+  const nextState: TurnBasedDuelState = {
+    ...state,
+    participants: {
+      ...state.participants,
+      [side]: {
+        ...participant,
+        hp: nextHp
+      }
+    }
+  };
+
+  await tx.duelCombatSession.update({
+    where: { id: session.id },
+    data: {
+      version: session.version + 1,
+      stateJson: nextState as unknown as Prisma.InputJsonValue
+    }
+  });
+
+  return {
+    kind: "turn-based-duel",
+    hpCurrent: nextHp,
+    hpMax: participant.hpMax
+  };
+}
+
+function applyDevHealAmount(current: number, max: number, amount?: number): number {
+  const safeMax = Math.max(1, Math.floor(max));
+  const safeCurrent = Math.max(0, Math.floor(current));
+
+  return amount === undefined
+    ? safeMax
+    : Math.min(safeMax, safeCurrent + Math.max(0, Math.floor(amount)));
+}
+
+function parsePartyBossStateForDevHeal(value: Prisma.JsonValue): PartyBossState | null {
+  if (!isRecord(value) || value.status !== "active" || !Array.isArray(value.participants)) {
+    return null;
+  }
+
+  return value as unknown as PartyBossState;
+}
+
+function parseTurnBasedDuelStateForDevHeal(value: Prisma.JsonValue): TurnBasedDuelState | null {
+  if (!isRecord(value) || value.status !== "active" || !isRecord(value.participants)) {
+    return null;
+  }
+
+  return value as unknown as TurnBasedDuelState;
+}
+
+function findDuelParticipantSide(
+  state: TurnBasedDuelState,
+  characterId: string
+): "challenger" | "target" | null {
+  if (state.participants.challenger.characterId === characterId) {
+    return "challenger";
+  }
+
+  return state.participants.target.characterId === characterId ? "target" : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const currentLocationInclude = {

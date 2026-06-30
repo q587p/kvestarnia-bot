@@ -80,6 +80,20 @@ describe("dev grant commands", () => {
     );
   });
 
+  it("shows active combat HP when dev heal updates a battle state", async () => {
+    const devGrant = fakeDevGrantService({
+      combatHeal: {
+        kind: "party-boss",
+        hpCurrent: 48,
+        hpMax: 48
+      }
+    });
+    const calls = await captureMessageCalls("/dev_heal", devGrant);
+
+    expect(String(calls.at(-1)?.payload.text)).toContain("HP: 20/20");
+    expect(String(calls.at(-1)?.payload.text)).toContain("Бій: HP 48/48");
+  });
+
   it("does not register value-granting commands when disabled", async () => {
     const devGrant = fakeDevGrantService({ enabled: false });
     const calls = await captureMessageCalls("/dev_add_xp 7", devGrant);
@@ -172,7 +186,10 @@ async function captureMessageCalls(
   return calls;
 }
 
-function fakeDevGrantService(input: { enabled?: boolean } = {}): {
+function fakeDevGrantService(input: {
+  enabled?: boolean;
+  combatHeal?: Extract<DevGrantResult, { state: "updated"; kind: "heal" }>["combat"];
+} = {}): {
   isEnabled: ReturnType<typeof vi.fn<() => boolean>>;
   addLevel: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
   addXp: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
@@ -248,7 +265,8 @@ function fakeDevGrantService(input: { enabled?: boolean } = {}): {
       state: "updated",
       kind: "heal",
       amount: amount ?? character.hpMax,
-      character
+      character,
+      ...(input.combatHeal ? { combat: input.combatHeal } : {})
     })),
     restoreMana: vi.fn((_telegramUserId, amount) => Promise.resolve({
       state: "updated",

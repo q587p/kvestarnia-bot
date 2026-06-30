@@ -59,7 +59,10 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
     return [
       "🧪 Dev: персонажа підлатано.",
       "",
-      `HP: ${result.character.hpCurrent}/${result.character.hpMax}`
+      `HP: ${result.character.hpCurrent}/${result.character.hpMax}`,
+      ...(result.combat
+        ? [`Бій: HP ${result.combat.hpCurrent}/${result.combat.hpMax}`]
+        : [])
     ].join("\n");
   }
 
