@@ -82,9 +82,7 @@ describe("health server", () => {
     expect(text).toContain("перший справжній гуртовий маршрут");
     expect(text).toContain("У грі вже");
     expect(text).toContain("пригодники 8+ рівня або пригодники з памʼяттю реморту після 3 рівня");
-    expect(text).toContain(
-      "перемога зараховує Бочку цього періоду"
-    );
+    expect(text).toContain("перемога відкриває післярейдові частування");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
