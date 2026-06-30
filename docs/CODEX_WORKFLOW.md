@@ -134,6 +134,7 @@ Check:
 - No Telegram imports leaked into `src/domain/`.
 - Player-facing text is Ukrainian and Telegram-friendly.
 - Rewards and quest progress are idempotent under duplicate callbacks.
+- New player-facing gameplay has matching rewardless achievements/hooks, or the task doc and PR body explicitly explain why no durable achievement fits.
 - Tests cover new runtime logic.
 - No magic numbers replaced content/balance configuration without reason.
 - Scope did not expand beyond the task doc.

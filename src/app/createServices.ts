@@ -147,7 +147,7 @@ export function createServices(
         config.partySessionDevHelpersEnabled ||
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
-    }),
+    }, undefined, achievements),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: config.nodeEnv !== "production" ||
         config.partySessionFoundationEnabled ||

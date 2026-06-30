@@ -8,6 +8,7 @@ import type {
 } from "../db/repositories/partyBossRepository";
 import { PARTY_BOSS_TURN_MS } from "../domain/partyBoss/partyBoss";
 import { systemClock, type Clock } from "../shared/time";
+import type { AchievementService } from "./achievementService";
 
 export interface PartyBossServiceOptions {
   enabled: boolean;
@@ -22,7 +23,8 @@ export class PartyBossService {
   constructor(
     private readonly sessions: PartyBossRepository,
     private readonly options: PartyBossServiceOptions,
-    private readonly clock: Clock = systemClock
+    private readonly clock: Clock = systemClock,
+    private readonly achievements?: AchievementService
   ) {}
 
   isEnabled(): boolean {
@@ -62,10 +64,13 @@ export class PartyBossService {
     }
 
     const now = this.clock();
-    return this.sessions.submitActionForTelegramUser(telegramUserId, partyInviteToken, turn, action, {
+    const result = await this.sessions.submitActionForTelegramUser(telegramUserId, partyInviteToken, turn, action, {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     });
+    await this.trackAchievementEvents(result);
+
+    return result;
   }
 
   async resolveDueTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {
@@ -74,10 +79,13 @@ export class PartyBossService {
     }
 
     const now = this.clock();
-    return this.sessions.resolveTimedOutByToken(partyInviteToken, {
+    const result = await this.sessions.resolveTimedOutByToken(partyInviteToken, {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "due");
+    await this.trackAchievementEvents(result);
+
+    return result;
   }
 
   async forceResolveTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {
@@ -86,10 +94,13 @@ export class PartyBossService {
     }
 
     const now = this.clock();
-    return this.sessions.resolveTimedOutByToken(partyInviteToken, {
+    const result = await this.sessions.resolveTimedOutByToken(partyInviteToken, {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "force-dev");
+    await this.trackAchievementEvents(result);
+
+    return result;
   }
 
   async getActiveForTelegramUser(telegramUserId: bigint): Promise<PartyBossSessionRecord | null> {
@@ -122,6 +133,21 @@ export class PartyBossService {
     }
 
     return this.sessions.forceBigBarrelWinForTelegramUser(telegramUserId, this.clock());
+  }
+
+  private async trackAchievementEvents(result: PartyBossActionResult): Promise<void> {
+    if (!this.achievements || !("achievementEvents" in result) || !result.achievementEvents) {
+      return;
+    }
+
+    for (const event of result.achievementEvents) {
+      await this.achievements.trackEventSafely({
+        type: event.type,
+        characterId: event.characterId,
+        occurredAt: event.occurredAt,
+        sourceId: event.sourceId
+      });
+    }
   }
 }
 

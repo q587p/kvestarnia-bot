@@ -32,6 +32,13 @@ export interface PartyBossSessionRecord {
   participants: PartyBossParticipantSnapshot[];
 }
 
+export interface PartyBossAchievementEventRecord {
+  type: "barrel.raid.claimed" | "barrel.raid.lost";
+  characterId: string;
+  sourceId: string;
+  occurredAt: Date;
+}
+
 export type PartyBossStartResult =
   | { state: "disabled" }
   | { state: "no-character" }
@@ -48,7 +55,11 @@ export type PartyBossActionResult =
   | { state: "disabled" }
   | { state: "no-character" }
   | { state: "not-found" }
-  | { state: "not-participant" | "stale" | "queued" | "duplicate" | "resolved" | "terminal"; session: PartyBossSessionRecord };
+  | {
+      state: "not-participant" | "stale" | "queued" | "duplicate" | "resolved" | "terminal";
+      session: PartyBossSessionRecord;
+      achievementEvents?: PartyBossAchievementEventRecord[];
+    };
 
 export type PartyBossDevWinResult =
   | { state: "no-active" }

@@ -185,7 +185,7 @@ describe("application factory wiring", () => {
           config.partySessionDevHelpersEnabled ||
           config.bigBarrelBrotherRaidEnabled,
         devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
-      })
+      }, undefined, achievements)
     `));
     expect(source).toContain(compact(`
       partySessions: new PartySessionService(repositories.partySessions, {

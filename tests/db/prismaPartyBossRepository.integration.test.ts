@@ -361,6 +361,13 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(resolved.state).toBe("resolved");
     expect(latest.status).toBe("won");
     expect(latest.rulesVersion).toBe("big-barrel-brother-v1");
+    expect(resolved.achievementEvents).toMatchObject([
+      {
+        type: "barrel.raid.claimed",
+        characterId: "big-leader-user-character",
+        occurredAt: resolveInput().now
+      }
+    ]);
     expect(await prisma.dailyAction.count({
       where: {
         key: "tavern.friday-barrel-raid",
@@ -371,6 +378,7 @@ describe("PrismaPartyBossRepository integration", () => {
     const replay = await bossRepository.resolveTimedOutByToken("party-token-big", resolveInput(), "due");
 
     expect(replay.state).toBe("terminal");
+    expect(replay.achievementEvents).toBeUndefined();
     expect(await prisma.dailyAction.count({
       where: {
         key: "tavern.friday-barrel-raid",
@@ -497,6 +505,14 @@ describe("PrismaPartyBossRepository integration", () => {
     });
 
     expect(latest.status).toBe("lost");
+    expect(resolved.achievementEvents).toEqual([
+      {
+        type: "barrel.raid.lost",
+        characterId: "big-loss-xp-user-character",
+        sourceId: started.session.id,
+        occurredAt: resolveInput().now
+      }
+    ]);
     expect(character?.xp).toBeGreaterThan(0);
     expect(character?.gold).toBe(0);
     expect(await prisma.dailyAction.count({
@@ -587,6 +603,13 @@ describe("PrismaPartyBossRepository integration", () => {
     const latest = expectPartyBossSession(resolved);
 
     expect(latest.status).toBe("won");
+    expect(resolved.achievementEvents).toMatchObject([
+      {
+        type: "barrel.raid.claimed",
+        characterId: "big-remort-eligible-user-character",
+        occurredAt: resolveInput().now
+      }
+    ]);
     expect(await prisma.dailyAction.count({
       where: {
         characterId: "big-remort-eligible-user-character",
@@ -676,6 +699,7 @@ describe("PrismaPartyBossRepository integration", () => {
     const latest = expectPartyBossSession(resolved);
 
     expect(latest.status).toBe("won");
+    expect(resolved.achievementEvents).toBeUndefined();
     expect(await prisma.dailyAction.count({
       where: {
         characterId: "big-duplicate-user-character",

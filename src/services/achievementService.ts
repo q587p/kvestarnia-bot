@@ -644,6 +644,7 @@ function getRecalculationProgress(
     case "duel.quick.resolved":
     case "duel.turnbased.resolved":
     case "barrel.raid.claimed":
+    case "barrel.raid.lost":
     case "korchma.round.purchased":
     case "item.gift.sent":
     case "item.gift.received":
@@ -739,6 +740,7 @@ function getRecalculationOccurredAt(
     case "duel.quick.resolved":
     case "duel.turnbased.resolved":
     case "barrel.raid.claimed":
+    case "barrel.raid.lost":
     case "korchma.round.purchased":
     case "item.gift.sent":
     case "item.gift.received":
@@ -824,6 +826,7 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "duel.quick.resolved":
     case "duel.turnbased.resolved":
     case "barrel.raid.claimed":
+    case "barrel.raid.lost":
     case "korchma.round.purchased":
     case "item.gift.sent":
     case "item.gift.received":

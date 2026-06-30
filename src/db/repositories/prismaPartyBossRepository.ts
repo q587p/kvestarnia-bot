@@ -13,6 +13,7 @@ import {
 import { getLevelForXp } from "../../domain/progression/level";
 import {
   buildPartyBossCombatStats,
+  type PartyBossAchievementEventRecord,
   type PartyBossActionResult,
   type PartyBossDevWinResult,
   type PartyBossParticipantSnapshot,
@@ -314,7 +315,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
     if (inserted.state === "queued" || inserted.state === "duplicate") {
       const resolved = await this.resolveIfReady(inserted.session.id, "all-actions", input);
-      return resolved ? { state: "resolved", session: resolved } : inserted;
+      return resolved ? { state: "resolved", ...resolved } : inserted;
     }
 
     return inserted;
@@ -340,7 +341,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       input
     );
     return resolved
-      ? { state: "resolved", session: resolved }
+      ? { state: "resolved", ...resolved }
       : { state: "queued", session: mapSession(session) };
   }
 
@@ -469,15 +470,18 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     sessionId: string,
     mode: "all-actions" | "timeout-due" | "timeout-force-dev",
     input: PartyBossResolveInput
-  ): Promise<PartyBossSessionRecord | null> {
-    return this.prisma.$transaction(async (tx): Promise<PartyBossSessionRecord | null> => {
+  ): Promise<{ session: PartyBossSessionRecord; achievementEvents?: PartyBossAchievementEventRecord[] } | null> {
+    return this.prisma.$transaction(async (tx): Promise<{
+      session: PartyBossSessionRecord;
+      achievementEvents?: PartyBossAchievementEventRecord[];
+    } | null> => {
       const session = await tx.partyBossSession.findUnique({
         where: { id: sessionId },
         include: partyBossInclude
       });
 
       if (!session || session.status !== "active") {
-        return session ? mapSession(session) : null;
+        return session ? { session: mapSession(session) } : null;
       }
 
       const state = parseState(session);
@@ -542,8 +546,9 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         }
       }
 
+      let achievementEvents: PartyBossAchievementEventRecord[] = [];
       if (status !== "active") {
-        await settleTerminalPartyBoss(tx, session, resolved.state, input.now);
+        achievementEvents = await settleTerminalPartyBoss(tx, session, resolved.state, input.now);
         await releasePartyBossLocks(tx, session.partySessionId);
       }
 
@@ -552,7 +557,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         include: partyBossInclude
       });
 
-      return current ? mapSession(current) : null;
+      return current
+        ? {
+            session: mapSession(current),
+            ...(achievementEvents.length > 0 ? { achievementEvents } : {})
+          }
+        : null;
     });
   }
 }
@@ -562,9 +572,10 @@ async function settleTerminalPartyBoss(
   session: PartyBossRow,
   state: PartyBossState,
   now: Date
-): Promise<void> {
+): Promise<PartyBossAchievementEventRecord[]> {
+  const achievementEvents: PartyBossAchievementEventRecord[] = [];
   if (!isBigBarrelBrotherState(state)) {
-    return;
+    return achievementEvents;
   }
 
   const periodId = session.partySession.periodId;
@@ -586,6 +597,14 @@ async function settleTerminalPartyBoss(
         ? buildBigBarrelLossXp(state, participant)
         : 0;
       await settleBigParticipantAttempt(tx, current, participant, now, remortCount, lossXp);
+      if (lossXp > 0) {
+        achievementEvents.push({
+          type: "barrel.raid.lost",
+          characterId: participant.characterId,
+          sourceId: session.id,
+          occurredAt: now
+        });
+      }
       continue;
     }
 
@@ -646,6 +665,12 @@ async function settleTerminalPartyBoss(
           }
         }
       }
+    });
+    achievementEvents.push({
+      type: "barrel.raid.claimed",
+      characterId: participant.characterId,
+      sourceId: action.id,
+      occurredAt: now
     });
 
     await tx.character.update({
@@ -719,6 +744,8 @@ async function settleTerminalPartyBoss(
       });
     }
   }
+
+  return achievementEvents;
 }
 
 async function hasIneligibleBigBarrelParticipant(

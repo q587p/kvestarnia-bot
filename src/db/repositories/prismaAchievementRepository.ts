@@ -24,6 +24,8 @@ const MIMIC_SHAWARMA_MONSTER_ID = "monster.mimic-shawarma";
 const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
 const DAILY_KORCHMA_ROUND_REWARD_KEY = "quest.korchma-daily-round.reward";
 const YEGER_UNQUIET_TRIAL_COMPLETED_KEY = "quest.yeger.unquiet-trial.completed";
+const BARREL_RAID_ACTION_KEY = "tavern.friday-barrel-raid";
+const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
 const LEVEL_MILESTONE_KEY_PATTERN = /^milestone\.(?:remort\.\d+\.)?level\.(\d+)$/u;
 const TRAINING_DOPPELGANGER_MONSTER_ID = "monster.training-doppelganger";
 const YEGER_RANGER_FREE_BANDAGE_KEY = "yeger.bandage.supply.ranger-free";
@@ -222,6 +224,8 @@ export class PrismaAchievementRepository implements AchievementRepository {
       resolvedTurnBasedDuels,
       duelDefendActions,
       claimedBarrelRaids,
+      claimedBarrelRaidActions,
+      lostBigBarrelRaids,
       korchmaRounds,
       completedGiftsSent,
       completedGiftsReceived,
@@ -377,8 +381,31 @@ export class PrismaAchievementRepository implements AchievementRepository {
           characterId,
           rewardClaimedAt: { not: null }
         },
-        select: { rewardClaimedAt: true, updatedAt: true },
+        select: { periodId: true, rewardClaimedAt: true, updatedAt: true },
         orderBy: [{ rewardClaimedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.dailyAction.findMany({
+        where: {
+          characterId,
+          key: BARREL_RAID_ACTION_KEY
+        },
+        select: { localDate: true, createdAt: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.partyBossSession.findMany({
+        where: {
+          status: "lost",
+          rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
+          partySession: {
+            participants: {
+              some: {
+                characterId
+              }
+            }
+          }
+        },
+        select: { stateJson: true, completedAt: true, updatedAt: true },
+        orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
       }),
       this.prisma.korchmaRoundPurchase.findMany({
         where: { characterId },
@@ -530,7 +557,10 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "duel.turnbased.defend": duelDefendActions.map((row) => row.createdAt),
       "duel.quick.resolved": resolvedQuickDuels.map((row) => row.resolvedAt ?? row.updatedAt),
       "duel.turnbased.resolved": resolvedTurnBasedDuels.map((row) => row.resolvedAt ?? row.updatedAt),
-      "barrel.raid.claimed": claimedBarrelRaids.flatMap((row) => row.rewardClaimedAt ? [row.rewardClaimedAt] : [row.updatedAt]),
+      "barrel.raid.claimed": getClaimedBarrelRaidDates(claimedBarrelRaids, claimedBarrelRaidActions),
+      "barrel.raid.lost": lostBigBarrelRaids
+        .filter((row) => isBigBarrelLossForCharacter(row.stateJson, characterId))
+        .map((row) => row.completedAt ?? row.updatedAt),
       "korchma.round.purchased": korchmaRounds.map((row) => row.createdAt),
       "item.gift.sent": completedGiftsSent.map((row) => row.completedAt ?? row.updatedAt),
       "item.gift.received": completedGiftsReceived.map((row) => row.completedAt ?? row.updatedAt),
@@ -792,6 +822,62 @@ function maxDate(dates: readonly Date[]): Date | null {
 
 function compareDates(left: Date, right: Date): number {
   return left.getTime() - right.getTime();
+}
+
+function getClaimedBarrelRaidDates(
+  notifications: readonly { periodId: string; rewardClaimedAt: Date | null; updatedAt: Date }[],
+  actions: readonly { localDate: string; createdAt: Date }[]
+): Date[] {
+  const dateByPeriod = new Map<string, Date>();
+
+  for (const row of notifications) {
+    setEarliestDate(dateByPeriod, row.periodId, row.rewardClaimedAt ?? row.updatedAt);
+  }
+
+  for (const row of actions) {
+    setEarliestDate(dateByPeriod, row.localDate, row.createdAt);
+  }
+
+  return [...dateByPeriod.values()].sort(compareDates);
+}
+
+function setEarliestDate(target: Map<string, Date>, key: string, date: Date): void {
+  const previous = target.get(key);
+  if (!previous || date < previous) {
+    target.set(key, date);
+  }
+}
+
+function isBigBarrelLossForCharacter(value: Prisma.JsonValue, characterId: string): boolean {
+  if (!isRecord(value) || value.rulesVersion !== BIG_BARREL_BROTHER_RULES_VERSION) {
+    return false;
+  }
+
+  if (value.status !== "lost" || !Array.isArray(value.participants)) {
+    return false;
+  }
+
+  return value.participants.some((participant) =>
+    isRecord(participant) &&
+    participant.characterId === characterId &&
+    isMeaningfulBigBarrelParticipantJson(participant)
+  );
+}
+
+function isMeaningfulBigBarrelParticipantJson(participant: Record<string, unknown>): boolean {
+  const contribution = participant.contribution;
+  if (!isRecord(contribution)) {
+    return false;
+  }
+
+  return readPositiveNumber(contribution.submittedActions) ||
+    readPositiveNumber(contribution.timeoutActions) ||
+    readPositiveNumber(contribution.damageDealt) ||
+    readPositiveNumber(contribution.damageTaken);
+}
+
+function readPositiveNumber(value: unknown): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function getPassageSearchOutcome(value: Prisma.JsonValue | null): string | null {
