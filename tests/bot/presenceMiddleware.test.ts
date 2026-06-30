@@ -223,6 +223,7 @@ describe("presence middleware", () => {
 
   it.each([
     ["/dev_heal 7", "heal"],
+    ["/dev_restore_mana 4", "restoreMana"],
     ["/dev_add_bandage 5", "addBandages"]
   ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
     const presence = new CapturingPresenceService();
@@ -237,6 +238,15 @@ describe("presence middleware", () => {
             state: "updated" as const,
             kind: "heal" as const,
             amount: 7,
+            character: characterRecord()
+          });
+        },
+        restoreMana: () => {
+          calls.push("restoreMana");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "mana" as const,
+            amount: 4,
             character: characterRecord()
           });
         },

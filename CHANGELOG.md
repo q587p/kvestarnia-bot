@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Remort cleanup now explicitly cancels an active party-boss proof and clears party-boss leases/live membership keys instead of leaving unsupported combat locks.
 - Solo combat item use now clears the player's own active bandage-use preview, including stuck `processing` orders, before spending the bandage as a combat turn.
 - Active fight cards now explain when a class or race combat action is hidden because it needs more mana after its cooldown has ended.
+- Local `/dev_restore_mana` now bypasses the active combat lock for battle QA, matching `/dev_heal`.
 - The compact Codex context, task index, roadmap, playtesting guide and security/fair-play notes now document the one-boss proof boundary.
 
 ### Unchanged
