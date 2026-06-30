@@ -7,6 +7,36 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP
+
+### Added
+- Added a dev/flag-gated `🧪 Dev: бос-проба` start path from an existing recruiting temporary party.
+- Added durable `party_boss_sessions` and `party_boss_actions` rows for one shared boss target, frozen participant state, per-turn action uniqueness and restart-safe replay.
+- Added a pure party-boss reducer with one shared boss, compact participant actions (`attack`, `defend`, class skill, race action), deterministic timeout defend fallback and runtime terminal states based only on boss defeat, all participants being knocked out or explicit cancellation.
+- Added active combat leases with `kind = "party-boss"` for every active participant, released on terminal proof completion or remort cancellation.
+- Added combat-lock redirect support so active participants are returned to their party boss card from ordinary routes.
+- Added focused reducer, callback parser, keyboard and repository integration coverage for timeout fallback, duplicate actions, terminal release, compact action payloads and no hidden runtime turn cap.
+- Added deterministic 13-round simulation-horizon probes for the dev proof boss: a solo no-manatka/no-remort baseline stays at or below 13% wins, while the prepared proof party stays in the intended 35%-49% band.
+
+### Changed
+- Temporary party membership now treats `active` party sessions as live memberships, so participants cannot join or create another live party while a party-boss proof is active.
+- Remort cleanup now explicitly cancels an active party-boss proof and clears party-boss leases/live membership keys instead of leaving unsupported combat locks.
+- Party-boss start and resolved turns now best-effort push fresh private boss cards to other active participants, while party-boss refresh and journal callbacks bypass the active combat lock.
+- Party-boss cards now include a compact `📜 Журнал` view backed by stored round logs, showing resolved round damage/actions without private HP/mana or Telegram ids.
+- Party-boss runtime no longer loses only because a fixed proof turn cap was reached; turns keep incrementing while the boss and at least one participant remain alive.
+- Party-boss `⏱️ Dev: добити хід` now force-resolves the current turn immediately for manual QA, filling missing active participants with timeout defend without waiting for the 23-second deadline.
+- Knocked-out party-boss participants no longer receive action buttons, and stale action callbacks from them replay the canonical state without creating useful action rows.
+- Party-boss journal action rows now show outcomes such as miss, cooldown, mana shortfall, critical fumble or support effect without direct damage, so race/support actions no longer look like unexplained `0` damage.
+- Solo combat item use now clears the player's own active bandage-use preview, including stuck `processing` orders, before spending the bandage as a combat turn.
+- Active fight cards now explain when a class or race combat action is hidden because it needs more mana after its cooldown has ended.
+- Local `/dev_restore_mana` now bypasses the active combat lock for battle QA, matching `/dev_heal`.
+- The compact Codex context, task index, roadmap, playtesting guide and security/fair-play notes now document the one-boss proof boundary.
+
+### Unchanged
+- This is not Senior Barrel Brother and not the production raid route.
+- No XP, gold, items, manatky, trophies, achievements, Barrel success, group loot table, guild, matchmaking, public roster, Mini App, market, trade or crafting ships in this slice.
+- Existing solo combat, turn-based duels, postal delivery, Safe Gifting, Shynok, Adventure, Daily Korchma, Barrel legacy behavior and temporary party recruiting remain on their existing contracts.
+
 ## [0.2.15] - 12026-06-30 - Party Session Foundation
 
 ### Added

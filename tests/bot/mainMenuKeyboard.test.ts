@@ -1589,6 +1589,33 @@ describe("main menu and scene keyboards", () => {
       )
     ).toEqual(["⚔️ Використати у бою", "⬅️ До манаток", "🛡️ Спорядження"]);
     expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 1,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 3
+              }
+            }
+          },
+          null,
+          0,
+          null,
+          { canUse: false }
+        )
+      )
+    ).toEqual(["⬅️ До манаток", "🛡️ Спорядження"]);
+    expect(
       flatInlineButtonCallbacks(
         buildItemDetailKeyboard(
           {

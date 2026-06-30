@@ -37,7 +37,8 @@ export function registerSocialBotModule(
   if (services.partySessions?.isEnabled()) {
     registerPartySessionDevCommand(bot, services.partySessions, {
       presence: services.presence,
-      botUsername: options.botUsername
+      botUsername: options.botUsername,
+      partyBoss: services.partyBoss
     });
   }
 
@@ -117,7 +118,8 @@ export function registerSocialBotModule(
 
       await handlePartySessionCallback(ctx, callback, service, {
         presence: services.presence,
-        botUsername: options.botUsername
+        botUsername: options.botUsername,
+        partyBoss: services.partyBoss
       });
     }
   );

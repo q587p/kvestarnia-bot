@@ -67,6 +67,8 @@ model Character {
   duelCombatSessionsAsTarget DuelCombatSession[] @relation("DuelCombatTarget")
   partySessionsLed PartySession[] @relation("PartySessionLeader")
   partyParticipants PartyParticipant[]
+  partyBossActions PartyBossAction[]
+  partyBossSessionsLed PartyBossSession[] @relation("PartyBossSessionLeader")
   activeCombatLease ActiveCombatLease?
   name      String
   pronoun   String   @default("they")
@@ -786,6 +788,7 @@ model PartySession {
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
   participants        PartyParticipant[]
+  bossSessions        PartyBossSession[]
 
   @@index([status, joinUntilAt])
   @@index([status, expiresAt])
@@ -816,6 +819,48 @@ model PartyParticipant {
   @@index([characterId, status])
   @@index([sessionId, status])
   @@map("party_participants")
+}
+
+model PartyBossSession {
+  id                String    @id @default(uuid())
+  partySessionId    String    @unique @map("party_session_id")
+  partySession      PartySession @relation(fields: [partySessionId], references: [id], onDelete: Cascade)
+  leaderCharacterId String    @map("leader_character_id")
+  leader            Character @relation("PartyBossSessionLeader", fields: [leaderCharacterId], references: [id], onDelete: Cascade)
+  status            String    @default("active")
+  turn              Int       @default(1)
+  version           Int       @default(1)
+  rulesVersion      String    @map("rules_version")
+  bossKey           String    @map("boss_key")
+  stateJson         Json      @map("state_json")
+  resultJson        Json?     @map("result_json")
+  turnExpiresAt     DateTime  @map("turn_expires_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  actions           PartyBossAction[]
+
+  @@index([leaderCharacterId, status])
+  @@index([status, turnExpiresAt])
+  @@map("party_boss_sessions")
+}
+
+model PartyBossAction {
+  id               String    @id @default(uuid())
+  sessionId        String    @map("session_id")
+  session          PartyBossSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actorCharacterId String    @map("actor_character_id")
+  actor            Character @relation(fields: [actorCharacterId], references: [id], onDelete: Cascade)
+  turn             Int
+  actionKey        String    @map("action_key")
+  resultJson       Json?     @map("result_json")
+  submittedAt      DateTime  @map("submitted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@unique([sessionId, turn, actorCharacterId])
+  @@index([sessionId, turn])
+  @@index([actorCharacterId])
+  @@map("party_boss_actions")
 }
 
 model DailyAction {

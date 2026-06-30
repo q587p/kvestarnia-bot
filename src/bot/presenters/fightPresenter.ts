@@ -2,6 +2,9 @@ import { MIMIC_SHAWARMA_HP } from "../../domain/combat/combatProbe";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import {
   findThreatEscalationLine,
+  getCombatActionAvailability,
+  getCombatClassAbilityProfile,
+  getCombatRaceAbilityProfile,
   getTerminalCombatTurnLogEventId,
   normalizeCombatEnemies,
   presentActiveMonsterRuntimeEffectNotices,
@@ -697,6 +700,7 @@ function presentPersistentFightState(input: {
 
   if (state?.status === "active") {
     lines.push(...presentAbilityCooldowns(state.cooldowns));
+    lines.push(...presentUnavailableAbilityNotices(state, input.character));
   }
 
   if (state?.status === "active") {
@@ -1408,6 +1412,36 @@ function presentAbilityCooldowns(
   }
 
   return entries.map(presentSkillCooldown);
+}
+
+function presentUnavailableAbilityNotices(
+  state: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>,
+  character: CharacterSummary
+): string[] {
+  const availability = getCombatActionAvailability(state, {
+    classId: character.classId,
+    raceId: character.raceId
+  });
+  const notices: string[] = [];
+
+  if (availability.skill.available === false && availability.skill.reason === "not-enough-mana") {
+    notices.push(presentNotEnoughManaAbility(getCombatClassAbilityProfile(character.classId), state.hero.mana));
+  }
+
+  if (availability.race.available === false && availability.race.reason === "not-enough-mana" && availability.race.ability) {
+    notices.push(presentNotEnoughManaAbility(getCombatRaceAbilityProfile(character.raceId) ?? availability.race.ability, state.hero.mana));
+  }
+
+  return notices;
+}
+
+function presentNotEnoughManaAbility(
+  ability: { id: string; manaCost: number },
+  currentMana: number
+): string {
+  const skill = getCombatSkillDisplay(ability.id);
+
+  return `🪫 ${skill.icon} ${escapeHtml(skill.name)}: треба ${ability.manaCost} мани, зараз ${currentMana}.`;
 }
 
 function presentHeroActionResult(summary: CombatTurnSummary, action: string): string {

@@ -778,6 +778,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         data: { updatedAt: input.now }
       });
 
+      await cancelPendingCombatItemUseOrders(tx, input.characterId, input.itemId, input.now);
+
       const [stack, equipped, reservedItemIds] = await Promise.all([
         tx.characterItem.findUnique({
           where: {
@@ -803,8 +805,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (equipped || reservedItemIds.includes(input.itemId)) {
         return { outcome: "reserved", session: null };
       }
-
-      await cancelPendingCombatItemUseOrders(tx, input.characterId, input.itemId, input.now);
 
       const updated = await tx.soloCombatSession.updateMany({
         where: {
@@ -2828,7 +2828,7 @@ async function cancelPendingCombatItemUseOrders(
     where: {
       characterId,
       itemId,
-      status: "pending",
+      status: { in: ["pending", "processing"] },
       expiresAt: { gt: now }
     },
     data: {

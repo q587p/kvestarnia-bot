@@ -7,8 +7,14 @@ export type PartySessionCallback =
   | { type: "leave"; token: string }
   | { type: "cancel"; token: string }
   | { type: "expire"; token: string }
+  | { type: "boss-start"; token: string }
+  | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
+  | { type: "boss-timeout"; token: string }
+  | { type: "boss-journal"; token: string }
   | { type: "nearby-open"; page: number }
   | { type: "nearby-invite"; targetTelegramUserId: bigint; page: number };
+
+export type PartyBossCallbackAction = "attack" | "defend" | "skill" | "race";
 
 export type PartySessionCallbackError =
   | "invalid-version"
@@ -44,6 +50,26 @@ export function makePartySessionExpireCallbackData(token: string): string {
   return `${PREFIX}:x:${token}`;
 }
 
+export function makePartyBossStartCallbackData(token: string): string {
+  return `${PREFIX}:bs:${token}`;
+}
+
+export function makePartyBossActionCallbackData(
+  token: string,
+  turn: number,
+  action: PartyBossCallbackAction
+): string {
+  return `${PREFIX}:ba:${token}:${turn.toString(36)}:${actionKey(action)}`;
+}
+
+export function makePartyBossTimeoutCallbackData(token: string): string {
+  return `${PREFIX}:bt:${token}`;
+}
+
+export function makePartyBossJournalCallbackData(token: string): string {
+  return `${PREFIX}:bj:${token}`;
+}
+
 export function makePartySessionNearbyOpenCallbackData(page = 0): string {
   return page === 0 ? `${PREFIX}:no` : `${PREFIX}:no:${page.toString(36)}`;
 }
@@ -72,7 +98,7 @@ export function parsePartySessionCallbackData(
 
   const [, section, action, tokenOrTarget, page, ...rest] = data.split(":");
 
-  if (section !== "party" || rest.length > 0) {
+  if (section !== "party" || (action !== "ba" && rest.length > 0)) {
     return err("invalid-prefix");
   }
 
@@ -105,6 +131,33 @@ export function parsePartySessionCallbackData(
     });
   }
 
+  if (action === "ba") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    const actionPart = rest[0];
+    if (rest.length !== 1 || !actionPart) {
+      return err("invalid-action");
+    }
+
+    const parsedAction = parseActionKey(actionPart);
+    if (!parsedAction) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "boss-action",
+      token: tokenOrTarget,
+      turn: Number.parseInt(page, 36),
+      action: parsedAction
+    });
+  }
+
   if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {
     return err("invalid-token");
   }
@@ -129,7 +182,48 @@ export function parsePartySessionCallbackData(
     return ok({ type: "expire", token: tokenOrTarget });
   }
 
+  if (action === "bs") {
+    return ok({ type: "boss-start", token: tokenOrTarget });
+  }
+
+  if (action === "bt") {
+    return ok({ type: "boss-timeout", token: tokenOrTarget });
+  }
+
+  if (action === "bj") {
+    return ok({ type: "boss-journal", token: tokenOrTarget });
+  }
+
   return err("invalid-action");
+}
+
+function actionKey(action: PartyBossCallbackAction): string {
+  switch (action) {
+    case "attack":
+      return "a";
+    case "defend":
+      return "d";
+    case "skill":
+      return "s";
+    case "race":
+      return "r";
+  }
+}
+
+function parseActionKey(value: string): PartyBossCallbackAction | null {
+  if (value === "a") {
+    return "attack";
+  }
+  if (value === "d") {
+    return "defend";
+  }
+  if (value === "s") {
+    return "skill";
+  }
+  if (value === "r") {
+    return "race";
+  }
+  return null;
 }
 
 function parseBase36BigInt(value: string): bigint {

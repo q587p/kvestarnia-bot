@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { presentItemUseConfirm, presentItemUseRestoreToFull } from "../../src/bot/presenters/itemUsePresenter";
+import {
+  presentItemUseConfirm,
+  presentItemUsePreview,
+  presentItemUseRestoreToFull
+} from "../../src/bot/presenters/itemUsePresenter";
 import type {
   ItemUseConfirmRepositoryResult,
   ItemUseOrderRecord,
@@ -9,6 +13,19 @@ import type { CharacterRecord } from "../../src/db/repositories/characterReposit
 import { ITEM_USE_RULES_VERSION } from "../../src/domain/itemUse";
 
 describe("itemUsePresenter", () => {
+  it("does not promise a combat item button when the active fight does not support one", () => {
+    const text = presentItemUsePreview({ state: "combat-locked" });
+
+    expect(text).toContain("Під час цього бою бинт не можна використати з торби.");
+    expect(text).not.toContain("кнопка піде в поточний хід");
+  });
+
+  it("keeps the combat action hint when a supported fight item action exists", () => {
+    const text = presentItemUsePreview({ state: "combat-locked" }, { combatUseAvailable: true });
+
+    expect(text).toContain("кнопка піде в поточний хід");
+  });
+
   it("renders the stored full-HP terminal result instead of the stale preview", () => {
     const result: ItemUseConfirmRepositoryResult = {
       state: "full-hp",

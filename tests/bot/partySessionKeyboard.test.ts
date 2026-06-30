@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPartyBossKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../../src/bot/keyboards/partySessionKeyboard";
+import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 
 describe("party session keyboard", () => {
@@ -15,8 +17,47 @@ describe("party session keyboard", () => {
     }))).toContain("⏱️ Dev: завершити строк");
     expect(keyboardText(buildPartySessionKeyboard(session, {
       viewerCharacterId: session.leaderCharacterId,
+      includeDevExpire: true
+    }))).toContain("🧪 Dev: бос-проба");
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
       includeDevExpire: false
     }))).not.toContain("⏱️ Dev: завершити строк");
+  });
+
+  it("shows compact party boss actions only to active participants", () => {
+    const session = makeBossSession();
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
+      includeDevTimeout: true
+    }))).toEqual([
+      "⚔️ Вдарити",
+      "🛡️ Захист",
+      "✨ Вміння",
+      "🧬 Раса",
+      "⏱️ Dev: добити хід",
+      "📜 Журнал",
+      "🔎 Оновити"
+    ]);
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, null))).toEqual([
+      "📜 Журнал",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("hides party boss action buttons from knocked-out participants", () => {
+    const session = makeBossSession({
+      status: "knocked-out",
+      hp: 0
+    });
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
+      includeDevTimeout: true
+    }))).toEqual([
+      "⏱️ Dev: добити хід",
+      "📜 Журнал",
+      "🔎 Оновити"
+    ]);
   });
 
   it("shows nearby party invite rows without duel actions", () => {
@@ -51,6 +92,83 @@ describe("party session keyboard", () => {
 
 function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: string }>> }): string[] {
   return keyboard.inline_keyboard.flatMap((row) => row.map((button) => button.text));
+}
+
+function makeBossSession(
+  participantOverrides: { status?: "active" | "knocked-out"; hp?: number } = {}
+): PartyBossSessionRecord {
+  const now = new Date("2026-06-30T10:00:00.000Z");
+  const participant = makeCharacter("character-1", 42n);
+
+  return {
+    id: "boss-1",
+    partySessionId: "party-1",
+    partyInviteToken: "partyABC12",
+    leaderCharacterId: "character-1",
+    status: "active",
+    turn: 1,
+    version: 1,
+    rulesVersion: "party-boss-proof-v1",
+    bossKey: "party-boss-proof-one",
+    turnExpiresAt: new Date("2026-06-30T10:00:23.000Z"),
+    completedAt: null,
+    result: null,
+    participants: [participant],
+    state: {
+      rulesVersion: "party-boss-proof-v1",
+      partySessionId: "party-1",
+      status: "active",
+      turn: 1,
+      boss: {
+        monsterId: "party-boss-proof-one",
+        name: "Контрольний Бос",
+        level: 3,
+        hp: 42,
+        hpMax: 42,
+        attack: 8,
+        armor: 2,
+        resist: 1,
+        dexterity: 5,
+        tags: ["party-boss-proof"]
+      },
+      participants: [
+        {
+          characterId: "character-1",
+          name: "Тестовий Лідер",
+          remortCount: 0,
+          status: participantOverrides.status ?? "active",
+          combatStats: {
+            level: 3,
+            hpMax: 25,
+            manaMax: 10,
+            hpCurrent: 25,
+            manaCurrent: 10,
+            strength: 5,
+            dexterity: 5,
+            intelligence: 5,
+            charisma: 5,
+            luck: 5,
+            raceId: "race.human-ish",
+            classId: "class.warrior"
+          },
+          resources: {
+            hp: participantOverrides.hp ?? 25,
+            hpMax: 25,
+            mana: 10,
+            manaMax: 10
+          },
+          contribution: {
+            submittedActions: 0,
+            timeoutActions: 0,
+            damageDealt: 0,
+            damageTaken: 0
+          }
+        }
+      ],
+      roundLog: [],
+      startedAt: now.toISOString()
+    }
+  };
 }
 
 function keyboardText(keyboard: unknown): string {

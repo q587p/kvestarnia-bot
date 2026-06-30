@@ -155,38 +155,48 @@ async function handleItemCallback(
     ? services.itemUse.getAvailability(result.item.content)
     : null;
   const combatUse = result.state === "found" && itemUse?.state === "usable"
-    ? await getCombatUseActionForItem(services, telegramUserId, result.item.content)
+    ? await getCombatUseStateForItem(services, telegramUserId, result.item.content)
     : null;
+  const canUse = itemUse?.state === "usable" && !(combatUse?.combatLocked && !combatUse.action);
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview, itemUse }), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
-      canUse: itemUse?.state === "usable",
-      ...(combatUse ? { combatUse } : {})
+      canUse,
+      ...(combatUse?.action ? { combatUse: combatUse.action } : {})
     })
   });
 }
 
-async function getCombatUseActionForItem(
+async function getCombatUseStateForItem(
   services: BotServices,
   telegramUserId: bigint,
   item: Parameters<typeof getCombatUsableItem>[0]
-): Promise<{ sessionId: string; turn: number; itemKey: string } | null> {
+): Promise<{
+  action: { sessionId: string; turn: number; itemKey: string } | null;
+  combatLocked: boolean;
+}> {
   const combatItem = getCombatUsableItem(item);
   if (!combatItem || typeof services.fight.getFightOverviewForTelegramUser !== "function") {
-    return null;
+    return { action: null, combatLocked: false };
   }
 
   const fight = await services.fight.getFightOverviewForTelegramUser(telegramUserId);
   if (fight.state !== "persistent-active" || fight.session.state?.status !== "active") {
-    return null;
+    return {
+      action: null,
+      combatLocked: fight.state === "combat-blocked" || fight.state === "training-active"
+    };
   }
 
   return {
-    sessionId: fight.session.id,
-    turn: fight.session.state.turn,
-    itemKey: combatItem.key
+    action: {
+      sessionId: fight.session.id,
+      turn: fight.session.state.turn,
+      itemKey: combatItem.key
+    },
+    combatLocked: true
   };
 }
 
@@ -208,6 +218,9 @@ async function handleItemUseCallback(
 
   if (action.type === "preview") {
     const result = await services.itemUse.createPreviewForTelegramUser(telegramUserId, action.itemId);
+    const combatUseAvailable = result.state === "combat-locked"
+      ? await hasCombatUseActionForItemId(services, telegramUserId, action.itemId)
+      : false;
 
     await safeAnswerCallbackQuery(ctx, {
       show_alert:
@@ -215,7 +228,7 @@ async function handleItemUseCallback(
         result.state === "full-hp" ||
         result.state === "reserved"
     });
-    await safeEditMessageText(ctx, presentItemUsePreview(result), {
+    await safeEditMessageText(ctx, presentItemUsePreview(result, { combatUseAvailable }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup:
         result.state === "preview-created" || result.state === "preview-replayed"
@@ -243,6 +256,9 @@ async function handleItemUseCallback(
 
   if (action.type === "restore-to-full") {
     const result = await services.itemUse.restoreToFullForTelegramUser(telegramUserId, action.itemId);
+    const combatUseAvailable = result.state === "combat-locked"
+      ? await hasCombatUseActionForItemId(services, telegramUserId, action.itemId)
+      : false;
 
     await safeAnswerCallbackQuery(
       ctx,
@@ -257,7 +273,7 @@ async function handleItemUseCallback(
               result.state === "combat-locked"
           }
     );
-    await safeEditMessageText(ctx, presentItemUseRestoreToFull(result), {
+    await safeEditMessageText(ctx, presentItemUseRestoreToFull(result, { combatUseAvailable }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup:
         result.state === "preview-created" || result.state === "preview-replayed"
@@ -269,6 +285,9 @@ async function handleItemUseCallback(
 
   const result = await services.itemUse.confirmForTelegramUser(telegramUserId, action.token);
   const repeat = await getRepeatItemUseOptions(services, telegramUserId, result);
+  const combatUseAvailable = result.state === "combat-locked"
+    ? await hasCombatUseActionForItemId(services, telegramUserId, result.order.itemId)
+    : false;
 
   await safeAnswerCallbackQuery(
     ctx,
@@ -285,7 +304,7 @@ async function handleItemUseCallback(
               result.state === "expired"
           }
   );
-  await safeEditMessageText(ctx, presentItemUseConfirm(result), {
+  await safeEditMessageText(ctx, presentItemUseConfirm(result, { combatUseAvailable }), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemUseResultKeyboard(repeat)
   });
@@ -293,6 +312,19 @@ async function handleItemUseCallback(
   if (achievementText) {
     await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
   }
+}
+
+async function hasCombatUseActionForItemId(
+  services: BotServices,
+  telegramUserId: bigint,
+  itemId: string
+): Promise<boolean> {
+  const item = items.find((candidate) => candidate.id === itemId);
+  if (!item) {
+    return false;
+  }
+
+  return (await getCombatUseStateForItem(services, telegramUserId, item)).action !== null;
 }
 
 async function getRepeatItemUseOptions(

@@ -956,6 +956,38 @@ describe("fight presenter", () => {
     expect(text).not.toContain("🫁 Вміння відсапується");
   });
 
+  it("explains when a hidden class skill needs more mana after cooldown", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character: {
+        ...character,
+        classId: "class.mage",
+        className: "Маг",
+        manaCurrent: 4,
+        manaMax: 14
+      },
+      session: persistentSession({
+        hero: {
+          hp: 15,
+          hpMax: 28,
+          mana: 4,
+          manaMax: 14
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🪫 🔥 Гаряче закляття: треба 5 мани, зараз 4.");
+    expect(text).not.toContain("Гаряче закляття відсапується");
+  });
+
   it("shows frozen monster context cues only on the opening active card", () => {
     const text = presentPersistentFight({
       state: "persistent-active",

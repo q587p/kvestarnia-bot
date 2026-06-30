@@ -6,7 +6,14 @@ import type {
 } from "../../db/repositories/itemUseRepository";
 import { escapeHtml } from "./telegramHtml";
 
-export function presentItemUsePreview(result: ItemUsePreviewRepositoryResult): string {
+interface CombatLockedItemUseOptions {
+  combatUseAvailable?: boolean;
+}
+
+export function presentItemUsePreview(
+  result: ItemUsePreviewRepositoryResult,
+  options: CombatLockedItemUseOptions = {}
+): string {
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Бинти не лікують порожні анкети.";
   }
@@ -20,7 +27,7 @@ export function presentItemUsePreview(result: ItemUsePreviewRepositoryResult): s
   }
 
   if (result.state === "combat-locked") {
-    return "Під час бою манатку треба використати як бойову дію. Відкрийте її з торби ще раз: кнопка піде в поточний хід.";
+    return presentCombatLockedItemUse(options);
   }
 
   if (result.state === "reserved") {
@@ -46,7 +53,10 @@ export function presentItemUsePreview(result: ItemUsePreviewRepositoryResult): s
   ].join("\n");
 }
 
-export function presentItemUseConfirm(result: ItemUseConfirmRepositoryResult): string {
+export function presentItemUseConfirm(
+  result: ItemUseConfirmRepositoryResult,
+  options: CombatLockedItemUseOptions = {}
+): string {
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start.";
   }
@@ -56,7 +66,7 @@ export function presentItemUseConfirm(result: ItemUseConfirmRepositoryResult): s
   }
 
   if (result.state === "combat-locked") {
-    return "Під час бою це підтвердження не витрачає манатку. Відкрийте її з торби ще раз і використайте як бойову дію.";
+    return presentCombatLockedItemUse(options);
   }
 
   if (result.state === "expired") {
@@ -121,7 +131,10 @@ export function presentItemUseCancel(result: ItemUseCancelRepositoryResult): str
   return "Використання скасовано. Бинт лишився в торбі.";
 }
 
-export function presentItemUseRestoreToFull(result: ItemUseRestoreToFullRepositoryResult): string {
+export function presentItemUseRestoreToFull(
+  result: ItemUseRestoreToFullRepositoryResult,
+  options: CombatLockedItemUseOptions = {}
+): string {
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start.";
   }
@@ -131,7 +144,7 @@ export function presentItemUseRestoreToFull(result: ItemUseRestoreToFullReposito
   }
 
   if (result.state === "combat-locked") {
-    return "Під час бою бинти треба використовувати як бойову дію.";
+    return presentCombatLockedItemUse(options);
   }
 
   if (result.state === "reserved") {
@@ -184,4 +197,12 @@ export function presentItemUseRestoreToFull(result: ItemUseRestoreToFullReposito
   }
 
   return "Це відновлення вже не можна застосувати. Відкрийте манатку ще раз.";
+}
+
+function presentCombatLockedItemUse(options: CombatLockedItemUseOptions): string {
+  if (options.combatUseAvailable) {
+    return "Під час бою манатку треба використати як бойову дію. Відкрийте її з торби ще раз: кнопка піде в поточний хід.";
+  }
+
+  return "Під час цього бою бинт не можна використати з торби. Завершіть бій або поверніться до бойової картки з доступними діями.";
 }
