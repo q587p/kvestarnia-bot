@@ -3,6 +3,7 @@ import type { AdventureService } from "../../services/adventureService";
 import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { DevResetService } from "../../services/devResetService";
 import type { FightService } from "../../services/fightService";
+import type { PartyBossService } from "../../services/partyBossService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT } from "../../services/presenceService";
 import { playerFromContext } from "../context";
@@ -11,6 +12,7 @@ import { buildDevResetKeyboard } from "../keyboards/mainMenuKeyboard";
 import {
   presentDevAdventureResetResult,
   presentDevKorchmaRoundResetResult,
+  presentDevRaidWinResult,
   presentDevRaidResetResult,
   presentDevMonsterRestResetResult,
   presentDevRaidStopResult,
@@ -33,7 +35,8 @@ export function registerDevResetCommand(
   fightService?: Pick<
     FightService,
     "getOrStartPersistentFightForTelegramUser" | "recordPersistentFightMessageReference" | "resetMonsterRestCooldownForDev"
-  >
+  >,
+  partyBossService?: Pick<PartyBossService, "forceBigBarrelWinForTelegramUser">
 ): void {
   bot.command("dev_reset_me", async (ctx) => {
     if (!devResetService.isEnabled()) {
@@ -150,6 +153,29 @@ export function registerDevResetCommand(
     const result = await tavernRaidService.resetFridayBarrelRaidForDev(telegramUserId);
 
     await ctx.reply(presentDevRaidResetResult(result));
+  });
+
+  bot.command("dev_raid_win", async (ctx) => {
+    if (!devResetService.isEnabled()) {
+      await ctx.reply(presentDevResetDisabled());
+      return;
+    }
+
+    if (!partyBossService) {
+      await ctx.reply(presentDevRaidWinResult({ state: "unavailable" }));
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+    if (!telegramUserId) {
+      await ctx.reply(presentDevRaidWinResult({ state: "no-character" }));
+      return;
+    }
+
+    const result = await partyBossService.forceBigBarrelWinForTelegramUser(telegramUserId);
+
+    await ctx.reply(presentDevRaidWinResult(result));
   });
 
   bot.command("dev_reset_monster_rest", async (ctx) => {

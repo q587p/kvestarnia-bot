@@ -1,6 +1,7 @@
 import type { PartyBossActionKey } from "../domain/partyBoss/partyBoss";
 import type {
   PartyBossActionResult,
+  PartyBossDevWinResult,
   PartyBossRepository,
   PartyBossSessionRecord,
   PartyBossStartResult
@@ -12,6 +13,10 @@ export interface PartyBossServiceOptions {
   enabled: boolean;
   devHelpersEnabled?: boolean;
 }
+
+export type PartyBossDevRaidWinResult =
+  | { state: "disabled" }
+  | PartyBossDevWinResult;
 
 export class PartyBossService {
   constructor(
@@ -101,6 +106,14 @@ export class PartyBossService {
     }
 
     return this.sessions.findByPartyInviteToken(partyInviteToken);
+  }
+
+  async forceBigBarrelWinForTelegramUser(telegramUserId: bigint): Promise<PartyBossDevRaidWinResult> {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
+
+    return this.sessions.forceBigBarrelWinForTelegramUser(telegramUserId, this.clock());
   }
 }
 

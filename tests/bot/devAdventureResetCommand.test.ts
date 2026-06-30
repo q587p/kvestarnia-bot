@@ -5,6 +5,7 @@ import type { AdventureService } from "../../src/services/adventureService";
 import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
 import type { DevResetService } from "../../src/services/devResetService";
 import type { FightService } from "../../src/services/fightService";
+import type { PartyBossService } from "../../src/services/partyBossService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 
 describe("dev adventure reset command", () => {
@@ -146,6 +147,52 @@ describe("dev adventure reset command", () => {
     });
 
     await bot.handleUpdate(commandUpdate("/dev_raid_reset"));
+
+    expect(called).toBe(false);
+    expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
+  });
+
+  it("primes Big Barrel Brother victory in local environments", async () => {
+    const replies: string[] = [];
+    const seenUserIds: bigint[] = [];
+    const bot = createTestBot(replies, {
+      devReset: enabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      partyBoss: {
+        forceBigBarrelWinForTelegramUser: (telegramUserId: bigint) => {
+          seenUserIds.push(telegramUserId);
+          return Promise.resolve({ state: "primed", session: {} });
+        }
+      } as unknown as PartyBossService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_raid_win"));
+
+    expect(seenUserIds).toEqual([42n]);
+    expect(replies).toEqual([
+      "Старший Брат Бочки отримав dev-ляпаса: HP боса тепер 0. Наступна дія або добивання ходу завершить рейд перемогою ватаги."
+    ]);
+  });
+
+  it("keeps dev raid win disabled in production", async () => {
+    const replies: string[] = [];
+    let called = false;
+    const bot = createTestBot(replies, {
+      devReset: disabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      partyBoss: {
+        forceBigBarrelWinForTelegramUser: () => {
+          called = true;
+          return Promise.resolve({ state: "primed", session: {} });
+        }
+      } as unknown as PartyBossService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_raid_win"));
 
     expect(called).toBe(false);
     expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
@@ -348,6 +395,7 @@ function createTestBot(
     devReset: Pick<DevResetService, "isEnabled" | "resetCurrentUser">;
     adventure: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">;
     tavern?: Pick<TavernRaidService, "resetFridayBarrelRaidForDev" | "stopPendingFridayBarrelRaidForDev">;
+    partyBoss?: Pick<PartyBossService, "forceBigBarrelWinForTelegramUser">;
     dailyKorchmaRound?: Pick<DailyKorchmaRoundService, "resetTodayForDev">;
     fight?: Pick<
       FightService,
@@ -379,7 +427,8 @@ function createTestBot(
     services.adventure,
     services.tavern,
     services.dailyKorchmaRound,
-    services.fight
+    services.fight,
+    services.partyBoss
   );
   return bot;
 }

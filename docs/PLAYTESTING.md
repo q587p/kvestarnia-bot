@@ -703,6 +703,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
 - `/dev_raid_reset` — у локальному режимі скидає pending-таймер і зарахований поточний відтинок Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді.
+- `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout має завершити рейд перемогою ватаги, навіть якщо всі учасники теж на `0 HP`.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 

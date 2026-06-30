@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added Big Barrel Brother victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
 - Added focused Big reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
 - Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement.
+- Added local `/dev_raid_win` to set an active Big Barrel Brother boss to `0 HP` and let the next normal party-boss turn resolution settle the raid as a player victory, including boss-zero plus party-zero tie states.
 - Added focused hardening coverage for Big participant eligibility, duplicate frozen-period success, remort-life drift, and production-vs-dev timeout resolution.
 - Added a narrow Big Barrel Brother focus rule: ordinary retaliations first hit the party leader, then follow the previous round's top living damage contributor, while every fourth turn keeps a broad hit against all living participants until a future explicit threat/taunt system replaces it.
 - Added automatic Big Barrel Brother recruiting start after the recruiting deadline, plus `👀 Хто поруч` listings/buttons for live Barrel recruiting groups.

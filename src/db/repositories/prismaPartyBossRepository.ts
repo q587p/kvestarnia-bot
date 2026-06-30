@@ -13,6 +13,7 @@ import { getLevelForXp } from "../../domain/progression/level";
 import {
   buildPartyBossCombatStats,
   type PartyBossActionResult,
+  type PartyBossDevWinResult,
   type PartyBossParticipantSnapshot,
   type PartyBossRepository,
   type PartyBossResolveInput,
@@ -366,6 +367,77 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
   async findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null> {
     const session = await findByInviteToken(this.prisma, partyInviteToken);
     return session ? mapSession(session) : null;
+  }
+
+  async forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult> {
+    return this.prisma.$transaction(async (tx): Promise<PartyBossDevWinResult> => {
+      const session = await tx.partyBossSession.findFirst({
+        where: {
+          status: "active",
+          partySession: {
+            participants: {
+              some: {
+                status: "joined",
+                character: {
+                  user: {
+                    telegramUserId
+                  }
+                }
+              }
+            }
+          }
+        },
+        orderBy: {
+          updatedAt: "desc"
+        },
+        include: partyBossInclude
+      });
+
+      if (!session) {
+        return { state: "no-active" };
+      }
+
+      const state = parseState(session);
+      if (!isBigBarrelBrotherState(state)) {
+        return { state: "not-big", session: mapSession(session) };
+      }
+
+      const nextState: PartyBossState = {
+        ...state,
+        boss: {
+          ...state.boss,
+          hp: 0
+        }
+      };
+      const updated = await tx.partyBossSession.updateMany({
+        where: {
+          id: session.id,
+          status: "active",
+          version: session.version
+        },
+        data: {
+          version: session.version + 1,
+          stateJson: nextState as unknown as Prisma.InputJsonValue,
+          turnExpiresAt: now
+        }
+      });
+
+      if (updated.count !== 1) {
+        const current = await tx.partyBossSession.findUnique({
+          where: { id: session.id },
+          include: partyBossInclude
+        });
+
+        return current ? { state: "stale", session: mapSession(current) } : { state: "no-active" };
+      }
+
+      const current = await tx.partyBossSession.findUnique({
+        where: { id: session.id },
+        include: partyBossInclude
+      });
+
+      return current ? { state: "primed", session: mapSession(current) } : { state: "no-active" };
+    });
   }
 
   private async resolveIfReady(

@@ -108,7 +108,8 @@ export function registerCharacterBotModule(
     services.adventure,
     services.tavern,
     services.dailyKorchmaRound,
-    services.fight
+    services.fight,
+    services.partyBoss
   );
   registerRestartCommand(bot);
   if (services.remort) {

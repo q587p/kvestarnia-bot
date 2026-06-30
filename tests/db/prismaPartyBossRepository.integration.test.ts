@@ -338,6 +338,67 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
   });
 
+  it("dev-primes Big Barrel Brother victory and resolves boss-zero plus party-zero as a win", async () => {
+    await seedCharacter(prisma, "big-dev-win-user", 5051n, "Dev Лідерка", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await partyRepository.createForTelegramUser(5051n, {
+      ...partyInput("party-token-big-dev-win"),
+      periodId: "2026-06-30T10:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5051n, {
+      partyInviteToken: "party-token-big-dev-win",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: {
+        stateJson: {
+          ...started.session.state,
+          participants: started.session.state.participants.map((participant) => ({
+            ...participant,
+            status: "knocked-out" as const,
+            resources: {
+              ...participant.resources,
+              hp: 0
+            }
+          }))
+        }
+      }
+    });
+
+    const primed = await bossRepository.forceBigBarrelWinForTelegramUser(5051n, now());
+    expect(primed.state).toBe("primed");
+    if (!("session" in primed)) {
+      throw new Error(`Expected primed session, got ${primed.state}`);
+    }
+    expect(primed.session.state.boss.hp).toBe(0);
+    expect(primed.session.state.participants.every((participant) => participant.resources.hp === 0)).toBe(true);
+
+    const resolved = await bossRepository.resolveTimedOutByToken(
+      "party-token-big-dev-win",
+      resolveInput(),
+      "due"
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(resolved.state).toBe("resolved");
+    expect(latest.status).toBe("won");
+    expect(latest.result?.status).toBe("won");
+    expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
+  });
+
   it("blocks Big Barrel Brother start when a joined participant is under-level", async () => {
     await seedCharacter(prisma, "big-underlevel-leader-user", 5101n, "Досвідчена Лідерка", {
       hp: 80,

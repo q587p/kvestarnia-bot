@@ -49,6 +49,12 @@ export type PartyBossActionResult =
   | { state: "not-found" }
   | { state: "not-participant" | "stale" | "queued" | "duplicate" | "resolved" | "terminal"; session: PartyBossSessionRecord };
 
+export type PartyBossDevWinResult =
+  | { state: "no-active" }
+  | { state: "not-big"; session: PartyBossSessionRecord }
+  | { state: "stale"; session: PartyBossSessionRecord }
+  | { state: "primed"; session: PartyBossSessionRecord };
+
 export interface PartyBossStartInput {
   partyInviteToken: string;
   now: Date;
@@ -85,6 +91,7 @@ export interface PartyBossRepository {
 
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<PartyBossSessionRecord | null>;
   findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null>;
+  forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult>;
 }
 
 export function buildPartyBossCombatStats(

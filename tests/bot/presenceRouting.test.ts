@@ -203,6 +203,7 @@ describe("presence routing", () => {
     ["restart", {}],
     ["dev_raid_stop", {}],
     ["dev_raid_reset", {}],
+    ["dev_raid_win", {}],
     ["dev_reset_korchma_round", {}],
     ["dev_reset_monster_rest", {}],
     ["dev_add_bandage", {}],

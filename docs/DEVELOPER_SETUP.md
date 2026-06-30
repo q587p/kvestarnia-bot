@@ -103,6 +103,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_yeger_trail` — завершує поточне очікування Єгерського сліду для поточного персонажа.
 - `/dev_adventure_reset` — скидає й перетасовує поточний вибір пригоди для швидкого локального тесту.
 - `/dev_raid_stop` — достроково завершує активний pending-рейд на Бочку через звичайний reward path для швидкого локального тесту; якщо XP підняв рівень, показує звичайне окреме привітання.
+- `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout проходить звичайний party-boss victory path.
 - `/dev_reset_monster_rest` — скидає коротку перерву монстрів після серії ordinary боїв у Низі для швидкого локального `/fight` QA.
 - `/dev_two_enemies` — стартує dev-only persistent бій проти двох ворогів для перевірки foundation multi-enemy state; production-маршрути лишаються одно-ворожими.
 

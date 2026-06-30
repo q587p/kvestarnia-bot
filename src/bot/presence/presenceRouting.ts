@@ -297,6 +297,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_reset_korchma_round" ||
     command === "dev_raid_stop" ||
     command === "dev_raid_reset" ||
+    command === "dev_raid_win" ||
     command === "dev_reset_monster_rest" ||
     command === "dev_two_enemies" ||
     command === "dev_add_level" ||
