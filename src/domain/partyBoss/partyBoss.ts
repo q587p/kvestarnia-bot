@@ -299,6 +299,15 @@ export function isBigBarrelBrotherState(state: PartyBossState): boolean {
     state.boss.monsterId === BIG_BARREL_BROTHER_BOSS_KEY;
 }
 
+export function isBigBarrelEligible(level: number, remortCount = 0): boolean {
+  const safeLevel = Math.max(1, Math.floor(level));
+  const safeRemortCount = Math.max(0, Math.floor(remortCount));
+
+  return safeRemortCount >= 1
+    ? safeLevel >= 3
+    : safeLevel >= 8;
+}
+
 export function clonePartyBossState(state: PartyBossState): PartyBossState {
   return {
     ...state,

@@ -15,7 +15,10 @@ const PARTY_INVITE_URL = `https://t.me/${BOT_USERNAME}?start=party_${PARTY_TOKEN
 
 describe("Big Barrel Brother invite routing", () => {
   it("keeps the Korchma Barrel place callback on the old Barrel card without auto-creating a party", async () => {
-    const { services, createForTelegramUser } = servicesForBigBarrelRoute();
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 }
+    });
     const calls = await captureCallbackApiCalls(makePlaceCallbackData("barrel"), services, {
       botUsername: BOT_USERNAME
     });
@@ -25,7 +28,10 @@ describe("Big Barrel Brother invite routing", () => {
   });
 
   it("keeps current-location Barrel resume on the old Barrel card without auto-creating a party", async () => {
-    const { services, createForTelegramUser } = servicesForBigBarrelRoute();
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 }
+    });
     const reply = vi.fn().mockResolvedValue({ message_id: 1 });
     const ctx = {
       from: {
@@ -49,16 +55,65 @@ describe("Big Barrel Brother invite routing", () => {
     expect(createForTelegramUser).not.toHaveBeenCalled();
   });
 
-  it("threads botUsername into the explicit Barrel raid start card as an active link", async () => {
+  it("opens Big recruiting from /raid for a remorted level 3 character with an active invite link", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 }
+    });
+    const calls = await captureMessageApiCalls("/raid", services, {
+      botUsername: BOT_USERNAME
+    });
+
+    expect(calls.some(hasActiveInviteLink)).toBe(true);
+    expect(createForTelegramUser).toHaveBeenCalledOnce();
+  });
+
+  it("threads botUsername into the explicit Barrel raid start card as an active link for a remorted level 3 character", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 }
+    });
+    const calls = await captureCallbackApiCalls(makeTavernCallbackData("raid"), services, {
+      botUsername: BOT_USERNAME
+    });
+
+    expect(calls.some(hasActiveInviteLink)).toBe(true);
+    expect(createForTelegramUser).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a remorted level 2 character on the legacy Barrel route even when Big is enabled", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+      character: { level: 2, remortCount: 1 },
+      partyCharacter: { level: 2, remortCount: 1 }
+    });
+    const calls = await captureMessageApiCalls("/raid", services, {
+      botUsername: BOT_USERNAME
+    });
+
+    expect(calls.some((call) => String(call.payload.text).includes(PARTY_INVITE_URL))).toBe(false);
+    expect(createForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("keeps a non-remorted level 7 character on the legacy Barrel route even when Big is enabled", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+      character: { level: 7, remortCount: 0 },
+      partyCharacter: { level: 7, remortCount: 0 }
+    });
+    const calls = await captureMessageApiCalls("/raid", services, {
+      botUsername: BOT_USERNAME
+    });
+
+    expect(calls.some((call) => String(call.payload.text).includes(PARTY_INVITE_URL))).toBe(false);
+    expect(createForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("still opens Big recruiting from the explicit Barrel raid start for a non-remorted level 8 character", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute();
     const calls = await captureCallbackApiCalls(makeTavernCallbackData("raid"), services, {
       botUsername: BOT_USERNAME
     });
 
-    expect(calls.some((call) =>
-      call.method === "editMessageText" &&
-      String(call.payload.text).includes(`href="${PARTY_INVITE_URL}"`)
-    )).toBe(true);
+    expect(calls.some(hasActiveInviteLink)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
   });
 });
@@ -66,6 +121,11 @@ describe("Big Barrel Brother invite routing", () => {
 interface ApiCall {
   method: string;
   payload: Record<string, unknown>;
+}
+
+function hasActiveInviteLink(call: ApiCall): boolean {
+  return (call.method === "sendMessage" || call.method === "editMessageText") &&
+    String(call.payload.text).includes(`href="${PARTY_INVITE_URL}"`);
 }
 
 async function captureCallbackApiCalls(
@@ -128,12 +188,55 @@ async function captureCallbackApiCalls(
   return calls;
 }
 
-function servicesForBigBarrelRoute(): {
+async function captureMessageApiCalls(
+  text: string,
+  services: BotServices,
+  options: { botUsername?: string | undefined } = {}
+): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", services, options);
+  const calls: ApiCall[] = [];
+
+  bot.api.config.use((_prev, method, payload) => {
+    calls.push({
+      method,
+      payload
+    });
+
+    if (method === "getMe") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          id: 123456,
+          is_bot: true,
+          first_name: "Квестарня",
+          username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      result: true
+    });
+  });
+
+  await bot.init();
+  await bot.handleUpdate(commandUpdate(text));
+
+  return calls;
+}
+
+function servicesForBigBarrelRoute(options: {
+  character?: Partial<CharacterSummary>;
+  partyCharacter?: Partial<PartySessionRecord["leader"]>;
+  bigEnabled?: boolean;
+} = {}): {
   services: BotServices;
   session: PartySessionRecord;
   createForTelegramUser: ReturnType<typeof vi.fn>;
 } {
-  const session = makePartySession();
+  const character = makeCharacterSummary(options.character);
+  const session = makePartySession(options.partyCharacter);
   const createForTelegramUser = vi.fn().mockResolvedValue({
     state: "created",
     session
@@ -152,7 +255,7 @@ function servicesForBigBarrelRoute(): {
     fight: {
       getFightOverviewForTelegramUser: vi.fn().mockResolvedValue({
         state: "ready",
-        character: makeCharacterSummary()
+        character
       })
     },
     hero: {},
@@ -168,7 +271,7 @@ function servicesForBigBarrelRoute(): {
     },
     partySessions: {
       areDevHelpersEnabled: () => false,
-      isBigBarrelBrotherEnabled: () => true,
+      isBigBarrelBrotherEnabled: () => options.bigEnabled ?? true,
       createForTelegramUser
     },
     playerHints: {},
@@ -200,7 +303,7 @@ function servicesForBigBarrelRoute(): {
       getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({ state: "none" }),
       getTavernForTelegramUser: vi.fn().mockResolvedValue({
         state: "ready",
-        character: makeCharacterSummary()
+        character
       })
     },
     yeger: {}
@@ -209,9 +312,9 @@ function servicesForBigBarrelRoute(): {
   return { services, session, createForTelegramUser };
 }
 
-function makePartySession(): PartySessionRecord {
+function makePartySession(characterOverrides: Partial<PartySessionRecord["leader"]> = {}): PartySessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
-  const leader = makePartyCharacter();
+  const leader = makePartyCharacter(characterOverrides);
 
   return {
     id: "party-1",
@@ -247,7 +350,7 @@ function makePartySession(): PartySessionRecord {
   };
 }
 
-function makePartyCharacter(): PartySessionRecord["leader"] {
+function makePartyCharacter(overrides: Partial<PartySessionRecord["leader"]> = {}): PartySessionRecord["leader"] {
   return {
     id: "character-42",
     userId: "user-42",
@@ -269,11 +372,12 @@ function makePartyCharacter(): PartySessionRecord["leader"] {
     manaRegenAt: null,
     activeCosmeticTitleGrantId: null,
     statsJson: {},
-    remortCount: 0
+    remortCount: 0,
+    ...overrides
   };
 }
 
-function makeCharacterSummary(): CharacterSummary {
+function makeCharacterSummary(overrides: Partial<CharacterSummary> = {}): CharacterSummary {
   return {
     name: "Тестова Лідерка",
     pronoun: "they",
@@ -307,6 +411,37 @@ function makeCharacterSummary(): CharacterSummary {
         stat: "strength",
         bonus: 0
       }
+    },
+    ...overrides
+  };
+}
+
+function commandUpdate(text: string) {
+  const commandLength = text.split(" ", 1)[0]?.length ?? text.length;
+
+  return {
+    update_id: 2,
+    message: {
+      message_id: 11,
+      date: 0,
+      chat: {
+        id: 42,
+        type: "private" as const,
+        first_name: "Тест"
+      },
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      text,
+      entities: [
+        {
+          type: "bot_command" as const,
+          offset: 0,
+          length: commandLength
+        }
+      ]
     }
   };
 }

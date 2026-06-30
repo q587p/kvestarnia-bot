@@ -35,6 +35,7 @@ import {
 } from "../../services/fightService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import { systemClock } from "../../shared/time";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
@@ -681,7 +682,7 @@ export async function sendTavernBarrel(
   }
 
   if (
-    isBigBarrelEligible(result.character) &&
+    isBigBarrelEligible(result.character.level, result.character.remortCount) &&
     options.partySessions?.isBigBarrelBrotherEnabled()
   ) {
     const activeBoss = await options.partyBoss?.getActiveForTelegramUser(telegramUserId);
@@ -735,12 +736,6 @@ export async function sendTavernBarrel(
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
   await sendText(ctx, mode, presentTavern(result.character), true);
   return true;
-}
-
-function isBigBarrelEligible(character: { level: number; remortCount?: number | undefined }): boolean {
-  const remortCount = character.remortCount ?? 0;
-
-  return remortCount >= 1 ? character.level >= 3 : character.level >= 8;
 }
 
 async function markTavernPlace(

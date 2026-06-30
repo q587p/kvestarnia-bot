@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   buildResult,
   createPartyBossState,
+  isBigBarrelEligible,
   isBigBarrelBrotherState,
   resolvePartyBossRound,
   BIG_BARREL_BROTHER_RULES_VERSION,
@@ -658,12 +659,6 @@ async function hasIneligibleBigBarrelParticipant(
   ]);
 
   return Boolean(activeLease || existingSuccess);
-}
-
-function isBigBarrelEligible(level: number, remortCount: number): boolean {
-  return remortCount >= 1
-    ? level >= 3
-    : level >= 8;
 }
 
 async function settleBigParticipantResources(
