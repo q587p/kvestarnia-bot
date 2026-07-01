@@ -78,11 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Старший Брат Бочки підняв кришку");
-    expect(text).toContain("перший справжній гуртовий маршрут");
+    expect(text).toContain("Дошка корчми відкрила перекази");
+    expect(text).toContain("На Дошці корчми зʼявилася тека");
     expect(text).toContain("У грі вже");
-    expect(text).toContain("пригодники 8+ рівня або пригодники з памʼяттю реморту після 3 рівня");
-    expect(text).toContain("перемога відкриває післярейдові частування");
+    expect(text).toContain("кнопка випадкового переказу");
+    expect(text).toContain("читання переказів не дає сили");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

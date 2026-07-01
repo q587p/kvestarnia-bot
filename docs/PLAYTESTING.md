@@ -4,6 +4,20 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.18 — Lore Board MVP smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Open `Дошка корчми`; verify `📖 Перекази` appears and existing `📰 Вісти`, gift and postal navigation still works.
+2. Open `📖 Перекази`; verify the intro and all categories fit a mobile screen.
+3. Open every category: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки`, `📜 Звичаї й чутки`.
+4. In each category, verify entries belong to that category and `🎲 Випадковий із цієї категорії` opens an entry.
+5. Open several entries; verify title, source, body and category position render safely with Telegram HTML.
+6. Tap global `🎲 Випадковий переказ` several times; verify it never shows an empty or broken card while content exists.
+7. Replay stale lore category/entry callbacks after a restart or deploy; verify the bot answers without a spinner hang and returns a safe fallback card.
+8. Return to `Дошка корчми`; verify the original board card is restored through the existing place flow.
+9. Confirm reading lore grants no XP, gold, items, combat power, unlock progress or hidden achievement.
+
 ## 0.2.17 — Big Barrel Brother Raid MVP smoke
 
 Use two or three local accounts with eligible characters: non-remorted level 8+ or remorted level 3+. Set `BIG_BARREL_BROTHER_RAID_ENABLED=true`. Keep `PARTY_SESSION_DEV_HELPERS_ENABLED=true` only for timeout/expiry shortcuts; production Big Barrel Brother creation is controlled by the Big Barrel Brother flag.

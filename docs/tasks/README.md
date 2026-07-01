@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- [0.2.17-big-barrel-brother-raid-mvp.md](0.2.17-big-barrel-brother-raid-mvp.md) — feature-flagged level 8+ Big Barrel Brother raid route on the existing party-boss runtime, with no runtime round cap.
+- [0.2.18-lore-board-mvp.md](0.2.18-lore-board-mvp.md) — static `📖 Перекази` route from `Дошка корчми`, with typed lore entries, compact callbacks and no rewards.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -78,6 +78,7 @@ Active task:
 - [0.2.15-party-session-foundation.md](0.2.15-party-session-foundation.md) — dev/flagged temporary party recruiting/session foundation with opaque links, nearby private invites and replay-safe leave/cancel/expiry.
 - [0.2.16-party-vs-one-boss.md](0.2.16-party-vs-one-boss.md) — dev/flagged one-party one-boss proof with durable rounds, active combat leases, timeout defend fallback and no rewards.
 - [0.2.17-big-barrel-brother-raid-mvp.md](0.2.17-big-barrel-brother-raid-mvp.md) — feature-flagged level 8+ Big Barrel Brother raid route, Big boss tuning, canonical Barrel success settlement and no runtime round cap.
+- [0.2.18-lore-board-mvp.md](0.2.18-lore-board-mvp.md) — static `📖 Перекази` section on `Дошка корчми`, backed by typed lore entries and canonical reference validation.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.

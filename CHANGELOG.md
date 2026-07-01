@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.18] - 12026-07-01 - Lore Board MVP
+
+### Added
+- Added static `📖 Перекази` navigation from `Дошка корчми`, with all MVP categories: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки` and `📜 Звичаї й чутки`.
+- Added typed lore entries in `src/content/loreBoard.ts`, seeded from the current lore-board docs and backed by `canonicalRefs` for live race, class, monster, item and Korchma location ids.
+- Added lore presenters, command helpers, compact `v1:lore:*` callback parsing, callback routing, category-random/global-random navigation and stale-id fallbacks.
+- Added content validation plus focused callback, presenter, command, route, board keyboard, presence and `/news` regression coverage.
+- Added maintenance docs for adding lore entries and keeping `canonicalRefs` aligned with runtime content.
+
+### Changed
+- The Korchma board card now mentions that the board has readable перекази, and its keyboard opens the lore menu without replacing `📰 Вісти`, gifts or postal entry points.
+- Lore callbacks route presence back to the Korchma news-corner surface, matching the existing board/news location behavior.
+
+### Unchanged
+- Lore reading grants no XP, gold, items, combat power, unlock progress, hidden reward or achievement in this MVP.
+- No Prisma schema, migration, stored read ledger, admin UI, WebView, Mini App, combat, economy, remort, Big Barrel Brother, party/raid, market or ґільдійний behavior changes ship in this slice.
+
 ## [0.2.17] - 12026-07-01 - Big Barrel Brother Raid MVP
 
 ### Added

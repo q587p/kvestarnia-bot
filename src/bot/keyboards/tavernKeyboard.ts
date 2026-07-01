@@ -4,6 +4,7 @@ import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbac
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
+import { makeLoreMenuCallbackData } from "../callbacks/loreBoardCallbackData";
 import { makeNewsListCallbackData } from "../callbacks/newsCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeDescentSearchStartCallbackData } from "../callbacks/passageSearchCallbackData";
@@ -191,6 +192,8 @@ export function buildKorchmaBarKeyboard(
 export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("📰 Вісти", makeNewsListCallbackData(0))
+    .row()
+    .text("📖 Перекази", makeLoreMenuCallbackData())
     .row()
     .text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData())
     .row()

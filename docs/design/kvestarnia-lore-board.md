@@ -1,6 +1,5 @@
-# Kvestarnia Lore Board Planning
+# Kvestarnia Lore Board
 
-> Planning doc only. This PR does not implement runtime behavior.
 > Source package: kvestarnia-lore-pack-current, normalized for Kvestarnia repo naming and content rules.
 
 # Аналіз: як подавати лор Квестарні зараз
@@ -101,14 +100,14 @@ MVP може почати зі статичного `lore-seed.json` або Type
 
 ## Callback naming
 
-Використати окремий callback namespace:
+Використати окремий callback namespace. Runtime `0.2.18` ships compact payloads under the same namespace so every button stays well below Telegram's 64-byte callback limit:
 
 ```text
-v1:lore:menu
-v1:lore:cat:<categoryId>
-v1:lore:entry:<entryId>
-v1:lore:random
-v1:lore:random:<categoryId>
+v1:lore:m
+v1:lore:c:<categoryId>
+v1:lore:e:<entryId>
+v1:lore:r
+v1:lore:rc:<categoryId>
 ```
 
 Перед мерджем перевірити, що callback data вкладається в Telegram 64 bytes.
@@ -161,6 +160,17 @@ v1:lore:random:<categoryId>
 - Не спойлерити точні формули бою або лут-шанси.
 - Не вигадувати нові playable race/class names у player-facing entries.
 
+## Runtime maintenance
+
+Runtime content lives in `src/content/loreBoard.ts`. To add a lore entry:
+
+1. Choose an existing `categoryId` from `loreCategories`.
+2. Add a stable short lowercase `id`; keep it safe for `v1:lore:e:<id>` callback data.
+3. Fill Ukrainian `title`, `source` and `body` with short player-facing copy.
+4. Add `canonicalRefs` only for live runtime ids: races/classes/monsters/items from `src/content/*`, or Korchma location ids used by presence routing.
+5. Run the lore content and callback tests so missing refs, duplicate ids and overlong payloads fail before review.
+
+If the entry names a future concept that has no live runtime id yet, leave it out of `canonicalRefs` and keep the copy clearly folkloric instead of promising shipped gameplay.
 
 ## Canon Index
 
