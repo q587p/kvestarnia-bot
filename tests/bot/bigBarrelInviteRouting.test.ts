@@ -7,7 +7,10 @@ import { sendCurrentLocation } from "../../src/bot/modules/mainMenu";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { BIG_BARREL_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
-import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../src/services/presenceService";
+import {
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_HALL
+} from "../../src/services/presenceService";
 
 const BOT_USERNAME = "kvestarnia_test_bot";
 const PARTY_TOKEN = "partyABC12";
@@ -17,12 +20,14 @@ describe("Big Barrel Brother invite routing", () => {
   it("keeps the Korchma Barrel place callback on the old Barrel card without auto-creating a party", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
-      partyCharacter: { level: 3, remortCount: 1 }
+      partyCharacter: { level: 3, remortCount: 1 },
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_HALL
     });
     const calls = await captureCallbackApiCalls(makePlaceCallbackData("barrel"), services, {
       botUsername: BOT_USERNAME
     });
 
+    expect(calls.some(hasBigApproachNotice)).toBe(true);
     expect(calls.some((call) => String(call.payload.text).includes(PARTY_INVITE_URL))).toBe(false);
     expect(createForTelegramUser).not.toHaveBeenCalled();
   });
@@ -64,6 +69,8 @@ describe("Big Barrel Brother invite routing", () => {
       botUsername: BOT_USERNAME
     });
 
+    expect(calls.some(hasBigApproachNotice)).toBe(true);
+    expect(calls.some(hasMainRecruitingFurnitureNotice)).toBe(false);
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
@@ -99,6 +106,8 @@ describe("Big Barrel Brother invite routing", () => {
       botUsername: BOT_USERNAME
     });
 
+    expect(calls.some(hasBigApproachNotice)).toBe(true);
+    expect(calls.some(hasMainRecruitingFurnitureNotice)).toBe(false);
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
@@ -137,6 +146,8 @@ describe("Big Barrel Brother invite routing", () => {
       botUsername: BOT_USERNAME
     });
 
+    expect(calls.some(hasBigApproachNotice)).toBe(true);
+    expect(calls.some(hasMainRecruitingFurnitureNotice)).toBe(false);
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
@@ -165,6 +176,22 @@ function hasShareInviteButton(call: ApiCall): boolean {
   return (call.method === "sendMessage" || call.method === "editMessageText") &&
     JSON.stringify(call.payload.reply_markup ?? {}).includes("https://t.me/share/url") &&
     JSON.stringify(call.payload.reply_markup ?? {}).includes(`party_${PARTY_TOKEN}`);
+}
+
+function hasBigApproachNotice(call: ApiCall): boolean {
+  const text = String(call.payload.text);
+
+  return call.method === "sendMessage" &&
+    text.includes("Ви підійшли до Бочки Пінного Міражу.") &&
+    (text.includes("ватаг") || text.includes("гуртов") || text.includes("повноцін"));
+}
+
+function hasMainRecruitingFurnitureNotice(call: ApiCall): boolean {
+  const text = String(call.payload.text);
+
+  return (call.method === "sendMessage" || call.method === "editMessageText") &&
+    text.includes("Збір до Старшого Брата Бочки") &&
+    text.includes("Бочку довго ображали словом «меблі»");
 }
 
 async function captureCallbackApiCalls(
@@ -274,6 +301,7 @@ function servicesForBigBarrelRoute(options: {
   partyCharacter?: Partial<PartySessionRecord["leader"]>;
   bigEnabled?: boolean;
   createResult?: { state: "ineligible" };
+  currentLocationId?: string;
 } = {}): {
   services: BotServices;
   session: PartySessionRecord;
@@ -330,8 +358,10 @@ function servicesForBigBarrelRoute(options: {
       }),
       getCurrentPlaceForTelegramUser: vi.fn().mockResolvedValue({
         state: "ready",
-        locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
-        locationName: "Бочка Пінного Міражу",
+        locationId: options.currentLocationId ?? PRESENCE_LOCATION_KORCHMA_BARREL,
+        locationName: options.currentLocationId === PRESENCE_LOCATION_KORCHMA_HALL
+          ? "Зала корчми"
+          : "Бочка Пінного Міражу",
         insideKorchma: true
       }),
       getKorchmaInteriorPresence: vi.fn().mockResolvedValue({

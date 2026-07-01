@@ -79,6 +79,7 @@ import {
   presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
 import {
+  presentBigBarrelApproachNotice,
   presentPartyBoss,
   presentPartyCreate
 } from "../presenters/partySessionPresenter";
@@ -718,6 +719,9 @@ export async function sendTavernBarrel(
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
 
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
+    if (session && party.state === "created" && session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      await sendBigBarrelApproachIntro(ctx, session.inviteToken);
+    }
     const sentMessageId = await sendBigPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
       ? {
           session,
@@ -743,6 +747,10 @@ export async function sendTavernBarrel(
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
   await sendText(ctx, mode, presentTavern(result.character), true);
   return true;
+}
+
+async function sendBigBarrelApproachIntro(ctx: Context, seed: string): Promise<void> {
+  await ctx.reply(presentBigBarrelApproachNotice(seed), HTML_MESSAGE_OPTIONS);
 }
 
 async function markTavernPlace(

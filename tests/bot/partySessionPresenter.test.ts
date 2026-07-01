@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  BIG_BARREL_APPROACH_TEMPLATES,
   BIG_BARREL_INVITE_TEMPLATES,
+  getInitialBigBarrelApproachTemplateIndex,
   getInitialBigBarrelInviteTemplateIndex,
+  getNextBigBarrelApproachTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
+  presentBigBarrelApproachNotice,
+  presentPartyCreate,
   presentPartyInviteShare,
   presentPartySession,
   presentPartyBoss,
@@ -319,14 +324,34 @@ describe("party session presenter", () => {
     expect(nextText).not.toBe(firstText);
   });
 
+  it("renders stable rotating Big Barrel Brother approach notices", () => {
+    expect(BIG_BARREL_APPROACH_TEMPLATES).toHaveLength(13);
+
+    const initial = getInitialBigBarrelApproachTemplateIndex("partyBIG12");
+    const next = getNextBigBarrelApproachTemplateIndex("partyBIG12", initial);
+    const firstText = presentBigBarrelApproachNotice("partyBIG12", { templateIndex: initial });
+    const nextText = presentBigBarrelApproachNotice("partyBIG12", { templateIndex: next });
+
+    expect(firstText).toContain("Ви підійшли до Бочки Пінного Міражу.");
+    expect(firstText).toContain("ватаг");
+    expect(firstText).toContain("рейд");
+    expect(nextText).not.toBe(firstText);
+  });
+
   it("keeps the Big Barrel Brother recruiting card free of the invite URL", () => {
-    const text = presentPartySession(makePartySession(), {
+    const session = makePartySession();
+    const text = presentPartySession(session, {
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyBIG12"
+    });
+    const createdText = presentPartyCreate({ state: "created", session }, {
       inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyBIG12"
     });
 
     expect(text).toContain("🛢️ <b>Збір до Старшого Брата Бочки</b>");
     expect(text).not.toContain("Запрошення:");
     expect(text).not.toContain("https://t.me/kvestarnia_test_bot?start=party_partyBIG12");
+    expect(text).not.toContain("Бочку довго ображали словом «меблі»");
+    expect(createdText).not.toContain("Бочку довго ображали словом «меблі»");
   });
 });
 

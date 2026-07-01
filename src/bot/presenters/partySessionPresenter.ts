@@ -53,13 +53,15 @@ export function presentPartyCreate(
     return "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
   }
 
+  const notice = result.state === "created"
+    ? isBigBarrelParty(result.session)
+      ? null
+      : "Запис відкрито. Це ще не бій і не рейдова нагорода, а збір тимчасової ватаги."
+    : "У вас уже є жива ватага. Показую її канонічну картку.";
+
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
-    notice: result.state === "created"
-      ? isBigBarrelParty(result.session)
-        ? "Бочку довго ображали словом «меблі». Старший Брат Бочки підняв кришку, подивився в журнал і вирішив втрутитися."
-        : "Запис відкрито. Це ще не бій і не рейдова нагорода, а збір тимчасової ватаги."
-      : "У вас уже є жива ватага. Показую її канонічну картку."
+    ...(notice ? { notice } : {})
   });
 }
 
@@ -1107,6 +1109,49 @@ export function presentPartyInviteShare(
   ].join("\n");
 }
 
+export function presentBigBarrelApproachNotice(
+  seed: string,
+  options: { templateIndex?: number | null | undefined } = {}
+): string {
+  const index = options.templateIndex ?? getInitialBigBarrelApproachTemplateIndex(seed);
+  const template = BIG_BARREL_APPROACH_TEMPLATES[normalizeBigBarrelApproachTemplateIndex(index)] ??
+    BIG_BARREL_APPROACH_TEMPLATES[0];
+
+  if (!template) {
+    throw new Error("Big Barrel approach templates must not be empty.");
+  }
+
+  return [
+    "Ви підійшли до Бочки Пінного Міражу.",
+    "",
+    ...template.body
+  ].join("\n");
+}
+
+export function getInitialBigBarrelApproachTemplateIndex(seed: string): number {
+  return stableIndex(seed, BIG_BARREL_APPROACH_TEMPLATES.length);
+}
+
+export function getNextBigBarrelApproachTemplateIndex(seed: string, currentIndex: number): number {
+  const current = normalizeBigBarrelApproachTemplateIndex(currentIndex);
+
+  if (BIG_BARREL_APPROACH_TEMPLATES.length <= 1) {
+    return current;
+  }
+
+  const offset = stableIndex(`${seed}:approach-step`, BIG_BARREL_APPROACH_TEMPLATES.length - 1) + 1;
+
+  return (current + offset) % BIG_BARREL_APPROACH_TEMPLATES.length;
+}
+
+export function normalizeBigBarrelApproachTemplateIndex(value: number): number {
+  if (!Number.isInteger(value) || value < 0 || value >= BIG_BARREL_APPROACH_TEMPLATES.length) {
+    return 0;
+  }
+
+  return value;
+}
+
 export function getInitialBigBarrelInviteTemplateIndex(token: string): number {
   return stableIndex(token, BIG_BARREL_INVITE_TEMPLATES.length);
 }
@@ -1234,6 +1279,100 @@ export const BIG_BARREL_INVITE_TEMPLATES = [
     body: [
       "Бочка почала рахувати образи й підозріло швидко дійшла до ватаги.",
       "Переходьте за посиланням, поки ревізія ще приймає добровольців."
+    ]
+  }
+] as const;
+
+export const BIG_BARREL_APPROACH_TEMPLATES = [
+  {
+    id: "furniture-offense",
+    body: [
+      "Бочку довго ображали словом «меблі». Старший Брат Бочки підняв кришку, подивився в журнал і вирішив втрутитися.",
+      "Тепер це не легенький соло-рейд, а повноцінна бійка. Збирайте ватагу."
+    ]
+  },
+  {
+    id: "solo-retired",
+    body: [
+      "Корчмар уже дістав старий бочковий протокол, але зсередини хтось дописав: «соло-героїзм тимчасово не приймаємо».",
+      "Старший Брат Бочки хоче бачити ватагу, а не одного сміливця з підозрілою впевненістю."
+    ]
+  },
+  {
+    id: "lid-vote",
+    body: [
+      "Кришка Бочки піднялася так повільно, ніби голосувала проти ваших планів.",
+      "Це вже гуртовий рейд. Покличте ще пригодників, поки журнал не призначив вас усім відділом."
+    ]
+  },
+  {
+    id: "foam-committee",
+    body: [
+      "Піна зібралася в коло й дуже схожа на комітет із поганих новин.",
+      "Старший Брат Бочки виходить на повну бійку: потрібна ватага, бинти й колективна відсутність сорому."
+    ]
+  },
+  {
+    id: "old-raid-closed",
+    body: [
+      "Стара Бочка ще тут, але її старший родич уже перегорнув сторінку правил.",
+      "Легкий рейд закінчився. Далі — збір ватаги й справжня бочкова суперечка."
+    ]
+  },
+  {
+    id: "ledger-summons",
+    body: [
+      "Журнал біля Бочки сам розкрився на сторінці «попросити підкріплення».",
+      "Старший Брат Бочки не приймає одиночних пояснень. Відкривайте рейдовий збір і кличте ватагу."
+    ]
+  },
+  {
+    id: "hoop-warning",
+    body: [
+      "Обручі на Бочці дзенькнули так, ніби хтось розігріває рейдовий гонг.",
+      "Попереду не коротка вилазка, а бійка з босом. Саме час зробити вигляд, що у вас є план і ватага."
+    ]
+  },
+  {
+    id: "foam-notice",
+    body: [
+      "На піні проступив службовий напис: «одного пригодника замало для цієї дурниці».",
+      "Старший Брат Бочки чекає гуртового рейду. Збирайте людей, поки напис не став претензією."
+    ]
+  },
+  {
+    id: "korchmar-squints",
+    body: [
+      "Корчмар примружився на Бочку й перестав називати це «маленькою справою».",
+      "Тепер потрібна ватага: Старший Брат Бочки готує рейдовий бій, де самотня хоробрість швидко стає бухгалтерією травм."
+    ]
+  },
+  {
+    id: "barrel-clears-throat",
+    body: [
+      "Бочка прочистила горло. У меблів, як виявилося, теж буває старший брат і довга памʼять.",
+      "Не йдіть самі: це вже не прогулянка до нагороди, а рейдова бійка для ватаги."
+    ]
+  },
+  {
+    id: "chairs-step-back",
+    body: [
+      "Стільці біля Бочки непомітно відсунулися. Це ніколи не добрий знак.",
+      "Старший Брат Бочки бере сцену на себе. Відкривайте рейдовий збір і приводьте ватагу."
+    ]
+  },
+  {
+    id: "foam-briefing",
+    body: [
+      "Піна на Бочці згорнулася в короткий інструктаж, який ніхто не просив.",
+      "Суть проста: соло-рейд пішов у відпустку, натомість починається повноцінна рейдова бійка."
+    ]
+  },
+  {
+    id: "barrel-audit",
+    body: [
+      "Бочка провела внутрішній аудит і виявила забагато самовпевнених одинаків.",
+      "Старший Брат Бочки виправляє процес: збирайте ватагу, бо тепер це гуртовий протокол із ударами."
     ]
   }
 ] as const;

@@ -264,7 +264,8 @@ export async function refreshMainMenuLocationKeyboard(
 export async function sendPlaceMovementNotice(
   ctx: Context,
   presenceService: PresenceService,
-  targetLocationId: string
+  targetLocationId: string,
+  options: { text?: string | undefined } = {}
 ): Promise<void> {
   const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
   const normalizedTargetLocationId = normalizePresenceLocationId(targetLocationId);
@@ -277,7 +278,7 @@ export async function sendPlaceMovementNotice(
     return;
   }
 
-  await ctx.reply(getLocationMovementNoticeText(normalizedTargetLocationId, previousLocationId), {
+  await ctx.reply(options.text ?? getLocationMovementNoticeText(normalizedTargetLocationId, previousLocationId), {
     reply_markup: buildMainMenuKeyboard({
       locationId: normalizedTargetLocationId
     })

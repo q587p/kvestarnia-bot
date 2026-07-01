@@ -19,7 +19,9 @@ PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
 PRESENCE_LOCATION_KORCHMA_YARD,
 PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
+import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { ShynokRoundConfirmResult } from "../../services/shynokService";
+import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
 import { parseCellarCallbackData,type CellarCallback } from "../callbacks/cellarCallbackData";
@@ -131,6 +133,7 @@ presentTavernRoundLeaderboard,
 presentTavernRoundOffer,
 presentTavernRoundResult
 } from "../presenters/tavernPresenter";
+import { presentBigBarrelApproachNotice } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -639,7 +642,7 @@ async function handlePlaceCallback(
   }
 
   if (action === "barrel") {
-    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BARREL);
+    await sendBarrelPlaceMovementNotice(ctx, telegramUserId, services);
     if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_BARREL, services)) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
@@ -801,6 +804,39 @@ async function handlePlaceCallback(
   }
   await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+}
+
+async function sendBarrelPlaceMovementNotice(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<void> {
+  const text = await getBigBarrelApproachNoticeForTelegramUser(telegramUserId, services);
+
+  await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BARREL, {
+    ...(text ? { text } : {})
+  });
+}
+
+async function getBigBarrelApproachNoticeForTelegramUser(
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<string | null> {
+  if (!services.partySessions?.isBigBarrelBrotherEnabled()) {
+    return null;
+  }
+
+  const result = await services.tavern.getTavernForTelegramUser(telegramUserId);
+  if (
+    result.state !== "ready" ||
+    !isBigBarrelEligible(result.character.level, result.character.remortCount)
+  ) {
+    return null;
+  }
+
+  const period = getBarrelRaidPeriod(new Date());
+
+  return presentBigBarrelApproachNotice(`${telegramUserId.toString()}:${period.id}`);
 }
 
 async function handleMemorialCallback(
