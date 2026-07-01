@@ -22,6 +22,7 @@ Keep this file compact. Target: under 250 lines.
 - Prompts should be short and skill-based: `Use $skill` plus the task doc path.
 - Do not paste long repeated instructions into prompts.
 - Inspect changed/relevant files before broad scans.
+- If a user names a PR, verify its live `base` and `head` before reviewing or continuing; do not assume the current checkout is the PR head.
 - Next-task base checks must account for squash merges: fetch `origin/main`, verify expected version/content, and compare tree diffs before stopping on a non-ancestor branch.
 - Codex prompt generation follows `docs/ai/CODEX_PROMPT_POLICY.md`: English, `$skill`-based, compact, target-branch aware, and no pasted long rules.
 - Second Codex review defaults to changed files only.
