@@ -155,6 +155,7 @@ describe("PrismaPartySessionRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(2202n, "party-token-big-l7", joinInput());
 
     expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("level-gate");
     await expectNoMembership(prisma, "party-token-big-l7", 2202n);
   });
 
@@ -169,6 +170,7 @@ describe("PrismaPartySessionRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(2302n, "party-token-big-r2", joinInput());
 
     expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("level-gate");
     await expectNoMembership(prisma, "party-token-big-r2", 2302n);
   });
 
@@ -213,6 +215,7 @@ describe("PrismaPartySessionRepository integration", () => {
     );
 
     expect(blocked.state).toBe("ineligible");
+    expect(blocked.state === "ineligible" ? blocked.reason : null).toBe("loss-cooldown");
     expect(await prisma.partySession.count({
       where: {
         inviteToken: "party-token-big-create-cooldown"
@@ -259,6 +262,7 @@ describe("PrismaPartySessionRepository integration", () => {
     );
 
     expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("loss-cooldown");
     await expectNoMembership(prisma, "party-token-big-join-loss-cooldown", 2554n);
   });
 
@@ -280,6 +284,7 @@ describe("PrismaPartySessionRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(2602n, "party-token-big-done", joinInput());
 
     expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("already-completed");
     await expectNoMembership(prisma, "party-token-big-done", 2602n);
   });
 
@@ -299,6 +304,7 @@ describe("PrismaPartySessionRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(2702n, "party-token-big-combat", joinInput());
 
     expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("active-combat");
     await expectNoMembership(prisma, "party-token-big-combat", 2702n);
   });
 

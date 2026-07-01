@@ -6,6 +6,7 @@ import type {
   PartyCharacterSnapshot,
   PartyCreateRepositoryResult,
   PartyJoinRepositoryResult,
+  PartyJoinIneligibleReason,
   PartyLeaveRepositoryResult,
   PartyParticipantRecord,
   PartySessionRecord,
@@ -75,7 +76,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         input.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
         await hasActiveBigBarrelLossCooldown(tx, character.id, input.now)
       ) {
-        return { state: "ineligible" } satisfies PartyCreateRepositoryResult;
+        return { state: "ineligible", reason: "loss-cooldown" } satisfies PartyCreateRepositoryResult;
       }
 
       const liveLeader = await findLiveLeaderSession(tx, character.id);
@@ -185,8 +186,9 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
-      if (await isIneligibleBigBarrelJoin(tx, session, character, input.now)) {
-        return { state: "ineligible", session: mapSession(session) };
+      const ineligibleReason = await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
+      if (ineligibleReason) {
+        return { state: "ineligible", reason: ineligibleReason, session: mapSession(session) };
       }
 
       const existing = session.participants.find((row) => row.characterId === character.id);
@@ -788,18 +790,18 @@ function isPersonalBigBarrelRecruitingSession(session: PartySessionRow, characte
   );
 }
 
-async function isIneligibleBigBarrelJoin(
+async function getBigBarrelJoinIneligibleReason(
   tx: TxClient,
   session: PartySessionRow,
   character: CharacterRow,
   now: Date
-): Promise<boolean> {
+): Promise<PartyJoinIneligibleReason | null> {
   if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
-    return false;
+    return null;
   }
 
   if (!isBigBarrelEligible(character.level, character._count.remorts)) {
-    return true;
+    return "level-gate";
   }
 
   const [activeLease, existingSuccess, activeLossCooldown] = await Promise.all([
@@ -828,7 +830,19 @@ async function isIneligibleBigBarrelJoin(
     hasActiveBigBarrelLossCooldown(tx, character.id, now)
   ]);
 
-  return Boolean(activeLease || existingSuccess || activeLossCooldown);
+  if (activeLease) {
+    return "active-combat";
+  }
+
+  if (existingSuccess) {
+    return "already-completed";
+  }
+
+  if (activeLossCooldown) {
+    return "loss-cooldown";
+  }
+
+  return null;
 }
 
 async function hasActiveBigBarrelLossCooldown(

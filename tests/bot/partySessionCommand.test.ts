@@ -452,7 +452,7 @@ describe("handlePartySessionCallback", () => {
     );
   });
 
-  it("shows generic copy for ineligible Big Barrel Brother nearby joins without participant refresh", async () => {
+  it("shows fallback copy for reasonless ineligible Big Barrel Brother nearby joins without participant refresh", async () => {
     const session = {
       ...makeSession("recruiting"),
       originLocationId: "barrel.big-brother"
@@ -482,7 +482,7 @@ describe("handlePartySessionCallback", () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
-  it("shows generic copy for ineligible Big Barrel Brother deep-link joins without a joined card", async () => {
+  it("shows fallback copy for reasonless ineligible Big Barrel Brother deep-link joins without a joined card", async () => {
     const session = {
       ...makeSession("recruiting"),
       originLocationId: "barrel.big-brother"

@@ -50,7 +50,7 @@ export function presentPartyCreate(
   }
 
   if (result.state === "ineligible") {
-    return "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+    return presentPartyCreateIneligible(result.reason);
   }
 
   const notice = result.state === "created"
@@ -85,7 +85,7 @@ export function presentPartyJoin(
   }
 
   if (result.state === "ineligible") {
-    return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
+    return presentPartyJoinIneligible(result.reason);
   }
 
   if (result.state === "full") {
@@ -113,6 +113,38 @@ export function presentPartyJoin(
       ? "Ви вже в цій ватазі. Повторний запис не створює другого вас, хоча бюрократія мріяла."
       : "Ви приєдналися до ватаги."
   });
+}
+
+function presentPartyCreateIneligible(
+  reason: Extract<PartyCreateResult, { state: "ineligible" }>["reason"]
+): string {
+  if (reason === "loss-cooldown") {
+    return "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+  }
+
+  return "Рейдова канцелярія притримала новий збір. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
+}
+
+function presentPartyJoinIneligible(
+  reason: Extract<PartyJoinResult, { state: "ineligible" }>["reason"]
+): string {
+  if (reason === "level-gate") {
+    return "Рейдова канцелярія відсіяла запис: Старший Брат Бочки пускає в цю бійку пригодників від 8 рівня, або ремортованих від 3 рівня.";
+  }
+
+  if (reason === "active-combat") {
+    return "Рейдова канцелярія відсіяла запис: ви вже в активному бою. Завершіть його, тоді подавайте заявку до ватаги.";
+  }
+
+  if (reason === "already-completed") {
+    return "Рейдова канцелярія відсіяла запис: сьогоднішня Бочка вже зарахована. Старший Брат не приймає другий запис у цей самий період.";
+  }
+
+  if (reason === "loss-cooldown") {
+    return "Рейдова канцелярія відсіяла запис: після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+  }
+
+  return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
 }
 
 export function presentPartyLeave(

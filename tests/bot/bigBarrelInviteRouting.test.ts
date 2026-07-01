@@ -84,7 +84,7 @@ describe("Big Barrel Brother invite routing", () => {
   it("shows a Big loss cooldown wait message from /raid without creating invite controls", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute({
       character: { level: 8, remortCount: 0 },
-      createResult: { state: "ineligible" }
+      createResult: { state: "ineligible", reason: "loss-cooldown" }
     });
     const calls = await captureMessageApiCalls("/raid", services, {
       botUsername: BOT_USERNAME
@@ -300,7 +300,7 @@ function servicesForBigBarrelRoute(options: {
   character?: Partial<CharacterSummary>;
   partyCharacter?: Partial<PartySessionRecord["leader"]>;
   bigEnabled?: boolean;
-  createResult?: { state: "ineligible" };
+  createResult?: { state: "ineligible"; reason?: "loss-cooldown" | undefined };
   currentLocationId?: string;
 } = {}): {
   services: BotServices;

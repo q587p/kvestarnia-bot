@@ -8,6 +8,7 @@ import {
   getNextBigBarrelInviteTemplateIndex,
   presentBigBarrelApproachNotice,
   presentPartyCreate,
+  presentPartyJoin,
   presentPartyInviteShare,
   presentPartySession,
   presentPartyBoss,
@@ -352,6 +353,16 @@ describe("party session presenter", () => {
     expect(text).not.toContain("https://t.me/kvestarnia_test_bot?start=party_partyBIG12");
     expect(text).not.toContain("Бочку довго ображали словом «меблі»");
     expect(createdText).not.toContain("Бочку довго ображали словом «меблі»");
+  });
+
+  it("explains why Big Barrel Brother joins are ineligible", () => {
+    const session = makePartySession();
+
+    expect(presentPartyJoin({ state: "ineligible", reason: "level-gate", session })).toContain("від 8 рівня");
+    expect(presentPartyJoin({ state: "ineligible", reason: "active-combat", session })).toContain("в активному бою");
+    expect(presentPartyJoin({ state: "ineligible", reason: "already-completed", session })).toContain("вже зарахована");
+    expect(presentPartyJoin({ state: "ineligible", reason: "loss-cooldown", session })).toContain("короткий перепочинок");
+    expect(presentPartyJoin({ state: "ineligible", session })).toContain("правильною печаткою");
   });
 });
 
