@@ -55,7 +55,7 @@ describe("Big Barrel Brother invite routing", () => {
     expect(createForTelegramUser).not.toHaveBeenCalled();
   });
 
-  it("opens Big recruiting from /raid for a remorted level 3 character with invite controls but no inline card URL", async () => {
+  it("opens Big recruiting from /raid without auto-sending the forwardable invite card", async () => {
     const { services, createForTelegramUser, recordParticipantMessageReference } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
       partyCharacter: { level: 3, remortCount: 1 }
@@ -65,7 +65,7 @@ describe("Big Barrel Brother invite routing", () => {
     });
 
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
-    expect(calls.some(hasForwardableInviteUrl)).toBe(true);
+    expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
     expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, PARTY_TOKEN, {
@@ -90,7 +90,7 @@ describe("Big Barrel Brother invite routing", () => {
   });
 
 
-  it("threads botUsername into explicit Barrel raid invite controls for a remorted level 3 character", async () => {
+  it("opens explicit Barrel raid recruiting without auto-sending the forwardable invite card", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
       partyCharacter: { level: 3, remortCount: 1 }
@@ -100,7 +100,7 @@ describe("Big Barrel Brother invite routing", () => {
     });
 
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
-    expect(calls.some(hasForwardableInviteUrl)).toBe(true);
+    expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
   });
@@ -138,7 +138,7 @@ describe("Big Barrel Brother invite routing", () => {
     });
 
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
-    expect(calls.some(hasForwardableInviteUrl)).toBe(true);
+    expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
   });
