@@ -1,24 +1,30 @@
-import { type Bot,type Context } from "grammy";
+import { type Bot, type Context } from "grammy";
 import type { DevResetService } from "../../services/devResetService";
 import type { HeroService } from "../../services/heroService";
 import type { OnboardingService } from "../../services/onboardingService";
 import type { RemortService } from "../../services/remortService";
 import type { RestartService } from "../../services/restartService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
-import { answerInvalidCallback,type CallbackParseResult, registerParsedCallbackRoute } from "../callbackRoute";
-import { parseAchievementCallbackData,type AchievementCallback } from "../callbacks/achievementCallbackData";
-import { parseBestiaryCallbackData,type BestiaryCallback } from "../callbacks/bestiaryCallbackData";
+import {
+  answerInvalidCallback,
+  type CallbackParseResult,
+  registerParsedCallbackRoute
+} from "../callbackRoute";
+import { parseAchievementCallbackData, type AchievementCallback } from "../callbacks/achievementCallbackData";
+import { parseBestiaryCallbackData, type BestiaryCallback } from "../callbacks/bestiaryCallbackData";
 import { parseDevResetCallbackData } from "../callbacks/devResetCallbackData";
 import {
-parseOnboardingCallbackData,
-type OnboardingCallback
+  parseOnboardingCallbackData,
+  type OnboardingCallback
 } from "../callbacks/onboardingCallbackData";
-import { parseRemortCallbackData,type RemortCallback } from "../callbacks/remortCallbackData";
+import { parseRemortCallbackData, type RemortCallback } from "../callbacks/remortCallbackData";
 import { parseRestartCallbackData } from "../callbacks/restartCallbackData";
 import {
-registerBestiaryCommand,
-sendBestiaryListGated,
-sendBestiaryMonsterGated
+  registerBestiaryCommand,
+  sendRandomBestiaryRecordGated,
+  sendBestiaryListGated,
+  sendBestiaryMonsterGated,
+  sendBestiarySpecialGated
 } from "../commands/bestiaryCommand";
 import { registerDevGrantCommands } from "../commands/devGrantCommand";
 import { registerDevResetCommand } from "../commands/devResetCommand";
@@ -28,47 +34,45 @@ import { registerRemortCommand } from "../commands/remortCommand";
 import { registerRestartCommand } from "../commands/restartCommand";
 import { registerStartCommand } from "../commands/startCommand";
 import { playerFromContext } from "../context";
-import {
-buildMainMenuKeyboard
-} from "../keyboards/mainMenuKeyboard";
+import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildAchievementsKeyboard, buildCosmeticTitlesKeyboard } from "../keyboards/achievementKeyboard";
 import {
-buildClassKeyboard,
-buildConfirmationKeyboard,
-buildGenderKeyboard,
-buildRaceKeyboard
+  buildClassKeyboard,
+  buildConfirmationKeyboard,
+  buildGenderKeyboard,
+  buildRaceKeyboard
 } from "../keyboards/onboardingKeyboard";
-import { buildRemortKeyboard,buildRemortResultKeyboard } from "../keyboards/remortKeyboard";
+import { buildRemortKeyboard, buildRemortResultKeyboard } from "../keyboards/remortKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
 import {
-presentAchievementCheckNotice,
-presentAchievementUnlockNotification
+  presentAchievementCheckNotice,
+  presentAchievementUnlockNotification
 } from "../presenters/achievementPresenter";
 import { presentAchievements } from "../presenters/achievementPresenter";
 import {
-presentCosmeticTitleNotice,
-presentCosmeticTitles
+  presentCosmeticTitleNotice,
+  presentCosmeticTitles
 } from "../presenters/cosmeticTitlePresenter";
 import {
-presentDevResetCancelled,
-presentDevResetDeleted,
-presentDevResetDisabled,
-presentDevResetNoCharacter
+  presentDevResetCancelled,
+  presentDevResetDeleted,
+  presentDevResetDisabled,
+  presentDevResetNoCharacter
 } from "../presenters/devResetPresenter";
 import {
-presentCharacterCreated,
-presentClassSelected,
-presentGenderSelected,
-presentInvalidCallback,
-presentRaceSelected,
-presentUnavailableChoice,
-presentWelcome
+  presentCharacterCreated,
+  presentClassSelected,
+  presentGenderSelected,
+  presentInvalidCallback,
+  presentRaceSelected,
+  presentUnavailableChoice,
+  presentWelcome
 } from "../presenters/onboardingPresenter";
-import { presentRemortConfirm,presentRemortUpdate } from "../presenters/remortPresenter";
+import { presentRemortConfirm, presentRemortUpdate } from "../presenters/remortPresenter";
 import {
-presentRestartCancelled,
-presentRestartDeleted,
-presentRestartNoCharacter
+  presentRestartCancelled,
+  presentRestartDeleted,
+  presentRestartNoCharacter
 } from "../presenters/restartPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -457,11 +461,21 @@ async function handleBestiaryCallback(
   await safeAnswerCallbackQuery(ctx);
 
   if (callback.type === "list") {
-    await sendBestiaryListGated(ctx, heroService, "edit", callback.page);
+    await sendBestiaryListGated(ctx, heroService, "edit", callback.page, callback.source);
     return;
   }
 
-  await sendBestiaryMonsterGated(ctx, heroService, "edit", callback.monsterId, callback.page);
+  if (callback.type === "random") {
+    await sendRandomBestiaryRecordGated(ctx, heroService, "edit", callback.source);
+    return;
+  }
+
+  if (callback.type === "monster") {
+    await sendBestiaryMonsterGated(ctx, heroService, "edit", callback.monsterId, callback.page, callback.source);
+    return;
+  }
+
+  await sendBestiarySpecialGated(ctx, heroService, "edit", callback.specialId, callback.page, callback.source);
 }
 
 async function handleDevResetCallback(

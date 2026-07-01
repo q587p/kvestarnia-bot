@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.18] - 12026-07-01 - Lore Board MVP
+
+### Added
+- Added static `📖 Перекази` navigation from `Дошка корчми`, with all MVP categories: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки` and `📜 Звичаї й чутки`.
+- Added typed lore entries in `src/content/loreBoard.ts`, seeded from the current lore-board docs and backed by `canonicalRefs` for live race, class, item and Korchma location ids, with coverage for every active race, class and current Korchma presence location.
+- Added compact `🪧 Місцини корчми` subgroups for `Надвірʼя`, `Зала й шинок`, `Бочка й льох`, `Кутки` and `Низ`, keeping the place lore keyboard short without dropping any current place entry.
+- Added an external Lore Board Bestiary category that opens the existing `v1:bst` Bestiary instead of duplicating a partial monster list.
+- Added Bestiary first/last/random navigation plus special non-level records for `Бочка Пінного Міражу` and `Старший Брат Бочки` at the end of the existing Bestiary without adding them to the level-based combat monster roster.
+- Added source-aware Bestiary callbacks so Bestiary opened from Lore Board keeps `⬅️ До переказів` / `🪧 До Дошки корчми` return navigation, while `/bestiary`, `/monsters`, Hunt Board and old callbacks keep `🏹 До дошки`.
+- Added lore presenters, command helpers, compact `v1:lore:*` callback parsing, callback routing, category-random/global-random navigation and stale-id fallbacks.
+- Added content validation plus focused callback, presenter, command, route, board keyboard, Bestiary bridge, active race/class/location coverage, presence and `/news` regression coverage.
+- Added maintenance docs for adding lore entries and keeping `canonicalRefs` aligned with runtime content.
+
+### Changed
+- The Korchma board card now mentions that the board has readable перекази, and its keyboard opens the lore menu without replacing `📰 Вісти`, gifts or postal entry points.
+- Lore callbacks route presence back to the Korchma news-corner surface, matching the existing board/news location behavior.
+- Completed Big Barrel Brother result cards opened from party links now render terminal participant resource rows with character names instead of the viewer shorthand `Ви` and omit active-only cooldown rows, while preserving viewer-specific reward lookup and active-card `Ви` highlighting.
+
+### Unchanged
+- Lore reading grants no XP, gold, items, combat power, unlock progress, hidden reward or achievement in this MVP.
+- No Prisma schema, migration, stored read ledger, admin UI, WebView, Mini App, combat, economy, remort, Big Barrel Brother combat/reward/session, party/raid mechanics, market or ґільдійний behavior changes ship in this slice.
+
 ## [0.2.17] - 12026-07-01 - Big Barrel Brother Raid MVP
 
 ### Added

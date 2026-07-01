@@ -1,13 +1,18 @@
 import type { Bot, Context } from "grammy";
 import { BESTIARY_MIN_LEVEL, meetsActivityLevel } from "../../domain/progression/activityGates";
 import type { HeroService } from "../../services/heroService";
+import type { BestiaryCallbackSource } from "../callbacks/bestiaryCallbackData";
 import { telegramUserIdFromContext } from "../context";
 import { buildBestiaryListKeyboard, buildBestiaryMonsterKeyboard } from "../keyboards/bestiaryKeyboard";
 import {
   presentBestiaryLevelLocked,
   presentBestiaryList,
   presentBestiaryMonster,
-  presentBestiaryNoCharacter
+  presentBestiaryNoCharacter,
+  presentBestiarySpecial,
+  getBestiaryListRecords,
+  getBestiaryRecordPage,
+  selectRandomBestiaryRecord
 } from "../presenters/bestiaryPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -24,13 +29,14 @@ export async function sendBestiaryListGated(
   ctx: Context,
   heroService: HeroService,
   mode: "reply" | "edit",
-  page: number
+  page: number,
+  source: BestiaryCallbackSource = "quest"
 ): Promise<void> {
   if (!(await canReadBestiary(ctx, heroService, mode))) {
     return;
   }
 
-  await sendBestiaryList(ctx, mode, page);
+  await sendBestiaryList(ctx, mode, page, source);
 }
 
 export async function sendBestiaryMonsterGated(
@@ -38,30 +44,101 @@ export async function sendBestiaryMonsterGated(
   heroService: HeroService,
   mode: "reply" | "edit",
   monsterId: string,
-  page: number
+  page: number,
+  source: BestiaryCallbackSource = "quest"
 ): Promise<void> {
   if (!(await canReadBestiary(ctx, heroService, mode))) {
     return;
   }
 
-  await sendBestiaryMonster(ctx, mode, monsterId, page);
+  await sendBestiaryMonster(ctx, mode, monsterId, page, source);
+}
+
+export async function sendBestiarySpecialGated(
+  ctx: Context,
+  heroService: HeroService,
+  mode: "reply" | "edit",
+  specialId: string,
+  page: number,
+  source: BestiaryCallbackSource = "quest"
+): Promise<void> {
+  if (!(await canReadBestiary(ctx, heroService, mode))) {
+    return;
+  }
+
+  await sendBestiarySpecial(ctx, mode, specialId, page, source);
+}
+
+export async function sendRandomBestiaryRecordGated(
+  ctx: Context,
+  heroService: HeroService,
+  mode: "reply" | "edit",
+  source: BestiaryCallbackSource = "quest",
+  rng: () => number = Math.random
+): Promise<void> {
+  if (!(await canReadBestiary(ctx, heroService, mode))) {
+    return;
+  }
+
+  await sendRandomBestiaryRecord(ctx, mode, source, rng);
 }
 
 export async function sendBestiaryList(
   ctx: Context,
   mode: "reply" | "edit",
-  page: number
+  page: number,
+  source: BestiaryCallbackSource = "quest"
 ): Promise<void> {
-  await sendText(ctx, mode, presentBestiaryList(page), buildBestiaryListKeyboard(page));
+  await sendText(ctx, mode, presentBestiaryList(page), buildBestiaryListKeyboard(page, source));
 }
 
 export async function sendBestiaryMonster(
   ctx: Context,
   mode: "reply" | "edit",
   monsterId: string,
-  page: number
+  page: number,
+  source: BestiaryCallbackSource = "quest"
 ): Promise<void> {
-  await sendText(ctx, mode, presentBestiaryMonster(monsterId), buildBestiaryMonsterKeyboard(page));
+  const record = getBestiaryListRecords().find((candidate) =>
+    candidate.type === "monster" && candidate.monster.id === monsterId
+  );
+
+  await sendText(ctx, mode, presentBestiaryMonster(monsterId), buildBestiaryMonsterKeyboard(page, record, source));
+}
+
+export async function sendBestiarySpecial(
+  ctx: Context,
+  mode: "reply" | "edit",
+  specialId: string,
+  page: number,
+  source: BestiaryCallbackSource = "quest"
+): Promise<void> {
+  const record = getBestiaryListRecords().find((candidate) =>
+    candidate.type === "special" && candidate.special.id === specialId
+  );
+
+  await sendText(ctx, mode, presentBestiarySpecial(specialId), buildBestiaryMonsterKeyboard(page, record, source));
+}
+
+export async function sendRandomBestiaryRecord(
+  ctx: Context,
+  mode: "reply" | "edit",
+  source: BestiaryCallbackSource = "quest",
+  rng: () => number = Math.random
+): Promise<void> {
+  const selected = selectRandomBestiaryRecord(rng);
+
+  if (!selected) {
+    await sendBestiaryList(ctx, mode, 0, source);
+    return;
+  }
+
+  const page = getBestiaryRecordPage(selected.index);
+  const text = selected.record.type === "monster"
+    ? presentBestiaryMonster(selected.record.monster.id)
+    : presentBestiarySpecial(selected.record.special.id);
+
+  await sendText(ctx, mode, text, buildBestiaryMonsterKeyboard(page, selected.record, source));
 }
 
 async function sendText(

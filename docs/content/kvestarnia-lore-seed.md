@@ -1,7 +1,7 @@
 # Kvestarnia Lore Seed
 
-> Planning/content doc only. These records are not wired into runtime in this PR.
-> Future implementation task: [0.2.x-lore-board.md](../tasks/0.2.x-lore-board.md).
+> Source/reference material for the Lore Board. The shipped `0.2.18` runtime MVP lives in [`src/content/loreBoard.ts`](../../src/content/loreBoard.ts); this seed remains a planning source for future lore expansion, not the runtime table itself.
+> Shipped implementation task: [0.2.18-lore-board-mvp.md](../tasks/0.2.18-lore-board-mvp.md).
 
 # Seed-тексти лору для Квестарні
 
@@ -127,7 +127,7 @@ _Джерело: польова нотатка з місцини: Корчма �
 
 _Джерело: польова нотатка з місцини: Низ._
 
-Сутерени Корчми — перший ярус Низу, де коридори ще вдають пристойність. Якщо мапа тут бреше, це не баг. Це місцева форма ввічливости.
+Сутерени Корчми — перший ярус Низу, де коридори ще вдають пристойність. Якщо мапа тут бреше, це не баґ. Це місцева форма ввічливости.
 
 Канонічні id: `location.korchma.deep.level1`
 
@@ -323,7 +323,7 @@ _Джерело: з навчальної полиці класів._
 
 ## 🧌 Бестіарій
 
-Вибрані істоти з поточного monster roster; повний індекс лежить у canon-snapshot.json.
+Reference spotlight-записи для майбутнього lore expansion. Runtime MVP не дублює monster roster у Lore Board: категорія `🧌 Бестіарій` відкриває чинний Бестіарій зі Столу зі справами.
 
 ### Мімік-шаурма
 

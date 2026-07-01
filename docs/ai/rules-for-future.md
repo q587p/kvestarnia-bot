@@ -13,7 +13,8 @@ Use this as the durable process note for token-efficient Kvestarnia work.
 7. Use `$kvestarnia-telegram-qa` only for full QA plans or high-risk Telegram flow changes.
 8. Use `$ukrainian-rpg-content` for substantial player-facing battle, tip, location, item/monster, or news copy.
 9. Use `$kvestarnia-local-runtime` for local launcher/runtime, Prisma/SQLite, Windows EPERM, or isolated manual-test bot issues.
-10. Use `$kvestarnia-release-checklist` at closeout.
+10. Use `$kvestarnia-codex-prompt-writer` when writing or reviewing Codex prompts, PR review prompts, or delta integration prompts.
+11. Use `$kvestarnia-release-checklist` at closeout.
 
 ## Prompt rules
 
@@ -21,9 +22,11 @@ Use this as the durable process note for token-efficient Kvestarnia work.
 - Prefer `Use $skill` plus task doc path.
 - Keep task docs English and short.
 - Keep player-facing game copy Ukrainian.
+- Keep Codex-facing prompts and integration prompts English.
 - Do not paste long Ukrainian style rules into prompts; use `$ukrainian-rpg-content`.
 - Ask reviews to inspect changed files only by default.
 - Ask final output to be compact and non-tutorial.
+- Follow `docs/ai/CODEX_PROMPT_POLICY.md` before handing off prompt artifacts.
 
 ## Task doc rule
 

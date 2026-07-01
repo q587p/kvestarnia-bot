@@ -556,7 +556,23 @@ describe("handlePartySessionCallback", () => {
   });
 
   it("opens a completed party boss result from a party deep link before falling back to recruiting join", async () => {
-    const session = makeBossSession({ status: "won" });
+    const session = makeBossSession({
+      status: "won",
+      participants: [
+        {
+          ...makeBossParticipant("character-42", "Тестова Лідерка"),
+          status: "knocked-out",
+          resources: {
+            hp: 0,
+            hpMax: 25,
+            mana: 10,
+            manaMax: 10
+          }
+        },
+        makeBossParticipant("character-93", "Друга Учасниця")
+      ]
+    });
+    session.status = "won";
     const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
     const joinByTokenForTelegramUser = vi.fn();
     const { ctx, reply } = createCallbackContext(93);
@@ -572,6 +588,8 @@ describe("handlePartySessionCallback", () => {
     expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
     expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
     expect(String(reply.mock.calls[0]?.[0])).toContain("Ватага перемогла");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("▫️ Тестова Лідерка: HP 0/25 · мана 10/10 · вибито");
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("❤️ Ви:");
   });
 });
 

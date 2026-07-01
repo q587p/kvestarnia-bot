@@ -34,6 +34,51 @@ Deferred side tracks remain useful but should not steal the Phase 2 spine: Shyno
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
+## Later — Щільний бинт і Польова аптечка
+
+Future task doc: [0.2.x-dense-bandage-field-kit.md](tasks/0.2.x-dense-bandage-field-kit.md).
+
+**Objective**
+Додати два craftable медичні предмети з наявного `Бинта відповідальної паніки`: `Щільний бинт` за `8` звичайних бинтів і `Польову аптечку` за `13` звичайних бинтів.
+
+**Runtime shape**
+
+- Крафт із картки звичайного бинта, тільки поза боєм.
+- Backend повторно перевіряє кількість бинтів, бойовий стан, stale callbacks і double clicks.
+- `Щільний бинт` лікує до `+42 HP`, не вище max HP, а в бою після успішного використання має cooldown на `5` власних ходів у цьому конкретному бою.
+- `Польова аптечка` піднімає HP до `ceil(maxHp * 93 / 100)`, а в бою може успішно спрацювати `1` раз за бій для конкретного персонажа.
+- No-op використання при достатньому HP не витрачає предмет і не ставить cooldown/limit.
+
+**Scope guard**
+Не реалізовувати в Lore Board PR як runtime: без схем, міграцій, широкого crafting system, крамниць, економічного ребалансу, досягнень, нагород або зміни поточного ефекту звичайного бинта.
+
+## Later — Tavern Social Games
+
+Future source doc: [TAVERN_SOCIAL_GAMES.md](TAVERN_SOCIAL_GAMES.md).
+
+**Objective**
+Додати в шинок короткі opt-in `Ігри за столом`: спершу загальний table-game engine, потім `Тавлеї` як 1v1 тактичну партію і `Кості` як 2-6 player dice table.
+
+**Scope guard**
+Це не частина Lore Board MVP і не runtime поточного PR. Не додавати меню, callbacks, Prisma schema, migrations, escrow, ставки, винагороди, telemetry або player-facing обіцянку, доки окрема version task не активує цей напрям.
+
+**Implementation order**
+
+1. Audit current Shynok/Korchma menu, economy mutation path, callback router, combat/search locks and ledger patterns.
+2. Add transaction-safe table-game sessions, stake reserve/refund/payout and expiry behind flags.
+3. Ship `Тавлеї`.
+4. Ship `Кості`.
+5. Add result-copy polish, recent tavern activity, caps and QA hardening.
+
+**Guardrails**
+
+- no pay-to-win;
+- no uncapped gold transfer;
+- no house payout in the MVP;
+- no Mini App requirement;
+- deterministic resolvers and idempotent callbacks;
+- stale/expired tables refund or fail safely.
+
 **Non-goals**
 
 - no Korchma layout rewrite;
@@ -572,16 +617,16 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 ## Later — Bestiary Browse Filters
 
 **Objective**
-Додати в read-only `📖 Бестіарій` швидку навігацію за рівнями й типами, щоб 30+ монстрів не виглядали як випадкова купа сторінок.
+Додати в read-only `📖 Бестіарій` швидку навігацію за рівнями й теґами/типами, щоб 30+ монстрів не виглядали як випадкова купа сторінок.
 
 **Scope**
 
-- На головному екрані бестіарію додати кнопки `Рівні` й `Типи`.
+- На головному екрані бестіарію додати кнопки `Рівні` й `Теґи`.
 - `Рівні` відкриває список наявних рівнів із кількістю монстрів біля кожного.
 - Натискання рівня показує всіх монстрів цього рівня з кнопками на detail-записи.
-- `Типи` відкриває список наявних тегів/типів із player-facing українськими назвами й кількістю монстрів.
-- Натискання типу показує всіх монстрів із цим тегом.
-- У відфільтрованих списках лишити шлях назад: до `Рівні`, до `Типи`, до загального списку.
+- `Теґи` відкриває список наявних monster tags із player-facing українськими назвами й кількістю монстрів.
+- Натискання теґа показує всіх монстрів із цим теґом.
+- У відфільтрованих списках лишити шлях назад: до `Рівні`, до `Теґи`, до загального списку.
 
 **Non-goals**
 
@@ -596,6 +641,36 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - filters derive available levels/tags from `src/content/monsters.ts`, not from hardcoded stale lists;
 - tags use `BESTIARY_TAG_LABELS`, and tests fail if a monster tag lacks a player-facing label;
 - tests cover level list, type list, filtered monster lists, empty-safe fallback, and back buttons.
+
+## Later — Complete Bestiary Notes And Trophy Tables
+
+**Objective**
+Доробити Бестіарій як повний read-only довідник про чинних монстрів: кожен монстр має коротку українську нотатку, зрозумілі можливі трофеї, а ігромеханічний шанс конкретних трофеїв привʼязаний до відповідних monster ids.
+
+**Scope**
+
+- Додати/вирівняти bestiary note для кожного активного запису з `src/content/monsters.ts`.
+- Додати player-facing trophy hints для кожного монстра, без обіцянки гарантованого випадіння.
+- Перевірити, що `monsterLoot` / loot routing не містить orphan item ids і не показує трофеї, які не можуть реально випасти з цього монстра.
+- Привʼязати runtime loot chances до конкретних monster ids або до явного shared loot profile, якщо кілька монстрів мають спільний тематичний pool.
+- Додати validation/test, який падає, якщо активний монстр не має нотатки, trophy hint або loot-table звʼязку.
+- Зберегти Telegram-friendly detail screen: не перетворювати картку на енциклопедичну стіну.
+
+**Non-goals**
+
+- no collection tracking;
+- no seen/resolved/studied states in this content-completion slice;
+- no new reward faucet or broad loot rebalance without a separate balance review;
+- no guaranteed drops in player-facing copy;
+- no new monsters unless a separate content task explicitly adds them.
+
+**Acceptance criteria**
+
+- every active monster has a bestiary note and possible-trophy hint;
+- every displayed trophy hint maps to an actual item/drop path for that monster;
+- loot chances are deterministic/testable and monster-owned or explicitly profile-owned;
+- tests cover missing notes, missing trophy hints, orphan trophy ids, and at least one monster with multiple possible trophies;
+- player-facing copy stays short, Ukrainian and spoiler-light about exact odds.
 
 ## Later — Monster Grammar Metadata
 

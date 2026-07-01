@@ -34,6 +34,8 @@ Tests/manual QA: what to run or check.
 
 Do not paste long repeated rules into prompts. Keep reusable rules in `AGENTS.md`, `.agents/skills/*`, and `docs/ai/context.md`.
 
+When writing Codex prompts, review prompts, or integration prompts, follow `docs/ai/CODEX_PROMPT_POLICY.md`: English prompt text, relevant `$skill` first, compact scope, target branch/base when known, compact final output, no tutorial.
+
 ## Versioned gameplay/runtime changes
 
 Versioned changes affect bot behavior, data, migrations, balance, runtime player messages, or production deployment.
@@ -112,9 +114,10 @@ Use one main skill by default. Active repo skills live in `.agents/skills/`:
 - Closeout/handoff: `$kvestarnia-release-checklist`.
 - Balance/economy review: `$balance-review`.
 - Local launcher/runtime/Prisma/Windows issues: `$kvestarnia-local-runtime`.
+- Codex prompt/integration prompt writing: `$kvestarnia-codex-prompt-writer`.
 - Ukrainian player-facing battle/tip/location/news/content copy: `$ukrainian-rpg-content`.
 
-Avoid activating multiple skills when one is enough. For copy work, use `$ukrainian-rpg-content` instead of pasting `docs/CONTENT_STYLE_GUIDE.md` into the prompt. A focused copy prompt lives in `docs/ai/prompts/ukrainian-content-review.md`.
+Avoid activating multiple skills when one is enough. For copy work, use `$ukrainian-rpg-content` instead of pasting `docs/CONTENT_STYLE_GUIDE.md` into the prompt. For prompt-writing work, use `$kvestarnia-codex-prompt-writer` instead of relying on chat memory. A focused copy prompt lives in `docs/ai/prompts/ukrainian-content-review.md`.
 
 ## New thread rule
 

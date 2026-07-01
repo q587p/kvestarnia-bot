@@ -107,6 +107,14 @@ describe("presence routing", () => {
       }
     ],
     [
+      "v1:lore:m",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+        currentRaidId: null,
+        currentAdventureId: null
+      }
+    ],
+    [
       "v1:news:rlist:0",
       {
         locationId: PRESENCE_LOCATION_KORCHMA_BARREL,

@@ -60,6 +60,7 @@ High-level docs:
 - `docs/PLAYTESTING.md` — manual smoke test for the current playable loop.
 - `docs/CODEX_WORKFLOW.md` — task, PR, review, docs-only, and token-economy workflow.
 - `docs/ai/context.md` — compact Codex context pack; keep it under 250 lines.
+- `docs/ai/CODEX_PROMPT_POLICY.md` — durable rules for writing Codex prompts, integration prompts, and prompt archives.
 - `docs/tasks/README.md` — version task doc convention.
 
 If documentation contradicts code, say so in the final response and propose the smallest safe correction.
@@ -75,6 +76,7 @@ For implementation work:
 3. Activate one main skill: `$kvestarnia-version-task`.
 4. Point Codex to a short task doc in `docs/tasks/` and the compact context in `docs/ai/context.md`.
 5. Do not paste long repeated rules into prompts; rely on `AGENTS.md` and `$skill`.
+   Prompt-writing note: when preparing Codex prompts, review prompts, or delta integration prompts, follow `docs/ai/CODEX_PROMPT_POLICY.md` and use `$kvestarnia-codex-prompt-writer`; Codex-facing prompt text should be English, skill-based, compact, and non-tutorial.
 6. Use `$ukrainian-rpg-content` for substantial player-facing Ukrainian battle, tip, location, item/monster, or news copy instead of pasting the style guide into the prompt.
 7. Inspect changed/relevant files first; avoid repository-wide scans unless necessary.
 8. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.

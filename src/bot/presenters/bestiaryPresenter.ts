@@ -1,4 +1,12 @@
-import { items, monsterFlavorLines, monsterLoot, monsters } from "../../content";
+import {
+  bestiarySpecialRecords,
+  getBestiarySpecialRecord,
+  items,
+  monsterFlavorLines,
+  monsterLoot,
+  monsters,
+  type BestiarySpecialRecord
+} from "../../content";
 import type { MonsterContent } from "../../content/schema";
 import { BESTIARY_MIN_LEVEL } from "../../domain/progression/activityGates";
 import { escapeHtml } from "./telegramHtml";
@@ -113,7 +121,7 @@ export const BESTIARY_TAG_LABELS: Record<string, string> = {
 };
 
 export function clampBestiaryPage(page: number): number {
-  const maxPage = Math.max(0, Math.ceil(monsters.length / BESTIARY_PAGE_SIZE) - 1);
+  const maxPage = Math.max(0, Math.ceil(getBestiaryRecordCount() / BESTIARY_PAGE_SIZE) - 1);
 
   if (!Number.isFinite(page)) {
     return 0;
@@ -124,8 +132,8 @@ export function clampBestiaryPage(page: number): number {
 
 export function presentBestiaryList(page: number): string {
   const safePage = clampBestiaryPage(page);
-  const totalPages = Math.max(1, Math.ceil(monsters.length / BESTIARY_PAGE_SIZE));
-  const pageMonsters = monsters.slice(
+  const totalPages = Math.max(1, Math.ceil(getBestiaryRecordCount() / BESTIARY_PAGE_SIZE));
+  const pageRecords = getBestiaryListRecords().slice(
     safePage * BESTIARY_PAGE_SIZE,
     safePage * BESTIARY_PAGE_SIZE + BESTIARY_PAGE_SIZE
   );
@@ -134,7 +142,7 @@ export function presentBestiaryList(page: number): string {
     "",
     "Польові нотатки без гарантії безпеки. Якщо запис моргає — це не ілюстрація.",
     "",
-    ...pageMonsters.map(presentMonsterRow),
+    ...pageRecords.map(presentBestiaryRow),
     "",
     `Сторінка ${safePage + 1}/${totalPages}`
   ];
@@ -154,6 +162,20 @@ export function presentBestiaryMonster(monsterId: string): string {
   }
 
   return presentBestiaryMonsterRecord(monster, getKnownTrophyNames(monster));
+}
+
+export function presentBestiarySpecial(specialId: string): string {
+  const special = getBestiarySpecialRecord(specialId);
+
+  if (!special) {
+    return [
+      "📖 Запис не знайдено.",
+      "",
+      "Корчмар клянеться, що він був тут хвилину тому. Запис, не корчмар."
+    ].join("\n");
+  }
+
+  return presentBestiarySpecialRecord(special);
 }
 
 export function presentBestiaryMonsterRecord(
@@ -177,6 +199,31 @@ function presentMonsterRow(monster: MonsterContent): string {
   const tags = monster.tags.slice(0, 3).map(formatBestiaryTagLabel).join(", ");
 
   return `• <b>${escapeHtml(monster.name)}</b> · рівень ${monster.level}${tags ? ` · ${escapeHtml(tags)}` : ""}`;
+}
+
+export function presentBestiarySpecialRecord(special: BestiarySpecialRecord): string {
+  const tags = special.tags.slice(0, 3).map(formatBestiaryTagLabel).join(", ");
+
+  return [
+    `📖 <b>${escapeHtml(special.name)}</b>`,
+    "Рівень: особливий запис",
+    "",
+    `<i>${escapeHtml(special.description)}</i>`,
+    "",
+    `Польова нотатка: ${escapeHtml(special.fieldNote)}`,
+    "",
+    `Позначки: ${escapeHtml(tags || "дивно-класифіковане")}`
+  ].join("\n");
+}
+
+function presentBestiaryRow(record: BestiaryListRecord): string {
+  if (record.type === "monster") {
+    return presentMonsterRow(record.monster);
+  }
+
+  const tags = record.special.tags.slice(0, 3).map(formatBestiaryTagLabel).join(", ");
+
+  return `• <b>${escapeHtml(record.special.name)}</b> · особливий запис${tags ? ` · ${escapeHtml(tags)}` : ""}`;
 }
 
 export function presentBestiaryNoCharacter(): string {
@@ -229,4 +276,50 @@ function presentKnownTrophies(trophyNames: string[]): string[] {
     "Можливі трофеї за нотатками, не обіцянка:",
     ...trophyNames.map((name) => `— <i>${escapeHtml(name)}</i>`)
   ];
+}
+
+export type BestiaryListRecord =
+  | { type: "monster"; monster: MonsterContent }
+  | { type: "special"; special: BestiarySpecialRecord };
+
+export function getBestiaryRecordCount(): number {
+  return monsters.length + bestiarySpecialRecords.length;
+}
+
+export function getBestiaryListRecords(): BestiaryListRecord[] {
+  return [
+    ...monsters.map((monster) => ({ type: "monster" as const, monster })),
+    ...bestiarySpecialRecords.map((special) => ({ type: "special" as const, special }))
+  ];
+}
+
+export function getBestiaryRecordIndex(record: BestiaryListRecord): number {
+  return getBestiaryListRecords().findIndex((candidate) => bestiaryRecordKey(candidate) === bestiaryRecordKey(record));
+}
+
+export function getBestiaryRecordPage(index: number): number {
+  return clampBestiaryPage(Math.floor(index / BESTIARY_PAGE_SIZE));
+}
+
+export function getBestiaryRecordByIndex(index: number): BestiaryListRecord | undefined {
+  return getBestiaryListRecords()[index];
+}
+
+export function selectRandomBestiaryRecord(
+  rng: () => number = Math.random
+): { record: BestiaryListRecord; index: number } | undefined {
+  const records = getBestiaryListRecords();
+
+  if (records.length === 0) {
+    return undefined;
+  }
+
+  const index = Math.min(records.length - 1, Math.floor(Math.max(0, rng()) * records.length));
+  const record = records[index];
+
+  return record ? { record, index } : undefined;
+}
+
+export function bestiaryRecordKey(record: BestiaryListRecord): string {
+  return record.type === "monster" ? record.monster.id : record.special.id;
 }

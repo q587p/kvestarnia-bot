@@ -4,6 +4,25 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.18 — Lore Board MVP smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Open `Дошка корчми`; verify `📖 Перекази` appears and existing `📰 Вісти`, gift and postal navigation still works.
+2. Open `📖 Перекази`; verify the intro and all categories fit a mobile screen.
+3. Open every category: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки`, `📜 Звичаї й чутки`.
+3a. In `🪧 Місцини корчми`, verify the first screen shows compact subgroups (`🏚 Надвірʼя`, `🍺 Зала й шинок`, `🛢 Бочка й льох`, `🎯 Кутки`, `⬇️ Низ`) instead of one long place list; open each subgroup and verify its entries fit a mobile screen.
+4. In normal lore categories, verify entries belong to that category and `🎲 Випадковий із цієї категорії` opens an entry.
+5. In `🧌 Бестіарій`, verify `📖 Відкрити Бестіарій` opens the existing Bestiary surface; before level 3 it should keep the existing level gate.
+6. With an eligible character, verify Bestiary list pagination has start/back/next/end controls like the news archive, plus `🎲 Випадковий запис`, and that Lore Board-sourced Bestiary screens return with `⬅️ До переказів` / `🪧 До Дошки корчми`, not `🏹 До дошки`.
+7. Open several Bestiary details from Lore Board and verify first/previous/next/last record navigation plus `🎲 Випадковий запис` preserves the same `⬅️ До переказів` return.
+8. Page to the end of Bestiary and verify `Бочка Пінного Міражу` and `Старший Брат Бочки` appear as special non-level records.
+9. Open several lore entries; verify title, source, body and category position render safely with Telegram HTML.
+10. Tap global `🎲 Випадковий переказ` several times; verify it never shows an empty or broken card while content exists.
+11. Replay stale lore category/entry callbacks after a restart or deploy; verify the bot answers without a spinner hang and returns a safe fallback card.
+12. Return to `Дошка корчми`; verify the original board card is restored through the existing place flow, and separately verify `/bestiary` or `/monsters` still returns with the existing `🏹 До дошки` hunt-board button.
+13. Confirm reading lore or Bestiary records grants no XP, gold, items, combat power, unlock progress or hidden achievement.
+
 ## 0.2.17 — Big Barrel Brother Raid MVP smoke
 
 Use two or three local accounts with eligible characters: non-remorted level 8+ or remorted level 3+. Set `BIG_BARREL_BROTHER_RAID_ENABLED=true`. Keep `PARTY_SESSION_DEV_HELPERS_ENABLED=true` only for timeout/expiry shortcuts; production Big Barrel Brother creation is controlled by the Big Barrel Brother flag.
@@ -27,7 +46,7 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 14. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
 15. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.
 16. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
-17. Force or finish a victory; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
+17. Force or finish a victory; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, names terminal participant rows by character rather than `Ви`, and does not show active-only cooldown rows. Then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
 17a. Open the original `https://t.me/<bot>?start=party_<token>` invite after the victory or loss; verify it opens the stored raid result instead of an expired recruiting message.
 18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; verify it does not clear the Big Barrel Brother loss retry cooldown.
 19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written, timeout-only AFK receives no loss attempt XP, and meaningful participants receive the `🎒 За спробу` line only when the 3-minute loss retry cooldown is not active.

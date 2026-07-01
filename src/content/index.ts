@@ -38,8 +38,35 @@ export {
   raceKeyToId
 } from "./characterOptions";
 export { items } from "./items";
+export {
+  getLoreCategory,
+  getLoreEntriesForCategory,
+  getLoreEntriesForGroup,
+  getLoreEntry,
+  getLoreEntryGroup,
+  getLoreEntryGroupsForCategory,
+  loreCategories,
+  loreEntryGroups,
+  loreEntries,
+  selectRandomLoreEntry,
+  selectRandomLoreEntryForCategory,
+  validateLoreBoardContent
+} from "./loreBoard";
+export type {
+  LoreCanonicalRef,
+  LoreCanonicalRefType,
+  LoreCategory,
+  LoreContentValidationInput,
+  LoreEntry,
+  LoreEntryGroup
+} from "./loreBoard";
 export { findGiftCampaign, giftCampaigns } from "./giftCampaigns";
 export type { GiftCampaignContent, GiftCampaignItemGrant } from "./giftCampaigns";
+export {
+  bestiarySpecialRecords,
+  getBestiarySpecialRecord
+} from "./bestiarySpecials";
+export type { BestiarySpecialRecord } from "./bestiarySpecials";
 export { monsterFlavorLines, monsterLoot, selectMonsterFlavorLine } from "./monsterFlavor";
 export { monsters } from "./monsters";
 export { activeRaces, races } from "./races";

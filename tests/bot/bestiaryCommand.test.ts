@@ -2,11 +2,21 @@ import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import {
   makeBestiaryListCallbackData,
-  makeBestiaryMonsterCallbackData
+  makeBestiaryMonsterCallbackData,
+  makeBestiaryRandomCallbackData,
+  makeBestiarySpecialCallbackData
 } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import { makeLoreMenuCallbackData } from "../../src/bot/callbacks/loreBoardCallbackData";
+import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
-import { sendBestiaryMonster } from "../../src/bot/commands/bestiaryCommand";
+import {
+  sendBestiaryMonster,
+  sendBestiarySpecial,
+  sendRandomBestiaryRecord
+} from "../../src/bot/commands/bestiaryCommand";
+import { bestiarySpecialRecords, monsters } from "../../src/content";
+import { BESTIARY_PAGE_SIZE } from "../../src/bot/presenters/bestiaryPresenter";
 
 describe("bestiary command", () => {
   it.each(["/bestiary", "/monsters"])("renders %s as read-only monster notes", async (command) => {
@@ -44,20 +54,69 @@ describe("bestiary command", () => {
 
     expect(replies[0]?.text).toContain("Павук дедлайнів");
     expect(replies[0]?.options).toMatchObject({
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "⬅️ До списку", callback_data: "v1:bst:list:1" }],
-          [{ text: "🏹 До дошки", callback_data: "v1:quest:hunt" }]
-        ]
-      }
+      parse_mode: "HTML"
     });
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryListCallbackData(1));
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryRandomCallbackData());
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeQuestCallbackData("hunt"));
+    expect(JSON.stringify(replies[0]?.options)).toContain("⏮️ Перший");
+    expect(JSON.stringify(replies[0]?.options)).toContain("Останній ⏭️");
+  });
+
+  it("renders special Barrel records at the end without monster levels", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const specialPage = Math.floor(monsters.length / BESTIARY_PAGE_SIZE);
+
+    await sendBestiarySpecial(makeContext(replies), "reply", "special.big-barrel-brother", specialPage);
+
+    expect(replies[0]?.text).toContain("Старший Брат Бочки");
+    expect(replies[0]?.text).toContain("Рівень: особливий запис");
+    expect(replies[0]?.text).toContain("без сталого рівня");
+    expect(replies[0]?.text).not.toContain("Можливі трофеї");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML"
+    });
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryListCallbackData(specialPage));
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryRandomCallbackData());
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeQuestCallbackData("hunt"));
+    expect(JSON.stringify(replies[0]?.options)).toContain("⏮️ Перший");
+  });
+
+  it("renders lore-source detail with lore return buttons and source-aware navigation", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendBestiaryMonster(makeContext(replies), "reply", "monster.deadline-spider", 1, "lore");
+
+    const markup = JSON.stringify(replies[0]?.options);
+
+    expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(markup).toContain(makeBestiaryListCallbackData(1, "lore"));
+    expect(markup).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(markup).toContain(makeBestiaryMonsterCallbackData("monster.mimic-shawarma", 0, "lore"));
+    expect(markup).toContain(makeLoreMenuCallbackData());
+    expect(markup).toContain(makePlaceCallbackData("news-corner"));
+    expect(markup).toContain("⬅️ До переказів");
+    expect(markup).not.toContain(makeQuestCallbackData("hunt"));
+  });
+
+  it("renders a deterministic random bestiary record", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendRandomBestiaryRecord(makeContext(replies), "reply", "quest", () => 0.999);
+
+    expect(replies[0]?.text).toContain("Старший Брат Бочки");
+    expect(replies[0]?.text).toContain("Рівень: особливий запис");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryRandomCallbackData());
   });
 
   it("routes bestiary pagination and monster detail callbacks through the bot path", async () => {
+    const specialPage = Math.floor(monsters.length / BESTIARY_PAGE_SIZE);
     const calls = await captureCallbackCalls([
       makeBestiaryListCallbackData(2),
-      makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2)
+      makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2),
+      makeBestiaryListCallbackData(specialPage),
+      makeBestiarySpecialCallbackData("special.friday-barrel", specialPage),
+      makeBestiaryRandomCallbackData()
     ], { level: 3 });
     const edits = calls.filter((call) => call.method === "editMessageText");
 
@@ -65,23 +124,72 @@ describe("bestiary command", () => {
     expect(String(edits[0]?.payload.text)).toContain("Медузка звітности");
     expect(String(edits[0]?.payload.text)).not.toContain("paperwork");
     expect(String(edits[0]?.payload.text)).not.toContain("jellyfish");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain("⏮️ Початок");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain("Кінець ⏭️");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData());
 
     expect(String(edits[1]?.payload.text)).toContain("<b>Медузка звітности</b>");
     expect(String(edits[1]?.payload.text)).toContain("Польова нотатка");
     expect(String(edits[1]?.payload.text)).not.toContain("paperwork");
     expect(edits[1]?.payload.parse_mode).toBe("HTML");
-    expect(edits[1]?.payload.reply_markup).toMatchObject({
-      inline_keyboard: [
-        [{ text: "⬅️ До списку", callback_data: makeBestiaryListCallbackData(2) }],
-        [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }]
-      ]
-    });
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryListCallbackData(2));
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData());
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("⏮️ Перший");
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("Останній ⏭️");
+
+    expect(String(edits[2]?.payload.text)).toContain("Бочка Пінного Міражу");
+    expect(String(edits[2]?.payload.text)).toContain("Старший Брат Бочки");
+    expect(JSON.stringify(edits[2]?.payload.reply_markup)).toContain(
+      makeBestiarySpecialCallbackData(bestiarySpecialRecords[0].id, specialPage)
+    );
+
+    expect(String(edits[3]?.payload.text)).toContain("<b>Бочка Пінного Міражу</b>");
+    expect(String(edits[3]?.payload.text)).toContain("особливий запис");
+    expect(edits[3]?.payload.parse_mode).toBe("HTML");
+
+    expect(String(edits[4]?.payload.text)).toContain("📖 <b>");
+    expect(edits[4]?.payload.parse_mode).toBe("HTML");
+  });
+
+  it("routes lore-source bestiary callbacks while preserving lore return navigation", async () => {
+    const calls = await captureCallbackCalls([
+      makeBestiaryListCallbackData(1, "lore"),
+      makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2, "lore"),
+      makeBestiaryRandomCallbackData("lore")
+    ], { level: 3 });
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(String(edits[0]?.payload.text)).toContain("Сторінка 2/");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeBestiaryListCallbackData(0, "lore"));
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeLoreMenuCallbackData());
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).not.toContain(makeQuestCallbackData("hunt"));
+
+    expect(String(edits[1]?.payload.text)).toContain("<b>Медузка звітности</b>");
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryListCallbackData(2, "lore"));
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("⬅️ До переказів");
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("Останній ⏭️");
+
+    expect(String(edits[2]?.payload.text)).toContain("📖 <b>");
+    expect(JSON.stringify(edits[2]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(JSON.stringify(edits[2]?.payload.reply_markup)).toContain(makeLoreMenuCallbackData());
+  });
+
+  it("answers malformed bestiary source callbacks with the invalid fallback", async () => {
+    const calls = await captureCallbackCalls(["v1:bst:list:0:x"], { level: 3 });
+    const answerCall = calls.find((call) => call.method === "answerCallbackQuery");
+
+    expect(answerCall?.payload.show_alert).toBe(true);
+    expect(String(answerCall?.payload.text)).toContain("втратила магію");
+    expect(calls.find((call) => call.method === "editMessageText")).toBeUndefined();
   });
 
   it("gates old bestiary callbacks before level three", async () => {
     const calls = await captureCallbackCalls([
       makeBestiaryListCallbackData(0),
-      makeBestiaryMonsterCallbackData("monster.mimic-shawarma", 0)
+      makeBestiaryMonsterCallbackData("monster.mimic-shawarma", 0),
+      makeBestiaryRandomCallbackData()
     ], { level: 1 });
     const edits = calls.filter((call) => call.method === "editMessageText");
 
@@ -89,6 +197,7 @@ describe("bestiary command", () => {
     expect(String(edits[1]?.payload.text)).toContain("📖 Бестіарій поки під серветкою.");
     expect(String(edits[0]?.payload.text)).not.toContain("Мімік-шаурма");
     expect(String(edits[1]?.payload.text)).not.toContain("Мімік-шаурма");
+    expect(String(edits[2]?.payload.text)).toContain("📖 Бестіарій поки під серветкою.");
   });
 });
 

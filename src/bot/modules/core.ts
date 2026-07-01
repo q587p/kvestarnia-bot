@@ -1,25 +1,39 @@
-import { type Bot,type Context } from "grammy";
+import { type Bot, type Context } from "grammy";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
-import { parseMenuCallbackData,type MenuCallback } from "../callbacks/menuCallbackData";
-import { parseNewsCallbackData,type NewsCallback } from "../callbacks/newsCallbackData";
+import {
+  parseLoreBoardCallbackData,
+  type LoreBoardCallback
+} from "../callbacks/loreBoardCallbackData";
+import { parseMenuCallbackData, type MenuCallback } from "../callbacks/menuCallbackData";
+import { parseNewsCallbackData, type NewsCallback } from "../callbacks/newsCallbackData";
 import { registerHelpCommand } from "../commands/helpCommand";
 import { sendHero } from "../commands/heroCommand";
 import { sendInventory } from "../commands/inventoryCommand";
+import {
+  sendLoreCategory,
+  sendLoreEntry,
+  sendLoreGroup,
+  sendLoreMenu,
+  sendRandomLoreEntry,
+  sendRandomLoreEntryForCategory
+} from "../commands/loreBoardCommand";
 import { registerLookCommand } from "../commands/lookCommand";
-import { registerNewsCommand,sendNewsEntry,sendNewsList } from "../commands/newsCommand";
+import { registerNewsCommand, sendNewsEntry, sendNewsList } from "../commands/newsCommand";
 import { registerOnlineCommand } from "../commands/onlineCommand";
 import { registerPlannedCommands } from "../commands/plannedCommand";
 import { registerSupportCommand } from "../commands/supportCommand";
-import {
-sendTavern
-} from "../commands/tavernCommand";
+import { sendTavern } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
 import { presentHelp } from "../presenters/helpPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
-import { buildCurrentMainMenuKeyboard,registerCallbackMainMenuLocationRefresh,registerMainMenuKeyboard } from "./mainMenu";
+import {
+  buildCurrentMainMenuKeyboard,
+  registerCallbackMainMenuLocationRefresh,
+  registerMainMenuKeyboard
+} from "./mainMenu";
 import type { BotModuleDependencies } from "./types";
 
 export function registerCoreBotModule(
@@ -51,6 +65,8 @@ export function registerCoreBotModule(
   });
 
   registerParsedCallbackRoute(bot, /^v1:news:/, parseNewsCallbackData, handleNewsCallback);
+
+  registerParsedCallbackRoute(bot, /^v1:lore:/, parseLoreBoardCallbackData, handleLoreBoardCallback);
 }
 
 async function handleMenuCallback(
@@ -91,4 +107,35 @@ async function handleNewsCallback(ctx: Context, action: NewsCallback): Promise<v
   }
 
   await sendNewsEntry(ctx, action.entryIndex, action.listPage, { source: action.source });
+}
+
+async function handleLoreBoardCallback(ctx: Context, action: LoreBoardCallback): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+
+  if (action.type === "menu") {
+    await sendLoreMenu(ctx, "edit");
+    return;
+  }
+
+  if (action.type === "category") {
+    await sendLoreCategory(ctx, action.categoryId);
+    return;
+  }
+
+  if (action.type === "entry") {
+    await sendLoreEntry(ctx, action.entryId);
+    return;
+  }
+
+  if (action.type === "group") {
+    await sendLoreGroup(ctx, action.groupId);
+    return;
+  }
+
+  if (action.type === "category-random") {
+    await sendRandomLoreEntryForCategory(ctx, action.categoryId);
+    return;
+  }
+
+  await sendRandomLoreEntry(ctx);
 }

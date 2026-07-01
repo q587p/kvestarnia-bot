@@ -194,6 +194,14 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     };
   }
 
+  if (data.startsWith("v1:lore:")) {
+    return {
+      locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+      currentRaidId: null,
+      currentAdventureId: null
+    };
+  }
+
   if (
     data.startsWith("v1:menu:") ||
     data.startsWith("v1:devreset:") ||

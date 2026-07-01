@@ -241,7 +241,42 @@ Required data:
 Solo-compatible:
 - частково: можна дати NPC-суперника або тренувальну партію з корчмарем/єгерем, але головна цінність — гра з іншим пригодником.
 
-## 9. Корчемний виступ барда
+## 9. Tavern social games
+
+Canonical planning doc: [TAVERN_SOCIAL_GAMES.md](TAVERN_SOCIAL_GAMES.md).
+
+This archive-derived track is broader than the older lightweight `карти й шашки`
+idea above. Do not merge them into one runtime task without a separate product
+decision.
+
+Player value:
+- дає коротку добровільну соціяльну сцену в шинку;
+- створює привід запросити іншого пригодника без дуелі чи рейду;
+- додає ризик/намір/жарт, але не має ставати фармом.
+
+Minimum implementation:
+- спершу audit-only task for Shynok/Korchma routing, economy helpers, callbacks and locks;
+- shared table-game session engine with safe escrow/refund/payout;
+- `Тавлеї` as a 1v1 tactics table;
+- `Кості` as a 2-6 player dice table;
+- feature flags, caps and stale-callback handling before public exposure.
+
+Abuse risk:
+- перекидання золота між акаунтами;
+- orphan escrow after timeouts or deploys;
+- double resolve/refund races;
+- social pressure if join/invite copy is too pushy.
+
+Required data:
+- session and participant rows;
+- deterministic seed and frozen decisions;
+- transaction-safe economy ledger or reuse of an existing gold event path;
+- active-session/cooldown/cap state.
+
+Solo-compatible:
+- частково: можна мати NPC/demo table later, але головна цінність тут між гравцями.
+
+## 10. Корчемний виступ барда
 
 Player value:
 - робить корчму місцем живої культури, а не тільки квестів і витрат;
