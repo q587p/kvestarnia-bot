@@ -23,10 +23,11 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - The Korchma board card now mentions that the board has readable перекази, and its keyboard opens the lore menu without replacing `📰 Вісти`, gifts or postal entry points.
 - Lore callbacks route presence back to the Korchma news-corner surface, matching the existing board/news location behavior.
+- Completed Big Barrel Brother result cards opened from party links now render terminal participant resource rows with character names instead of the viewer shorthand `Ви`, while preserving viewer-specific reward lookup and active-card `Ви` highlighting.
 
 ### Unchanged
 - Lore reading grants no XP, gold, items, combat power, unlock progress, hidden reward or achievement in this MVP.
-- No Prisma schema, migration, stored read ledger, admin UI, WebView, Mini App, combat, economy, remort, Big Barrel Brother, party/raid, market or ґільдійний behavior changes ship in this slice.
+- No Prisma schema, migration, stored read ledger, admin UI, WebView, Mini App, combat, economy, remort, Big Barrel Brother combat/reward/session, party/raid mechanics, market or ґільдійний behavior changes ship in this slice.
 
 ## [0.2.17] - 12026-07-01 - Big Barrel Brother Raid MVP
 

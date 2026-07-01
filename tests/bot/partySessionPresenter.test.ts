@@ -202,6 +202,45 @@ describe("party session presenter", () => {
     expect(text).not.toContain("Ватага зняла");
   });
 
+  it("uses participant names instead of viewer shorthand on completed Big Barrel Brother cards", () => {
+    const leader = participant("leader", "Голова");
+    leader.resources = {
+      ...leader.resources,
+      hp: 0
+    };
+    leader.status = "knocked-out";
+    const session = makeBigBossSession({
+      status: "won",
+      participants: [leader, participant("striker", "Шкодійка")]
+    });
+    session.status = "won";
+    session.result = {
+      status: "won",
+      completedAt: "2026-06-30T10:01:00.000Z",
+      bossHpAfter: 0,
+      participants: [
+        {
+          characterId: "leader",
+          status: "knocked-out",
+          damageDealt: 12,
+          submittedActions: 1,
+          timeoutActions: 0,
+          reward: {
+            xp: 2,
+            gold: 4,
+            itemGrants: []
+          }
+        }
+      ]
+    };
+
+    const text = presentPartyBoss(session, { viewerCharacterId: "leader" });
+
+    expect(text).toContain("▫️ Голова: HP 0/60 · мана 20/20 · вибито");
+    expect(text).not.toContain("❤️ Ви:");
+    expect(text).toContain("Винагорода за бій:\n<b>+2 XP\n+4 золота</b>");
+  });
+
   it("does not claim the Big Barrel Brother focus switched when it stayed on the same participant", () => {
     const session = makeBigBossSession({
       turn: 2,
