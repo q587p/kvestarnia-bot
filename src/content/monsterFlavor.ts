@@ -1,6 +1,7 @@
 import type { CharacterFlavorSelector } from "./characterFlavor";
 import type { CharacterPath } from "../domain/characters/path";
 import type { Pronoun } from "./schema";
+import { monsterTrophyLoot } from "./monsterTrophyCoverage";
 
 export type MonsterFlavorPlacement = "monster.start" | "monster.action" | "monster.outcome" | "monster.loot-note";
 
@@ -249,7 +250,8 @@ export const monsterLoot = {
   ],
   "monster.quiet-catastrophe-clerk": [
     "item.calm-apocalypse-memo"
-  ]
+  ],
+  ...monsterTrophyLoot
 } as const;
 
 export const monsterFlavorLines: MonsterFlavorLine[] = [

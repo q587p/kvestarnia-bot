@@ -68,6 +68,7 @@ presentPersistentFightTurn,
 presentQuestProgressAfterFight,
 type QuestProgressAfterFightEntry
 } from "../presenters/fightPresenter";
+import { presentYegerQuestTitle } from "../presenters/yegerQuestTitle";
 import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentInvalidCallback
@@ -793,7 +794,7 @@ async function presentWonFightQuestProgressAfterFight(
 
     if (yegerAfter && yegerAfter.wins > yegerBefore.wins) {
       entries.push({
-        title: "Неспокійні справи",
+        title: presentYegerQuestTitle(yegerAfter),
         wins: yegerAfter.wins,
         target: yegerAfter.target,
         completed: yegerAfter.wins >= yegerAfter.target,

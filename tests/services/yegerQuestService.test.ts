@@ -151,6 +151,7 @@ describe("YegerQuestService", () => {
     const achievements = { trackEventSafely } as unknown as AchievementService;
     const buyer = new FakeWorld();
     buyer.addCharacter({ gold: 20 });
+    completeBaseYegerQuest(buyer);
 
     const preview = await buyer.service(achievements).previewBandagePurchaseForTelegramUser(telegramUserId, 1);
     expect(preview.state).toBe("preview");
@@ -165,12 +166,13 @@ describe("YegerQuestService", () => {
       type: "item.received",
       characterId: "character-42",
       itemIds: [expect.stringContaining("responsible-panic-bandage")],
-      sourceId: "action-2"
+      sourceId: "action-3"
     }));
 
     trackEventSafely.mockClear();
     const ranger = new FakeWorld();
     ranger.addCharacter({ classId: "class.ranger" });
+    completeBaseYegerQuest(ranger);
     const free = await ranger.service(achievements).claimRangerBandageForTelegramUser(telegramUserId);
 
     expect(free.state).toBe("claimed");
@@ -620,9 +622,31 @@ describe("YegerQuestService", () => {
     expect(getYegerTrackingExactChance(sharpRanger)).toBeLessThanOrEqual(0.95);
   });
 
+  it("locks all Yeger bandage supply paths before the first board is turned in", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 200, classId: "class.ranger" });
+    const service = world.service();
+    const token = "123e4567-e89b-42d3-a456-426614174000";
+
+    await expect(service.previewBandagePurchaseForTelegramUser(telegramUserId, 17))
+      .resolves.toMatchObject({ state: "locked", requiredWins: 5 });
+    await expect(service.confirmBandagePurchaseForTelegramUser(telegramUserId, token))
+      .resolves.toMatchObject({ state: "locked", requiredWins: 5 });
+    await expect(service.cancelBandagePurchaseForTelegramUser(telegramUserId, token))
+      .resolves.toMatchObject({ state: "locked", requiredWins: 5 });
+    await expect(service.claimRangerBandageForTelegramUser(telegramUserId))
+      .resolves.toMatchObject({ state: "locked", requiredWins: 5 });
+
+    expect(world.actions).toEqual([]);
+    expect(world.cooldowns).toEqual([]);
+    expect(world.character?.gold).toBe(200);
+    expect(world.itemGrants).toEqual([]);
+  });
+
   it("lets Yeger sell bandages with a ranger discount", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.ranger" });
+    completeBaseYegerQuest(world);
 
     const result = await world.service().buyBandageForTelegramUser(telegramUserId);
 
@@ -639,6 +663,7 @@ describe("YegerQuestService", () => {
   it("previews Yeger bandage purchase before spending gold", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.ranger" });
+    completeBaseYegerQuest(world);
 
     const result = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
 
@@ -655,6 +680,7 @@ describe("YegerQuestService", () => {
   it("previews paid Yeger bandage bundles as fixed quantities", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 200, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
 
     const result = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId, 17);
 
@@ -676,6 +702,7 @@ describe("YegerQuestService", () => {
   it("confirms a Yeger bandage purchase token at most once", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.ranger" });
+    completeBaseYegerQuest(world);
     const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
     if (preview.state !== "preview") {
       throw new Error("Expected preview.");
@@ -693,6 +720,7 @@ describe("YegerQuestService", () => {
   it("buys another fixed bundle after an earlier purchase", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 700, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
     const service = world.service();
     const five = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
     if (five.state !== "preview") {
@@ -752,6 +780,7 @@ describe("YegerQuestService", () => {
   it("stales a bundle confirmation when another receipt changes the same daily target", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 200, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
     const service = world.service();
     const first = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
     const second = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 5);
@@ -770,6 +799,7 @@ describe("YegerQuestService", () => {
   it("cancels a Yeger bandage purchase token before spend", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
     const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
     if (preview.state !== "preview") {
       throw new Error("Expected preview.");
@@ -786,6 +816,7 @@ describe("YegerQuestService", () => {
   it("replays the canonical Yeger receipt when cancel loses to confirm", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.ranger" });
+    completeBaseYegerQuest(world);
     const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId);
     if (preview.state !== "preview") {
       throw new Error("Expected preview.");
@@ -806,6 +837,7 @@ describe("YegerQuestService", () => {
   it("blocks Yeger bandage purchase without enough gold", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 0, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
 
     await expect(world.service().buyBandageForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "insufficient-gold",
@@ -818,6 +850,7 @@ describe("YegerQuestService", () => {
   it("offers an affordable paid bandage preview when a bundle is too expensive", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
     const service = world.service();
     const preview = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 17);
     if (preview.state !== "preview") {
@@ -856,6 +889,7 @@ describe("YegerQuestService", () => {
   it("uses the ranger discount when offering an affordable paid bandage preview", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.ranger" });
+    completeBaseYegerQuest(world);
     const service = world.service();
     const preview = await service.previewBandagePurchaseForTelegramUser(telegramUserId, 17);
     if (preview.state !== "preview") {
@@ -882,6 +916,7 @@ describe("YegerQuestService", () => {
   it("gives rangers one free bandage on a 93-minute cooldown", async () => {
     const world = new FakeWorld();
     world.addCharacter({ classId: "class.ranger" });
+    completeBaseYegerQuest(world);
 
     const first = await world.service().claimRangerBandageForTelegramUser(telegramUserId);
     const second = await world.service().claimRangerBandageForTelegramUser(telegramUserId);
@@ -1269,4 +1304,11 @@ function worldCharacterSummary(overrides: Partial<CharacterRecord> = {}): Charac
   world.addCharacter(overrides);
 
   return world.characterSummary();
+}
+
+function completeBaseYegerQuest(world: FakeWorld): void {
+  world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
+    rewardXp: 42,
+    rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+  });
 }

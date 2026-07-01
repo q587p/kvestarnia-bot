@@ -70,6 +70,23 @@ describe("Yeger presenter", () => {
     expect(text).toContain("Нагорода:");
     expect(text).toContain("<b>+35 XP\n+120 золота</b>");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці</i>");
+    expect(text).toContain(
+      "Здобуто: <i>Єгерська риска на дощечці</i>\n\nВідкрито: Єгер перестав вдавати, що ящик із бинтами є частиною меблів."
+    );
+    expect(text).toContain("«Неспокійні справи 2.0»");
+  });
+
+  it("renames the second Yeger board and previews future advanced supplies", () => {
+    const text = presentYegerQuest({
+      state: "offered",
+      character,
+      progress: { wins: 0, target: 17, stageId: "second" }
+    });
+
+    expect(text).toContain("<b>Неспокійні справи 2.0</b>");
+    expect(text).toContain("наступні 17 неупокоєних проблем");
+    expect(text).toContain("щільних бинтів і польової аптечки");
+    expect(text).not.toContain("<b>Неспокійні справи</b>\n\nПерша дощечка закрита");
   });
 
   it("does not leak item ids when replaying a completed turn-in", () => {
@@ -242,6 +259,15 @@ describe("Yeger presenter", () => {
     expect(text).toContain("<b>Тринадцять дрібних проблем</b>: <b>2/13</b>");
     expect(text).not.toContain("відповідні журнали");
     expect(text).not.toContain("⚔️ Бій");
+  });
+
+  it("uses the second Yeger board name in tracking context", () => {
+    const text = presentYegerTrackingStart({
+      yegerProgress: { wins: 3, target: 17 },
+      thirteenProgress: null
+    });
+
+    expect(text).toContain("<b>Неспокійні справи 2.0</b>: <b>3/17</b>");
   });
 
   it("does not repeat already completed side quest context before Yeger combat", () => {

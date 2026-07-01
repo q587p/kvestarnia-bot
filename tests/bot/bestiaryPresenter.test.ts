@@ -8,7 +8,8 @@ import {
   presentBestiaryMonsterRecord,
   presentBestiarySpecial
 } from "../../src/bot/presenters/bestiaryPresenter";
-import { bestiarySpecialRecords, monsters } from "../../src/content";
+import { bestiarySpecialRecords, items, monsterLoot, monsters } from "../../src/content";
+import { getLootCandidates } from "../../src/domain/loot/lootEngine";
 
 describe("bestiary presenter", () => {
   it("renders a short paginated monster list", () => {
@@ -76,6 +77,22 @@ describe("bestiary presenter", () => {
     expect(text).toContain("Рівень: 11");
     expect(text).toContain("Польова нотатка:");
     expect(text).toContain("Перенос календаря зламався об стіну. Стіна не винна.");
+  });
+
+  it("renders monster trophy hints from reachable runtime loot candidates", () => {
+    for (const monster of monsters) {
+      const text = presentBestiaryMonster(monster.id);
+      const candidateNames = getLootCandidates({ monsterId: monster.id, monsterLoot, items })
+        .map((candidate) => candidate.item.name);
+
+      expect(candidateNames.length, `missing candidates for ${monster.id}`).toBeGreaterThan(0);
+      expect(text).toContain("Можливі трофеї за нотатками, не обіцянка");
+      expect(text).not.toContain("Відомі трофеї: поки тільки підозри");
+
+      for (const name of candidateNames) {
+        expect(text, `missing Bestiary trophy hint ${name} for ${monster.id}`).toContain(name);
+      }
+    }
   });
 
   it("uses monster-specific field notes instead of repeated tag-generic notes", () => {

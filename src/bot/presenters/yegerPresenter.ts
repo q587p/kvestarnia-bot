@@ -11,6 +11,7 @@ import type { CharacterSummary } from "../../domain/characters/characterSummary"
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 import { presentItemNameWithQuantity } from "./itemStackPresenter";
+import { presentYegerQuestTitle } from "./yegerQuestTitle";
 
 export function presentYegerQuest(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
@@ -32,14 +33,14 @@ export function presentYegerQuest(
       ...presentYegerCornerIntro(result.character),
       "",
       "Доступна справа:",
-      "<b>Неспокійні справи</b>",
+      `<b>${presentYegerQuestTitle(result.progress)}</b>`,
       "",
       result.progress.target === 17
         ? "Перша дощечка закрита. Тепер Єгер просить наступні 17 неупокоєних проблем, бо хтось необережно сказав слово «серія»."
         : "Переможіть 5 неупокоєних проблем, які не зрозуміли, що робочий день скінчився.",
       "",
       result.progress.target === 17
-        ? "Нагорода: XP і золото на дуже переконливу паузу біля Бочки."
+        ? "Нагорода: XP і золото на дуже переконливу паузу біля Бочки. А ще крок до щільних бинтів і польової аптечки, які поки роблять вигляд, що їх нема в шафці."
         : "Нагорода: XP, золото на якісне пиво, єгерська риска в журналі."
     ].join("\n");
   }
@@ -109,7 +110,7 @@ export function presentYegerCorner(
   } else if (result.state === "offered") {
     lines.push("", "На краю стола лежить справа. Вона вдає, що не дивиться на вас.");
   } else if (result.state === "completed") {
-    lines.push("", "Неспокійні справи закрито. Єгер удає, що це просто пил потрапив у повагу.");
+    lines.push("", `${presentYegerQuestTitle(result.progress)} закрито. Єгер удає, що це просто пил потрапив у повагу.`);
   } else {
     lines.push(
       "",
@@ -127,6 +128,19 @@ export function presentYegerCorner(
 export function presentYegerBandages(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
 ): string {
+  if (
+    result.state !== "completed" &&
+    (result.state === "level-locked" || result.progress.stageId !== "second")
+  ) {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      "Єгер тримає ящик бинтів закритим, доки на першій дощечці не буде 5 рисок.",
+      "Спершу закрийте першу неспокійну справу."
+    ].join("\n");
+  }
+
   const lines = [
     "🩹 Бинти Єгеря",
     presentCharacterHeader(result.character),
@@ -154,6 +168,10 @@ export function presentYegerNoCharacter(): string {
 export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string {
   if (result.state === "no-character") {
     return presentYegerNoCharacter();
+  }
+
+  if (result.state === "locked") {
+    return presentYegerBandageLocked(result);
   }
 
   if (result.state === "invalid-token") {
@@ -277,6 +295,10 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
     return presentYegerNoCharacter();
   }
 
+  if (result.state === "locked") {
+    return presentYegerBandageLocked(result);
+  }
+
   if (result.state === "class-locked") {
     return [
       "🧰 Єгерський бинт",
@@ -308,6 +330,16 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
   ].join("\n");
 }
 
+function presentYegerBandageLocked(result: { character: CharacterSummary; requiredWins: number }): string {
+  return [
+    "🩹 Бинти Єгеря",
+    presentCharacterHeader(result.character),
+    "",
+    `Єгер тримає ящик бинтів закритим, доки на першій дощечці не буде ${result.requiredWins} рисок.`,
+    "Спершу закрийте першу неспокійну справу."
+  ].join("\n");
+}
+
 export function presentYegerStart(result: YegerQuestStartResult): string {
   if (result.state === "no-character") {
     return presentYegerNoCharacter();
@@ -327,7 +359,7 @@ export function presentYegerStart(result: YegerQuestStartResult): string {
   }
 
   return [
-    "🏹 Неспокійні справи",
+    `🏹 ${presentYegerQuestTitle(result.progress)}`,
     presentCharacterHeader(result.character),
     "",
     "Єгер робить першу риску на полях журналу.",
@@ -441,7 +473,7 @@ export function presentYegerTurnIn(result: YegerQuestTurnInResult): string {
 
   if (result.state === "not-ready") {
     return [
-      "🏹 Неспокійні справи",
+      `🏹 ${presentYegerQuestTitle(result.progress)}`,
       presentCharacterHeader(result.character),
       "",
       presentProgressLine(result.progress),
@@ -470,7 +502,7 @@ function presentYegerCompleted(input: {
   replay: boolean;
 }): string {
   const lines = [
-    "🏹 Неспокійні справи закрито",
+    `🏹 ${presentYegerQuestTitle(input.progress)} закрито`,
     `<b>${escapeHtml(input.character.name)}</b> · <i>${escapeHtml(input.character.title)}</i>`,
     "",
     input.progress.target === 17
@@ -492,6 +524,13 @@ function presentYegerCompleted(input: {
       presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })
     )
   );
+
+  if (input.progress.target === 5) {
+    lines.push(
+      "",
+      "Відкрито: Єгер перестав вдавати, що ящик із бинтами є частиною меблів. А на краю стола вже шарудить наступна справа — «Неспокійні справи 2.0»."
+    );
+  }
 
   return lines.join("\n");
 }
@@ -546,7 +585,7 @@ function presentTrackingQuestLines(input?: {
 
   if (input?.yegerProgress) {
     lines.push(
-      `• <b>Неспокійні справи</b>: <b>${input.yegerProgress.wins}/${input.yegerProgress.target}</b> рисок.`
+      `• <b>${presentYegerQuestTitle(input.yegerProgress)}</b>: <b>${input.yegerProgress.wins}/${input.yegerProgress.target}</b> рисок.`
     );
   }
 

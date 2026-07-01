@@ -7,6 +7,34 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.19] - 12026-07-02 - Monster Trophies And Yeger Supply Gates
+
+### Added
+- Added `src/content/monsterTrophyCoverage.ts` with concrete low-value trophy manatky for every active monster that previously had no runtime monster loot mapping.
+- Added content validation that every active monster id has at least one reachable runtime loot candidate and every monster loot item id exists in `items`.
+- Added Bestiary presenter coverage proving possible trophy hints render from runtime `getLootCandidates` candidates instead of orphan hint text.
+- Added Yeger service coverage for locked pre-completion paid bandage preview, paid confirm/cancel and Ranger free-bandage callbacks with no gold, item, cooldown or preview mutation.
+- Added a `0.2.19` task record and manual QA checklist for monster trophy coverage plus Yeger supply gates.
+
+### Changed
+- Bestiary monster detail trophy hints now derive from the same runtime loot candidate path used by monster loot rolls.
+- Concrete monster trophy candidates now use explicit loot weights with common non-trophy fallback candidates, targeting about `23%` trophy share among successful monster-specific item drops instead of making one-candidate trophies guaranteed.
+- The Yeger corner hides `🩹 Бинти` until the first `5`-target unquiet board is completed and turned in.
+- Turning in the first Yeger board now explicitly tells the player that ordinary Yeger bandages are available and points to the renamed second board, `Неспокійні справи 2.0`.
+- The second `17`-target Yeger board now uses the distinct player-facing title `Неспокійні справи 2.0` across Yeger cards, quest rows, buttons and post-fight progress notices.
+- Direct old Yeger bandage callbacks before first-board completion now return a short locked Ukrainian message instead of opening supplies.
+- Existing paid Yeger bandage bundles, Ranger discount and Ranger free-bandage cooldown remain available after first-board completion.
+- Future `Щільний бинт` / `Польова аптечка` docs now explicitly require the second `17`-target Yeger board before advanced supplies can appear.
+- Updated the optional private deploy/update notification to use the shipped `вісти` language: `Остання вість із Дошки корчми`, `Архів вістей` and `Канал вістей`.
+- The notification now renders the version in Telegram HTML bold text, keeps the latest `news.md` release title without its version/date prefix, and includes the first narrative paragraph from that release when available.
+- Empty, missing or malformed latest news now falls back to a short Korchma-board note instead of showing generic news/archive wording.
+
+### Unchanged
+- No guaranteed trophy drops, collection ledger, Yeger tag-hunt UI, new quest stage, crafting, shop, trading, combat behavior, schema or migration ships in this slice.
+- Exact drop odds remain hidden from player-facing Bestiary copy.
+- `/news` remains the archive command, the Telegram channel URL is unchanged, and deploy marker/resend semantics plus blocked-user handling are unchanged.
+- No Prisma schema, migration, command route, parser, archive data model, gameplay, reward, economy, combat or achievement change ships with the deploy notification wording polish.
+
 ## [0.2.18] - 12026-07-01 - Lore Board MVP
 
 ### Added

@@ -4,6 +4,25 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.19 — Monster Trophies And Yeger Supply Gates smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Character below Yeger level: open the Yeger corner and verify `🩹 Бинти` is absent.
+2. Level-eligible character before starting the first Yeger board: verify `🩹 Бинти` is absent; replay old `v1:ygr:bandages`, paid preview/confirm/cancel and Ranger free-bandage buttons if available locally and verify locked copy with no gold/item/cooldown mutation.
+3. In-progress first `5`-target board: verify supplies stay hidden and direct old buttons stay locked.
+4. Turn-in-ready but not turned in: verify supplies stay locked until the first board completion row is recorded.
+5. After completing and turning in the first board: verify `🩹 Бинти` appears in the Yeger corner.
+6. After first-board completion: buy `1`, `5`, `17` or `93` basic bandages as affordable, verify Ranger discount/free button behavior, then replay stale buttons and verify canonical replay/no double spend.
+7. Before completing the second `17`-target board: verify no advanced `Щільний бинт` / `Польова аптечка` route is exposed by this release.
+8. Open several early and high-level Bestiary monster records; verify possible trophies are concrete manatky names and exact odds are not shown.
+9. Win a few ordinary fights if convenient and verify existing item drop/result presentation still behaves normally.
+10. With `DEPLOY_NOTIFICATIONS_ENABLED=true`, trigger a new version marker on a disposable local account.
+11. Verify the private update message uses `Остання вість із Дошки корчми`, `Архів вістей` and `Канал вістей`.
+12. Verify the version, latest `news.md` title without version/date prefix, first narrative paragraph and `/news` archive hint render with Telegram HTML.
+13. Temporarily make latest news unavailable in local test data if convenient; verify the fallback says `Дошка вістей тимчасово мовчить` and still includes archive/channel lines.
+14. Re-trigger the same version marker; verify the notification is not resent.
+
 ## 0.2.18 — Lore Board MVP smoke
 
 Manual Telegram QA status for the implementation pass: not run.
@@ -602,7 +621,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 18. Після `5/5` натисни `🏹 Здати Єгерю`.
 19. Очікування: одноразова нагорода з рівнево обмеженим XP, `+120 золота`, `Єгерська риска на дощечці`; повторний callback не дублює винагороду.
 20. Після першої здачі знову відкрий `/hunt`.
-21. Очікування: Єгер пропонує наступну дощечку на `17` цілей із прогресом `0/17`, окремим стартом і без повторної риски з першої нагороди.
+21. Очікування: Єгер пропонує наступну дощечку `Неспокійні справи 2.0` на `17` цілей із прогресом `0/17`, окремим стартом і без повторної риски з першої нагороди.
 22. Візьми другу дощечку, переможи одну правильну ціль, потім зроби реморт.
 23. Очікування: після реморту `/hunt` починає Єгерський ланцюжок заново з першої дощечки `0/5`, без перенесення старого `1/17`.
 24. Старі `v1:hunt:*` callback-и мають безпечно оновити Єгерську дошку, а не видати стару hourly reward.

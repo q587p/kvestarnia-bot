@@ -6,6 +6,11 @@ import {
   monsters,
   selectMonsterFlavorLine
 } from "../../src/content";
+import {
+  MONSTER_TROPHY_TARGET_SHARE,
+  monsterTrophyLoot
+} from "../../src/content/monsterTrophyCoverage";
+import { getLootCandidates, getMonsterLootEntryItemId } from "../../src/domain/loot/lootEngine";
 
 const forbiddenPlayerFacingPatterns = [
   /\bsun\b/i,
@@ -23,20 +28,6 @@ const baselineCharacter = {
   pronoun: "he" as const,
   path: "sun" as const
 };
-
-const ordinaryMonsterLadderIds = [
-  "monster.complaint-lantern",
-  "monster.ledger-boar",
-  "monster.salted-oath-pretzel",
-  "monster.unclosed-closure-act",
-  "monster.liar-corridor-map",
-  "monster.foam-auditor-boots",
-  "monster.three-signature-chimera",
-  "monster.cheese-vault-warden",
-  "monster.calendar-hydra",
-  "monster.inventory-prophet",
-  "monster.quiet-catastrophe-clerk"
-] as const;
 
 const legacyMonsterLootIds = [
   "monster.mimic-shawarma",
@@ -95,8 +86,8 @@ describe("monster flavor content", () => {
       expect(lines.some((line) => line.placement === "monster.loot-note")).toBe(true);
     }
 
-    for (const monsterId of ordinaryMonsterLadderIds) {
-      const lines = monsterFlavorLines.filter((line) => line.monsterId === monsterId);
+    for (const monster of monsters.slice(20, 31)) {
+      const lines = monsterFlavorLines.filter((line) => line.monsterId === monster.id);
       const startLines = lines.filter((line) => line.placement === "monster.start");
 
       expect(startLines.some((line) => !line.selector)).toBe(true);
@@ -193,32 +184,85 @@ describe("monster flavor content", () => {
     const itemIds = new Set(items.map((item) => item.id));
     const monsterIds = new Set(monsters.map((monster) => monster.id));
 
-    for (const monsterId of legacyMonsterLootIds) {
-      const lootIds = monsterLoot[monsterId] ?? [];
+    for (const [monsterId, lootIds] of Object.entries(monsterLoot)) {
+      expect(monsterIds.has(monsterId), `orphan loot mapping for ${monsterId}`).toBe(true);
 
-      expect(lootIds).toBeDefined();
-      expect(monsterIds.has(monsterId)).toBe(true);
-      expect(lootIds.length).toBeGreaterThanOrEqual(2);
+      if ((legacyMonsterLootIds as readonly string[]).includes(monsterId)) {
+        expect(lootIds.length, `legacy loot should stay rich for ${monsterId}`).toBeGreaterThanOrEqual(2);
+      }
 
-      for (const itemId of lootIds) {
-        expect(itemIds.has(itemId)).toBe(true);
+      for (const lootEntry of lootIds) {
+        const itemId = getMonsterLootEntryItemId(lootEntry);
+
+        expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monsterId}`).toBe(true);
       }
     }
 
-    expect(Object.keys(monsterLoot)).toHaveLength(31);
+    expect(Object.keys(monsterLoot)).toHaveLength(monsters.length);
   });
 
-  it("covers the ordinary monster ladder with at least one loot item each", () => {
+  it("covers every active monster with at least one reachable loot item", () => {
     const itemIds = new Set(items.map((item) => item.id));
+    const lootByMonster = new Map<string, readonly string[]>(Object.entries(monsterLoot));
 
-    for (const monsterId of ordinaryMonsterLadderIds) {
-      const lootIds = monsterLoot[monsterId] ?? [];
+    for (const monster of monsters) {
+      const lootIds = lootByMonster.get(monster.id) ?? [];
+      const candidates = getLootCandidates({ monsterId: monster.id, monsterLoot, items });
 
-      expect(monsterLoot[monsterId], `missing loot mapping for ${monsterId}`).toBeDefined();
-      expect(lootIds.length, `missing loot ids for ${monsterId}`).toBeGreaterThanOrEqual(1);
+      expect(lootByMonster.has(monster.id), `missing loot mapping for ${monster.id}`).toBe(true);
+      expect(lootIds.length, `missing loot ids for ${monster.id}`).toBeGreaterThanOrEqual(1);
+      expect(candidates.length, `unreachable loot candidates for ${monster.id}`).toBeGreaterThanOrEqual(1);
 
-      for (const itemId of lootIds) {
-        expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monsterId}`).toBe(true);
+      for (const lootEntry of lootIds) {
+        const itemId = getMonsterLootEntryItemId(lootEntry);
+
+        expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monster.id}`).toBe(true);
+      }
+    }
+  });
+
+  it("keeps trophy-covered monsters weighted with reachable non-trophy fallback loot", () => {
+    const itemById = new Map(items.map((item) => [item.id, item]));
+
+    for (const [monsterId, lootEntries] of Object.entries(monsterTrophyLoot)) {
+      const trophyEntries = lootEntries.filter((entry) => entry.kind === "trophy");
+      const fallbackEntries = lootEntries.filter((entry) => entry.kind === "fallback");
+      const trophyIds = new Set(trophyEntries.map((entry) => entry.itemId));
+      const fallbackIds = new Set(fallbackEntries.map((entry) => entry.itemId));
+      const candidates = getLootCandidates({ monsterId, monsterLoot, items });
+      const candidateIds = new Set(candidates.map((candidate) => candidate.item.id));
+
+      expect(trophyEntries, `missing trophy entry for ${monsterId}`).toHaveLength(1);
+      expect(fallbackEntries.length, `missing fallback entries for ${monsterId}`).toBeGreaterThan(0);
+      expect(trophyEntries[0]?.weight, `wrong trophy weight for ${monsterId}`).toBeCloseTo(
+        MONSTER_TROPHY_TARGET_SHARE
+      );
+
+      for (const trophyId of trophyIds) {
+        expect(candidateIds.has(trophyId), `unreachable trophy ${trophyId} for ${monsterId}`).toBe(
+          true
+        );
+      }
+
+      for (const fallbackId of fallbackIds) {
+        expect(
+          candidateIds.has(fallbackId),
+          `unreachable non-trophy fallback ${fallbackId} for ${monsterId}`
+        ).toBe(true);
+      }
+
+      const trophyRarities = new Set(
+        [...trophyIds].map((itemId) => itemById.get(itemId)?.rarity).filter(Boolean)
+      );
+      const fallbackRarities = new Set(
+        [...fallbackIds].map((itemId) => itemById.get(itemId)?.rarity).filter(Boolean)
+      );
+
+      expect(trophyRarities.size, `ambiguous trophy rarity for ${monsterId}`).toBe(1);
+      for (const rarity of fallbackRarities) {
+        expect(trophyRarities.has(rarity), `fallback rarity ${rarity} differs for ${monsterId}`).toBe(
+          true
+        );
       }
     }
   });

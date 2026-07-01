@@ -28,34 +28,56 @@ describe("deploy notification service", () => {
     const text = renderDeployNotification("0.0.4", makeNewsEntry());
 
     expect(text).toContain("Квестарня оновилась");
-    expect(text).toContain("0.0.4");
+    expect(text).toContain("Версія: <b>0.0.4</b>");
+    expect(text).toContain("📰 Остання вість із Дошки корчми:");
     expect(text).toContain("<b>Перша пригода</b>");
     expect(text).toContain("Шаурма знову підозріла.");
-    expect(text).not.toContain("Остання новина: <b>0.0.4");
+    expect(text).toContain("Архів вістей: /news");
+    expect(text).toContain("Канал вістей: https://t.me/kvestarnia");
+    expect(text).not.toContain("Остання новина");
+    expect(text).not.toContain("Деталі й архів");
     expect(text).toContain("https://t.me/kvestarnia");
   });
 
-  it("escapes the latest news title and first paragraph for Telegram HTML", () => {
+  it("escapes version, latest news title, and first paragraph for Telegram HTML", () => {
     const text = renderDeployNotification(
-      "0.0.4",
+      "0.0.4 <draft>",
       makeNewsEntry("0.0.4 — 12026-06-12 — A < B", "Корчмар має <план> & кухоль.")
     );
 
+    expect(text).toContain("Версія: <b>0.0.4 &lt;draft&gt;</b>");
     expect(text).toContain("<b>A &lt; B</b>");
     expect(text).toContain("Корчмар має &lt;план&gt; &amp; кухоль.");
     expect(text).not.toContain("A < B");
     expect(text).not.toContain("<план>");
   });
 
-  it("keeps deploy notification safe when latest news has no paragraph", () => {
+  it("uses a short fallback when latest news has no narrative paragraph", () => {
     const text = renderDeployNotification("0.0.4", {
       ...makeNewsEntry(),
       body: "",
       raw: "## 0.0.4 — 12026-06-12 — Перша пригода"
     });
 
-    expect(text).toContain("<b>Перша пригода</b>");
-    expect(text).toContain("Деталі й архів: /news");
+    expect(text).toContain("Дошка вістей тимчасово мовчить.");
+    expect(text).toContain("Архів вістей: /news");
+    expect(text).toContain("Канал вістей: https://t.me/kvestarnia");
+    expect(text).not.toContain("Остання новина");
+    expect(text).not.toContain("Деталі й архів");
+  });
+
+  it("uses a short fallback when latest news is unavailable", () => {
+    const text = renderDeployNotification("0.0.4", null);
+
+    expect(text).toBe([
+      "🛠️ Квестарня оновилась.",
+      "Версія: <b>0.0.4</b>",
+      "",
+      "Дошка вістей тимчасово мовчить. Корчмар каже, що це теж технічний стан.",
+      "",
+      "Архів вістей: /news",
+      "Канал вістей: https://t.me/kvestarnia"
+    ].join("\n"));
   });
 
   it("uses only the first narrative paragraph from release news", () => {
@@ -120,12 +142,12 @@ describe("deploy notification service", () => {
 
     expect(sender.messages).toHaveLength(2);
     expect(sender.messages[0]?.chatId).toBe("42");
-    expect(sender.messages[0]?.text).toContain("Версія: 0.0.4");
+    expect(sender.messages[0]?.text).toContain("Версія: <b>0.0.4</b>");
     expect(sender.messages[0]?.options).toMatchObject({
       parse_mode: "HTML"
     });
     expect(sender.messages[1]?.chatId).toBe("43");
-    expect(sender.messages[1]?.text).toContain("Версія: 0.0.4");
+    expect(sender.messages[1]?.text).toContain("Версія: <b>0.0.4</b>");
     expect(sender.messages[1]?.options).toMatchObject({
       parse_mode: "HTML"
     });

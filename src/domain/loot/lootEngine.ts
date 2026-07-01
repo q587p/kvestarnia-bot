@@ -20,9 +20,16 @@ export interface LootCandidate {
   weight?: number;
 }
 
+export type MonsterLootEntry =
+  | string
+  | {
+      itemId: string;
+      weight?: number;
+    };
+
 export interface LootRollInput {
   monsterId: string;
-  monsterLoot: Readonly<Record<string, readonly string[]>>;
+  monsterLoot: Readonly<Record<string, readonly MonsterLootEntry[]>>;
   items: readonly ItemContent[];
   luck: number;
   dropChanceMultiplier?: number;
@@ -103,7 +110,9 @@ export function getLootCandidates(input: Omit<LootRollInput, "luck" | "rng">): L
   const itemById = new Map(input.items.map((item) => [item.id, item]));
   const seen = new Set<string>();
 
-  return (input.monsterLoot[input.monsterId] ?? []).flatMap((itemId) => {
+  return (input.monsterLoot[input.monsterId] ?? []).flatMap((entry) => {
+    const itemId = getMonsterLootEntryItemId(entry);
+
     if (seen.has(itemId)) {
       return [];
     }
@@ -111,8 +120,20 @@ export function getLootCandidates(input: Omit<LootRollInput, "luck" | "rng">): L
     seen.add(itemId);
     const item = itemById.get(itemId);
 
-    return item ? [{ item, rarity: item.rarity }] : [];
+    return item
+      ? [
+          {
+            item,
+            rarity: item.rarity,
+            ...(typeof entry === "string" || entry.weight === undefined ? {} : { weight: entry.weight })
+          }
+        ]
+      : [];
   });
+}
+
+export function getMonsterLootEntryItemId(entry: MonsterLootEntry): string {
+  return typeof entry === "string" ? entry : entry.itemId;
 }
 
 export function getLootExpansionCandidates(input: {
