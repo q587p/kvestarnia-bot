@@ -21,6 +21,7 @@ import { parseRemortCallbackData, type RemortCallback } from "../callbacks/remor
 import { parseRestartCallbackData } from "../callbacks/restartCallbackData";
 import {
   registerBestiaryCommand,
+  sendRandomBestiaryRecordGated,
   sendBestiaryListGated,
   sendBestiaryMonsterGated,
   sendBestiarySpecialGated
@@ -461,6 +462,11 @@ async function handleBestiaryCallback(
 
   if (callback.type === "list") {
     await sendBestiaryListGated(ctx, heroService, "edit", callback.page);
+    return;
+  }
+
+  if (callback.type === "random") {
+    await sendRandomBestiaryRecordGated(ctx, heroService, "edit");
     return;
   }
 

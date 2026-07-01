@@ -3,6 +3,7 @@ import { bestiarySpecialRecords, monsters } from "../../src/content";
 import {
   makeBestiaryListCallbackData,
   makeBestiaryMonsterCallbackData,
+  makeBestiaryRandomCallbackData,
   makeBestiarySpecialCallbackData,
   parseBestiaryCallbackData
 } from "../../src/bot/callbacks/bestiaryCallbackData";
@@ -33,6 +34,12 @@ describe("bestiary callback data", () => {
         page: 9
       }
     });
+    expect(parseBestiaryCallbackData(makeBestiaryRandomCallbackData())).toEqual({
+      ok: true,
+      value: {
+        type: "random"
+      }
+    });
   });
 
   it("keeps all current bestiary callbacks within Telegram limit", () => {
@@ -44,6 +51,8 @@ describe("bestiary callback data", () => {
       expect(Buffer.byteLength(makeBestiarySpecialCallbackData(record.id, 999), "utf8"))
         .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     }
+    expect(Buffer.byteLength(makeBestiaryRandomCallbackData(), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
   it("keeps monster ids stable and unique for callback routing", () => {
@@ -74,6 +83,10 @@ describe("bestiary callback data", () => {
     expect(parseBestiaryCallbackData("v1:bst:sp:bad:0")).toEqual({
       ok: false,
       error: "invalid-special"
+    });
+    expect(parseBestiaryCallbackData("v1:bst:r:extra")).toEqual({
+      ok: false,
+      error: "invalid-prefix"
     });
     expect(parseBestiaryCallbackData("v1:item:inventory")).toEqual({
       ok: false,

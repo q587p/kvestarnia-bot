@@ -3,14 +3,20 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../callbacks/onboardingCallbackDat
 import {
   makeBestiaryListCallbackData,
   makeBestiaryMonsterCallbackData,
+  makeBestiaryRandomCallbackData,
   makeBestiarySpecialCallbackData
 } from "../callbacks/bestiaryCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import {
   BESTIARY_PAGE_SIZE,
+  bestiaryRecordKey,
   clampBestiaryPage,
   getBestiaryListRecords,
-  getBestiaryRecordCount
+  getBestiaryRecordByIndex,
+  getBestiaryRecordCount,
+  getBestiaryRecordIndex,
+  getBestiaryRecordPage,
+  type BestiaryListRecord
 } from "../presenters/bestiaryPresenter";
 
 export function buildBestiaryListKeyboard(page: number): InlineKeyboard {
@@ -33,25 +39,41 @@ export function buildBestiaryListKeyboard(page: number): InlineKeyboard {
   }
 
   const hasPrevious = safePage > 0;
-  const hasNext = start + BESTIARY_PAGE_SIZE < getBestiaryRecordCount();
+  const totalPages = Math.max(1, Math.ceil(getBestiaryRecordCount() / BESTIARY_PAGE_SIZE));
+  const hasNext = safePage < totalPages - 1;
 
-  if (hasPrevious) {
-    keyboard.text("⬅️", makeBestiaryListCallbackData(safePage - 1));
+  if (totalPages > 1) {
+    if (hasPrevious) {
+      keyboard.text("⏮️ Початок", makeBestiaryListCallbackData(0));
+      keyboard.text("◀️ Назад", makeBestiaryListCallbackData(safePage - 1));
+      keyboard.row();
+    }
+
+    keyboard.text(`${safePage + 1}/${totalPages}`, makeBestiaryListCallbackData(safePage)).row();
+
+    if (hasNext) {
+      keyboard.text("Далі ▶️", makeBestiaryListCallbackData(safePage + 1));
+      keyboard.text("Кінець ⏭️", makeBestiaryListCallbackData(totalPages - 1));
+      keyboard.row();
+    }
   }
 
-  if (hasNext) {
-    keyboard.text("➡️", makeBestiaryListCallbackData(safePage + 1));
-  }
-
-  if (hasPrevious || hasNext) {
-    keyboard.row();
-  }
-
-  return keyboard.text("🏹 До дошки", makeQuestCallbackData("hunt"));
+  return keyboard
+    .text("🎲 Випадковий запис", makeBestiaryRandomCallbackData())
+    .row()
+    .text("🏹 До дошки", makeQuestCallbackData("hunt"));
 }
 
-export function buildBestiaryMonsterKeyboard(page: number): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildBestiaryMonsterKeyboard(page: number, record?: BestiaryListRecord): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (record) {
+    addBestiaryRecordNavigation(keyboard, record);
+  }
+
+  return keyboard
+    .text("🎲 Випадковий запис", makeBestiaryRandomCallbackData())
+    .row()
     .text("⬅️ До списку", makeBestiaryListCallbackData(clampBestiaryPage(page)))
     .row()
     .text("🏹 До дошки", makeQuestCallbackData("hunt"));
@@ -69,4 +91,47 @@ export function assertBestiaryCallbackDataFits(): void {
       throw new Error(`Bestiary callback is too long for ${id}.`);
     }
   }
+}
+
+function addBestiaryRecordNavigation(keyboard: InlineKeyboard, record: BestiaryListRecord): void {
+  const index = getBestiaryRecordIndex(record);
+  const totalRecords = getBestiaryRecordCount();
+
+  if (index < 0 || totalRecords <= 1) {
+    return;
+  }
+
+  if (index > 0) {
+    const firstRecord = getBestiaryRecordByIndex(0);
+    const previousRecord = getBestiaryRecordByIndex(index - 1);
+
+    if (firstRecord) {
+      keyboard.text("⏮️ Перший", makeBestiaryRecordCallbackData(firstRecord, 0));
+    }
+    if (previousRecord) {
+      keyboard.text("◀️ Попередній", makeBestiaryRecordCallbackData(previousRecord, index - 1));
+    }
+    keyboard.row();
+  }
+
+  if (index < totalRecords - 1) {
+    const nextRecord = getBestiaryRecordByIndex(index + 1);
+    const lastRecord = getBestiaryRecordByIndex(totalRecords - 1);
+
+    if (nextRecord) {
+      keyboard.text("Наступний ▶️", makeBestiaryRecordCallbackData(nextRecord, index + 1));
+    }
+    if (lastRecord) {
+      keyboard.text("Останній ⏭️", makeBestiaryRecordCallbackData(lastRecord, totalRecords - 1));
+    }
+    keyboard.row();
+  }
+}
+
+function makeBestiaryRecordCallbackData(record: BestiaryListRecord, index: number): string {
+  const page = getBestiaryRecordPage(index);
+
+  return record.type === "monster"
+    ? makeBestiaryMonsterCallbackData(bestiaryRecordKey(record), page)
+    : makeBestiarySpecialCallbackData(bestiaryRecordKey(record), page);
 }

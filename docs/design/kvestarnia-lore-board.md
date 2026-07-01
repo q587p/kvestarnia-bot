@@ -174,7 +174,7 @@ Runtime content lives in `src/content/loreBoard.ts`. To add a lore entry:
 
 If the entry names a future concept that has no live runtime id yet, leave it out of `canonicalRefs` and keep the copy clearly folkloric instead of promising shipped gameplay.
 
-The `🧌 Бестіарій` category is external in the Lore Board MVP: it links to the existing runtime Bestiary instead of duplicating monster entries. When adding or changing ordinary monsters, keep `src/content/monsters.ts`, `src/content/monsterFlavor.ts` and the Bestiary UI/tests aligned. For non-level special threats such as `Бочка Пінного Міражу` and `Старший Брат Бочки`, use Bestiary special records rather than forcing them into the level-based monster roster.
+The `🧌 Бестіарій` category is external in the Lore Board MVP: it links to the existing runtime Bestiary instead of duplicating monster entries. The Bestiary itself owns monster pagination, first/last/detail navigation and `🎲 Випадковий запис`. When adding or changing ordinary monsters, keep `src/content/monsters.ts`, `src/content/monsterFlavor.ts` and the Bestiary UI/tests aligned. For non-level special threats such as `Бочка Пінного Міражу` and `Старший Брат Бочки`, use Bestiary special records rather than forcing them into the level-based monster roster.
 
 Future lore expansion can add fuller location essays and the world around Kvestarnia, but that should be a separate content task after the MVP and should still avoid promising unshipped gameplay.
 

@@ -3,11 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   makeBestiaryListCallbackData,
   makeBestiaryMonsterCallbackData,
+  makeBestiaryRandomCallbackData,
   makeBestiarySpecialCallbackData
 } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
-import { sendBestiaryMonster, sendBestiarySpecial } from "../../src/bot/commands/bestiaryCommand";
+import {
+  sendBestiaryMonster,
+  sendBestiarySpecial,
+  sendRandomBestiaryRecord
+} from "../../src/bot/commands/bestiaryCommand";
 import { bestiarySpecialRecords, monsters } from "../../src/content";
 import { BESTIARY_PAGE_SIZE } from "../../src/bot/presenters/bestiaryPresenter";
 
@@ -47,14 +52,13 @@ describe("bestiary command", () => {
 
     expect(replies[0]?.text).toContain("Павук дедлайнів");
     expect(replies[0]?.options).toMatchObject({
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "⬅️ До списку", callback_data: "v1:bst:list:1" }],
-          [{ text: "🏹 До дошки", callback_data: "v1:quest:hunt" }]
-        ]
-      }
+      parse_mode: "HTML"
     });
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryListCallbackData(1));
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryRandomCallbackData());
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeQuestCallbackData("hunt"));
+    expect(JSON.stringify(replies[0]?.options)).toContain("⏮️ Перший");
+    expect(JSON.stringify(replies[0]?.options)).toContain("Останній ⏭️");
   });
 
   it("renders special Barrel records at the end without monster levels", async () => {
@@ -68,14 +72,22 @@ describe("bestiary command", () => {
     expect(replies[0]?.text).toContain("без сталого рівня");
     expect(replies[0]?.text).not.toContain("Можливі трофеї");
     expect(replies[0]?.options).toMatchObject({
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "⬅️ До списку", callback_data: makeBestiaryListCallbackData(specialPage) }],
-          [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }]
-        ]
-      }
+      parse_mode: "HTML"
     });
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryListCallbackData(specialPage));
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryRandomCallbackData());
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeQuestCallbackData("hunt"));
+    expect(JSON.stringify(replies[0]?.options)).toContain("⏮️ Перший");
+  });
+
+  it("renders a deterministic random bestiary record", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendRandomBestiaryRecord(makeContext(replies), "reply", () => 0.999);
+
+    expect(replies[0]?.text).toContain("Старший Брат Бочки");
+    expect(replies[0]?.text).toContain("Рівень: особливий запис");
+    expect(JSON.stringify(replies[0]?.options)).toContain(makeBestiaryRandomCallbackData());
   });
 
   it("routes bestiary pagination and monster detail callbacks through the bot path", async () => {
@@ -84,7 +96,8 @@ describe("bestiary command", () => {
       makeBestiaryListCallbackData(2),
       makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2),
       makeBestiaryListCallbackData(specialPage),
-      makeBestiarySpecialCallbackData("special.friday-barrel", specialPage)
+      makeBestiarySpecialCallbackData("special.friday-barrel", specialPage),
+      makeBestiaryRandomCallbackData()
     ], { level: 3 });
     const edits = calls.filter((call) => call.method === "editMessageText");
 
@@ -92,17 +105,18 @@ describe("bestiary command", () => {
     expect(String(edits[0]?.payload.text)).toContain("Медузка звітности");
     expect(String(edits[0]?.payload.text)).not.toContain("paperwork");
     expect(String(edits[0]?.payload.text)).not.toContain("jellyfish");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain("⏮️ Початок");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain("Кінець ⏭️");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData());
 
     expect(String(edits[1]?.payload.text)).toContain("<b>Медузка звітности</b>");
     expect(String(edits[1]?.payload.text)).toContain("Польова нотатка");
     expect(String(edits[1]?.payload.text)).not.toContain("paperwork");
     expect(edits[1]?.payload.parse_mode).toBe("HTML");
-    expect(edits[1]?.payload.reply_markup).toMatchObject({
-      inline_keyboard: [
-        [{ text: "⬅️ До списку", callback_data: makeBestiaryListCallbackData(2) }],
-        [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }]
-      ]
-    });
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryListCallbackData(2));
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData());
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("⏮️ Перший");
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("Останній ⏭️");
 
     expect(String(edits[2]?.payload.text)).toContain("Бочка Пінного Міражу");
     expect(String(edits[2]?.payload.text)).toContain("Старший Брат Бочки");
@@ -113,12 +127,16 @@ describe("bestiary command", () => {
     expect(String(edits[3]?.payload.text)).toContain("<b>Бочка Пінного Міражу</b>");
     expect(String(edits[3]?.payload.text)).toContain("особливий запис");
     expect(edits[3]?.payload.parse_mode).toBe("HTML");
+
+    expect(String(edits[4]?.payload.text)).toContain("📖 <b>");
+    expect(edits[4]?.payload.parse_mode).toBe("HTML");
   });
 
   it("gates old bestiary callbacks before level three", async () => {
     const calls = await captureCallbackCalls([
       makeBestiaryListCallbackData(0),
-      makeBestiaryMonsterCallbackData("monster.mimic-shawarma", 0)
+      makeBestiaryMonsterCallbackData("monster.mimic-shawarma", 0),
+      makeBestiaryRandomCallbackData()
     ], { level: 1 });
     const edits = calls.filter((call) => call.method === "editMessageText");
 
@@ -126,6 +144,7 @@ describe("bestiary command", () => {
     expect(String(edits[1]?.payload.text)).toContain("📖 Бестіарій поки під серветкою.");
     expect(String(edits[0]?.payload.text)).not.toContain("Мімік-шаурма");
     expect(String(edits[1]?.payload.text)).not.toContain("Мімік-шаурма");
+    expect(String(edits[2]?.payload.text)).toContain("📖 Бестіарій поки під серветкою.");
   });
 });
 

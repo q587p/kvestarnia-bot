@@ -278,7 +278,7 @@ function presentKnownTrophies(trophyNames: string[]): string[] {
   ];
 }
 
-type BestiaryListRecord =
+export type BestiaryListRecord =
   | { type: "monster"; monster: MonsterContent }
   | { type: "special"; special: BestiarySpecialRecord };
 
@@ -291,4 +291,35 @@ export function getBestiaryListRecords(): BestiaryListRecord[] {
     ...monsters.map((monster) => ({ type: "monster" as const, monster })),
     ...bestiarySpecialRecords.map((special) => ({ type: "special" as const, special }))
   ];
+}
+
+export function getBestiaryRecordIndex(record: BestiaryListRecord): number {
+  return getBestiaryListRecords().findIndex((candidate) => bestiaryRecordKey(candidate) === bestiaryRecordKey(record));
+}
+
+export function getBestiaryRecordPage(index: number): number {
+  return clampBestiaryPage(Math.floor(index / BESTIARY_PAGE_SIZE));
+}
+
+export function getBestiaryRecordByIndex(index: number): BestiaryListRecord | undefined {
+  return getBestiaryListRecords()[index];
+}
+
+export function selectRandomBestiaryRecord(
+  rng: () => number = Math.random
+): { record: BestiaryListRecord; index: number } | undefined {
+  const records = getBestiaryListRecords();
+
+  if (records.length === 0) {
+    return undefined;
+  }
+
+  const index = Math.min(records.length - 1, Math.floor(Math.max(0, rng()) * records.length));
+  const record = records[index];
+
+  return record ? { record, index } : undefined;
+}
+
+export function bestiaryRecordKey(record: BestiaryListRecord): string {
+  return record.type === "monster" ? record.monster.id : record.special.id;
 }

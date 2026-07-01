@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   BESTIARY_PAGE_SIZE,
   BESTIARY_TAG_LABELS,
+  getBestiaryRecordCount,
   presentBestiaryList,
   presentBestiaryMonster,
-  presentBestiaryMonsterRecord
+  presentBestiaryMonsterRecord,
+  presentBestiarySpecial
 } from "../../src/bot/presenters/bestiaryPresenter";
-import { monsters } from "../../src/content";
+import { bestiarySpecialRecords, monsters } from "../../src/content";
 
 describe("bestiary presenter", () => {
   it("renders a short paginated monster list", () => {
@@ -14,15 +16,18 @@ describe("bestiary presenter", () => {
 
     expect(text).toContain("📖 Бестіарій Квестарні");
     expect(text).toContain("Польові нотатки");
-    expect(text).toContain(`Сторінка 1/${Math.ceil(monsters.length / BESTIARY_PAGE_SIZE)}`);
+    expect(text).toContain(`Сторінка 1/${Math.ceil(getBestiaryRecordCount() / BESTIARY_PAGE_SIZE)}`);
     expect(text.match(/^• /gm)).toHaveLength(BESTIARY_PAGE_SIZE);
   });
 
   it("does not leak raw technical tag ids into the monster list", () => {
-    const totalPages = Math.ceil(monsters.length / BESTIARY_PAGE_SIZE);
+    const totalPages = Math.ceil(getBestiaryRecordCount() / BESTIARY_PAGE_SIZE);
     const allListText = Array.from({ length: totalPages }, (_, page) => presentBestiaryList(page))
       .join("\n");
-    const tags = new Set(monsters.flatMap((monster) => monster.tags));
+    const tags = new Set([
+      ...monsters.flatMap((monster) => monster.tags),
+      ...bestiarySpecialRecords.flatMap((record) => record.tags)
+    ]);
 
     for (const tag of tags) {
       expect(allListText).not.toMatch(new RegExp(`(^|[ ·,])${escapeRegExp(tag)}($|[ ·,])`));
@@ -39,7 +44,7 @@ describe("bestiary presenter", () => {
 
   it("clamps out-of-range pages to the last available page", () => {
     const text = presentBestiaryList(999);
-    const totalPages = Math.ceil(monsters.length / BESTIARY_PAGE_SIZE);
+    const totalPages = Math.ceil(getBestiaryRecordCount() / BESTIARY_PAGE_SIZE);
 
     expect(text).toContain(`Сторінка ${totalPages}/${totalPages}`);
   });
@@ -53,6 +58,15 @@ describe("bestiary presenter", () => {
     expect(text).toContain("Кістки не забираємо. Забираємо те, чим вони заважали.");
     expect(text).toContain("Можливі трофеї за нотатками, не обіцянка");
     expect(text).toContain("<i>Штемпельна подушка останнього попередження</i>");
+  });
+
+  it("renders special non-level Barrel records", () => {
+    const text = presentBestiarySpecial("special.friday-barrel");
+
+    expect(text).toContain("<b>Бочка Пінного Міражу</b>");
+    expect(text).toContain("Рівень: особливий запис");
+    expect(text).toContain("не записують");
+    expect(text).toContain("Позначки: корчмарське, велика проблема");
   });
 
   it("renders the new ladder monsters with their field notes", () => {
