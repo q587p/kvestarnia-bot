@@ -80,14 +80,16 @@ For implementation work:
 8. Prefer `medium` reasoning for ordinary scoped work; reserve `high` for state, routing, concurrency, persistence, or difficult debugging.
 9. Final output must be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
 10. If the user provides a prompt for the next versioned implementation task, start it. Do the minimal current-`main` and repo-state verification needed to avoid stacking on the wrong branch, then create/switch to the task branch and begin. If a prior task branch is not an ancestor of `origin/main`, do not stop on ancestry alone: GitHub squash merges create new commit hashes. Compare the content/tree diff and the expected version/release surfaces on `origin/main`; if the diff is empty or the required content is present, treat the prior task as merged and continue from `origin/main`. Stop only when `origin/main` is missing required content or another checked source proves the gate failed. Do not block on unverifiable external gates such as deployment, accepted review, Telegram smoke, or CI status unless the user explicitly says those gates must stop implementation or a checked source proves the gate failed.
+11. If the user names a specific PR, verify the live PR metadata first and review or continue only on that PR's real `base` and `head`. Do not assume the checked-out branch matches the PR. If the local branch diverges from the PR head, treat the local checkout as untrusted and switch to the fetched PR head or stop and report the mismatch.
 
 For second Codex review:
 
 1. Use `$kvestarnia-second-codex-readonly`.
-2. Default to changed files only: review the PR diff, changed files, and direct dependencies.
-3. Do not edit files, commit, push, auto-fix, format, codemod, or create an alternative implementation.
-4. Provide actionable findings only; no exhaustive tutorial.
-5. Escalate to `$kvestarnia-telegram-qa` only for full QA plans or high-risk Telegram flow changes.
+2. Before anything else, verify the live PR number, base branch, and head branch. If the local checkout does not match the PR head, fetch or inspect the PR head snapshot and use that for line references.
+3. Default to changed files only: review the PR diff, changed files, and direct dependencies.
+4. Do not edit files, commit, push, auto-fix, format, codemod, or create an alternative implementation.
+5. Provide actionable findings only; no exhaustive tutorial.
+6. Escalate to `$kvestarnia-telegram-qa` only for full QA plans or high-risk Telegram flow changes.
 
 After closing a versioned task:
 
