@@ -7,9 +7,11 @@ import {
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
+import { getCombatItemUseKey } from "../../services/combatItemUse";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
   makePartyBossStartCallbackData,
   makePartyBossTimeoutCallbackData,
@@ -25,6 +27,7 @@ import {
 } from "../callbacks/partySessionCallbackData";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
+const RESPONSIBLE_PANIC_BANDAGE_ID = "item.responsible-panic-bandage";
 
 export function buildPartySessionKeyboard(
   session: PartySessionRecord,
@@ -111,6 +114,13 @@ export function buildPartyBossKeyboard(
     }
 
     keyboard.row();
+    keyboard
+      .text("🩹 Бинт", makePartyBossItemUseCallbackData({
+        token: session.partyInviteToken,
+        turn: session.turn,
+        itemKey: getCombatItemUseKey(RESPONSIBLE_PANIC_BANDAGE_ID)
+      }))
+      .row();
   }
 
   if (session.status === "active" && options.includeDevTimeout) {

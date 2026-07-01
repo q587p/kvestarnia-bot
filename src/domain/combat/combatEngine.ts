@@ -1670,7 +1670,7 @@ function setActorAbilityCooldown(
   };
 }
 
-function tickActorCooldowns(state: CombatActorResourceState): CombatActorResourceState {
+export function tickActorCooldowns(state: CombatActorResourceState): CombatActorResourceState {
   const next = cloneActorResourceState(state);
   const abilityEntries = Object.entries(normalizeCooldownAbilities(state.cooldowns));
   const ticked = Object.fromEntries(

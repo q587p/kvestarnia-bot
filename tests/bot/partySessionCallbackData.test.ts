@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
   makePartyBossStartCallbackData,
   makePartyBossTimeoutCallbackData,
@@ -67,6 +68,14 @@ describe("party session callback data", () => {
     expect(parsePartySessionCallbackData(makePartyBossActionCallbackData(token, 42, "skill"))).toEqual({
       ok: true,
       value: { type: "boss-action", token, turn: 42, action: "skill" }
+    });
+    expect(parsePartySessionCallbackData(makePartyBossItemUseCallbackData({
+      token,
+      turn: 42,
+      itemKey: "00abcd"
+    }))).toEqual({
+      ok: true,
+      value: { type: "boss-item", token, turn: 42, itemKey: "00abcd" }
     });
   });
 

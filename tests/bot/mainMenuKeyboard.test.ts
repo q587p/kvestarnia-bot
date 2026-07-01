@@ -1580,6 +1580,7 @@ describe("main menu and scene keyboards", () => {
           {
             canUse: true,
             combatUse: {
+              kind: "fight",
               sessionId: "123e4567-e89b-42d3-a456-426614174321",
               turn: 2,
               itemKey: "item.responsible-panic-bandage"
@@ -1641,6 +1642,7 @@ describe("main menu and scene keyboards", () => {
           {
             canUse: true,
             combatUse: {
+              kind: "fight",
               sessionId: "123e4567-e89b-42d3-a456-426614174321",
               turn: 2,
               itemKey: "item.responsible-panic-bandage"

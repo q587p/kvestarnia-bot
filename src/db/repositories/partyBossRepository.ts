@@ -3,6 +3,7 @@ import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CombatActorStats } from "../../domain/combat/combatState";
 import type {
   PartyBossActionKey,
+  PartyBossCombatItemInput,
   PartyBossResult,
   PartyBossState
 } from "../../domain/partyBoss/partyBoss";
@@ -56,6 +57,11 @@ export type PartyBossActionResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | {
+      state: "item-unavailable";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp";
+      session?: PartyBossSessionRecord;
+    }
+  | {
       state: "not-participant" | "stale" | "queued" | "duplicate" | "resolved" | "terminal";
       session: PartyBossSessionRecord;
       achievementEvents?: PartyBossAchievementEventRecord[];
@@ -92,6 +98,14 @@ export interface PartyBossRepository {
     partyInviteToken: string,
     turn: number,
     action: PartyBossActionKey,
+    input: PartyBossResolveInput
+  ): Promise<PartyBossActionResult>;
+
+  submitItemForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    item: PartyBossCombatItemInput,
     input: PartyBossResolveInput
   ): Promise<PartyBossActionResult>;
 

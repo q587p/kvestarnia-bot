@@ -1,5 +1,6 @@
 import {
   resolveActorCombatAction,
+  tickActorCooldowns,
   type ActorCombatActionSummary,
   type CombatActorResourceState
 } from "../combat/combatEngine";
@@ -17,7 +18,7 @@ export const BIG_BARREL_BROTHER_BOSS_KEY = "big-barrel-brother";
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
 const BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS = 4;
 
-export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race">;
+export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race"> | "item";
 export type PartyBossParticipantStatus = "active" | "knocked-out";
 export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 
@@ -52,6 +53,16 @@ export interface PartyBossRoundActionInput {
   characterId: string;
   action: PartyBossActionKey;
   origin?: "manual" | "timeout";
+  item?: PartyBossCombatItemInput;
+}
+
+export interface PartyBossCombatItemInput {
+  id: string;
+  name: string;
+  effect: {
+    kind: "heal-hp";
+    amount: number;
+  };
 }
 
 export interface PartyBossRoundSummary {
@@ -67,10 +78,13 @@ export interface PartyBossParticipantActionSummary {
   characterId: string;
   action: PartyBossActionKey;
   origin: "manual" | "timeout";
-  outcome: ActorCombatActionSummary["actorOutcome"];
+  outcome: ActorCombatActionSummary["actorOutcome"] | "item-used";
   damage: number;
   manaSpent: number;
   skillId?: string;
+  itemId?: string;
+  itemName?: string;
+  healing?: number;
 }
 
 export interface PartyBossRetaliationSummary {
@@ -93,8 +107,20 @@ export interface PartyBossResult {
     damageDealt: number;
     submittedActions: number;
     timeoutActions: number;
+    reward?: PartyBossRewardSnapshot;
+    attemptXp?: number;
   }>;
   bossHpAfter: number;
+}
+
+export interface PartyBossRewardSnapshot {
+  xp: number;
+  gold: number;
+  itemGrants: Array<{
+    itemId: string;
+    name: string;
+    quantity: number;
+  }>;
 }
 
 export function createPartyBossState(input: {
@@ -206,6 +232,39 @@ export function resolvePartyBossRound(input: {
     const committed = submitted.get(participant.characterId);
     const action = committed?.action ?? "defend";
     const origin = committed?.origin ?? "timeout";
+    if (action === "item" && committed?.item) {
+      const beforeHp = participant.resources.hp;
+      const tickedResources = tickActorCooldowns(participant.resources);
+      const healing = committed.item.effect.kind === "heal-hp"
+        ? clamp(Math.floor(committed.item.effect.amount), 0, tickedResources.hpMax - tickedResources.hp)
+        : 0;
+      participant.resources = {
+        ...tickedResources,
+        hp: Math.min(tickedResources.hpMax, tickedResources.hp + healing)
+      };
+
+      if (origin === "manual") {
+        participant.contribution.submittedActions += 1;
+      } else {
+        participant.contribution.timeoutActions += 1;
+      }
+
+      actionSummaries.push({
+        characterId: participant.characterId,
+        action,
+        origin,
+        outcome: "item-used",
+        damage: 0,
+        manaSpent: 0,
+        itemId: committed.item.id,
+        itemName: committed.item.name,
+        healing: participant.resources.hp - beforeHp
+      });
+      continue;
+    }
+
+    const combatAction: Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race"> =
+      action === "item" ? "defend" : action;
     const result = resolveActorCombatAction({
       actorState: participant.resources,
       defenderState: {
@@ -216,9 +275,9 @@ export function resolvePartyBossRound(input: {
       },
       actorStats: participant.combatStats,
       defenderStats: next.boss,
-      action,
+      action: combatAction,
       fumbleSeed: `${input.seed}:${next.turn}:${participant.characterId}`,
-      rng: new SeededRandomSource(`${input.seed}:${next.turn}:${participant.characterId}:${action}`)
+      rng: new SeededRandomSource(`${input.seed}:${next.turn}:${participant.characterId}:${combatAction}`)
     });
 
     participant.resources = result.actorState;
@@ -233,7 +292,7 @@ export function resolvePartyBossRound(input: {
 
     actionSummaries.push({
       characterId: participant.characterId,
-      action,
+      action: combatAction,
       origin,
       outcome: result.summary.actorOutcome,
       damage: result.summary.actorDamage,

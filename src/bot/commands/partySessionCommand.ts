@@ -210,6 +210,49 @@ export async function handlePartySessionCallback(
     return;
   }
 
+  if (callback.type === "boss-item") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await options.partyBoss.submitItemForTelegramUser(
+      telegramUserId,
+      callback.token,
+      callback.turn,
+      callback.itemKey
+    );
+    await safeAnswerCallbackQuery(ctx, result.state === "duplicate"
+      ? { text: "Дію вже записано." }
+      : result.state === "item-unavailable"
+        ? { text: "Манатка не спрацювала." }
+        : undefined);
+    const viewerCharacterId = "session" in result
+      ? getBossViewerCharacterId(result.session, telegramUserId)
+      : null;
+    await sendBossText(ctx, "edit", presentPartyBossAction(result, viewerCharacterId), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId,
+          includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
+        }
+      : false);
+    if (result.state === "resolved" || result.state === "terminal") {
+      const big = isBigBossSession(result.session);
+      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
+        notice: result.session.status === "active"
+          ? big
+            ? "Хід оновлено. Показую новий стан рейду."
+            : "Хід оновлено. Показую новий стан тестового бою."
+          : big
+            ? "Рейд завершено. Показую підсумок."
+            : "Тестовий бій завершено. Показую підсумок."
+      });
+    }
+    return;
+  }
+
   if (callback.type === "boss-timeout") {
     if (!options.partyBoss?.isEnabled()) {
       await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });

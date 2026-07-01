@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a narrow Big Barrel Brother focus rule: ordinary retaliations first hit the party leader, then follow the previous round's top living damage contributor, while every fourth turn keeps a broad hit against all living participants until a future explicit threat/taunt system replaces it.
 - Added automatic Big Barrel Brother recruiting start after the recruiting deadline, plus `👀 Хто поруч` listings/buttons for live Barrel recruiting groups.
 - Added a forwardable Big Barrel Brother invite-card with 13 stable Ukrainian templates and `🎲 Інший текст` rotation for joined recruiting participants.
+- Added the existing `Бинт відповідальної паніки` as a narrow Big Barrel Brother combat item action: it consumes one owned non-reserved bandage, heals the participant's frozen raid HP state, counts as that turn's action, and is reachable from both the raid card and the item-detail combat-use button.
 
 ### Changed
 - Non-remorted level `1-7`, remorted level `1-2`, disabled-flag eligible characters, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
@@ -40,6 +41,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother battle journals now open only after terminal state, render one stored round per page, include action outcome descriptions and named broad boss attacks, record boss target/focus-switch information, use beginning/end pagination, and return to the terminal result card.
 - Big Barrel Brother active cards and journals now suppress focus-switch lines when the boss is still targeting the same participant instead of claiming the attention "switched" to the current target again.
 - Big Barrel Brother party deep links now open the active or completed boss card/result before falling back to recruiting join, so old invites replay the real raid outcome after battle.
+- Big Barrel Brother terminal victory cards now replay the viewer's stored XP/gold/item grant summary with ordinary fight-style `🎉 Ви перемогли` / `Винагорода за бій` copy instead of a generic bookkeeping line.
 - Big Barrel Brother recruiting join/leave now best-effort refreshes stored recruiting cards for other joined participants, including the leader's original card.
 - Big Barrel Brother recruiting join/rejoin now rejects under-gate, already-completed-period or active-combat characters before mutating `PartyParticipant`, while keeping start/settlement fail-closed and returning only generic player-facing copy.
 - Joining a selected Big Barrel Brother recruiting group now cancels the player's own solo Big Barrel recruiting group first, so `👀 Хто поруч` and deep-link joins can move from a personal one-person draft into another leader's raid without getting stuck on the old card.
@@ -53,7 +55,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Unchanged
 - No runtime round cap, round-7 final window, 13-round auto-loss, enrage timer or hidden terminal-by-turn rule ships in this slice.
 - Failure grants no Barrel success, gold or items; meaningful participants now receive a small replay-safe XP attempt reward on loss, and terminal loss cards show the exact post-fight attempt XP line.
-- Affinity spotlight, first-win trophy, combat items/one-use manatky, targetable adds, ґільдії, matchmaking, permanent parties, market, trade and crafting remain deferred; Mini App is not a planned track for this release line.
+- Affinity spotlight, first-win trophy, broader raid combat items/targetable manatky, targetable adds, ґільдії, matchmaking, permanent parties, market, trade and crafting remain deferred; Mini App is not a planned track for this release line.
 
 ## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP
 

@@ -125,7 +125,7 @@ describe("item detail presenter", () => {
       rarity: "common",
       slot: "consumable",
       goldValue: 7,
-      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
       useEffect: {
         kind: "heal-hp",
         amount: 7

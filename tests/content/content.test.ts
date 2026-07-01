@@ -195,7 +195,7 @@ describe("content tables", () => {
 
     expect(bandage).toMatchObject({
       slot: "consumable",
-      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
       useEffect: {
         kind: "heal-hp",
         amount: 7

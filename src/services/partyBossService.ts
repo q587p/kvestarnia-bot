@@ -1,4 +1,5 @@
 import type { PartyBossActionKey } from "../domain/partyBoss/partyBoss";
+import { items } from "../content";
 import type {
   PartyBossActionResult,
   PartyBossDevWinResult,
@@ -7,6 +8,7 @@ import type {
   PartyBossStartResult
 } from "../db/repositories/partyBossRepository";
 import { PARTY_BOSS_TURN_MS } from "../domain/partyBoss/partyBoss";
+import { findCombatUsableItemByKey } from "./combatItemUse";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
 
@@ -68,6 +70,46 @@ export class PartyBossService {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     });
+    await this.trackAchievementEvents(result);
+
+    return result;
+  }
+
+  async submitItemForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    itemKey: string
+  ): Promise<PartyBossActionResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const now = this.clock();
+    const combatItem = findCombatUsableItemByKey(items, itemKey);
+    if (!combatItem) {
+      const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
+      return {
+        state: "item-unavailable",
+        reason: "not-usable",
+        ...(session ? { session } : {})
+      };
+    }
+
+    const result = await this.sessions.submitItemForTelegramUser(
+      telegramUserId,
+      partyInviteToken,
+      turn,
+      {
+        id: combatItem.item.id,
+        name: combatItem.item.name,
+        effect: combatItem.effect
+      },
+      {
+        now,
+        nextTurnExpiresAt: nextTurnDeadline(now)
+      }
+    );
     await this.trackAchievementEvents(result);
 
     return result;

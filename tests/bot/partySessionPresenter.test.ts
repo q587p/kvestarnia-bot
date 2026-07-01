@@ -229,6 +229,52 @@ describe("party session presenter", () => {
     expect(text).toContain("🎒 За спробу:\n+10 XP");
   });
 
+  it("renders a Big Barrel Brother victory with the viewer's stored rewards", () => {
+    const session = makeBigBossSession({
+      status: "won",
+      completedAt: "2026-06-30T10:01:00.000Z",
+      boss: {
+        ...makeBigBossSession().state.boss,
+        hp: 0,
+        hpMax: 216
+      }
+    });
+    session.status = "won";
+    session.completedAt = new Date("2026-06-30T10:01:00.000Z");
+    session.result = {
+      status: "won",
+      completedAt: "2026-06-30T10:01:00.000Z",
+      bossHpAfter: 0,
+      participants: [
+        {
+          characterId: "leader",
+          status: "active",
+          damageDealt: 12,
+          submittedActions: 1,
+          timeoutActions: 0,
+          reward: {
+            xp: 2,
+            gold: 4,
+            itemGrants: [
+              {
+                itemId: "item.self-check-mirror",
+                name: "Дзеркальце Самоперевірки",
+                quantity: 1
+              }
+            ]
+          }
+        }
+      ]
+    };
+
+    const text = presentPartyBoss(session, { viewerCharacterId: "leader" });
+
+    expect(text).toContain("🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.");
+    expect(text).toContain("Винагорода за бій:\n<b>+2 XP\n+4 золота</b>");
+    expect(text).toContain("Здобуто: <i>Дзеркальце Самоперевірки</i>");
+    expect(text).not.toContain("нагороди збережено");
+  });
+
   it("renders a forwardable Big Barrel Brother invite card with visible URL and rotating text", () => {
     expect(BIG_BARREL_INVITE_TEMPLATES).toHaveLength(13);
 

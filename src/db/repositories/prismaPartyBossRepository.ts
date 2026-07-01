@@ -8,8 +8,12 @@ import {
   isBigBarrelBrotherState,
   resolvePartyBossRound,
   type PartyBossActionKey,
+  type PartyBossCombatItemInput,
+  type PartyBossResult,
+  type PartyBossRewardSnapshot,
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
+import { items } from "../../content";
 import { getLevelForXp } from "../../domain/progression/level";
 import {
   buildPartyBossCombatStats,
@@ -31,6 +35,8 @@ import {
 } from "../../services/tavernRaidService";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
+import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { findActiveTransferReservedItems } from "./itemTransferReservations";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -41,6 +47,12 @@ const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
+
+class PartyBossItemUseRollback extends Error {
+  constructor(readonly reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]) {
+    super(reason);
+  }
+}
 
 const partyCharacterInclude = {
   user: {
@@ -321,6 +333,165 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     return inserted;
   }
 
+  async submitItemForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    item: PartyBossCombatItemInput,
+    input: PartyBossResolveInput
+  ): Promise<PartyBossActionResult> {
+    const inserted = await this.prisma.$transaction(async (tx): Promise<PartyBossActionResult> => {
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const session = await findByInviteToken(tx, partyInviteToken);
+      if (!session) {
+        return { state: "not-found" };
+      }
+
+      if (!isParticipant(session, character.id)) {
+        return { state: "not-participant", session: mapSession(session) };
+      }
+
+      if (session.status !== "active") {
+        return { state: "terminal", session: mapSession(session) };
+      }
+
+      if (session.turn !== turn || parseState(session).turn !== turn) {
+        return { state: "stale", session: mapSession(session) };
+      }
+
+      const state = parseState(session);
+      const actor = state.participants.find((participant) => participant.characterId === character.id);
+      if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
+        return { state: "stale", session: mapSession(session) };
+      }
+
+      if (actor.resources.hp >= actor.resources.hpMax) {
+        return { state: "item-unavailable", reason: "full-hp", session: mapSession(session) };
+      }
+
+      const lease = await tx.activeCombatLease.findUnique({
+        where: { characterId: character.id },
+        select: { kind: true, referenceId: true }
+      });
+      if (!lease || lease.kind !== PARTY_BOSS_LEASE_KIND || lease.referenceId !== session.partySessionId) {
+        return { state: "stale", session: mapSession(session) };
+      }
+
+      await tx.characterItem.updateMany({
+        where: { characterId: character.id, itemId: item.id },
+        data: { updatedAt: input.now }
+      });
+
+      await cancelPendingCombatItemUseOrders(tx, character.id, item.id, input.now);
+
+      const [stack, equipped, reservedItemIds] = await Promise.all([
+        tx.characterItem.findUnique({
+          where: {
+            characterId_itemId: {
+              characterId: character.id,
+              itemId: item.id
+            }
+          }
+        }),
+        tx.characterEquipment.findFirst({
+          where: { characterId: character.id, itemId: item.id },
+          select: { id: true }
+        }),
+        getCombatItemReservedItemIds(tx, character.id, input.now, {
+          includeItemUseReservations: false
+        })
+      ]);
+
+      if (!stack || stack.quantity < 1) {
+        return { state: "item-unavailable", reason: "not-owned", session: mapSession(session) };
+      }
+
+      if (equipped || reservedItemIds.includes(item.id)) {
+        return { state: "item-unavailable", reason: "reserved", session: mapSession(session) };
+      }
+
+      const created = await tx.partyBossAction.create({
+        data: {
+          sessionId: session.id,
+          actorCharacterId: character.id,
+          turn,
+          actionKey: "item",
+          submittedAt: input.now,
+          resultJson: {
+            kind: "combat-item",
+            item
+          } as unknown as Prisma.InputJsonValue
+        }
+      }).catch((error: unknown) => {
+        if (isUniqueConflict(error)) {
+          return null;
+        }
+        throw error;
+      });
+
+      if (created) {
+        const consumed = await tx.characterItem.updateMany({
+          where: {
+            characterId: character.id,
+            itemId: item.id,
+            quantity: { gte: 1 }
+          },
+          data: {
+            quantity: { decrement: 1 }
+          }
+        });
+
+        if (consumed.count !== 1) {
+          throw new PartyBossItemUseRollback("not-owned");
+        }
+
+        await tx.characterItem.deleteMany({
+          where: {
+            characterId: character.id,
+            quantity: { lte: 0 }
+          }
+        });
+      }
+
+      const current = await tx.partyBossSession.findUnique({
+        where: { id: session.id },
+        include: partyBossInclude
+      });
+
+      if (!current) {
+        return { state: "not-found" };
+      }
+
+      return { state: created ? "queued" : "duplicate", session: mapSession(current) };
+    }).catch(async (error: unknown): Promise<PartyBossActionResult> => {
+      if (!(error instanceof PartyBossItemUseRollback)) {
+        throw error;
+      }
+
+      const current = await this.findByPartyInviteToken(partyInviteToken);
+      return {
+        state: "item-unavailable",
+        reason: error.reason,
+        ...(current ? { session: current } : {})
+      };
+    });
+
+    if (!("session" in inserted)) {
+      return inserted;
+    }
+
+    if (inserted.state === "queued" || inserted.state === "duplicate") {
+      const resolved = await this.resolveIfReady(inserted.session.id, "all-actions", input);
+      return resolved ? { state: "resolved", ...resolved } : inserted;
+    }
+
+    return inserted;
+  }
+
   async resolveTimedOutByToken(
     partyInviteToken: string,
     input: PartyBossResolveInput,
@@ -505,11 +676,16 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         state,
         now: input.now,
         seed: session.id,
-        actions: actions.map((entry) => ({
-          characterId: entry.actorCharacterId,
-          action: parseActionKey(entry.actionKey),
-          origin: "manual"
-        }))
+        actions: actions.map((entry) => {
+          const item = parseActionItem(entry.resultJson);
+
+          return {
+            characterId: entry.actorCharacterId,
+            action: parseActionKey(entry.actionKey),
+            origin: "manual" as const,
+            ...(item ? { item } : {})
+          };
+        })
       });
       const nextVersion = session.version + 1;
       const status = resolved.state.status;
@@ -579,6 +755,8 @@ async function settleTerminalPartyBoss(
   }
 
   const periodId = session.partySession.periodId;
+  const rewardSnapshots = new Map<string, PartyBossRewardSnapshot>();
+  const attemptXpSnapshots = new Map<string, number>();
 
   for (const participant of state.participants) {
     const remortCount = await countCharacterRemorts(tx, participant.characterId);
@@ -597,6 +775,9 @@ async function settleTerminalPartyBoss(
         ? buildBigBarrelLossXp(state, participant)
         : 0;
       await settleBigParticipantAttempt(tx, current, participant, now, remortCount, lossXp);
+      if (lossXp > 0) {
+        attemptXpSnapshots.set(participant.characterId, lossXp);
+      }
       if (lossXp > 0) {
         achievementEvents.push({
           type: "barrel.raid.lost",
@@ -743,6 +924,28 @@ async function settleTerminalPartyBoss(
         }
       });
     }
+    rewardSnapshots.set(participant.characterId, {
+      xp: reward.xp,
+      gold: reward.gold,
+      itemGrants: appliedItemGrants.map((grant) => ({
+        itemId: grant.itemId,
+        name: getItemName(grant.itemId),
+        quantity: grant.quantity
+      }))
+    });
+  }
+
+  const result = buildResult(state, now);
+  if (result) {
+    await tx.partyBossSession.update({
+      where: { id: session.id },
+      data: {
+        resultJson: enrichBigBarrelResult(result, {
+          rewards: rewardSnapshots,
+          attemptXp: attemptXpSnapshots
+        }) as unknown as Prisma.InputJsonValue
+      }
+    });
   }
 
   return achievementEvents;
@@ -1050,7 +1253,169 @@ function parseStatus(value: string): PartyBossSessionStatus {
 }
 
 function parseActionKey(value: string): PartyBossActionKey {
-  return value === "defend" || value === "skill" || value === "race" ? value : "attack";
+  return value === "defend" || value === "skill" || value === "race" || value === "item" ? value : "attack";
+}
+
+function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as { kind?: unknown; item?: unknown };
+  if (record.kind !== "combat-item" || !record.item || typeof record.item !== "object" || Array.isArray(record.item)) {
+    return null;
+  }
+
+  const item = record.item as {
+    id?: unknown;
+    name?: unknown;
+    effect?: unknown;
+  };
+  if (typeof item.id !== "string" || typeof item.name !== "string") {
+    return null;
+  }
+
+  if (!item.effect || typeof item.effect !== "object" || Array.isArray(item.effect)) {
+    return null;
+  }
+
+  const effect = item.effect as { kind?: unknown; amount?: unknown };
+  if (effect.kind !== "heal-hp" || typeof effect.amount !== "number") {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    name: item.name,
+    effect: {
+      kind: "heal-hp",
+      amount: effect.amount
+    }
+  };
+}
+
+function enrichBigBarrelResult(
+  result: PartyBossResult,
+  snapshots: {
+    rewards: Map<string, PartyBossRewardSnapshot>;
+    attemptXp: Map<string, number>;
+  }
+): PartyBossResult {
+  return {
+    ...result,
+    participants: result.participants.map((participant) => {
+      const reward = snapshots.rewards.get(participant.characterId);
+      const attemptXp = snapshots.attemptXp.get(participant.characterId);
+
+      return {
+        ...participant,
+        ...(reward ? { reward } : {}),
+        ...(attemptXp ? { attemptXp } : {})
+      };
+    })
+  };
+}
+
+function getItemName(itemId: string): string {
+  return items.find((item) => item.id === itemId)?.name ?? itemId;
+}
+
+async function getCombatItemReservedItemIds(
+  tx: TxClient,
+  characterId: string,
+  now: Date,
+  options: { includeItemUseReservations?: boolean } = {}
+): Promise<string[]> {
+  const [pendingChestRuns, pendingLevelBarters, pendingSales, pendingTransfers, pendingUses] = await Promise.all([
+    tx.mantokChestRun.findMany({
+      where: { characterId, status: "pending" },
+      select: { inputItemsJson: true }
+    }),
+    tx.levelBarterExchange.findMany({
+      where: { characterId, status: "pending" },
+      select: { inputItemsJson: true }
+    }),
+    tx.korchmaMantokSale.findMany({
+      where: {
+        characterId,
+        status: { in: ["pending", "processing"] },
+        expiresAt: { gt: now }
+      },
+      select: { selectionJson: true }
+    }),
+    findActiveTransferReservedItems(tx, { senderCharacterId: characterId, now }),
+    options.includeItemUseReservations === false
+      ? Promise.resolve([])
+      : findActiveItemUseReservedItems(tx, { characterId, now })
+  ]);
+  const reserved = new Set<string>();
+
+  for (const run of pendingChestRuns) {
+    for (const item of parseCombatReservedItems(run.inputItemsJson)) {
+      reserved.add(item.itemId);
+    }
+  }
+  for (const exchange of pendingLevelBarters) {
+    for (const item of parseCombatReservedItems(exchange.inputItemsJson)) {
+      reserved.add(item.itemId);
+    }
+  }
+  for (const sale of pendingSales) {
+    for (const item of parseCombatReservedItems(sale.selectionJson)) {
+      reserved.add(item.itemId);
+    }
+  }
+  for (const transfer of pendingTransfers) {
+    reserved.add(transfer.itemId);
+  }
+  for (const use of pendingUses) {
+    reserved.add(use.itemId);
+  }
+
+  return [...reserved];
+}
+
+async function cancelPendingCombatItemUseOrders(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  now: Date
+): Promise<void> {
+  await tx.itemUseOrder.updateMany({
+    where: {
+      characterId,
+      itemId,
+      status: { in: ["pending", "processing"] },
+      expiresAt: { gt: now }
+    },
+    data: {
+      status: "cancelled",
+      reservationKey: null,
+      cancelledAt: now,
+      resultJson: {
+        kind: "cancelled",
+        itemId
+      }
+    }
+  });
+}
+
+function parseCombatReservedItems(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+    const itemId = (entry as { itemId?: unknown }).itemId;
+    const quantity = (entry as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number"
+      ? [{ itemId, quantity }]
+      : [];
+  });
 }
 
 function isParticipant(session: PartyBossRow, characterId: string): boolean {

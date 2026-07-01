@@ -19,6 +19,7 @@ import {
 } from "../../domain/partyBoss/partyBoss";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
@@ -299,6 +300,17 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
     });
   }
 
+  if (result.state === "item-unavailable") {
+    if (!result.session) {
+      return "Манатка не спрацювала. Корчмар підозрює стару кнопку.";
+    }
+
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: presentPartyBossItemUnavailableNotice(result.reason)
+    });
+  }
+
   if (result.state === "queued") {
     const big = isBigPartyBossSession(result.session);
     return presentPartyBoss(result.session, {
@@ -371,10 +383,10 @@ export function presentPartyBoss(
   if (session.status !== "active") {
     lines.push("", session.status === "won"
       ? big
-        ? "Ватага перемогла. Участь зараховано як успішну Бочку цього періоду; нагороди збережено й не дублюються."
+        ? presentBigBarrelVictoryResult(session, viewer?.characterId ?? null)
         : "Ватага перемогла контрольного боса. Нагород тут немає: це тестовий бій, а не рейдовий лут."
       : big
-        ? presentBigBarrelLossResult(state, viewer?.characterId ?? null)
+        ? presentBigBarrelLossResult(session, viewer?.characterId ?? null)
         : "Тестовий бій завершено без рейдової нагороди.");
   }
 
@@ -643,17 +655,51 @@ function getBossStatusLine(session: PartyBossSessionRecord): string {
   return "Стан: бій триває";
 }
 
-function presentBigBarrelLossResult(
-  state: PartyBossSessionRecord["state"],
+function presentBigBarrelVictoryResult(
+  session: PartyBossSessionRecord,
   viewerCharacterId: string | null
 ): string {
+  const reward = getViewerResultParticipant(session, viewerCharacterId)?.reward;
+  const lines = [
+    "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
+  ];
+
+  if (!reward) {
+    lines.push("", "Винагороду для цієї картки не знайдено. Якщо ви билися, відкрийте власну бойову картку або результати за рейдовим посиланням.");
+    return lines.join("\n");
+  }
+
+  lines.push("", presentRewardAmount({
+    xp: reward.xp,
+    gold: reward.gold,
+    label: "Винагорода за бій"
+  }));
+
+  for (const grant of reward.itemGrants) {
+    lines.push(presentRewardItemGrant({
+      name: escapeHtml(grant.name),
+      quantity: grant.quantity
+    }));
+  }
+
+  return lines.join("\n");
+}
+
+function presentBigBarrelLossResult(
+  session: PartyBossSessionRecord,
+  viewerCharacterId: string | null
+): string {
+  const state = session.state;
   const viewer = viewerCharacterId
     ? state.participants.find((participant) => participant.characterId === viewerCharacterId)
     : null;
-  const xpValues = (viewer ? [viewer] : state.participants)
-    .filter(isMeaningfulBigBarrelParticipant)
-    .map((participant) => buildBigBarrelLossXp(state, participant))
-    .filter((xp) => xp > 0);
+  const storedAttemptXp = getStoredAttemptXpValues(session, viewerCharacterId);
+  const xpValues = storedAttemptXp.length > 0
+    ? storedAttemptXp
+    : (viewer ? [viewer] : state.participants)
+        .filter(isMeaningfulBigBarrelParticipant)
+        .map((participant) => buildBigBarrelLossXp(state, participant))
+        .filter((xp) => xp > 0);
   const uniqueXpValues = [...new Set(xpValues)].sort((left, right) => left - right);
   const rewardLine = uniqueXpValues.length === 0
     ? "XP не нараховано: журнал не побачив реальної участі."
@@ -668,6 +714,50 @@ function presentBigBarrelLossResult(
     "🎒 За спробу:",
     rewardLine
   ].join("\n");
+}
+
+function presentPartyBossItemUnavailableNotice(
+  reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]
+): string {
+  switch (reason) {
+    case "full-hp":
+      return "Бинт покрутився в руках і не знайшов синця, який варто драматизувати.";
+    case "not-owned":
+      return "Бинта не знайшлося в торбі. Можливо, він відповідально панікує деінде.";
+    case "reserved":
+      return "Цю манатку вже тримає інша квестарняна канцелярія.";
+    case "not-usable":
+      return "Ця манатка не підходить для бойового лікування.";
+  }
+}
+
+function getViewerResultParticipant(
+  session: PartyBossSessionRecord,
+  viewerCharacterId: string | null
+): NonNullable<PartyBossSessionRecord["result"]>["participants"][number] | null {
+  if (!session.result) {
+    return null;
+  }
+
+  if (viewerCharacterId) {
+    return session.result.participants.find((participant) => participant.characterId === viewerCharacterId) ?? null;
+  }
+
+  return session.result.participants.find((participant) => participant.reward) ?? null;
+}
+
+function getStoredAttemptXpValues(
+  session: PartyBossSessionRecord,
+  viewerCharacterId: string | null
+): number[] {
+  if (!session.result) {
+    return [];
+  }
+
+  return session.result.participants
+    .filter((participant) => !viewerCharacterId || participant.characterId === viewerCharacterId)
+    .map((participant) => participant.attemptXp ?? 0)
+    .filter((xp) => xp > 0);
 }
 
 function isBigPartyBossSession(session: PartyBossSessionRecord): boolean {
@@ -706,6 +796,17 @@ function presentPartyBossActionLine(
 ): string {
   const isViewer = Boolean(viewerCharacterId && action.characterId === viewerCharacterId);
   const name = escapeHtml(participant?.name ?? "Учасник");
+
+  if (action.outcome === "item-used") {
+    const itemName = escapeHtml(action.itemName ?? "манатку");
+    const healing = action.healing && action.healing > 0
+      ? ` HP відновлено на ${action.healing}.`
+      : " Але журнал не знайшов браку HP.";
+
+    return isViewer
+      ? `Ви застосували <b>${itemName}</b>.${healing}`
+      : `${name} застосовує <b>${itemName}</b>.${healing}`;
+  }
 
   if (action.outcome === "defended") {
     if (action.origin === "timeout") {

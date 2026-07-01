@@ -82,6 +82,55 @@ describe("party boss reducer", () => {
     expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.submittedActions).toBe(1);
   });
 
+  it("resolves a combat item as a party boss action and heals the frozen participant state", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-item",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 30, hpCurrent: 12, dexterity: 20 })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state: {
+        ...state,
+        boss: {
+          ...state.boss,
+          hp: 0,
+          hpMax: 100,
+          attack: 0,
+          dexterity: 0
+        }
+      },
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-item",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item",
+          origin: "manual",
+          item: {
+            id: "item.responsible-panic-bandage",
+            name: "Бинт відповідальної паніки",
+            effect: {
+              kind: "heal-hp",
+              amount: 7
+            }
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "item",
+      outcome: "item-used",
+      itemName: "Бинт відповідальної паніки",
+      healing: 7
+    });
+    expect(result.state.participants[0]?.resources.hp).toBe(19);
+    expect(result.state.participants[0]?.contribution.submittedActions).toBe(1);
+  });
+
   it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {
     let state = createPartyBossState({
       partySessionId: "big-focus",

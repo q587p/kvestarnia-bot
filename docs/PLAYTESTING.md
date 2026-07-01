@@ -22,11 +22,12 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 10. Add an under-level, remorted level-2, or already-completed participant through an old/deep-link route; verify start blocks with a generic raid-office line and creates no boss session or `party-boss` lease.
 11. In a two-person raid, let the non-leader deal the most damage in round 1; verify ordinary boss hits first go to the leader, then switch to the previous round's top damage contributor, while turn 4 hits all living participants.
 12. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice. Verify `📜 Журнал` is not available while the battle is active.
+12a. Wound a participant who owns `Бинт відповідальної паніки`, then use `🩹 Бинт` from the raid card or `⚔️ Використати у бою` from the item detail; verify one bandage is consumed, the frozen raid HP row updates, and stale/duplicate item buttons do not heal twice.
 13. With dev helpers disabled, replay or forge a `boss-timeout` callback before the deadline; verify the turn stays on the same number and no timeout action row is added.
 14. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
 15. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.
 16. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
-17. Force or finish a victory; replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
+17. Force or finish a victory; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
 17a. Open the original `https://t.me/<bot>?start=party_<token>` invite after the victory or loss; verify it opens the stored raid result instead of an expired recruiting message.
 18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary.
 19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written.

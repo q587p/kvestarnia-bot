@@ -129,6 +129,83 @@ describe("PrismaPartyBossRepository integration", () => {
     });
   });
 
+  it("consumes a bandage party-boss item action, heals frozen raid HP, and stores victory rewards", async () => {
+    await seedCharacter(prisma, "big-bandage-user", 1151n, "Бинтова Лідерка", {
+      hpCurrent: 10,
+      hpMax: 40,
+      level: 8,
+      strength: 20,
+      dexterity: 20
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "big-bandage-user-character",
+        itemId: "item.responsible-panic-bandage",
+        quantity: 1
+      }
+    });
+    await partyRepository.createForTelegramUser(1151n, {
+      ...partyInput("party-token-big-bandage"),
+      periodId: "2026-06-30T10:42",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1151n, {
+      partyInviteToken: "party-token-big-bandage",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
+    const result = await bossRepository.submitItemForTelegramUser(
+      1151n,
+      "party-token-big-bandage",
+      1,
+      {
+        id: "item.responsible-panic-bandage",
+        name: "Бинт відповідальної паніки",
+        effect: {
+          kind: "heal-hp",
+          amount: 7
+        }
+      },
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(result);
+    const participant = latest.state.participants.find(
+      (entry) => entry.characterId === "big-bandage-user-character"
+    );
+
+    expect(result.state).toBe("resolved");
+    expect(latest.status).toBe("won");
+    expect(latest.state.roundLog.at(-1)?.actions[0]).toMatchObject({
+      action: "item",
+      outcome: "item-used",
+      itemName: "Бинт відповідальної паніки",
+      healing: 7
+    });
+    expect(participant?.resources.hp).toBe(17);
+    expect(await prisma.characterItem.count({
+      where: {
+        characterId: "big-bandage-user-character",
+        itemId: "item.responsible-panic-bandage"
+      }
+    })).toBe(0);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "big-bandage-user-character" },
+      select: { hpCurrent: true }
+    })).resolves.toEqual({ hpCurrent: 17 });
+    const reward = latest.result?.participants[0]?.reward;
+    expect(reward?.xp).toBeGreaterThan(0);
+    expect(reward?.gold).toBeGreaterThan(0);
+    expect(reward?.itemGrants[0]?.name).toBeTruthy();
+    expect(reward?.itemGrants[0]?.quantity).toBeGreaterThan(0);
+  });
+
   it("releases leases and live party keys when timeout resolution knocks out all participants", async () => {
     await seedCharacter(prisma, "knockout-leader-user", 2001n, "Крихка Лідерка", { hp: 1 });
     await seedCharacter(prisma, "knockout-joiner-user", 2002n, "Крихкий Помічник", { hp: 1 });
@@ -1134,6 +1211,105 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE mantok_chest_runs (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      token TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      input_items_json JSONB NOT NULL,
+      output_items_json JSONB,
+      average_input_score INTEGER NOT NULL DEFAULT 0,
+      minimum_output_score INTEGER NOT NULL DEFAULT 0,
+      output_score INTEGER,
+      completed_at DATETIME,
+      expired_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE korchma_mantok_sales (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      character_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      selection_json JSONB NOT NULL,
+      selection_fingerprint TEXT NOT NULL,
+      nominal_value INTEGER NOT NULL DEFAULT 0,
+      payout_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE item_transfers (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      transfer_kind TEXT NOT NULL DEFAULT 'gift',
+      sender_character_id TEXT NOT NULL,
+      receiver_character_id TEXT NOT NULL,
+      sender_telegram_user_id INTEGER NOT NULL,
+      receiver_telegram_user_id INTEGER NOT NULL,
+      sender_name TEXT NOT NULL,
+      receiver_name TEXT NOT NULL,
+      sender_remort_count INTEGER NOT NULL DEFAULT 0,
+      receiver_remort_count INTEGER NOT NULL DEFAULT 0,
+      location_id TEXT,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_fingerprint TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      package_json JSONB,
+      delivery_fee_gold INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      responded_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE item_use_orders (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      character_id TEXT NOT NULL,
+      telegram_user_id INTEGER NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_fingerprint TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      effect_kind TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reservation_key TEXT,
+      preview_json JSONB NOT NULL,
+      result_json JSONB,
+      expires_at DATETIME NOT NULL,
+      completed_at DATETIME,
+      cancelled_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE level_barter_exchanges (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      token TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'completed',
+      input_items_json JSONB NOT NULL,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      level_before INTEGER NOT NULL DEFAULT 1,
+      level_after INTEGER NOT NULL DEFAULT 1,
+      xp_before INTEGER NOT NULL DEFAULT 0,
+      xp_after INTEGER NOT NULL DEFAULT 0,
+      xp_carry INTEGER NOT NULL DEFAULT 0,
+      item_total_value INTEGER NOT NULL DEFAULT 0,
+      selected_total_value INTEGER NOT NULL DEFAULT 0,
+      overpay INTEGER NOT NULL DEFAULT 0,
+      completed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE UNIQUE INDEX party_sessions_invite_token_key ON party_sessions(invite_token)`,
     `CREATE UNIQUE INDEX party_sessions_active_leader_key_key ON party_sessions(active_leader_key)`,
     `CREATE UNIQUE INDEX party_participants_active_membership_key_key ON party_participants(active_membership_key)`,
@@ -1142,7 +1318,9 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE UNIQUE INDEX party_boss_actions_session_id_turn_actor_character_id_key ON party_boss_actions(session_id, turn, actor_character_id)`,
     `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`,
     `CREATE UNIQUE INDEX character_items_character_id_item_id_key ON character_items(character_id, item_id)`,
-    `CREATE UNIQUE INDEX character_equipment_character_id_slot_key ON character_equipment(character_id, slot)`
+    `CREATE UNIQUE INDEX character_equipment_character_id_slot_key ON character_equipment(character_id, slot)`,
+    `CREATE UNIQUE INDEX item_transfers_reservation_key_key ON item_transfers(reservation_key)`,
+    `CREATE UNIQUE INDEX item_use_orders_reservation_key_key ON item_use_orders(reservation_key)`
   ]) {
     await prisma.$executeRawUnsafe(statement);
   }

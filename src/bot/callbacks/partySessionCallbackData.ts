@@ -9,6 +9,7 @@ export type PartySessionCallback =
   | { type: "expire"; token: string }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
+  | { type: "boss-item"; token: string; turn: number; itemKey: string }
   | { type: "boss-timeout"; token: string }
   | { type: "boss-journal"; token: string; page: number | null }
   | { type: "share"; token: string }
@@ -31,6 +32,7 @@ const PREFIX = "v1:party";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 const PAGE_PATTERN = /^[0-9a-z]{1,3}$/;
 const TARGET_PATTERN = /^[0-9a-z]{1,13}$/;
+const ITEM_KEY_PATTERN = /^[a-z0-9]{1,10}$/;
 
 export function makePartySessionViewCallbackData(token: string): string {
   return `${PREFIX}:v:${token}`;
@@ -62,6 +64,14 @@ export function makePartyBossActionCallbackData(
   action: PartyBossCallbackAction
 ): string {
   return `${PREFIX}:ba:${token}:${turn.toString(36)}:${actionKey(action)}`;
+}
+
+export function makePartyBossItemUseCallbackData(input: {
+  token: string;
+  turn: number;
+  itemKey: string;
+}): string {
+  return `${PREFIX}:bi:${input.token}:${input.turn.toString(36)}:${input.itemKey}`;
 }
 
 export function makePartyBossTimeoutCallbackData(token: string): string {
@@ -108,7 +118,7 @@ export function parsePartySessionCallbackData(
 
   const [, section, action, tokenOrTarget, page, ...rest] = data.split(":");
 
-  if (section !== "party" || (action !== "ba" && rest.length > 0)) {
+  if (section !== "party" || (action !== "ba" && action !== "bi" && rest.length > 0)) {
     return err("invalid-prefix");
   }
 
@@ -181,6 +191,28 @@ export function parsePartySessionCallbackData(
       type: "boss-journal",
       token: tokenOrTarget,
       page: page === undefined ? null : Number.parseInt(page, 36)
+    });
+  }
+
+  if (action === "bi") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    const itemKey = rest[0];
+    if (rest.length !== 1 || !itemKey || !ITEM_KEY_PATTERN.test(itemKey)) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "boss-item",
+      token: tokenOrTarget,
+      turn: Number.parseInt(page, 36),
+      itemKey
     });
   }
 
