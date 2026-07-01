@@ -83,6 +83,9 @@ describe("health server", () => {
     expect(text).toContain("У грі вже");
     expect(text).toContain("конкретні можливі трофеї");
     expect(text).toContain("Єгер тепер тримає ящик із бинтами закритим");
+    expect(text).toContain("приватна записка тепер звучить як короткий папірець");
+    expect(text).toContain("останню вість із Дошки корчми");
+    expect(text).toContain("архів лишається на");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

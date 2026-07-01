@@ -17,6 +17,11 @@ Manual Telegram QA status for the implementation pass: not run.
 7. Before completing the second `17`-target board: verify no advanced `Щільний бинт` / `Польова аптечка` route is exposed by this release.
 8. Open several early and high-level Bestiary monster records; verify possible trophies are concrete manatky names and exact odds are not shown.
 9. Win a few ordinary fights if convenient and verify existing item drop/result presentation still behaves normally.
+10. With `DEPLOY_NOTIFICATIONS_ENABLED=true`, trigger a new version marker on a disposable local account.
+11. Verify the private update message uses `Остання вість із Дошки корчми`, `Архів вістей` and `Канал вістей`.
+12. Verify the version, latest `news.md` title without version/date prefix, first narrative paragraph and `/news` archive hint render with Telegram HTML.
+13. Temporarily make latest news unavailable in local test data if convenient; verify the fallback says `Дошка вістей тимчасово мовчить` and still includes archive/channel lines.
+14. Re-trigger the same version marker; verify the notification is not resent.
 
 ## 0.2.18 — Lore Board MVP smoke
 

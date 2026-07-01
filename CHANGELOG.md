@@ -25,10 +25,15 @@ This project follows a simple pre-1.0 versioning policy:
 - Direct old Yeger bandage callbacks before first-board completion now return a short locked Ukrainian message instead of opening supplies.
 - Existing paid Yeger bandage bundles, Ranger discount and Ranger free-bandage cooldown remain available after first-board completion.
 - Future `Щільний бинт` / `Польова аптечка` docs now explicitly require the second `17`-target Yeger board before advanced supplies can appear.
+- Updated the optional private deploy/update notification to use the shipped `вісти` language: `Остання вість із Дошки корчми`, `Архів вістей` and `Канал вістей`.
+- The notification now renders the version in Telegram HTML bold text, keeps the latest `news.md` release title without its version/date prefix, and includes the first narrative paragraph from that release when available.
+- Empty, missing or malformed latest news now falls back to a short Korchma-board note instead of showing generic news/archive wording.
 
 ### Unchanged
 - No guaranteed trophy drops, collection ledger, Yeger tag-hunt UI, new quest stage, crafting, shop, trading, combat behavior, schema or migration ships in this slice.
 - Exact drop odds remain hidden from player-facing Bestiary copy.
+- `/news` remains the archive command, the Telegram channel URL is unchanged, and deploy marker/resend semantics plus blocked-user handling are unchanged.
+- No Prisma schema, migration, command route, parser, archive data model, gameplay, reward, economy, combat or achievement change ships with the deploy notification wording polish.
 
 ## [0.2.18] - 12026-07-01 - Lore Board MVP
 
