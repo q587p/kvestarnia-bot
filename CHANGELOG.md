@@ -7,6 +7,17 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.19] - 12026-07-02 - Deploy Notification Visti Wording
+
+### Changed
+- Updated the optional private deploy/update notification to use the shipped `вісти` language: `Остання вість із Дошки корчми`, `Архів вістей` and `Канал вістей`.
+- The notification now renders the version in Telegram HTML bold text, keeps the latest `news.md` release title without its version/date prefix, and includes the first narrative paragraph from that release when available.
+- Empty, missing or malformed latest news now falls back to a short Korchma-board note instead of showing generic news/archive wording.
+
+### Unchanged
+- `/news` remains the archive command, the Telegram channel URL is unchanged, and deploy marker/resend semantics plus blocked-user handling are unchanged.
+- No Prisma schema, migration, command route, parser, archive data model, gameplay, reward, economy, combat or achievement change ships in this slice.
+
 ## [0.2.18] - 12026-07-01 - Lore Board MVP
 
 ### Added

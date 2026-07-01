@@ -4,6 +4,16 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.19 — Deploy Notification Visti smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. With `DEPLOY_NOTIFICATIONS_ENABLED=true`, trigger a new version marker on a disposable local account.
+2. Verify the private update message uses `Остання вість із Дошки корчми`, `Архів вістей` and `Канал вістей`.
+3. Verify the version, latest `news.md` title without version/date prefix, first narrative paragraph and `/news` archive hint render with Telegram HTML.
+4. Temporarily make latest news unavailable in local test data if convenient; verify the fallback says `Дошка вістей тимчасово мовчить` and still includes archive/channel lines.
+5. Re-trigger the same version marker; verify the notification is not resent.
+
 ## 0.2.18 — Lore Board MVP smoke
 
 Manual Telegram QA status for the implementation pass: not run.

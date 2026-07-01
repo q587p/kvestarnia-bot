@@ -67,22 +67,27 @@ export class DeployNotificationService {
 }
 
 export function renderDeployNotification(version: string, latestNews: NewsEntry | null): string {
-  const latestNewsLines = latestNews
+  const latestNewsSummary = latestNews ? formatLatestNewsSummary(latestNews) : null;
+  const latestNewsLines = latestNewsSummary
     ? [
       "",
-      `Остання новина: <b>${escapeHtml(formatLatestNewsTitle(latestNews.title))}</b>`,
+      "📰 Остання вість із Дошки корчми:",
+      `<b>${escapeHtml(latestNewsSummary.title)}</b>`,
       "",
-      ...formatLatestNewsExcerpt(latestNews).map((paragraph) => escapeHtml(paragraph))
+      escapeHtml(latestNewsSummary.excerpt)
     ]
-    : [];
+    : [
+      "",
+      "Дошка вістей тимчасово мовчить. Корчмар каже, що це теж технічний стан."
+    ];
 
   return [
     "🛠️ Квестарня оновилась.",
-    `Версія: ${escapeHtml(version)}`,
+    `Версія: <b>${escapeHtml(version)}</b>`,
     ...latestNewsLines,
     "",
-    "Деталі й архів: /news",
-    `Канал: ${NEWS_CHANNEL_URL}`
+    "Архів вістей: /news",
+    `Канал вістей: ${NEWS_CHANNEL_URL}`
   ].join("\n");
 }
 
@@ -143,6 +148,17 @@ function isTelegramBlockedByUserError(error: unknown): boolean {
 
 function formatLatestNewsTitle(title: string): string {
   return title.replace(/^\d+\.\d+\.\d+\s+—\s+1\d{4}-\d{2}-\d{2}\s+—\s+/, "").trim() || title;
+}
+
+function formatLatestNewsSummary(news: NewsEntry): { title: string; excerpt: string } | null {
+  const title = formatLatestNewsTitle(news.title).trim();
+  const [excerpt] = formatLatestNewsExcerpt(news);
+
+  if (!title || !excerpt) {
+    return null;
+  }
+
+  return { title, excerpt };
 }
 
 function formatLatestNewsExcerpt(news: NewsEntry): string[] {

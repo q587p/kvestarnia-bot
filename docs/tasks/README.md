@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- [0.2.18-lore-board-mvp.md](0.2.18-lore-board-mvp.md) — static `📖 Перекази` route from `Дошка корчми`, with typed lore entries, compact callbacks and no rewards.
+- [future-deploy-notification-visti.md](future-deploy-notification-visti.md) — shipped `0.2.19` private deploy/update notification wording as `вісти`.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -59,7 +59,7 @@ Active task:
 - [0.1.24-shynok-drinks-and-mantok-sales.md](0.1.24-shynok-drinks-and-mantok-sales.md) — queued Shynok drinks, opt-in social beer rounds and safe manatka sales.
 - [phase2-regression-smoke.md](phase2-regression-smoke.md) — read-only/manual regression gate before Phase 2 MVP closeout.
 - [0.1.25-phase2-mvp-closeout.md](0.1.25-phase2-mvp-closeout.md) — docs/release/smoke closeout task for the `0.1.x` Phase 2 MVP line.
-- [future-deploy-notification-visti.md](future-deploy-notification-visti.md) — future copy polish for deploy notifications as `вісти` with the first release paragraph.
+- [future-deploy-notification-visti.md](future-deploy-notification-visti.md) — shipped `0.2.19` copy polish for deploy notifications as `вісти` with the first release paragraph.
 - [0.2.0-safe-gifting-mvp.md](0.2.0-safe-gifting-mvp.md) — draft first `0.2.x` task for exactly-one-unit safe gifting after closeout.
 - [0.2.1-multi-enemy-foundation.md](0.2.1-multi-enemy-foundation.md) — task for backward-compatible two-enemy combat state and dev-only two-enemy exposure.
 - [0.2.2-architecture-stabilization.md](0.2.2-architecture-stabilization.md) — shipped behavior-preserving architecture stabilization before threat escalation.

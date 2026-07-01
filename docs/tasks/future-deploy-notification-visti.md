@@ -1,4 +1,6 @@
-# Future - Deploy Notification as Visti
+# 0.2.19 - Deploy Notification as Visti
+
+Status: Shipped in `0.2.19`
 
 ## Goal
 
@@ -11,15 +13,42 @@ Current notification example:
 Версія: 0.1.18
 ```
 
-Future notification should treat the release entry as `вісти`, not generic `новини-новини`, and should include at least the first narrative paragraph from the latest `news.md` entry, usually the Корчмар paragraph.
+The notification treats the release entry as `вісти`, not generic `новини-новини`, and includes the first narrative paragraph from the latest `news.md` entry when that entry is readable.
+
+Shipped copy shape:
+
+```text
+🛠️ Квестарня оновилась.
+Версія: <b>{version}</b>
+
+📰 Остання вість із Дошки корчми:
+<b>{latest release title without version/date prefix}</b>
+
+{first narrative paragraph from latest news.md entry}
+
+Архів вістей: /news
+Канал вістей: https://t.me/kvestarnia
+```
+
+Fallback:
+
+```text
+🛠️ Квестарня оновилась.
+Версія: <b>{version}</b>
+
+Дошка вістей тимчасово мовчить. Корчмар каже, що це теж технічний стан.
+
+Архів вістей: /news
+Канал вістей: https://t.me/kvestarnia
+```
 
 ## Scope
 
-- Update `DeployNotificationService.renderDeployNotification(...)`.
-- Rename visible deploy-notification wording from generic `Остання новина`/`Деталі й архів` style to `вісти`/`Дошка вістей` wording.
-- Include the first body paragraph from the latest release entry after the version line, with HTML escaping and Telegram message length safety.
-- Keep `/news` as the archive command unless a broader surface rename ships separately.
-- Add or update presenter/service tests for the exact notification text.
+- Updated `DeployNotificationService.renderDeployNotification(...)`.
+- Renamed visible deploy-notification wording from generic `Остання новина`/`Деталі й архів` style to `вісти`/`Дошка вістей` wording.
+- Included the first body paragraph from the latest release entry after the version line, with HTML escaping and Telegram message length safety.
+- Kept `/news` as the archive command.
+- Added service tests for the exact notification text, fallback and HTML escaping.
 
 ## Non-goals
 
@@ -34,7 +63,7 @@ Future notification should treat the release entry as `вісти`, not generic 
 - The latest release title and first narrative paragraph are visible in the notification when `news.md` is readable.
 - Fallback copy remains safe when `news.md` is missing or malformed.
 - Player-facing copy uses Ukrainian `вісти` language and keeps the message short enough for Telegram.
-- Tests cover latest-news paragraph extraction, HTML escaping and fallback rendering.
+- Tests cover latest-news paragraph extraction, HTML escaping, fallback rendering and absence of old wording.
 
 ## Relevant files / search terms
 
