@@ -461,21 +461,21 @@ async function handleBestiaryCallback(
   await safeAnswerCallbackQuery(ctx);
 
   if (callback.type === "list") {
-    await sendBestiaryListGated(ctx, heroService, "edit", callback.page);
+    await sendBestiaryListGated(ctx, heroService, "edit", callback.page, callback.source);
     return;
   }
 
   if (callback.type === "random") {
-    await sendRandomBestiaryRecordGated(ctx, heroService, "edit");
+    await sendRandomBestiaryRecordGated(ctx, heroService, "edit", callback.source);
     return;
   }
 
   if (callback.type === "monster") {
-    await sendBestiaryMonsterGated(ctx, heroService, "edit", callback.monsterId, callback.page);
+    await sendBestiaryMonsterGated(ctx, heroService, "edit", callback.monsterId, callback.page, callback.source);
     return;
   }
 
-  await sendBestiarySpecialGated(ctx, heroService, "edit", callback.specialId, callback.page);
+  await sendBestiarySpecialGated(ctx, heroService, "edit", callback.specialId, callback.page, callback.source);
 }
 
 async function handleDevResetCallback(

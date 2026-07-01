@@ -7,6 +7,8 @@ import {
   makeBestiarySpecialCallbackData
 } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import { makeLoreMenuCallbackData } from "../../src/bot/callbacks/loreBoardCallbackData";
+import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
   sendBestiaryMonster,
@@ -80,10 +82,27 @@ describe("bestiary command", () => {
     expect(JSON.stringify(replies[0]?.options)).toContain("⏮️ Перший");
   });
 
+  it("renders lore-source detail with lore return buttons and source-aware navigation", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendBestiaryMonster(makeContext(replies), "reply", "monster.deadline-spider", 1, "lore");
+
+    const markup = JSON.stringify(replies[0]?.options);
+
+    expect(replies[0]?.text).toContain("Павук дедлайнів");
+    expect(markup).toContain(makeBestiaryListCallbackData(1, "lore"));
+    expect(markup).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(markup).toContain(makeBestiaryMonsterCallbackData("monster.mimic-shawarma", 0, "lore"));
+    expect(markup).toContain(makeLoreMenuCallbackData());
+    expect(markup).toContain(makePlaceCallbackData("news-corner"));
+    expect(markup).toContain("⬅️ До переказів");
+    expect(markup).not.toContain(makeQuestCallbackData("hunt"));
+  });
+
   it("renders a deterministic random bestiary record", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
-    await sendRandomBestiaryRecord(makeContext(replies), "reply", () => 0.999);
+    await sendRandomBestiaryRecord(makeContext(replies), "reply", "quest", () => 0.999);
 
     expect(replies[0]?.text).toContain("Старший Брат Бочки");
     expect(replies[0]?.text).toContain("Рівень: особливий запис");
@@ -130,6 +149,40 @@ describe("bestiary command", () => {
 
     expect(String(edits[4]?.payload.text)).toContain("📖 <b>");
     expect(edits[4]?.payload.parse_mode).toBe("HTML");
+  });
+
+  it("routes lore-source bestiary callbacks while preserving lore return navigation", async () => {
+    const calls = await captureCallbackCalls([
+      makeBestiaryListCallbackData(1, "lore"),
+      makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2, "lore"),
+      makeBestiaryRandomCallbackData("lore")
+    ], { level: 3 });
+    const edits = calls.filter((call) => call.method === "editMessageText");
+
+    expect(String(edits[0]?.payload.text)).toContain("Сторінка 2/");
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeBestiaryListCallbackData(0, "lore"));
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).toContain(makeLoreMenuCallbackData());
+    expect(JSON.stringify(edits[0]?.payload.reply_markup)).not.toContain(makeQuestCallbackData("hunt"));
+
+    expect(String(edits[1]?.payload.text)).toContain("<b>Медузка звітности</b>");
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryListCallbackData(2, "lore"));
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("⬅️ До переказів");
+    expect(JSON.stringify(edits[1]?.payload.reply_markup)).toContain("Останній ⏭️");
+
+    expect(String(edits[2]?.payload.text)).toContain("📖 <b>");
+    expect(JSON.stringify(edits[2]?.payload.reply_markup)).toContain(makeBestiaryRandomCallbackData("lore"));
+    expect(JSON.stringify(edits[2]?.payload.reply_markup)).toContain(makeLoreMenuCallbackData());
+  });
+
+  it("answers malformed bestiary source callbacks with the invalid fallback", async () => {
+    const calls = await captureCallbackCalls(["v1:bst:list:0:x"], { level: 3 });
+    const answerCall = calls.find((call) => call.method === "answerCallbackQuery");
+
+    expect(answerCall?.payload.show_alert).toBe(true);
+    expect(String(answerCall?.payload.text)).toContain("втратила магію");
+    expect(calls.find((call) => call.method === "editMessageText")).toBeUndefined();
   });
 
   it("gates old bestiary callbacks before level three", async () => {

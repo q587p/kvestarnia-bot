@@ -53,7 +53,7 @@ describe("lore board presenter", () => {
     expect(page.text).toContain("🧌 Бестіарій");
     expect(page.text).toContain("Окремий записник:");
     expect(flatInlineButtonTexts(page.keyboard)).toContain("📖 Відкрити Бестіарій");
-    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeBestiaryListCallbackData(0));
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeBestiaryListCallbackData(0, "lore"));
     expect(flatInlineButtonCallbacks(page.keyboard)).not.toContain(makeLoreCategoryRandomCallbackData("bestiary"));
   });
 

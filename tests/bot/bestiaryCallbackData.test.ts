@@ -15,7 +15,8 @@ describe("bestiary callback data", () => {
       ok: true,
       value: {
         type: "list",
-        page: 2
+        page: 2,
+        source: "quest"
       }
     });
     expect(parseBestiaryCallbackData(makeBestiaryMonsterCallbackData("monster.deadline-spider", 1))).toEqual({
@@ -23,7 +24,8 @@ describe("bestiary callback data", () => {
       value: {
         type: "monster",
         monsterId: "monster.deadline-spider",
-        page: 1
+        page: 1,
+        source: "quest"
       }
     });
     expect(parseBestiaryCallbackData(makeBestiarySpecialCallbackData("special.big-barrel-brother", 9))).toEqual({
@@ -31,13 +33,53 @@ describe("bestiary callback data", () => {
       value: {
         type: "special",
         specialId: "special.big-barrel-brother",
-        page: 9
+        page: 9,
+        source: "quest"
       }
     });
     expect(parseBestiaryCallbackData(makeBestiaryRandomCallbackData())).toEqual({
       ok: true,
       value: {
-        type: "random"
+        type: "random",
+        source: "quest"
+      }
+    });
+  });
+
+  it("parses lore-source callbacks while preserving old callback compatibility", () => {
+    expect(parseBestiaryCallbackData(makeBestiaryListCallbackData(2, "lore"))).toEqual({
+      ok: true,
+      value: {
+        type: "list",
+        page: 2,
+        source: "lore"
+      }
+    });
+    expect(parseBestiaryCallbackData(makeBestiaryMonsterCallbackData("monster.deadline-spider", 1, "lore")))
+      .toEqual({
+        ok: true,
+        value: {
+          type: "monster",
+          monsterId: "monster.deadline-spider",
+          page: 1,
+          source: "lore"
+        }
+      });
+    expect(parseBestiaryCallbackData(makeBestiarySpecialCallbackData("special.big-barrel-brother", 9, "lore")))
+      .toEqual({
+        ok: true,
+        value: {
+          type: "special",
+          specialId: "special.big-barrel-brother",
+          page: 9,
+          source: "lore"
+        }
+      });
+    expect(parseBestiaryCallbackData(makeBestiaryRandomCallbackData("lore"))).toEqual({
+      ok: true,
+      value: {
+        type: "random",
+        source: "lore"
       }
     });
   });
@@ -46,12 +88,18 @@ describe("bestiary callback data", () => {
     for (const monster of monsters) {
       expect(Buffer.byteLength(makeBestiaryMonsterCallbackData(monster.id, 999), "utf8"))
         .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+      expect(Buffer.byteLength(makeBestiaryMonsterCallbackData(monster.id, 999, "lore"), "utf8"))
+        .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     }
     for (const record of bestiarySpecialRecords) {
       expect(Buffer.byteLength(makeBestiarySpecialCallbackData(record.id, 999), "utf8"))
         .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+      expect(Buffer.byteLength(makeBestiarySpecialCallbackData(record.id, 999, "lore"), "utf8"))
+        .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     }
     expect(Buffer.byteLength(makeBestiaryRandomCallbackData(), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeBestiaryRandomCallbackData("lore"), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
@@ -86,7 +134,15 @@ describe("bestiary callback data", () => {
     });
     expect(parseBestiaryCallbackData("v1:bst:r:extra")).toEqual({
       ok: false,
-      error: "invalid-prefix"
+      error: "invalid-source"
+    });
+    expect(parseBestiaryCallbackData("v1:bst:list:0:x")).toEqual({
+      ok: false,
+      error: "invalid-source"
+    });
+    expect(parseBestiaryCallbackData("v1:bst:mon:monster.deadline-spider:0:x")).toEqual({
+      ok: false,
+      error: "invalid-source"
     });
     expect(parseBestiaryCallbackData("v1:item:inventory")).toEqual({
       ok: false,

@@ -14,6 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added typed lore entries in `src/content/loreBoard.ts`, seeded from the current lore-board docs and backed by `canonicalRefs` for live race, class, item and Korchma location ids, with coverage for every active race, class and current Korchma presence location.
 - Added an external Lore Board Bestiary category that opens the existing `v1:bst` Bestiary instead of duplicating a partial monster list.
 - Added Bestiary first/last/random navigation plus special non-level records for `Бочка Пінного Міражу` and `Старший Брат Бочки` at the end of the existing Bestiary without adding them to the level-based combat monster roster.
+- Added source-aware Bestiary callbacks so Bestiary opened from Lore Board keeps `⬅️ До переказів` / `🪧 До Дошки корчми` return navigation, while `/bestiary`, `/monsters`, Hunt Board and old callbacks keep `🏹 До дошки`.
 - Added lore presenters, command helpers, compact `v1:lore:*` callback parsing, callback routing, category-random/global-random navigation and stale-id fallbacks.
 - Added content validation plus focused callback, presenter, command, route, board keyboard, Bestiary bridge, active race/class/location coverage, presence and `/news` regression coverage.
 - Added maintenance docs for adding lore entries and keeping `canonicalRefs` aligned with runtime content.

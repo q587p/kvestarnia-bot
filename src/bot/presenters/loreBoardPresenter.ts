@@ -60,7 +60,7 @@ export function presentLoreCategory(categoryId: string): LoreBoardPage {
   const externalCategory = category.entryMode === "external";
 
   if (externalCategory && category.id === "bestiary") {
-    keyboard.text("📖 Відкрити Бестіарій", makeBestiaryListCallbackData(0)).row();
+    keyboard.text("📖 Відкрити Бестіарій", makeBestiaryListCallbackData(0, "lore")).row();
   }
 
   for (const entry of entries) {
