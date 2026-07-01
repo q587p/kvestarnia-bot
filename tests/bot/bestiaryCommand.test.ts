@@ -2,11 +2,14 @@ import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
 import {
   makeBestiaryListCallbackData,
-  makeBestiaryMonsterCallbackData
+  makeBestiaryMonsterCallbackData,
+  makeBestiarySpecialCallbackData
 } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
-import { sendBestiaryMonster } from "../../src/bot/commands/bestiaryCommand";
+import { sendBestiaryMonster, sendBestiarySpecial } from "../../src/bot/commands/bestiaryCommand";
+import { bestiarySpecialRecords, monsters } from "../../src/content";
+import { BESTIARY_PAGE_SIZE } from "../../src/bot/presenters/bestiaryPresenter";
 
 describe("bestiary command", () => {
   it.each(["/bestiary", "/monsters"])("renders %s as read-only monster notes", async (command) => {
@@ -54,10 +57,34 @@ describe("bestiary command", () => {
     });
   });
 
+  it("renders special Barrel records at the end without monster levels", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const specialPage = Math.floor(monsters.length / BESTIARY_PAGE_SIZE);
+
+    await sendBestiarySpecial(makeContext(replies), "reply", "special.big-barrel-brother", specialPage);
+
+    expect(replies[0]?.text).toContain("Старший Брат Бочки");
+    expect(replies[0]?.text).toContain("Рівень: особливий запис");
+    expect(replies[0]?.text).toContain("без сталого рівня");
+    expect(replies[0]?.text).not.toContain("Можливі трофеї");
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "⬅️ До списку", callback_data: makeBestiaryListCallbackData(specialPage) }],
+          [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }]
+        ]
+      }
+    });
+  });
+
   it("routes bestiary pagination and monster detail callbacks through the bot path", async () => {
+    const specialPage = Math.floor(monsters.length / BESTIARY_PAGE_SIZE);
     const calls = await captureCallbackCalls([
       makeBestiaryListCallbackData(2),
-      makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2)
+      makeBestiaryMonsterCallbackData("monster.report-jellyfish", 2),
+      makeBestiaryListCallbackData(specialPage),
+      makeBestiarySpecialCallbackData("special.friday-barrel", specialPage)
     ], { level: 3 });
     const edits = calls.filter((call) => call.method === "editMessageText");
 
@@ -76,6 +103,16 @@ describe("bestiary command", () => {
         [{ text: "🏹 До дошки", callback_data: makeQuestCallbackData("hunt") }]
       ]
     });
+
+    expect(String(edits[2]?.payload.text)).toContain("Бочка Пінного Міражу");
+    expect(String(edits[2]?.payload.text)).toContain("Старший Брат Бочки");
+    expect(JSON.stringify(edits[2]?.payload.reply_markup)).toContain(
+      makeBestiarySpecialCallbackData(bestiarySpecialRecords[0].id, specialPage)
+    );
+
+    expect(String(edits[3]?.payload.text)).toContain("<b>Бочка Пінного Міражу</b>");
+    expect(String(edits[3]?.payload.text)).toContain("особливий запис");
+    expect(edits[3]?.payload.parse_mode).toBe("HTML");
   });
 
   it("gates old bestiary callbacks before level three", async () => {

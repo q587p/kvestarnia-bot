@@ -6,6 +6,7 @@ import {
   makeLoreMenuCallbackData,
   makeLoreRandomCallbackData
 } from "../../src/bot/callbacks/loreBoardCallbackData";
+import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import {
   presentLoreCategory,
   presentLoreEmptyRandom,
@@ -37,13 +38,23 @@ describe("lore board presenter", () => {
   });
 
   it("renders category entries and category-random navigation", () => {
+    const page = presentLoreCategory("races");
+
+    expect(page.text).toContain("🧝 Раси пригодників");
+    expect(page.text).toContain("Перекази:");
+    expect(flatInlineButtonTexts(page.keyboard)).toContain("Людисько");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreEntryCallbackData("race-human-ish"));
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreCategoryRandomCallbackData("races"));
+  });
+
+  it("renders the bestiary category as a link to the full bestiary", () => {
     const page = presentLoreCategory("bestiary");
 
     expect(page.text).toContain("🧌 Бестіарій");
-    expect(page.text).toContain("Перекази:");
-    expect(flatInlineButtonTexts(page.keyboard)).toContain("Мімік-шаурма");
-    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreEntryCallbackData("monster-mimic-shawarma"));
-    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreCategoryRandomCallbackData("bestiary"));
+    expect(page.text).toContain("Окремий записник:");
+    expect(flatInlineButtonTexts(page.keyboard)).toContain("📖 Відкрити Бестіарій");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeBestiaryListCallbackData(0));
+    expect(flatInlineButtonCallbacks(page.keyboard)).not.toContain(makeLoreCategoryRandomCallbackData("bestiary"));
   });
 
   it("renders missing categories as a safe fallback", () => {

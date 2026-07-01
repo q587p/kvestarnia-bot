@@ -11,12 +11,14 @@ Manual Telegram QA status for the implementation pass: not run.
 1. Open `Дошка корчми`; verify `📖 Перекази` appears and existing `📰 Вісти`, gift and postal navigation still works.
 2. Open `📖 Перекази`; verify the intro and all categories fit a mobile screen.
 3. Open every category: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки`, `📜 Звичаї й чутки`.
-4. In each category, verify entries belong to that category and `🎲 Випадковий із цієї категорії` opens an entry.
-5. Open several entries; verify title, source, body and category position render safely with Telegram HTML.
-6. Tap global `🎲 Випадковий переказ` several times; verify it never shows an empty or broken card while content exists.
-7. Replay stale lore category/entry callbacks after a restart or deploy; verify the bot answers without a spinner hang and returns a safe fallback card.
-8. Return to `Дошка корчми`; verify the original board card is restored through the existing place flow.
-9. Confirm reading lore grants no XP, gold, items, combat power, unlock progress or hidden achievement.
+4. In normal lore categories, verify entries belong to that category and `🎲 Випадковий із цієї категорії` opens an entry.
+5. In `🧌 Бестіарій`, verify `📖 Відкрити Бестіарій` opens the existing Bestiary surface; before level 3 it should keep the existing level gate.
+6. With an eligible character, page to the end of Bestiary and verify `Бочка Пінного Міражу` and `Старший Брат Бочки` appear as special non-level records.
+7. Open several lore entries; verify title, source, body and category position render safely with Telegram HTML.
+8. Tap global `🎲 Випадковий переказ` several times; verify it never shows an empty or broken card while content exists.
+9. Replay stale lore category/entry callbacks after a restart or deploy; verify the bot answers without a spinner hang and returns a safe fallback card.
+10. Return to `Дошка корчми`; verify the original board card is restored through the existing place flow.
+11. Confirm reading lore grants no XP, gold, items, combat power, unlock progress or hidden achievement.
 
 ## 0.2.17 — Big Barrel Brother Raid MVP smoke
 

@@ -4,12 +4,12 @@ import {
   classes,
   items,
   loreCategories,
-  loreEntries,
   monsters,
   selectRandomLoreEntry,
   selectRandomLoreEntryForCategory,
   validateLoreBoardContent
 } from "../../src/content";
+import { loreEntries, type LoreCanonicalRef } from "../../src/content/loreBoard";
 import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
@@ -57,7 +57,7 @@ describe("lore board content", () => {
     })).toEqual([]);
   });
 
-  it("ships all MVP lore categories with at least one entry", () => {
+  it("ships all MVP lore categories, with external categories marked explicitly", () => {
     expect(loreCategories.map((category) => category.title)).toEqual([
       "🏚 Про Квестарню",
       "🪧 Місцини корчми",
@@ -69,8 +69,43 @@ describe("lore board content", () => {
     ]);
 
     for (const category of loreCategories) {
+      if (category.entryMode === "external") {
+        expect(loreEntries.some((entry) => entry.categoryId === category.id), category.id).toBe(false);
+        continue;
+      }
+
       expect(loreEntries.some((entry) => entry.categoryId === category.id), category.id).toBe(true);
     }
+
+    expect(loreCategories.find((category) => category.id === "bestiary")?.entryMode).toBe("external");
+  });
+
+  it("covers every active race and class in current lore refs", () => {
+    const raceRefs = canonicalRefIds("races", "race");
+    const classRefs = canonicalRefIds("classes", "class");
+
+    expect(raceRefs).toEqual(new Set(activeRaces.map((race) => race.id)));
+    expect(classRefs).toEqual(new Set(classes.map((characterClass) => characterClass.id)));
+  });
+
+  it("covers every current Korchma presence location in place lore refs", () => {
+    expect(canonicalRefIds("places", "location")).toEqual(new Set([
+      PRESENCE_LOCATION_KORCHMA_FRONT,
+      PRESENCE_LOCATION_KORCHMA_YARD,
+      PRESENCE_LOCATION_KORCHMA_HALL,
+      PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      PRESENCE_LOCATION_KORCHMA_BAR,
+      PRESENCE_LOCATION_KORCHMA_CELLAR,
+      PRESENCE_LOCATION_KORCHMA_BARREL,
+      PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+      PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+      PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+      PRESENCE_LOCATION_KORCHMA_DEEP,
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT
+    ]));
   });
 
   it("detects broken lore records", () => {
@@ -107,3 +142,23 @@ describe("lore board content", () => {
     expect(selectRandomLoreEntryForCategory("missing", () => 0.5)).toBeUndefined();
   });
 });
+
+function canonicalRefIds(categoryId: string, type: "race" | "class" | "location"): Set<string> {
+  const ids: string[] = [];
+
+  for (const entry of loreEntries) {
+    if (entry.categoryId !== categoryId) {
+      continue;
+    }
+
+    const refs: readonly LoreCanonicalRef[] = entry.canonicalRefs ?? [];
+
+    for (const ref of refs) {
+      if (ref.type === type) {
+        ids.push(ref.id);
+      }
+    }
+  }
+
+  return new Set(ids);
+}

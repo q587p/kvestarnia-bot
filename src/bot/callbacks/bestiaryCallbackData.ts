@@ -4,13 +4,15 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type BestiaryCallback =
   | { type: "list"; page: number }
-  | { type: "monster"; monsterId: string; page: number };
+  | { type: "monster"; monsterId: string; page: number }
+  | { type: "special"; specialId: string; page: number };
 
 export type BestiaryCallbackError =
   | "invalid-version"
   | "invalid-prefix"
   | "invalid-page"
   | "invalid-monster"
+  | "invalid-special"
   | "too-long";
 
 const PREFIX = "v1:bst";
@@ -21,6 +23,10 @@ export function makeBestiaryListCallbackData(page: number): string {
 
 export function makeBestiaryMonsterCallbackData(monsterId: string, page: number): string {
   return `${PREFIX}:mon:${monsterId}:${page}`;
+}
+
+export function makeBestiarySpecialCallbackData(specialId: string, page: number): string {
+  return `${PREFIX}:sp:${specialId}:${page}`;
 }
 
 export function parseBestiaryCallbackData(
@@ -66,6 +72,20 @@ export function parseBestiaryCallbackData(
     }
 
     return ok({ type: "monster", monsterId: first, page });
+  }
+
+  if (kind === "sp") {
+    const page = parsePage(second);
+
+    if (!first || !contentIdSchema.safeParse(first).success) {
+      return err("invalid-special");
+    }
+
+    if (page === null) {
+      return err("invalid-page");
+    }
+
+    return ok({ type: "special", specialId: first, page });
   }
 
   return err("invalid-prefix");

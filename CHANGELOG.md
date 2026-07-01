@@ -11,9 +11,11 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added static `📖 Перекази` navigation from `Дошка корчми`, with all MVP categories: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки` and `📜 Звичаї й чутки`.
-- Added typed lore entries in `src/content/loreBoard.ts`, seeded from the current lore-board docs and backed by `canonicalRefs` for live race, class, monster, item and Korchma location ids.
+- Added typed lore entries in `src/content/loreBoard.ts`, seeded from the current lore-board docs and backed by `canonicalRefs` for live race, class, item and Korchma location ids, with coverage for every active race, class and current Korchma presence location.
+- Added an external Lore Board Bestiary category that opens the existing `v1:bst` Bestiary instead of duplicating a partial monster list.
+- Added special non-level Bestiary records for `Бочка Пінного Міражу` and `Старший Брат Бочки` at the end of the existing Bestiary without adding them to the level-based combat monster roster.
 - Added lore presenters, command helpers, compact `v1:lore:*` callback parsing, callback routing, category-random/global-random navigation and stale-id fallbacks.
-- Added content validation plus focused callback, presenter, command, route, board keyboard, presence and `/news` regression coverage.
+- Added content validation plus focused callback, presenter, command, route, board keyboard, Bestiary bridge, active race/class/location coverage, presence and `/news` regression coverage.
 - Added maintenance docs for adding lore entries and keeping `canonicalRefs` aligned with runtime content.
 
 ### Changed

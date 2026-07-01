@@ -15,6 +15,7 @@ import {
   makeLoreMenuCallbackData,
   makeLoreRandomCallbackData
 } from "../callbacks/loreBoardCallbackData";
+import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { escapeHtml } from "./telegramHtml";
 
@@ -56,12 +57,17 @@ export function presentLoreCategory(categoryId: string): LoreBoardPage {
 
   const entries = getLoreEntriesForCategory(category.id);
   const keyboard = new InlineKeyboard();
+  const externalCategory = category.entryMode === "external";
+
+  if (externalCategory && category.id === "bestiary") {
+    keyboard.text("📖 Відкрити Бестіарій", makeBestiaryListCallbackData(0)).row();
+  }
 
   for (const entry of entries) {
     keyboard.text(entry.title, makeLoreEntryCallbackData(entry.id)).row();
   }
 
-  if (entries.length > 0) {
+  if (!externalCategory && entries.length > 0) {
     keyboard.text("🎲 Випадковий із цієї категорії", makeLoreCategoryRandomCallbackData(category.id)).row();
   }
 
@@ -76,7 +82,7 @@ export function presentLoreCategory(categoryId: string): LoreBoardPage {
       "",
       escapeHtml(category.description),
       "",
-      entries.length > 0 ? "Перекази:" : "Тут поки тихо. Навіть підозріло тихо."
+      presentLoreCategoryListLabel(category, entries.length)
     ].join("\n"),
     keyboard
   };
@@ -169,6 +175,14 @@ function presentLoreInvalidEntry(): LoreBoardPage {
 
 function sortedCategories(categories: readonly LoreCategory[]): LoreCategory[] {
   return [...categories].sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+function presentLoreCategoryListLabel(category: LoreCategory, entryCount: number): string {
+  if (category.entryMode === "external") {
+    return "Окремий записник:";
+  }
+
+  return entryCount > 0 ? "Перекази:" : "Тут поки тихо. Навіть підозріло тихо.";
 }
 
 export function getLoreEntryCount(): number {

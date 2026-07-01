@@ -57,6 +57,11 @@ export type {
 } from "./loreBoard";
 export { findGiftCampaign, giftCampaigns } from "./giftCampaigns";
 export type { GiftCampaignContent, GiftCampaignItemGrant } from "./giftCampaigns";
+export {
+  bestiarySpecialRecords,
+  getBestiarySpecialRecord
+} from "./bestiarySpecials";
+export type { BestiarySpecialRecord } from "./bestiarySpecials";
 export { monsterFlavorLines, monsterLoot, selectMonsterFlavorLine } from "./monsterFlavor";
 export { monsters } from "./monsters";
 export { activeRaces, races } from "./races";

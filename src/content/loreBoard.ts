@@ -10,6 +10,7 @@ export interface LoreCategory {
   title: string;
   description: string;
   sortOrder: number;
+  entryMode?: "lore" | "external";
 }
 
 export interface LoreEntry {
@@ -27,7 +28,7 @@ export interface LoreContentValidationInput {
   knownRefs?: Partial<Record<LoreCanonicalRefType, ReadonlySet<string>>>;
 }
 
-export const loreCategories = [
+export const loreCategories: readonly LoreCategory[] = [
   {
     id: "kvestarnia",
     title: "🏚 Про Квестарню",
@@ -55,8 +56,9 @@ export const loreCategories = [
   {
     id: "bestiary",
     title: "🧌 Бестіарій",
-    description: "Вибрані істоти з поточного списку монстрів. Повний список хай ще трохи шарудить у Низі.",
-    sortOrder: 50
+    description: "Повний чинний Бестіарій живе на Столі зі справами; тут Дошка корчми тримає до нього закладку.",
+    sortOrder: 50,
+    entryMode: "external"
   },
   {
     id: "loot",
@@ -70,9 +72,9 @@ export const loreCategories = [
     description: "Як Квестарня пояснює рівні, дошки, поразки, пошук і корчмарську бухгалтерію.",
     sortOrder: 70
   }
-] as const satisfies readonly LoreCategory[];
+] as const;
 
-export const loreEntries = [
+export const loreEntries: readonly LoreEntry[] = [
   {
     id: "tavern-threshold-current",
     categoryId: "kvestarnia",
@@ -97,6 +99,30 @@ export const loreEntries = [
     canonicalRefs: [{ type: "location", id: "location.korchma.front" }]
   },
   {
+    id: "place-yard",
+    categoryId: "places",
+    title: "Задвірок корчми",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Задвірок корчми — місце, де мотузки, відра й підозрілі сліди поводяться так, ніби мають маленьку профспілку. Корчмар каже: якщо щось шурхотить, це ще не проблема. Це кандидат.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.yard" }]
+  },
+  {
+    id: "place-hall",
+    categoryId: "places",
+    title: "Зала корчми",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Зала корчми тримає всі маршрути разом: дошку, стіл, шинок, бочку, льох і спуск до Низу. Якщо пригодник не знає, куди йти, зала чемно робить вигляд, що це теж план.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.hall" }]
+  },
+  {
+    id: "place-quest-table",
+    categoryId: "places",
+    title: "Стіл зі справами",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Стіл зі справами витримує квести, полювання, архіви й бестіарій. Він би попросив підвищення, але поки що просить тільки не ставити кухлі на папери з написом «терміново».",
+    canonicalRefs: [{ type: "location", id: "location.korchma.quest_table" }]
+  },
+  {
     id: "place-bar",
     categoryId: "places",
     title: "Шинок",
@@ -105,12 +131,84 @@ export const loreEntries = [
     canonicalRefs: [{ type: "location", id: "location.korchma.bar" }]
   },
   {
+    id: "place-cellar",
+    categoryId: "places",
+    title: "Льох корчми",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Льох корчми зберігає пляшки, пил і відчуття, що хтось уже записав вас у господарський журнал. Тут навіть тиша звучить так, ніби її треба здати за описом.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.cellar" }]
+  },
+  {
+    id: "place-barrel",
+    categoryId: "places",
+    title: "Біля Бочки Пінного Міражу",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Бочка Пінного Міражу стоїть так упевнено, ніби це всі інші перебувають біля неї, а не вона в корчмі. Піна тут має розклад, характер і кілька претензій до героїзму.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.barrel" }]
+  },
+  {
+    id: "place-news-corner",
+    categoryId: "places",
+    title: "Дошка корчми",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Дошка корчми тримає вісти, перекази, подарунки й пошту так, ніби папір сам просив соціяльного життя. Якщо запис зник, він або застарів, або пішов по цвяхи.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.news_corner" }]
+  },
+  {
+    id: "place-ranger-corner",
+    categoryId: "places",
+    title: "Єгерський куток",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Єгерський куток пахне ременями, слідами й рішеннями, які краще приймати до темряви. Єгер не губить шляхів: він просто іноді дає їм час подумати.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.ranger_corner" }]
+  },
+  {
+    id: "place-fighting-corner",
+    categoryId: "places",
+    title: "Бійцівський куток",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Бійцівський куток пояснює різницю між тренуванням і суперечкою меблям. Тут удари мають чергу, а черга іноді отримує перший урок з ухилення.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.fighting_corner" }]
+  },
+  {
+    id: "place-deep",
+    categoryId: "places",
+    title: "Низ",
+    source: "польова нотатка з місцини: Корчма Квестарні",
+    body: "Низ починається там, де корчма перестає вдавати, що має нормальний підвал. Спуск до Низу чемний, але дуже наполегливий: він завжди знає, куди веде, і рідко питає, чи ви готові.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.deep" }]
+  },
+  {
     id: "place-deep-level1",
     categoryId: "places",
     title: "Сутерени Корчми",
     source: "польова нотатка з місцини: Низ",
-    body: "Сутерени Корчми — перший ярус Низу, де коридори ще вдають пристойність. Якщо мапа тут бреше, це не баг. Це місцева форма ввічливости.",
+    body: "Сутерени Корчми — перший ярус Низу, де коридори ще вдають пристойність. Якщо мапа тут бреше, це не баґ. Це місцева форма ввічливости.",
     canonicalRefs: [{ type: "location", id: "location.korchma.deep.level1" }]
+  },
+  {
+    id: "place-deep-level1-left",
+    categoryId: "places",
+    title: "Лівий прохід",
+    source: "польова нотатка з місцини: Сутерени Корчми",
+    body: "Лівий прохід у Сутеренах виглядає так, ніби вже знає вашу помилку наперед. Тут темрява не густа, вона просто добре організована.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.deep.level1.left" }]
+  },
+  {
+    id: "place-deep-level1-straight",
+    categoryId: "places",
+    title: "Прямий прохід",
+    source: "польова нотатка з місцини: Сутерени Корчми",
+    body: "Прямий прохід обіцяє бути прямим, і саме тому викликає недовіру. Двері попереду не сперечаються, але в Квестарні це ще не доказ невинности.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.deep.level1.straight" }]
+  },
+  {
+    id: "place-deep-level1-right",
+    categoryId: "places",
+    title: "Правий прохід",
+    source: "польова нотатка з місцини: Сутерени Корчми",
+    body: "Правий прохід здається легшим, що вже саме по собі підозріло. Коли коридор усміхається без обличчя, пригодники зазвичай перевіряють ремені й самооцінку.",
+    canonicalRefs: [{ type: "location", id: "location.korchma.deep.level1.right" }]
   },
   {
     id: "race-human-ish",
@@ -121,12 +219,44 @@ export const loreEntries = [
     canonicalRefs: [{ type: "race", id: "race.human-ish" }]
   },
   {
+    id: "race-dwarf",
+    categoryId: "races",
+    title: "Гном",
+    source: "з корчмарської анкети пригодника",
+    body: "Гном стійкий до ударів, боргів і високих полиць. У Квестарні це важлива трійця: полиці тут підозріло амбітні, а борги іноді мають власний голос.",
+    canonicalRefs: [{ type: "race", id: "race.dwarf" }]
+  },
+  {
+    id: "race-elf",
+    categoryId: "races",
+    title: "Ельф",
+    source: "з корчмарської анкети пригодника",
+    body: "Ельф влучний, драматичний і трохи ображений на стан ваших чобіт. Якщо він мовчить, це або зосередження, або дуже довга внутрішня рецензія на інтерʼєр.",
+    canonicalRefs: [{ type: "race", id: "race.elf" }]
+  },
+  {
     id: "race-bisyny",
     categoryId: "races",
     title: "Бісини",
     source: "з корчмарської анкети пригодника",
     body: "Бісини ходять так, ніби словники досі сперечаються, хто їх випустив. Вони спритні, кмітливі й харизматичні рівно настільки, щоб будь-яка називальна суперечка стала пригодою.",
     canonicalRefs: [{ type: "race", id: "race.bisyny" }]
+  },
+  {
+    id: "race-drantohor",
+    categoryId: "races",
+    title: "Дрантогор",
+    source: "з корчмарської анкети пригодника",
+    body: "Дрантогор заблукав із Королівства Остромаг і робить вигляд, що це був план. Межа підписала пропуск заднім числом, а мапа досі соромиться.",
+    canonicalRefs: [{ type: "race", id: "race.drantohor" }]
+  },
+  {
+    id: "race-domovyk",
+    categoryId: "races",
+    title: "Домовик",
+    source: "з корчмарської анкети пригодника",
+    body: "Домовик знаходить дрібний лут там, де інші знаходять лише пил. Пил не заперечує: він теж давно підозрював, що під шафою відбувається економіка.",
+    canonicalRefs: [{ type: "race", id: "race.domovyk" }]
   },
   {
     id: "race-dryland-rusalka",
@@ -137,12 +267,68 @@ export const loreEntries = [
     canonicalRefs: [{ type: "race", id: "race.dryland-rusalka" }]
   },
   {
+    id: "race-intellectual-orc",
+    categoryId: "races",
+    title: "Орк-інтелігент",
+    source: "з корчмарської анкети пригодника",
+    body: "Орк-інтелігент має силу з дипломом і аргументи, які краще не ловити обличчям. Після бійки він може пояснити, чому це була дискусія.",
+    canonicalRefs: [{ type: "race", id: "race.intellectual-orc" }]
+  },
+  {
+    id: "race-molfar-soul",
+    categoryId: "races",
+    title: "Мольфарська душа",
+    source: "з корчмарської анкети пригодника",
+    body: "Мольфарська душа носить у кишені оберіг, у голові туман, а в кишені ще один оберіг. Корчмар не питає, де саме душа тримає кишені.",
+    canonicalRefs: [{ type: "race", id: "race.molfar-soul" }]
+  },
+  {
     id: "class-warrior",
     categoryId: "classes",
     title: "Воїн",
     source: "з навчальної полиці класів",
     body: "Воїн має простий план: стояти рівно й переконливо махати залізом. У Квестарні це не найгірша філософія, бо частина монстрів справді розуміє лише аргументи, які залишають вм’ятини.",
     canonicalRefs: [{ type: "class", id: "class.warrior" }]
+  },
+  {
+    id: "class-mage",
+    categoryId: "classes",
+    title: "Маг",
+    source: "з навчальної полиці класів",
+    body: "Маг каже складні слова, після яких у кімнаті стає гарячіше. Якщо слово не спрацювало, він каже ще складніше й робить вигляд, що перше було розігрівом.",
+    canonicalRefs: [{ type: "class", id: "class.mage" }]
+  },
+  {
+    id: "class-bard",
+    categoryId: "classes",
+    title: "Бард",
+    source: "з навчальної полиці класів",
+    body: "Бард перемагає харизмою, куплетами й небезпечною впевненістю. У шинку його вміння називають мистецтвом, а в бою — причиною, чому монстр раптом має емоції.",
+    canonicalRefs: [{ type: "class", id: "class.bard" }]
+  },
+  {
+    id: "class-rogue",
+    categoryId: "classes",
+    title: "Злодій",
+    source: "з навчальної полиці класів",
+    body: "Злодій зникає швидше, ніж рахунок після походу в корчму. Якщо він повернувся, значить або знайшов вихід, або вихід мав кишені.",
+    canonicalRefs: [{ type: "class", id: "class.rogue" }]
+  },
+  {
+    id: "class-priest",
+    categoryId: "classes",
+    title: "Жрець",
+    source: "з навчальної полиці класів",
+    body: "Жрець лікує союзників і суворо дивиться на нежить. Нежить іноді навіть соромиться, але недовго: у неї слабка дисципліна совісти.",
+    canonicalRefs: [{ type: "class", id: "class.priest" }]
+  },
+  {
+    id: "class-varenyk-mancer",
+    categoryId: "classes",
+    title: "Вареник-мант",
+    source: "з навчальної полиці класів",
+    body: "Вареник-мант керує тістом, настроєм і легким відчуттям ситости. Це магія, яку складно зневажати на порожній шлунок.",
+    canonicalRefs: [{ type: "class", id: "class.varenyk-mancer" }]
   },
   {
     id: "class-bureaucramancer",
@@ -153,36 +339,20 @@ export const loreEntries = [
     canonicalRefs: [{ type: "class", id: "class.bureaucramancer" }]
   },
   {
+    id: "class-ranger",
+    categoryId: "classes",
+    title: "Єгер",
+    source: "з навчальної полиці класів",
+    body: "Єгер знає стежки, пастки й де ховається ваша остання стріла. Він не завжди пояснює, звідки знає, бо тоді доведеться пояснювати і стрілу.",
+    canonicalRefs: [{ type: "class", id: "class.ranger" }]
+  },
+  {
     id: "class-kharakternyk",
     categoryId: "classes",
     title: "Козак-характерник",
     source: "з навчальної полиці класів",
     body: "Козак-характерник дивиться на проблему так, що проблема сама шукає собі іншу пригоду. Це вже не раса старих записів, а клас: туман, вдача, контратака й репліка.",
     canonicalRefs: [{ type: "class", id: "class.kharakternyk" }]
-  },
-  {
-    id: "monster-mimic-shawarma",
-    categoryId: "bestiary",
-    title: "Мімік-шаурма",
-    source: "польова нотатка бестіарію, рівень 1",
-    body: "Першою ознакою міміка-шаурми є те, що він уважно слухає замовлення. Другою — що замовляє тебе у відповідь. У Квестарні це стартовий урок: якщо вечеря дивиться першою, вона вже не вечеря.",
-    canonicalRefs: [{ type: "monster", id: "monster.mimic-shawarma" }]
-  },
-  {
-    id: "monster-deadline-spider",
-    categoryId: "bestiary",
-    title: "Павук дедлайнів",
-    source: "польова нотатка бестіарію, рівень 2",
-    body: "Павук дедлайнів плете павутину з фраз «сьогодні швиденько» і «там на п’ять хвилин». Його ловлять не мечем, а здатністю не повірити власному плану.",
-    canonicalRefs: [{ type: "monster", id: "monster.deadline-spider" }]
-  },
-  {
-    id: "monster-quiet-catastrophe-clerk",
-    categoryId: "bestiary",
-    title: "Писар тихої катастрофи",
-    source: "польова нотатка бестіарію, рівень 13",
-    body: "Писар тихої катастрофи записує кінець світу так акуратно, ніби це внутрішня службова. Найстрашніше в ньому не катастрофа, а спокійний тон: «не панікуйте, просто підпишіть тут».",
-    canonicalRefs: [{ type: "monster", id: "monster.quiet-catastrophe-clerk" }]
   },
   {
     id: "loot-mantok-definition",
@@ -223,7 +393,7 @@ export const loreEntries = [
     source: "написано на дні Бочки підтримки",
     body: "У Квестарні реальні монети можуть підтримати корчму, сервер і корчмареві нерви, але не купують бойову силу, лут чи прогрес. За підтримку можна отримати тепле «дякуємо» й Тост із Бочки."
   }
-] as const satisfies readonly LoreEntry[];
+] as const;
 
 export function getLoreCategory(categoryId: string): LoreCategory | undefined {
   return loreCategories.find((category) => category.id === categoryId);
@@ -316,7 +486,7 @@ export function validateLoreBoardContent(input: LoreContentValidationInput = {})
   }
 
   for (const category of categories) {
-    if (!entries.some((entry) => entry.categoryId === category.id)) {
+    if (category.entryMode !== "external" && !entries.some((entry) => entry.categoryId === category.id)) {
       errors.push(`Lore category ${category.id} has no entries.`);
     }
   }

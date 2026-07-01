@@ -27,7 +27,7 @@
     {
       "id": "bestiary",
       "title": "🧌 Бестіарій",
-      "description": "Вибрані істоти з поточного monster roster; повний індекс лежить у canon-snapshot.json.",
+      "description": "Reference spotlight-записи для майбутнього lore expansion; runtime MVP відкриває чинний Бестіарій замість дублювання monster roster.",
       "sortOrder": 50
     },
     {
@@ -202,7 +202,7 @@
       "categoryId": "places",
       "title": "Сутерени Корчми",
       "source": "польова нотатка з місцини: Низ",
-      "body": "Сутерени Корчми — перший ярус Низу, де коридори ще вдають пристойність. Якщо мапа тут бреше, це не баг. Це місцева форма ввічливости.",
+      "body": "Сутерени Корчми — перший ярус Низу, де коридори ще вдають пристойність. Якщо мапа тут бреше, це не баґ. Це місцева форма ввічливости.",
       "tags": [
         "місцина",
         "сутерени корчми"
@@ -718,7 +718,7 @@
     }
   ],
   "notes": {
-    "sourceOfTruth": "Runtime Lore Board content lives in src/content/loreBoard.ts and should keep canonical refs aligned with src/content/races.ts, src/content/classes.ts, src/content/monsters.ts, src/content/items.ts and Korchma presence/location ids. This JSON remains seed/reference material, not the permanent runtime authority.",
+    "sourceOfTruth": "Runtime Lore Board content lives in src/content/loreBoard.ts and should keep canonical refs aligned with src/content/races.ts, src/content/classes.ts, src/content/items.ts and Korchma presence/location ids. The Bestiary remains its own runtime surface backed by monster content. This JSON remains seed/reference material, not the permanent runtime authority.",
     "buttonRecommendation": "📖 Перекази",
     "callbackPrefix": "v1:lore"
   }

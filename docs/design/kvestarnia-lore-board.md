@@ -14,9 +14,10 @@
 
 1. **Переказ має підсилювати існуючу кнопку.** Якщо гравець уже бачив `Мімік-шаурма`, `Єгерський куток` або `Бюрокромант`, лор має робити це смішнішим, а не відкривати паралельний світ.
 2. **Раси й класи — з поточного content source.** Не вигадувати «лісових» чи «тінників», поки їх немає в onboarding.
-3. **Монстри — з поточного roster.** Для MVP достатньо spotlight-записів; повний список можна мати як індекс або future unlock.
-4. **Українськість не як табличка, а як спосіб жарту.** Квасний голем, Бісини, Вареник-мант, Песиголовець із відділу кадрів і Писар тихої катастрофи вже роблять більше, ніж загальна фраза «українське фентезі».
-5. **Не спойлерити hidden-механіки.** `sun/moon/boundary` і точні бойові формули не виходять у player-facing текст.
+3. **Місцини — з поточного presence source.** Короткі записи мають покривати live Korchma/presence ids; ширший світ навколо Квестарні лишається future content task.
+4. **Монстри — з чинного Бестіарію.** Lore Board не тримає паралельний неповний monster index: категорія `🧌 Бестіарій` веде в runtime Бестіарій зі Столу зі справами.
+5. **Українськість не як табличка, а як спосіб жарту.** Квасний голем, Бісини, Вареник-мант, Песиголовець із відділу кадрів і Писар тихої катастрофи вже роблять більше, ніж загальна фраза «українське фентезі».
+6. **Не спойлерити hidden-механіки.** `sun/moon/boundary` і точні бойові формули не виходять у player-facing текст.
 
 ## Категорії для MVP
 
@@ -159,6 +160,7 @@ v1:lore:rc:<categoryId>
 - Не показувати hidden `sun/moon/boundary`.
 - Не спойлерити точні формули бою або лут-шанси.
 - Не вигадувати нові playable race/class names у player-facing entries.
+- Не дублювати повний monster roster у `src/content/loreBoard.ts`; Бестіарій має лишатися окремим runtime surface.
 
 ## Runtime maintenance
 
@@ -167,10 +169,14 @@ Runtime content lives in `src/content/loreBoard.ts`. To add a lore entry:
 1. Choose an existing `categoryId` from `loreCategories`.
 2. Add a stable short lowercase `id`; keep it safe for `v1:lore:e:<id>` callback data.
 3. Fill Ukrainian `title`, `source` and `body` with short player-facing copy.
-4. Add `canonicalRefs` only for live runtime ids: races/classes/monsters/items from `src/content/*`, or Korchma location ids used by presence routing.
+4. Add `canonicalRefs` only for live runtime ids: races/classes/items from `src/content/*`, or Korchma location ids used by presence routing.
 5. Run the lore content and callback tests so missing refs, duplicate ids and overlong payloads fail before review.
 
 If the entry names a future concept that has no live runtime id yet, leave it out of `canonicalRefs` and keep the copy clearly folkloric instead of promising shipped gameplay.
+
+The `🧌 Бестіарій` category is external in the Lore Board MVP: it links to the existing runtime Bestiary instead of duplicating monster entries. When adding or changing ordinary monsters, keep `src/content/monsters.ts`, `src/content/monsterFlavor.ts` and the Bestiary UI/tests aligned. For non-level special threats such as `Бочка Пінного Міражу` and `Старший Брат Бочки`, use Bestiary special records rather than forcing them into the level-based monster roster.
+
+Future lore expansion can add fuller location essays and the world around Kvestarnia, but that should be a separate content task after the MVP and should still avoid promising unshipped gameplay.
 
 ## Canon Index
 

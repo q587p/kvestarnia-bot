@@ -7,7 +7,8 @@ import {
   presentBestiaryLevelLocked,
   presentBestiaryList,
   presentBestiaryMonster,
-  presentBestiaryNoCharacter
+  presentBestiaryNoCharacter,
+  presentBestiarySpecial
 } from "../presenters/bestiaryPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -47,6 +48,20 @@ export async function sendBestiaryMonsterGated(
   await sendBestiaryMonster(ctx, mode, monsterId, page);
 }
 
+export async function sendBestiarySpecialGated(
+  ctx: Context,
+  heroService: HeroService,
+  mode: "reply" | "edit",
+  specialId: string,
+  page: number
+): Promise<void> {
+  if (!(await canReadBestiary(ctx, heroService, mode))) {
+    return;
+  }
+
+  await sendBestiarySpecial(ctx, mode, specialId, page);
+}
+
 export async function sendBestiaryList(
   ctx: Context,
   mode: "reply" | "edit",
@@ -62,6 +77,15 @@ export async function sendBestiaryMonster(
   page: number
 ): Promise<void> {
   await sendText(ctx, mode, presentBestiaryMonster(monsterId), buildBestiaryMonsterKeyboard(page));
+}
+
+export async function sendBestiarySpecial(
+  ctx: Context,
+  mode: "reply" | "edit",
+  specialId: string,
+  page: number
+): Promise<void> {
+  await sendText(ctx, mode, presentBestiarySpecial(specialId), buildBestiaryMonsterKeyboard(page));
 }
 
 async function sendText(
