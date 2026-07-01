@@ -18,6 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Bestiary monster detail trophy hints now derive from the same runtime loot candidate path used by monster loot rolls.
+- Concrete monster trophy candidates now use explicit loot weights with common non-trophy fallback candidates, targeting about `23%` trophy share among successful monster-specific item drops instead of making one-candidate trophies guaranteed.
 - The Yeger corner hides `🩹 Бинти` until the first `5`-target unquiet board is completed and turned in.
 - Direct old Yeger bandage callbacks before first-board completion now return a short locked Ukrainian message instead of opening supplies.
 - Existing paid Yeger bandage bundles, Ranger discount and Ranger free-bandage cooldown remain available after first-board completion.

@@ -19,6 +19,7 @@ import type {
 } from "../../src/db/repositories/huntContractRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { items, monsterLoot, monsters } from "../../src/content";
+import { getMonsterLootEntryItemId } from "../../src/domain/loot/lootEngine";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import type { MonsterContent } from "../../src/content/schema";
 import {
@@ -419,7 +420,8 @@ describe("HuntService", () => {
     for (const [monsterId, lootIds] of Object.entries(monsterLoot)) {
       expect(monsterIds.has(monsterId)).toBe(true);
 
-      for (const itemId of lootIds) {
+      for (const lootEntry of lootIds) {
+        const itemId = getMonsterLootEntryItemId(lootEntry);
         const item = items.find((candidate) => candidate.id === itemId);
 
         expect(itemIds.has(itemId)).toBe(true);

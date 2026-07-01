@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { items as contentItems, monsterLoot as contentMonsterLoot } from "../../src/content";
 import { checkLootExpansionEquipRequirement } from "../../src/content/lootExpansionV1";
+import {
+  MONSTER_TROPHY_FALLBACK_ITEM_IDS,
+  MONSTER_TROPHY_TARGET_SHARE
+} from "../../src/content/monsterTrophyCoverage";
 import type { ItemContent } from "../../src/content/schema";
 import {
   BANDAGE_DROP_QUANTITY_WEIGHTS,
@@ -34,6 +39,20 @@ describe("loot engine", () => {
       { item: items[1], rarity: "uncommon" },
       { item: items[2], rarity: "rare" },
       { item: items[3], rarity: "epic" }
+    ]);
+  });
+
+  it("preserves explicit monster loot weights on candidates", () => {
+    const weightedMonsterLoot = {
+      "monster.weighted": [
+        { itemId: "item.common-spoon", weight: MONSTER_TROPHY_TARGET_SHARE },
+        { itemId: "item.uncommon-fork", weight: 1 - MONSTER_TROPHY_TARGET_SHARE }
+      ]
+    } as const;
+
+    expect(getLootCandidates({ monsterId: "monster.weighted", monsterLoot: weightedMonsterLoot, items })).toEqual([
+      { item: items[0], rarity: "common", weight: MONSTER_TROPHY_TARGET_SHARE },
+      { item: items[1], rarity: "uncommon", weight: 1 - MONSTER_TROPHY_TARGET_SHARE }
     ]);
   });
 
@@ -137,6 +156,28 @@ describe("loot engine", () => {
         id: "item.common-spoon"
       }
     });
+  });
+
+  it("uses trophy weights so a single concrete monster trophy is not guaranteed", () => {
+    const trophyMonsterId = "monster.collective-liability-cauldron";
+    const fallbackIds = new Set<string>(MONSTER_TROPHY_FALLBACK_ITEM_IDS);
+    const rolls = [0.01, 0.24, 0.99].map((candidateRoll) =>
+      rollMonsterLoot({
+        monsterId: trophyMonsterId,
+        monsterLoot: contentMonsterLoot,
+        items: contentItems,
+        luck: 6,
+        rng: new FakeRandomSource([0, 0, 0, candidateRoll])
+      })
+    );
+
+    expect(rolls.every((roll) => roll.state === "dropped")).toBe(true);
+    expect(
+      rolls.some((roll) => roll.state === "dropped" && roll.item.id === "item.lid-of-shared-blame")
+    ).toBe(true);
+    expect(
+      rolls.some((roll) => roll.state === "dropped" && fallbackIds.has(roll.item.id))
+    ).toBe(true);
   });
 
   it("does not generate enhanced expansion loot below its unlock levels", () => {

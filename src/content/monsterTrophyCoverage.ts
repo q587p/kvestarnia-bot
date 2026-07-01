@@ -1,71 +1,114 @@
 import type { ItemContent } from "./schema";
 
+export const MONSTER_TROPHY_TARGET_SHARE = 0.23;
+
+export type MonsterTrophyLootEntry = {
+  itemId: string;
+  weight: number;
+  kind: "trophy" | "fallback";
+};
+
+export const MONSTER_TROPHY_FALLBACK_ITEM_IDS = [
+  "item.monster-pocket-lint",
+  "item.monster-field-note-scrap"
+] as const;
+
+const MONSTER_TROPHY_FALLBACK_SHARE =
+  (1 - MONSTER_TROPHY_TARGET_SHARE) / MONSTER_TROPHY_FALLBACK_ITEM_IDS.length;
+
+function monsterTrophyDrop(trophyItemId: string): readonly MonsterTrophyLootEntry[] {
+  return [
+    { itemId: trophyItemId, weight: MONSTER_TROPHY_TARGET_SHARE, kind: "trophy" },
+    ...MONSTER_TROPHY_FALLBACK_ITEM_IDS.map((itemId) => ({
+      itemId,
+      weight: MONSTER_TROPHY_FALLBACK_SHARE,
+      kind: "fallback" as const
+    }))
+  ];
+}
+
 export const monsterTrophyLoot = {
-  "monster.collective-liability-cauldron": ["item.lid-of-shared-blame"],
-  "monster.bypass-sheet-fox": ["item.signature-that-led-nowhere"],
-  "monster.sourdough-kvas-golem": ["item.crumb-of-stubborn-fermentation"],
-  "monster.tender-committee-frog": ["item.quorum-damp-lily-stamp"],
-  "monster.safety-intern-chuhaister": ["item.safety-briefing-leaf"],
-  "monster.bulk-discount-zlydni": ["item.receipt-of-wholesale-misery"],
-  "monster.fourth-grind-rumor-mill": ["item.flour-of-fourth-rumor"],
-  "monster.improper-parking-boar": ["item.parking-hoof-warning"],
-  "monster.three-correct-roads-blud": ["item.map-pin-of-third-return"],
-  "monster.wet-coal-salamander": ["item.coal-that-refused-fire"],
-  "monster.service-key-monkey": ["item.key-tag-with-no-door"],
-  "monster.hr-pesyholovets": ["item.interview-collar-toothmark"],
-  "monster.licensed-shine-magpie": ["item.licensed-shiny-feather"],
-  "monster.diet-menu-sausage-basilisk": ["item.menu-stain-of-sausage-gaze"],
-  "monster.dry-fountain-vodyanyk": ["item.coin-for-dry-water"],
-  "monster.curfew-stove-lion": ["item.ember-of-submitted-roar"],
-  "monster.three-instance-duck": ["item.quack-of-returned-complaint"],
-  "monster.promo-perelesnyk": ["item.spark-of-small-print"],
-  "monster.basement-pipe-stone-catfish": ["item.pipe-scale-of-building-plan"],
-  "monster.final-approval-raven": ["item.raven-silence-approval-slip"],
-  "monster.quarterly-report-pan-kotsky": ["item.resume-of-pan-kotsky"],
-  "monster.small-business-didko": ["item.horn-signed-contract-copy"],
-  "monster.deep-estimate-sawfish": ["item.sawdust-of-unexpected-costs"],
-  "monster.treasure-ventilation-copper-snake": ["item.cool-copper-scale"],
-  "monster.strategic-reserve-potato": ["item.reserve-potato-eye"],
-  "monster.forest-loss-aurochs": ["item.horn-marked-loss-tally"],
-  "monster.service-path-lisovyk": ["item.path-interview-moss"],
-  "monster.siege-iron-varenyk": ["item.armored-dough-rivet"],
-  "monster.thirteen-address-dragon-courier": ["item.scorched-delivery-label"],
-  "monster.tide-accountant-vodyanyk": ["item.tide-balance-shell"],
-  "monster.failed-tender-pea-giant": ["item.pea-of-unwon-tender"],
-  "monster.archive-ventilation-dragon": ["item.dusty-draft-scale"],
-  "monster.seven-draft-chuhaister": ["item.seventh-draft-door-chip"],
-  "monster.seasonal-defense-pumpkin-hetman": ["item.pumpkin-command-seed"],
-  "monster.second-copy-ghost": ["item.pencil-signed-second-copy"],
-  "monster.six-hour-meeting-viy": ["item.agenda-eyelid-weight"],
-  "monster.state-sluice-beaver": ["item.dam-permit-splinter"],
-  "monster.cash-gap-upyr": ["item.liquidity-drop-in-vial"],
-  "monster.late-vacation-mavka": ["item.leave-request-fern"],
-  "monster.third-reheat-kulish-phoenix": ["item.third-reheat-crust"],
-  "monster.night-reservation-mara": ["item.booking-shadow-stub"],
-  "monster.storage-silence-reed-king": ["item.reed-of-official-hush"],
-  "monster.false-note-bandura-griffin": ["item.false-note-feather"],
-  "monster.last-shift-vovkulaka": ["item.timesheet-claw-mark"],
-  "monster.mountain-leasing-aridnyk": ["item.pebble-of-growing-interest"],
-  "monster.customs-three-whisker-carp": ["item.declared-third-whisker"],
-  "monster.hr-intern-necromancer": ["item.rehiring-bone-paperclip"],
-  "monster.cold-storage-state-mammoth": ["item.frosted-inventory-tag"],
-  "monster.excise-honey-giant-bee": ["item.excise-honey-drop"],
-  "monster.overtime-heat-poludnytsia": ["item.overtime-sun-splinter"],
-  "monster.spoon-mobilization-iron-raven": ["item.mobilized-spoon-feather"],
-  "monster.fire-safety-three-headed-serpent": ["item.three-headed-safety-form"],
-  "monster.last-will-dead-auditor": ["item.inheritance-audit-seal"],
-  "monster.underground-sea-acceptance-whale": ["item.acceptance-act-barnacle"],
-  "monster.collateral-grey-bear": ["item.collateral-fur-receipt"],
-  "monster.empty-chamber-lady": ["item.keyhole-of-empty-room"],
-  "monster.fair-tax-honey-leviathan": ["item.fair-tax-honey-spoon"],
-  "monster.siege-song-stone-skylark": ["item.heavy-siege-note"],
-  "monster.written-off-assets-black-booker": ["item.asset-writeoff-ink"],
-  "monster.last-route-star-boar": ["item.star-route-bristle"],
-  "monster.queue-dragon-prince": ["item.last-place-queue-scale"],
-  "monster.expired-archive-upyr-king": ["item.expired-royal-archive-stamp"]
+  "monster.collective-liability-cauldron": monsterTrophyDrop("item.lid-of-shared-blame"),
+  "monster.bypass-sheet-fox": monsterTrophyDrop("item.signature-that-led-nowhere"),
+  "monster.sourdough-kvas-golem": monsterTrophyDrop("item.crumb-of-stubborn-fermentation"),
+  "monster.tender-committee-frog": monsterTrophyDrop("item.quorum-damp-lily-stamp"),
+  "monster.safety-intern-chuhaister": monsterTrophyDrop("item.safety-briefing-leaf"),
+  "monster.bulk-discount-zlydni": monsterTrophyDrop("item.receipt-of-wholesale-misery"),
+  "monster.fourth-grind-rumor-mill": monsterTrophyDrop("item.flour-of-fourth-rumor"),
+  "monster.improper-parking-boar": monsterTrophyDrop("item.parking-hoof-warning"),
+  "monster.three-correct-roads-blud": monsterTrophyDrop("item.map-pin-of-third-return"),
+  "monster.wet-coal-salamander": monsterTrophyDrop("item.coal-that-refused-fire"),
+  "monster.service-key-monkey": monsterTrophyDrop("item.key-tag-with-no-door"),
+  "monster.hr-pesyholovets": monsterTrophyDrop("item.interview-collar-toothmark"),
+  "monster.licensed-shine-magpie": monsterTrophyDrop("item.licensed-shiny-feather"),
+  "monster.diet-menu-sausage-basilisk": monsterTrophyDrop("item.menu-stain-of-sausage-gaze"),
+  "monster.dry-fountain-vodyanyk": monsterTrophyDrop("item.coin-for-dry-water"),
+  "monster.curfew-stove-lion": monsterTrophyDrop("item.ember-of-submitted-roar"),
+  "monster.three-instance-duck": monsterTrophyDrop("item.quack-of-returned-complaint"),
+  "monster.promo-perelesnyk": monsterTrophyDrop("item.spark-of-small-print"),
+  "monster.basement-pipe-stone-catfish": monsterTrophyDrop("item.pipe-scale-of-building-plan"),
+  "monster.final-approval-raven": monsterTrophyDrop("item.raven-silence-approval-slip"),
+  "monster.quarterly-report-pan-kotsky": monsterTrophyDrop("item.resume-of-pan-kotsky"),
+  "monster.small-business-didko": monsterTrophyDrop("item.horn-signed-contract-copy"),
+  "monster.deep-estimate-sawfish": monsterTrophyDrop("item.sawdust-of-unexpected-costs"),
+  "monster.treasure-ventilation-copper-snake": monsterTrophyDrop("item.cool-copper-scale"),
+  "monster.strategic-reserve-potato": monsterTrophyDrop("item.reserve-potato-eye"),
+  "monster.forest-loss-aurochs": monsterTrophyDrop("item.horn-marked-loss-tally"),
+  "monster.service-path-lisovyk": monsterTrophyDrop("item.path-interview-moss"),
+  "monster.siege-iron-varenyk": monsterTrophyDrop("item.armored-dough-rivet"),
+  "monster.thirteen-address-dragon-courier": monsterTrophyDrop("item.scorched-delivery-label"),
+  "monster.tide-accountant-vodyanyk": monsterTrophyDrop("item.tide-balance-shell"),
+  "monster.failed-tender-pea-giant": monsterTrophyDrop("item.pea-of-unwon-tender"),
+  "monster.archive-ventilation-dragon": monsterTrophyDrop("item.dusty-draft-scale"),
+  "monster.seven-draft-chuhaister": monsterTrophyDrop("item.seventh-draft-door-chip"),
+  "monster.seasonal-defense-pumpkin-hetman": monsterTrophyDrop("item.pumpkin-command-seed"),
+  "monster.second-copy-ghost": monsterTrophyDrop("item.pencil-signed-second-copy"),
+  "monster.six-hour-meeting-viy": monsterTrophyDrop("item.agenda-eyelid-weight"),
+  "monster.state-sluice-beaver": monsterTrophyDrop("item.dam-permit-splinter"),
+  "monster.cash-gap-upyr": monsterTrophyDrop("item.liquidity-drop-in-vial"),
+  "monster.late-vacation-mavka": monsterTrophyDrop("item.leave-request-fern"),
+  "monster.third-reheat-kulish-phoenix": monsterTrophyDrop("item.third-reheat-crust"),
+  "monster.night-reservation-mara": monsterTrophyDrop("item.booking-shadow-stub"),
+  "monster.storage-silence-reed-king": monsterTrophyDrop("item.reed-of-official-hush"),
+  "monster.false-note-bandura-griffin": monsterTrophyDrop("item.false-note-feather"),
+  "monster.last-shift-vovkulaka": monsterTrophyDrop("item.timesheet-claw-mark"),
+  "monster.mountain-leasing-aridnyk": monsterTrophyDrop("item.pebble-of-growing-interest"),
+  "monster.customs-three-whisker-carp": monsterTrophyDrop("item.declared-third-whisker"),
+  "monster.hr-intern-necromancer": monsterTrophyDrop("item.rehiring-bone-paperclip"),
+  "monster.cold-storage-state-mammoth": monsterTrophyDrop("item.frosted-inventory-tag"),
+  "monster.excise-honey-giant-bee": monsterTrophyDrop("item.excise-honey-drop"),
+  "monster.overtime-heat-poludnytsia": monsterTrophyDrop("item.overtime-sun-splinter"),
+  "monster.spoon-mobilization-iron-raven": monsterTrophyDrop("item.mobilized-spoon-feather"),
+  "monster.fire-safety-three-headed-serpent": monsterTrophyDrop("item.three-headed-safety-form"),
+  "monster.last-will-dead-auditor": monsterTrophyDrop("item.inheritance-audit-seal"),
+  "monster.underground-sea-acceptance-whale": monsterTrophyDrop("item.acceptance-act-barnacle"),
+  "monster.collateral-grey-bear": monsterTrophyDrop("item.collateral-fur-receipt"),
+  "monster.empty-chamber-lady": monsterTrophyDrop("item.keyhole-of-empty-room"),
+  "monster.fair-tax-honey-leviathan": monsterTrophyDrop("item.fair-tax-honey-spoon"),
+  "monster.siege-song-stone-skylark": monsterTrophyDrop("item.heavy-siege-note"),
+  "monster.written-off-assets-black-booker": monsterTrophyDrop("item.asset-writeoff-ink"),
+  "monster.last-route-star-boar": monsterTrophyDrop("item.star-route-bristle"),
+  "monster.queue-dragon-prince": monsterTrophyDrop("item.last-place-queue-scale"),
+  "monster.expired-archive-upyr-king": monsterTrophyDrop("item.expired-royal-archive-stamp")
 } as const;
 
 export const monsterTrophyItemAdditions = [
+  {
+    id: "item.monster-pocket-lint",
+    name: "Кишеньковий пух після сутички",
+    description: "Не трофей, а доказ, що бій був досить близько до кишені.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 1
+  },
+  {
+    id: "item.monster-field-note-scrap",
+    name: "Клаптик польової нотатки",
+    description: "На ньому написано «можливо, трофей був поруч», але чорнило вчасно злякалося.",
+    rarity: "common",
+    slot: "junk",
+    goldValue: 1
+  },
   {
     id: "item.lid-of-shared-blame",
     name: "Кришка спільної відповідальности",

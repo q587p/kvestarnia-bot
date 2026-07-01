@@ -8,6 +8,7 @@ import type {
 } from "../db/repositories/huntContractRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { HUNT_MIN_LEVEL, meetsActivityLevel } from "../domain/progression/activityGates";
+import { getMonsterLootEntryItemId } from "../domain/loot/lootEngine";
 import { systemClock, type Clock } from "../shared/time";
 import { HUNT_BOARD_CONTRACT_KEY } from "./dailyActionKeys";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
@@ -391,7 +392,9 @@ export function buildHuntContractToken(
   characterId: string,
   monster: Pick<MonsterContent, "id" | "level" | "tags">
 ): string {
-  const lootIds = [...(monsterLoot[monster.id as keyof typeof monsterLoot] ?? [])].sort();
+  const lootIds = [...(monsterLoot[monster.id as keyof typeof monsterLoot] ?? [])]
+    .map(getMonsterLootEntryItemId)
+    .sort();
   const tags = [...monster.tags].sort();
   const contentFingerprint = [
     monster.id,
@@ -429,8 +432,9 @@ function buildHuntItemGrants(
     return [];
   }
 
-  const lootIds: readonly string[] =
-    monsterLoot[contract.monster.id as keyof typeof monsterLoot] ?? [];
+  const lootIds = (monsterLoot[contract.monster.id as keyof typeof monsterLoot] ?? []).map(
+    getMonsterLootEntryItemId
+  );
 
   if (lootIds.length === 0) {
     return [];

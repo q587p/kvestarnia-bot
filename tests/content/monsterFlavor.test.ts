@@ -6,7 +6,11 @@ import {
   monsters,
   selectMonsterFlavorLine
 } from "../../src/content";
-import { getLootCandidates } from "../../src/domain/loot/lootEngine";
+import {
+  MONSTER_TROPHY_TARGET_SHARE,
+  monsterTrophyLoot
+} from "../../src/content/monsterTrophyCoverage";
+import { getLootCandidates, getMonsterLootEntryItemId } from "../../src/domain/loot/lootEngine";
 
 const forbiddenPlayerFacingPatterns = [
   /\bsun\b/i,
@@ -187,7 +191,9 @@ describe("monster flavor content", () => {
         expect(lootIds.length, `legacy loot should stay rich for ${monsterId}`).toBeGreaterThanOrEqual(2);
       }
 
-      for (const itemId of lootIds) {
+      for (const lootEntry of lootIds) {
+        const itemId = getMonsterLootEntryItemId(lootEntry);
+
         expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monsterId}`).toBe(true);
       }
     }
@@ -207,8 +213,56 @@ describe("monster flavor content", () => {
       expect(lootIds.length, `missing loot ids for ${monster.id}`).toBeGreaterThanOrEqual(1);
       expect(candidates.length, `unreachable loot candidates for ${monster.id}`).toBeGreaterThanOrEqual(1);
 
-      for (const itemId of lootIds) {
+      for (const lootEntry of lootIds) {
+        const itemId = getMonsterLootEntryItemId(lootEntry);
+
         expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monster.id}`).toBe(true);
+      }
+    }
+  });
+
+  it("keeps trophy-covered monsters weighted with reachable non-trophy fallback loot", () => {
+    const itemById = new Map(items.map((item) => [item.id, item]));
+
+    for (const [monsterId, lootEntries] of Object.entries(monsterTrophyLoot)) {
+      const trophyEntries = lootEntries.filter((entry) => entry.kind === "trophy");
+      const fallbackEntries = lootEntries.filter((entry) => entry.kind === "fallback");
+      const trophyIds = new Set(trophyEntries.map((entry) => entry.itemId));
+      const fallbackIds = new Set(fallbackEntries.map((entry) => entry.itemId));
+      const candidates = getLootCandidates({ monsterId, monsterLoot, items });
+      const candidateIds = new Set(candidates.map((candidate) => candidate.item.id));
+
+      expect(trophyEntries, `missing trophy entry for ${monsterId}`).toHaveLength(1);
+      expect(fallbackEntries.length, `missing fallback entries for ${monsterId}`).toBeGreaterThan(0);
+      expect(trophyEntries[0]?.weight, `wrong trophy weight for ${monsterId}`).toBeCloseTo(
+        MONSTER_TROPHY_TARGET_SHARE
+      );
+
+      for (const trophyId of trophyIds) {
+        expect(candidateIds.has(trophyId), `unreachable trophy ${trophyId} for ${monsterId}`).toBe(
+          true
+        );
+      }
+
+      for (const fallbackId of fallbackIds) {
+        expect(
+          candidateIds.has(fallbackId),
+          `unreachable non-trophy fallback ${fallbackId} for ${monsterId}`
+        ).toBe(true);
+      }
+
+      const trophyRarities = new Set(
+        [...trophyIds].map((itemId) => itemById.get(itemId)?.rarity).filter(Boolean)
+      );
+      const fallbackRarities = new Set(
+        [...fallbackIds].map((itemId) => itemById.get(itemId)?.rarity).filter(Boolean)
+      );
+
+      expect(trophyRarities.size, `ambiguous trophy rarity for ${monsterId}`).toBe(1);
+      for (const rarity of fallbackRarities) {
+        expect(trophyRarities.has(rarity), `fallback rarity ${rarity} differs for ${monsterId}`).toBe(
+          true
+        );
       }
     }
   });
