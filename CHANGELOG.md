@@ -12,6 +12,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added static `📖 Перекази` navigation from `Дошка корчми`, with all MVP categories: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки` and `📜 Звичаї й чутки`.
 - Added typed lore entries in `src/content/loreBoard.ts`, seeded from the current lore-board docs and backed by `canonicalRefs` for live race, class, item and Korchma location ids, with coverage for every active race, class and current Korchma presence location.
+- Added compact `🪧 Місцини корчми` subgroups for `Надвірʼя`, `Зала й шинок`, `Бочка й льох`, `Кутки` and `Низ`, keeping the place lore keyboard short without dropping any current place entry.
 - Added an external Lore Board Bestiary category that opens the existing `v1:bst` Bestiary instead of duplicating a partial monster list.
 - Added Bestiary first/last/random navigation plus special non-level records for `Бочка Пінного Міражу` and `Старший Брат Бочки` at the end of the existing Bestiary without adding them to the level-based combat monster roster.
 - Added source-aware Bestiary callbacks so Bestiary opened from Lore Board keeps `⬅️ До переказів` / `🪧 До Дошки корчми` return navigation, while `/bestiary`, `/monsters`, Hunt Board and old callbacks keep `🏹 До дошки`.

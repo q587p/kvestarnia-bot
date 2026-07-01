@@ -4,6 +4,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 export type LoreBoardCallback =
   | { type: "menu" }
   | { type: "category"; categoryId: string }
+  | { type: "group"; groupId: string }
   | { type: "entry"; entryId: string }
   | { type: "random" }
   | { type: "category-random"; categoryId: string };
@@ -23,6 +24,10 @@ export function makeLoreMenuCallbackData(): string {
 
 export function makeLoreCategoryCallbackData(categoryId: string): string {
   return `${PREFIX}:c:${categoryId}`;
+}
+
+export function makeLoreGroupCallbackData(groupId: string): string {
+  return `${PREFIX}:g:${groupId}`;
 }
 
 export function makeLoreEntryCallbackData(entryId: string): string {
@@ -68,6 +73,10 @@ export function parseLoreBoardCallbackData(
 
   if (action === "c") {
     return isSafeCategoryToken(id) ? ok({ type: "category", categoryId: id }) : err("invalid-id");
+  }
+
+  if (action === "g") {
+    return isSafeCategoryToken(id) ? ok({ type: "group", groupId: id }) : err("invalid-id");
   }
 
   if (action === "rc") {

@@ -5,7 +5,8 @@ import type { BotServices } from "../../src/bot/botServices";
 import {
   makeLoreCategoryCallbackData,
   makeLoreCategoryRandomCallbackData,
-  makeLoreEntryCallbackData
+  makeLoreEntryCallbackData,
+  makeLoreGroupCallbackData
 } from "../../src/bot/callbacks/loreBoardCallbackData";
 
 describe("lore board callback routing", () => {
@@ -34,6 +35,16 @@ describe("lore board callback routing", () => {
     expect(calls.find((call) => call.method === "answerCallbackQuery")).toBeDefined();
     expect(editCall?.payload.parse_mode).toBe("HTML");
     expect(String(editCall?.payload.text)).toContain("Цю теку переклали");
+  });
+
+  it("answers and edits lore group callbacks through the core module", async () => {
+    const calls = await captureCoreCallbackCalls(makeLoreGroupCallbackData("nyz"));
+    const editCall = calls.find((call) => call.method === "editMessageText");
+
+    expect(calls.find((call) => call.method === "answerCallbackQuery")).toBeDefined();
+    expect(editCall?.payload.parse_mode).toBe("HTML");
+    expect(String(editCall?.payload.text)).toContain("⬇️ Низ");
+    expect(JSON.stringify(editCall?.payload.reply_markup)).toContain(makeLoreEntryCallbackData("place-deep"));
   });
 
   it("answers malformed lore callbacks with the invalid fallback without editing a lore page", async () => {

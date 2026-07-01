@@ -41,8 +41,12 @@ export { items } from "./items";
 export {
   getLoreCategory,
   getLoreEntriesForCategory,
+  getLoreEntriesForGroup,
   getLoreEntry,
+  getLoreEntryGroup,
+  getLoreEntryGroupsForCategory,
   loreCategories,
+  loreEntryGroups,
   loreEntries,
   selectRandomLoreEntry,
   selectRandomLoreEntryForCategory,
@@ -53,7 +57,8 @@ export type {
   LoreCanonicalRefType,
   LoreCategory,
   LoreContentValidationInput,
-  LoreEntry
+  LoreEntry,
+  LoreEntryGroup
 } from "./loreBoard";
 export { findGiftCampaign, giftCampaigns } from "./giftCampaigns";
 export type { GiftCampaignContent, GiftCampaignItemGrant } from "./giftCampaigns";

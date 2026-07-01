@@ -13,6 +13,7 @@ import { sendInventory } from "../commands/inventoryCommand";
 import {
   sendLoreCategory,
   sendLoreEntry,
+  sendLoreGroup,
   sendLoreMenu,
   sendRandomLoreEntry,
   sendRandomLoreEntryForCategory
@@ -123,6 +124,11 @@ async function handleLoreBoardCallback(ctx: Context, action: LoreBoardCallback):
 
   if (action.type === "entry") {
     await sendLoreEntry(ctx, action.entryId);
+    return;
+  }
+
+  if (action.type === "group") {
+    await sendLoreGroup(ctx, action.groupId);
     return;
   }
 

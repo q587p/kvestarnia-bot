@@ -3,12 +3,13 @@ import {
   makeLoreCategoryCallbackData,
   makeLoreCategoryRandomCallbackData,
   makeLoreEntryCallbackData,
+  makeLoreGroupCallbackData,
   makeLoreMenuCallbackData,
   makeLoreRandomCallbackData,
   parseLoreBoardCallbackData
 } from "../../src/bot/callbacks/loreBoardCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
-import { loreCategories, loreEntries } from "../../src/content/loreBoard";
+import { loreCategories, loreEntries, loreEntryGroups } from "../../src/content/loreBoard";
 
 describe("lore board callback data", () => {
   it("round-trips compact lore callbacks", () => {
@@ -19,6 +20,10 @@ describe("lore board callback data", () => {
     expect(parseLoreBoardCallbackData(makeLoreCategoryCallbackData("places"))).toEqual({
       ok: true,
       value: { type: "category", categoryId: "places" }
+    });
+    expect(parseLoreBoardCallbackData(makeLoreGroupCallbackData("nyz"))).toEqual({
+      ok: true,
+      value: { type: "group", groupId: "nyz" }
     });
     expect(parseLoreBoardCallbackData(makeLoreEntryCallbackData("notice-board-current"))).toEqual({
       ok: true,
@@ -42,6 +47,7 @@ describe("lore board callback data", () => {
         makeLoreCategoryCallbackData(category.id),
         makeLoreCategoryRandomCallbackData(category.id)
       ]),
+      ...loreEntryGroups.map((group) => makeLoreGroupCallbackData(group.id)),
       ...loreEntries.map((entry) => makeLoreEntryCallbackData(entry.id))
     ];
 
@@ -62,6 +68,10 @@ describe("lore board callback data", () => {
     });
     expect(parseLoreBoardCallbackData("v2:lore:m").ok).toBe(false);
     expect(parseLoreBoardCallbackData("v1:lore:c:places!")).toEqual({
+      ok: false,
+      error: "invalid-id"
+    });
+    expect(parseLoreBoardCallbackData("v1:lore:g:places!")).toEqual({
       ok: false,
       error: "invalid-id"
     });

@@ -2,7 +2,10 @@ import { InlineKeyboard } from "grammy";
 import {
   getLoreCategory,
   getLoreEntriesForCategory,
+  getLoreEntriesForGroup,
   getLoreEntry,
+  getLoreEntryGroup,
+  getLoreEntryGroupsForCategory,
   loreCategories,
   loreEntries,
   type LoreCategory,
@@ -12,6 +15,7 @@ import {
   makeLoreCategoryCallbackData,
   makeLoreCategoryRandomCallbackData,
   makeLoreEntryCallbackData,
+  makeLoreGroupCallbackData,
   makeLoreMenuCallbackData,
   makeLoreRandomCallbackData
 } from "../callbacks/loreBoardCallbackData";
@@ -56,6 +60,7 @@ export function presentLoreCategory(categoryId: string): LoreBoardPage {
   }
 
   const entries = getLoreEntriesForCategory(category.id);
+  const groups = getLoreEntryGroupsForCategory(category.id);
   const keyboard = new InlineKeyboard();
   const externalCategory = category.entryMode === "external";
 
@@ -63,8 +68,14 @@ export function presentLoreCategory(categoryId: string): LoreBoardPage {
     keyboard.text("📖 Відкрити Бестіарій", makeBestiaryListCallbackData(0, "lore")).row();
   }
 
-  for (const entry of entries) {
-    keyboard.text(entry.title, makeLoreEntryCallbackData(entry.id)).row();
+  if (groups.length > 0) {
+    for (const group of groups) {
+      keyboard.text(group.title, makeLoreGroupCallbackData(group.id)).row();
+    }
+  } else {
+    for (const entry of entries) {
+      keyboard.text(entry.title, makeLoreEntryCallbackData(entry.id)).row();
+    }
   }
 
   if (!externalCategory && entries.length > 0) {
@@ -82,7 +93,40 @@ export function presentLoreCategory(categoryId: string): LoreBoardPage {
       "",
       escapeHtml(category.description),
       "",
-      presentLoreCategoryListLabel(category, entries.length)
+      presentLoreCategoryListLabel(category, entries.length, groups.length)
+    ].join("\n"),
+    keyboard
+  };
+}
+
+export function presentLoreGroup(groupId: string): LoreBoardPage {
+  const group = getLoreEntryGroup(groupId);
+
+  if (!group) {
+    return presentLoreInvalidGroup();
+  }
+
+  const entries = getLoreEntriesForGroup(group.id);
+  const keyboard = new InlineKeyboard();
+
+  for (const entry of entries) {
+    keyboard.text(entry.title, makeLoreEntryCallbackData(entry.id)).row();
+  }
+
+  keyboard
+    .text("⬅️ До місцин", makeLoreCategoryCallbackData(group.categoryId))
+    .row()
+    .text("📖 Усі перекази", makeLoreMenuCallbackData())
+    .row()
+    .text("🪧 До Дошки корчми", makePlaceCallbackData("news-corner"));
+
+  return {
+    text: [
+      escapeHtml(group.title),
+      "",
+      escapeHtml(group.description),
+      "",
+      entries.length > 0 ? "Перекази:" : "Тут поки тихо. Навіть підозріло тихо."
     ].join("\n"),
     keyboard
   };
@@ -157,6 +201,21 @@ function presentLoreInvalidCategory(): LoreBoardPage {
   };
 }
 
+function presentLoreInvalidGroup(): LoreBoardPage {
+  const places = presentLoreCategory("places");
+
+  return {
+    text: [
+      "🪧 Місцини корчми",
+      "",
+      "Цю полицю місцин переставили. Можливо, щоб вона не сперечалася з мапою.",
+      "",
+      "Повертаю до списку місцин."
+    ].join("\n"),
+    keyboard: places.keyboard
+  };
+}
+
 function presentLoreInvalidEntry(): LoreBoardPage {
   const keyboard = new InlineKeyboard()
     .text("📖 Усі перекази", makeLoreMenuCallbackData())
@@ -177,9 +236,13 @@ function sortedCategories(categories: readonly LoreCategory[]): LoreCategory[] {
   return [...categories].sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
-function presentLoreCategoryListLabel(category: LoreCategory, entryCount: number): string {
+function presentLoreCategoryListLabel(category: LoreCategory, entryCount: number, groupCount: number): string {
   if (category.entryMode === "external") {
     return "Окремий записник:";
+  }
+
+  if (groupCount > 0) {
+    return "Підгрупи:";
   }
 
   return entryCount > 0 ? "Перекази:" : "Тут поки тихо. Навіть підозріло тихо.";

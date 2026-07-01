@@ -22,9 +22,19 @@ export interface LoreEntry {
   canonicalRefs?: readonly LoreCanonicalRef[];
 }
 
+export interface LoreEntryGroup {
+  id: string;
+  categoryId: string;
+  title: string;
+  description: string;
+  sortOrder: number;
+  entryIds: readonly string[];
+}
+
 export interface LoreContentValidationInput {
   categories?: readonly LoreCategory[];
   entries?: readonly LoreEntry[];
+  groups?: readonly LoreEntryGroup[];
   knownRefs?: Partial<Record<LoreCanonicalRefType, ReadonlySet<string>>>;
 }
 
@@ -71,6 +81,55 @@ export const loreCategories: readonly LoreCategory[] = [
     title: "📜 Звичаї й чутки",
     description: "Як Квестарня пояснює рівні, дошки, поразки, пошук і корчмарську бухгалтерію.",
     sortOrder: 70
+  }
+] as const;
+
+export const loreEntryGroups: readonly LoreEntryGroup[] = [
+  {
+    id: "outside",
+    categoryId: "places",
+    title: "🏚 Надвірʼя",
+    description: "Поріг і задвірок: місця, де пригодник ще може вдавати, що просто проходив повз.",
+    sortOrder: 10,
+    entryIds: ["place-front", "place-yard"]
+  },
+  {
+    id: "hall-shynok",
+    categoryId: "places",
+    title: "🍺 Зала й шинок",
+    description: "Головна зала, дошка, стіл зі справами й шинокова піна з бухгалтерським виразом.",
+    sortOrder: 20,
+    entryIds: ["place-hall", "place-quest-table", "place-bar", "place-news-corner"]
+  },
+  {
+    id: "barrel-cellar",
+    categoryId: "places",
+    title: "🛢 Бочка й льох",
+    description: "Підозрілий низ корчми до того, як він остаточно стає Низом.",
+    sortOrder: 30,
+    entryIds: ["place-cellar", "place-barrel"]
+  },
+  {
+    id: "corners",
+    categoryId: "places",
+    title: "🎯 Кутки",
+    description: "Єгерський і бійцівський кутки: там, де поради мають ремені, сліди або синці.",
+    sortOrder: 40,
+    entryIds: ["place-ranger-corner", "place-fighting-corner"]
+  },
+  {
+    id: "nyz",
+    categoryId: "places",
+    title: "⬇️ Низ",
+    description: "Спуск, Сутерени Корчми й проходи, які поводяться надто самостійно для архітектури.",
+    sortOrder: 50,
+    entryIds: [
+      "place-deep",
+      "place-deep-level1",
+      "place-deep-level1-left",
+      "place-deep-level1-straight",
+      "place-deep-level1-right"
+    ]
   }
 ] as const;
 
@@ -403,8 +462,30 @@ export function getLoreEntry(entryId: string): LoreEntry | undefined {
   return loreEntries.find((entry) => entry.id === entryId);
 }
 
+export function getLoreEntryGroup(groupId: string): LoreEntryGroup | undefined {
+  return loreEntryGroups.find((group) => group.id === groupId);
+}
+
 export function getLoreEntriesForCategory(categoryId: string): readonly LoreEntry[] {
   return loreEntries.filter((entry) => entry.categoryId === categoryId);
+}
+
+export function getLoreEntryGroupsForCategory(categoryId: string): readonly LoreEntryGroup[] {
+  return loreEntryGroups
+    .filter((group) => group.categoryId === categoryId)
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+export function getLoreEntriesForGroup(groupId: string): readonly LoreEntry[] {
+  const group = getLoreEntryGroup(groupId);
+
+  if (!group) {
+    return [];
+  }
+
+  return group.entryIds
+    .map((entryId) => getLoreEntry(entryId))
+    .filter((entry): entry is LoreEntry => Boolean(entry));
 }
 
 export function selectRandomLoreEntry(
@@ -429,9 +510,11 @@ export function selectRandomLoreEntryForCategory(
 export function validateLoreBoardContent(input: LoreContentValidationInput = {}): string[] {
   const categories: readonly LoreCategory[] = input.categories ?? loreCategories;
   const entries: readonly LoreEntry[] = input.entries ?? loreEntries;
+  const groups: readonly LoreEntryGroup[] = input.groups ?? loreEntryGroups;
   const errors: string[] = [];
   const categoryIds = new Set<string>();
   const entryIds = new Set<string>();
+  const groupIds = new Set<string>();
 
   for (const category of categories) {
     if (!category.id.trim()) {
@@ -481,6 +564,41 @@ export function validateLoreBoardContent(input: LoreContentValidationInput = {})
       const knownIds = input.knownRefs?.[ref.type];
       if (knownIds && !knownIds.has(ref.id)) {
         errors.push(`Lore entry ${entry.id} references unknown ${ref.type} id ${ref.id}.`);
+      }
+    }
+  }
+
+  for (const group of groups) {
+    if (!group.id.trim()) {
+      errors.push("Lore entry group has empty id.");
+    }
+    if (groupIds.has(group.id)) {
+      errors.push(`Duplicate lore entry group id: ${group.id}.`);
+    }
+    groupIds.add(group.id);
+    if (!categoryIds.has(group.categoryId)) {
+      errors.push(`Lore entry group ${group.id} references unknown category ${group.categoryId}.`);
+    }
+    if (!group.title.trim()) {
+      errors.push(`Lore entry group ${group.id} has empty title.`);
+    }
+    if (!group.description.trim()) {
+      errors.push(`Lore entry group ${group.id} has empty description.`);
+    }
+    if (group.entryIds.length === 0) {
+      errors.push(`Lore entry group ${group.id} has no entries.`);
+    }
+
+    for (const entryId of group.entryIds) {
+      const entry = entries.find((candidate) => candidate.id === entryId);
+
+      if (!entry) {
+        errors.push(`Lore entry group ${group.id} references unknown entry ${entryId}.`);
+        continue;
+      }
+
+      if (entry.categoryId !== group.categoryId) {
+        errors.push(`Lore entry group ${group.id} references entry ${entryId} from ${entry.categoryId}.`);
       }
     }
   }

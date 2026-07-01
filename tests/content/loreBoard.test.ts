@@ -4,6 +4,7 @@ import {
   classes,
   items,
   loreCategories,
+  loreEntryGroups,
   monsters,
   selectRandomLoreEntry,
   selectRandomLoreEntryForCategory,
@@ -108,6 +109,24 @@ describe("lore board content", () => {
     ]));
   });
 
+  it("keeps place lore grouped without losing current place entries", () => {
+    const groupedEntryIds = new Set(loreEntryGroups
+      .filter((group) => group.categoryId === "places")
+      .flatMap((group) => group.entryIds));
+    const placeEntryIds = loreEntries
+      .filter((entry) => entry.categoryId === "places")
+      .map((entry) => entry.id);
+
+    expect(loreEntryGroups.map((group) => group.title)).toEqual([
+      "🏚 Надвірʼя",
+      "🍺 Зала й шинок",
+      "🛢 Бочка й льох",
+      "🎯 Кутки",
+      "⬇️ Низ"
+    ]);
+    expect(groupedEntryIds).toEqual(new Set(placeEntryIds));
+  });
+
   it("detects broken lore records", () => {
     expect(validateLoreBoardContent({
       categories: loreCategories,
@@ -132,6 +151,29 @@ describe("lore board content", () => {
       expect.stringContaining("empty source"),
       expect.stringContaining("empty body"),
       expect.stringContaining("unknown monster id")
+    ]));
+  });
+
+  it("detects broken lore entry groups", () => {
+    expect(validateLoreBoardContent({
+      categories: loreCategories,
+      entries: loreEntries,
+      groups: [
+        ...loreEntryGroups,
+        {
+          id: "broken",
+          categoryId: "places",
+          title: "",
+          description: "",
+          sortOrder: 999,
+          entryIds: ["missing-entry", "race-human-ish"]
+        }
+      ]
+    })).toEqual(expect.arrayContaining([
+      expect.stringContaining("empty title"),
+      expect.stringContaining("empty description"),
+      expect.stringContaining("unknown entry"),
+      expect.stringContaining("from races")
     ]));
   });
 

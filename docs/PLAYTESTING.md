@@ -11,6 +11,7 @@ Manual Telegram QA status for the implementation pass: not run.
 1. Open `Дошка корчми`; verify `📖 Перекази` appears and existing `📰 Вісти`, gift and postal navigation still works.
 2. Open `📖 Перекази`; verify the intro and all categories fit a mobile screen.
 3. Open every category: `🏚 Про Квестарню`, `🪧 Місцини корчми`, `🧝 Раси пригодників`, `⚔️ Класи пригодників`, `🧌 Бестіарій`, `🎒 Манатки`, `📜 Звичаї й чутки`.
+3a. In `🪧 Місцини корчми`, verify the first screen shows compact subgroups (`🏚 Надвірʼя`, `🍺 Зала й шинок`, `🛢 Бочка й льох`, `🎯 Кутки`, `⬇️ Низ`) instead of one long place list; open each subgroup and verify its entries fit a mobile screen.
 4. In normal lore categories, verify entries belong to that category and `🎲 Випадковий із цієї категорії` opens an entry.
 5. In `🧌 Бестіарій`, verify `📖 Відкрити Бестіарій` opens the existing Bestiary surface; before level 3 it should keep the existing level gate.
 6. With an eligible character, verify Bestiary list pagination has start/back/next/end controls like the news archive, plus `🎲 Випадковий запис`, and that Lore Board-sourced Bestiary screens return with `⬅️ До переказів` / `🪧 До Дошки корчми`, not `🏹 До дошки`.

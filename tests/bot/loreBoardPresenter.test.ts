@@ -3,6 +3,7 @@ import {
   makeLoreCategoryCallbackData,
   makeLoreCategoryRandomCallbackData,
   makeLoreEntryCallbackData,
+  makeLoreGroupCallbackData,
   makeLoreMenuCallbackData,
   makeLoreRandomCallbackData
 } from "../../src/bot/callbacks/loreBoardCallbackData";
@@ -12,6 +13,7 @@ import {
   presentLoreEmptyRandom,
   presentLoreEntry,
   presentLoreEntryPage,
+  presentLoreGroup,
   presentLoreMenu
 } from "../../src/bot/presenters/loreBoardPresenter";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
@@ -47,6 +49,40 @@ describe("lore board presenter", () => {
     expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreCategoryRandomCallbackData("races"));
   });
 
+  it("renders place category as compact subgroups", () => {
+    const page = presentLoreCategory("places");
+
+    expect(page.text).toContain("🪧 Місцини корчми");
+    expect(page.text).toContain("Підгрупи:");
+    expect(flatInlineButtonTexts(page.keyboard)).toEqual(expect.arrayContaining([
+      "🏚 Надвірʼя",
+      "🍺 Зала й шинок",
+      "🛢 Бочка й льох",
+      "🎯 Кутки",
+      "⬇️ Низ"
+    ]));
+    expect(flatInlineButtonTexts(page.keyboard)).not.toContain("Перед корчмою");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreGroupCallbackData("nyz"));
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreCategoryRandomCallbackData("places"));
+  });
+
+  it("renders place subgroups with their place entries", () => {
+    const page = presentLoreGroup("nyz");
+
+    expect(page.text).toContain("⬇️ Низ");
+    expect(page.text).toContain("Перекази:");
+    expect(flatInlineButtonTexts(page.keyboard)).toEqual(expect.arrayContaining([
+      "Низ",
+      "Сутерени Корчми",
+      "Лівий прохід",
+      "Прямий прохід",
+      "Правий прохід",
+      "⬅️ До місцин"
+    ]));
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreEntryCallbackData("place-deep-level1"));
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreCategoryCallbackData("places"));
+  });
+
   it("renders the bestiary category as a link to the full bestiary", () => {
     const page = presentLoreCategory("bestiary");
 
@@ -62,6 +98,13 @@ describe("lore board presenter", () => {
 
     expect(page.text).toContain("Цю теку переклали");
     expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreCategoryCallbackData("kvestarnia"));
+  });
+
+  it("renders missing place groups as a safe fallback", () => {
+    const page = presentLoreGroup("missing");
+
+    expect(page.text).toContain("Цю полицю місцин переставили");
+    expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreGroupCallbackData("nyz"));
   });
 
   it("renders entries with escaped Telegram HTML and category position", () => {

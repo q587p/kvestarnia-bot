@@ -9,6 +9,7 @@ import {
   presentLoreEmptyRandom,
   presentLoreEntry,
   presentLoreEntryPage,
+  presentLoreGroup,
   presentLoreMenu,
   type LoreBoardPage
 } from "../presenters/loreBoardPresenter";
@@ -33,6 +34,13 @@ export async function sendLoreEntry(
   entryId: string
 ): Promise<void> {
   await sendLorePage(ctx, presentLoreEntry(entryId), "edit");
+}
+
+export async function sendLoreGroup(
+  ctx: Context,
+  groupId: string
+): Promise<void> {
+  await sendLorePage(ctx, presentLoreGroup(groupId), "edit");
 }
 
 export async function sendRandomLoreEntry(
