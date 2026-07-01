@@ -34,6 +34,33 @@ Deferred side tracks remain useful but should not steal the Phase 2 spine: Shyno
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
+## Later — Tavern Social Games
+
+Future source doc: [TAVERN_SOCIAL_GAMES.md](TAVERN_SOCIAL_GAMES.md).
+
+**Objective**
+Додати в шинок короткі opt-in `Ігри за столом`: спершу загальний table-game engine, потім `Тавлеї` як 1v1 тактичну партію і `Кості` як 2-6 player dice table.
+
+**Scope guard**
+Це не частина Lore Board MVP і не runtime поточного PR. Не додавати меню, callbacks, Prisma schema, migrations, escrow, ставки, винагороди, telemetry або player-facing обіцянку, доки окрема version task не активує цей напрям.
+
+**Implementation order**
+
+1. Audit current Shynok/Korchma menu, economy mutation path, callback router, combat/search locks and ledger patterns.
+2. Add transaction-safe table-game sessions, stake reserve/refund/payout and expiry behind flags.
+3. Ship `Тавлеї`.
+4. Ship `Кості`.
+5. Add result-copy polish, recent tavern activity, caps and QA hardening.
+
+**Guardrails**
+
+- no pay-to-win;
+- no uncapped gold transfer;
+- no house payout in the MVP;
+- no Mini App requirement;
+- deterministic resolvers and idempotent callbacks;
+- stale/expired tables refund or fail safely.
+
 **Non-goals**
 
 - no Korchma layout rewrite;
