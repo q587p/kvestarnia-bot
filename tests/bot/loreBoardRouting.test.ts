@@ -2,7 +2,11 @@ import { Bot } from "grammy";
 import { describe, expect, it } from "vitest";
 import { registerCoreBotModule } from "../../src/bot/modules/core";
 import type { BotServices } from "../../src/bot/botServices";
-import { makeLoreCategoryCallbackData, makeLoreEntryCallbackData } from "../../src/bot/callbacks/loreBoardCallbackData";
+import {
+  makeLoreCategoryCallbackData,
+  makeLoreCategoryRandomCallbackData,
+  makeLoreEntryCallbackData
+} from "../../src/bot/callbacks/loreBoardCallbackData";
 
 describe("lore board callback routing", () => {
   it("answers and edits lore callbacks through the core module", async () => {
@@ -21,6 +25,24 @@ describe("lore board callback routing", () => {
     expect(calls.find((call) => call.method === "answerCallbackQuery")).toBeDefined();
     expect(editCall?.payload.parse_mode).toBe("HTML");
     expect(String(editCall?.payload.text)).toContain("дірка від цвяха");
+  });
+
+  it("renders stale category-random callbacks as a safe fallback", async () => {
+    const calls = await captureCoreCallbackCalls(makeLoreCategoryRandomCallbackData("stale-category"));
+    const editCall = calls.find((call) => call.method === "editMessageText");
+
+    expect(calls.find((call) => call.method === "answerCallbackQuery")).toBeDefined();
+    expect(editCall?.payload.parse_mode).toBe("HTML");
+    expect(String(editCall?.payload.text)).toContain("Цю теку переклали");
+  });
+
+  it("answers malformed lore callbacks with the invalid fallback without editing a lore page", async () => {
+    const calls = await captureCoreCallbackCalls("v1:lore:e:bad:id");
+    const answerCall = calls.find((call) => call.method === "answerCallbackQuery");
+
+    expect(answerCall?.payload.show_alert).toBe(true);
+    expect(String(answerCall?.payload.text)).toContain("втратила магію");
+    expect(calls.find((call) => call.method === "editMessageText")).toBeUndefined();
   });
 });
 

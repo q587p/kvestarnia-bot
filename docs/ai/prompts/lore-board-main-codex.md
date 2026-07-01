@@ -1,11 +1,13 @@
 # Codex prompt - Lore Board MVP
 
+> Historical/consumed prompt. The `0.2.18` Lore Board MVP shipped from [docs/tasks/0.2.18-lore-board-mvp.md](../../tasks/0.2.18-lore-board-mvp.md). Reuse this only as background; follow the shipped compact callback contract in `src/bot/callbacks/loreBoardCallbackData.ts`.
+
 ```text
 Use $kvestarnia-version-task.
 Use $ukrainian-rpg-content for player-facing Ukrainian lore and UI copy.
 
 Implement:
-docs/tasks/0.2.x-lore-board.md
+docs/tasks/0.2.18-lore-board-mvp.md
 
 Context:
 docs/ai/context.md
@@ -62,12 +64,12 @@ Player-facing copy rules:
 - Ukrainian `«»` quotes in prose;
 - no separate app-surface promise.
 
-Suggested callback shape:
-- `v1:lore:menu`
-- `v1:lore:cat:<categoryId>`
-- `v1:lore:entry:<entryId>`
-- `v1:lore:random`
-- `v1:lore:random:<categoryId>`
+Shipped compact callback shape:
+- `v1:lore:m`
+- `v1:lore:c:<categoryId>`
+- `v1:lore:e:<entryId>`
+- `v1:lore:r`
+- `v1:lore:rc:<categoryId>`
 
 Focused tests:
 - content id/category validation;

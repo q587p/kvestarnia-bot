@@ -54,7 +54,21 @@ describe("lore board callback data", () => {
   });
 
   it("rejects malformed lore callbacks but accepts stale safe ids for handler fallback", () => {
+    const tooLongEntryCallback = `v1:lore:e:${"a".repeat(TELEGRAM_CALLBACK_DATA_LIMIT)}`;
+
+    expect(parseLoreBoardCallbackData(tooLongEntryCallback)).toEqual({
+      ok: false,
+      error: "too-long"
+    });
     expect(parseLoreBoardCallbackData("v2:lore:m").ok).toBe(false);
+    expect(parseLoreBoardCallbackData("v1:lore:c:places!")).toEqual({
+      ok: false,
+      error: "invalid-id"
+    });
+    expect(parseLoreBoardCallbackData("v1:lore:rc:stale_category")).toEqual({
+      ok: false,
+      error: "invalid-id"
+    });
     expect(parseLoreBoardCallbackData("v1:lore:e:bad:id").ok).toBe(false);
     expect(parseLoreBoardCallbackData("v1:lore:e:stale-entry").ok).toBe(true);
     expect(parseLoreBoardCallbackData("v1:news:list:0").ok).toBe(false);

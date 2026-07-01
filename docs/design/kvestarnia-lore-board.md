@@ -174,7 +174,7 @@ If the entry names a future concept that has no live runtime id yet, leave it ou
 
 ## Canon Index
 
-The current canon snapshot used by the source pack is kept separately in [kvestarnia-lore-current-canon.md](../content/kvestarnia-lore-current-canon.md) and [kvestarnia-lore-canon-snapshot.json](../content/kvestarnia-lore-canon-snapshot.json). Future implementation must import live content arrays where possible instead of treating the snapshot as production truth.
+The current canon snapshot used by the source pack is kept separately in [kvestarnia-lore-current-canon.md](../content/kvestarnia-lore-current-canon.md) and [kvestarnia-lore-canon-snapshot.json](../content/kvestarnia-lore-canon-snapshot.json). Runtime entries live in `src/content/loreBoard.ts`; keep future entries aligned with live content arrays where possible instead of treating the snapshot as production truth.
 
 ## Source Notes
 

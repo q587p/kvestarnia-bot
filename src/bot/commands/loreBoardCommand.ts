@@ -50,9 +50,15 @@ export async function sendRandomLoreEntryForCategory(
 ): Promise<void> {
   const entries = getLoreEntriesForCategory(categoryId);
   const entry = selectRandomLoreEntryForCategory(categoryId, rng);
+  const page = entry
+    ? presentLoreEntryPage(entry)
+    : entries.length === 0
+      ? presentLoreCategory(categoryId)
+      : presentLoreEmptyRandom();
+
   await sendLorePage(
     ctx,
-    entry ? presentLoreEntryPage(entry) : entries.length === 0 ? presentLoreCategory(categoryId) : presentLoreEmptyRandom(),
+    page,
     "edit"
   );
 }

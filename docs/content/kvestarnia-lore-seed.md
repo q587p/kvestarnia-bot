@@ -1,7 +1,7 @@
 # Kvestarnia Lore Seed
 
-> Planning/content doc only. These records are not wired into runtime in this PR.
-> Future implementation task: [0.2.x-lore-board.md](../tasks/0.2.x-lore-board.md).
+> Source/reference material for the Lore Board. The shipped `0.2.18` runtime MVP lives in [`src/content/loreBoard.ts`](../../src/content/loreBoard.ts); this seed remains a planning source for future lore expansion, not the runtime table itself.
+> Shipped implementation task: [0.2.18-lore-board-mvp.md](../tasks/0.2.18-lore-board-mvp.md).
 
 # Seed-тексти лору для Квестарні
 

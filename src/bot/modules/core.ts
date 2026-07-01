@@ -1,33 +1,38 @@
-import { type Bot,type Context } from "grammy";
+import { type Bot, type Context } from "grammy";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
-import { parseLoreBoardCallbackData,type LoreBoardCallback } from "../callbacks/loreBoardCallbackData";
-import { parseMenuCallbackData,type MenuCallback } from "../callbacks/menuCallbackData";
-import { parseNewsCallbackData,type NewsCallback } from "../callbacks/newsCallbackData";
+import {
+  parseLoreBoardCallbackData,
+  type LoreBoardCallback
+} from "../callbacks/loreBoardCallbackData";
+import { parseMenuCallbackData, type MenuCallback } from "../callbacks/menuCallbackData";
+import { parseNewsCallbackData, type NewsCallback } from "../callbacks/newsCallbackData";
 import { registerHelpCommand } from "../commands/helpCommand";
 import { sendHero } from "../commands/heroCommand";
 import { sendInventory } from "../commands/inventoryCommand";
 import {
-sendLoreCategory,
-sendLoreEntry,
-sendLoreMenu,
-sendRandomLoreEntry,
-sendRandomLoreEntryForCategory
+  sendLoreCategory,
+  sendLoreEntry,
+  sendLoreMenu,
+  sendRandomLoreEntry,
+  sendRandomLoreEntryForCategory
 } from "../commands/loreBoardCommand";
 import { registerLookCommand } from "../commands/lookCommand";
-import { registerNewsCommand,sendNewsEntry,sendNewsList } from "../commands/newsCommand";
+import { registerNewsCommand, sendNewsEntry, sendNewsList } from "../commands/newsCommand";
 import { registerOnlineCommand } from "../commands/onlineCommand";
 import { registerPlannedCommands } from "../commands/plannedCommand";
 import { registerSupportCommand } from "../commands/supportCommand";
-import {
-sendTavern
-} from "../commands/tavernCommand";
+import { sendTavern } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
 import { presentHelp } from "../presenters/helpPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
-import { buildCurrentMainMenuKeyboard,registerCallbackMainMenuLocationRefresh,registerMainMenuKeyboard } from "./mainMenu";
+import {
+  buildCurrentMainMenuKeyboard,
+  registerCallbackMainMenuLocationRefresh,
+  registerMainMenuKeyboard
+} from "./mainMenu";
 import type { BotModuleDependencies } from "./types";
 
 export function registerCoreBotModule(
