@@ -23,6 +23,7 @@ Keep this file compact. Target: under 250 lines.
 - Do not paste long repeated instructions into prompts.
 - Inspect changed/relevant files before broad scans.
 - Next-task base checks must account for squash merges: fetch `origin/main`, verify expected version/content, and compare tree diffs before stopping on a non-ancestor branch.
+- Codex prompt generation follows `docs/ai/CODEX_PROMPT_POLICY.md`: English, `$skill`-based, compact, target-branch aware, and no pasted long rules.
 - Second Codex review defaults to changed files only.
 - Final Codex responses should be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
 - After a versioned task closes, write a compact handoff and start the next task in a new Codex thread.
@@ -36,6 +37,7 @@ Repo-specific skills in `.agents/skills/`:
 - `$kvestarnia-telegram-qa` — compact/full Telegram QA plans.
 - `$kvestarnia-release-checklist` — release readiness and handoff.
 - `$kvestarnia-local-runtime` — isolated local bot scripts, Prisma/SQLite, and Windows DLL/process-lock issues.
+- `$kvestarnia-codex-prompt-writer` — writing/reviewing Codex prompts, review prompts, and delta integration prompts.
 - `$balance-review` — combat, loot, progression, and economy risks.
 - `$ukrainian-rpg-content` — Ukrainian player-facing battle/tip/location/news/content copy.
 
@@ -49,6 +51,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `README.md` — public-facing project window.
 - `docs/README.md` — docs index.
 - `docs/CODEX_WORKFLOW.md` — workflow and token-economy rules.
+- `docs/ai/CODEX_PROMPT_POLICY.md` — durable prompt-writing policy for Codex prompts and delta integration instructions.
 - `docs/tasks/README.md` — version task doc convention.
 - `docs/BRAND.md` — naming and public voice.
 - `docs/PRODUCT_BRIEF.md` — positioning and MVP scope.
