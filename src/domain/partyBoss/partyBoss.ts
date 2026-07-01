@@ -9,12 +9,15 @@ import type {
   MonsterCombatStats,
   PlayerCombatActionType
 } from "../combat/combatState";
+import { isMeaningfulCombatParticipation } from "../combat/combatParticipation";
 import { SeededRandomSource } from "../../shared/random";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
 export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
 export const PARTY_BOSS_PROOF_BOSS_KEY = "party-boss-proof-one";
 export const BIG_BARREL_BROTHER_BOSS_KEY = "big-barrel-brother";
+export const BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY = "tavern.big-barrel-brother.loss-retry.cooldown";
+export const BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS = 3 * 60_000;
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
 const BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS = 4;
 
@@ -34,6 +37,8 @@ export interface PartyBossParticipantState {
     timeoutActions: number;
     damageDealt: number;
     damageTaken: number;
+    healingDone?: number;
+    itemUses?: number;
   };
 }
 
@@ -188,7 +193,9 @@ export function createPartyBossState(input: {
           submittedActions: 0,
           timeoutActions: 0,
           damageDealt: 0,
-          damageTaken: 0
+          damageTaken: 0,
+          healingDone: 0,
+          itemUses: 0
         }
       };
     }),
@@ -248,6 +255,8 @@ export function resolvePartyBossRound(input: {
       } else {
         participant.contribution.timeoutActions += 1;
       }
+      participant.contribution.healingDone = (participant.contribution.healingDone ?? 0) + healing;
+      participant.contribution.itemUses = (participant.contribution.itemUses ?? 0) + 1;
 
       actionSummaries.push({
         characterId: participant.characterId,
@@ -383,10 +392,14 @@ export function buildBigBarrelLossXp(
 }
 
 export function isMeaningfulBigBarrelParticipant(participant: PartyBossState["participants"][number]): boolean {
-  return participant.contribution.submittedActions > 0 ||
-    participant.contribution.damageDealt > 0 ||
-    participant.contribution.damageTaken > 0 ||
-    participant.contribution.timeoutActions > 0;
+  return isMeaningfulCombatParticipation({
+    manualActions: participant.contribution.submittedActions,
+    timeoutActions: participant.contribution.timeoutActions,
+    damageDealt: participant.contribution.damageDealt,
+    damageTaken: participant.contribution.damageTaken,
+    healingDone: participant.contribution.healingDone,
+    itemUses: participant.contribution.itemUses
+  });
 }
 
 export function clonePartyBossState(state: PartyBossState): PartyBossState {

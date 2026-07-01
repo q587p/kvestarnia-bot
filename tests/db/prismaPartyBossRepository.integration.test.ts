@@ -9,6 +9,7 @@ import type {
   PartyBossActionResult,
   PartyBossSessionRecord
 } from "../../src/db/repositories/partyBossRepository";
+import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
 
 function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
   if (!("session" in result)) {
@@ -592,6 +593,19 @@ describe("PrismaPartyBossRepository integration", () => {
     ]);
     expect(character?.xp).toBeGreaterThan(0);
     expect(character?.gold).toBe(0);
+    await expect(prisma.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId: "big-loss-xp-user-character",
+          key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+        }
+      },
+      select: {
+        availableAt: true
+      }
+    })).resolves.toEqual({
+      availableAt: new Date(resolveInput().now.getTime() + 3 * 60_000)
+    });
     expect(await prisma.dailyAction.count({
       where: {
         characterId: "big-loss-xp-user-character",
@@ -599,6 +613,178 @@ describe("PrismaPartyBossRepository integration", () => {
         localDate: "2026-06-30T10:23"
       }
     })).toBe(0);
+  });
+
+  it("does not grant Big Barrel Brother attempt XP or loss event for timeout-only AFK", async () => {
+    await seedCharacter(prisma, "big-loss-afk-user", 5062n, "Автозахисна", {
+      hp: 1,
+      level: 8,
+      strength: 8,
+      dexterity: 8
+    });
+    await partyRepository.createForTelegramUser(5062n, {
+      ...partyInput("party-token-big-loss-afk"),
+      periodId: "2026-06-30T10:23",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5062n, {
+      partyInviteToken: "party-token-big-loss-afk",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: {
+        stateJson: {
+          ...started.session.state,
+          participants: started.session.state.participants.map((participant) => ({
+            ...participant,
+            status: "knocked-out" as const,
+            resources: {
+              ...participant.resources,
+              hp: 0
+            },
+            contribution: {
+              ...participant.contribution,
+              timeoutActions: 1
+            }
+          }))
+        }
+      }
+    });
+
+    const resolved = await bossRepository.resolveTimedOutByToken(
+      "party-token-big-loss-afk",
+      resolveInput(),
+      "due"
+    );
+    const latest = expectPartyBossSession(resolved);
+    const character = await prisma.character.findUnique({
+      where: { id: "big-loss-afk-user-character" },
+      select: { xp: true }
+    });
+
+    expect(latest.status).toBe("lost");
+    expect(resolved.achievementEvents).toBeUndefined();
+    expect(character?.xp).toBe(0);
+    expect(await prisma.characterCooldown.count({
+      where: {
+        characterId: "big-loss-afk-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+      }
+    })).toBe(0);
+  });
+
+  it("does not grant another Big loss attempt XP or event while loss retry cooldown is active", async () => {
+    await seedCharacter(prisma, "big-loss-active-cooldown-user", 5063n, "Охолола Не До Кінця", {
+      hp: 1,
+      level: 8,
+      strength: 8,
+      dexterity: 8
+    });
+    await partyRepository.createForTelegramUser(5063n, {
+      ...partyInput("party-token-big-loss-active-cooldown"),
+      periodId: "2026-06-30T10:23",
+      originLocationId: "barrel.big-brother"
+    });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-loss-active-cooldown",
+        characterId: "big-loss-active-cooldown-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(resolveInput().now.getTime() + 60_000)
+      }
+    });
+    const party = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-big-loss-active-cooldown" },
+      select: { id: true }
+    });
+    const state = {
+      rulesVersion: "big-barrel-brother-v1",
+      partySessionId: party.id,
+      status: "active",
+      turn: 1,
+      boss: {
+        monsterId: "big-barrel-brother",
+        name: "Старший Брат Бочки",
+        level: 8,
+        hp: 23,
+        hpMax: 23,
+        attack: 13,
+        armor: 4,
+        resist: 2,
+        dexterity: 9,
+        tags: ["boss", "barrel"]
+      },
+      participants: [{
+        characterId: "big-loss-active-cooldown-user-character",
+        name: "Охолола Не До Кінця",
+        remortCount: 0,
+        status: "knocked-out",
+        combatStats: {
+          level: 8,
+          hpMax: 1,
+          manaMax: 10,
+          raceId: "human",
+          classId: "warrior",
+          strength: 8,
+          dexterity: 8,
+          intelligence: 5,
+          charisma: 5,
+          luck: 5,
+          armor: 2,
+          resist: 1,
+          weaponDamage: 3,
+          spellPower: 2
+        },
+        resources: { hp: 0, hpMax: 1, mana: 10, manaMax: 10 },
+        contribution: {
+          submittedActions: 1,
+          timeoutActions: 0,
+          damageDealt: 0,
+          damageTaken: 1
+        }
+      }],
+      roundLog: [],
+      startedAt: now().toISOString()
+    };
+    await prisma.partySession.update({
+      where: { id: party.id },
+      data: { status: "active" }
+    });
+    await prisma.partyBossSession.create({
+      data: {
+        id: "big-loss-active-cooldown-boss",
+        partySessionId: party.id,
+        leaderCharacterId: "big-loss-active-cooldown-user-character",
+        status: "active",
+        turn: 1,
+        rulesVersion: "big-barrel-brother-v1",
+        bossKey: "big-barrel-brother",
+        stateJson: state,
+        turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+      }
+    });
+
+    const resolved = await bossRepository.resolveTimedOutByToken(
+      "party-token-big-loss-active-cooldown",
+      resolveInput(),
+      "due"
+    );
+    const character = await prisma.character.findUnique({
+      where: { id: "big-loss-active-cooldown-user-character" },
+      select: { xp: true }
+    });
+
+    expect(expectPartyBossSession(resolved).status).toBe("lost");
+    expect(resolved.achievementEvents).toBeUndefined();
+    expect(character?.xp).toBe(0);
   });
 
   it("blocks Big Barrel Brother start when a joined participant is under-level", async () => {
@@ -659,6 +845,61 @@ describe("PrismaPartyBossRepository integration", () => {
       where: {
         characterId: {
           in: ["big-underlevel-leader-user-character", "big-underlevel-joiner-user-character"]
+        }
+      }
+    })).toBe(0);
+  });
+
+  it("blocks Big Barrel Brother start when a joined participant is on loss retry cooldown", async () => {
+    await seedCharacter(prisma, "big-loss-cooldown-leader-user", 5121n, "Ватажок", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await seedCharacter(prisma, "big-loss-cooldown-joiner-user", 5122n, "Щойно Впала", {
+      hp: 80,
+      level: 8,
+      strength: 24,
+      dexterity: 24
+    });
+    await partyRepository.createForTelegramUser(5121n, {
+      ...partyInput("party-token-big-start-loss-cooldown"),
+      periodId: "2026-06-30T11:23",
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(
+      5122n,
+      "party-token-big-start-loss-cooldown",
+      joinInput()
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-start-loss-cooldown",
+        characterId: "big-loss-cooldown-joiner-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(now().getTime() + 60_000)
+      }
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5121n, {
+      partyInviteToken: "party-token-big-start-loss-cooldown",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started).toEqual({ state: "ineligible" });
+    expect(await prisma.partyBossSession.count({
+      where: {
+        partySession: {
+          inviteToken: "party-token-big-start-loss-cooldown"
+        }
+      }
+    })).toBe(0);
+    expect(await prisma.activeCombatLease.count({
+      where: {
+        characterId: {
+          in: ["big-loss-cooldown-leader-user-character", "big-loss-cooldown-joiner-user-character"]
         }
       }
     })).toBe(0);
@@ -1195,6 +1436,14 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       result_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE character_items (
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,
@@ -1317,6 +1566,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE UNIQUE INDEX party_boss_sessions_party_session_id_key ON party_boss_sessions(party_session_id)`,
     `CREATE UNIQUE INDEX party_boss_actions_session_id_turn_actor_character_id_key ON party_boss_actions(session_id, turn, actor_character_id)`,
     `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`,
+    `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`,
     `CREATE UNIQUE INDEX character_items_character_id_item_id_key ON character_items(character_id, item_id)`,
     `CREATE UNIQUE INDEX character_equipment_character_id_slot_key ON character_equipment(character_id, slot)`,
     `CREATE UNIQUE INDEX item_transfers_reservation_key_key ON item_transfers(reservation_key)`,

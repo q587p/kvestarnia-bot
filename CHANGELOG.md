@@ -15,8 +15,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Added Big party-boss state with `rulesVersion = big-barrel-brother-v1`, `bossKey = big-barrel-brother`, frozen roster/resources/period and a single shared boss target.
 - Added Big Barrel Brother victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
 - Added replay-safe Big Barrel Brother achievement hooks: victories feed the existing rewardless `barrel.raid.claimed` Barrel-result achievements, failures with applied attempt XP unlock the new rewardless `achievement.barrel.raid.first-loss`, and recalculation can prove both from stored daily-action / party-boss ledgers.
+- Added a 3-minute Big Barrel Brother loss retry cooldown through `tavern.big-barrel-brother.loss-retry.cooldown`, so a character who just lost cannot start or join another Big Barrel Brother recruiting group until the short retry gate expires.
 - Added focused Big reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
-- Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement.
+- Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement; it intentionally does not clear the Big Barrel Brother loss retry cooldown.
 - Added local `/dev_raid_win` to set an active Big Barrel Brother boss to `0 HP` and let the next normal party-boss turn resolution settle the raid as a player victory, including boss-zero plus party-zero tie states.
 - Added focused hardening coverage for Big participant eligibility, duplicate frozen-period success, remort-life drift, and production-vs-dev timeout resolution.
 - Added a narrow Big Barrel Brother focus rule: ordinary retaliations first hit the party leader, then follow the previous round's top living damage contributor, while every fourth turn keeps a broad hit against all living participants until a future explicit threat/taunt system replaces it.
@@ -54,7 +55,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Unchanged
 - No runtime round cap, round-7 final window, 13-round auto-loss, enrage timer or hidden terminal-by-turn rule ships in this slice.
-- Failure grants no Barrel success, gold or items; meaningful participants now receive a small replay-safe XP attempt reward on loss, and terminal loss cards show the exact post-fight attempt XP line.
+- Failure grants no Barrel success, gold or items; meaningful participants may receive a small replay-safe XP attempt reward on loss, but timeout-only AFK does not count as meaningful participation and the next Big Barrel Brother attempt is blocked by the 3-minute loss retry cooldown.
 - Affinity spotlight, first-win trophy, broader raid combat items/targetable manatky, targetable adds, ґільдії, matchmaking, permanent parties, market, trade and crafting remain deferred; Mini App is not a planned track for this release line.
 
 ## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP

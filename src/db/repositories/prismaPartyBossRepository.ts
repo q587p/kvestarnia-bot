@@ -1,11 +1,14 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+  BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS,
   BIG_BARREL_BROTHER_RULES_VERSION,
   buildBigBarrelLossXp,
   buildResult,
   createPartyBossState,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
+  isMeaningfulBigBarrelParticipant,
   resolvePartyBossRound,
   type PartyBossActionKey,
   type PartyBossCombatItemInput,
@@ -180,7 +183,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       const isBigBarrelParty = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
-      if (isBigBarrelParty && await hasIneligibleBigBarrelParticipant(tx, party, joined)) {
+      if (isBigBarrelParty && await hasIneligibleBigBarrelParticipant(tx, party, joined, input.now)) {
         return { state: "ineligible" };
       }
 
@@ -774,11 +777,14 @@ async function settleTerminalPartyBoss(
       const lossXp = remortMatches && isBigBarrelEligible(current.level, remortCount)
         ? buildBigBarrelLossXp(state, participant)
         : 0;
-      await settleBigParticipantAttempt(tx, current, participant, now, remortCount, lossXp);
-      if (lossXp > 0) {
-        attemptXpSnapshots.set(participant.characterId, lossXp);
+      const appliedLossXp = await settleBigParticipantAttempt(tx, current, participant, now, remortCount, lossXp, {
+        partyBossSessionId: session.id,
+        partySessionId: session.partySessionId
+      });
+      if (appliedLossXp > 0) {
+        attemptXpSnapshots.set(participant.characterId, appliedLossXp);
       }
-      if (lossXp > 0) {
+      if (appliedLossXp > 0) {
         achievementEvents.push({
           type: "barrel.raid.lost",
           characterId: participant.characterId,
@@ -954,7 +960,8 @@ async function settleTerminalPartyBoss(
 async function hasIneligibleBigBarrelParticipant(
   tx: TxClient,
   party: PartyRow,
-  joined: PartyRow["participants"]
+  joined: PartyRow["participants"],
+  now: Date
 ): Promise<boolean> {
   const characterIds = joined.map((participant) => participant.characterId);
   if (!party.periodId || characterIds.length === 0) {
@@ -968,7 +975,7 @@ async function hasIneligibleBigBarrelParticipant(
     return true;
   }
 
-  const [activeLease, existingSuccess] = await Promise.all([
+  const [activeLease, existingSuccess, activeLossCooldown] = await Promise.all([
     tx.activeCombatLease.findFirst({
       where: {
         characterId: {
@@ -990,10 +997,24 @@ async function hasIneligibleBigBarrelParticipant(
       select: {
         id: true
       }
+    }),
+    tx.characterCooldown.findFirst({
+      where: {
+        characterId: {
+          in: characterIds
+        },
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: {
+          gt: now
+        }
+      },
+      select: {
+        id: true
+      }
     })
   ]);
 
-  return Boolean(activeLease || existingSuccess);
+  return Boolean(activeLease || existingSuccess || activeLossCooldown);
 }
 
 async function settleBigParticipantResources(
@@ -1020,9 +1041,31 @@ async function settleBigParticipantAttempt(
   participant: PartyBossState["participants"][number],
   now: Date,
   remortCount: number,
-  xp: number
-): Promise<void> {
+  xp: number,
+  source: { partyBossSessionId: string; partySessionId: string }
+): Promise<number> {
   const safeXp = Math.max(0, Math.floor(xp));
+  if (safeXp <= 0) {
+    await settleBigParticipantResources(tx, participant, now);
+    return 0;
+  }
+
+  const existingCooldown = await tx.characterCooldown.findUnique({
+    where: {
+      characterId_key: {
+        characterId: participant.characterId,
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+      }
+    },
+    select: {
+      availableAt: true
+    }
+  });
+  if (existingCooldown && existingCooldown.availableAt > now) {
+    await settleBigParticipantResources(tx, participant, now);
+    return 0;
+  }
+
   const oldLevel = Math.max(current.level, getLevelForXp(current.xp, { remortCount }));
   const nextXp = current.xp + safeXp;
   const newLevel = Math.max(current.level, getLevelForXp(nextXp, { remortCount }));
@@ -1040,22 +1083,51 @@ async function settleBigParticipantAttempt(
       manaRegenAt: now
     }
   });
+  await tx.characterCooldown.upsert({
+    where: {
+      characterId_key: {
+        characterId: participant.characterId,
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+      }
+    },
+    create: {
+      characterId: participant.characterId,
+      key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+      availableAt: new Date(now.getTime() + BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS),
+      resultJson: {
+        kind: "big-barrel-brother-loss-retry-cooldown",
+        rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
+        partyBossSessionId: source.partyBossSessionId,
+        partySessionId: source.partySessionId,
+        awardedXp: safeXp
+      }
+    },
+    update: {
+      availableAt: new Date(now.getTime() + BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS),
+      resultJson: {
+        kind: "big-barrel-brother-loss-retry-cooldown",
+        rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
+        partyBossSessionId: source.partyBossSessionId,
+        partySessionId: source.partySessionId,
+        awardedXp: safeXp
+      }
+    }
+  });
 
   if (newLevel > oldLevel) {
     await recordLevelMilestones(tx, participant.characterId, oldLevel, newLevel, undefined, {
       remortCount
     });
   }
+
+  return safeXp;
 }
 
 function buildBigBarrelReward(
   state: PartyBossState,
   participant: PartyBossState["participants"][number]
 ): { meaningful: boolean; tier: "none" | "partial" | "full"; xp: number; gold: number } {
-  const meaningful =
-    participant.contribution.submittedActions > 0 ||
-    participant.contribution.damageDealt > 0 ||
-    participant.contribution.damageTaken > 0;
+  const meaningful = isMeaningfulBigBarrelParticipant(participant);
   const availableRounds = Math.max(1, state.roundLog.length);
   const full =
     meaningful &&

@@ -74,6 +74,22 @@ describe("Big Barrel Brother invite routing", () => {
     });
   });
 
+  it("shows a Big loss cooldown wait message from /raid without creating invite controls", async () => {
+    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+      character: { level: 8, remortCount: 0 },
+      createResult: { state: "ineligible" }
+    });
+    const calls = await captureMessageApiCalls("/raid", services, {
+      botUsername: BOT_USERNAME
+    });
+
+    expect(createForTelegramUser).toHaveBeenCalledOnce();
+    expect(calls.some((call) => String(call.payload.text).includes("короткий перепочинок"))).toBe(true);
+    expect(calls.some(hasForwardableInviteUrl)).toBe(false);
+    expect(calls.some(hasShareInviteButton)).toBe(false);
+  });
+
+
   it("threads botUsername into explicit Barrel raid invite controls for a remorted level 3 character", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
@@ -257,6 +273,7 @@ function servicesForBigBarrelRoute(options: {
   character?: Partial<CharacterSummary>;
   partyCharacter?: Partial<PartySessionRecord["leader"]>;
   bigEnabled?: boolean;
+  createResult?: { state: "ineligible" };
 } = {}): {
   services: BotServices;
   session: PartySessionRecord;
@@ -265,7 +282,7 @@ function servicesForBigBarrelRoute(options: {
 } {
   const character = makeCharacterSummary(options.character);
   const session = makePartySession(options.partyCharacter);
-  const createForTelegramUser = vi.fn().mockResolvedValue({
+  const createForTelegramUser = vi.fn().mockResolvedValue(options.createResult ?? {
     state: "created",
     session
   });

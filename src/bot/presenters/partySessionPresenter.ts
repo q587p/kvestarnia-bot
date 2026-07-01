@@ -47,6 +47,10 @@ export function presentPartyCreate(
     });
   }
 
+  if (result.state === "ineligible") {
+    return "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+  }
+
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
     notice: result.state === "created"

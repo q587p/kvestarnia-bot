@@ -104,7 +104,8 @@ export function presentDevRaidResetResult(result: TavernDevRaidResetResult): str
 
     return [
       "Рейдовий таймер Бочки скинуто для локального тесту.",
-      `Очищено: ${cleared.join(", ")}.`
+      `Очищено: ${cleared.join(", ")}.`,
+      "Кулдаун після програшу Старшому Брату Бочки не чіпався."
     ].join("\n");
   }
 

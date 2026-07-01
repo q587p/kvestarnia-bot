@@ -14,7 +14,7 @@ import type {
   PartyParticipantStatus,
   PartyJoinSource
 } from "./partySessionRepository";
-import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
+import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY, isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import { FRIDAY_BARREL_RAID_KEY } from "../../services/tavernRaidService";
 
 type TxClient = Prisma.TransactionClient;
@@ -69,6 +69,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (!character) {
         return { state: "no-character" } satisfies PartyCreateRepositoryResult;
+      }
+
+      if (
+        input.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
+        await hasActiveBigBarrelLossCooldown(tx, character.id, input.now)
+      ) {
+        return { state: "ineligible" } satisfies PartyCreateRepositoryResult;
       }
 
       const liveLeader = await findLiveLeaderSession(tx, character.id);
@@ -178,7 +185,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
-      if (await isIneligibleBigBarrelJoin(tx, session, character)) {
+      if (await isIneligibleBigBarrelJoin(tx, session, character, input.now)) {
         return { state: "ineligible", session: mapSession(session) };
       }
 
@@ -784,7 +791,8 @@ function isPersonalBigBarrelRecruitingSession(session: PartySessionRow, characte
 async function isIneligibleBigBarrelJoin(
   tx: TxClient,
   session: PartySessionRow,
-  character: CharacterRow
+  character: CharacterRow,
+  now: Date
 ): Promise<boolean> {
   if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
     return false;
@@ -794,7 +802,7 @@ async function isIneligibleBigBarrelJoin(
     return true;
   }
 
-  const [activeLease, existingSuccess] = await Promise.all([
+  const [activeLease, existingSuccess, activeLossCooldown] = await Promise.all([
     tx.activeCombatLease.findUnique({
       where: {
         characterId: character.id
@@ -816,10 +824,31 @@ async function isIneligibleBigBarrelJoin(
             id: true
           }
         })
-      : Promise.resolve(null)
+      : Promise.resolve(null),
+    hasActiveBigBarrelLossCooldown(tx, character.id, now)
   ]);
 
-  return Boolean(activeLease || existingSuccess);
+  return Boolean(activeLease || existingSuccess || activeLossCooldown);
+}
+
+async function hasActiveBigBarrelLossCooldown(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<boolean> {
+  const cooldown = await tx.characterCooldown.findUnique({
+    where: {
+      characterId_key: {
+        characterId,
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+      }
+    },
+    select: {
+      availableAt: true
+    }
+  });
+
+  return Boolean(cooldown && cooldown.availableAt > now);
 }
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {

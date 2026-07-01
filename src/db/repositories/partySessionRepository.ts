@@ -65,6 +65,7 @@ export interface JoinPartySessionInput {
 
 export type PartyCreateRepositoryResult =
   | { state: "no-character" }
+  | { state: "ineligible" }
   | { state: "live"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | { state: "created"; session: PartySessionRecord };

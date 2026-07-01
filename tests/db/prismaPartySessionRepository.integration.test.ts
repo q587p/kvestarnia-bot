@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
+import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -193,6 +194,72 @@ describe("PrismaPartySessionRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(2502n, "party-token-big-l8", joinInput());
 
     expect(joined.state).toBe("joined");
+  });
+
+  it("blocks creating another Big Barrel recruiting party during active loss retry cooldown", async () => {
+    await seedCharacter(prisma, "big-create-cooldown-user", 2551n, "Недавно Програла", { level: 8 });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-create-cooldown",
+        characterId: "big-create-cooldown-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(now().getTime() + 60_000)
+      }
+    });
+
+    const blocked = await repository.createForTelegramUser(
+      2551n,
+      bigBarrelInput("party-token-big-create-cooldown")
+    );
+
+    expect(blocked.state).toBe("ineligible");
+    expect(await prisma.partySession.count({
+      where: {
+        inviteToken: "party-token-big-create-cooldown"
+      }
+    })).toBe(0);
+  });
+
+  it("allows Big Barrel recruiting again after loss retry cooldown expires", async () => {
+    await seedCharacter(prisma, "big-create-cooldown-expired-user", 2552n, "Вже Перепочила", { level: 8 });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-create-cooldown-expired",
+        characterId: "big-create-cooldown-expired-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(now().getTime() - 1)
+      }
+    });
+
+    const created = await repository.createForTelegramUser(
+      2552n,
+      bigBarrelInput("party-token-big-create-cooldown-expired")
+    );
+
+    expect(created.state).toBe("created");
+  });
+
+  it("rejects Big Barrel recruiting joins during active loss retry cooldown without mutation", async () => {
+    await seedCharacter(prisma, "big-leader-loss-cooldown-user", 2553n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-loss-cooldown-user", 2554n, "Щойно Впала", { level: 8 });
+    await repository.createForTelegramUser(2553n, bigBarrelInput("party-token-big-join-loss-cooldown"));
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-join-loss-cooldown",
+        characterId: "big-joiner-loss-cooldown-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(now().getTime() + 60_000)
+      }
+    });
+
+    const joined = await repository.joinByTokenForTelegramUser(
+      2554n,
+      "party-token-big-join-loss-cooldown",
+      joinInput()
+    );
+
+    expect(joined.state).toBe("ineligible");
+    await expectNoMembership(prisma, "party-token-big-join-loss-cooldown", 2554n);
   });
 
   it("rejects already-completed frozen-period Big Barrel recruiting joins without mutation", async () => {
@@ -565,6 +632,14 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       result_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE party_sessions (
       id TEXT PRIMARY KEY,
       invite_token TEXT NOT NULL,
@@ -603,6 +678,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE INDEX active_combat_leases_kind_reference_id_idx ON active_combat_leases(kind, reference_id)`,
     `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`,
     `CREATE INDEX daily_actions_key_idx ON daily_actions(key)`,
+    `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`,
     `CREATE UNIQUE INDEX party_participants_active_membership_key_key ON party_participants(active_membership_key)`,
     `CREATE UNIQUE INDEX party_participants_session_id_character_id_key ON party_participants(session_id, character_id)`,
     `CREATE INDEX party_participants_character_id_status_idx ON party_participants(character_id, status)`,
