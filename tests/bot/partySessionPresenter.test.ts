@@ -224,7 +224,7 @@ describe("party session presenter", () => {
     }), { viewerCharacterId: "leader" });
 
     expect(text).toContain("Стан: Старший Брат Бочки пережив рейд");
-    expect(text).toContain("💤 Ви програли. Старший Брат Бочки вистояв із 104/216 HP.");
+    expect(text).toContain("💤 Ватага програла. Старший Брат Бочки вистояв із 104/216 HP.");
     expect(text).toContain("Пива цього разу не виставити");
     expect(text).toContain("🎒 За спробу:\n+10 XP");
   });

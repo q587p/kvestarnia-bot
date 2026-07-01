@@ -712,7 +712,7 @@ function presentBigBarrelLossResult(
       : `+${uniqueXpValues[0]}-${uniqueXpValues.at(-1)} XP залежно від участі`;
 
   return [
-    `💤 Ви програли. Старший Брат Бочки вистояв із ${state.boss.hp}/${state.boss.hpMax} HP.`,
+    `💤 Ватага програла. Старший Брат Бочки вистояв із ${state.boss.hp}/${state.boss.hpMax} HP.`,
     "Пива цього разу не виставити: Бочка поставила кухлі під нагляд.",
     "",
     "🎒 За спробу:",
