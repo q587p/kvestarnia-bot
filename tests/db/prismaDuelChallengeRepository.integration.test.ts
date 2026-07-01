@@ -33,7 +33,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("enforces player-action and timeout deadline predicates in CAS updates", async () => {

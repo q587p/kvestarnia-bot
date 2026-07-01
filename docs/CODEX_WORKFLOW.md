@@ -82,6 +82,7 @@ Prompt: `docs/ai/prompts/local-runtime-troubleshooting.md`.
 ## Second Codex workflow
 
 Use a second Codex only when it can help without competing with the main implementation.
+If a user asks to review a specific PR number, verify the live PR `base` and `head` before reading the diff. Do not trust the current checkout alone; if it does not match the PR head, inspect the fetched PR head snapshot or stop and report the mismatch.
 
 Default prompt:
 
@@ -149,6 +150,7 @@ Check:
 
 Defaults:
 
+- When the user references a specific PR, confirm its live `base` and `head` first. Never assume the current branch is that PR.
 - Target `main` unless the user explicitly asks for a stacked PR or another base.
 - Ready/merge-ready PRs target `main` by default and must be mergeable against current `origin/main`.
 - If a branch started from another feature branch, rebase or merge it onto current `origin/main` and resolve conflicts before calling it complete.
