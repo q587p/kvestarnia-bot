@@ -270,6 +270,14 @@ describe("party boss reducer", () => {
       "leader",
       "striker"
     ]);
+    expect(fourth.round.participantsAfter).toEqual(fourth.state.participants.map((entry) => ({
+      characterId: entry.characterId,
+      status: entry.status,
+      hp: entry.resources.hp,
+      hpMax: entry.resources.hpMax,
+      mana: entry.resources.mana,
+      manaMax: entry.resources.manaMax
+    })));
   });
 
   it("stays active past the old five-turn proof cap while the boss and a participant are alive", () => {

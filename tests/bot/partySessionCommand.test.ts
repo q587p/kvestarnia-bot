@@ -321,7 +321,10 @@ describe("handlePartySessionCallback", () => {
 
     expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
     expect(messageText(editMessageText)).toContain("📜 <b>Журнал тестового бою</b>");
-    expect(messageText(editMessageText)).toContain("Початок: хід <b>1</b> · 1/1");
+    expect(messageText(editMessageText)).toContain("Хід <b>1</b> · запис 1/1");
+    expect(messageText(editMessageText)).toContain("👹 Контрольний Бос після ходу: 58/65");
+    expect(messageText(editMessageText)).toContain("▪️ Тестова Лідерка після ходу: HP 21/25 · мана 10/10 ← 🎯 ціль боса");
+    expect(messageText(editMessageText)).toContain("<b>Останні дії:</b>");
     expect(messageText(editMessageText)).toContain("Атака Тестова Лідерка влучає на 7 шкоди.");
     expect(messageText(editMessageText)).toContain("Друга Учасниця застосовує 🪨 <i>Низький центр ваги</i> спрацьовує без прямої шкоди.");
   });

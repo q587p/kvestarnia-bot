@@ -41,7 +41,17 @@ describe("party session presenter", () => {
   });
 
   it("renders Big Barrel Brother journal hits with player names", () => {
+    const leader = participant("leader", "Голова");
+    leader.resources.cooldowns = {
+      abilities: {
+        "ability.race.step-through-the-border": {
+          id: "ability.race.step-through-the-border",
+          remainingTurns: 2
+        }
+      }
+    };
     const text = presentPartyBossJournal(makeBigBossSession({
+      participants: [leader, participant("striker", "Шкодійка")],
       roundLog: [{
         turn: 4,
         actions: [
@@ -68,14 +78,25 @@ describe("party session presenter", () => {
           { characterId: "leader", damage: 5, hpAfter: 55 },
           { characterId: "striker", damage: 7, hpAfter: 53 }
         ],
+        participantsAfter: [
+          { characterId: "leader", status: "active", hp: 55, hpMax: 60, mana: 19, manaMax: 20 },
+          { characterId: "striker", status: "active", hp: 53, hpMax: 60, mana: 20, manaMax: 20 }
+        ],
         statusAfter: "active"
       }]
     }));
 
     expect(text).toContain("📜 <b>Журнал бою</b>");
-    expect(text).toContain("Початок: хід <b>4</b> · 1/1");
+    expect(text).toContain("Хід <b>4</b> · запис 1/1");
+    expect(text).toContain("👹 Старший Брат Бочки після ходу: 42/100");
+    expect(text).toContain("▪️ Голова після ходу: HP 55/60 · мана 19/20 ← 🎯 ціль боса");
+    expect(text).toContain("▪️ Шкодійка після ходу: HP 53/60 · мана 20/20 ← 🎯 ціль боса");
+    expect(text).toContain("<b>Останні дії:</b>");
     expect(text).toContain("Старший Брат Бочки застосував 🛢️ <i>Бочковий гуркіт</i>: Голова отримує 5 шкоди; Шкодійка отримує 7 шкоди.");
+    expect(text).toContain("<b>Кулдауни та ефекти:</b>");
+    expect(text).toContain("Голова: 🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 2 ходи.");
     expect(text).toContain("🎯 На наступний хід увага боса переходить на Шкодійка.");
+    expect(text).not.toContain("Бос отримав:");
   });
 
   it("names the Big Barrel Brother broad attack in the active battle card", () => {

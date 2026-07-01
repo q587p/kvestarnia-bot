@@ -21,6 +21,8 @@ import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
+import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
+import { presentBattleJournalPage } from "./battleJournalPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -353,7 +355,13 @@ export function presentPartyBoss(
     lines.push(escapeHtml(options.notice), "");
   }
 
-  lines.push(`👹 ${escapeHtml(bossName)}: HP ${state.boss.hp}/${state.boss.hpMax}`);
+  lines.push(presentBattleCombatantResourceLine({
+    icon: "👹",
+    name: bossName,
+    hp: state.boss.hp,
+    hpMax: state.boss.hpMax,
+    showHpLabel: true
+  }));
   lines.push(...presentParticipantResourceRows(state.participants, {
     viewerCharacterId: viewer?.characterId ?? null,
     targetedCharacterIds
@@ -402,54 +410,117 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
   const participantsByCharacterId = new Map(session.state.participants.map((participant) => [participant.characterId, participant]));
   const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
-  const lines = [
-    isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
-    "",
-    getBossStatusLine(session)
-  ];
 
   if (rounds.length === 0) {
-    lines.push("", "Журнал поки порожній. Корчмар уже відкрив чорнильницю, але хід ще не розписався.");
-    return lines.join("\n");
+    return presentBattleJournalPage({
+      title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
+      headerLines: ["", getBossStatusLine(session)],
+      emptyText: "Журнал поки порожній. Корчмар уже відкрив чорнильницю, але хід ще не розписався."
+    });
   }
 
   const round = rounds[page]!;
-  const pageMarker = page === 0
-    ? "Початок"
-    : page === rounds.length - 1 && round.statusAfter !== "active"
-      ? "Кінець"
-      : "Запис";
-  lines.push("", `${pageMarker}: хід <b>${round.turn}</b> · ${page + 1}/${rounds.length}`);
-
-  for (const action of round.actions) {
-    lines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
-  }
-
-  const retaliationDamage = round.bossRetaliations.reduce((sum, retaliation) => sum + retaliation.damage, 0);
-  lines.push(`Бос отримав: ${round.bossDamage}. HP після ходу: ${round.bossHpAfter}/${session.state.boss.hpMax}.`);
-  if (round.bossRetaliations.length > 0) {
-    if (isBigPartyBossSession(session) && round.bossRetaliations.length > 1) {
-      lines.push(presentBigBarrelAoeRetaliationLine(round.bossRetaliations, names, "застосував"));
-    } else {
-      lines.push(`🎯 Ціль боса: ${presentRetaliationNames(round.bossRetaliations.map((retaliation) => retaliation.characterId), names)}.`);
-      lines.push(`Бос огризнувся: ${retaliationDamage} шкоди разом.`);
+  const actionLines: string[] = [];
+  if (round.actions.length === 0) {
+    actionLines.push("Журнал не знайшов записаних дій учасників.");
+  } else {
+    for (const action of round.actions) {
+      actionLines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
     }
   }
-  const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
-  if (nextFocus) {
-    lines.push(nextFocus);
-  }
-  if (round.statusAfter !== "active") {
-    lines.push(`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`);
+
+  if (round.bossRetaliations.length > 0) {
+    if (isBigPartyBossSession(session) && round.bossRetaliations.length > 1) {
+      actionLines.push(presentBigBarrelAoeRetaliationLine(round.bossRetaliations, names, "застосував"));
+    } else {
+      for (const retaliation of round.bossRetaliations) {
+        const name = names.get(retaliation.characterId) ?? "учасник";
+        actionLines.push(`${escapeHtml(session.state.boss.name ?? "Бос")} атакує ${escapeHtml(name)} у відповідь і завдає ${retaliation.damage} шкоди.`);
+      }
+    }
+  } else if (round.statusAfter === "active") {
+    actionLines.push(`${escapeHtml(session.state.boss.name ?? "Бос")} не завдав шкоди цього ходу.`);
   }
 
-  return lines.join("\n");
+  return presentBattleJournalPage({
+    title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
+    headerLines: ["", getBossStatusLine(session)],
+    turn: round.turn,
+    page,
+    totalPages: rounds.length,
+    opponentRows: [
+      presentBattleCombatantResourceLine({
+        icon: "👹",
+        name: session.state.boss.name ?? "Бос",
+        hp: round.bossHpAfter,
+        hpMax: session.state.boss.hpMax,
+        afterTurn: true
+      })
+    ],
+    actorRows: presentJournalParticipantResourceRows(round, session.state.participants),
+    actionLines,
+    noticeLines: presentPartyBossJournalNotices(session, round)
+  });
 }
 
-function presentRetaliationNames(characterIds: string[], names: Map<string, string>): string {
-  return characterIds
-    .map((characterId) => escapeHtml(names.get(characterId) ?? "учасник"))
-    .join(", ");
+function presentJournalParticipantResourceRows(
+  round: PartyBossSessionRecord["state"]["roundLog"][number],
+  participants: PartyBossSessionRecord["state"]["participants"]
+): string[] {
+  const hitHpAfterByCharacterId = new Map(round.bossRetaliations.map((retaliation) => [
+    retaliation.characterId,
+    retaliation.hpAfter
+  ]));
+  const targetedCharacterIds = new Set(round.bossRetaliations.map((retaliation) => retaliation.characterId));
+  const resourcesByCharacterId = new Map(round.participantsAfter?.map((participant) => [
+    participant.characterId,
+    participant
+  ]) ?? []);
+
+  return participants.map((participant) => {
+    const resources = resourcesByCharacterId.get(participant.characterId);
+    const hp = resources?.hp ?? hitHpAfterByCharacterId.get(participant.characterId) ?? participant.resources.hp;
+    const hpMax = resources?.hpMax ?? participant.resources.hpMax;
+    const mana = resources?.mana ?? participant.resources.mana;
+    const manaMax = resources?.manaMax ?? participant.resources.manaMax;
+    const status = resources?.status ?? participant.status;
+    return presentBattleCombatantResourceLine({
+      icon: "▪️",
+      name: participant.name,
+      hp,
+      hpMax,
+      mana,
+      manaMax,
+      afterTurn: true,
+      showHpLabel: true,
+      knockedOut: hp <= 0 || status === "knocked-out",
+      targetLabel: targetedCharacterIds.has(participant.characterId) ? "🎯 ціль боса" : undefined
+    });
+  });
+}
+
+function presentPartyBossJournalNotices(
+  session: PartyBossSessionRecord,
+  round: PartyBossSessionRecord["state"]["roundLog"][number]
+): string[] {
+  const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
+  const notices = [
+    ...presentJournalCooldownLines(session.state.participants),
+    ...(nextFocus ? [nextFocus] : []),
+    ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
+  ];
+
+  return Array.from(new Set(notices));
+}
+
+function presentJournalCooldownLines(
+  participants: PartyBossSessionRecord["state"]["participants"]
+): string[] {
+  return participants.flatMap((participant) =>
+    presentPartyBossCooldownLines(participant).map((line) =>
+      `${escapeHtml(participant.name)}: ${line}`
+    )
+  );
 }
 
 function presentParticipantResourceRows(
@@ -467,13 +538,21 @@ function presentParticipantResourceRows(
   return ordered.map((participant) => {
     const isViewer = participant.characterId === options.viewerCharacterId;
     const icon = isViewer ? "❤️" : participant.status === "knocked-out" ? "▫️" : "▪️";
-    const name = isViewer ? "Ви" : escapeHtml(participant.name);
-    const target = options.targetedCharacterIds.has(participant.characterId) && participant.status === "active"
-      ? " ← 🎯 ціль боса"
-      : "";
-    const knocked = participant.status === "knocked-out" ? " · вибито" : "";
-
-    return `${icon} ${name}: HP ${participant.resources.hp}/${participant.resources.hpMax} · мана ${participant.resources.mana}/${participant.resources.manaMax}${knocked}${target}`;
+    const name = isViewer ? "Ви" : participant.name;
+    return presentBattleCombatantResourceLine({
+      icon,
+      name,
+      hp: participant.resources.hp,
+      hpMax: participant.resources.hpMax,
+      mana: participant.resources.mana,
+      manaMax: participant.resources.manaMax,
+      showHpLabel: true,
+      knockedOut: participant.status === "knocked-out",
+      targetLabel: options.targetedCharacterIds.has(participant.characterId) && participant.status === "active"
+        ? "🎯 ціль боса"
+        : undefined,
+      escapeName: true
+    });
   });
 }
 
