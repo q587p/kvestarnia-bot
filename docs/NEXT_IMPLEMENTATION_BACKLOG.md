@@ -34,6 +34,24 @@ Deferred side tracks remain useful but should not steal the Phase 2 spine: Shyno
 
 Each slice below should be independently testable. If a PR starts turning into several systems at once, split it.
 
+## Later — Щільний бинт і Польова аптечка
+
+Future task doc: [0.2.x-dense-bandage-field-kit.md](tasks/0.2.x-dense-bandage-field-kit.md).
+
+**Objective**
+Додати два craftable медичні предмети з наявного `Бинта відповідальної паніки`: `Щільний бинт` за `8` звичайних бинтів і `Польову аптечку` за `13` звичайних бинтів.
+
+**Runtime shape**
+
+- Крафт із картки звичайного бинта, тільки поза боєм.
+- Backend повторно перевіряє кількість бинтів, бойовий стан, stale callbacks і double clicks.
+- `Щільний бинт` лікує до `+42 HP`, не вище max HP, а в бою після успішного використання має cooldown на `5` власних ходів у цьому конкретному бою.
+- `Польова аптечка` піднімає HP до `ceil(maxHp * 93 / 100)`, а в бою може успішно спрацювати `1` раз за бій для конкретного персонажа.
+- No-op використання при достатньому HP не витрачає предмет і не ставить cooldown/limit.
+
+**Scope guard**
+Не реалізовувати в Lore Board PR як runtime: без схем, міграцій, широкого crafting system, крамниць, економічного ребалансу, досягнень, нагород або зміни поточного ефекту звичайного бинта.
+
 ## Later — Tavern Social Games
 
 Future source doc: [TAVERN_SOCIAL_GAMES.md](TAVERN_SOCIAL_GAMES.md).
