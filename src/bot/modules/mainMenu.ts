@@ -71,7 +71,15 @@ sendPersistentFightPassagePreview
 import { buildQuestHubCommandOptions } from "./questHubOptions";
 import { markScenePresence } from "./scenePresence";
 
-export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void {
+type MainMenuRouteOptions = {
+  botUsername?: string | undefined;
+};
+
+export function registerMainMenuKeyboard(
+  bot: Bot,
+  services: BotServices,
+  options: MainMenuRouteOptions = {}
+): void {
   bot.hears(mainMenuButtons.hero, async (ctx) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
     if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
@@ -84,7 +92,7 @@ export function registerMainMenuKeyboard(bot: Bot, services: BotServices): void 
   });
 
   bot.hears([...mainMenuLocationButtonTexts], async (ctx) => {
-    await sendCurrentLocation(ctx, services);
+    await sendCurrentLocation(ctx, services, options);
   });
 
   bot.hears([mainMenuButtons.quest, "🗺️ Квест"], async (ctx) => {
@@ -256,7 +264,8 @@ export async function refreshMainMenuLocationKeyboard(
 export async function sendPlaceMovementNotice(
   ctx: Context,
   presenceService: PresenceService,
-  targetLocationId: string
+  targetLocationId: string,
+  options: { text?: string | undefined } = {}
 ): Promise<void> {
   const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
   const normalizedTargetLocationId = normalizePresenceLocationId(targetLocationId);
@@ -269,7 +278,7 @@ export async function sendPlaceMovementNotice(
     return;
   }
 
-  await ctx.reply(getLocationMovementNoticeText(normalizedTargetLocationId, previousLocationId), {
+  await ctx.reply(options.text ?? getLocationMovementNoticeText(normalizedTargetLocationId, previousLocationId), {
     reply_markup: buildMainMenuKeyboard({
       locationId: normalizedTargetLocationId
     })
@@ -339,7 +348,11 @@ function isKorchmaDeepLowerLocationId(locationId: string | null | undefined): bo
   );
 }
 
-export async function sendCurrentLocation(ctx: Context, services: BotServices): Promise<void> {
+export async function sendCurrentLocation(
+  ctx: Context,
+  services: BotServices,
+  options: MainMenuRouteOptions = {}
+): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
   const requestedLocationId = getMainMenuLocationButtonPresenceId(ctx.message?.text?.trim());
 
@@ -375,7 +388,7 @@ export async function sendCurrentLocation(ctx: Context, services: BotServices): 
     return;
   }
 
-  await sendCurrentPresenceLocation(ctx, locationId, services);
+  await sendCurrentPresenceLocation(ctx, locationId, services, options);
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
@@ -431,7 +444,8 @@ export async function sendDailyKorchmaRoundSceneAtLocation(
 async function sendCurrentPresenceLocation(
   ctx: Context,
   locationId: string,
-  services: BotServices
+  services: BotServices,
+  options: MainMenuRouteOptions = {}
 ): Promise<void> {
   if (locationId === PRESENCE_LOCATION_KORCHMA_FRONT) {
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
@@ -469,7 +483,11 @@ async function sendCurrentPresenceLocation(
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_BARREL) {
-    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
+    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
+      botUsername: options.botUsername,
+      partyBoss: services.partyBoss,
+      partySessions: services.partySessions
+    });
     return;
   }
 

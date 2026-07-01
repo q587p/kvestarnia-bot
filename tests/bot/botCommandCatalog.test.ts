@@ -59,6 +59,8 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_adventure_reset")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_raid_stop")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_raid_reset")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_raid_win")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_level")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_xp")).toBe(false);
@@ -80,6 +82,8 @@ describe("bot command catalog", () => {
       "dev_adventure_reset",
       "dev_reset_korchma_round",
       "dev_raid_stop",
+      "dev_raid_reset",
+      "dev_raid_win",
       "dev_reset_monster_rest"
     ]) {
       expect(getHelpCommandEntries(false).some((entry) => entry.command === command)).toBe(false);
@@ -101,6 +105,8 @@ describe("bot command catalog", () => {
     expect(resetOnly.some((entry) => entry.command === "dev_adventure_reset")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_raid_stop")).toBe(true);
+    expect(resetOnly.some((entry) => entry.command === "dev_raid_reset")).toBe(true);
+    expect(resetOnly.some((entry) => entry.command === "dev_raid_win")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_add_level")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_help")).toBe(false);
@@ -109,6 +115,8 @@ describe("bot command catalog", () => {
     expect(grantsOnly.some((entry) => entry.command === "dev_adventure_reset")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_raid_stop")).toBe(false);
+    expect(grantsOnly.some((entry) => entry.command === "dev_raid_reset")).toBe(false);
+    expect(grantsOnly.some((entry) => entry.command === "dev_raid_win")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_add_level")).toBe(true);
     expect(partyOnly.some((entry) => entry.command === "dev_party")).toBe(true);

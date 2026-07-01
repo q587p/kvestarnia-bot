@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPartyBossKeyboard,
+  buildPartyBossJournalKeyboard,
+  buildPartySessionInviteShareKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../../src/bot/keyboards/partySessionKeyboard";
@@ -31,18 +33,50 @@ describe("party session keyboard", () => {
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
       includeDevTimeout: true
     }))).toEqual([
-      "⚔️ Вдарити",
-      "🛡️ Захист",
-      "✨ Вміння",
-      "🧬 Раса",
+      "🗡️ Вдарити",
+      "🛡 Захищатися",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
+      "🩹 Бинт",
       "⏱️ Dev: добити хід",
-      "📜 Журнал",
       "🔎 Оновити"
     ]);
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, null))).toEqual([
-      "📜 Журнал",
       "🔎 Оновити"
     ]);
+  });
+
+  it("shows the Big Barrel Brother raid start without dev proof helpers", () => {
+    const session = {
+      ...makeSession(),
+      originLocationId: "barrel.big-brother"
+    };
+
+    const keyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyABC12",
+      includeBossStart: true,
+      includeDevExpire: false
+    });
+
+    expect(inlineButtonTexts(keyboard)).toEqual([
+      "🚪 Вийти",
+      "🧹 Скасувати збір",
+      "🛢️ Почати рейд",
+      "📣 Запрошення на рейд",
+      "🔗 Запросити в рейд",
+      "🔎 Оновити"
+    ]);
+    expect(keyboardText(keyboard)).toContain("https://t.me/share/url");
+    expect(keyboardText(keyboard)).toContain("party_partyABC12");
+    expect(keyboardText(keyboard)).toContain("v1:party:sh:partyABC12");
+  });
+
+  it("rotates Big Barrel Brother invite-card text", () => {
+    const keyboard = buildPartySessionInviteShareKeyboard("partyABC12", 12);
+
+    expect(inlineButtonTexts(keyboard)).toEqual(["🎲 Інший текст"]);
+    expect(keyboardText(keyboard)).toContain("v1:party:in:partyABC12:c");
   });
 
   it("hides party boss action buttons from knocked-out participants", () => {
@@ -55,8 +89,44 @@ describe("party session keyboard", () => {
       includeDevTimeout: true
     }))).toEqual([
       "⏱️ Dev: добити хід",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("hides unavailable concrete party boss skills like ordinary combat", () => {
+    const session = makeBossSession({ classId: "class.mage", mana: 0 });
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
+      "🗡️ Вдарити",
+      "🛡 Захищатися",
+      "🧰 Практична імпровізація",
+      "🩹 Бинт",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("shows the party boss journal only after the battle ends", () => {
+    const session = makeBossSession({}, { status: "won" });
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
       "📜 Журнал",
       "🔎 Оновити"
+    ]);
+  });
+
+  it("paginates terminal party boss journal entries", () => {
+    const session = makeBossSession({}, {
+      status: "won",
+      roundLogLength: 3
+    });
+
+    expect(inlineButtonTexts(buildPartyBossJournalKeyboard(session, 1))).toEqual([
+      "⏮️ Початок",
+      "◀️ Назад",
+      "2/3",
+      "Далі ▶️",
+      "Кінець ⏭️",
+      "↩️ До результатів"
     ]);
   });
 
@@ -95,7 +165,8 @@ function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: stri
 }
 
 function makeBossSession(
-  participantOverrides: { status?: "active" | "knocked-out"; hp?: number } = {}
+  participantOverrides: { status?: "active" | "knocked-out"; hp?: number; mana?: number; classId?: string } = {},
+  sessionOverrides: { status?: PartyBossSessionRecord["status"]; roundLogLength?: number } = {}
 ): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
   const participant = makeCharacter("character-1", 42n);
@@ -105,7 +176,7 @@ function makeBossSession(
     partySessionId: "party-1",
     partyInviteToken: "partyABC12",
     leaderCharacterId: "character-1",
-    status: "active",
+    status: sessionOverrides.status ?? "active",
     turn: 1,
     version: 1,
     rulesVersion: "party-boss-proof-v1",
@@ -117,7 +188,7 @@ function makeBossSession(
     state: {
       rulesVersion: "party-boss-proof-v1",
       partySessionId: "party-1",
-      status: "active",
+      status: sessionOverrides.status ?? "active",
       turn: 1,
       boss: {
         monsterId: "party-boss-proof-one",
@@ -149,12 +220,12 @@ function makeBossSession(
             charisma: 5,
             luck: 5,
             raceId: "race.human-ish",
-            classId: "class.warrior"
+            classId: participantOverrides.classId ?? "class.warrior"
           },
           resources: {
             hp: participantOverrides.hp ?? 25,
             hpMax: 25,
-            mana: 10,
+            mana: participantOverrides.mana ?? 10,
             manaMax: 10
           },
           contribution: {
@@ -165,7 +236,14 @@ function makeBossSession(
           }
         }
       ],
-      roundLog: [],
+      roundLog: Array.from({ length: sessionOverrides.roundLogLength ?? 0 }, (_unused, index) => ({
+        turn: index + 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 42,
+        bossRetaliations: [],
+        statusAfter: index + 1 === (sessionOverrides.roundLogLength ?? 0) ? "won" : "active"
+      })),
       startedAt: now.toISOString()
     }
   };

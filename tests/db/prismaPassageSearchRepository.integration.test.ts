@@ -40,7 +40,7 @@ describe("PrismaPassageSearchRepository integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("starts one active search and returns the active row on duplicate starts", async () => {

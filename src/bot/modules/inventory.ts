@@ -160,13 +160,22 @@ async function handleItemCallback(
   const canUse = itemUse?.state === "usable" && !(combatUse?.combatLocked && !combatUse.action);
 
   await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentItemDetail(result, { equippedSlot, equipPreview, itemUse }), {
-    ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
-      canUse,
-      ...(combatUse?.action ? { combatUse: combatUse.action } : {})
-    })
-  });
+  await safeEditMessageText(
+    ctx,
+    presentItemDetail(result, {
+      equippedSlot,
+      equipPreview,
+      itemUse,
+      combatUseAvailable: Boolean(combatUse?.action)
+    }),
+    {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
+        canUse,
+        ...(combatUse?.action ? { combatUse: combatUse.action } : {})
+      })
+    }
+  );
 }
 
 async function getCombatUseStateForItem(
@@ -174,7 +183,10 @@ async function getCombatUseStateForItem(
   telegramUserId: bigint,
   item: Parameters<typeof getCombatUsableItem>[0]
 ): Promise<{
-  action: { sessionId: string; turn: number; itemKey: string } | null;
+  action:
+    | { kind: "fight"; sessionId: string; turn: number; itemKey: string }
+    | { kind: "party-boss"; token: string; turn: number; itemKey: string }
+    | null;
   combatLocked: boolean;
 }> {
   const combatItem = getCombatUsableItem(item);
@@ -184,6 +196,28 @@ async function getCombatUseStateForItem(
 
   const fight = await services.fight.getFightOverviewForTelegramUser(telegramUserId);
   if (fight.state !== "persistent-active" || fight.session.state?.status !== "active") {
+    const partyBoss = await services.partyBoss?.getActiveForTelegramUser(telegramUserId);
+    if (partyBoss?.status === "active") {
+      const viewer = partyBoss.state.participants.find((participant) =>
+        partyBoss.participants.some((snapshot) =>
+          snapshot.telegramUserId === telegramUserId &&
+          snapshot.id === participant.characterId
+        )
+      );
+
+      return {
+        action: viewer?.status === "active" && viewer.resources.hp > 0
+          ? {
+              kind: "party-boss",
+              token: partyBoss.partyInviteToken,
+              turn: partyBoss.turn,
+              itemKey: combatItem.key
+            }
+          : null,
+        combatLocked: true
+      };
+    }
+
     return {
       action: null,
       combatLocked: fight.state === "combat-blocked" || fight.state === "training-active"
@@ -192,6 +226,7 @@ async function getCombatUseStateForItem(
 
   return {
     action: {
+      kind: "fight",
       sessionId: fight.session.id,
       turn: fight.session.state.turn,
       itemKey: combatItem.key

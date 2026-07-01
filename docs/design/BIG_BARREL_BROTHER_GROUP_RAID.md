@@ -1,8 +1,8 @@
-# Senior Barrel Brother Group Raid
+# Big Barrel Brother Group Raid
 
 Status: proposed `0.2.x` design
 Player-facing name: `Старший брат Бочки`
-Technical slug: `senior-barrel-brother-group-raid`
+Technical slug: `big-barrel-brother-group-raid`
 
 ## Goal
 
@@ -13,7 +13,7 @@ The first production encounter must feel materially harder than ordinary PvE, re
 ## Product decision
 
 - Characters below level `8` keep the current solo Barrel flow.
-- Characters at level `8+` enter the Senior Barrel Brother recruiting flow instead of receiving both old and new rewards.
+- Characters at level `8+` enter the Big Barrel Brother recruiting flow instead of receiving both old and new rewards.
 - A successful group raid satisfies the canonical Barrel success gate for the current hourly period.
 - A failed attempt does not count as success, but anti-spam limits apply.
 - Capacity is `8`; explicit minimum is `1`; recommended size is `4–5`.
@@ -23,7 +23,7 @@ The first production encounter must feel materially harder than ordinary PvE, re
 
 ### 1. Reveal
 
-When an eligible level `8+` character starts the Barrel activity, the ordinary Barrel introduction changes into the Senior Brother reveal. The player receives a private recruiting card for one server-owned raid session.
+When an eligible level `8+` character starts the Barrel activity, the ordinary Barrel introduction changes into the Big Brother reveal. The player receives a private recruiting card for one server-owned raid session.
 
 The card shows qualitative difficulty, current participant count, join deadline, and actions:
 
@@ -149,14 +149,14 @@ Old buttons replay the canonical current or terminal state and never reroll rewa
 - level `8+`;
 - at least `1 HP` after canonical lazy sync;
 - no incompatible active state;
-- no successful Barrel/Senior Brother claim for the session's frozen `periodId`;
+- no successful Barrel/Big Brother claim for the session's frozen `periodId`;
 - at most one live recruiting or active group raid membership.
 
 ### Failed-attempt anti-spam
 
 Use a conservative first rule:
 
-- at most `3` started Senior Brother attempts per character per hourly period;
+- at most `3` started Big Brother attempts per character per hourly period;
 - cancelled recruiting sessions do not count;
 - invalidated starts do not count when the player never entered active combat;
 - success remains limited to exactly one claim;
@@ -186,7 +186,7 @@ Raid-specific logic owns:
 - the `Нагляд` shared objective;
 - watcher hazard stacks;
 - multi-target boss action fan-out;
-- seven-round terminal pressure;
+- no hidden runtime round cap; simulation horizons are reporting tools, not terminal rules;
 - group contribution and settlement.
 
 ## Buff and equipment rules
@@ -203,7 +203,7 @@ Raid-specific logic owns:
 - Existing pending legacy rows finish through the old flow; never reinterpret an in-flight solo pending row as a group session.
 - Level `1–7` behavior remains unchanged.
 - Level `8+` receives one canonical path, not old reward plus boss reward.
-- A successful Senior Brother raid satisfies beer/round access and every existing `Barrel completed this period` predicate.
+- A successful Big Brother raid satisfies beer/round access and every existing `Barrel completed this period` predicate.
 - Preserve the reachable starter apron/equipment fallback if an older character still lacks it.
 - Old completion callbacks and notifications replay their stored legacy result.
 

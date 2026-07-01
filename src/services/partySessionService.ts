@@ -12,6 +12,7 @@ import { systemClock, type Clock } from "../shared/time";
 export const PARTY_SESSION_PARTICIPANT_CAP = 8;
 export const PARTY_SESSION_MINIMUM_PARTICIPANTS = 1;
 export const PARTY_SESSION_TTL_MS = 13 * 60 * 1000;
+export const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 
 export type PartyCreateResult =
   | { state: "disabled" }
@@ -25,6 +26,7 @@ export type PartyCancelResult = PartyCancelRepositoryResult;
 export interface PartySessionServiceOptions {
   enabled: boolean;
   devHelpersEnabled?: boolean;
+  bigBarrelBrotherEnabled?: boolean;
 }
 
 export class PartySessionService {
@@ -40,6 +42,10 @@ export class PartySessionService {
 
   areDevHelpersEnabled(): boolean {
     return this.isEnabled() && this.options.devHelpersEnabled === true;
+  }
+
+  isBigBarrelBrotherEnabled(): boolean {
+    return this.isEnabled() && this.options.bigBarrelBrotherEnabled === true;
   }
 
   async createForTelegramUser(
@@ -132,6 +138,40 @@ export class PartySessionService {
     }
 
     return this.sessions.findLiveRecruitingByTelegramUser(telegramUserId, this.clock());
+  }
+
+  async recordParticipantMessageReference(
+    telegramUserId: bigint,
+    inviteToken: string,
+    input: {
+      chatId: bigint;
+      messageId: number;
+    }
+  ): Promise<PartySessionRecord | null> {
+    if (!this.isEnabled()) {
+      return null;
+    }
+
+    return this.sessions.recordParticipantMessageReference(telegramUserId, inviteToken, {
+      ...input,
+      now: this.clock()
+    });
+  }
+
+  async listRecruitingBigBarrelBrother(): Promise<PartySessionRecord[]> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return [];
+    }
+
+    return this.sessions.listRecruitingByOrigin(BIG_BARREL_PARTY_ORIGIN_LOCATION_ID, this.clock());
+  }
+
+  async listDueRecruitingBigBarrelBrother(): Promise<PartySessionRecord[]> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return [];
+    }
+
+    return this.sessions.listDueRecruitingByOrigin(BIG_BARREL_PARTY_ORIGIN_LOCATION_ID, this.clock());
   }
 
   async expireByToken(inviteToken: string): Promise<PartyViewResult> {

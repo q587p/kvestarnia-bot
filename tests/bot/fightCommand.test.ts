@@ -739,7 +739,7 @@ describe("fight command", () => {
     );
   });
 
-  it("sends a recovery notice before fight options when HP just refilled", async () => {
+  it("does not send stale lazy recovery notice before fight options when HP just refilled", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const fightService = {
       getFightOverviewForTelegramUser: () =>
@@ -762,14 +762,10 @@ describe("fight command", () => {
 
     await sendFight(makeContext(replies), fightService, "reply", { now: dayInKyiv });
 
-    expect(replies).toHaveLength(2);
-    expect(replies[0]?.text).toContain("Здоров’я знову повне: 24/24");
-    expect(replies[0]?.text).toContain("бій, дуель або інше сумнівне рішення");
-    expect(replies[0]?.options).toEqual({
-      parse_mode: "HTML"
-    });
-    expect(replies[1]?.text).toContain("🪜 Спуск до Низу");
-    const options = replies[1]?.options as {
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).not.toContain("Здоров’я знову повне");
+    expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
+    const options = replies[0]?.options as {
       parse_mode: string;
       reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
     };

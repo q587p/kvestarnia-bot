@@ -1,0 +1,136 @@
+import type { Bot } from "grammy";
+import type { PartyBossService } from "../services/partyBossService";
+import type { PartySessionService } from "../services/partySessionService";
+import { buildPartyBossKeyboard } from "./keyboards/partySessionKeyboard";
+import { presentPartyBoss, presentPartyBossIntro } from "./presenters/partySessionPresenter";
+
+const DEFAULT_INTERVAL_MS = 10_000;
+
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
+
+export function createPartyBossRecruitingStartScheduler(
+  services: {
+    partySessions: PartySessionService;
+    partyBoss: PartyBossService;
+  },
+  bot: Bot,
+  options: { intervalMs?: number } = {}
+): { start(): void; stop(): void; tick(): Promise<number> } {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let running = false;
+
+  const tick = async (): Promise<number> => {
+    if (running || !services.partyBoss.isEnabled()) {
+      return 0;
+    }
+
+    running = true;
+    try {
+      let processed = 0;
+
+      if (services.partySessions.isBigBarrelBrotherEnabled()) {
+        const due = await services.partySessions.listDueRecruitingBigBarrelBrother();
+
+        for (const party of due) {
+          const result = await services.partyBoss.startFromPartyForTelegramUser(
+            party.leader.telegramUserId,
+            party.inviteToken,
+            { allowExpiredRecruiting: true }
+          );
+
+          if (!("session" in result) || result.state !== "started") {
+            continue;
+          }
+
+          processed += 1;
+          await notifyParticipants(bot, result.session, "started");
+        }
+      }
+
+      const dueTurns = await services.partyBoss.listDueTimedOutSessions();
+      for (const session of dueTurns) {
+        const result = await services.partyBoss.resolveDueTimedOutByToken(session.partyInviteToken);
+
+        if (result.state !== "resolved" && result.state !== "terminal") {
+          continue;
+        }
+
+        processed += 1;
+        await notifyParticipants(bot, result.session, result.session.status === "active" ? "timeout" : "terminal");
+      }
+
+      return processed;
+    } finally {
+      running = false;
+    }
+  };
+
+  return {
+    start() {
+      if (timer) {
+        return;
+      }
+
+      timer = setInterval(() => {
+        void tick().catch((error) => {
+          console.error("Квестарня: автозапуск рейду Старшого Брата Бочки не спрацював.", error);
+        });
+      }, options.intervalMs ?? DEFAULT_INTERVAL_MS);
+      void tick().catch((error) => {
+        console.error("Квестарня: первинна перевірка автозапуску рейду не спрацювала.", error);
+      });
+    },
+    stop() {
+      if (!timer) {
+        return;
+      }
+
+      clearInterval(timer);
+      timer = null;
+    },
+    tick
+  };
+}
+
+async function notifyParticipants(
+  bot: Bot,
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  reason: "started" | "timeout" | "terminal"
+): Promise<void> {
+  await Promise.allSettled(session.participants.map(async (participant) => {
+    if (reason === "started") {
+      await bot.api.sendMessage(
+        Number(participant.telegramUserId),
+        presentPartyBossIntro(session, participant.id),
+        HTML_MESSAGE_OPTIONS
+      );
+    }
+
+    await bot.api.sendMessage(
+      Number(participant.telegramUserId),
+      presentPartyBoss(session, {
+        viewerCharacterId: participant.id,
+        notice: presentNotificationNotice(reason)
+      }),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPartyBossKeyboard(session, participant.id)
+      }
+    );
+  }));
+}
+
+function presentNotificationNotice(reason: "started" | "timeout" | "terminal"): string {
+  switch (reason) {
+    case "started":
+      return "Збір завершився. Старший Брат Бочки підняв кришку й почав бій.";
+    case "timeout":
+      return "Таймер ходу спрацював. Корчма поставила мовчунів у захист.";
+    case "terminal":
+      return "Таймер ходу завершив рейд. Показую підсумок.";
+    default:
+      return "Рейд оновлено.";
+  }
+}

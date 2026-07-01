@@ -113,6 +113,12 @@ describe("loadConfig", () => {
     expect(config.partySessionDevHelpersEnabled).toBe(false);
   });
 
+  it("keeps Big Barrel Brother raid disabled by default", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.bigBarrelBrotherRaidEnabled).toBe(false);
+  });
+
   it("can enable deploy notifications explicitly", () => {
     const config = loadConfig({
       ...validEnv,
@@ -163,6 +169,15 @@ describe("loadConfig", () => {
     });
 
     expect(config.partySessionDevHelpersEnabled).toBe(true);
+  });
+
+  it("can enable Big Barrel Brother raid explicitly", () => {
+    const config = loadConfig({
+      ...validEnv,
+      BIG_BARREL_BROTHER_RAID_ENABLED: "true"
+    });
+
+    expect(config.bigBarrelBrotherRaidEnabled).toBe(true);
   });
 
   it("parses the dev grant flag in production but leaves production blocking to the service", () => {

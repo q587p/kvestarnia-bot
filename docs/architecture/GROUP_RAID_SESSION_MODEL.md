@@ -150,7 +150,7 @@ Extract/reuse the existing canonical `getBarrelRaidPeriod(...)`, Kyiv timezone a
 
 ### Daily success gate
 
-Create one helper such as `hasCompletedBarrelPeriod(characterId, periodId)` that recognizes both legacy and Senior Brother success. Call it with the session's frozen `periodId`, not a freshly calculated wall-clock period. All beer/round access and create/join checks use it. Never let the new path create a second independent success faucet.
+Create one helper such as `hasCompletedBarrelPeriod(characterId, periodId)` that recognizes both legacy and Big Brother success. Call it with the session's frozen `periodId`, not a freshly calculated wall-clock period. All beer/round access and create/join checks use it. Never let the new path create a second independent success faucet.
 
 ## State machine
 
@@ -255,7 +255,7 @@ For each participant independently and replayably:
 - finalize consumed buffs once;
 - create/get one reward row;
 - apply stored XP/gold/item grants through guarded repository operations;
-- write Senior/legacy Barrel success only for a won eligible participant;
+- write Big/legacy Barrel success only for a won eligible participant;
 - release active membership key and combat lease;
 - mark settlement applied.
 

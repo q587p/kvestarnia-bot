@@ -4,9 +4,40 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.17 — Big Barrel Brother Raid MVP smoke
+
+Use two or three local accounts with eligible characters: non-remorted level 8+ or remorted level 3+. Set `BIG_BARREL_BROTHER_RAID_ENABLED=true`. Keep `PARTY_SESSION_DEV_HELPERS_ENABLED=true` only for timeout/expiry shortcuts; production Big Barrel Brother creation is controlled by the Big Barrel Brother flag.
+
+1. On a non-remorted level 7 account and a remorted level 2 account, open `🛢️ Бочка`; verify the legacy Barrel route still appears.
+2. On an eligible account with the Big Barrel Brother flag disabled, open `🛢️ Бочка`; verify it still uses the legacy route.
+3. Enable the Big Barrel Brother flag, reopen `🛢️ Бочка` on non-remorted level 8+ and remorted level 3+ accounts, and verify the familiar Barrel card appears first with `🍺 У рейд на бочку`; it must not auto-create recruiting.
+4. Tap `🍺 У рейд на бочку`; verify the Big Barrel Brother recruiting card appears without exact reward amounts or odds, includes `📣 Запрошення на рейд` / share controls when `BOT_USERNAME` is configured, and starts with the Старший Брат Бочки intervention message.
+4a. Press `📣 Запрошення на рейд`; verify the bot sends the separate forwardable invite card only after this explicit press, not automatically on recruiting open or join.
+5. Join the same party from a deep link and from `👀 Хто поруч`; verify duplicate joins replay the same membership, the invite link remains visible on recruiting refresh/join/leave cards, the leader's original recruiting card updates to include the new participant, and no separate invite-card message is sent by the join itself.
+5a. Try the same deep-link and `👀 Хто поруч` join as a non-remorted level 7, remorted level 2, already-completed-period or active-combat character; verify the bot shows only generic raid-office rejection copy, does not add the character to the roster and does not reveal the exact private reason.
+6. With two recruiting groups open at the Barrel, open `👀 Хто поруч`; verify each group lists participant names and the join buttons identify the leader.
+7. Let recruiting time expire without pressing leader start; verify the fight starts automatically even if the roster is not full.
+8. Start another raid manually as leader; verify the shared boss card names `Старший Брат Бочки`, while private cards follow ordinary fight shape: turn heading, viewer HP/mana, boss HP, visible target marker on participants, concrete action controls and the `23 с` turn hint.
+9. Verify private action buttons use concrete class/race ability names, matching ordinary combat availability when mana/cooldowns make an action unavailable.
+10. Add an under-level, remorted level-2, or already-completed participant through an old/deep-link route; verify start blocks with a generic raid-office line and creates no boss session or `party-boss` lease.
+11. In a two-person raid, let the non-leader deal the most damage in round 1; verify ordinary boss hits first go to the leader, then switch to the previous round's top damage contributor, while turn 4 hits all living participants.
+12. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice. Verify `📜 Журнал` is not available while the battle is active.
+12a. Wound a participant who owns `Бинт відповідальної паніки`, then use `🩹 Бинт` from the raid card or `⚔️ Використати у бою` from the item detail; verify one bandage is consumed, the frozen raid HP row updates, and stale/duplicate item buttons do not heal twice.
+13. With dev helpers disabled, replay or forge a `boss-timeout` callback before the deadline; verify the turn stays on the same number and no timeout action row is added.
+14. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
+15. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.
+16. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
+17. Force or finish a victory; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
+17a. Open the original `https://t.me/<bot>?start=party_<token>` invite after the victory or loss; verify it opens the stored raid result instead of an expired recruiting message.
+18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; verify it does not clear the Big Barrel Brother loss retry cooldown.
+19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written, timeout-only AFK receives no loss attempt XP, and meaningful participants receive the `🎒 За спробу` line only when the 3-minute loss retry cooldown is not active.
+19a. Immediately after a meaningful loss, try `/raid`, `🍺 У рейд на бочку`, a deep-link invite and a `👀 Хто поруч` join into another Big group; verify all Big entry/join paths are blocked until roughly 3 minutes pass, then verify they work again after cooldown expiry.
+20. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
+21. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
+
 ## 0.2.16 — Party Vs One Boss MVP smoke
 
-Use two or three local accounts. Run in non-production mode or enable `PARTY_SESSION_DEV_HELPERS_ENABLED=true`; this proof remains dev/flag-gated and is not Senior Barrel Brother.
+Use two or three local accounts. Run in non-production mode or enable `PARTY_SESSION_DEV_HELPERS_ENABLED=true`; this proof remains dev/flag-gated and is not Big Barrel Brother.
 
 1. Account A runs `/dev_party`; Account B and optionally C join through the deep link or private nearby invite.
 2. As leader, tap `🧪 Dev: бос-проба`; verify the card says this is a proof, not the real raid route, and shows one shared boss.
@@ -675,6 +706,8 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
+- `/dev_raid_reset` — у локальному режимі скидає pending-таймер і зарахований поточний відтинок Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді; навмисно не скидає 3-хвилинний кулдаун після програшу Старшому Брату Бочки.
+- `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout має завершити рейд перемогою ватаги, навіть якщо всі учасники теж на `0 HP`.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 

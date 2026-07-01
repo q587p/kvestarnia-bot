@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
+import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -74,6 +75,251 @@ describe("PrismaPartySessionRepository integration", () => {
         }
       }
     })).toBe(1);
+  });
+
+  it("switches from own solo Big Barrel recruiting into a selected Big Barrel raid", async () => {
+    await seedCharacter(prisma, "switcher-user", 2101n, "Перемикач", { level: 8 });
+    await seedCharacter(prisma, "target-leader-user", 2102n, "Ватажок", { level: 8 });
+
+    const own = await repository.createForTelegramUser(2101n, bigBarrelInput("party-token-switch-own"));
+    const target = await repository.createForTelegramUser(2102n, bigBarrelInput("party-token-switch-target"));
+    expect(own.state).toBe("created");
+    expect(target.state).toBe("created");
+
+    const joined = await repository.joinByTokenForTelegramUser(
+      2101n,
+      "party-token-switch-target",
+      joinInput("nearby")
+    );
+
+    expect(joined.state).toBe("joined");
+    expect("session" in joined ? joined.session.inviteToken : null).toBe("party-token-switch-target");
+    expect(joined.state === "joined" ? joined.cancelledSoloSession?.inviteToken : null).toBe("party-token-switch-own");
+    expect(joined.state === "joined" ? joined.cancelledSoloSession?.status : null).toBe("cancelled");
+    expect("session" in joined ? joined.session.participants.filter((row) => row.status === "joined").map((row) => row.character.telegramUserId).sort() : []).toEqual([2101n, 2102n]);
+    expect(await prisma.partySession.findUnique({
+      where: { inviteToken: "party-token-switch-own" },
+      select: { status: true, activeLeaderKey: true }
+    })).toEqual({ status: "cancelled", activeLeaderKey: null });
+    expect(await prisma.partyParticipant.count({
+      where: {
+        session: {
+          inviteToken: "party-token-switch-own"
+        },
+        activeMembershipKey: {
+          not: null
+        }
+      }
+    })).toBe(0);
+  });
+
+  it("records the actual sent recruiting card message reference for a joined participant", async () => {
+    await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
+    await repository.createForTelegramUser(2151n, {
+      ...bigBarrelInput("party-token-message-ref"),
+      chatId: null,
+      messageId: null
+    });
+
+    const updated = await repository.recordParticipantMessageReference(2151n, "party-token-message-ref", {
+      chatId: 2151n,
+      messageId: 42,
+      now: now()
+    });
+
+    expect(updated?.participants.find((row) => row.character.telegramUserId === 2151n)).toMatchObject({
+      chatId: 2151n,
+      messageId: 42
+    });
+    await expect(prisma.partyParticipant.findFirstOrThrow({
+      where: {
+        session: {
+          inviteToken: "party-token-message-ref"
+        }
+      },
+      select: {
+        chatId: true,
+        messageId: true
+      }
+    })).resolves.toEqual({
+      chatId: 2151n,
+      messageId: 42
+    });
+  });
+
+  it("rejects non-remorted level 7 Big Barrel recruiting joins without mutation", async () => {
+    await seedCharacter(prisma, "big-leader-l7-user", 2201n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-l7-user", 2202n, "Сьомий", { level: 7 });
+    await repository.createForTelegramUser(2201n, bigBarrelInput("party-token-big-l7"));
+
+    const joined = await repository.joinByTokenForTelegramUser(2202n, "party-token-big-l7", joinInput());
+
+    expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("level-gate");
+    await expectNoMembership(prisma, "party-token-big-l7", 2202n);
+  });
+
+  it("rejects remorted level 2 Big Barrel recruiting joins without mutation", async () => {
+    await seedCharacter(prisma, "big-leader-r2-user", 2301n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-r2-user", 2302n, "Другожиттєвий", {
+      level: 2,
+      remortCount: 1
+    });
+    await repository.createForTelegramUser(2301n, bigBarrelInput("party-token-big-r2"));
+
+    const joined = await repository.joinByTokenForTelegramUser(2302n, "party-token-big-r2", joinInput());
+
+    expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("level-gate");
+    await expectNoMembership(prisma, "party-token-big-r2", 2302n);
+  });
+
+  it("allows remorted level 3 Big Barrel recruiting joins", async () => {
+    await seedCharacter(prisma, "big-leader-r3-user", 2401n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-r3-user", 2402n, "Третєжиттєвий", {
+      level: 3,
+      remortCount: 1
+    });
+    await repository.createForTelegramUser(2401n, bigBarrelInput("party-token-big-r3"));
+
+    const joined = await repository.joinByTokenForTelegramUser(2402n, "party-token-big-r3", joinInput());
+
+    expect(joined.state).toBe("joined");
+    expect("session" in joined ? joined.session.participants.some((row) => row.character.telegramUserId === 2402n && row.remortCount === 1) : false).toBe(true);
+  });
+
+  it("allows non-remorted level 8 Big Barrel recruiting joins", async () => {
+    await seedCharacter(prisma, "big-leader-l8-user", 2501n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-l8-user", 2502n, "Восьмий", { level: 8 });
+    await repository.createForTelegramUser(2501n, bigBarrelInput("party-token-big-l8"));
+
+    const joined = await repository.joinByTokenForTelegramUser(2502n, "party-token-big-l8", joinInput());
+
+    expect(joined.state).toBe("joined");
+  });
+
+  it("blocks creating another Big Barrel recruiting party during active loss retry cooldown", async () => {
+    await seedCharacter(prisma, "big-create-cooldown-user", 2551n, "Недавно Програла", { level: 8 });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-create-cooldown",
+        characterId: "big-create-cooldown-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(now().getTime() + 60_000)
+      }
+    });
+
+    const blocked = await repository.createForTelegramUser(
+      2551n,
+      bigBarrelInput("party-token-big-create-cooldown")
+    );
+
+    expect(blocked.state).toBe("ineligible");
+    expect(blocked.state === "ineligible" ? blocked.reason : null).toBe("loss-cooldown");
+    expect(await prisma.partySession.count({
+      where: {
+        inviteToken: "party-token-big-create-cooldown"
+      }
+    })).toBe(0);
+  });
+
+  it("allows Big Barrel recruiting again after loss retry cooldown expires", async () => {
+    await seedCharacter(prisma, "big-create-cooldown-expired-user", 2552n, "Вже Перепочила", { level: 8 });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-create-cooldown-expired",
+        characterId: "big-create-cooldown-expired-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(now().getTime() - 1)
+      }
+    });
+
+    const created = await repository.createForTelegramUser(
+      2552n,
+      bigBarrelInput("party-token-big-create-cooldown-expired")
+    );
+
+    expect(created.state).toBe("created");
+  });
+
+  it("rejects Big Barrel recruiting joins during active loss retry cooldown without mutation", async () => {
+    await seedCharacter(prisma, "big-leader-loss-cooldown-user", 2553n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-loss-cooldown-user", 2554n, "Щойно Впала", { level: 8 });
+    await repository.createForTelegramUser(2553n, bigBarrelInput("party-token-big-join-loss-cooldown"));
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-join-loss-cooldown",
+        characterId: "big-joiner-loss-cooldown-user-character",
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+        availableAt: new Date(now().getTime() + 60_000)
+      }
+    });
+
+    const joined = await repository.joinByTokenForTelegramUser(
+      2554n,
+      "party-token-big-join-loss-cooldown",
+      joinInput()
+    );
+
+    expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("loss-cooldown");
+    await expectNoMembership(prisma, "party-token-big-join-loss-cooldown", 2554n);
+  });
+
+  it("rejects already-completed frozen-period Big Barrel recruiting joins without mutation", async () => {
+    await seedCharacter(prisma, "big-leader-done-user", 2601n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-done-user", 2602n, "Архівний", { level: 8 });
+    await repository.createForTelegramUser(2601n, bigBarrelInput("party-token-big-done"));
+    await prisma.dailyAction.create({
+      data: {
+        id: "big-joiner-done-action",
+        characterId: "big-joiner-done-user-character",
+        key: "tavern.friday-barrel-raid",
+        localDate: "12026-06-29",
+        rewardXp: 23,
+        rewardGold: 13
+      }
+    });
+
+    const joined = await repository.joinByTokenForTelegramUser(2602n, "party-token-big-done", joinInput());
+
+    expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("already-completed");
+    await expectNoMembership(prisma, "party-token-big-done", 2602n);
+  });
+
+  it("rejects active-combat Big Barrel recruiting joins without mutation", async () => {
+    await seedCharacter(prisma, "big-leader-combat-user", 2701n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-joiner-combat-user", 2702n, "Зайнятий", { level: 8 });
+    await repository.createForTelegramUser(2701n, bigBarrelInput("party-token-big-combat"));
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "big-joiner-combat-lease",
+        characterId: "big-joiner-combat-user-character",
+        kind: "persistent-fight",
+        referenceId: "fight-1"
+      }
+    });
+
+    const joined = await repository.joinByTokenForTelegramUser(2702n, "party-token-big-combat", joinInput());
+
+    expect(joined.state).toBe("ineligible");
+    expect(joined.state === "ineligible" ? joined.reason : null).toBe("active-combat");
+    await expectNoMembership(prisma, "party-token-big-combat", 2702n);
+  });
+
+  it("keeps non-Big under-level party joins unchanged", async () => {
+    await seedCharacter(prisma, "plain-leader-user", 2801n, "Звичайний");
+    await seedCharacter(prisma, "plain-joiner-user", 2802n, "Першорівневий");
+    await repository.createForTelegramUser(2801n, partyInput("party-token-plain-underlevel"));
+
+    const joined = await repository.joinByTokenForTelegramUser(
+      2802n,
+      "party-token-plain-underlevel",
+      joinInput()
+    );
+
+    expect(joined.state).toBe("joined");
   });
 
   it("transfers leadership on leader leave and cancels when the last member leaves", async () => {
@@ -228,6 +474,13 @@ function partyInput(inviteToken: string) {
   };
 }
 
+function bigBarrelInput(inviteToken: string) {
+  return {
+    ...partyInput(inviteToken),
+    originLocationId: "barrel.big-brother"
+  };
+}
+
 function joinInput(joinSource: "nearby" | "deep-link" | "dev" = "deep-link") {
   return {
     joinSource,
@@ -241,7 +494,8 @@ async function seedCharacter(
   prisma: PrismaClient,
   userId: string,
   telegramUserId: bigint,
-  name: string
+  name: string,
+  options: { level?: number; remortCount?: number } = {}
 ): Promise<void> {
   await prisma.user.create({
     data: {
@@ -254,11 +508,66 @@ async function seedCharacter(
           name,
           raceId: "human",
           classId: "warrior",
+          level: options.level ?? 1,
           statsJson: {}
         }
       }
     }
   });
+  for (let index = 1; index <= (options.remortCount ?? 0); index += 1) {
+    await prisma.characterRemort.create({
+      data: {
+        id: `${userId}-remort-${index}`,
+        characterId: `${userId}-character`,
+        token: `${userId}-remort-token-${index}`,
+        remortNumber: index,
+        previousLevel: 13,
+        previousXp: 587,
+        previousGold: 42,
+        displayNameSnapshot: name,
+        preservedPayloadJson: {}
+      }
+    });
+  }
+}
+
+async function expectNoMembership(
+  prisma: PrismaClient,
+  inviteToken: string,
+  telegramUserId: bigint
+): Promise<void> {
+  expect(await prisma.partyParticipant.count({
+    where: {
+      session: {
+        inviteToken
+      },
+      character: {
+        user: {
+          telegramUserId
+        }
+      }
+    }
+  })).toBe(0);
+  expect(await prisma.partyParticipant.count({
+    where: {
+      activeMembershipKey: `party-member:${await characterIdForTelegramUser(prisma, telegramUserId)}`
+    }
+  })).toBe(0);
+}
+
+async function characterIdForTelegramUser(prisma: PrismaClient, telegramUserId: bigint): Promise<string> {
+  const character = await prisma.character.findFirstOrThrow({
+    where: {
+      user: {
+        telegramUserId
+      }
+    },
+    select: {
+      id: true
+    }
+  });
+
+  return character.id;
 }
 
 async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
@@ -310,6 +619,33 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       preserved_payload_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE active_combat_leases (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL,
+      reference_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE daily_actions (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      local_date TEXT NOT NULL,
+      reward_xp INTEGER NOT NULL,
+      reward_gold INTEGER NOT NULL,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE party_sessions (
       id TEXT PRIMARY KEY,
       invite_token TEXT NOT NULL,
@@ -345,6 +681,10 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE UNIQUE INDEX party_sessions_invite_token_key ON party_sessions(invite_token)`,
     `CREATE UNIQUE INDEX party_sessions_active_leader_key_key ON party_sessions(active_leader_key)`,
     `CREATE INDEX party_sessions_status_expires_at_idx ON party_sessions(status, expires_at)`,
+    `CREATE INDEX active_combat_leases_kind_reference_id_idx ON active_combat_leases(kind, reference_id)`,
+    `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`,
+    `CREATE INDEX daily_actions_key_idx ON daily_actions(key)`,
+    `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`,
     `CREATE UNIQUE INDEX party_participants_active_membership_key_key ON party_participants(active_membership_key)`,
     `CREATE UNIQUE INDEX party_participants_session_id_character_id_key ON party_participants(session_id, character_id)`,
     `CREATE INDEX party_participants_character_id_status_idx ON party_participants(character_id, status)`,

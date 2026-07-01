@@ -1,7 +1,9 @@
+import { items } from "../../content";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CombatActorStats } from "../../domain/combat/combatState";
-import type { CharacterStats } from "../../domain/characters/starterStats";
 import type {
   PartyBossActionKey,
+  PartyBossCombatItemInput,
   PartyBossResult,
   PartyBossState
 } from "../../domain/partyBoss/partyBoss";
@@ -31,30 +33,59 @@ export interface PartyBossSessionRecord {
   participants: PartyBossParticipantSnapshot[];
 }
 
+export interface PartyBossAchievementEventRecord {
+  type: "barrel.raid.claimed" | "barrel.raid.lost";
+  characterId: string;
+  sourceId: string;
+  occurredAt: Date;
+}
+
 export type PartyBossStartResult =
   | { state: "disabled" }
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-leader"; session?: PartyBossSessionRecord }
-  | { state: "not-recruiting" | "expired" | "too-small" | "blocked"; blockerName?: string; session?: PartyBossSessionRecord }
+  | {
+      state: "not-recruiting" | "expired" | "too-small" | "blocked" | "ineligible";
+      blockerName?: string;
+      session?: PartyBossSessionRecord;
+    }
   | { state: "started" | "already-active" | "terminal"; session: PartyBossSessionRecord };
 
 export type PartyBossActionResult =
   | { state: "disabled" }
   | { state: "no-character" }
   | { state: "not-found" }
-  | { state: "not-participant" | "stale" | "queued" | "duplicate" | "resolved" | "terminal"; session: PartyBossSessionRecord };
+  | {
+      state: "item-unavailable";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp";
+      session?: PartyBossSessionRecord;
+    }
+  | {
+      state: "not-participant" | "stale" | "queued" | "duplicate" | "resolved" | "terminal";
+      session: PartyBossSessionRecord;
+      achievementEvents?: PartyBossAchievementEventRecord[];
+    };
+
+export type PartyBossDevWinResult =
+  | { state: "no-active" }
+  | { state: "not-big"; session: PartyBossSessionRecord }
+  | { state: "stale"; session: PartyBossSessionRecord }
+  | { state: "primed"; session: PartyBossSessionRecord };
 
 export interface PartyBossStartInput {
   partyInviteToken: string;
   now: Date;
   turnExpiresAt: Date;
+  allowExpiredRecruiting?: boolean;
 }
 
 export interface PartyBossResolveInput {
   now: Date;
   nextTurnExpiresAt: Date;
 }
+
+export type PartyBossTimeoutMode = "due" | "force-dev";
 
 export interface PartyBossRepository {
   startFromRecruitingPartyForTelegramUser(
@@ -70,28 +101,50 @@ export interface PartyBossRepository {
     input: PartyBossResolveInput
   ): Promise<PartyBossActionResult>;
 
+  submitItemForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    item: PartyBossCombatItemInput,
+    input: PartyBossResolveInput
+  ): Promise<PartyBossActionResult>;
+
   resolveTimedOutByToken(
     partyInviteToken: string,
-    input: PartyBossResolveInput
+    input: PartyBossResolveInput,
+    mode: PartyBossTimeoutMode
   ): Promise<PartyBossActionResult>;
 
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<PartyBossSessionRecord | null>;
   findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null>;
+  listDueTimedOutSessions(now: Date, options?: { limit?: number }): Promise<PartyBossSessionRecord[]>;
+  forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult>;
 }
 
 export function buildPartyBossCombatStats(
-  character: CharacterRecord & { remortCount?: number }
+  character: CharacterRecord & {
+    remortCount?: number;
+    equipment?: readonly { itemId: string }[];
+  }
 ): CombatActorStats & { hpCurrent: number; manaCurrent: number } {
-  const stats = parseStats(character.statsJson);
+  const equippedItems = (character.equipment ?? []).flatMap((row) => {
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const summary = summarizeCharacter(character, {
+    equippedItems,
+    ...(typeof character.remortCount === "number" ? { remortCount: character.remortCount } : {})
+  });
+  const stats = summary.stats;
 
   return {
-    level: character.level,
-    hpMax: character.hpMax,
-    manaMax: character.manaMax,
-    hpCurrent: character.hpCurrent,
-    manaCurrent: character.manaCurrent,
-    raceId: character.raceId,
-    classId: character.classId,
+    level: summary.level,
+    hpMax: summary.hpMax,
+    manaMax: summary.manaMax,
+    hpCurrent: summary.hpCurrent,
+    manaCurrent: summary.manaCurrent,
+    raceId: summary.raceId,
+    classId: summary.classId,
     ...stats,
     armor: Math.max(0, Math.floor(stats.strength / 3)),
     resist: Math.max(0, Math.floor(stats.intelligence / 3)),
@@ -100,20 +153,3 @@ export function buildPartyBossCombatStats(
   };
 }
 
-function parseStats(value: unknown): CharacterStats {
-  const maybe = value && typeof value === "object"
-    ? value as Partial<Record<keyof CombatActorStats, unknown>>
-    : {};
-
-  return {
-    strength: numberOrZero(maybe.strength),
-    dexterity: numberOrZero(maybe.dexterity),
-    intelligence: numberOrZero(maybe.intelligence),
-    charisma: numberOrZero(maybe.charisma),
-    luck: numberOrZero(maybe.luck)
-  };
-}
-
-function numberOrZero(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}

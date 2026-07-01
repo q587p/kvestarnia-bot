@@ -130,7 +130,7 @@
 
 Для небезпечних authored methods попереджати якісно, без майбутніх чисел: `можна постраждати`, `ризик бійки`, `небезпечно для пальців`, `може покликати щось із-за дверей`. Після результату можна показати фактичну втрату здоровʼя і поточне HP, але не формулу, не приховані odds і не exact майбутній damage до натискання.
 
-Не виносити в `news.md` службовий технічний backlog або platform roadmap: persistent scheduler після restart/deploy, Redis/BullMQ, horizontal scaling, Mini App UI, internal deploy/healthcheck edge cases, job replay, migrations, schema debt і подібні пункти. Якщо треба зафіксувати борг, писати його в `CHANGELOG.md`, `docs/TECHNICAL_PLAN.md`, `docs/ROADMAP.md` або PR body. У новинах можна коротко назвати лише гравецьки видиму межу: що вже можна зробити в грі, а що ще не відчинено як пригода.
+Не виносити в `news.md` службовий технічний backlog або platform roadmap: persistent scheduler після restart/deploy, Redis/BullMQ, horizontal scaling, internal deploy/healthcheck edge cases, job replay, migrations, schema debt і подібні пункти. Mini App не є плановою обіцянкою Квестарні, тому його не треба згадувати як майбутню фічу. Якщо треба зафіксувати борг, писати його в `CHANGELOG.md`, `docs/TECHNICAL_PLAN.md`, `docs/ROADMAP.md` або PR body. У новинах можна коротко назвати лише гравецьки видиму межу: що вже можна зробити в грі, а що ще не відчинено як пригода.
 
 Для `news.md` за замовчуванням використовувати позитивну структуру: `У грі вже:` для видимих дій/змін і максимум один короткий рядок `Ще не відчинено:` для гравецьки зрозумілої межі. Не робити багаторядкові секції `Чого ще нема:` — вони чесні, але читаються як службовий backlog і гасять бажання зайти в гру.
 

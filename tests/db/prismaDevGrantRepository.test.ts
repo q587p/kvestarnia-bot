@@ -27,14 +27,176 @@ describe("PrismaDevGrantRepository", () => {
       hpRegenAt: null
     });
   });
+
+  it("heals the active solo combat state for local battle QA", async () => {
+    const prisma = new FakeDevGrantPrisma({
+      level: 3,
+      hpCurrent: 48,
+      hpMax: 20,
+      activeCombat: {
+        kind: "solo-combat",
+        referenceId: "solo-1",
+        stateJson: {
+          turn: 2,
+          status: "active",
+          hero: {
+            hp: 5,
+            hpMax: 28,
+            mana: 4,
+            manaMax: 10
+          },
+          monster: {
+            id: "monster.test",
+            hp: 13,
+            hpMax: 23
+          }
+        }
+      }
+    });
+    const repository = new PrismaDevGrantRepository(prisma.client);
+
+    const result = await repository.healForTelegramUser(telegramUserId, 7);
+
+    expect(prisma.lastSoloCombatUpdateInput).toMatchObject({
+      where: { id: "solo-1" },
+      data: {
+        stateJson: {
+          hero: {
+            hp: 12,
+            hpMax: 28
+          }
+        }
+      }
+    });
+    expect(result?.combat).toEqual({
+      kind: "solo-combat",
+      hpCurrent: 12,
+      hpMax: 28
+    });
+  });
+
+  it("revives the active party-boss participant state for local raid QA", async () => {
+    const prisma = new FakeDevGrantPrisma({
+      level: 8,
+      hpCurrent: 48,
+      hpMax: 20,
+      activeCombat: {
+        kind: "party-boss",
+        referenceId: "party-1",
+        stateJson: {
+          status: "active",
+          participants: [
+            {
+              characterId: "character-1",
+              status: "knocked-out",
+              resources: {
+                hp: 0,
+                hpMax: 48,
+                mana: 10,
+                manaMax: 24
+              }
+            }
+          ]
+        }
+      }
+    });
+    const repository = new PrismaDevGrantRepository(prisma.client);
+
+    const result = await repository.healForTelegramUser(telegramUserId);
+
+    expect(prisma.lastPartyBossUpdateInput).toMatchObject({
+      where: { id: "party-boss-1" },
+      data: {
+        version: 4,
+        stateJson: {
+          participants: [
+            {
+              characterId: "character-1",
+              status: "active",
+              resources: {
+                hp: 48,
+                hpMax: 48
+              }
+            }
+          ]
+        }
+      }
+    });
+    expect(result?.combat).toEqual({
+      kind: "party-boss",
+      hpCurrent: 48,
+      hpMax: 48
+    });
+  });
+
+  it("heals the active turn-based duel participant state for local PvP QA", async () => {
+    const prisma = new FakeDevGrantPrisma({
+      level: 3,
+      hpCurrent: 20,
+      hpMax: 20,
+      activeCombat: {
+        kind: "turn-based-duel",
+        referenceId: "duel-1",
+        stateJson: {
+          status: "active",
+          participants: {
+            challenger: {
+              characterId: "character-1",
+              hp: 2,
+              hpMax: 24
+            },
+            target: {
+              characterId: "character-2",
+              hp: 17,
+              hpMax: 24
+            }
+          }
+        }
+      }
+    });
+    const repository = new PrismaDevGrantRepository(prisma.client);
+
+    const result = await repository.healForTelegramUser(telegramUserId, 5);
+
+    expect(prisma.lastDuelCombatUpdateInput).toMatchObject({
+      where: { id: "duel-1" },
+      data: {
+        version: 8,
+        stateJson: {
+          participants: {
+            challenger: {
+              characterId: "character-1",
+              hp: 7,
+              hpMax: 24
+            }
+          }
+        }
+      }
+    });
+    expect(result?.combat).toEqual({
+      kind: "turn-based-duel",
+      hpCurrent: 7,
+      hpMax: 24
+    });
+  });
 });
 
 class FakeDevGrantPrisma {
   lastCharacterUpdateInput: FakeCharacterUpdateInput | null = null;
+  lastSoloCombatUpdateInput: FakeSessionUpdateInput | null = null;
+  lastPartyBossUpdateInput: FakeSessionUpdateInput | null = null;
+  lastDuelCombatUpdateInput: FakeSessionUpdateInput | null = null;
   private readonly character: FakeCharacter;
+  private readonly activeCombat: FakeActiveCombat | null;
 
-  constructor(input: { level: number; hpCurrent: number; hpMax: number }) {
+  constructor(input: {
+    level: number;
+    hpCurrent: number;
+    hpMax: number;
+    activeCombat?: FakeActiveCombat;
+  }) {
     this.character = makeCharacter(input);
+    this.activeCombat = input.activeCombat ?? null;
   }
 
   readonly client = {
@@ -60,6 +222,84 @@ class FakeDevGrantPrisma {
     },
     characterRemort: {
       count: () => Promise.resolve(0)
+    },
+    activeCombatLease: {
+      findUnique: ({ where }: { where: { characterId: string } }): Promise<FakeActiveCombatLease | null> =>
+        Promise.resolve(
+          where.characterId === this.character.id && this.activeCombat
+            ? {
+                characterId: this.character.id,
+                kind: this.activeCombat.kind,
+                referenceId: this.activeCombat.referenceId
+              }
+            : null
+        )
+    },
+    soloCombatSession: {
+      findUnique: ({ where }: { where: { id: string } }): Promise<FakeSession | null> =>
+        Promise.resolve(
+          this.activeCombat?.kind === "solo-combat" && where.id === this.activeCombat.referenceId
+            ? {
+                id: where.id,
+                status: "active",
+                version: 1,
+                stateJson: this.activeCombat.stateJson
+              }
+            : null
+        ),
+      update: (input: FakeSessionUpdateInput): Promise<FakeSession> => {
+        this.lastSoloCombatUpdateInput = input;
+        return Promise.resolve({
+          id: input.where.id,
+          status: "active",
+          version: 1,
+          stateJson: input.data.stateJson
+        });
+      }
+    },
+    partyBossSession: {
+      findUnique: ({ where }: { where: { partySessionId: string } }): Promise<FakeSession | null> =>
+        Promise.resolve(
+          this.activeCombat?.kind === "party-boss" && where.partySessionId === this.activeCombat.referenceId
+            ? {
+                id: "party-boss-1",
+                status: "active",
+                version: 3,
+                stateJson: this.activeCombat.stateJson
+              }
+            : null
+        ),
+      update: (input: FakeSessionUpdateInput): Promise<FakeSession> => {
+        this.lastPartyBossUpdateInput = input;
+        return Promise.resolve({
+          id: input.where.id,
+          status: "active",
+          version: Number(input.data.version ?? 3),
+          stateJson: input.data.stateJson
+        });
+      }
+    },
+    duelCombatSession: {
+      findUnique: ({ where }: { where: { id: string } }): Promise<FakeSession | null> =>
+        Promise.resolve(
+          this.activeCombat?.kind === "turn-based-duel" && where.id === this.activeCombat.referenceId
+            ? {
+                id: where.id,
+                status: "active",
+                version: 7,
+                stateJson: this.activeCombat.stateJson
+              }
+            : null
+        ),
+      update: (input: FakeSessionUpdateInput): Promise<FakeSession> => {
+        this.lastDuelCombatUpdateInput = input;
+        return Promise.resolve({
+          id: input.where.id,
+          status: "active",
+          version: Number(input.data.version ?? 7),
+          stateJson: input.data.stateJson
+        });
+      }
     }
   };
 }
@@ -74,6 +314,21 @@ interface FakeTransactionClient {
   };
   characterRemort: {
     count(): Promise<number>;
+  };
+  activeCombatLease: {
+    findUnique(input: { where: { characterId: string } }): Promise<FakeActiveCombatLease | null>;
+  };
+  soloCombatSession: {
+    findUnique(input: { where: { id: string } }): Promise<FakeSession | null>;
+    update(input: FakeSessionUpdateInput): Promise<FakeSession>;
+  };
+  partyBossSession: {
+    findUnique(input: { where: { partySessionId: string } }): Promise<FakeSession | null>;
+    update(input: FakeSessionUpdateInput): Promise<FakeSession>;
+  };
+  duelCombatSession: {
+    findUnique(input: { where: { id: string } }): Promise<FakeSession | null>;
+    update(input: FakeSessionUpdateInput): Promise<FakeSession>;
   };
 }
 
@@ -95,6 +350,35 @@ interface FakeCharacterUpdateInput {
     hpRegenAt: null;
   };
   include?: unknown;
+}
+
+interface FakeActiveCombat {
+  kind: "solo-combat" | "party-boss" | "turn-based-duel";
+  referenceId: string;
+  stateJson: Record<string, unknown>;
+}
+
+interface FakeActiveCombatLease {
+  characterId: string;
+  kind: FakeActiveCombat["kind"];
+  referenceId: string;
+}
+
+interface FakeSession {
+  id: string;
+  status: string;
+  version: number;
+  stateJson: unknown;
+}
+
+interface FakeSessionUpdateInput {
+  where: {
+    id: string;
+  };
+  data: {
+    version?: number;
+    stateJson: unknown;
+  };
 }
 
 type FakeCharacter = ReturnType<typeof makeCharacter>;

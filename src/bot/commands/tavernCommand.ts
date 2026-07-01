@@ -13,6 +13,13 @@ import {
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
+import type { PartyBossService } from "../../services/partyBossService";
+import {
+  buildPartyInviteUrl,
+  BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  type PartySessionService
+} from "../../services/partySessionService";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { LevelMilestoneService } from "../../services/levelMilestoneService";
 import type { RemortService } from "../../services/remortService";
@@ -28,6 +35,7 @@ import {
 } from "../../services/fightService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import { systemClock } from "../../shared/time";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
@@ -45,6 +53,10 @@ import {
   buildTavernKeyboard,
   buildTavernResultKeyboard
 } from "../keyboards/tavernKeyboard";
+import {
+  buildPartyBossKeyboard,
+  buildPartySessionKeyboard
+} from "../keyboards/partySessionKeyboard";
 import {
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
@@ -66,6 +78,11 @@ import {
   presentTavernRaidPending,
   presentTavernRaidReadyToComplete
 } from "../presenters/tavernPresenter";
+import {
+  presentBigBarrelApproachNotice,
+  presentPartyBoss,
+  presentPartyCreate
+} from "../presenters/partySessionPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
 
@@ -102,17 +119,33 @@ type TavernCommandKeyboard =
   | "barrel-pending"
   | "barrel-participants";
 
+export interface TavernCommandOptions {
+  botUsername?: string | undefined;
+  partyBoss?: PartyBossService | undefined;
+  partySessions?: PartySessionService | undefined;
+  openBigBarrelRecruiting?: boolean | undefined;
+  onlyBigBarrelRecruiting?: boolean | undefined;
+}
+
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
+
 export function registerTavernCommand(
   bot: Bot,
   tavernRaidService: TavernRaidService,
-  presenceService: PresenceService
+  presenceService: PresenceService,
+  options: TavernCommandOptions = {}
 ): void {
   bot.command("tavern", async (ctx) => {
     await sendTavern(ctx, tavernRaidService, presenceService, "reply");
   });
 
   bot.command("raid", async (ctx) => {
-    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply");
+    await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply", {
+      ...options,
+      openBigBarrelRecruiting: true
+    });
   });
 }
 
@@ -608,48 +641,116 @@ export async function sendTavernBarrel(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
-): Promise<void> {
+  mode: "reply" | "edit",
+  options: TavernCommandOptions = {}
+): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
   if (!telegramUserId) {
     await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
-    return;
+    return true;
   }
 
   const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
 
   if (result.state === "no-character") {
     await sendText(ctx, mode, presentTavernNoCharacter());
-    return;
+    return true;
   }
 
   if (result.state === "already-completed") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), "barrel-result");
-    return;
+    return true;
   }
 
   if (result.state === "audit-break") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     await sendText(ctx, mode, presentTavernRaidAuditBreak(result), "barrel-result");
-    return;
+    return true;
   }
 
   if (result.state === "pending") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
     await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
-    return;
+    return true;
   }
 
   if (result.state === "pending-complete") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
     await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
-    return;
+    return true;
+  }
+
+  if (
+    isBigBarrelEligible(result.character.level, result.character.remortCount) &&
+    options.partySessions?.isBigBarrelBrotherEnabled()
+  ) {
+    const activeBoss = await options.partyBoss?.getActiveForTelegramUser(telegramUserId);
+    if (activeBoss) {
+      await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+      const viewerCharacterId = getBossViewerCharacterId(activeBoss, telegramUserId);
+      await sendBigBossText(ctx, mode, presentPartyBoss(activeBoss, { viewerCharacterId }), {
+        session: activeBoss,
+        viewerCharacterId,
+        includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
+      });
+      return true;
+    }
+
+    if (!options.openBigBarrelRecruiting) {
+      if (options.onlyBigBarrelRecruiting) {
+        return false;
+      }
+
+      await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
+      await sendText(ctx, mode, presentTavern(result.character), true);
+      return true;
+    }
+
+    const period = getBarrelRaidPeriod(new Date());
+    const party = await options.partySessions.createForTelegramUser(telegramUserId, {
+      chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+      messageId: ctx.callbackQuery?.message?.message_id ?? null,
+      periodId: period.id,
+      originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+    });
+    const session = "session" in party ? party.session : null;
+    const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
+
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
+    if (session && party.state === "created" && session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      await sendBigBarrelApproachIntro(ctx, session.inviteToken);
+    }
+    const sentMessageId = await sendBigPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
+      ? {
+          session,
+          inviteUrl,
+          viewerCharacterId: getPartyViewerCharacterId(session, telegramUserId),
+          includeBossStart: session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+          includeDevExpire: options.partySessions.areDevHelpersEnabled()
+        }
+      : false);
+    if (session && sentMessageId && ctx.chat?.id) {
+      await options.partySessions.recordParticipantMessageReference(telegramUserId, session.inviteToken, {
+        chatId: BigInt(ctx.chat.id),
+        messageId: sentMessageId
+      });
+    }
+    return true;
+  }
+
+  if (options.onlyBigBarrelRecruiting) {
+    return false;
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
   await sendText(ctx, mode, presentTavern(result.character), true);
+  return true;
+}
+
+async function sendBigBarrelApproachIntro(ctx: Context, seed: string): Promise<void> {
+  await ctx.reply(presentBigBarrelApproachNotice(seed), HTML_MESSAGE_OPTIONS);
 }
 
 async function markTavernPlace(
@@ -670,6 +771,87 @@ async function markTavernPlace(
     currentRaidId: inPendingRaid ? PRESENCE_RAID_FRIDAY_BARREL : null,
     currentAdventureId: null
   });
+}
+
+async function sendBigPartyText(
+  ctx: Context,
+  mode: "reply" | "edit",
+  text: string,
+  keyboard:
+    | false
+    | {
+        session: Parameters<typeof buildPartySessionKeyboard>[0];
+        inviteUrl?: string | null | undefined;
+        viewerCharacterId?: string | null | undefined;
+        includeBossStart?: boolean | undefined;
+        includeDevExpire?: boolean | undefined;
+      }
+): Promise<number | null> {
+  const options = {
+    ...HTML_MESSAGE_OPTIONS,
+    ...(keyboard
+      ? {
+          reply_markup: buildPartySessionKeyboard(keyboard.session, {
+            viewerCharacterId: keyboard.viewerCharacterId,
+            inviteUrl: keyboard.inviteUrl,
+            includeBossStart: keyboard.includeBossStart,
+            includeDevExpire: keyboard.includeDevExpire
+          })
+        }
+      : {})
+  };
+
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, options);
+    return null;
+  }
+
+  const message = await ctx.reply(text, options);
+  return message.message_id ?? null;
+}
+
+async function sendBigBossText(
+  ctx: Context,
+  mode: "reply" | "edit",
+  text: string,
+  keyboard: {
+    session: Parameters<typeof buildPartyBossKeyboard>[0];
+    viewerCharacterId?: string | null | undefined;
+    includeDevTimeout?: boolean | undefined;
+  }
+): Promise<void> {
+  const options = {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
+      includeDevTimeout: keyboard.includeDevTimeout
+    })
+  };
+
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, options);
+    return;
+  }
+
+  await ctx.reply(text, options);
+}
+
+function getPartyViewerCharacterId(
+  session: Parameters<typeof buildPartySessionKeyboard>[0],
+  telegramUserId: bigint
+): string | null {
+  const participant = session.participants.find(
+    (row) => row.character.telegramUserId === telegramUserId && row.status === "joined"
+  );
+
+  return participant?.characterId ?? null;
+}
+
+function getBossViewerCharacterId(
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  telegramUserId: bigint
+): string | null {
+  const participant = session.participants.find((row) => row.telegramUserId === telegramUserId);
+  return participant?.id ?? null;
 }
 
 async function sendText(

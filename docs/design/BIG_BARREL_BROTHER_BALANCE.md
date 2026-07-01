@@ -1,15 +1,16 @@
-# Senior Barrel Brother Balance Proposal
+# Big Barrel Brother Balance Proposal
 
 Status: starting numbers for simulation, not production proof
-Balance version seed: `senior-barrel-brother-v1`
+Balance version seed: `big-barrel-brother-v1`
 
 ## Design targets
 
 - Entry level: `8`.
 - Party size: `1..8`.
 - Recommended party: `4–5`; `3` is a geared/attentive challenge.
-- Winning encounter length: usually `4–6` rounds.
-- Final player action window: round `7`.
+- Winning encounter length: usually `4–8` rounds for prepared groups.
+- No runtime final round exists in `0.2.17`.
+- Round `13` is a deterministic simulation and QA horizon only; unresolved fights at that horizon stay `unresolvedByHorizon` and are not runtime losses.
 - Round deadline: `23` seconds.
 - Gear, class identity, equipped manatky and eligible PvE buffs matter.
 - No class/race should be mandatory.
@@ -21,42 +22,43 @@ Freeze at combat start:
 
 ```text
 N = eligible participant count, clamp 1..8
-meanLevel = arithmetic mean of participant levels
-maxLevel = highest participant level
-raidLevel = clamp(ceil((meanLevel + maxLevel) / 2), 8, 13)
-bossLevel = min(13, raidLevel + 1)
+leaderLevel = current party leader level
+bossLevel = clamp(leaderLevel, 1, 13)
+rewardLevel = clamp(bossLevel, 8, 13)
 ```
 
-Weighting the maximum level prevents a high-level carry from lowering the boss tier by adding several level-8 characters. Equipment, remort memory, food, drinks and one-use items do not enter `raidLevel`.
+The boss follows the current party leader instead of the average roster, so a level-13 starter cannot lower the boss tier by inviting several lower-level characters. Equipment, remort memory, food, drinks and one-use items do not enter `bossLevel`.
 
 ## Starting boss HP formula
 
 ```text
-baseHp = N == 1 ? 70 : 93
+baseHp = N == 1 ? 150 : 132
+levelDelta = max(bossLevel - 8, 0)
 
 bossHp =
   baseHp
-  + 8 * (raidLevel - 8)
   + 42 * min(max(N - 1, 0), 4)
-  + 35 * max(N - 5, 0)
+  + 200 * max(N - 5, 0)
+  + 7 * levelDelta
+  + 11 * levelDelta * N
 ```
 
 Interpretation:
 
-- the explicit solo allowance keeps an exceptional prepared build mathematically capable of a win without making solo the baseline;
-- players `2–5` add a full action-economy tax;
-- players `6–8` add less HP so a larger party feels helpful;
-- larger groups are challenged mainly by more marked targets, watcher stacks and coordination, not only by a larger sponge.
+- the higher solo base keeps solo entry possible as an opt-in challenge without making solo look reliable by default;
+- players `2–5` add the entry action-economy tax used by the 3-player probe;
+- players `6–8` add a large-party coordination tax so a full group is favored but not automatic;
+- higher leader levels add both a flat tier bump and a per-participant tier tax, making low-level joiners under a high-level leader substantially riskier.
 
 ### HP table
 
-| Frozen raid level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+| Boss/leader level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 8 | 70 | 135 | 177 | 219 | 261 | 296 | 331 | 366 |
-| 10 | 86 | 151 | 193 | 235 | 277 | 312 | 347 | 382 |
-| 13 | 110 | 175 | 217 | 259 | 301 | 336 | 371 | 406 |
+| 8 | 150 | 174 | 216 | 258 | 300 | 500 | 700 | 900 |
+| 10 | 186 | 232 | 296 | 360 | 424 | 646 | 868 | 1090 |
+| 13 | 240 | 319 | 416 | 513 | 610 | 865 | 1120 | 1375 |
 
-The lower solo base is an intentional, documented accessibility concession: with only one name to monitor, the boss brings less paperwork. It prevents the UI from offering a mathematically fake solo choice. It does not reduce boss attack, telegraphs, resource attrition or the seven-round limit.
+The higher solo base is intentional for this feature-flagged MVP: solo entry is allowed, but it is not the baseline and should not look reliable without future explicit solo-preparation rules.
 
 Freeze the value. Do not heal or rescale the boss when someone disconnects, withdraws, or is knocked out.
 
@@ -90,7 +92,8 @@ Target selection must be deterministic from the session/round seed and fair:
 
 - prefer living participants not hit by the previous heavy action;
 - do not hit one participant with more than two consecutive targeted boss actions when alternatives exist;
-- do not use hidden damage ranking as permanent aggro in MVP;
+- use previous-round top damage only as the temporary ordinary focus rule in `0.2.17`, not as permanent aggro;
+- keep a broad all-living-participant hit on a deterministic fourth-turn cadence until fuller threat/taunt mechanics replace it;
 - show every heavy mark before the damaging round.
 
 ## Ability kit
@@ -172,9 +175,17 @@ At first crossing below `35%` HP:
 
 The phase is dangerous but intentionally speeds up the kill.
 
-### 6. `Остаточний облік`
+### 6. Runtime terminal contract
 
-Round `7` is the final player action window. Resolve all valid player actions. If the boss remains alive afterward, the raid becomes `lost` with the authored final-check flavor. Do not add an arbitrary eighth hidden damage roll after the terminal decision.
+There is no hidden runtime round cap, final player action window, enrage timer or automatic loss by turn number in `0.2.17`.
+
+The runtime ends only when:
+
+- the boss reaches `0 HP`;
+- all active/eligible participants are knocked out, withdrawn, invalidated or otherwise unable to continue;
+- explicit lifecycle cleanup cancels or invalidates the raid.
+
+Round `13` remains a simulation/reporting horizon only. If a deterministic probe is still active after round `13`, report it as `unresolvedByHorizon`.
 
 ## Suggested cadence
 
@@ -186,13 +197,13 @@ Thresholds are authoritative; round numbers are safe fallbacks so the boss canno
 4. first round after `<=70%` — `Форма 19-84` and watcher wave;
 5. next round — break success/failure result;
 6. first round after `<=35%` — enrage transition;
-7. round 7 — final player window.
+7. later rounds — continue normally until a canonical terminal condition occurs.
 
 If thresholds are crossed early, do not stack two major phase actions in one boss resolution. Queue one transition and preserve readable telegraphs.
 
 ## Participant resources
 
-- Use frozen current HP/mana after canonical lazy recovery.
+- Use frozen current HP/mana after canonical lazy recovery, with each participant's effective level/equipment HP and mana maxima rather than stored base maxima.
 - Use canonical effective stats, item effects, armor, resist, weapon/spell power and cooldown rules.
 - A participant at zero raid HP is knocked out and stops acting.
 - No resurrection in v1.
@@ -206,7 +217,7 @@ Rewards are individual, stored, replay-safe and never previewed exactly before c
 ### XP
 
 ```text
-participationXp = 23 + 3 * (raidLevel - 8)
+participationXp = 23 + 3 * (rewardLevel - 8)
 contributionXp = 0 | 5 | 13
 xp = participationXp + contributionXp
 ```
@@ -224,7 +235,7 @@ Typical successful range: `23–51 XP`.
 ### Gold
 
 ```text
-participationGold = 13 + 2 * (raidLevel - 8)
+participationGold = 13 + 2 * (rewardLevel - 8)
 contributionGold = 0 | 3 | 8
 gold = participationGold + contributionGold
 ```
@@ -240,7 +251,7 @@ A meaningful contributor receives stored `1 XP`, no gold, no item, and no succes
 Every full contributor receives one personal roll:
 
 - base chance `42%`;
-- level profile based on `raidLevel` with `lootPowerOffset +1` relative to ordinary center-route loot;
+- level profile based on `rewardLevel` with `lootPowerOffset +1` relative to ordinary center-route loot;
 - maximum one ordinary personal item;
 - reuse canonical candidate filtering, item grants, level requirements and replay storage;
 - no hidden duplicate grant on callback replay.
@@ -281,6 +292,8 @@ These are tuning targets, not public odds:
 
 | Scenario | Target win rate |
 |---|---:|
+| level 8 solo baseline, no manatky/remort/external buffs/items | `0–13%` |
+| level 8 prepared 3-player entry party | `35–49%` |
 | level 8 prepared solo | `0–10%` |
 | level 10–13 exceptional prepared solo | `5–20%` |
 | 2 prepared players | `25–50%` |
@@ -288,6 +301,8 @@ These are tuning targets, not public odds:
 | 4 solid players | `60–82%` |
 | 5 solid players | `72–90%` |
 | 6–8 baseline/solid players | `78–93%` |
+| full 8-player party at the same level as the leader/boss | `75–93%` |
+| level-13 leader with mostly lower-level joiners | substantially below the same-level full-party band |
 
 Additional gates:
 
@@ -297,6 +312,20 @@ Additional gates:
 - support-aware play must not earn less full-tier eligibility than pure damage when it resolves real mechanics;
 - unavoidable party-wide damage must not be the majority cause of recommended-group wipes;
 - level-appropriate strong equipment and eligible buffs should visibly improve odds, but five baseline players must not require one exact item/class.
+
+## 0.2.17 deterministic probe result
+
+The feature-flagged MVP checks a narrow CI-stable reducer probe by the 13-round horizon:
+
+| Scenario | Runs | Wins | Losses | Unresolved by horizon | Win rate |
+|---|---:|---:|---:|---:|---:|
+| Solo baseline, no manatky/remort/external buffs/items | 400 | 0 | 400 | 0 | `0%` |
+| Prepared 3-player entry party | 400 | 181 | 219 | 0 | `45.25%` |
+| Full same-level level-8 party | 400 | 350 | 48 | 2 | `87.5%` |
+| Full same-level level-13 party | 400 | 345 | 4 | 51 | `86.25%` |
+| Level-13 leader with seven lower-level joiners | 400 | 0 | 400 | 0 | `0%` |
+
+These are internal balance checks, not player-facing odds.
 
 ## Tuning order
 

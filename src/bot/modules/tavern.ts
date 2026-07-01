@@ -19,7 +19,9 @@ PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
 PRESENCE_LOCATION_KORCHMA_YARD,
 PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
+import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { ShynokRoundConfirmResult } from "../../services/shynokService";
+import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
 import { parseCellarCallbackData,type CellarCallback } from "../callbacks/cellarCallbackData";
@@ -131,6 +133,7 @@ presentTavernRoundLeaderboard,
 presentTavernRoundOffer,
 presentTavernRoundResult
 } from "../presenters/tavernPresenter";
+import { presentBigBarrelApproachNotice } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -160,7 +163,7 @@ const HTML_MESSAGE_OPTIONS = {
 
 export function registerTavernBotModule(
   bot: Bot,
-  { services }: BotModuleDependencies
+  { services, options }: BotModuleDependencies
 ): void {
   bot.command(["tavern", "raid", "cellar"], async (ctx, next) => {
     await guardActivePassageSearchCommand(ctx, services, next);
@@ -172,7 +175,11 @@ export function registerTavernBotModule(
     services.tavern,
     services.cellarGrownup
   );
-  registerTavernCommand(bot, services.tavern, services.presence);
+  registerTavernCommand(bot, services.tavern, services.presence, {
+    botUsername: options.botUsername,
+    partyBoss: services.partyBoss,
+    partySessions: services.partySessions
+  });
   registerBardPerformanceDevResetHandler(bot, services);
   registerPassageSearchDevResetHandler(bot, services);
 
@@ -181,11 +188,15 @@ export function registerTavernBotModule(
   });
 
   registerParsedCallbackRoute(bot, /^v1:tavern:/, parseTavernCallbackData, async (ctx, action) => {
-    await handleTavernCallback(ctx, action, services, bot);
+    await handleTavernCallback(ctx, action, services, bot, {
+      botUsername: options.botUsername
+    });
   });
 
   registerParsedCallbackRoute(bot, /^v1:place:/, parsePlaceCallbackData, async (ctx, action) => {
-    await handlePlaceCallback(ctx, action, services);
+    await handlePlaceCallback(ctx, action, services, {
+      botUsername: options.botUsername
+    });
   });
 
   registerParsedCallbackRoute(bot, /^v1:mem:/, parseMemorialCallbackData, async (ctx, action) => {
@@ -547,7 +558,8 @@ function registerPassageSearchDevResetHandler(bot: Bot, services: BotServices): 
 async function handlePlaceCallback(
   ctx: Context,
   action: PlaceCallback,
-  services: BotServices
+  services: BotServices,
+  options: { botUsername?: string | undefined } = {}
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -630,12 +642,16 @@ async function handlePlaceCallback(
   }
 
   if (action === "barrel") {
-    await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BARREL);
+    await sendBarrelPlaceMovementNotice(ctx, telegramUserId, services);
     if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_BARREL, services)) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply");
+    await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
+      botUsername: options.botUsername,
+      partyBoss: services.partyBoss,
+      partySessions: services.partySessions
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -790,6 +806,39 @@ async function handlePlaceCallback(
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
+async function sendBarrelPlaceMovementNotice(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<void> {
+  const text = await getBigBarrelApproachNoticeForTelegramUser(telegramUserId, services);
+
+  await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_BARREL, {
+    ...(text ? { text } : {})
+  });
+}
+
+async function getBigBarrelApproachNoticeForTelegramUser(
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<string | null> {
+  if (!services.partySessions?.isBigBarrelBrotherEnabled()) {
+    return null;
+  }
+
+  const result = await services.tavern.getTavernForTelegramUser(telegramUserId);
+  if (
+    result.state !== "ready" ||
+    !isBigBarrelEligible(result.character.level, result.character.remortCount)
+  ) {
+    return null;
+  }
+
+  const period = getBarrelRaidPeriod(new Date());
+
+  return presentBigBarrelApproachNotice(`${telegramUserId.toString()}:${period.id}`);
+}
+
 async function handleMemorialCallback(
   ctx: Context,
   action: MemorialCallback,
@@ -822,7 +871,8 @@ async function handleTavernCallback(
   ctx: Context,
   action: TavernCallback,
   services: BotServices,
-  bot: Bot
+  bot: Bot,
+  options: { botUsername?: string | undefined } = {}
 ): Promise<void> {
   const tavernRaidService = services.tavern;
   const yegerQuestService = services.yeger;
@@ -926,6 +976,21 @@ async function handleTavernCallback(
       reply_markup: buildKorchmaRoundResultKeyboard(result)
     });
     return;
+  }
+
+  if (action === "raid" && services.partySessions?.isBigBarrelBrotherEnabled()) {
+    const bigHandled = await sendTavernBarrel(ctx, tavernRaidService, presenceService, "edit", {
+      botUsername: options.botUsername,
+      partyBoss: services.partyBoss,
+      partySessions: services.partySessions,
+      openBigBarrelRecruiting: true,
+      onlyBigBarrelRecruiting: true
+    });
+
+    if (bigHandled) {
+      await safeAnswerCallbackQuery(ctx);
+      return;
+    }
   }
 
   const result = await tavernRaidService.advanceFridayBarrelRaid(telegramUserId);

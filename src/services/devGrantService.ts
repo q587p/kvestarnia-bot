@@ -20,6 +20,11 @@ export type DevGrantResult =
       kind: "level" | "xp" | "gold" | "heal" | "mana";
       amount: number;
       character: CharacterRecord;
+      combat?: {
+        kind: "solo-combat" | "party-boss" | "turn-based-duel";
+        hpCurrent: number;
+        hpMax: number;
+      };
       levelChange?: RewardLevelChange;
       achievementUnlocks?: AchievementUnlock[];
     }
@@ -140,7 +145,8 @@ export class DevGrantService {
           state: "updated",
           kind: "heal",
           amount: amount ?? Math.max(0, result.character.hpMax - result.character.hpCurrent),
-          character: result.character
+          character: result.character,
+          ...(result.combat ? { combat: result.combat } : {})
         }
       : { state: "no-character" };
   }

@@ -230,6 +230,20 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "reset"
   },
   {
+    command: "dev_raid_reset",
+    icon: "🔁",
+    description: "скинути таймер рейду локально",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
+    command: "dev_raid_win",
+    icon: "🏁",
+    description: "підготувати перемогу над Старшим Братом Бочки локально",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
     command: "dev_reset_monster_rest",
     icon: "⌛",
     description: "скинути перерву монстрів локально",

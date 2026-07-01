@@ -13,6 +13,7 @@ import {
   makeItemUseRestoreToFullCallbackData
 } from "../callbacks/itemUseCallbackData";
 import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
+import { makePartyBossItemUseCallbackData } from "../callbacks/partySessionCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentService";
@@ -81,11 +82,19 @@ export function buildItemDetailKeyboard(
   slotFilter: InventorySlotFilter = null,
   options: {
     canUse?: boolean;
-    combatUse?: {
-      sessionId: string;
-      turn: number;
-      itemKey: string;
-    };
+    combatUse?:
+      | {
+          kind: "fight";
+          sessionId: string;
+          turn: number;
+          itemKey: string;
+        }
+      | {
+          kind: "party-boss";
+          token: string;
+          turn: number;
+          itemKey: string;
+        };
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -104,7 +113,12 @@ export function buildItemDetailKeyboard(
 
   if (result.state === "found" && options.canUse === true) {
     if (options.combatUse) {
-      keyboard.text("⚔️ Використати у бою", makeFightItemUseCallbackData(options.combatUse)).row();
+      keyboard.text(
+        "⚔️ Використати у бою",
+        options.combatUse.kind === "fight"
+          ? makeFightItemUseCallbackData(options.combatUse)
+          : makePartyBossItemUseCallbackData(options.combatUse)
+      ).row();
     } else {
       keyboard.text("🩹 Використати", makeItemUsePreviewCallbackData(result.item.itemId)).row();
     }

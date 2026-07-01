@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- [0.2.16-party-vs-one-boss.md](0.2.16-party-vs-one-boss.md) — dev/flagged one-party one-boss proof using the existing temporary party foundation.
+- [0.2.17-big-barrel-brother-raid-mvp.md](0.2.17-big-barrel-brother-raid-mvp.md) — feature-flagged level 8+ Big Barrel Brother raid route on the existing party-boss runtime, with no runtime round cap.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -77,10 +77,12 @@ Active task:
 - [0.2.14-adventure-quest-readability-and-local-failure.md](0.2.14-adventure-quest-readability-and-local-failure.md) — selected Adventure Choice readability and narrow authored local no-reward failure.
 - [0.2.15-party-session-foundation.md](0.2.15-party-session-foundation.md) — dev/flagged temporary party recruiting/session foundation with opaque links, nearby private invites and replay-safe leave/cancel/expiry.
 - [0.2.16-party-vs-one-boss.md](0.2.16-party-vs-one-boss.md) — dev/flagged one-party one-boss proof with durable rounds, active combat leases, timeout defend fallback and no rewards.
+- [0.2.17-big-barrel-brother-raid-mvp.md](0.2.17-big-barrel-brother-raid-mvp.md) — feature-flagged level 8+ Big Barrel Brother raid route, Big boss tuning, canonical Barrel success settlement and no runtime round cap.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
-- [0.2.x-senior-barrel-brother-group-raid.md](0.2.x-senior-barrel-brother-group-raid.md) — draft future Senior Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
+- [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
+- [0.2.x-lore-board.md](0.2.x-lore-board.md) — draft future `Дошка корчми` / news-corner `📖 Перекази` section backed by current Kvestarnia canon seed content; docs-only until explicitly activated.
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
 - [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — archived draft for the shipped [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) route.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.

@@ -43,6 +43,7 @@ Good taste sources are flavor only: tabletop RPGs, Munchkin-like item absurdity,
 - Visible player/news/changelog dates use Holocene years, e.g. `12026`, not `2026`.
 - Use `міт`, `мітичний`, `мітологія`, `мітологічний`; avoid `міф*` unless immutable.
 - Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність`; avoid `соціальн*` unless immutable.
+- Use `ґільдія`, `ґільдії`, `ґільдійний`, `ґільдійна`, `ґільдійне`, `ґільдійні`; avoid `гільдія`, `гільдії`, `гільдійн*` unless immutable.
 - Avoid accidental Russian, rough calques, and random English except commands, code, IDs, or deliberate technical labels.
 
 ## Telegram format rules
@@ -123,7 +124,8 @@ Do:
 - Sell the mood and visible actions.
 - Use `У грі вже:` for visible changes.
 - Use at most one short `Ще не відчинено:` line for understandable player-facing limits.
-- Keep exact mechanics, rewards, hidden conditions, final punchlines, technical debt, scheduler/restart/deploy details, Redis/BullMQ, migrations, scaling, and Mini App backlog out of news.
+- Keep exact mechanics, rewards, hidden conditions, final punchlines, technical debt, scheduler/restart/deploy details, Redis/BullMQ, migrations, scaling, and platform backlog out of news.
+- Do not present Mini App as planned; it is not a current Kvestarnia product direction unless a future explicit product decision reverses that.
 
 Detailed mechanics belong in `CHANGELOG.md`, docs, tests, or PR body.
 

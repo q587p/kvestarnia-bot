@@ -6,6 +6,7 @@ import type {
   PartyCharacterSnapshot,
   PartyCreateRepositoryResult,
   PartyJoinRepositoryResult,
+  PartyJoinIneligibleReason,
   PartyLeaveRepositoryResult,
   PartyParticipantRecord,
   PartySessionRecord,
@@ -14,6 +15,8 @@ import type {
   PartyParticipantStatus,
   PartyJoinSource
 } from "./partySessionRepository";
+import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY, isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
+import { FRIDAY_BARREL_RAID_KEY } from "../../services/tavernRaidService";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -21,6 +24,7 @@ type CharacterRow = Prisma.CharacterGetPayload<{ include: typeof partyCharacterI
 
 const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
+const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 
 const partyCharacterInclude = {
   user: {
@@ -66,6 +70,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (!character) {
         return { state: "no-character" } satisfies PartyCreateRepositoryResult;
+      }
+
+      if (
+        input.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
+        await hasActiveBigBarrelLossCooldown(tx, character.id, input.now)
+      ) {
+        return { state: "ineligible", reason: "loss-cooldown" } satisfies PartyCreateRepositoryResult;
       }
 
       const liveLeader = await findLiveLeaderSession(tx, character.id);
@@ -158,9 +169,16 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: terminalState, session: mapSession(session) };
       }
 
-      if (session.status !== LIVE_STATUS || session.expiresAt <= input.now) {
+      if (
+        session.status !== LIVE_STATUS ||
+        (session.expiresAt <= input.now && session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
+      ) {
         const expired = await expireSessionTx(tx, session.id);
         return expired ? { state: "expired", session: mapSession(expired) } : { state: "not-found" };
+      }
+
+      if (session.expiresAt <= input.now) {
+        return { state: "expired", session: mapSession(session) };
       }
 
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
@@ -168,14 +186,14 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
+      const ineligibleReason = await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
+      if (ineligibleReason) {
+        return { state: "ineligible", reason: ineligibleReason, session: mapSession(session) };
+      }
+
       const existing = session.participants.find((row) => row.characterId === character.id);
       if (existing?.status === "joined") {
         return { state: "already-joined", session: mapSession(session) };
-      }
-
-      const liveMembership = await findLiveMembershipSession(tx, character.id);
-      if (liveMembership && liveMembership.id !== session.id) {
-        return { state: "live-membership", session: mapSession(liveMembership) };
       }
 
       const joinedCount = await tx.partyParticipant.count({
@@ -187,6 +205,18 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (joinedCount >= session.participantCap) {
         return { state: "full", session: mapSession(session) };
+      }
+
+      let cancelledSoloSession: PartySessionRecord | null = null;
+      const liveMembership = await findLiveMembershipSession(tx, character.id);
+      if (liveMembership && liveMembership.id !== session.id) {
+        if (isPersonalBigBarrelRecruitingSession(liveMembership, character.id)) {
+          await terminalizeSessionTx(tx, liveMembership.id, "cancelled");
+          const cancelled = await findSessionById(tx, liveMembership.id);
+          cancelledSoloSession = cancelled ? mapSession(cancelled) : null;
+        } else {
+          return { state: "live-membership", session: mapSession(liveMembership) };
+        }
       }
 
       if (existing) {
@@ -233,7 +263,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       }
 
       const updated = await findSessionById(tx, session.id);
-      return updated ? { state: "joined", session: mapSession(updated) } : { state: "not-found" };
+      return updated
+        ? {
+            state: "joined",
+            session: mapSession(updated),
+            ...(cancelledSoloSession ? { cancelledSoloSession } : {})
+          }
+        : { state: "not-found" };
     }).catch(async (error: unknown): Promise<PartyJoinRepositoryResult> => {
       if (error instanceof PartyCapacityRaceError) {
         const session = await this.findByToken(inviteToken, input.now);
@@ -386,6 +422,87 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
     const session = await findLiveLeaderSession(this.prisma, character.id);
     return session ? mapSession(session) : null;
+  }
+
+  async recordParticipantMessageReference(
+    telegramUserId: bigint,
+    inviteToken: string,
+    input: { chatId: bigint; messageId: number; now: Date }
+  ): Promise<PartySessionRecord | null> {
+    return this.prisma.$transaction(async (tx): Promise<PartySessionRecord | null> => {
+      const session = await findSessionByToken(tx, inviteToken);
+      if (!session) {
+        return null;
+      }
+
+      const participant = session.participants.find(
+        (row) => row.status === "joined" && row.character.user.telegramUserId === telegramUserId
+      );
+      if (!participant) {
+        return mapSession(session);
+      }
+
+      await tx.partyParticipant.update({
+        where: { id: participant.id },
+        data: {
+          chatId: input.chatId,
+          messageId: input.messageId,
+          joinedAt: participant.joinedAt
+        }
+      });
+
+      const updated = await findSessionById(tx, session.id);
+      return updated ? mapSession(updated) : null;
+    });
+  }
+
+  async listRecruitingByOrigin(
+    originLocationId: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    await this.expireRecruiting(now);
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originLocationId,
+        expiresAt: {
+          gt: now
+        }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
+  }
+
+  async listDueRecruitingByOrigin(
+    originLocationId: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originLocationId,
+        expiresAt: {
+          lte: now
+        }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
   }
 
   async expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
@@ -556,11 +673,16 @@ async function expireTokenIfNeededTx(tx: TxClient, inviteToken: string, now: Dat
     select: {
       id: true,
       status: true,
+      originLocationId: true,
       expiresAt: true
     }
   });
 
-  if (session?.status === LIVE_STATUS && session.expiresAt <= now) {
+  if (
+    session?.status === LIVE_STATUS &&
+    session.expiresAt <= now &&
+    session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+  ) {
     await terminalizeSessionTx(tx, session.id, "expired");
   }
 }
@@ -581,6 +703,9 @@ async function expireRecruitingTx(
   const sessions = await prisma.partySession.findMany({
     where: {
       status: LIVE_STATUS,
+      originLocationId: {
+        not: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+      },
       expiresAt: {
         lte: now
       }
@@ -651,6 +776,93 @@ function mapSession(row: PartySessionRow): PartySessionRecord {
     leader: mapCharacter(row.leader),
     participants: row.participants.map(mapParticipant)
   };
+}
+
+function isPersonalBigBarrelRecruitingSession(session: PartySessionRow, characterId: string): boolean {
+  const joined = session.participants.filter((participant) => participant.status === "joined");
+
+  return (
+    session.status === LIVE_STATUS &&
+    session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
+    session.leaderCharacterId === characterId &&
+    joined.length === 1 &&
+    joined[0]?.characterId === characterId
+  );
+}
+
+async function getBigBarrelJoinIneligibleReason(
+  tx: TxClient,
+  session: PartySessionRow,
+  character: CharacterRow,
+  now: Date
+): Promise<PartyJoinIneligibleReason | null> {
+  if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+    return null;
+  }
+
+  if (!isBigBarrelEligible(character.level, character._count.remorts)) {
+    return "level-gate";
+  }
+
+  const [activeLease, existingSuccess, activeLossCooldown] = await Promise.all([
+    tx.activeCombatLease.findUnique({
+      where: {
+        characterId: character.id
+      },
+      select: {
+        id: true
+      }
+    }),
+    session.periodId
+      ? tx.dailyAction.findUnique({
+          where: {
+            characterId_key_localDate: {
+              characterId: character.id,
+              key: FRIDAY_BARREL_RAID_KEY,
+              localDate: session.periodId
+            }
+          },
+          select: {
+            id: true
+          }
+        })
+      : Promise.resolve(null),
+    hasActiveBigBarrelLossCooldown(tx, character.id, now)
+  ]);
+
+  if (activeLease) {
+    return "active-combat";
+  }
+
+  if (existingSuccess) {
+    return "already-completed";
+  }
+
+  if (activeLossCooldown) {
+    return "loss-cooldown";
+  }
+
+  return null;
+}
+
+async function hasActiveBigBarrelLossCooldown(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<boolean> {
+  const cooldown = await tx.characterCooldown.findUnique({
+    where: {
+      characterId_key: {
+        characterId,
+        key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+      }
+    },
+    select: {
+      availableAt: true
+    }
+  });
+
+  return Boolean(cooldown && cooldown.availableAt > now);
 }
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {

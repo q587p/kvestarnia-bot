@@ -1,5 +1,6 @@
 import type { DevMonsterRestCooldownResetResult } from "../../services/fightService";
-import type { TavernDevRaidStopResult } from "../../services/tavernRaidService";
+import type { PartyBossDevRaidWinResult } from "../../services/partyBossService";
+import type { TavernDevRaidResetResult, TavernDevRaidStopResult } from "../../services/tavernRaidService";
 
 export function presentDevResetDisabled(): string {
   return "Ця команда доступна лише в локальній майстерні.";
@@ -92,4 +93,59 @@ export function presentDevRaidStopResult(result: TavernDevRaidStopResult): strin
   }
 
   return "Зупиняти нічого: пригодника ще не створено. /start чекає біля дверей.";
+}
+
+export function presentDevRaidResetResult(result: TavernDevRaidResetResult): string {
+  if (result.state === "reset") {
+    const cleared = [
+      result.clearedPending ? "таймер очікування" : null,
+      result.clearedCompletion ? "зарахований відтинок" : null
+    ].filter(Boolean);
+
+    return [
+      "Рейдовий таймер Бочки скинуто для локального тесту.",
+      `Очищено: ${cleared.join(", ")}.`,
+      "Кулдаун після програшу Старшому Брату Бочки не чіпався."
+    ].join("\n");
+  }
+
+  if (result.state === "nothing-to-reset") {
+    return "Для Бочки немає активного таймера чи зарахованого відтинку. Вона й так готова до тесту.";
+  }
+
+  if (result.state === "unavailable") {
+    return "Скидання рейду недоступне: сховище не має потрібного гачка.";
+  }
+
+  return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
+}
+
+export function presentDevRaidWinResult(
+  result: PartyBossDevRaidWinResult | { state: "no-character" | "unavailable" }
+): string {
+  if (result.state === "primed") {
+    return "Старший Брат Бочки отримав dev-ляпаса: HP боса тепер 0. Наступна дія або добивання ходу завершить рейд перемогою ватаги.";
+  }
+
+  if (result.state === "disabled") {
+    return "Dev-перемога над Старшим Братом Бочки недоступна: рейдові dev-помічники вимкнені.";
+  }
+
+  if (result.state === "unavailable") {
+    return "Dev-перемога над Старшим Братом Бочки недоступна: сховище не має потрібного гачка.";
+  }
+
+  if (result.state === "not-big") {
+    return "Активний party-boss не є Старшим Братом Бочки. Цей dev-ляпас не для нього.";
+  }
+
+  if (result.state === "stale") {
+    return "Рейд змінився просто під руками. Спробуйте /dev_raid_win ще раз або оновіть картку бою.";
+  }
+
+  if (result.state === "no-active") {
+    return "Немає активного бою зі Старшим Братом Бочки для цього пригодника.";
+  }
+
+  return "Скидати нічого: пригодника ще не створено. /start чекає біля дверей.";
 }

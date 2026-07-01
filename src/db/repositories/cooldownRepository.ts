@@ -71,4 +71,9 @@ export interface CooldownRepository {
     telegramUserId: bigint,
     input: { key: string; availableAt: Date }
   ): Promise<SetCooldownAvailableAtResult | null>;
+
+  deleteForTelegramUser?(
+    telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<"deleted" | "missing" | "no-character">;
 }

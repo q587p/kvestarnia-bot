@@ -90,7 +90,7 @@ describe("Mantok Chest domain", () => {
       id: "item.responsible-panic-bandage",
       goldValue: 7,
       slot: "consumable",
-      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"]
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"]
     });
     const priced = item({ id: "item.priced", goldValue: 3 });
 

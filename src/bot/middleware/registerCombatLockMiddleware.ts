@@ -144,6 +144,7 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "dev_heal" ||
     command === "dev_restore_mana" ||
     command === "dev_add_bandage" ||
+    command === "dev_raid_win" ||
     command === "online" ||
     command === "look" ||
     command === "restart" ||
@@ -286,7 +287,7 @@ async function redirectPartyBossLockIfNeeded(
   });
   await sendCombatLockText(ctx, presentCombatLockRedirect(presentPartyBoss(active, { viewerCharacterId })), {
     reply_markup: buildPartyBossKeyboard(active, viewerCharacterId, {
-      includeDevTimeout: services.partyBoss.isEnabled()
+      includeDevTimeout: services.partyBoss.areDevHelpersEnabled()
     })
   });
 

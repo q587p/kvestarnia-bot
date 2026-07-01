@@ -9,8 +9,11 @@ export type PartySessionCallback =
   | { type: "expire"; token: string }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
+  | { type: "boss-item"; token: string; turn: number; itemKey: string }
   | { type: "boss-timeout"; token: string }
-  | { type: "boss-journal"; token: string }
+  | { type: "boss-journal"; token: string; page: number | null }
+  | { type: "share"; token: string }
+  | { type: "invite"; token: string; templateIndex: number }
   | { type: "nearby-open"; page: number }
   | { type: "nearby-invite"; targetTelegramUserId: bigint; page: number };
 
@@ -29,6 +32,7 @@ const PREFIX = "v1:party";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 const PAGE_PATTERN = /^[0-9a-z]{1,3}$/;
 const TARGET_PATTERN = /^[0-9a-z]{1,13}$/;
+const ITEM_KEY_PATTERN = /^[a-z0-9]{1,10}$/;
 
 export function makePartySessionViewCallbackData(token: string): string {
   return `${PREFIX}:v:${token}`;
@@ -62,12 +66,28 @@ export function makePartyBossActionCallbackData(
   return `${PREFIX}:ba:${token}:${turn.toString(36)}:${actionKey(action)}`;
 }
 
+export function makePartyBossItemUseCallbackData(input: {
+  token: string;
+  turn: number;
+  itemKey: string;
+}): string {
+  return `${PREFIX}:bi:${input.token}:${input.turn.toString(36)}:${input.itemKey}`;
+}
+
 export function makePartyBossTimeoutCallbackData(token: string): string {
   return `${PREFIX}:bt:${token}`;
 }
 
-export function makePartyBossJournalCallbackData(token: string): string {
-  return `${PREFIX}:bj:${token}`;
+export function makePartyBossJournalCallbackData(token: string, page?: number): string {
+  return page === undefined ? `${PREFIX}:bj:${token}` : `${PREFIX}:bj:${token}:${page.toString(36)}`;
+}
+
+export function makePartySessionShareCallbackData(token: string): string {
+  return `${PREFIX}:sh:${token}`;
+}
+
+export function makePartySessionInviteRotateCallbackData(token: string, templateIndex: number): string {
+  return `${PREFIX}:in:${token}:${templateIndex.toString(36)}`;
 }
 
 export function makePartySessionNearbyOpenCallbackData(page = 0): string {
@@ -98,7 +118,7 @@ export function parsePartySessionCallbackData(
 
   const [, section, action, tokenOrTarget, page, ...rest] = data.split(":");
 
-  if (section !== "party" || (action !== "ba" && rest.length > 0)) {
+  if (section !== "party" || (action !== "ba" && action !== "bi" && rest.length > 0)) {
     return err("invalid-prefix");
   }
 
@@ -158,6 +178,60 @@ export function parsePartySessionCallbackData(
     });
   }
 
+  if (action === "bj") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (page !== undefined && !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    return ok({
+      type: "boss-journal",
+      token: tokenOrTarget,
+      page: page === undefined ? null : Number.parseInt(page, 36)
+    });
+  }
+
+  if (action === "bi") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    const itemKey = rest[0];
+    if (rest.length !== 1 || !itemKey || !ITEM_KEY_PATTERN.test(itemKey)) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "boss-item",
+      token: tokenOrTarget,
+      turn: Number.parseInt(page, 36),
+      itemKey
+    });
+  }
+
+  if (action === "in") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    return ok({
+      type: "invite",
+      token: tokenOrTarget,
+      templateIndex: Number.parseInt(page, 36)
+    });
+  }
+
   if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {
     return err("invalid-token");
   }
@@ -190,8 +264,8 @@ export function parsePartySessionCallbackData(
     return ok({ type: "boss-timeout", token: tokenOrTarget });
   }
 
-  if (action === "bj") {
-    return ok({ type: "boss-journal", token: tokenOrTarget });
+  if (action === "sh") {
+    return ok({ type: "share", token: tokenOrTarget });
   }
 
   return err("invalid-action");

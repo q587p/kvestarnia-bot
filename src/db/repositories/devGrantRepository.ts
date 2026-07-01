@@ -8,6 +8,11 @@ export type DevGrantProgressResult = {
 
 export type DevGrantCharacterResult = {
   character: CharacterRecord;
+  combat?: {
+    kind: "solo-combat" | "party-boss" | "turn-based-duel";
+    hpCurrent: number;
+    hpMax: number;
+  };
 };
 
 export type DevGrantItemResult = {

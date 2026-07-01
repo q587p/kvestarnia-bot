@@ -1,16 +1,16 @@
-# Codex prompt - Senior Barrel Brother read-only review
+# Codex prompt - Big Barrel Brother read-only review
 
 ```text
 Use $kvestarnia-second-codex-readonly.
 
-Review the Senior Barrel Brother group raid PR against main.
+Review the Big Barrel Brother group raid PR against main.
 Mode: READ ONLY, report only.
 Scope: changed files first; inspect direct persistence/combat/reward/presence dependencies only when needed.
 
 Read:
 - the actual version task doc
-- docs/design/SENIOR_BARREL_BROTHER_GROUP_RAID.md
-- docs/design/SENIOR_BARREL_BROTHER_BALANCE.md
+- docs/design/BIG_BARREL_BROTHER_GROUP_RAID.md
+- docs/design/BIG_BARREL_BROTHER_BALANCE.md
 - docs/architecture/GROUP_RAID_SESSION_MODEL.md
 - AGENTS.md
 

@@ -26,6 +26,8 @@ import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { findMonsterBark } from "../../content/monsterBarks";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
+import { presentBattleJournalPage } from "./battleJournalPresenter";
 
 export interface QuestProgressAfterFightEntry {
   title: string;
@@ -386,33 +388,38 @@ export function presentPersistentFightJournal(
   const log = getPersistentFightJournalEntries(result.session.state ?? null);
 
   if (log.length === 0) {
-    return [
-      "📜 <b>Журнал бою</b>",
-      presentCharacterHeader(result.character),
-      "",
-      "У цьому бою ще немає записаних ходів. Журнал робить вигляд, що це мінімалізм."
-    ].join("\n");
+    return presentBattleJournalPage({
+      title: "📜 <b>Журнал бою</b>",
+      headerLines: [presentCharacterHeader(result.character)],
+      emptyText: "У цьому бою ще немає записаних ходів. Журнал робить вигляд, що це мінімалізм."
+    });
   }
 
   const page = Math.max(0, Math.min(Math.floor(requestedPage), log.length - 1));
   const entry = log[page] ?? log[log.length - 1]!;
   const state = result.session.state;
-  const lines = [
-    "📜 <b>Журнал бою</b>",
-    presentCharacterHeader(result.character),
-    "",
-    `Хід <b>${entry.turn}</b> · запис ${page + 1}/${log.length}`,
-    `❤️ Ви після ходу: ${entry.hero.hp}/${state?.hero.hpMax ?? "?"} · мана ${entry.hero.mana}/${state?.hero.manaMax ?? "?"}`,
-    ...presentJournalEnemyHpRows(entry, state),
-    "",
-    presentTurnSummary(entry.summary, { includeHeading: false })
-  ];
   const notices = presentJournalTurnNotices(entry);
-  if (notices.length > 0) {
-    lines.push("", ...notices);
-  }
-
-  return lines.join("\n");
+  return presentBattleJournalPage({
+    title: "📜 <b>Журнал бою</b>",
+    headerLines: [presentCharacterHeader(result.character)],
+    turn: entry.turn,
+    page,
+    totalPages: log.length,
+    actorRows: [
+      presentBattleCombatantResourceLine({
+        icon: "❤️",
+        name: "Ви",
+        hp: entry.hero.hp,
+        hpMax: state?.hero.hpMax ?? "?",
+        mana: entry.hero.mana,
+        manaMax: state?.hero.manaMax ?? "?",
+        afterTurn: true
+      })
+    ],
+    opponentRows: presentJournalEnemyHpRows(entry, state),
+    actionLines: [presentTurnSummary(entry.summary, { includeHeading: false })],
+    noticeLines: notices
+  });
 }
 
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
@@ -441,7 +448,15 @@ function presentJournalEnemyHpRows(
   state: Extract<PersistentFightSnapshotResult, { state: "found" }>["session"]["state"] | null
 ): string[] {
   if (!entry.enemies || entry.enemies.length <= 1) {
-    return [`👹 Монстр після ходу: ${entry.monster.hp}/${state?.monster.hpMax ?? "?"}`];
+    return [
+      presentBattleCombatantResourceLine({
+        icon: "👹",
+        name: "Монстр",
+        hp: entry.monster.hp,
+        hpMax: state?.monster.hpMax ?? "?",
+        afterTurn: true
+      })
+    ];
   }
 
   const stateEnemies = state ? normalizeCombatEnemies(state) : [];
@@ -451,7 +466,14 @@ function presentJournalEnemyHpRows(
     const fallbackName = index === 0 ? state?.monster.name : undefined;
     const name = presentShortMonsterName(stateEnemy?.name ?? fallbackName, `Монстр ${index + 1}`);
 
-    return `👹 ${index + 1}. ${name} після ходу: ${enemy.hp}/${stateEnemy?.hpMax ?? "?"}`;
+    return presentBattleCombatantResourceLine({
+      icon: "👹",
+      name: `${index + 1}. ${name}`,
+      hp: enemy.hp,
+      hpMax: stateEnemy?.hpMax ?? "?",
+      afterTurn: true,
+      escapeName: false
+    });
   });
 }
 
@@ -684,7 +706,14 @@ function presentPersistentFightState(input: {
   const lines = [
     state ? `⚔️ <b>Бій</b>: ${formatBattleTurn(state.turn)}` : "⚔️ <b>Бій</b>",
     "",
-    `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
+    presentBattleCombatantResourceLine({
+      icon: "❤️",
+      name: "Ви",
+      hp: state?.hero.hp ?? "?",
+      hpMax: state?.hero.hpMax ?? "?",
+      mana: state?.hero.mana ?? "?",
+      manaMax: state?.hero.manaMax ?? "?"
+    }),
     ...enemyRows
   ];
 
@@ -1164,7 +1193,15 @@ function presentEnemyHpRows(
   const enemies = normalizeCombatEnemies(state);
 
   if (enemies.length <= 1) {
-    return [`👹 ${presentShortMonsterName(state.monster.name ?? monster?.name, "Монстр")}: ${state.monster.hp}/${state.monster.hpMax}`];
+    return [
+      presentBattleCombatantResourceLine({
+        icon: "👹",
+        name: presentShortMonsterName(state.monster.name ?? monster?.name, "Монстр"),
+        hp: state.monster.hp,
+        hpMax: state.monster.hpMax,
+        escapeName: false
+      })
+    ];
   }
 
   const primaryEnemyId = enemies.find((enemy) => enemy.hp > 0)?.enemyId ?? enemies[0]?.enemyId;
@@ -1177,7 +1214,14 @@ function presentEnemyHpRows(
         : `Монстр ${index + 1}`;
     const name = ` ${presentShortMonsterName(enemy.name ?? fallbackName, `Монстр ${index + 1}`)}`;
 
-    return `👹 ${index + 1}.${name}: ${enemy.hp}/${enemy.hpMax}${marker}`;
+    return presentBattleCombatantResourceLine({
+      icon: "👹",
+      name: `${index + 1}.${name}`,
+      hp: enemy.hp,
+      hpMax: enemy.hpMax,
+      targetLabel: marker ? "ціль" : undefined,
+      escapeName: false
+    });
   });
 }
 

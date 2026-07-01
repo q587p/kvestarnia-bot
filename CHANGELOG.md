@@ -7,6 +7,58 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.17] - 12026-07-01 - Big Barrel Brother Raid MVP
+
+### Added
+- Added `BIG_BARREL_BROTHER_RAID_ENABLED` for the first feature-flagged Big Barrel Brother route.
+- Added a Barrel route that creates/opens Big Barrel Brother recruiting parties from `/raid` or the explicit Barrel card action while the flag is enabled for non-remorted level `8+` characters and remorted level `3+` characters, reusing the existing `PartySession` token for deep links and nearby invites.
+- Added Big party-boss state with `rulesVersion = big-barrel-brother-v1`, `bossKey = big-barrel-brother`, frozen roster/resources/period and a single shared boss target.
+- Added Big Barrel Brother victory settlement through the canonical `tavern.friday-barrel-raid` key, so meaningful participants receive stored XP/gold/resource outcomes plus the existing Barrel item grant set exactly once.
+- Added replay-safe Big Barrel Brother achievement hooks: victories feed the existing rewardless `barrel.raid.claimed` Barrel-result achievements, failures with applied attempt XP unlock the new rewardless `achievement.barrel.raid.first-loss`, and recalculation can prove both from stored daily-action / party-boss ledgers.
+- Added a 3-minute Big Barrel Brother loss retry cooldown through `tavern.big-barrel-brother.loss-retry.cooldown`, so a character who just lost cannot start or join another Big Barrel Brother recruiting group until the short retry gate expires.
+- Added focused Big reducer and repository coverage for no runtime round cap, 13-round simulation-horizon probes, canonical Barrel success settlement and replay-safe reward dedupe.
+- Added local `/dev_raid_reset` to clear the current Barrel pending timer/completion gate for faster same-period raid QA without running reward settlement; it intentionally does not clear the Big Barrel Brother loss retry cooldown.
+- Added local `/dev_raid_win` to set an active Big Barrel Brother boss to `0 HP` and let the next normal party-boss turn resolution settle the raid as a player victory, including boss-zero plus party-zero tie states.
+- Added focused hardening coverage for Big participant eligibility, duplicate frozen-period success, remort-life drift, and production-vs-dev timeout resolution.
+- Added a narrow Big Barrel Brother focus rule: ordinary retaliations first hit the party leader, then follow the previous round's top living damage contributor, while every fourth turn keeps a broad hit against all living participants until a future explicit threat/taunt system replaces it.
+- Added automatic Big Barrel Brother recruiting start after the recruiting deadline, plus `👀 Хто поруч` listings/buttons for live Barrel recruiting groups.
+- Added a forwardable Big Barrel Brother invite-card with 13 stable Ukrainian templates and `🎲 Інший текст` rotation for joined recruiting participants.
+- Added the existing `Бинт відповідальної паніки` as a narrow Big Barrel Brother combat item action: it consumes one owned non-reserved bandage, heals the participant's frozen raid HP state, counts as that turn's action, and is reachable from both the raid card and the item-detail combat-use button.
+
+### Changed
+- Non-remorted level `1-7`, remorted level `1-2`, disabled-flag eligible characters, and pre-existing legacy pending Barrel rows remain on the legacy Barrel flow.
+- Big Barrel Brother runtime inherits the party-boss one-action-per-turn, duplicate/stale callback no-op, deterministic timeout defend and active combat lease release contracts from `0.2.16`.
+- Big Barrel Brother start now rejects the whole joined roster with a generic ineligible result when any participant is not currently eligible for the frozen Barrel period, and settlement rechecks the remort-aware level gate, remort life and existing Barrel success before granting XP/gold/items.
+- Production `boss-timeout` callbacks now resolve only when the turn deadline is due; early force-timeout remains available only through dev-helper mode.
+- Party recruiting cards now show a real `🛢️ Почати рейд` leader button for Big Barrel Brother parties without exposing dev proof controls.
+- Plain Barrel place entry and current-location resume keep the familiar Barrel card first; eligible players opt into Big Barrel Brother with `🍺 У рейд на бочку` instead of being dropped straight into recruiting.
+- Eligible Big Barrel Brother Barrel approach/start notices now use 13 stable Ukrainian templates to explain that the old light solo raid has become a group fight, while the main recruiting card no longer carries that intervention paragraph.
+- Big Barrel Brother recruiting cards opened through `/raid` and the explicit Barrel raid action now receive the configured bot username, keep participant-visible invite/share controls while recruiting, and offer `📣 Запрошення на рейд` to send the separate forwardable card with the full `/start party_<token>` URL only when explicitly requested.
+- Big Barrel Brother boss cards use production raid copy, show the whole party resource state to participants, mark the boss target on the participant row, and explain victory/failure with the boss HP that remained.
+- Big Barrel Brother participant resource snapshots now use the hero's effective level/equipment HP and mana maxima, preserving real missing resources such as `13/50` instead of clamping raid cards to stored base maxima like `20/10`.
+- Big Barrel Brother private action keyboards now use the same concrete class/race ability labels and availability rules as ordinary combat instead of generic `Вміння` / `Раса` placeholders.
+- Big Barrel Brother active battle cards now follow the ordinary fight rhythm more closely: turn heading, boss HP first, party HP/mana rows, visible boss target marker, viewer-only cooldown lines under the resource block, concrete action buttons, `Останні дії:` summaries with named class/race abilities, named broad `Бочковий гуркіт` boss attacks, 23-second turn hint and no live journal button until terminal state.
+- Big Barrel Brother starts now send a separate intervention intro card before the action card, and due active turns now resolve automatically through the runtime scheduler instead of requiring a manual timeout callback.
+- Big Barrel Brother intervention intro cards now reuse the existing character-flavor `Порада дня` (`raid.prep-hint` / Barrel scene) per participant instead of a separate hard-coded raid tip.
+- Big Barrel Brother battle journals now open only after terminal state, render one stored round per page, include action outcome descriptions and named broad boss attacks, record boss target/focus-switch information, use beginning/end pagination, and return to the terminal result card.
+- Big Barrel Brother active cards and journals now suppress focus-switch lines when the boss is still targeting the same participant instead of claiming the attention "switched" to the current target again.
+- Big Barrel Brother party deep links now open the active or completed boss card/result before falling back to recruiting join, so old invites replay the real raid outcome after battle.
+- Big Barrel Brother terminal victory cards now replay the viewer's stored XP/gold/item grant summary with ordinary fight-style `🎉 Ви перемогли` / `Винагорода за бій` copy instead of a generic bookkeeping line.
+- Big Barrel Brother recruiting join/leave now best-effort refreshes stored recruiting cards for other joined participants, including the leader's original card.
+- Big Barrel Brother recruiting join/rejoin now rejects under-gate, already-completed-period, active-combat or loss-cooldown characters before mutating `PartyParticipant`, while showing the actor a specific Ukrainian blocker and keeping shared start/settlement checks fail-closed.
+- Joining a selected Big Barrel Brother recruiting group now cancels the player's own solo Big Barrel recruiting group first, so `👀 Хто поруч` and deep-link joins can move from a personal one-person draft into another leader's raid without getting stuck on the old card.
+- Big Barrel Brother now freezes boss level from the current party leader instead of the roster average, with large-party HP scaling tuned so lower-level joiners no longer soften a high-level starter's raid.
+- Big balance tuning now uses 13 rounds only as a deterministic simulation/QA horizon: solo baseline `0/400` wins (`0%`), prepared 3-player entry party `181/400` wins (`45.25%`), full same-level level-8 party `350/400` wins (`87.5%`), full same-level level-13 party `345/400` wins (`86.25%`), and level-13 leader with seven lower-level joiners `0/400` wins (`0%`) in the checked matrix.
+- The Big balance docs now explicitly remove the older round-7 terminal pressure proposal from the runtime contract.
+- Inventory item detail cards now say combat-usable bandages can be used in active solo combat or outside combat when the fight action is available, matching the existing combat-use button instead of showing only out-of-combat wording.
+- Local `/dev_heal` now also heals the active combat state for solo combat, party-boss/Big Barrel Brother raids and turn-based duels, with an explicit battle HP line in the dev response.
+- Lazy `/hero` and `/fight` resource synchronization no longer displays the old delayed full-HP recovery notice; durable timely recovery notifications remain a separate future task.
+
+### Unchanged
+- No runtime round cap, round-7 final window, 13-round auto-loss, enrage timer or hidden terminal-by-turn rule ships in this slice.
+- Failure grants no Barrel success, gold or items; meaningful participants may receive a small replay-safe XP attempt reward on loss, but timeout-only AFK does not count as meaningful participation and the next Big Barrel Brother attempt is blocked by the 3-minute loss retry cooldown.
+- Affinity spotlight, first-win trophy, broader raid combat items/targetable manatky, targetable adds, ґільдії, matchmaking, permanent parties, market, trade and crafting remain deferred; Mini App is not a planned track for this release line.
+
 ## [0.2.16] - 12026-06-30 - Party Vs One Boss MVP
 
 ### Added
@@ -33,7 +85,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The compact Codex context, task index, roadmap, playtesting guide and security/fair-play notes now document the one-boss proof boundary.
 
 ### Unchanged
-- This is not Senior Barrel Brother and not the production raid route.
+- This is not Big Barrel Brother and not the production raid route.
 - No XP, gold, items, manatky, trophies, achievements, Barrel success, group loot table, guild, matchmaking, public roster, Mini App, market, trade or crafting ships in this slice.
 - Existing solo combat, turn-based duels, postal delivery, Safe Gifting, Shynok, Adventure, Daily Korchma, Barrel legacy behavior and temporary party recruiting remain on their existing contracts.
 
@@ -53,7 +105,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The compact Codex context, task index, playtesting guide and security/fair-play notes now document the party-session foundation and privacy contract.
 
 ### Unchanged
-- No boss combat, active rounds, HP/mana mutation, combat leases, rewards, XP, gold, items, achievements, Senior Barrel Brother route or production Barrel replacement ships in this slice.
+- No boss combat, active rounds, HP/mana mutation, combat leases, rewards, XP, gold, items, achievements, Big Barrel Brother route or production Barrel replacement ships in this slice.
 - Existing solo Barrel behavior, beer access, solo combat, two-enemy threat combat, gifting/postal delivery, Shynok, Daily Korchma and Adventure behavior remain unchanged.
 
 ## [0.2.14] - 12026-06-29 - Adventure Quest Readability and Local Failure

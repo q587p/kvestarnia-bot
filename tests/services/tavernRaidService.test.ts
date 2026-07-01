@@ -405,6 +405,76 @@ describe("TavernRaidService", () => {
     expect(dailyActions.records).toHaveLength(0);
   });
 
+  it("resets the completed barrel raid period for dev testing without granting another reward", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      new FakeRandomSource([0])
+    );
+
+    await service.completeFridayBarrelRaid(telegramUserId);
+    const reset = await service.resetFridayBarrelRaidForDev(telegramUserId);
+    const next = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(reset).toMatchObject({
+      state: "reset",
+      clearedCompletion: true,
+      clearedPending: false,
+      periodId: "2026-06-12T13:23"
+    });
+    expect(dailyActions.records).toHaveLength(0);
+    expect(pendingRaids.records).toHaveLength(1);
+    expect(next).toMatchObject({
+      state: "pending-started",
+      periodId: "2026-06-12T13:23"
+    });
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: fixedRaidReward.xp,
+      gold: fixedRaidReward.gold
+    });
+  });
+
+  it("resets a pending barrel raid timer for dev testing without completing it", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      new FakeRandomSource([0.999])
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    const reset = await service.resetFridayBarrelRaidForDev(telegramUserId);
+    const next = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(reset).toMatchObject({
+      state: "reset",
+      clearedCompletion: false,
+      clearedPending: true,
+      periodId: "2026-06-12T13:23"
+    });
+    expect(dailyActions.records).toHaveLength(0);
+    expect(pendingRaids.records).toHaveLength(1);
+    expect(next).toMatchObject({
+      state: "pending-started",
+      availableAt: new Date("2026-06-12T10:38:00.000Z")
+    });
+    await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      xp: 0,
+      gold: 0
+    });
+  });
+
   it("raises the possible barrel raid wait ceiling for higher-level heroes", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -1265,6 +1335,22 @@ class FakeCooldownRepository implements CooldownRepository {
       character
     };
   }
+
+  async deleteForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string }
+  ): Promise<"deleted" | "missing" | "no-character"> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return "no-character";
+    }
+
+    const key = `${character.id}:${input.key}`;
+    const deleted = this.cooldowns.delete(key);
+
+    return deleted ? "deleted" : "missing";
+  }
 }
 
 class FakeDailyActionRepository implements DailyActionRepository {
@@ -1336,5 +1422,20 @@ class FakeDailyActionRepository implements DailyActionRepository {
         leveledUp: getLevelForXp(character.xp + input.rewardXp) > getLevelForXp(character.xp)
       }
     };
+  }
+
+  async deleteForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<"deleted" | "missing" | "no-character"> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return "no-character";
+    }
+
+    const deleted = this.actions.delete(`${character.id}:${input.key}:${input.localDate}`);
+
+    return deleted ? "deleted" : "missing";
   }
 }

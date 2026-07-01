@@ -1,6 +1,6 @@
 import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
-import { handlePartySessionCallback } from "../../src/bot/commands/partySessionCommand";
+import { handlePartySessionCallback, sendPartyJoinFromStartPayload } from "../../src/bot/commands/partySessionCommand";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { PartySessionService } from "../../src/services/partySessionService";
@@ -94,7 +94,7 @@ describe("handlePartySessionCallback", () => {
   it("pushes the started boss card to other participants", async () => {
     const session = makeBossSession();
     const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "started", session });
-    const { ctx, editMessageText, sendMessage } = createCallbackContext();
+    const { ctx, editMessageText, reply, sendMessage } = createCallbackContext();
 
     await handlePartySessionCallback(
       ctx,
@@ -102,16 +102,52 @@ describe("handlePartySessionCallback", () => {
       serviceWith({}),
       {
         presence: {} as PresenceService,
-        partyBoss: partyBossWith({ startFromPartyForTelegramUser })
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => true,
+          startFromPartyForTelegramUser
+        })
       }
     );
 
     expect(startFromPartyForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken);
-    expect(messageText(editMessageText)).toContain("Бос-пробу запущено");
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(messageText(editMessageText)).toContain("🧪 <b>Контрольний бос прокинувся</b>");
+    expect(reply).toHaveBeenCalledWith(
+      expect.stringContaining("Тестового боса запущено"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(93);
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Бос-пробу запущено");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:ba");
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("🧪 <b>Контрольний бос прокинувся</b>");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Бойова картка тестового боса готова.");
+    expect(JSON.stringify(sendMessage.mock.calls[1]?.[2])).toContain("v1:party:ba");
+  });
+
+  it("rejects non-Big Barrel Brother boss starts when dev helper mode is disabled", async () => {
+    const session = makeSession("recruiting");
+    const getByToken = vi.fn().mockResolvedValue({ state: "ready", session });
+    const startFromPartyForTelegramUser = vi.fn();
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: session.inviteToken },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => false,
+          startFromPartyForTelegramUser
+        })
+      }
+    );
+
+    expect(getByToken).toHaveBeenCalledWith(session.inviteToken);
+    expect(startFromPartyForTelegramUser).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Ця кнопка вже втратила магію. Спробуйте /start ще раз.",
+      show_alert: true
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it("pushes the next boss turn to participants who acted earlier", async () => {
@@ -167,8 +203,82 @@ describe("handlePartySessionCallback", () => {
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
   });
 
+  it("routes forged non-dev boss timeout callbacks through the due-timeout path only", async () => {
+    const session = makeBossSession();
+    const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({ state: "queued", session });
+    const forceResolveTimedOutByToken = vi.fn();
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-timeout", token: session.partyInviteToken },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => false,
+          resolveDueTimedOutByToken,
+          forceResolveTimedOutByToken
+        })
+      }
+    );
+
+    expect(resolveDueTimedOutByToken).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(forceResolveTimedOutByToken).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Хід перевірено." });
+    expect(messageText(editMessageText)).toContain("1 хід");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("uses the dev force-timeout path when helper mode is enabled", async () => {
+    const session = makeBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "character-42",
+            action: "defend",
+            origin: "timeout",
+            outcome: "defended",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 65,
+        bossRetaliations: [],
+        statusAfter: "active"
+      }]
+    });
+    const resolveDueTimedOutByToken = vi.fn();
+    const forceResolveTimedOutByToken = vi.fn().mockResolvedValue({ state: "resolved", session });
+    const { ctx, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-timeout", token: session.partyInviteToken },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => true,
+          resolveDueTimedOutByToken,
+          forceResolveTimedOutByToken
+        })
+      }
+    );
+
+    expect(forceResolveTimedOutByToken).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(resolveDueTimedOutByToken).not.toHaveBeenCalled();
+    expect(messageText(editMessageText)).toContain("2 хід");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Dev-таймер добив хід");
+  });
+
   it("opens the boss journal from the stored round log", async () => {
     const session = makeBossSession({
+      status: "won",
       roundLog: [{
         turn: 1,
         actions: [
@@ -193,7 +303,7 @@ describe("handlePartySessionCallback", () => {
         bossDamage: 7,
         bossHpAfter: 58,
         bossRetaliations: [{ characterId: "character-42", damage: 4, hpAfter: 21 }],
-        statusAfter: "active"
+        statusAfter: "won"
       }]
     });
     const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
@@ -201,7 +311,7 @@ describe("handlePartySessionCallback", () => {
 
     await handlePartySessionCallback(
       ctx,
-      { type: "boss-journal", token: session.partyInviteToken },
+      { type: "boss-journal", token: session.partyInviteToken, page: null },
       serviceWith({}),
       {
         presence: {} as PresenceService,
@@ -210,10 +320,258 @@ describe("handlePartySessionCallback", () => {
     );
 
     expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
-    expect(messageText(editMessageText)).toContain("📜 <b>Журнал бос-проби</b>");
-    expect(messageText(editMessageText)).toContain("Хід 1");
-    expect(messageText(editMessageText)).toContain("Тестова Лідерка: удар: 7 шкоди");
-    expect(messageText(editMessageText)).toContain("Друга Учасниця: расова дія: ефект без прямої шкоди");
+    expect(messageText(editMessageText)).toContain("📜 <b>Журнал тестового бою</b>");
+    expect(messageText(editMessageText)).toContain("Хід <b>1</b> · запис 1/1");
+    expect(messageText(editMessageText)).toContain("👹 Контрольний Бос після ходу: 58/65");
+    expect(messageText(editMessageText)).toContain("▪️ Тестова Лідерка після ходу: HP 21/25 · мана 10/10 ← 🎯 ціль боса");
+    expect(messageText(editMessageText)).toContain("<b>Останні дії:</b>");
+    expect(messageText(editMessageText)).toContain("Атака Тестова Лідерка влучає на 7 шкоди.");
+    expect(messageText(editMessageText)).toContain("Друга Учасниця застосовує 🪨 <i>Низький центр ваги</i> спрацьовує без прямої шкоди.");
+  });
+
+  it("keeps the boss journal closed while the battle is active", async () => {
+    const session = makeBossSession();
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-journal", token: session.partyInviteToken, page: null },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ getByPartyInviteToken })
+      }
+    );
+
+    expect(messageText(editMessageText)).toContain("Журнал відкриється після бою");
+    expect(messageText(editMessageText)).toContain("<b>Бій: 1 хід</b>");
+  });
+
+  it("refreshes the leader recruiting card after another player joins", async () => {
+    const session = makeSessionWithMember();
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "joined", session });
+    const { ctx, editMessageText, apiEditMessageText, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: session.inviteToken },
+      serviceWith({ joinByTokenForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      source: "nearby",
+      chatId: 93n,
+      messageId: 13
+    });
+    expect(messageText(editMessageText)).toContain("Ви приєдналися до ватаги");
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      13,
+      expect.stringContaining("Учасники: 2/8"),
+      expect.objectContaining({
+        parse_mode: "HTML"
+      })
+    );
+    expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("href=\"https://t.me/kvestarnia_test_bot?start=party_partyABC12\"");
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the cancelled solo Big Barrel recruiting card after switching into another raid", async () => {
+    const session = {
+      ...makeSessionWithMember(),
+      originLocationId: "barrel.big-brother"
+    };
+    const switcher = {
+      ...makeCharacter(),
+      id: "character-93",
+      userId: "user-93",
+      telegramUserId: 93n,
+      name: "Перемикачка"
+    };
+    const cancelledSoloSession: PartySessionRecord = {
+      ...makeSession("cancelled"),
+      id: "party-old",
+      inviteToken: "partyOLD12",
+      status: "cancelled",
+      originLocationId: "barrel.big-brother",
+      leaderCharacterId: switcher.id,
+      activeLeaderKey: null,
+      leader: switcher,
+      participants: [
+        {
+          id: "participant-old-93",
+          sessionId: "party-old",
+          characterId: switcher.id,
+          remortCount: 0,
+          status: "joined",
+          joinSource: "leader",
+          joinedAt: session.createdAt,
+          leftAt: null,
+          chatId: 93n,
+          messageId: 77,
+          character: switcher
+        }
+      ]
+    };
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "joined",
+      session,
+      cancelledSoloSession
+    });
+    const { ctx, apiEditMessageText } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: session.inviteToken },
+      serviceWith({ joinByTokenForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(apiEditMessageText).toHaveBeenCalledTimes(2);
+    expect(apiEditMessageText).toHaveBeenNthCalledWith(
+      1,
+      42,
+      13,
+      expect.stringContaining("Учасники: 2/8"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(apiEditMessageText).toHaveBeenNthCalledWith(
+      2,
+      93,
+      77,
+      expect.stringContaining("Стан: скасовано"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+  });
+
+  it("shows fallback copy for reasonless ineligible Big Barrel Brother nearby joins without participant refresh", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originLocationId: "barrel.big-brother"
+    };
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "ineligible", session });
+    const { ctx, editMessageText, apiEditMessageText, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: session.inviteToken },
+      serviceWith({ joinByTokenForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      source: "nearby",
+      chatId: 93n,
+      messageId: 13
+    });
+    expect(messageText(editMessageText)).toContain("Рейдова канцелярія відсіяла запис");
+    expect(messageText(editMessageText)).not.toContain("Ви приєдналися");
+    expect(keyboardJson(editMessageText)).toBeUndefined();
+    expect(apiEditMessageText).not.toHaveBeenCalled();
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it("shows fallback copy for reasonless ineligible Big Barrel Brother deep-link joins without a joined card", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originLocationId: "barrel.big-brother"
+    };
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "ineligible", session });
+    const { ctx, reply } = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWith({ joinByTokenForTelegramUser }),
+      session.inviteToken,
+      { botUsername: "kvestarnia_test_bot" }
+    );
+
+    expect(handled).toBe(true);
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      source: "deep-link",
+      chatId: 93n
+    });
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Рейдова канцелярія відсіяла запис");
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("Ви приєдналися");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).not.toContain("Приєднатися");
+  });
+
+  it("sends a forwardable Big Barrel Brother invite card after explicit share press", async () => {
+    const session = {
+      ...makeSessionWithMember(),
+      originLocationId: "barrel.big-brother"
+    };
+    const getByToken = vi.fn().mockResolvedValue({ state: "ready", session });
+    const { ctx, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "share", token: session.inviteToken },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(getByToken).toHaveBeenCalledWith(session.inviteToken);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("https://t.me/kvestarnia_test_bot?start=party_partyABC12");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Учасників: <b>2/8</b>");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🎲 Інший текст");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("v1:party:in:partyABC12");
+  });
+
+  it("lets any joined Big Barrel Brother participant rotate invite-card text", async () => {
+    const session = {
+      ...makeSessionWithMember(),
+      originLocationId: "barrel.big-brother"
+    };
+    const getByToken = vi.fn().mockResolvedValue({ state: "ready", session });
+    const { ctx, editMessageText } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "invite", token: session.inviteToken, templateIndex: 0 },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(messageText(editMessageText)).toContain("https://t.me/kvestarnia_test_bot?start=party_partyABC12");
+    expect(messageText(editMessageText)).toContain("Формат: гуртовий рейд проти Старшого Брата Бочки.");
+    expect(keyboardJson(editMessageText)).toContain("🎲 Інший текст");
+  });
+
+  it("opens a completed party boss result from a party deep link before falling back to recruiting join", async () => {
+    const session = makeBossSession({ status: "won" });
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
+    const joinByTokenForTelegramUser = vi.fn();
+    const { ctx, reply } = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWith({ joinByTokenForTelegramUser }),
+      session.partyInviteToken,
+      { partyBoss: partyBossWith({ getByPartyInviteToken }) }
+    );
+
+    expect(handled).toBe(true);
+    expect(getByPartyInviteToken).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Ватага перемогла");
   });
 });
 
@@ -230,9 +588,11 @@ function serviceWith(overrides: Partial<PartySessionService>): PartySessionServi
 function partyBossWith(overrides: Partial<PartyBossService>): PartyBossService {
   return {
     isEnabled: () => true,
+    areDevHelpersEnabled: () => false,
     startFromPartyForTelegramUser: vi.fn(),
     submitActionForTelegramUser: vi.fn(),
-    resolveTimedOutByToken: vi.fn(),
+    resolveDueTimedOutByToken: vi.fn(),
+    forceResolveTimedOutByToken: vi.fn(),
     getByPartyInviteToken: vi.fn(),
     ...overrides
   } as unknown as PartyBossService;
@@ -242,16 +602,22 @@ function createCallbackContext(): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
+  apiEditMessageText: ReturnType<typeof vi.fn>;
+  reply: ReturnType<typeof vi.fn>;
   sendMessage: ReturnType<typeof vi.fn>;
 }
 function createCallbackContext(telegramUserId = 42): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
+  apiEditMessageText: ReturnType<typeof vi.fn>;
+  reply: ReturnType<typeof vi.fn>;
   sendMessage: ReturnType<typeof vi.fn>;
 } {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn().mockResolvedValue(true);
+  const apiEditMessageText = vi.fn().mockResolvedValue(true);
+  const reply = vi.fn().mockResolvedValue({ message_id: 23 });
   const sendMessage = vi.fn().mockResolvedValue(true);
   const ctx = {
     from: {
@@ -275,12 +641,14 @@ function createCallbackContext(telegramUserId = 42): {
     },
     answerCallbackQuery,
     editMessageText,
+    reply,
     api: {
+      editMessageText: apiEditMessageText,
       sendMessage
     }
   } as unknown as Context;
 
-  return { ctx, answerCallbackQuery, editMessageText, sendMessage };
+  return { ctx, answerCallbackQuery, editMessageText, apiEditMessageText, reply, sendMessage };
 }
 
 function messageText(editMessageText: ReturnType<typeof vi.fn>): string {
@@ -327,6 +695,37 @@ function makeSession(status: PartySessionRecord["status"]): PartySessionRecord {
         chatId: 42n,
         messageId: 13,
         character: makeCharacter()
+      }
+    ]
+  };
+}
+
+function makeSessionWithMember(): PartySessionRecord {
+  const session = makeSession("recruiting");
+  const member = {
+    ...makeCharacter(),
+    id: "character-93",
+    userId: "user-93",
+    telegramUserId: 93n,
+    name: "Друга Учасниця"
+  };
+
+  return {
+    ...session,
+    participants: [
+      ...session.participants,
+      {
+        id: "participant-93",
+        sessionId: session.id,
+        characterId: member.id,
+        remortCount: 0,
+        status: "joined",
+        joinSource: "nearby",
+        joinedAt: session.createdAt,
+        leftAt: null,
+        chatId: 93n,
+        messageId: 99,
+        character: member
       }
     ]
   };

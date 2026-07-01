@@ -34,7 +34,7 @@ export function registerSocialBotModule(
     });
   }
 
-  if (services.partySessions?.isEnabled()) {
+  if (services.partySessions?.areDevHelpersEnabled()) {
     registerPartySessionDevCommand(bot, services.partySessions, {
       presence: services.presence,
       botUsername: options.botUsername,

@@ -1,0 +1,671 @@
+{
+  "races": [
+    {
+      "id": "race.human-ish",
+      "name": "Людисько",
+      "description": "Практичне в усьому, що вдалося вписати в корчмарську анкету.",
+      "status": "active"
+    },
+    {
+      "id": "race.dwarf",
+      "name": "Гном",
+      "description": "Стійкий до ударів, боргів і високих полиць.",
+      "status": "active"
+    },
+    {
+      "id": "race.elf",
+      "name": "Ельф",
+      "description": "Влучний, драматичний і трохи ображений на стан ваших чобіт.",
+      "status": "active"
+    },
+    {
+      "id": "race.bisyny",
+      "name": "Бісини",
+      "description": "Кажуть, назву колись занесло з однієї великої брами. Відтоді словники в таверні тримають під замком.",
+      "status": "active"
+    },
+    {
+      "id": "race.drantohor",
+      "name": "Дрантогор",
+      "description": "Заблукав із Королівства Остромаг і робить вигляд, що це був план. Межа підписала пропуск заднім числом.",
+      "status": "active",
+      "note": "тільки шлях `they` у поточному onboarding"
+    },
+    {
+      "id": "race.domovyk",
+      "name": "Домовик",
+      "description": "Знаходить дрібний лут там, де інші знаходять лише пил.",
+      "status": "active",
+      "note": "у поточному onboarding без `she`"
+    },
+    {
+      "id": "race.dryland-rusalka",
+      "name": "Русалка сухопутна",
+      "description": "Магічна, харизматична й підозріло уважна до чайників.",
+      "status": "active",
+      "note": "у поточному onboarding без `he`"
+    },
+    {
+      "id": "race.intellectual-orc",
+      "name": "Орк-інтелігент",
+      "description": "Сила з дипломом і аргументами, які краще не ловити обличчям.",
+      "status": "active"
+    },
+    {
+      "id": "race.molfar-soul",
+      "name": "Мольфарська душа",
+      "description": "Носить у кишені оберіг, у голові туман, а в кишені ще один оберіг.",
+      "status": "active"
+    },
+    {
+      "id": "race.kharakternyk",
+      "name": "Козак-характерник",
+      "description": "Deprecated fallback для старих персонажів. Нові характерники тепер обираються як клас.",
+      "status": "legacy-only"
+    }
+  ],
+  "classes": [
+    {
+      "id": "class.warrior",
+      "name": "Воїн",
+      "description": "Простий план: стояти рівно й переконливо махати залізом.",
+      "primaryStat": "strength"
+    },
+    {
+      "id": "class.mage",
+      "name": "Маг",
+      "description": "Каже складні слова, після яких у кімнаті стає гарячіше.",
+      "primaryStat": "intelligence"
+    },
+    {
+      "id": "class.bard",
+      "name": "Бард",
+      "description": "Перемагає харизмою, куплетами й небезпечною впевненістю.",
+      "primaryStat": "charisma"
+    },
+    {
+      "id": "class.rogue",
+      "name": "Злодій",
+      "description": "Зникає швидше, ніж рахунок після походу в таверну.",
+      "primaryStat": "dexterity"
+    },
+    {
+      "id": "class.priest",
+      "name": "Жрець",
+      "description": "Лікує союзників і суворо дивиться на нежить.",
+      "primaryStat": "charisma"
+    },
+    {
+      "id": "class.varenyk-mancer",
+      "name": "Вареник-мант",
+      "description": "Керує тістом, настроєм і легким відчуттям ситості.",
+      "primaryStat": "intelligence"
+    },
+    {
+      "id": "class.bureaucramancer",
+      "name": "Бюрокромант",
+      "description": "Знерухомлює ворогів формами, печатками й дуже серйозним виглядом.",
+      "primaryStat": "intelligence"
+    },
+    {
+      "id": "class.ranger",
+      "name": "Єгер",
+      "description": "Знає стежки, пастки й де ховається ваша остання стріла.",
+      "primaryStat": "dexterity"
+    },
+    {
+      "id": "class.kharakternyk",
+      "name": "Козак-характерник",
+      "description": "Дивиться на проблему так, що проблема сама шукає собі іншу пригоду.",
+      "primaryStat": "luck"
+    }
+  ],
+  "places": [
+    {
+      "id": "location.korchma.front",
+      "name": "Перед корчмою",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.yard",
+      "name": "Задвірок корчми",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.hall",
+      "name": "Зала корчми",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.quest_table",
+      "name": "Стіл зі справами",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.bar",
+      "name": "Шинок",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.cellar",
+      "name": "Льох корчми",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.barrel",
+      "name": "Біля Бочки Пінного Міражу",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.news_corner",
+      "name": "Дошка корчми",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.ranger_corner",
+      "name": "Єгерський куток",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.fighting_corner",
+      "name": "Бійцівський куток",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.deep",
+      "name": "Низ",
+      "region": "Корчма Квестарні"
+    },
+    {
+      "id": "location.korchma.deep.level1",
+      "name": "Сутерени Корчми",
+      "region": "Низ"
+    },
+    {
+      "id": "location.korchma.deep.level1.left",
+      "name": "Лівий прохід",
+      "region": "Сутерени Корчми"
+    },
+    {
+      "id": "location.korchma.deep.level1.straight",
+      "name": "Прямий прохід",
+      "region": "Сутерени Корчми"
+    },
+    {
+      "id": "location.korchma.deep.level1.right",
+      "name": "Правий прохід",
+      "region": "Сутерени Корчми"
+    }
+  ],
+  "monsters": [
+    {
+      "id": "monster.mimic-shawarma",
+      "name": "Мімік-шаурма",
+      "level": 1
+    },
+    {
+      "id": "monster.basement-mouse-with-title",
+      "name": "Льохова Миша з Титулом",
+      "level": 1
+    },
+    {
+      "id": "monster.stamp-doorkeeper-skeleton",
+      "name": "Скелет-вахтер печаток",
+      "level": 2
+    },
+    {
+      "id": "monster.spreadsheet-goblin",
+      "name": "Гоблін з Електронною Табличкою",
+      "level": 2
+    },
+    {
+      "id": "monster.deadline-spider",
+      "name": "Павук дедлайнів",
+      "level": 2
+    },
+    {
+      "id": "monster.preapproval-dragonling",
+      "name": "Дракончик попереднього погодження",
+      "level": 3
+    },
+    {
+      "id": "monster.unread-rules-ghost",
+      "name": "Привид непрочитаних правил",
+      "level": 2
+    },
+    {
+      "id": "monster.anxious-slippers-swarm",
+      "name": "Зграя капців тривожної мобільности",
+      "level": 1
+    },
+    {
+      "id": "monster.borshch-slime",
+      "name": "Борщовий слизень правильної температури",
+      "level": 2
+    },
+    {
+      "id": "monster.conditionally-sliced-loaf-bandit",
+      "name": "Буханець-бандит умовної нарізки",
+      "level": 2
+    },
+    {
+      "id": "monster.queue-counter-gargoyle",
+      "name": "Ґарґулья лічильника черги",
+      "level": 3
+    },
+    {
+      "id": "monster.audit-mosquito",
+      "name": "Комар-ревізор дрібних витрат",
+      "level": 1
+    },
+    {
+      "id": "monster.archival-knysh-eater",
+      "name": "Архівний книшоїд",
+      "level": 2
+    },
+    {
+      "id": "monster.final-comment-troll",
+      "name": "Троль останнього коментаря",
+      "level": 3
+    },
+    {
+      "id": "monster.report-jellyfish",
+      "name": "Медузка звітности",
+      "level": 2
+    },
+    {
+      "id": "monster.no-change-merchantling",
+      "name": "Крамарик без здачі",
+      "level": 2
+    },
+    {
+      "id": "monster.self-critique-mirror",
+      "name": "Дзеркальце зайвої самокритики",
+      "level": 3
+    },
+    {
+      "id": "monster.dry-sea-teapot",
+      "name": "Чайник сухого моря",
+      "level": 2
+    },
+    {
+      "id": "monster.cabbage-knight-on-break",
+      "name": "Капустяний лицар на перерві",
+      "level": 2
+    },
+    {
+      "id": "monster.zero-declaration-tax-dragon",
+      "name": "Податковий дракон нульової декларації",
+      "level": 5
+    },
+    {
+      "id": "monster.complaint-lantern",
+      "name": "Скаргова лампа",
+      "level": 4
+    },
+    {
+      "id": "monster.ledger-boar",
+      "name": "Кабан прибутково-видаткової книги",
+      "level": 5
+    },
+    {
+      "id": "monster.salted-oath-pretzel",
+      "name": "Крендель солоної обіцянки",
+      "level": 6
+    },
+    {
+      "id": "monster.unclosed-closure-act",
+      "name": "Акт закриття, який не закрився",
+      "level": 6
+    },
+    {
+      "id": "monster.liar-corridor-map",
+      "name": "Мапа коридору, яка бреше",
+      "level": 7
+    },
+    {
+      "id": "monster.foam-auditor-boots",
+      "name": "Пінний ревізор у чоботях",
+      "level": 8
+    },
+    {
+      "id": "monster.three-signature-chimera",
+      "name": "Химера трьох підписів",
+      "level": 9
+    },
+    {
+      "id": "monster.cheese-vault-warden",
+      "name": "Наглядач сирного сховку",
+      "level": 10
+    },
+    {
+      "id": "monster.calendar-hydra",
+      "name": "Гідра календарних переносів",
+      "level": 11
+    },
+    {
+      "id": "monster.inventory-prophet",
+      "name": "Пророк інвентарної недостачі",
+      "level": 12
+    },
+    {
+      "id": "monster.quiet-catastrophe-clerk",
+      "name": "Писар тихої катастрофи",
+      "level": 13
+    },
+    {
+      "id": "monster.collective-liability-cauldron",
+      "name": "Баняк колективної відповідальности",
+      "level": 4
+    },
+    {
+      "id": "monster.bypass-sheet-fox",
+      "name": "Лис обхідного листа",
+      "level": 4
+    },
+    {
+      "id": "monster.sourdough-kvas-golem",
+      "name": "Квасний голем на заквасці",
+      "level": 5
+    },
+    {
+      "id": "monster.tender-committee-frog",
+      "name": "Жаба тендерного комітету",
+      "level": 5
+    },
+    {
+      "id": "monster.safety-intern-chuhaister",
+      "name": "Чугайстер-практикант із техніки безпеки",
+      "level": 6
+    },
+    {
+      "id": "monster.bulk-discount-zlydni",
+      "name": "Злидні гуртової знижки",
+      "level": 6
+    },
+    {
+      "id": "monster.fourth-grind-rumor-mill",
+      "name": "Млинок чуток четвертого помелу",
+      "level": 6
+    },
+    {
+      "id": "monster.improper-parking-boar",
+      "name": "Вепр неналежного паркування",
+      "level": 7
+    },
+    {
+      "id": "monster.three-correct-roads-blud",
+      "name": "Блуд із трьома правильними дорогами",
+      "level": 7
+    },
+    {
+      "id": "monster.wet-coal-salamander",
+      "name": "Саламандра мокрого вугілля",
+      "level": 7
+    },
+    {
+      "id": "monster.service-key-monkey",
+      "name": "Мавпочка службового ключа",
+      "level": 7
+    },
+    {
+      "id": "monster.hr-pesyholovets",
+      "name": "Песиголовець із відділу кадрів",
+      "level": 8
+    },
+    {
+      "id": "monster.licensed-shine-magpie",
+      "name": "Сорока ліцензійного блиску",
+      "level": 8
+    },
+    {
+      "id": "monster.diet-menu-sausage-basilisk",
+      "name": "Ковбасний василіск дієтичного меню",
+      "level": 8
+    },
+    {
+      "id": "monster.dry-fountain-vodyanyk",
+      "name": "Водяник сухого фонтану",
+      "level": 8
+    },
+    {
+      "id": "monster.curfew-stove-lion",
+      "name": "Пічний лев комендантської години",
+      "level": 9
+    },
+    {
+      "id": "monster.three-instance-duck",
+      "name": "Качка трьох інстанцій",
+      "level": 9
+    },
+    {
+      "id": "monster.promo-perelesnyk",
+      "name": "Перелесник рекламної акції",
+      "level": 9
+    },
+    {
+      "id": "monster.basement-pipe-stone-catfish",
+      "name": "Кам’яний сом підвального водогону",
+      "level": 9
+    },
+    {
+      "id": "monster.final-approval-raven",
+      "name": "Ворон остаточного погодження",
+      "level": 10
+    },
+    {
+      "id": "monster.quarterly-report-pan-kotsky",
+      "name": "Пан Коцький квартального звіту",
+      "level": 10
+    },
+    {
+      "id": "monster.small-business-didko",
+      "name": "Дідько малого бізнесу",
+      "level": 10
+    },
+    {
+      "id": "monster.deep-estimate-sawfish",
+      "name": "Риба-пилка кошторисної глибини",
+      "level": 10
+    },
+    {
+      "id": "monster.treasure-ventilation-copper-snake",
+      "name": "Мідний полоз скарбової вентиляції",
+      "level": 11
+    },
+    {
+      "id": "monster.strategic-reserve-potato",
+      "name": "Бараболя стратегічного резерву",
+      "level": 11
+    },
+    {
+      "id": "monster.forest-loss-aurochs",
+      "name": "Тур обліку лісових збитків",
+      "level": 11
+    },
+    {
+      "id": "monster.service-path-lisovyk",
+      "name": "Лісовик службової стежки",
+      "level": 12
+    },
+    {
+      "id": "monster.siege-iron-varenyk",
+      "name": "Залізний вареник облоги",
+      "level": 12
+    },
+    {
+      "id": "monster.thirteen-address-dragon-courier",
+      "name": "Змій-кур’єр тринадцяти адрес",
+      "level": 12
+    },
+    {
+      "id": "monster.tide-accountant-vodyanyk",
+      "name": "Водяний бухгалтер припливів",
+      "level": 13
+    },
+    {
+      "id": "monster.failed-tender-pea-giant",
+      "name": "Гороховий велетень невиграного тендеру",
+      "level": 13
+    },
+    {
+      "id": "monster.archive-ventilation-dragon",
+      "name": "Дракон архівної вентиляції",
+      "level": 13
+    },
+    {
+      "id": "monster.seven-draft-chuhaister",
+      "name": "Чугайстер семи протягів",
+      "level": 14
+    },
+    {
+      "id": "monster.seasonal-defense-pumpkin-hetman",
+      "name": "Гарбузовий гетьман сезонної оборони",
+      "level": 14
+    },
+    {
+      "id": "monster.second-copy-ghost",
+      "name": "Привид другого примірника",
+      "level": 14
+    },
+    {
+      "id": "monster.six-hour-meeting-viy",
+      "name": "Вій шестигодинної наради",
+      "level": 15
+    },
+    {
+      "id": "monster.state-sluice-beaver",
+      "name": "Бобер державного шлюзу",
+      "level": 15
+    },
+    {
+      "id": "monster.cash-gap-upyr",
+      "name": "Упир касового розриву",
+      "level": 15
+    },
+    {
+      "id": "monster.late-vacation-mavka",
+      "name": "Мавка невчасної відпустки",
+      "level": 16
+    },
+    {
+      "id": "monster.third-reheat-kulish-phoenix",
+      "name": "Кулішний фенікс третього підігріву",
+      "level": 16
+    },
+    {
+      "id": "monster.night-reservation-mara",
+      "name": "Мара нічного резервування",
+      "level": 16
+    },
+    {
+      "id": "monster.storage-silence-reed-king",
+      "name": "Очеретяний цар комірної тиші",
+      "level": 17
+    },
+    {
+      "id": "monster.false-note-bandura-griffin",
+      "name": "Бандурний грифон фальшивої ноти",
+      "level": 17
+    },
+    {
+      "id": "monster.last-shift-vovkulaka",
+      "name": "Вовкулака останньої зміни",
+      "level": 17
+    },
+    {
+      "id": "monster.mountain-leasing-aridnyk",
+      "name": "Арідник гірського лізингу",
+      "level": 18
+    },
+    {
+      "id": "monster.customs-three-whisker-carp",
+      "name": "Триусий короп митного ставу",
+      "level": 18
+    },
+    {
+      "id": "monster.hr-intern-necromancer",
+      "name": "Некромант-стажер відділу кадрів",
+      "level": 18
+    },
+    {
+      "id": "monster.cold-storage-state-mammoth",
+      "name": "Казенний мамонт холодного складу",
+      "level": 19
+    },
+    {
+      "id": "monster.excise-honey-giant-bee",
+      "name": "Велетенська бджола акцизного меду",
+      "level": 19
+    },
+    {
+      "id": "monster.overtime-heat-poludnytsia",
+      "name": "Полудниця понаднормової спеки",
+      "level": 19
+    },
+    {
+      "id": "monster.spoon-mobilization-iron-raven",
+      "name": "Залізний крук мобілізації ложок",
+      "level": 20
+    },
+    {
+      "id": "monster.fire-safety-three-headed-serpent",
+      "name": "Триголовий змій пожежної безпеки",
+      "level": 20
+    },
+    {
+      "id": "monster.last-will-dead-auditor",
+      "name": "Мрець-ревізор останньої волі",
+      "level": 20
+    },
+    {
+      "id": "monster.underground-sea-acceptance-whale",
+      "name": "Кит підземного моря з актом приймання",
+      "level": 21
+    },
+    {
+      "id": "monster.collateral-grey-bear",
+      "name": "Сивий ведмідь заставного майна",
+      "level": 21
+    },
+    {
+      "id": "monster.empty-chamber-lady",
+      "name": "Панночка порожньої світлиці",
+      "level": 21
+    },
+    {
+      "id": "monster.fair-tax-honey-leviathan",
+      "name": "Медовий левіятан ярмаркового збору",
+      "level": 22
+    },
+    {
+      "id": "monster.siege-song-stone-skylark",
+      "name": "Кам’яний жайвір облогової пісні",
+      "level": 22
+    },
+    {
+      "id": "monster.written-off-assets-black-booker",
+      "name": "Чорнокнижник списаного майна",
+      "level": 22
+    },
+    {
+      "id": "monster.last-route-star-boar",
+      "name": "Зоряний вепр останнього маршруту",
+      "level": 23
+    },
+    {
+      "id": "monster.queue-dragon-prince",
+      "name": "Князь драконячої черги",
+      "level": 23
+    },
+    {
+      "id": "monster.expired-archive-upyr-king",
+      "name": "Король упирів простроченого архіву",
+      "level": 23
+    }
+  ],
+  "notes": {
+    "monsterCountInSnapshot": 93,
+    "legacyRace": "race.kharakternyk is legacy-only; class.kharakternyk is active."
+  }
+}

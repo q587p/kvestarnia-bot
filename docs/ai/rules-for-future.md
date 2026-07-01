@@ -12,7 +12,8 @@ Use this as the durable process note for token-efficient Kvestarnia work.
 6. Use `$kvestarnia-second-codex-readonly` for second Codex review.
 7. Use `$kvestarnia-telegram-qa` only for full QA plans or high-risk Telegram flow changes.
 8. Use `$ukrainian-rpg-content` for substantial player-facing battle, tip, location, item/monster, or news copy.
-9. Use `$kvestarnia-release-checklist` at closeout.
+9. Use `$kvestarnia-local-runtime` for local launcher/runtime, Prisma/SQLite, Windows EPERM, or isolated manual-test bot issues.
+10. Use `$kvestarnia-release-checklist` at closeout.
 
 ## Prompt rules
 

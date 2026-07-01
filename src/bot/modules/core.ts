@@ -41,7 +41,9 @@ export function registerCoreBotModule(
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
   registerPlannedCommands(bot);
-  registerMainMenuKeyboard(bot, services);
+  registerMainMenuKeyboard(bot, services, {
+    botUsername: options.botUsername
+  });
   registerCallbackMainMenuLocationRefresh(bot, services.presence);
 
   registerParsedCallbackRoute(bot, /^v1:menu:/, parseMenuCallbackData, async (ctx, action) => {

@@ -14,6 +14,7 @@ export interface ItemDetailOptions {
   equippedSlot?: EquipmentSlot | null;
   equipPreview?: ItemEquipPreviewResult | null;
   itemUse?: ItemUseAvailability | null;
+  combatUseAvailable?: boolean;
 }
 
 export function presentItemDetail(
@@ -50,7 +51,7 @@ export function presentOwnedItemDetail(
     "",
     `<i>${escapeHtml(content.description)}</i>`,
     "",
-    ...presentItemUseLine(options.itemUse ?? null),
+    ...presentItemUseLine(options.itemUse ?? null, options.combatUseAvailable === true),
     ...(options.itemUse ? [""] : []),
     presentEquipmentLine(content, options.equippedSlot ?? null, options.equipPreview ?? null),
     "",
@@ -58,9 +59,19 @@ export function presentOwnedItemDetail(
   ].join("\n");
 }
 
-function presentItemUseLine(availability: ItemUseAvailability | null): string[] {
+function presentItemUseLine(
+  availability: ItemUseAvailability | null,
+  combatUseAvailable: boolean
+): string[] {
   if (!availability || availability.state !== "usable") {
     return [];
+  }
+
+  if (combatUseAvailable) {
+    return [
+      "Використання: <b>можна застосувати в бою або поза боєм</b>.",
+      "У бою бинт витрачає хід і лікує одразу. Поза боєм попередній перегляд покаже лікування перед витратою."
+    ];
   }
 
   return [

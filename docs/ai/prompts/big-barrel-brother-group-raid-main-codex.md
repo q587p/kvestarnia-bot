@@ -1,4 +1,4 @@
-# Codex prompt - Senior Barrel Brother Group Raid
+# Codex prompt - Big Barrel Brother Group Raid
 
 ```text
 Use $kvestarnia-version-task.
@@ -6,16 +6,16 @@ Use $balance-review for the simulator/balance gate.
 Use $ukrainian-rpg-content for substantial player-facing Ukrainian copy instead of pasting the style guide.
 
 Implement exactly one versioned task:
-docs/tasks/0.2.x-senior-barrel-brother-group-raid.md
+docs/tasks/0.2.x-big-barrel-brother-group-raid.md
 
 Context:
 docs/ai/context.md
-docs/design/SENIOR_BARREL_BROTHER_GROUP_RAID.md
-docs/design/SENIOR_BARREL_BROTHER_BALANCE.md
-docs/content/SENIOR_BARREL_BROTHER_UA_COPY.md
+docs/design/BIG_BARREL_BROTHER_GROUP_RAID.md
+docs/design/BIG_BARREL_BROTHER_BALANCE.md
+docs/content/BIG_BARREL_BROTHER_UA_COPY.md
 docs/architecture/GROUP_RAID_SESSION_MODEL.md
 docs/implementation/REPOSITORY_CHANGE_MAP.md
-docs/qa/SENIOR_BARREL_BROTHER_GROUP_RAID_QA.md
+docs/qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md
 
 Follow AGENTS.md.
 Start from updated main after the Raid Party Session Foundation and intended combat/architecture prerequisites.
@@ -25,7 +25,7 @@ Use a minimal reviewable diff and current module boundaries.
 
 Hard product decisions:
 - level 1-7 legacy Barrel unchanged
-- level 8+ Senior Brother route behind a flag
+- level 8+ Big Brother route behind a flag
 - 1..8 participants, recommended 4-5, no hard group minimum
 - current Barrel period/wait reused; early start after 23s, solo after 93s + confirmation
 - 23-second simultaneous rounds; timeout auto-defend

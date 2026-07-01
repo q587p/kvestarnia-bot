@@ -54,6 +54,13 @@ describe("public news rendering", () => {
     expect(news).not.toMatch(/(?:до|на|у|в|біля|з|зі)\s+Спуск[ау]?\s+до\s+Низу/u);
   });
 
+  it("keeps public news aligned with Ukrainian guild spelling and no Mini App promise", () => {
+    const news = readFileSync(join(process.cwd(), "news.md"), "utf8");
+
+    expect(news).not.toMatch(/гільді\p{L}*/iu);
+    expect(news).not.toMatch(/(?:mini\s*app|міні-?ап\p{L}*)/iu);
+  });
+
   it("keeps latest release dates aligned across changelog and news", () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), "package.json"), "utf8")

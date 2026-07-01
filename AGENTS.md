@@ -23,7 +23,7 @@ Do not invent new brand spellings.
 
 Kvestarnia is a humorous fantasy RPG in Telegram: easy to enter, Ukrainian-first in player-facing copy, silly in tone, and deep enough to support progression. Inspiration includes tabletop RPGs, Munchkin, Robert Asprin's MythAdventures, Monty Python and the Holy Grail, Viva La Dirt League / Epic NPC Man, classic MMORPGs, Terry Pratchett-style systemic absurdity, metamodern warmth, Ukrainian memes, and folklore. Use inspiration as flavor, allusion, or parody spice; do not copy protected scenes, characters, unique places, or long quotes.
 
-Player loop summary: a player opens Telegram, creates an adventurer, chooses race/class/path flavor, takes short quests, fights ridiculous monsters, collects manatky, grows numbers, and receives funny consequences. Guilds, real group raids, broad social modes, markets, crafting, monetization, and Mini App UI are roadmap unless the current code and task explicitly say they are shipped.
+Player loop summary: a player opens Telegram, creates an adventurer, chooses race/class/path flavor, takes short quests, fights ridiculous monsters, collects manatky, grows numbers, and receives funny consequences. Ґільдії, real group raids, broad social modes, markets, crafting, and monetization are roadmap unless the current code and task explicitly say they are shipped. Mini App UI is not a planned product direction unless a future explicit product decision reverses this.
 
 ## Language policy
 
@@ -108,7 +108,7 @@ After closing a versioned task:
 8. Decline dynamic race, class, title, item, monster and place names when Ukrainian grammar requires it, or rewrite the sentence neutrally. Before publishing player-facing Ukrainian copy, check generated examples for cases, gender, number and awkward quoted-name insertions.
 9. In Ukrainian text, use `«»` quotes, not English curly quotes or straight double quotes; straight quotes are allowed only for code/JSON/technical examples.
 10. Use `міт`, `мітичний`, `мітологія`, `мітологічний` with `т`, not `міф*`, unless it is an immutable external quote or name.
-11. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name.
+11. Use `соціяльний`, `соціяльна`, `соціяльне`, `соціяльні`, `соціяльність` with `я`, not `соціальн*`, unless it is an immutable external quote or name. Use `ґільдія`, `ґільдії`, `ґільдійний`, `ґільдійна`, `ґільдійне`, `ґільдійні` with `ґ` in Ukrainian player-facing and public copy; do not write `гільдія`, `гільдії` or `гільдійн*` unless it is an immutable external quote.
 12. In visible docs/changelog/news/player dates, use the Holocene calendar: `12026`, not `2026`. Release/news/changelog date headings use Kyiv time (`Europe/Kyiv`) and the fixed Holocene `1YYYY-MM-DD` format, for example `12026-06-20`. Before calling a release PR ready, compare the current Kyiv date with the date in the latest release/news/changelog headings and update those headings if the last implementation commit landed on a newer Kyiv day than the task start date. For same-PR follow-ups, review fixes, post-CI fixes, and branch updates, do this comparison again at final handoff; do not trust the original task-start date after Kyiv midnight has passed. Do not rewrite machine timestamps, migration names, or technical IDs.
 13. Player-facing under-Korchma combat terminology: ordinary/problem fights route to `Низ`, not `Глибка` or generic `підземелля`; use `Спуск` as the action, `Спуск до Низу` as the first surface, `Ярус I: Сутерени Корчми` as the first layer, and `Зіґурат` only as later lore/reveal. Spell it exactly `Зіґурат`; do not write `Зикурат` in new player-facing copy.
 14. When choosing non-critical exact numbers for flavor, short timers, quest counters, or small limits, prefer `13`, `23`, `42`, `93`, and `587` when it is appropriate. Do not force these numbers when balance, safety, API limits, clarity, or established formulas need something else.
@@ -122,7 +122,7 @@ After closing a versioned task:
 22. When adding new runtime gameplay loops with timers, cooldowns, random offers, pending sessions, or once-per-period gates, add a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules. If a dev command is unsafe or not useful for that specific gate, explicitly document why in the task doc or PR body before calling the task complete.
 23. When adding new quests, counters, daily/periodic ledgers, purchase limits, cooldowns, pending sessions, sales, statistics, or similar player/character state, explicitly cover remort/reset behavior in code and tests. Default to resetting this state on remort and relevant reset flows unless the task explicitly says it is eternal/player-level history; if it should persist, document that exception in the task doc or PR body.
 24. When replacing or retiring an older player-facing flow, explicitly preserve or deliberately retire starter/onboarding fallback paths in code, tests, task docs, changelog/news, compact context, and PR body. Do not let level gates for new functionality hide existing newbie content by accident.
-25. When adding new player-facing gameplay functionality, add matching achievement definitions/hooks for the visible new actions, milestones, odd outcomes, or first-time moments when they fit the feature. If achievements are deliberately out of scope for that slice, say why in the task doc or PR body before calling it complete.
+25. When adding new player-facing gameplay functionality, treat achievements as a required PR-ready checkpoint: add matching rewardless achievement definitions/hooks for the visible new actions, milestones, odd outcomes, or first-time moments when they fit the feature. If achievements are deliberately out of scope for that slice, say why in the task doc and PR body before calling it complete.
 26. After runtime logic changes, run tests or explain the blocker. For docs-only changes, `Not run — docs-only change` is acceptable.
 
 ## Release and PR rules
@@ -136,7 +136,7 @@ For release-oriented versioned changes:
 - Release note headings in `CHANGELOG.md` and `news.md` must include version, Holocene date, and short change description.
 - Every implementation or PR-follow-up commit on a later Kyiv day than the latest visible release heading must refresh that latest release date before the branch is called ready, even when the code change itself is narrow.
 - `CHANGELOG.md` may include technical details, exact mechanics, edge cases, and rewards.
-- `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, cooldown or period lengths, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, Mini App UI, migrations, scaling, or similar platform backlog.
+- `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, cooldown or period lengths, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, migrations, scaling, or similar platform backlog.
 - `news.md` should describe the planned player-facing release promise and visible outcome, not every bug fix, QA regression, hardening detail, or copy polish discovered while implementing the task. Do not present "we introduced a regression and fixed it before release" as player news. Put implementation cleanups and release-candidate QA fixes in `CHANGELOG.md`, docs, tests, or the PR body unless they are the headline player-visible change.
 - Do not edit older `news.md` entries unless the user explicitly asks for that historical entry to change. Put new player-facing notes in the current version entry, even when the note explains a fix to behavior introduced earlier.
 - PR title for release-oriented changes starts with the version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
@@ -191,7 +191,7 @@ MVP/core loop:
 7. Level growth unlocks new actions.
 8. Social/combat systems grow in small, opt-in slices.
 
-Do not implement huge MMO systems in one PR. Shops, trading, guild wars, real raids, PvP, crafting, markets, and Mini App UI must remain scoped future work unless the current task explicitly targets a small safe slice.
+Do not implement huge MMO systems in one PR. Shops, trading, ґільдійні війни, real raids, PvP, crafting, and markets must remain scoped future work unless the current task explicitly targets a small safe slice. Do not add Mini App UI work or present it as planned without an explicit product reversal.
 
 ## Text style and content safety
 
@@ -217,6 +217,7 @@ Avoid:
 ## Isolated local bot runtime
 
 - `run-local-bot.cmd` runs the manual-test bot from an external isolated snapshot with separate `node_modules`, Prisma Client, and SQLite database. See `docs/LOCAL_BOT_RUNTIME.md`.
+- Use `$kvestarnia-local-runtime` for launcher/runtime/Prisma/Windows lock work instead of pasting local-runtime rules into prompts.
 - During normal implementation/review, do not stop, refresh, or replace the isolated bot unless the user explicitly asks.
 - Run lint, typecheck, build, Prisma generation, and tests in the main checkout; they must not depend on the running manual-test bot.
 - Never use a global `taskkill node.exe` or stop unrelated Node processes.

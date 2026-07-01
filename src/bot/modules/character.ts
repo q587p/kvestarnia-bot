@@ -90,7 +90,9 @@ export function registerCharacterBotModule(
     services.onboarding,
     {
       ...(services.duel ? { duel: services.duel } : {}),
+      ...(services.partyBoss ? { partyBoss: services.partyBoss } : {}),
       ...(services.partySessions ? { partySessions: services.partySessions } : {}),
+      botUsername: options.botUsername,
       duelBotUsername: options.botUsername
     }
   );
@@ -106,7 +108,8 @@ export function registerCharacterBotModule(
     services.adventure,
     services.tavern,
     services.dailyKorchmaRound,
-    services.fight
+    services.fight,
+    services.partyBoss
   );
   registerRestartCommand(bot);
   if (services.remort) {

@@ -1,4 +1,4 @@
-# Senior Barrel Brother Group Raid QA
+# Big Barrel Brother Group Raid QA
 
 ## Test accounts
 
@@ -29,7 +29,7 @@ Keep dev commands/config restricted to non-production environments.
 - marked heavy guard and class mitigation;
 - enrage outgoing/defense modifiers;
 - boss death cancels its action;
-- round-7 final window;
+- no hidden runtime round cap; round 13 is simulation/QA horizon only;
 - contribution tiers for damage, defend, disrupt, knockout, withdrawal and AFK;
 - reward formulas and affinity fallback;
 - deterministic seed replay.
@@ -90,7 +90,7 @@ Keep dev commands/config restricted to non-production environments.
 ### B. Level-8 reveal and recruiting
 
 1. Level 8 starts with flag enabled.
-2. Confirm Senior Brother reveal and no exact future reward values.
+2. Confirm Big Brother reveal and no exact future reward values.
 3. Open participants, nearby invite and share link.
 4. Forward link to another private chat/group; open as account B.
 5. Confirm private preview before join and no exact location/private ids.

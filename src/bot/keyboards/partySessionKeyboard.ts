@@ -1,28 +1,41 @@
 import { InlineKeyboard } from "grammy";
+import {
+  getActorCombatActionAvailability,
+  getCombatRaceAbilityProfile,
+  getCombatSkillProfile
+} from "../../domain/combat";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
+import { getCombatItemUseKey } from "../../services/combatItemUse";
+import { getCombatSkillDisplay } from "../../services/fightService";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
   makePartyBossStartCallbackData,
   makePartyBossTimeoutCallbackData,
   makePartySessionCancelCallbackData,
   makePartySessionExpireCallbackData,
+  makePartySessionInviteRotateCallbackData,
   makePartySessionJoinCallbackData,
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
+const RESPONSIBLE_PANIC_BANDAGE_ID = "item.responsible-panic-bandage";
 
 export function buildPartySessionKeyboard(
   session: PartySessionRecord,
   options: {
     viewerCharacterId?: string | null | undefined;
+    inviteUrl?: string | null | undefined;
     includeDevExpire?: boolean | undefined;
+    includeBossStart?: boolean | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -46,8 +59,15 @@ export function buildPartySessionKeyboard(
       keyboard.text("🧹 Скасувати збір", makePartySessionCancelCallbackData(token)).row();
     }
 
-    if (options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
+    if (options.includeBossStart && options.viewerCharacterId === session.leaderCharacterId) {
+      keyboard.text("🛢️ Почати рейд", makePartyBossStartCallbackData(token)).row();
+    } else if (options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🧪 Dev: бос-проба", makePartyBossStartCallbackData(token)).row();
+    }
+
+    if (session.originLocationId === "barrel.big-brother" && options.inviteUrl) {
+      keyboard.text("📣 Запрошення на рейд", makePartySessionShareCallbackData(token)).row();
+      keyboard.url("🔗 Запросити в рейд", buildTelegramShareUrl(options.inviteUrl)).row();
     }
 
     if (options.includeDevExpire) {
@@ -68,14 +88,38 @@ export function buildPartyBossKeyboard(
     ? session.state.participants.find((participant) => participant.characterId === viewerCharacterId)
     : null;
   const canAct = viewer?.status === "active" && viewer.resources.hp > 0;
+  const availability = viewer
+    ? getActorCombatActionAvailability(viewer.resources, viewer.combatStats)
+    : null;
 
   if (session.status === "active" && viewerCharacterId && canAct) {
     keyboard
-      .text("⚔️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
-      .text("🛡️ Захист", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
-      .row()
-      .text("✨ Вміння", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "skill"))
-      .text("🧬 Раса", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "race"))
+      .text("🗡️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
+      .text("🛡 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
+      .row();
+
+    if (availability?.skill.available !== false) {
+      keyboard.text(
+        getPartyBossSkillButtonLabel(viewer.combatStats.classId),
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "skill")
+      );
+    }
+
+    const raceLabel = getPartyBossRaceAbilityButtonLabel(viewer.combatStats.raceId);
+    if (raceLabel && availability?.race.available) {
+      keyboard.text(
+        raceLabel,
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "race")
+      );
+    }
+
+    keyboard.row();
+    keyboard
+      .text("🩹 Бинт", makePartyBossItemUseCallbackData({
+        token: session.partyInviteToken,
+        turn: session.turn,
+        itemKey: getCombatItemUseKey(RESPONSIBLE_PANIC_BANDAGE_ID)
+      }))
       .row();
   }
 
@@ -83,8 +127,37 @@ export function buildPartyBossKeyboard(
     keyboard.text("⏱️ Dev: добити хід", makePartyBossTimeoutCallbackData(session.partyInviteToken)).row();
   }
 
-  keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
+  if (session.status !== "active") {
+    keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
+  }
   return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
+}
+
+export function buildPartyBossJournalKeyboard(
+  session: PartyBossSessionRecord,
+  page: number
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  const total = Math.max(1, session.state.roundLog.length);
+  const current = clampPage(page, total);
+
+  if (total > 1) {
+    if (current > 0) {
+      keyboard.text("⏮️ Початок", makePartyBossJournalCallbackData(session.partyInviteToken, 0));
+      keyboard.text("◀️ Назад", makePartyBossJournalCallbackData(session.partyInviteToken, current - 1));
+      keyboard.row();
+    }
+
+    keyboard.text(`${current + 1}/${total}`, makePartyBossJournalCallbackData(session.partyInviteToken, current)).row();
+
+    if (current + 1 < total) {
+      keyboard.text("Далі ▶️", makePartyBossJournalCallbackData(session.partyInviteToken, current + 1));
+      keyboard.text("Кінець ⏭️", makePartyBossJournalCallbackData(session.partyInviteToken, total - 1));
+      keyboard.row();
+    }
+  }
+
+  return keyboard.text(session.status === "active" ? "↩️ До бою" : "↩️ До результатів", makePartySessionViewCallbackData(session.partyInviteToken));
 }
 
 export function buildPartySessionInviteKeyboard(session: PartySessionRecord): InlineKeyboard {
@@ -92,6 +165,13 @@ export function buildPartySessionInviteKeyboard(session: PartySessionRecord): In
     .text("🤝 Приєднатися", makePartySessionJoinCallbackData(session.inviteToken))
     .row()
     .text("🔎 Оновити", makePartySessionViewCallbackData(session.inviteToken));
+}
+
+export function buildPartySessionInviteShareKeyboard(token: string, templateIndex: number): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "🎲 Інший текст",
+    makePartySessionInviteRotateCallbackData(token, templateIndex)
+  );
 }
 
 export function buildPartySessionNearbyCandidatesKeyboard(
@@ -133,4 +213,37 @@ function formatCandidateButton(candidate: PresencePerson): string {
     : candidate.name;
 
   return `${name}${level}`;
+}
+
+function clampPage(page: number, total: number): number {
+  if (!Number.isFinite(page)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(0, Math.floor(page)), Math.max(0, total - 1));
+}
+
+function buildTelegramShareUrl(inviteUrl: string): string {
+  const text = "Квестарня кличе у рейд до Старшого Брата Бочки.";
+
+  return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
+}
+
+function getPartyBossSkillButtonLabel(classId: string | undefined): string {
+  const skill = getCombatSkillProfile(classId);
+  const display = getCombatSkillDisplay(skill.id);
+
+  return `${display.icon} ${display.name}`;
+}
+
+function getPartyBossRaceAbilityButtonLabel(raceId: string | undefined): string | null {
+  const ability = getCombatRaceAbilityProfile(raceId);
+
+  if (!ability) {
+    return null;
+  }
+
+  const display = getCombatSkillDisplay(ability.id);
+
+  return `${display.icon} ${display.name}`;
 }

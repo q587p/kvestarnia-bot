@@ -44,6 +44,7 @@ export const achievementTriggerTypes = [
   "duel.quick.resolved",
   "duel.turnbased.resolved",
   "barrel.raid.claimed",
+  "barrel.raid.lost",
   "korchma.round.purchased",
   "item.gift.sent",
   "item.gift.received",
@@ -1126,6 +1127,17 @@ export const achievements = [
     trigger: { type: "barrel.raid.claimed", threshold: 13 },
     progressTarget: 13,
     cosmeticTitleGrantId: "cosmetic-title.thirteen-barrel-claims"
+  },
+  {
+    id: "achievement.barrel.raid.first-loss",
+    category: "weird",
+    title: "Бочка внесла правки",
+    description: "уперше програти Старшому Братові Бочки й отримати від Корчмаря позначку «пінна розвідка».",
+    hidden: false,
+    lockedDescription: "уперше програти Старшому Братові Бочки.",
+    sortOrder: 126.5,
+    status: "enabled",
+    trigger: { type: "barrel.raid.lost", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.first",

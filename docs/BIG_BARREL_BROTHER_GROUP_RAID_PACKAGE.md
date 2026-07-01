@@ -1,6 +1,6 @@
 # Груповий рейд: Старший брат Бочки
 
-Статус: design/task package, без runtime-коду
+Статус: design/task package; `0.2.17` ships a feature-flagged MVP on the party-boss runtime, while fuller raid mechanics in this package remain future work.
 Дата зрізу: `12026-06-24` за Києвом
 
 Цей архів готує високорівневе ускладнення чинного рейду на Бочку Пінного Міражу.
@@ -24,7 +24,8 @@
 2. `0.2.4` — **Item Tags / One-Use Manatky**, with one narrow consumable candidate such as `бинти` if balance still supports it;
 3. наступний вільний `0.2.x` — **Raid Party Session Foundation** as a temporary party/session slice;
 4. наступний вільний `0.2.x` — **Party Vs One Boss** as the first production party-combat proof;
-5. пізніший вільний `0.2.x` — **Senior Barrel Brother Group Raid** as real raid content with several people.
+5. `0.2.17` — **Big Barrel Brother Raid MVP** as the first feature-flagged real route on the existing party-boss runtime.
+6. later `0.2.x+` — fuller **Big Barrel Brother Group Raid** mechanics from this package after MVP evidence.
 
 За нинішньої черги party/raid сходинки починаються орієнтовно з `0.2.5+`, але перед роботою файли `0.2.x-*` треба перейменувати на фактичні вільні версії. Номери PR до назв артефактів не додавати.
 
@@ -38,9 +39,9 @@ Dev-only або feature-flagged фундамент: сесія, учасники
 
 Production proof: тимчасова party входить у бій проти одного спільного боса без targetable adds, broad party-vs-many runtime або raid-scale reward faucet. Цей slice доводить UI, черги ходів, stale callbacks, AFK fallback, restart recovery й exactly-once settlement на меншому ризику.
 
-### 3. Senior Barrel Brother Group Raid
+### 3. Big Barrel Brother MVP and later fuller raid
 
-Production-активація для рівня 8+: бій, раунди, таймери, HP/мана, екіпіровка й бафи, фази боса, винагороди, exactly-once settlement, старий fallback для рівнів 1–7.
+`0.2.17` activates the narrow level 8+ Big route behind `BIG_BARREL_BROTHER_RAID_ENABLED`, reusing the party-boss runtime, frozen Barrel period and exactly-once Barrel success settlement. Fuller mechanics in this package, such as richer phases, eligible PvE buffs, trophies, spotlight rewards and targetable-add follow-ups, remain later slices.
 
 Це не роздуває один PR одночасно міграцією, соціяльним маршрутом, новим combat runtime, економікою, real-raid content і великим обсягом тексту.
 
@@ -51,7 +52,7 @@ Production-активація для рівня 8+: бій, раунди, тай
 - **Соло:** дозволене після `93` секунд і другого підтвердження; баланс не гарантує соло-перемогу.
 - **Раунд:** `23` секунди; дії приховані до спільного розв’язання.
 - **AFK:** timeout робить auto-defend, а не безкоштовну auto-attack.
-- **Тривалість бою:** ціль `4–6` раундів, останній шанс у 7-му.
+- **Тривалість бою:** підготовлені перемоги зазвичай цілитимуться в `4–8` раундів; прихованого останнього раунду немає, а 13-й раунд лишається тільки горизонтом симуляції/QA.
 - **HP боса:** стартова формула й таблиця лежать у balance doc; HP не масштабується від манаток або бафів, тому підготовка справді допомагає.
 - **Дрібні вороги:** у першому релізі це очищувані hazard stacks, а не окремі targetable enemies. Справжні adds відкладені до наступного вузького slice після стабілізації party-vs-one-boss.
 - **Нагороди:** усі meaningful contributors отримують XP/золото та personal loot roll; один affinity drop гарантовано дістається комусь із повноцінних учасників. Це бонус, а не winner-takes-all.
@@ -72,7 +73,7 @@ Production-активація для рівня 8+: бій, раунди, тай
 ## Як використати
 
 1. Розпакувати в корінь актуального `kvestarnia-bot` або перенести потрібні файли вручну.
-2. Перед implementation перевірити актуальний `main`, merge status попередніх combat/architecture slices і вільний номер версії.
-3. Перейменувати рівно одну активну task doc з `0.2.x-*` на фактичну версію.
+2. Перед новою implementation перевірити актуальний `main`, merge status попередніх combat/architecture slices і вільний номер версії.
+3. Перейменувати рівно одну активну future task doc з `0.2.x-*` на фактичну версію.
 4. Запустити свіжий Codex thread через відповідний prompt.
 5. Не реалізовувати обидві task docs в одному потоці або одному PR.

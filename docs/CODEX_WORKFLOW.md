@@ -65,6 +65,18 @@ For these changes:
 - PR title can be a normal docs title, e.g. `docs: tighten Codex workflow prompts`.
 - PR body should say `Tests: Not run — docs-only change` if checks were not run.
 
+## Local runtime and Prisma/Windows issues
+
+Use `$kvestarnia-local-runtime` for local launcher/runtime work:
+
+- `run-local-bot.cmd`, `refresh-local-bot.cmd`, `status-local-bot.cmd`, `stop-local-bot.cmd`.
+- `scripts/local-bot-runtime.cjs` and `docs/LOCAL_BOT_RUNTIME.md`.
+- Prisma Client `EPERM`, `query_engine-windows.dll.node`, isolated SQLite runtime DB, and Windows process-lock issues.
+
+Keep these changes scoped to local scripts/docs unless the task says otherwise. Do not kill all `node.exe` processes. Do not stop or refresh the running isolated bot unless the user asks or the task is explicitly runtime-launcher work.
+
+Prompt: `docs/ai/prompts/local-runtime-troubleshooting.md`.
+
 ## Second Codex workflow
 
 Use a second Codex only when it can help without competing with the main implementation.
@@ -99,6 +111,7 @@ Use one main skill by default. Active repo skills live in `.agents/skills/`:
 - QA-only or high-risk Telegram flow: `$kvestarnia-telegram-qa`.
 - Closeout/handoff: `$kvestarnia-release-checklist`.
 - Balance/economy review: `$balance-review`.
+- Local launcher/runtime/Prisma/Windows issues: `$kvestarnia-local-runtime`.
 - Ukrainian player-facing battle/tip/location/news/content copy: `$ukrainian-rpg-content`.
 
 Avoid activating multiple skills when one is enough. For copy work, use `$ukrainian-rpg-content` instead of pasting `docs/CONTENT_STYLE_GUIDE.md` into the prompt. A focused copy prompt lives in `docs/ai/prompts/ukrainian-content-review.md`.
@@ -121,6 +134,7 @@ Check:
 - No Telegram imports leaked into `src/domain/`.
 - Player-facing text is Ukrainian and Telegram-friendly.
 - Rewards and quest progress are idempotent under duplicate callbacks.
+- New player-facing gameplay has matching rewardless achievements/hooks, or the task doc and PR body explicitly explain why no durable achievement fits.
 - Tests cover new runtime logic.
 - No magic numbers replaced content/balance configuration without reason.
 - Scope did not expand beyond the task doc.
