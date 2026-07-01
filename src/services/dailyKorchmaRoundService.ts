@@ -19,6 +19,7 @@ import { getKyivDayKey, getKyivDayToken, kyivDayTokenToKey } from "../shared/kyi
 import { SeededRandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 import {
   DAILY_KORCHMA_ROUND_OFFER_KEY,
   DAILY_KORCHMA_ROUND_REROLL_KEY,
@@ -156,6 +157,7 @@ export class DailyKorchmaRoundService {
     private readonly fight?: Pick<FightService, "getFightOverviewForTelegramUser">,
     private readonly tavern?: Pick<TavernRaidService, "getActivePendingFridayBarrelRaidForTelegramUser">,
     private readonly achievements?: AchievementService,
+    private readonly activityEvents?: ActivityEventService,
     private readonly clock: Clock = systemClock
   ) {}
 
@@ -437,10 +439,13 @@ export class DailyKorchmaRoundService {
     const achievementUnlocks = claim.state === "created"
       ? await trackRewardAchievementsSafely(this.achievements, {
           characterId: claim.character.id,
+          actorDisplayName: claim.character.name,
           sourceId: claim.action.id,
+          sourceType: "daily-action",
           occurredAt: claim.action.createdAt,
           levelChange: claim.levelChange,
-          events: ["daily.korchma-round.completed"]
+          events: ["daily.korchma-round.completed"],
+          activityEvents: this.activityEvents
         })
       : [];
 

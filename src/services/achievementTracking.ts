@@ -4,21 +4,40 @@ import type {
   AchievementSimpleEventType,
   AchievementUnlock
 } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 
 export interface TrackRewardAchievementInput {
   characterId: string;
   sourceId: string;
+  sourceType?: string | undefined;
+  actorDisplayName?: string | undefined;
   occurredAt: Date;
-  levelChange?: RewardLevelChange | null;
-  itemGrants?: readonly ItemGrant[];
-  itemIds?: readonly string[];
-  events?: readonly AchievementSimpleEventType[];
+  levelChange?: RewardLevelChange | null | undefined;
+  itemGrants?: readonly ItemGrant[] | undefined;
+  itemIds?: readonly string[] | undefined;
+  events?: readonly AchievementSimpleEventType[] | undefined;
+  activityEvents?: ActivityEventService | undefined;
 }
 
 export async function trackRewardAchievementsSafely(
   achievements: AchievementService | undefined,
   input: TrackRewardAchievementInput
 ): Promise<AchievementUnlock[]> {
+  const itemIds = [
+    ...(input.itemIds ?? []),
+    ...(input.itemGrants ? expandItemGrantIds(input.itemGrants) : [])
+  ];
+
+  await input.activityEvents?.recordRewardEventsSafely({
+    characterId: input.characterId,
+    actorDisplayName: input.actorDisplayName,
+    sourceId: input.sourceId,
+    sourceType: input.sourceType ?? "reward",
+    occurredAt: input.occurredAt,
+    levelChange: input.levelChange,
+    itemIds
+  });
+
   if (!achievements) {
     return [];
   }
@@ -36,11 +55,6 @@ export async function trackRewardAchievementsSafely(
       }))
     );
   }
-
-  const itemIds = [
-    ...(input.itemIds ?? []),
-    ...(input.itemGrants ? expandItemGrantIds(input.itemGrants) : [])
-  ];
 
   if (itemIds.length > 0) {
     unlocks.push(

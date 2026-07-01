@@ -126,6 +126,7 @@ import {
   type ProblemQuestStageRecord
 } from "./fight/problemQuest";
 import type { AchievementService, AchievementSimpleEventType, AchievementUnlock } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 
@@ -527,6 +528,7 @@ export interface FightServiceDependencies {
   pendingPassageEncounters?: PendingPassageEncounterRepository;
   shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
   achievements?: AchievementService;
+  activityEvents?: ActivityEventService;
 }
 
 export class FightService {
@@ -540,6 +542,7 @@ export class FightService {
   private readonly pendingPassageEncounters: PendingPassageEncounterRepository | undefined;
   private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
   private readonly achievements: AchievementService | undefined;
+  private readonly activityEvents: ActivityEventService | undefined;
 
   constructor({
     characters,
@@ -551,7 +554,8 @@ export class FightService {
     combatAnalytics,
     pendingPassageEncounters,
     shynok,
-    achievements
+    achievements,
+    activityEvents
   }: FightServiceDependencies) {
     this.characters = characters;
     this.dailyActions = dailyActions;
@@ -563,6 +567,7 @@ export class FightService {
     this.pendingPassageEncounters = pendingPassageEncounters;
     this.shynok = shynok;
     this.achievements = achievements;
+    this.activityEvents = activityEvents;
   }
 
   private async advanceExpiredPersistentTurn(
@@ -2021,7 +2026,9 @@ export class FightService {
 
     const achievementUnlocks = await this.trackRewardAchievements({
       characterId: claim.character.id,
+      actorDisplayName: claim.character.name,
       sourceId: claim.action.id,
+      sourceType: "daily-action",
       levelChange: claim.levelChange,
       itemIds: claim.itemGrants.map((grant) => grant.itemId),
       events: ["starter.mimic-shawarma.probe.completed"],
@@ -2754,7 +2761,9 @@ export class FightService {
     const achievementUnlocks = claim.state === "created"
       ? await this.trackRewardAchievements({
           characterId: claim.character.id,
+          actorDisplayName: claim.character.name,
           sourceId: claim.action.id,
+          sourceType: "daily-action",
           levelChange: claim.levelChange,
           itemIds: claim.itemGrants.map((grant) => grant.itemId),
           problemStageId: stage.id
@@ -2936,12 +2945,26 @@ export class FightService {
 
     const achievementUnlocks = await this.trackRewardAchievements({
       characterId: claim.character.id,
+      actorDisplayName: claim.character.name,
       sourceId: claim.action.id,
+      sourceType: "daily-action",
       levelChange: claim.levelChange,
       itemIds: claim.itemGrants.map((grant) => grant.itemId),
       combatMonsterId: session.monsterId,
       ...withAchievementCombatOutcome(session.state?.status ?? session.status)
     });
+    if ((session.state?.status ?? session.status) === "won") {
+      await this.activityEvents?.recordUnderdogCombatWinSafely({
+        characterId: claim.character.id,
+        actorDisplayName: claim.character.name,
+        combatSessionId: session.id,
+        monsterId: session.monsterId,
+        monsterName: monster.name,
+        monsterLevel: monster.level,
+        characterLevel: character.level,
+        occurredAt: this.clock()
+      });
+    }
 
     return {
       state: "claimed",
@@ -3189,13 +3212,25 @@ export class FightService {
     combatMonsterId?: string;
     problemStageId?: string;
     events?: readonly AchievementSimpleEventType[];
+    actorDisplayName?: string;
+    sourceType?: string;
   }): Promise<AchievementUnlock[]> {
+    const occurredAt = this.clock();
+    const unlocks: AchievementUnlock[] = [];
+
+    await this.activityEvents?.recordRewardEventsSafely({
+      characterId: input.characterId,
+      actorDisplayName: input.actorDisplayName,
+      sourceId: input.sourceId,
+      sourceType: input.sourceType ?? "reward",
+      occurredAt,
+      levelChange: input.levelChange,
+      itemIds: input.itemIds
+    });
+
     if (!this.achievements) {
       return [];
     }
-
-    const occurredAt = this.clock();
-    const unlocks: AchievementUnlock[] = [];
 
     if (input.levelChange) {
       unlocks.push(

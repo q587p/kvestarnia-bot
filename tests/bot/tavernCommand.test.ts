@@ -281,6 +281,7 @@ describe("tavern command screens", () => {
 
     expect(replies[0]?.text).toContain("📰 Дошка корчми");
     expect(replies[0]?.text).toContain("можна глянути вісти Квестарні");
+    expect(replies[0]?.text).toContain("відкрити останні події");
     expect(replies[0]?.text).toContain("погортати перекази");
     expect(replies[0]?.text).toContain("передати пакунок через пошту");
     expect(replies[0]?.options).toMatchObject({
@@ -288,6 +289,7 @@ describe("tavern command screens", () => {
       reply_markup: {
         inline_keyboard: [
           [{ text: "📰 Вісти", callback_data: "v1:news:list:0" }],
+          [{ text: "📣 Останні події", callback_data: "v1:ev:l:all:0" }],
           [{ text: "📖 Перекази", callback_data: "v1:lore:m" }],
           [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }],
           [{ text: "📮 Пошта Квестарні", callback_data: "v1:post:open" }],

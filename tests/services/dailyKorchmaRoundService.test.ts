@@ -226,7 +226,7 @@ describe("DailyKorchmaRoundService", () => {
     expect(world.character?.gold).toBe(23 + expectedReward.gold);
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
 
-    const restarted = new DailyKorchmaRoundService(world, world.daily, world, world, world, undefined, () => now);
+    const restarted = new DailyKorchmaRoundService(world, world.daily, world, world, world, undefined, undefined, () => now);
     const replay = await restarted.claimReward(telegramUserId, {
       dayToken: offer.dayToken,
       lifeToken: offer.lifeToken
@@ -440,7 +440,7 @@ async function readyOffer(world: FakeWorld) {
 
 class FakeWorld implements CharacterRepository, DailyActionRepository {
   readonly daily = new FakeDailyActionRepository(this);
-  readonly service = new DailyKorchmaRoundService(this, this.daily, this, this, this, undefined, () => now);
+  readonly service = new DailyKorchmaRoundService(this, this.daily, this, this, this, undefined, undefined, () => now);
   locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
   fightState: "ready" | "persistent-active" | "training-active" = "ready";
   pendingBarrel = false;

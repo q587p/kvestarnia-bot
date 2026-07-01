@@ -507,6 +507,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("📰 Дошка корчми");
     expect(text).toContain("<i>дошка корчми</i>");
     expect(text).toContain("глянути вісти Квестарні");
+    expect(text).toContain("відкрити останні події");
     expect(text).toContain("передати пакунок через пошту");
     expect(text).toContain("Що дивимося?");
   });

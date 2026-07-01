@@ -1,0 +1,285 @@
+import { describe, expect, it } from "vitest";
+import type {
+  ActivityEventPage,
+  ActivityEventRecord,
+  ActivityEventRepository,
+  ListRecentActivityEventsQuery,
+  RecordActivityEventInput
+} from "../../src/db/repositories/activityEventRepository";
+import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
+import { ActivityEventService } from "../../src/services/activityEventService";
+import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
+
+describe("ActivityEventService", () => {
+  it("records and dedupes public activity rows", async () => {
+    const repository = new FakeActivityEventRepository();
+    const service = new ActivityEventService(repository);
+    const input = {
+      eventType: "character.created" as const,
+      category: "adventurer" as const,
+      severity: "normal" as const,
+      actorCharacterId: "character-1",
+      actorDisplayName: "Арден",
+      dedupeKey: "character.created:character-1",
+      occurredAt: new Date("2026-07-02T10:00:00.000Z")
+    };
+
+    const first = await service.record(input);
+    const second = await service.record(input);
+
+    expect(first.id).toBe(second.id);
+    expect(repository.rows).toHaveLength(1);
+  });
+
+  it("recordSafely catches logging failures", async () => {
+    const repository = new FakeActivityEventRepository();
+    repository.failNext = true;
+    const service = new ActivityEventService(repository);
+
+    await expect(service.recordSafely({
+      eventType: "character.created",
+      category: "adventurer",
+      severity: "normal",
+      dedupeKey: "character.created:broken",
+      occurredAt: new Date("2026-07-02T10:00:00.000Z")
+    })).resolves.toBeNull();
+  });
+
+  it("emits configured level and rare item rows without common-item noise", async () => {
+    const repository = new FakeActivityEventRepository();
+    const service = new ActivityEventService(repository);
+
+    await service.recordRewardEventsSafely({
+      characterId: "character-1",
+      actorDisplayName: "Мудрий",
+      sourceId: "daily-1",
+      sourceType: "daily-action",
+      occurredAt: new Date("2026-07-02T10:00:00.000Z"),
+      levelChange: { oldLevel: 1, newLevel: 5, leveledUp: true },
+      itemIds: [
+        "item.pan-of-persuasion",
+        "item.towel-of-forty-two-answers",
+        "item.cellar.foamy-mirage-bottle"
+      ]
+    });
+
+    expect(repository.rows.map((row) => row.eventType)).toEqual([
+      "character.level_reached",
+      "item.rare_received",
+      "item.rare_received"
+    ]);
+    expect(repository.rows[0]).toMatchObject({
+      severity: "high",
+      dedupeKey: "character.level_reached:character-1:5"
+    });
+    expect(repository.rows[1]).toMatchObject({
+      subjectId: "item.towel-of-forty-two-answers",
+      severity: "high"
+    });
+    expect(repository.rows[2]).toMatchObject({
+      subjectId: "item.cellar.foamy-mirage-bottle",
+      severity: "high"
+    });
+  });
+
+  it("emits underdog wins only at the configured threshold", async () => {
+    const repository = new FakeActivityEventRepository();
+    const service = new ActivityEventService(repository);
+    const occurredAt = new Date("2026-07-02T10:00:00.000Z");
+
+    await service.recordUnderdogCombatWinSafely({
+      characterId: "character-1",
+      actorDisplayName: "Пандочка",
+      combatSessionId: "combat-ordinary",
+      monsterId: "monster-a",
+      monsterName: "Огрище",
+      monsterLevel: 6,
+      characterLevel: 2,
+      occurredAt
+    });
+    await service.recordUnderdogCombatWinSafely({
+      characterId: "character-1",
+      actorDisplayName: "Пандочка",
+      combatSessionId: "combat-underdog",
+      monsterId: "monster-b",
+      monsterName: "Огрище",
+      monsterLevel: 7,
+      characterLevel: 2,
+      occurredAt
+    });
+
+    expect(repository.rows).toHaveLength(1);
+    expect(repository.rows[0]).toMatchObject({
+      eventType: "combat.underdog_won",
+      dedupeKey: "combat.underdog_won:combat-underdog",
+      payload: { levelDelta: 5 }
+    });
+  });
+
+  it("emits one Big Barrel Brother victory row per terminal boss session", async () => {
+    const repository = new FakeActivityEventRepository();
+    const service = new ActivityEventService(repository);
+    const session = makeBigBarrelSession("won");
+
+    await service.recordPartyRaidWonSafely(session);
+    await service.recordPartyRaidWonSafely(session);
+    await service.recordPartyRaidWonSafely(makeBigBarrelSession("lost"));
+
+    expect(repository.rows).toHaveLength(1);
+    expect(repository.rows[0]).toMatchObject({
+      eventType: "party.raid_won",
+      dedupeKey: "party.raid_won:boss-session-1",
+      subjectName: "Старший Брат Бочки",
+      payload: { participantCount: 2 }
+    });
+  });
+
+  it("maps list filters to bounded repository queries", async () => {
+    const repository = new FakeActivityEventRepository();
+    const service = new ActivityEventService(repository);
+
+    await service.listRecent("cmb", { page: 2 });
+
+    expect(repository.lastQuery).toMatchObject({
+      categories: ["combat", "raid"],
+      page: 2,
+      pageSize: 15,
+      retentionDays: 93
+    });
+  });
+});
+
+class FakeActivityEventRepository implements ActivityEventRepository {
+  rows: ActivityEventRecord[] = [];
+  failNext = false;
+  lastQuery: ListRecentActivityEventsQuery | null = null;
+
+  record(input: RecordActivityEventInput): Promise<ActivityEventRecord> {
+    if (this.failNext) {
+      this.failNext = false;
+      throw new Error("boom");
+    }
+
+    const existing = input.dedupeKey
+      ? this.rows.find((row) => row.dedupeKey === input.dedupeKey)
+      : null;
+    if (existing) {
+      return Promise.resolve(existing);
+    }
+
+    const record: ActivityEventRecord = {
+      id: `event-${this.rows.length + 1}`,
+      eventType: input.eventType,
+      category: input.category,
+      severity: input.severity,
+      visibility: input.visibility ?? "public",
+      actorCharacterId: input.actorCharacterId ?? null,
+      actorDisplayName: input.actorDisplayName ?? null,
+      relatedCharacterIds: input.relatedCharacterIds ? [...input.relatedCharacterIds] : null,
+      subjectKind: input.subjectKind ?? null,
+      subjectId: input.subjectId ?? null,
+      subjectName: input.subjectName ?? null,
+      sourceType: input.sourceType ?? null,
+      sourceId: input.sourceId ?? null,
+      dedupeKey: input.dedupeKey ?? null,
+      payload: input.payload ?? null,
+      occurredAt: input.occurredAt,
+      publishedAt: input.publishedAt ?? null,
+      createdAt: input.occurredAt
+    };
+    this.rows.push(record);
+    return Promise.resolve(record);
+  }
+
+  listRecent(query: ListRecentActivityEventsQuery = {}): Promise<ActivityEventPage> {
+    this.lastQuery = query;
+    return Promise.resolve({
+      events: this.rows,
+      page: query.page ?? 0,
+      pageSize: query.pageSize ?? 15,
+      hasNextPage: false
+    });
+  }
+}
+
+function makeBigBarrelSession(status: "won" | "lost"): PartyBossSessionRecord {
+  const now = new Date("2026-07-02T10:00:00.000Z");
+
+  return {
+    id: "boss-session-1",
+    partySessionId: "party-session-1",
+    partyInviteToken: "party-token",
+    leaderCharacterId: "character-1",
+    status,
+    turn: 3,
+    version: 1,
+    rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
+    bossKey: BIG_BARREL_BROTHER_BOSS_KEY,
+    state: {
+      rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
+      partySessionId: "party-session-1",
+      status,
+      turn: 3,
+      boss: {
+        monsterId: BIG_BARREL_BROTHER_BOSS_KEY,
+        name: "Старший Брат Бочки",
+        level: 8,
+        hp: status === "won" ? 0 : 10,
+        hpMax: 10,
+        attack: 10,
+        armor: 2,
+        resist: 1,
+        dexterity: 8,
+        tags: ["boss", "barrel"]
+      },
+      participants: [
+        makeParticipant("character-1", "Арден"),
+        makeParticipant("character-2", "Мудрий")
+      ],
+      roundLog: [],
+      startedAt: now.toISOString(),
+      completedAt: now.toISOString()
+    },
+    result: {
+      status,
+      completedAt: now.toISOString(),
+      bossHpAfter: status === "won" ? 0 : 10,
+      participants: []
+    },
+    turnExpiresAt: now,
+    completedAt: now,
+    participants: []
+  };
+}
+
+function makeParticipant(characterId: string, name: string) {
+  return {
+    characterId,
+    name,
+    remortCount: 0,
+    status: "active" as const,
+    combatStats: {
+      level: 8,
+      hpMax: 30,
+      manaMax: 10,
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      strength: 5,
+      agility: 5,
+      intelligence: 5,
+      charisma: 5,
+      luck: 5,
+      armor: 1,
+      resist: 1,
+      weaponDamage: 2,
+      spellPower: 1
+    },
+    resources: { hp: 10, hpMax: 30, mana: 5, manaMax: 10 },
+    contribution: {
+      submittedActions: 1,
+      timeoutActions: 0,
+      damageDealt: 10,
+      damageTaken: 0
+    }
+  };
+}

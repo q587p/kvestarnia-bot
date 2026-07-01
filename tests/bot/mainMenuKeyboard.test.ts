@@ -327,6 +327,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildKorchmaNewsCornerKeyboard())).toEqual([
       "📰 Вісти",
+      "📣 Останні події",
       "📖 Перекази",
       "🎁 Подарувати манатку",
       "📮 Пошта Квестарні",
@@ -334,6 +335,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaNewsCornerKeyboard())).toEqual([
       "v1:news:list:0",
+      "v1:ev:l:all:0",
       "v1:lore:m",
       "v1:gift:open",
       "v1:post:open",

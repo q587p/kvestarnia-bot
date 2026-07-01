@@ -94,6 +94,33 @@ model Character {
   @@map("characters")
 }
 
+model ActivityEvent {
+  id                  String    @id @default(uuid())
+  eventType           String    @map("event_type")
+  category            String
+  severity            String
+  visibility          String    @default("public")
+  actorCharacterId    String?   @map("actor_character_id")
+  actorDisplayName    String?   @map("actor_display_name")
+  relatedCharacterIds Json?     @map("related_character_ids_json")
+  subjectKind         String?   @map("subject_kind")
+  subjectId           String?   @map("subject_id")
+  subjectName         String?   @map("subject_name")
+  sourceType          String?   @map("source_type")
+  sourceId            String?   @map("source_id")
+  dedupeKey           String?   @unique @map("dedupe_key")
+  payloadJson         Json?     @map("payload_json")
+  occurredAt          DateTime  @map("occurred_at")
+  publishedAt         DateTime? @map("published_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@index([visibility, occurredAt])
+  @@index([category, occurredAt])
+  @@index([severity, occurredAt])
+  @@index([actorCharacterId, occurredAt])
+  @@map("activity_events")
+}
+
 model SoloCombatSession {
   id          String    @id @default(uuid())
   characterId String    @map("character_id")

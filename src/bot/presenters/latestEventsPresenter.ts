@@ -1,0 +1,190 @@
+import type { ActivityEventPage, ActivityEventRecord } from "../../db/repositories/activityEventRepository";
+import type { LatestEventFilter } from "../../services/activityEventService";
+import { escapeHtml } from "./telegramHtml";
+
+const FALLBACK_ACTOR = "Пригодник без таблички";
+const MAX_DYNAMIC_NAME_LENGTH = 32;
+const KYIV_TIME_ZONE = "Europe/Kyiv";
+const MONTHS = [
+  "січня",
+  "лютого",
+  "березня",
+  "квітня",
+  "травня",
+  "червня",
+  "липня",
+  "серпня",
+  "вересня",
+  "жовтня",
+  "листопада",
+  "грудня"
+] as const;
+
+export function presentLatestEventsPage(input: {
+  page: ActivityEventPage;
+  filter?: LatestEventFilter;
+  now?: Date;
+}): string {
+  if (input.page.events.length === 0) {
+    return presentLatestEventsEmpty(input.filter ?? "all");
+  }
+
+  return [
+    "📜 Хроніки Квестарні",
+    "",
+    ...renderGroupedRows(input.page.events, input.now ?? new Date())
+  ].join("\n");
+}
+
+export function presentLatestEventsEmpty(filter: LatestEventFilter = "all"): string {
+  if (filter === "imp") {
+    return [
+      "⭐ Важливе",
+      "",
+      "Поки що без великих пригод. Це не тиша — це пауза перед чиїмось дуже поганим планом."
+    ].join("\n");
+  }
+
+  return [
+    "📜 Хроніки Квестарні",
+    "",
+    "Поки що тихо. Літописець гріє чорнило, Корчмар — підозри."
+  ].join("\n");
+}
+
+export function presentLatestEventsError(): string {
+  return [
+    "📜 Хроніки Квестарні",
+    "",
+    "Літописець упустив перо в суп. Спробуй оновити сторінку ще раз."
+  ].join("\n");
+}
+
+function renderGroupedRows(events: readonly ActivityEventRecord[], now: Date): string[] {
+  const rows: string[] = [];
+  let currentLabel: string | null = null;
+
+  for (const event of events) {
+    const label = kyivDateLabel(event.occurredAt, now);
+    if (label !== currentLabel) {
+      if (rows.length > 0) {
+        rows.push("");
+      }
+      rows.push(label);
+      currentLabel = label;
+    }
+    rows.push(renderEventRow(event));
+  }
+
+  return rows;
+}
+
+function renderEventRow(event: ActivityEventRecord): string {
+  const time = formatKyivTime(event.occurredAt);
+  const actor = safeDynamicName(event.actorDisplayName);
+  const subject = safeDynamicName(event.subjectName);
+
+  switch (event.eventType) {
+    case "character.created":
+      return `👋 ${time} | Новий пригодник у Квестарні: ${actor}!`;
+    case "character.level_reached": {
+      const level = readPayloadNumber(event.payload, "level");
+      return `🎉 ${time} | ${actor} бере ${level ?? "новий"} рівень!`;
+    }
+    case "party.raid_won": {
+      const participantCount = readPayloadNumber(event.payload, "participantCount") ?? 1;
+      return `🏆 ${time} | Ватага здолала «${subject}»: ${participantCount} пригодників, 1 мокрий протокол.`;
+    }
+    case "item.rare_received": {
+      const rarity = readPayloadString(event.payload, "rarity");
+      if (rarity === "epic") {
+        return `💎 ${time} | ${actor}: епічна манатка — «${subject}». Корчмар просить не ставити її на стіл без підставки.`;
+      }
+      return `🎒 ${time} | ${actor}: рідкісна манатка — «${subject}».`;
+    }
+    case "combat.underdog_won": {
+      const delta = readPayloadNumber(event.payload, "levelDelta") ?? 5;
+      return `🛡️ ${time} | ${actor}: перемога над «${subject}», сильнішим на ${delta} рівнів.`;
+    }
+    default:
+      return `📌 ${time} | ${actor}: записано нову подію.`;
+  }
+}
+
+function safeDynamicName(value: string | null | undefined): string {
+  const normalized = (value ?? "")
+    .normalize("NFKC")
+    .replace(/[\p{C}\p{Zl}\p{Zp}]+/gu, " ")
+    .trim();
+  const safe = normalized.length > 0 ? normalized : FALLBACK_ACTOR;
+  const truncated = safe.length > MAX_DYNAMIC_NAME_LENGTH
+    ? `${safe.slice(0, MAX_DYNAMIC_NAME_LENGTH - 3)}...`
+    : safe;
+  return escapeHtml(truncated);
+}
+
+function formatKyivTime(date: Date): string {
+  return new Intl.DateTimeFormat("uk-UA", {
+    timeZone: KYIV_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+}
+
+function kyivDateLabel(date: Date, now: Date): string {
+  const eventParts = getKyivDateParts(date);
+  const nowParts = getKyivDateParts(now);
+  const yesterday = getKyivDateParts(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+
+  if (sameDateParts(eventParts, nowParts)) {
+    return "Сьогодні";
+  }
+
+  if (sameDateParts(eventParts, yesterday)) {
+    return "Вчора";
+  }
+
+  const month = MONTHS[eventParts.month - 1] ?? "";
+  return eventParts.year === nowParts.year
+    ? `${eventParts.day} ${month}`
+    : `${eventParts.day} ${month} ${eventParts.year + 10000}`;
+}
+
+function getKyivDateParts(date: Date): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: KYIV_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  return {
+    year: Number(parts.find((part) => part.type === "year")?.value ?? "1970"),
+    month: Number(parts.find((part) => part.type === "month")?.value ?? "1"),
+    day: Number(parts.find((part) => part.type === "day")?.value ?? "1")
+  };
+}
+
+function sameDateParts(
+  left: { year: number; month: number; day: number },
+  right: { year: number; month: number; day: number }
+): boolean {
+  return left.year === right.year && left.month === right.month && left.day === right.day;
+}
+
+function readPayloadNumber(payload: unknown, key: string): number | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readPayloadString(payload: unknown, key: string): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
+}

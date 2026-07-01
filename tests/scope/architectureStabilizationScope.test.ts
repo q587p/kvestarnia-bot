@@ -8,7 +8,7 @@ const featureModuleOwners = {
   "core.ts": ["/^v1:menu:/", "/^v1:news:/", "/^v1:lore:/"],
   "character.ts": ["/^v1:onb:/", "/^v1:bst:/", "/^v1:ach:/", "/^v1:devreset:/", "/^v1:restart:/", "/^v1:rm:/"],
   "inventory.ts": ["/^v1:equip:/", "/^v1:item:/", "/^v1:use:/", "/^v1:chest:/", "/^v1:lvlx:/"],
-  "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:mem:/", "/^v[12]:cellar:/"],
+  "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:mem:/", "/^v1:ev:/", "/^v[12]:cellar:/"],
   "quest.ts": ["/^v[12]:adv:/", "/^v1:quest:/", "/^v1:dkr:/", "/^v1:hunt:/", "/^v1:ygr:/"],
   "combat.ts": ["/^v1:spar:/", "/^v1:fight:/", "/^v1:search:/"],
   "social.ts": ["/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:party:/"]

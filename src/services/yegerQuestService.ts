@@ -32,6 +32,7 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "./presenceService";
 import { toIsoDate } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export {
@@ -274,7 +275,8 @@ export class YegerQuestService {
     private readonly cooldowns: CooldownRepository,
     private readonly now: () => Date = () => new Date(),
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: ActivityEventService
   ) {}
 
   async getForTelegramUser(telegramUserId: bigint): Promise<YegerQuestLookupResult> {
@@ -562,11 +564,14 @@ export class YegerQuestService {
     const achievementUnlocks = claim.state === "created"
       ? await trackRewardAchievementsSafely(this.achievements, {
           characterId: claim.character.id,
+          actorDisplayName: claim.character.name,
           sourceId: claim.action.id,
+          sourceType: "daily-action",
           occurredAt: claim.action.createdAt,
           levelChange: claim.levelChange,
           itemGrants: claim.itemGrants,
-          events: ["yeger.trial.completed"]
+          events: ["yeger.trial.completed"],
+          activityEvents: this.activityEvents
         })
       : [];
 
@@ -763,9 +768,12 @@ export class YegerQuestService {
     const achievementUnlocks = result.state === "bought" && claim.state === "created"
       ? await trackRewardAchievementsSafely(this.achievements, {
           characterId: claim.character.id,
+          actorDisplayName: claim.character.name,
           sourceId: claim.action.id,
+          sourceType: "daily-action",
           occurredAt: claim.action.createdAt,
-          itemGrants: claim.itemGrants
+          itemGrants: claim.itemGrants,
+          activityEvents: this.activityEvents
         })
       : [];
 
@@ -892,10 +900,13 @@ export class YegerQuestService {
 
     const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
       characterId: claim.character.id,
+      actorDisplayName: claim.character.name,
       sourceId: claim.cooldown.id,
+      sourceType: "cooldown",
       occurredAt: claim.cooldown.updatedAt,
       itemGrants: claim.itemGrants,
-      events: ["yeger.free-bandage.claimed"]
+      events: ["yeger.free-bandage.claimed"],
+      activityEvents: this.activityEvents
     });
 
     return {

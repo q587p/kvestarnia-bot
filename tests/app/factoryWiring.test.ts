@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createRepositories } from "../../src/app/createRepositories";
 import { createServices } from "../../src/app/createServices";
 import type { AppConfig } from "../../src/config/env";
+import { PrismaActivityEventRepository } from "../../src/db/repositories/prismaActivityEventRepository";
 import { PrismaAchievementRepository } from "../../src/db/repositories/prismaAchievementRepository";
 import { PrismaBarrelRaidNotificationRepository } from "../../src/db/repositories/prismaBarrelRaidNotificationRepository";
 import { PrismaCellarGrownupQuestRepository } from "../../src/db/repositories/prismaCellarGrownupQuestRepository";
@@ -57,11 +58,13 @@ import { ShynokService } from "../../src/services/shynokService";
 import { TavernRaidService } from "../../src/services/tavernRaidService";
 import { TrainingDoppelgangerService } from "../../src/services/trainingDoppelgangerService";
 import { YegerQuestService } from "../../src/services/yegerQuestService";
+import { ActivityEventService } from "../../src/services/activityEventService";
 
 describe("application factory wiring", () => {
   it("creates the expected concrete Prisma repositories", () => {
     const repositories = createRepositories({} as PrismaClient);
 
+    expect(repositories.activityEvents).toBeInstanceOf(PrismaActivityEventRepository);
     expect(repositories.achievements).toBeInstanceOf(PrismaAchievementRepository);
     expect(repositories.users).toBeInstanceOf(PrismaUserRepository);
     expect(repositories.barrelRaidNotifications).toBeInstanceOf(PrismaBarrelRaidNotificationRepository);
@@ -92,6 +95,7 @@ describe("application factory wiring", () => {
   it("creates the expected application service surface", () => {
     const services = createServices(createRepositories({} as PrismaClient), makeConfig());
 
+    expect(services.activityEvents).toBeInstanceOf(ActivityEventService);
     expect(services.achievements).toBeInstanceOf(AchievementService);
     expect(services.adventure).toBeInstanceOf(AdventureService);
     expect(services.barrelRaidNotifications).toBeInstanceOf(PrismaBarrelRaidNotificationRepository);
@@ -134,7 +138,8 @@ describe("application factory wiring", () => {
         combatAnalytics: combatBalanceAnalytics,
         pendingPassageEncounters: repositories.pendingPassageEncounters,
         shynok: repositories.shynok,
-        achievements
+        achievements,
+        activityEvents
       });
     `));
     expect(source).toContain(compact(`
@@ -144,7 +149,8 @@ describe("application factory wiring", () => {
         undefined,
         repositories.soloCombatSessions,
         repositories.equipment,
-        achievements
+        achievements,
+        activityEvents
       )
     `));
     expect(source).toContain(compact(`
@@ -174,10 +180,10 @@ describe("application factory wiring", () => {
       itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
     `));
     expect(source).toContain(compact(`
-      levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements)
+      levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, activityEvents)
     `));
     expect(source).toContain(compact(`
-      mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements)
+      mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, activityEvents)
     `));
     expect(source).toContain(compact(`
       partyBoss: new PartyBossService(repositories.partyBossSessions, {
@@ -185,7 +191,7 @@ describe("application factory wiring", () => {
           config.partySessionDevHelpersEnabled ||
           config.bigBarrelBrotherRaidEnabled,
         devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
-      }, undefined, achievements)
+      }, undefined, achievements, activityEvents)
     `));
     expect(source).toContain(compact(`
       partySessions: new PartySessionService(repositories.partySessions, {
@@ -205,7 +211,8 @@ describe("application factory wiring", () => {
         repositories.cooldowns,
         undefined,
         undefined,
-        achievements
+        achievements,
+        activityEvents
       )
     `));
   });

@@ -7,6 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.20] - 12026-07-02 - Latest Events Feed MVP
+
+### Added
+- Added durable `ActivityEvent` persistence with a Prisma migration, repository and service APIs for deduped `record`, best-effort `recordSafely` and bounded `listRecent` reads.
+- Added the `📜 Хроніки Квестарні` feed with compact `v1:ev:*` callbacks, filters, refresh and pagination from the Korchma board/news surface.
+- Added public activity emission for new characters, configured level milestones, Big Barrel Brother terminal victories, rare/epic manatky and underdog combat victories.
+- Added focused service, callback, presenter, board routing, character creation, reward and Big Barrel Brother emission coverage.
+
+### Changed
+- `Дошка корчми` now includes `📣 Останні події` without replacing `/news`, `📰 Вісти`, `📖 Перекази`, gifts or postal entry points.
+- Feed rendering stores and uses event-time display snapshots, groups rows by Kyiv day and escapes/truncates dynamic player, item and monster names.
+- Activity logging is best-effort at gameplay boundaries, so feed write failures do not roll back the successful primary action.
+
+### Unchanged
+- Reading, opening or refreshing the feed grants no XP, gold, items, combat power, title power, hidden progress or achievement.
+- No public rows are emitted for losses, deaths, retreats, failed joins, failed drops, failed purchases, failed combat actions, Big Barrel Brother losses or attempt XP.
+- No trophy weights, Yeger bandage gates, dense-bandage docs, deploy notification `вісти` copy, Big Barrel Brother combat rules, rewards, markets, crafting, PvP, ґільдії, Mini App UI or proactive channel auto-posting change in this slice.
+
 ## [0.2.19] - 12026-07-02 - Monster Trophies And Yeger Supply Gates
 
 ### Added

@@ -15,6 +15,7 @@ import type { CharacterRepository } from "../db/repositories/characterRepository
 import type { TelegramUserProfile, UserRepository } from "../db/repositories/userRepository";
 import { err, ok, type Result } from "../shared/result";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 
 export type StartOnboardingResult =
   | { state: "needs-gender-selection" }
@@ -41,7 +42,8 @@ export class OnboardingService {
   constructor(
     private readonly users: UserRepository,
     private readonly characters: CharacterRepository,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: ActivityEventService
   ) {}
 
   async start(player: TelegramUserProfile): Promise<StartOnboardingResult> {
@@ -135,16 +137,24 @@ export class OnboardingService {
       statsJson: starterStats.stats
     });
 
+    const occurredAt = new Date();
     const achievementUnlocks = result.created
       ? (await this.achievements?.trackEventSafely({
           type: "character.created",
           characterId: result.character.id,
           raceId: result.character.raceId,
           classId: result.character.classId,
-          occurredAt: new Date(),
+          occurredAt,
           sourceId: result.character.id
         })) ?? []
       : [];
+    if (result.created) {
+      await this.activityEvents?.recordCharacterCreatedSafely({
+        characterId: result.character.id,
+        actorDisplayName: result.character.name,
+        occurredAt
+      });
+    }
 
     return ok({
       character: summarizeCharacter(result.character),

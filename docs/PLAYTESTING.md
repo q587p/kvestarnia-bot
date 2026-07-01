@@ -4,6 +4,20 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.20 — Latest Events Feed MVP smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Open `Дошка корчми`; verify `📣 Останні події` appears and existing `📰 Вісти`, `📖 Перекази`, gifts, postal navigation and `/news` still work.
+2. Open `📣 Останні події`; verify the title is `📜 Хроніки Квестарні`, an empty feed is short and no reward or achievement is granted.
+3. Create a new disposable character; reopen the feed and verify one public new-adventurer row appears and duplicate onboarding replays do not add another row.
+4. Trigger or inspect a configured level milestone; verify one deduped level row appears and ordinary non-milestone rewards do not create noise.
+5. Finish one Big Barrel Brother victory; verify exactly one public victory row appears for the terminal boss session and losses/attempt XP create no row.
+6. Grant or win a rare/epic manatka if convenient; verify it appears, while common manatky do not.
+7. Win an underdog fight where the monster is at least 5 levels above the character; verify a row appears, while ordinary wins and losses do not.
+8. Try every feed filter, refresh and pagination button; verify old/stale callbacks answer safely and callback payloads do not leak ids.
+9. Use long or HTML-like character/item names in a disposable path if convenient; verify feed rows escape and truncate names and the message stays mobile-sized.
+
 ## 0.2.19 — Monster Trophies And Yeger Supply Gates smoke
 
 Manual Telegram QA status for the implementation pass: not run.

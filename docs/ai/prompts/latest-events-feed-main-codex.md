@@ -5,7 +5,7 @@ Use $kvestarnia-version-task.
 Use $ukrainian-rpg-content for substantial player-facing Ukrainian copy.
 
 Implement:
-docs/tasks/0.2.19-latest-events-feed.md
+docs/tasks/0.2.20-latest-events-feed.md
 
 Context:
 docs/ai/context.md
