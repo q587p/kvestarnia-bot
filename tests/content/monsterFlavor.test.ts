@@ -6,6 +6,7 @@ import {
   monsters,
   selectMonsterFlavorLine
 } from "../../src/content";
+import { getLootCandidates } from "../../src/domain/loot/lootEngine";
 
 const forbiddenPlayerFacingPatterns = [
   /\bsun\b/i,
@@ -23,20 +24,6 @@ const baselineCharacter = {
   pronoun: "he" as const,
   path: "sun" as const
 };
-
-const ordinaryMonsterLadderIds = [
-  "monster.complaint-lantern",
-  "monster.ledger-boar",
-  "monster.salted-oath-pretzel",
-  "monster.unclosed-closure-act",
-  "monster.liar-corridor-map",
-  "monster.foam-auditor-boots",
-  "monster.three-signature-chimera",
-  "monster.cheese-vault-warden",
-  "monster.calendar-hydra",
-  "monster.inventory-prophet",
-  "monster.quiet-catastrophe-clerk"
-] as const;
 
 const legacyMonsterLootIds = [
   "monster.mimic-shawarma",
@@ -95,8 +82,8 @@ describe("monster flavor content", () => {
       expect(lines.some((line) => line.placement === "monster.loot-note")).toBe(true);
     }
 
-    for (const monsterId of ordinaryMonsterLadderIds) {
-      const lines = monsterFlavorLines.filter((line) => line.monsterId === monsterId);
+    for (const monster of monsters.slice(20, 31)) {
+      const lines = monsterFlavorLines.filter((line) => line.monsterId === monster.id);
       const startLines = lines.filter((line) => line.placement === "monster.start");
 
       expect(startLines.some((line) => !line.selector)).toBe(true);
@@ -193,32 +180,35 @@ describe("monster flavor content", () => {
     const itemIds = new Set(items.map((item) => item.id));
     const monsterIds = new Set(monsters.map((monster) => monster.id));
 
-    for (const monsterId of legacyMonsterLootIds) {
-      const lootIds = monsterLoot[monsterId] ?? [];
+    for (const [monsterId, lootIds] of Object.entries(monsterLoot)) {
+      expect(monsterIds.has(monsterId), `orphan loot mapping for ${monsterId}`).toBe(true);
 
-      expect(lootIds).toBeDefined();
-      expect(monsterIds.has(monsterId)).toBe(true);
-      expect(lootIds.length).toBeGreaterThanOrEqual(2);
-
-      for (const itemId of lootIds) {
-        expect(itemIds.has(itemId)).toBe(true);
+      if ((legacyMonsterLootIds as readonly string[]).includes(monsterId)) {
+        expect(lootIds.length, `legacy loot should stay rich for ${monsterId}`).toBeGreaterThanOrEqual(2);
       }
-    }
-
-    expect(Object.keys(monsterLoot)).toHaveLength(31);
-  });
-
-  it("covers the ordinary monster ladder with at least one loot item each", () => {
-    const itemIds = new Set(items.map((item) => item.id));
-
-    for (const monsterId of ordinaryMonsterLadderIds) {
-      const lootIds = monsterLoot[monsterId] ?? [];
-
-      expect(monsterLoot[monsterId], `missing loot mapping for ${monsterId}`).toBeDefined();
-      expect(lootIds.length, `missing loot ids for ${monsterId}`).toBeGreaterThanOrEqual(1);
 
       for (const itemId of lootIds) {
         expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monsterId}`).toBe(true);
+      }
+    }
+
+    expect(Object.keys(monsterLoot)).toHaveLength(monsters.length);
+  });
+
+  it("covers every active monster with at least one reachable loot item", () => {
+    const itemIds = new Set(items.map((item) => item.id));
+    const lootByMonster = new Map<string, readonly string[]>(Object.entries(monsterLoot));
+
+    for (const monster of monsters) {
+      const lootIds = lootByMonster.get(monster.id) ?? [];
+      const candidates = getLootCandidates({ monsterId: monster.id, monsterLoot, items });
+
+      expect(lootByMonster.has(monster.id), `missing loot mapping for ${monster.id}`).toBe(true);
+      expect(lootIds.length, `missing loot ids for ${monster.id}`).toBeGreaterThanOrEqual(1);
+      expect(candidates.length, `unreachable loot candidates for ${monster.id}`).toBeGreaterThanOrEqual(1);
+
+      for (const itemId of lootIds) {
+        expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monster.id}`).toBe(true);
       }
     }
   });

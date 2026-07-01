@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.19] - 12026-07-01 - Monster Trophies And Yeger Supply Gates
+
+### Added
+- Added `src/content/monsterTrophyCoverage.ts` with concrete low-value trophy manatky for every active monster that previously had no runtime monster loot mapping.
+- Added content validation that every active monster id has at least one reachable runtime loot candidate and every monster loot item id exists in `items`.
+- Added Bestiary presenter coverage proving possible trophy hints render from runtime `getLootCandidates` candidates instead of orphan hint text.
+- Added Yeger service coverage for locked pre-completion paid bandage preview, paid confirm/cancel and Ranger free-bandage callbacks with no gold, item, cooldown or preview mutation.
+- Added a `0.2.19` task record and manual QA checklist for monster trophy coverage plus Yeger supply gates.
+
+### Changed
+- Bestiary monster detail trophy hints now derive from the same runtime loot candidate path used by monster loot rolls.
+- The Yeger corner hides `🩹 Бинти` until the first `5`-target unquiet board is completed and turned in.
+- Direct old Yeger bandage callbacks before first-board completion now return a short locked Ukrainian message instead of opening supplies.
+- Existing paid Yeger bandage bundles, Ranger discount and Ranger free-bandage cooldown remain available after first-board completion.
+- Future `Щільний бинт` / `Польова аптечка` docs now explicitly require the second `17`-target Yeger board before advanced supplies can appear.
+
+### Unchanged
+- No guaranteed trophy drops, collection ledger, Yeger tag-hunt UI, new quest stage, crafting, shop, trading, combat behavior, schema or migration ships in this slice.
+- Exact drop odds remain hidden from player-facing Bestiary copy.
+
 ## [0.2.18] - 12026-07-01 - Lore Board MVP
 
 ### Added

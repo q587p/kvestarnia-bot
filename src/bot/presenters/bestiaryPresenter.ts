@@ -8,6 +8,7 @@ import {
   type BestiarySpecialRecord
 } from "../../content";
 import type { MonsterContent } from "../../content/schema";
+import { getLootCandidates } from "../../domain/loot/lootEngine";
 import { BESTIARY_MIN_LEVEL } from "../../domain/progression/activityGates";
 import { escapeHtml } from "./telegramHtml";
 
@@ -257,10 +258,7 @@ function presentFieldNote(monster: MonsterContent): string {
 }
 
 function getKnownTrophyNames(monster: MonsterContent): string[] {
-  const lootIds = monsterLoot[monster.id as keyof typeof monsterLoot] ?? [];
-  return lootIds
-    .map((itemId) => items.find((item) => item.id === itemId)?.name)
-    .filter((name): name is string => Boolean(name));
+  return getLootCandidates({ monsterId: monster.id, monsterLoot, items }).map((candidate) => candidate.item.name);
 }
 
 function presentKnownTrophies(trophyNames: string[]): string[] {

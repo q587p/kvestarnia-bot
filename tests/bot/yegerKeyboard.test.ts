@@ -80,7 +80,7 @@ describe("Yeger keyboard", () => {
     });
   });
 
-  it("keeps the free ranger bandage available before the Yeger quest level gate", () => {
+  it("keeps bandage supplies hidden before the base Yeger board is completed", () => {
     const keyboard = buildYegerCornerKeyboard({
       state: "level-locked",
       character: {
@@ -106,13 +106,48 @@ describe("Yeger keyboard", () => {
       text: "🏹 Неспокійні справи",
       callback_data: makeYegerQuestCallbackData()
     });
-    expect(flatButtons(keyboard)).toContainEqual({
+    expect(flatButtons(keyboard)).not.toContainEqual({
       text: "🩹 Бинти",
       callback_data: makeYegerBandagesCallbackData()
     });
     expect(flatButtons(keyboard)).not.toContainEqual({
       text: "🧰 Єгерський бинт",
       callback_data: makeYegerFreeBandageCallbackData()
+    });
+    expect(flatButtons(bandages).map((button) => button.callback_data)).not.toContain(
+      makeYegerBuyBandageCallbackData(1)
+    );
+    expect(flatButtons(bandages)).not.toContainEqual({
+      text: "🧰 Єгерський бинт",
+      callback_data: makeYegerFreeBandageCallbackData()
+    });
+  });
+
+  it("shows bandage supplies after the base Yeger board is completed", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "offered",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Єгер"
+      },
+      progress: { wins: 0, target: 17, stageId: "second" },
+      rangerBandage: { state: "available" }
+    });
+    const bandages = buildYegerBandagesKeyboard({
+      state: "offered",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Єгер"
+      },
+      progress: { wins: 0, target: 17, stageId: "second" },
+      rangerBandage: { state: "available" }
+    });
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🩹 Бинти",
+      callback_data: makeYegerBandagesCallbackData()
     });
     expect(flatButtons(bandages)).toContainEqual({
       text: "🧰 Єгерський бинт",

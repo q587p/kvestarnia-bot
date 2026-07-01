@@ -211,6 +211,7 @@ export interface YegerQuestReward {
 
 export type YegerBandageSupplyResult =
   | { state: "no-character" }
+  | { state: "locked"; character: CharacterSummary; requiredWins: number }
   | {
       state: "preview";
       character: CharacterSummary;
@@ -259,6 +260,7 @@ export interface YegerBandageAffordablePreview {
 
 export type YegerRangerBandageResult =
   | { state: "no-character" }
+  | { state: "locked"; character: CharacterSummary; requiredWins: number }
   | { state: "class-locked"; character: CharacterSummary }
   | { state: "claimed"; character: CharacterSummary; itemGrants: RewardItemGrant[]; nextAvailableAt: Date; now: Date; achievementUnlocks?: AchievementUnlock[] }
   | { state: "on-cooldown"; character: CharacterSummary; nextAvailableAt: Date; now: Date };
@@ -588,6 +590,10 @@ export class YegerQuestService {
     }
 
     const summary = summarizeCharacter(character);
+    if (!await this.hasCompletedBaseQuest(telegramUserId)) {
+      return { state: "locked", character: summary, requiredWins: YEGER_UNQUIET_TRIAL_TARGET };
+    }
+
     const now = this.now();
     const purchaseDay = toIsoDate(now);
     const purchasedToday = await this.countPaidBandagesPurchasedToday(telegramUserId, purchaseDay);
@@ -650,6 +656,10 @@ export class YegerQuestService {
     }
 
     const summary = summarizeCharacter(character);
+    if (!await this.hasCompletedBaseQuest(telegramUserId)) {
+      return { state: "locked", character: summary, requiredWins: YEGER_UNQUIET_TRIAL_TARGET };
+    }
+
     const decision = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
       localDate: token
@@ -775,12 +785,17 @@ export class YegerQuestService {
       return { state: "no-character" };
     }
 
+    const summary = summarizeCharacter(character);
+    if (!await this.hasCompletedBaseQuest(telegramUserId)) {
+      return { state: "locked", character: summary, requiredWins: YEGER_UNQUIET_TRIAL_TARGET };
+    }
+
     const completed = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
       localDate: token
     });
     if (completed) {
-      return mapPurchaseDecision(summarizeCharacter(character), completed, "replayed");
+      return mapPurchaseDecision(summary, completed, "replayed");
     }
 
     const preview = await this.dailyActions.findForTelegramUser(telegramUserId, {
@@ -797,7 +812,7 @@ export class YegerQuestService {
       rewardXp: 0,
       rewardGold: 0,
       expectedLife: {
-        remortCount: summarizeCharacter(character).remortCount ?? 0
+        remortCount: summary.remortCount ?? 0
       },
       resultJson: {
         kind: "yeger-bandage-purchase-cancel",
@@ -832,6 +847,10 @@ export class YegerQuestService {
     }
 
     const summary = summarizeCharacter(character);
+    if (!await this.hasCompletedBaseQuest(telegramUserId)) {
+      return { state: "locked", character: summary, requiredWins: YEGER_UNQUIET_TRIAL_TARGET };
+    }
+
     if (summary.classId !== "class.ranger") {
       return { state: "class-locked", character: summary };
     }
@@ -902,6 +921,13 @@ export class YegerQuestService {
     }
 
     return null;
+  }
+
+  private async hasCompletedBaseQuest(telegramUserId: bigint): Promise<boolean> {
+    return Boolean(await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+      localDate: YEGER_UNQUIET_TRIAL_BUCKET
+    }));
   }
 
   private async getRangerBandageSummary(

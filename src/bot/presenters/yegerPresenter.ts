@@ -127,6 +127,19 @@ export function presentYegerCorner(
 export function presentYegerBandages(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
 ): string {
+  if (
+    result.state !== "completed" &&
+    (result.state === "level-locked" || result.progress.stageId !== "second")
+  ) {
+    return [
+      "🩹 Бинти Єгеря",
+      presentCharacterHeader(result.character),
+      "",
+      "Єгер тримає ящик бинтів закритим, доки на першій дощечці не буде 5 рисок.",
+      "Спершу закрийте першу неспокійну справу."
+    ].join("\n");
+  }
+
   const lines = [
     "🩹 Бинти Єгеря",
     presentCharacterHeader(result.character),
@@ -154,6 +167,10 @@ export function presentYegerNoCharacter(): string {
 export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string {
   if (result.state === "no-character") {
     return presentYegerNoCharacter();
+  }
+
+  if (result.state === "locked") {
+    return presentYegerBandageLocked(result);
   }
 
   if (result.state === "invalid-token") {
@@ -277,6 +294,10 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
     return presentYegerNoCharacter();
   }
 
+  if (result.state === "locked") {
+    return presentYegerBandageLocked(result);
+  }
+
   if (result.state === "class-locked") {
     return [
       "🧰 Єгерський бинт",
@@ -305,6 +326,16 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
     `Наступний безкоштовний бинт ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
     "",
     "Єгер кивнув так, ніби це не доброта, а техніка виживання."
+  ].join("\n");
+}
+
+function presentYegerBandageLocked(result: { character: CharacterSummary; requiredWins: number }): string {
+  return [
+    "🩹 Бинти Єгеря",
+    presentCharacterHeader(result.character),
+    "",
+    `Єгер тримає ящик бинтів закритим, доки на першій дощечці не буде ${result.requiredWins} рисок.`,
+    "Спершу закрийте першу неспокійну справу."
   ].join("\n");
 }
 

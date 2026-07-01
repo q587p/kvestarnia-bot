@@ -1047,7 +1047,7 @@ async function handleYegerCallback(
       ctx,
       result.state === "preview"
         ? { text: "Єгер показав ціну." }
-        : { show_alert: result.state === "insufficient-gold" || result.state === "daily-limit" }
+        : { show_alert: result.state === "insufficient-gold" || result.state === "daily-limit" || result.state === "locked" }
     );
     await markYegerCornerPresence(ctx, services.presence);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
@@ -1070,7 +1070,7 @@ async function handleYegerCallback(
       ctx,
       result.state === "bought" || result.state === "replayed"
         ? { text: result.state === "bought" ? "Бинти у торбі." : "Чек уже проведено." }
-        : { show_alert: result.state === "insufficient-gold" || result.state === "invalid-token" || result.state === "stale-token" }
+        : { show_alert: result.state === "insufficient-gold" || result.state === "invalid-token" || result.state === "stale-token" || result.state === "locked" }
     );
     await markYegerCornerPresence(ctx, services.presence);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
@@ -1101,7 +1101,7 @@ async function handleYegerCallback(
       ctx,
       result.state === "claimed"
         ? { text: "Єгер видав бинт." }
-        : { show_alert: result.state === "class-locked" || result.state === "on-cooldown" }
+        : { show_alert: result.state === "class-locked" || result.state === "on-cooldown" || result.state === "locked" }
     );
     await markYegerCornerPresence(ctx, services.presence);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);

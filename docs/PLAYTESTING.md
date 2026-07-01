@@ -4,6 +4,20 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.19 — Monster Trophies And Yeger Supply Gates smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Character below Yeger level: open the Yeger corner and verify `🩹 Бинти` is absent.
+2. Level-eligible character before starting the first Yeger board: verify `🩹 Бинти` is absent; replay old `v1:ygr:bandages`, paid preview/confirm/cancel and Ranger free-bandage buttons if available locally and verify locked copy with no gold/item/cooldown mutation.
+3. In-progress first `5`-target board: verify supplies stay hidden and direct old buttons stay locked.
+4. Turn-in-ready but not turned in: verify supplies stay locked until the first board completion row is recorded.
+5. After completing and turning in the first board: verify `🩹 Бинти` appears in the Yeger corner.
+6. After first-board completion: buy `1`, `5`, `17` or `93` basic bandages as affordable, verify Ranger discount/free button behavior, then replay stale buttons and verify canonical replay/no double spend.
+7. Before completing the second `17`-target board: verify no advanced `Щільний бинт` / `Польова аптечка` route is exposed by this release.
+8. Open several early and high-level Bestiary monster records; verify possible trophies are concrete manatky names and exact odds are not shown.
+9. Win a few ordinary fights if convenient and verify existing item drop/result presentation still behaves normally.
+
 ## 0.2.18 — Lore Board MVP smoke
 
 Manual Telegram QA status for the implementation pass: not run.

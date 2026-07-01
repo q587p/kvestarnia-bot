@@ -1,6 +1,7 @@
 import type { ItemContent } from "./schema";
 import { lootExpansionV1ItemContents } from "./lootExpansionV1";
 import { monsterLootItemAdditions } from "./monsterLootItems";
+import { monsterTrophyItemAdditions } from "./monsterTrophyCoverage";
 
 export const items = [
   {
@@ -235,5 +236,6 @@ export const items = [
     priceless: true
   },
   ...monsterLootItemAdditions,
+  ...monsterTrophyItemAdditions,
   ...lootExpansionV1ItemContents
 ] satisfies ItemContent[];

@@ -11,6 +11,8 @@ import { DailyActionQuantityLimitExceededError } from "../../src/db/repositories
 import {
   YEGER_BANDAGE_PRICE,
   YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+  YEGER_UNQUIET_TRIAL_BUCKET,
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YegerQuestService
 } from "../../src/services/yegerQuestService";
 import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
@@ -432,6 +434,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9101n,
       gold: 100
     });
+    await completeBaseYegerQuest("character-yeger-cancel-wins");
     const service = createYegerService();
     const preview = await previewYegerPurchase(service, 9101n, 5);
 
@@ -450,6 +453,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9102n,
       gold: 100
     });
+    await completeBaseYegerQuest("character-yeger-confirm-wins");
     const service = createYegerService();
     const preview = await previewYegerPurchase(service, 9102n, 5);
 
@@ -476,6 +480,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9103n,
       gold: 700
     });
+    await completeBaseYegerQuest("character-yeger-confirm-cancel-race");
     const service = createYegerService();
     const preview = await previewYegerPurchase(service, 9103n, 17);
 
@@ -512,6 +517,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9104n,
       gold: 100
     });
+    await completeBaseYegerQuest("character-yeger-duplicate-confirm");
     const service = createYegerService();
     const preview = await previewYegerPurchase(service, 9104n, 5);
 
@@ -539,6 +545,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9105n,
       gold: 100
     });
+    await completeBaseYegerQuest("character-yeger-malformed-decision");
     const token = "11111111-1111-4111-8111-111111111111";
     await prisma.dailyAction.create({
       data: {
@@ -573,6 +580,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9106n,
       gold: 100
     });
+    await completeBaseYegerQuest("character-yeger-legacy-receipt");
     const token = "22222222-2222-4222-8222-222222222222";
     await prisma.dailyAction.create({
       data: {
@@ -606,6 +614,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9107n,
       gold: 100
     });
+    await completeBaseYegerQuest("character-yeger-restart-replay");
     const preview = await previewYegerPurchase(createYegerService(), 9107n, 5);
     await createYegerService().confirmBandagePurchaseForTelegramUser(9107n, preview.token);
 
@@ -624,6 +633,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9108n,
       gold: 1000
     });
+    await completeBaseYegerQuest("character-yeger-topup-race");
     const service = createYegerService();
     const first = await previewYegerPurchase(service, 9108n, 93);
     const second = await previewYegerPurchase(service, 9108n, 93);
@@ -646,6 +656,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9109n,
       gold: 1000
     });
+    await completeBaseYegerQuest("character-yeger-mixed-topup-race");
     const service = createYegerService();
     const five = await previewYegerPurchase(service, 9109n, 5);
     const ninetyThree = await previewYegerPurchase(service, 9109n, 93);
@@ -674,6 +685,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9110n,
       gold: 1000
     });
+    await completeBaseYegerQuest("character-yeger-topup-cancel-race");
     const service = createYegerService();
     const preview = await previewYegerPurchase(service, 9110n, 93);
 
@@ -706,6 +718,7 @@ describe("paid Prisma claim repositories", () => {
       telegramUserId: 9111n,
       gold: 1000
     });
+    await completeBaseYegerQuest("character-yeger-utc-day");
     const beforeMidnight = createYegerService(new Date("2026-06-15T23:59:00.000Z"));
     const first = await previewYegerPurchase(beforeMidnight, 9111n, 5);
     await beforeMidnight.confirmBandagePurchaseForTelegramUser(9111n, first.token);
@@ -1430,6 +1443,18 @@ describe("paid Prisma claim repositories", () => {
         key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY
       },
       orderBy: { createdAt: "asc" }
+    });
+  }
+
+  async function completeBaseYegerQuest(characterId: string): Promise<void> {
+    await prisma.dailyAction.create({
+      data: {
+        characterId,
+        key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+        localDate: YEGER_UNQUIET_TRIAL_BUCKET,
+        rewardXp: 13,
+        rewardGold: 13
+      }
     });
   }
 });
