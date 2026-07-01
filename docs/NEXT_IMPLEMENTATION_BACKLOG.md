@@ -599,16 +599,16 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 ## Later — Bestiary Browse Filters
 
 **Objective**
-Додати в read-only `📖 Бестіарій` швидку навігацію за рівнями й типами, щоб 30+ монстрів не виглядали як випадкова купа сторінок.
+Додати в read-only `📖 Бестіарій` швидку навігацію за рівнями й теґами/типами, щоб 30+ монстрів не виглядали як випадкова купа сторінок.
 
 **Scope**
 
-- На головному екрані бестіарію додати кнопки `Рівні` й `Типи`.
+- На головному екрані бестіарію додати кнопки `Рівні` й `Теґи`.
 - `Рівні` відкриває список наявних рівнів із кількістю монстрів біля кожного.
 - Натискання рівня показує всіх монстрів цього рівня з кнопками на detail-записи.
-- `Типи` відкриває список наявних тегів/типів із player-facing українськими назвами й кількістю монстрів.
-- Натискання типу показує всіх монстрів із цим тегом.
-- У відфільтрованих списках лишити шлях назад: до `Рівні`, до `Типи`, до загального списку.
+- `Теґи` відкриває список наявних monster tags із player-facing українськими назвами й кількістю монстрів.
+- Натискання теґа показує всіх монстрів із цим теґом.
+- У відфільтрованих списках лишити шлях назад: до `Рівні`, до `Теґи`, до загального списку.
 
 **Non-goals**
 
@@ -623,6 +623,36 @@ Instrument metadata should include whether it is `musical`, whether it is `bardP
 - filters derive available levels/tags from `src/content/monsters.ts`, not from hardcoded stale lists;
 - tags use `BESTIARY_TAG_LABELS`, and tests fail if a monster tag lacks a player-facing label;
 - tests cover level list, type list, filtered monster lists, empty-safe fallback, and back buttons.
+
+## Later — Complete Bestiary Notes And Trophy Tables
+
+**Objective**
+Доробити Бестіарій як повний read-only довідник про чинних монстрів: кожен монстр має коротку українську нотатку, зрозумілі можливі трофеї, а ігромеханічний шанс конкретних трофеїв привʼязаний до відповідних monster ids.
+
+**Scope**
+
+- Додати/вирівняти bestiary note для кожного активного запису з `src/content/monsters.ts`.
+- Додати player-facing trophy hints для кожного монстра, без обіцянки гарантованого випадіння.
+- Перевірити, що `monsterLoot` / loot routing не містить orphan item ids і не показує трофеї, які не можуть реально випасти з цього монстра.
+- Привʼязати runtime loot chances до конкретних monster ids або до явного shared loot profile, якщо кілька монстрів мають спільний тематичний pool.
+- Додати validation/test, який падає, якщо активний монстр не має нотатки, trophy hint або loot-table звʼязку.
+- Зберегти Telegram-friendly detail screen: не перетворювати картку на енциклопедичну стіну.
+
+**Non-goals**
+
+- no collection tracking;
+- no seen/resolved/studied states in this content-completion slice;
+- no new reward faucet or broad loot rebalance without a separate balance review;
+- no guaranteed drops in player-facing copy;
+- no new monsters unless a separate content task explicitly adds them.
+
+**Acceptance criteria**
+
+- every active monster has a bestiary note and possible-trophy hint;
+- every displayed trophy hint maps to an actual item/drop path for that monster;
+- loot chances are deterministic/testable and monster-owned or explicitly profile-owned;
+- tests cover missing notes, missing trophy hints, orphan trophy ids, and at least one monster with multiple possible trophies;
+- player-facing copy stays short, Ukrainian and spoiler-light about exact odds.
 
 ## Later — Monster Grammar Metadata
 

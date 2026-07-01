@@ -143,7 +143,7 @@
 
 ## 6. Monster detail polish using collection state
 
-**Goal**  
+**Goal**
 Зробити картку монстра живішою: notes, first encounter, trophy memory, studied flavor.
 
 **Files likely touched**
@@ -168,6 +168,37 @@
 **Risk notes**
 
 - detail screen може почати виглядати як encyclopedia wall. Треба лишити її Telegram-friendly.
+
+## 6a. Complete monster notes and trophy mapping
+
+**Goal**
+Доробити базовий Бестіарій до повного coverage: кожен активний монстр має коротку нотатку, можливі трофеї, і runtime loot chances реально привʼязані до відповідних monster ids або явних shared loot profiles.
+
+**Files likely touched**
+
+- `src/content/monsters.ts`
+- `src/content/monsterLoot.ts` / current monster loot routing source
+- bestiary presenter/content validation
+- loot engine tests and bestiary content tests
+
+**Acceptance criteria**
+
+- every active monster has a bestiary note;
+- every active monster has a player-facing possible-trophy hint, unless explicitly marked as no-trophy and justified;
+- every displayed trophy hint maps to an actual item/drop path for that monster;
+- concrete trophy chances are testable in runtime loot tables but exact odds are not shown in pre-commit/player-facing Bestiary copy;
+- tests fail on missing notes, missing trophy hints, orphan item ids, and trophy hints that cannot drop.
+
+**Explicit non-goals**
+
+- no guaranteed drops;
+- no collection tracking in this slice;
+- no XP/gold rebalance just because trophy tables are being aligned;
+- no new monster roster expansion unless a separate content task asks for it.
+
+**Risk notes**
+
+- Бестіарій не має обіцяти трофей, якого loot engine не може дати. Якщо trophy hint і drop table розʼїдуться, гравець побачить фольклор, а отримає бухгалтерію з діркою.
 
 ## 7. Weekly field-note digest
 
