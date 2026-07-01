@@ -140,6 +140,24 @@ export class PartySessionService {
     return this.sessions.findLiveRecruitingByTelegramUser(telegramUserId, this.clock());
   }
 
+  async recordParticipantMessageReference(
+    telegramUserId: bigint,
+    inviteToken: string,
+    input: {
+      chatId: bigint;
+      messageId: number;
+    }
+  ): Promise<PartySessionRecord | null> {
+    if (!this.isEnabled()) {
+      return null;
+    }
+
+    return this.sessions.recordParticipantMessageReference(telegramUserId, inviteToken, {
+      ...input,
+      now: this.clock()
+    });
+  }
+
   async listRecruitingBigBarrelBrother(): Promise<PartySessionRecord[]> {
     if (!this.isBigBarrelBrotherEnabled()) {
       return [];

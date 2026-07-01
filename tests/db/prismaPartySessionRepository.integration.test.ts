@@ -93,6 +93,8 @@ describe("PrismaPartySessionRepository integration", () => {
 
     expect(joined.state).toBe("joined");
     expect("session" in joined ? joined.session.inviteToken : null).toBe("party-token-switch-target");
+    expect(joined.state === "joined" ? joined.cancelledSoloSession?.inviteToken : null).toBe("party-token-switch-own");
+    expect(joined.state === "joined" ? joined.cancelledSoloSession?.status : null).toBe("cancelled");
     expect("session" in joined ? joined.session.participants.filter((row) => row.status === "joined").map((row) => row.character.telegramUserId).sort() : []).toEqual([2101n, 2102n]);
     expect(await prisma.partySession.findUnique({
       where: { inviteToken: "party-token-switch-own" },
@@ -108,6 +110,40 @@ describe("PrismaPartySessionRepository integration", () => {
         }
       }
     })).toBe(0);
+  });
+
+  it("records the actual sent recruiting card message reference for a joined participant", async () => {
+    await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
+    await repository.createForTelegramUser(2151n, {
+      ...bigBarrelInput("party-token-message-ref"),
+      chatId: null,
+      messageId: null
+    });
+
+    const updated = await repository.recordParticipantMessageReference(2151n, "party-token-message-ref", {
+      chatId: 2151n,
+      messageId: 42,
+      now: now()
+    });
+
+    expect(updated?.participants.find((row) => row.character.telegramUserId === 2151n)).toMatchObject({
+      chatId: 2151n,
+      messageId: 42
+    });
+    await expect(prisma.partyParticipant.findFirstOrThrow({
+      where: {
+        session: {
+          inviteToken: "party-token-message-ref"
+        }
+      },
+      select: {
+        chatId: true,
+        messageId: true
+      }
+    })).resolves.toEqual({
+      chatId: 2151n,
+      messageId: 42
+    });
   });
 
   it("rejects non-remorted level 7 Big Barrel recruiting joins without mutation", async () => {

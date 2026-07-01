@@ -721,7 +721,7 @@ export async function sendTavernBarrel(
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
 
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-    await sendBigPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
+    const sentMessageId = await sendBigPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
       ? {
           session,
           inviteUrl,
@@ -730,6 +730,12 @@ export async function sendTavernBarrel(
           includeDevExpire: options.partySessions.areDevHelpersEnabled()
         }
       : false);
+    if (session && sentMessageId && ctx.chat?.id) {
+      await options.partySessions.recordParticipantMessageReference(telegramUserId, session.inviteToken, {
+        chatId: BigInt(ctx.chat.id),
+        messageId: sentMessageId
+      });
+    }
     if ((party.state === "created" || party.state === "live-membership") && session && inviteUrl) {
       await sendBigBarrelInviteShare(ctx, session, inviteUrl);
     }
@@ -778,7 +784,7 @@ async function sendBigPartyText(
         includeBossStart?: boolean | undefined;
         includeDevExpire?: boolean | undefined;
       }
-): Promise<void> {
+): Promise<number | null> {
   const options = {
     ...HTML_MESSAGE_OPTIONS,
     ...(keyboard
@@ -795,10 +801,11 @@ async function sendBigPartyText(
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, options);
-    return;
+    return null;
   }
 
-  await ctx.reply(text, options);
+  const message = await ctx.reply(text, options);
+  return message.message_id ?? null;
 }
 
 async function sendBigBarrelInviteShare(

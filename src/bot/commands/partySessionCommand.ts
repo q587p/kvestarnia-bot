@@ -371,6 +371,11 @@ export async function handlePartySessionCallback(
       : false);
     if (result.state === "joined") {
       await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+      if (result.cancelledSoloSession) {
+        await notifyPartySessionParticipants(ctx, result.cancelledSoloSession, telegramUserId, options.botUsername, service, {
+          includeActor: true
+        });
+      }
     }
     return;
   }
@@ -725,13 +730,14 @@ async function notifyPartySessionParticipants(
   session: Parameters<typeof buildPartySessionKeyboard>[0],
   actorTelegramUserId: bigint,
   botUsername: string | undefined,
-  service: PartySessionService
+  service: PartySessionService,
+  options: { includeActor?: boolean } = {}
 ): Promise<void> {
   const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
 
   for (const participant of session.participants) {
     if (
-      participant.character.telegramUserId === actorTelegramUserId ||
+      (!options.includeActor && participant.character.telegramUserId === actorTelegramUserId) ||
       participant.status !== "joined" ||
       !participant.chatId ||
       !participant.messageId

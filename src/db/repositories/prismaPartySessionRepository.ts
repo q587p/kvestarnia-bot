@@ -198,10 +198,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "full", session: mapSession(session) };
       }
 
+      let cancelledSoloSession: PartySessionRecord | null = null;
       const liveMembership = await findLiveMembershipSession(tx, character.id);
       if (liveMembership && liveMembership.id !== session.id) {
         if (isPersonalBigBarrelRecruitingSession(liveMembership, character.id)) {
           await terminalizeSessionTx(tx, liveMembership.id, "cancelled");
+          const cancelled = await findSessionById(tx, liveMembership.id);
+          cancelledSoloSession = cancelled ? mapSession(cancelled) : null;
         } else {
           return { state: "live-membership", session: mapSession(liveMembership) };
         }
@@ -251,7 +254,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       }
 
       const updated = await findSessionById(tx, session.id);
-      return updated ? { state: "joined", session: mapSession(updated) } : { state: "not-found" };
+      return updated
+        ? {
+            state: "joined",
+            session: mapSession(updated),
+            ...(cancelledSoloSession ? { cancelledSoloSession } : {})
+          }
+        : { state: "not-found" };
     }).catch(async (error: unknown): Promise<PartyJoinRepositoryResult> => {
       if (error instanceof PartyCapacityRaceError) {
         const session = await this.findByToken(inviteToken, input.now);
@@ -404,6 +413,38 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
     const session = await findLiveLeaderSession(this.prisma, character.id);
     return session ? mapSession(session) : null;
+  }
+
+  async recordParticipantMessageReference(
+    telegramUserId: bigint,
+    inviteToken: string,
+    input: { chatId: bigint; messageId: number; now: Date }
+  ): Promise<PartySessionRecord | null> {
+    return this.prisma.$transaction(async (tx): Promise<PartySessionRecord | null> => {
+      const session = await findSessionByToken(tx, inviteToken);
+      if (!session) {
+        return null;
+      }
+
+      const participant = session.participants.find(
+        (row) => row.status === "joined" && row.character.user.telegramUserId === telegramUserId
+      );
+      if (!participant) {
+        return mapSession(session);
+      }
+
+      await tx.partyParticipant.update({
+        where: { id: participant.id },
+        data: {
+          chatId: input.chatId,
+          messageId: input.messageId,
+          joinedAt: participant.joinedAt
+        }
+      });
+
+      const updated = await findSessionById(tx, session.id);
+      return updated ? mapSession(updated) : null;
+    });
   }
 
   async listRecruitingByOrigin(

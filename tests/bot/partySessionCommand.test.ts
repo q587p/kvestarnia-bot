@@ -378,6 +378,77 @@ describe("handlePartySessionCallback", () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
+  it("refreshes the cancelled solo Big Barrel recruiting card after switching into another raid", async () => {
+    const session = {
+      ...makeSessionWithMember(),
+      originLocationId: "barrel.big-brother"
+    };
+    const switcher = {
+      ...makeCharacter(),
+      id: "character-93",
+      userId: "user-93",
+      telegramUserId: 93n,
+      name: "Перемикачка"
+    };
+    const cancelledSoloSession: PartySessionRecord = {
+      ...makeSession("cancelled"),
+      id: "party-old",
+      inviteToken: "partyOLD12",
+      status: "cancelled",
+      originLocationId: "barrel.big-brother",
+      leaderCharacterId: switcher.id,
+      activeLeaderKey: null,
+      leader: switcher,
+      participants: [
+        {
+          id: "participant-old-93",
+          sessionId: "party-old",
+          characterId: switcher.id,
+          remortCount: 0,
+          status: "joined",
+          joinSource: "leader",
+          joinedAt: session.createdAt,
+          leftAt: null,
+          chatId: 93n,
+          messageId: 77,
+          character: switcher
+        }
+      ]
+    };
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "joined",
+      session,
+      cancelledSoloSession
+    });
+    const { ctx, apiEditMessageText } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: session.inviteToken },
+      serviceWith({ joinByTokenForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(apiEditMessageText).toHaveBeenCalledTimes(2);
+    expect(apiEditMessageText).toHaveBeenNthCalledWith(
+      1,
+      42,
+      13,
+      expect.stringContaining("Учасники: 2/8"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(apiEditMessageText).toHaveBeenNthCalledWith(
+      2,
+      93,
+      77,
+      expect.stringContaining("Стан: скасовано"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+  });
+
   it("shows generic copy for ineligible Big Barrel Brother nearby joins without participant refresh", async () => {
     const session = {
       ...makeSession("recruiting"),

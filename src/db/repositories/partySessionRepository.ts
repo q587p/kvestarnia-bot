@@ -72,7 +72,12 @@ export type PartyCreateRepositoryResult =
 export type PartyJoinRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
-  | { state: "joined" | "already-joined"; session: PartySessionRecord }
+  | {
+      state: "joined";
+      session: PartySessionRecord;
+      cancelledSoloSession?: PartySessionRecord | undefined;
+    }
+  | { state: "already-joined"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | { state: "ineligible"; session: PartySessionRecord }
   | { state: "full" | "cancelled" | "expired"; session: PartySessionRecord };
@@ -115,6 +120,11 @@ export interface PartySessionRepository {
 
   findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
   findLiveRecruitingByTelegramUser(telegramUserId: bigint, now: Date): Promise<PartySessionRecord | null>;
+  recordParticipantMessageReference(
+    telegramUserId: bigint,
+    inviteToken: string,
+    input: { chatId: bigint; messageId: number; now: Date }
+  ): Promise<PartySessionRecord | null>;
   listRecruitingByOrigin(originLocationId: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
   listDueRecruitingByOrigin(originLocationId: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
   expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;

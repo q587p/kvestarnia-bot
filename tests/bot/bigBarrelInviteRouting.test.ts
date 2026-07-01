@@ -56,7 +56,7 @@ describe("Big Barrel Brother invite routing", () => {
   });
 
   it("opens Big recruiting from /raid for a remorted level 3 character with invite controls but no inline card URL", async () => {
-    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+    const { services, createForTelegramUser, recordParticipantMessageReference } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
       partyCharacter: { level: 3, remortCount: 1 }
     });
@@ -68,6 +68,10 @@ describe("Big Barrel Brother invite routing", () => {
     expect(calls.some(hasForwardableInviteUrl)).toBe(true);
     expect(calls.some(hasShareInviteButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, PARTY_TOKEN, {
+      chatId: 42n,
+      messageId: 101
+    });
   });
 
   it("threads botUsername into explicit Barrel raid invite controls for a remorted level 3 character", async () => {
@@ -175,7 +179,9 @@ async function captureCallbackApiCalls(
 
     return Promise.resolve({
       ok: true,
-      result: true
+      result: method === "sendMessage"
+        ? { message_id: 101, date: 0, chat: { id: 42, type: "private" } }
+        : true
     });
   });
 
@@ -235,7 +241,9 @@ async function captureMessageApiCalls(
 
     return Promise.resolve({
       ok: true,
-      result: true
+      result: method === "sendMessage"
+        ? { message_id: 101, date: 0, chat: { id: 42, type: "private" } }
+        : true
     });
   });
 
@@ -253,6 +261,7 @@ function servicesForBigBarrelRoute(options: {
   services: BotServices;
   session: PartySessionRecord;
   createForTelegramUser: ReturnType<typeof vi.fn>;
+  recordParticipantMessageReference: ReturnType<typeof vi.fn>;
 } {
   const character = makeCharacterSummary(options.character);
   const session = makePartySession(options.partyCharacter);
@@ -260,6 +269,7 @@ function servicesForBigBarrelRoute(options: {
     state: "created",
     session
   });
+  const recordParticipantMessageReference = vi.fn().mockResolvedValue(session);
   const services = {
     achievements: {},
     adventure: {},
@@ -291,7 +301,8 @@ function servicesForBigBarrelRoute(options: {
     partySessions: {
       areDevHelpersEnabled: () => false,
       isBigBarrelBrotherEnabled: () => options.bigEnabled ?? true,
-      createForTelegramUser
+      createForTelegramUser,
+      recordParticipantMessageReference
     },
     playerHints: {},
     presence: {
@@ -328,7 +339,7 @@ function servicesForBigBarrelRoute(options: {
     yeger: {}
   } as unknown as BotServices;
 
-  return { services, session, createForTelegramUser };
+  return { services, session, createForTelegramUser, recordParticipantMessageReference };
 }
 
 function makePartySession(characterOverrides: Partial<PartySessionRecord["leader"]> = {}): PartySessionRecord {
