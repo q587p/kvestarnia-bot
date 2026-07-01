@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.19] - 12026-07-01 - Monster Trophies And Yeger Supply Gates
+## [0.2.19] - 12026-07-02 - Monster Trophies And Yeger Supply Gates
 
 ### Added
 - Added `src/content/monsterTrophyCoverage.ts` with concrete low-value trophy manatky for every active monster that previously had no runtime monster loot mapping.
@@ -20,6 +20,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Bestiary monster detail trophy hints now derive from the same runtime loot candidate path used by monster loot rolls.
 - Concrete monster trophy candidates now use explicit loot weights with common non-trophy fallback candidates, targeting about `23%` trophy share among successful monster-specific item drops instead of making one-candidate trophies guaranteed.
 - The Yeger corner hides `🩹 Бинти` until the first `5`-target unquiet board is completed and turned in.
+- Turning in the first Yeger board now explicitly tells the player that ordinary Yeger bandages are available and points to the renamed second board, `Неспокійні справи 2.0`.
+- The second `17`-target Yeger board now uses the distinct player-facing title `Неспокійні справи 2.0` across Yeger cards, quest rows, buttons and post-fight progress notices.
 - Direct old Yeger bandage callbacks before first-board completion now return a short locked Ukrainian message instead of opening supplies.
 - Existing paid Yeger bandage bundles, Ranger discount and Ranger free-bandage cooldown remain available after first-board completion.
 - Future `Щільний бинт` / `Польова аптечка` docs now explicitly require the second `17`-target Yeger board before advanced supplies can appear.

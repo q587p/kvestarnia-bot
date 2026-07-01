@@ -146,6 +146,10 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)).toContainEqual({
+      text: "🏹 Неспокійні справи 2.0",
+      callback_data: makeYegerQuestCallbackData()
+    });
+    expect(flatButtons(keyboard)).toContainEqual({
       text: "🩹 Бинти",
       callback_data: makeYegerBandagesCallbackData()
     });

@@ -17,6 +17,7 @@ import {
   makeYegerTrackCallbackData,
   makeYegerTurnInCallbackData
 } from "../callbacks/yegerCallbackData";
+import { presentYegerQuestTitle } from "../presenters/yegerQuestTitle";
 
 export function buildYegerKeyboard(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
@@ -74,7 +75,7 @@ export function buildYegerCornerKeyboard(
   const keyboard = new InlineKeyboard();
 
   if (result.state !== "level-locked") {
-    keyboard.text("🏹 Неспокійні справи", makeYegerQuestCallbackData()).row();
+    keyboard.text(`🏹 ${presentYegerQuestTitle(result.progress)}`, makeYegerQuestCallbackData()).row();
   }
 
   if (isBaseYegerQuestCompleted(result)) {

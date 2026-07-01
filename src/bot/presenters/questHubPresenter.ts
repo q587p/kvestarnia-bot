@@ -11,6 +11,7 @@ import {
   meetsActivityLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../../domain/progression/activityGates";
+import { presentYegerQuestTitle } from "./yegerQuestTitle";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
@@ -237,14 +238,14 @@ function presentYegerRow(yeger: Exclude<YegerQuestLookupResult, { state: "no-cha
   }
 
   if (yeger.state === "in-progress") {
-    return `🏹 <i>Неспокійні справи</i> — ${yeger.progress.wins}/${yeger.progress.target} неупокоєних у журналі.`;
+    return `🏹 <i>${presentYegerQuestTitle(yeger.progress)}</i> — ${yeger.progress.wins}/${yeger.progress.target} неупокоєних у журналі.`;
   }
 
   if (yeger.state === "turn-in-ready") {
-    return `🏹 <i>Неспокійні справи</i> — ${yeger.progress.wins}/${yeger.progress.target}, Єгер чекає дощечку.`;
+    return `🏹 <i>${presentYegerQuestTitle(yeger.progress)}</i> — ${yeger.progress.wins}/${yeger.progress.target}, Єгер чекає дощечку.`;
   }
 
-  return "🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.";
+  return `🏹 <i>${presentYegerQuestTitle(yeger.progress)}</i> — виконано; Єгер удає, що не пишається.`;
 }
 
 function presentActiveYegerRow(yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>): string | null {
