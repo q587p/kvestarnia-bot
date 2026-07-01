@@ -780,7 +780,7 @@ function presentBigBarrelVictoryResult(
 ): string {
   const reward = getViewerResultParticipant(session, viewerCharacterId)?.reward;
   const lines = [
-    "🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою."
+    "🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою."
   ];
 
   if (!reward) {

@@ -342,7 +342,7 @@ describe("party session presenter", () => {
 
     const text = presentPartyBoss(session, { viewerCharacterId: "leader" });
 
-    expect(text).toContain("🎉 Ви перемогли. Проблема закрита, журнал задоволено хрумтить сторінкою.");
+    expect(text).toContain("🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою.");
     expect(text).toContain("Винагорода за бій:\n<b>+2 XP\n+4 золота</b>");
     expect(text).toContain("Здобуто: <i>Дзеркальце Самоперевірки</i>");
     expect(text).not.toContain("нагороди збережено");
