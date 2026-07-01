@@ -209,6 +209,12 @@ describe("party session presenter", () => {
       hp: 0
     };
     leader.status = "knocked-out";
+    leader.resources.cooldowns = {
+      skill: {
+        id: "technique.class.bureaucramancer.peer-reviewed-strike",
+        remainingTurns: 2
+      }
+    };
     const session = makeBigBossSession({
       status: "won",
       participants: [leader, participant("striker", "Шкодійка")]
@@ -238,6 +244,7 @@ describe("party session presenter", () => {
 
     expect(text).toContain("▫️ Голова: HP 0/60 · мана 20/20 · вибито");
     expect(text).not.toContain("❤️ Ви:");
+    expect(text).not.toContain("відсапується");
     expect(text).toContain("Винагорода за бій:\n<b>+2 XP\n+4 золота</b>");
   });
 

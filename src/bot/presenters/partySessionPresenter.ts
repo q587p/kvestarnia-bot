@@ -400,7 +400,9 @@ export function presentPartyBoss(
     viewerCharacterId: session.status === "active" ? viewer?.characterId ?? null : null,
     targetedCharacterIds
   }));
-  lines.push(...presentPartyBossCooldownLines(viewer ?? null));
+  if (session.status === "active") {
+    lines.push(...presentPartyBossCooldownLines(viewer ?? null));
+  }
 
   const lastRound = state.roundLog.at(-1);
   if (lastRound) {

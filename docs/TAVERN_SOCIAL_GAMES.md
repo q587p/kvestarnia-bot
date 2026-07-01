@@ -167,4 +167,3 @@ At minimum, future implementation needs:
   callback flows;
 - concurrency tests for last-seat joins and resolve/refund races;
 - manual Telegram QA with two users for Tavlei and three users for Kosti.
-
