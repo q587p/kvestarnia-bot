@@ -19,7 +19,7 @@ import { getKyivDayKey, getKyivDayToken, kyivDayTokenToKey } from "../shared/kyi
 import { SeededRandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import {
   DAILY_KORCHMA_ROUND_OFFER_KEY,
   DAILY_KORCHMA_ROUND_REROLL_KEY,
@@ -164,7 +164,7 @@ export class DailyKorchmaRoundService {
     private readonly fight?: Pick<FightService, "getFightOverviewForTelegramUser">,
     private readonly tavern?: Pick<TavernRaidService, "getActivePendingFridayBarrelRaidForTelegramUser">,
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: ActivityEventService,
+    private readonly activityEvents?: PublicActivityEventPublisher,
     private readonly clock: Clock = systemClock
   ) {}
 

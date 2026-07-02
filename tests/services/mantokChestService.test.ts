@@ -16,6 +16,7 @@ import type {
 } from "../../src/db/repositories/mantokChestRepository";
 import { MantokChestService } from "../../src/services/mantokChestService";
 import { ActivityEventService } from "../../src/services/activityEventService";
+import { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import { FakeRandomSource } from "../../src/shared/random";
 
 const telegramUserId = 42n;
@@ -218,7 +219,7 @@ describe("MantokChestService", () => {
       () => fixedNow,
       new FakeRandomSource([0]),
       undefined,
-      new ActivityEventService(activityRepository)
+      new PublicActivityEventPublisher(new ActivityEventService(activityRepository))
     );
     const preview = await service.createAutoPickPreviewForTelegramUser(telegramUserId);
     expect(preview.state).toBe("preview-created");

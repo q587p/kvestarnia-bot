@@ -6,7 +6,7 @@ import {
   LATEST_EVENTS_MILESTONE_LEVELS,
   LATEST_EVENTS_PUBLIC_ITEM_RARITIES,
   LATEST_EVENTS_PUBLIC_MIN_LEVEL
-} from "./activityEventService";
+} from "./publicActivityEventPublisher";
 
 export interface BackfillCharacterCreatedRow {
   id: string;

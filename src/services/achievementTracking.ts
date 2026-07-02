@@ -4,7 +4,7 @@ import type {
   AchievementSimpleEventType,
   AchievementUnlock
 } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export interface TrackRewardAchievementInput {
   characterId: string;
@@ -16,7 +16,7 @@ export interface TrackRewardAchievementInput {
   itemGrants?: readonly ItemGrant[] | undefined;
   itemIds?: readonly string[] | undefined;
   events?: readonly AchievementSimpleEventType[] | undefined;
-  activityEvents?: ActivityEventService | undefined;
+  activityEvents?: PublicActivityEventPublisher | undefined;
 }
 
 export async function trackRewardAchievementsSafely(

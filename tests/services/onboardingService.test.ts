@@ -10,7 +10,7 @@ import type {
   UserRecord,
   UserRepository
 } from "../../src/db/repositories/userRepository";
-import type { ActivityEventService } from "../../src/services/activityEventService";
+import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import { OnboardingService } from "../../src/services/onboardingService";
 
 const player: TelegramUserProfile = {
@@ -62,12 +62,12 @@ describe("OnboardingService", () => {
     const users = new FakeUserRepository();
     const characters = new FakeCharacterRepository(users);
     const recordCharacterCreatedSafely =
-      vi.fn<ActivityEventService["recordCharacterCreatedSafely"]>().mockResolvedValue(null);
+      vi.fn<PublicActivityEventPublisher["recordCharacterCreatedSafely"]>().mockResolvedValue(null);
     const service = new OnboardingService(
       users,
       characters,
       undefined,
-      { recordCharacterCreatedSafely } as unknown as ActivityEventService
+      { recordCharacterCreatedSafely } as unknown as PublicActivityEventPublisher
     );
 
     await service.complete(player, "he", "race.human-ish", "class.warrior");

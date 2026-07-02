@@ -57,6 +57,7 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import { ActivityEventService } from "../../src/services/activityEventService";
+import { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import {
   buildCenterBaselinePersistentFightWinXp,
   buildHardPersistentFightWinXpFloor,
@@ -2223,7 +2224,7 @@ describe("FightService", () => {
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      activityEvents: new ActivityEventService(activityEvents),
+      activityEvents: new PublicActivityEventPublisher(new ActivityEventService(activityEvents)),
       rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
     });
     const started = await service.getFightForTelegramUser(telegramUserId);
@@ -2289,7 +2290,7 @@ describe("FightService", () => {
         dailyActions,
         clock: fixedClock,
         combatSessions: sessions,
-        activityEvents: new ActivityEventService(wonEvents),
+        activityEvents: new PublicActivityEventPublisher(new ActivityEventService(wonEvents)),
         rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
       });
       const started = await service.getFightForTelegramUser(telegramUserId);
@@ -2316,7 +2317,7 @@ describe("FightService", () => {
         dailyActions,
         clock: fixedClock,
         combatSessions: sessions,
-        activityEvents: new ActivityEventService(lossEvents),
+        activityEvents: new PublicActivityEventPublisher(new ActivityEventService(lossEvents)),
         rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
       });
       const started = await service.getFightForTelegramUser(telegramUserId);
