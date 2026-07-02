@@ -142,6 +142,7 @@ For release-oriented versioned changes:
 - `CHANGELOG.md` may include technical details, exact mechanics, edge cases, and rewards.
 - `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, cooldown or period lengths, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, migrations, scaling, or similar platform backlog.
 - `news.md` should describe the planned player-facing release promise and visible outcome, not every bug fix, QA regression, hardening detail, or copy polish discovered while implementing the task. Do not present "we introduced a regression and fixed it before release" as player news. Put implementation cleanups and release-candidate QA fixes in `CHANGELOG.md`, docs, tests, or the PR body unless they are the headline player-visible change.
+- Do not mention new achievement definitions, hooks, triggers, or internal achievement decisions in `news.md` unless the user explicitly asks for that player-facing news coverage. Achievement implementation details belong in `CHANGELOG.md`, task docs, achievement docs, tests, and the PR body by default.
 - Do not edit older `news.md` entries unless the user explicitly asks for that historical entry to change. Put new player-facing notes in the current version entry, even when the note explains a fix to behavior introduced earlier.
 - PR title for release-oriented changes starts with the version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
 
