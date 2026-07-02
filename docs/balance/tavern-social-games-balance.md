@@ -16,11 +16,13 @@ Use existing config conventions. If env flags are the repo pattern, recommended 
 TAVERN_GAMES_ENABLED=false
 TAVERN_GAME_TAVLEI_ENABLED=false
 TAVERN_GAME_KOSTI_ENABLED=false
-TAVERN_GAME_MAX_STAKE=25
+TAVERN_GAME_MAX_STAKE=93
 TAVERN_GAME_CREATE_COOLDOWN_SEC=60
 ```
 
 Start disabled by default unless the repo has a different feature flag release convention.
+The default stake ladder is `1 / 5 / 13 / 23 / 42 / 93`; lowering
+`TAVERN_GAME_MAX_STAKE` trims that list from the top.
 Daily net-win caps are a follow-up hardening option in `0.2.21`, not a
 currently enforced runtime env.
 

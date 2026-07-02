@@ -125,7 +125,7 @@ describe("loadConfig", () => {
     expect(config.tavernGamesEnabled).toBe(false);
     expect(config.tavernGameTavleiEnabled).toBe(false);
     expect(config.tavernGameKostiEnabled).toBe(false);
-    expect(config.tavernGameMaxStake).toBe(25);
+    expect(config.tavernGameMaxStake).toBe(93);
     expect(config.tavernGameCreateCooldownSec).toBe(60);
   });
 

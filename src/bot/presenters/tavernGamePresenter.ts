@@ -112,7 +112,7 @@ export function presentTavernGameActionResult(result: {
     case "game-disabled-refunded":
       return "Цей стіл зараз зачинений. Корчмар повернув ставки й вдає, що так і було задумано.";
     case "invalid-stake":
-      return `Ставка має бути від 1 до ${result.maxStake ?? 25} зол.`;
+      return `Ставка має бути від 1 до ${result.maxStake ?? 93} зол.`;
     case "invalid-decision":
       return "Ця кнопка вже не діє, але стіл не постраждав.";
     case "no-character":

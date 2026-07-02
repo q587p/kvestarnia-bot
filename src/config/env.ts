@@ -46,7 +46,7 @@ export const configSchema = z.object({
   tavernGamesEnabled: z.boolean().default(false),
   tavernGameTavleiEnabled: z.boolean().default(false),
   tavernGameKostiEnabled: z.boolean().default(false),
-  tavernGameMaxStake: z.number().int().min(1).max(587).default(25),
+  tavernGameMaxStake: z.number().int().min(1).max(587).default(93),
   tavernGameCreateCooldownSec: z.number().int().min(0).max(86_400).default(60),
   supportJarUrl: supportJarUrlSchema.optional(),
   supportJarStatus: supportJarStatusSchema

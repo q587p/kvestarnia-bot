@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildShynokGameRulesKeyboard,
   buildShynokGameSessionKeyboard,
   formatShynokOpenTableButtonLabel
 } from "../../src/bot/keyboards/shynokKeyboard";
@@ -49,6 +50,25 @@ describe("Shynok game keyboards", () => {
 
   it("labels Kosti table buttons with seven seats", () => {
     expect(formatShynokOpenTableButtonLabel("kosti", 6, 5)).toBe("🎲 Кості · 6/7 · 5 зол.");
+  });
+
+  it("uses the tavern-flavored stake ladder up to the configured cap", () => {
+    expect(flatInlineButtonTexts(buildShynokGameRulesKeyboard("tavlei", 93))).toEqual([
+      "💰 1",
+      "💰 5",
+      "💰 13",
+      "💰 23",
+      "💰 42",
+      "💰 93",
+      "↩ До ігор"
+    ]);
+    expect(flatInlineButtonTexts(buildShynokGameRulesKeyboard("kosti", 23))).toEqual([
+      "💰 1",
+      "💰 5",
+      "💰 13",
+      "💰 23",
+      "↩ До ігор"
+    ]);
   });
 });
 

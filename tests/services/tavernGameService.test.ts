@@ -28,7 +28,7 @@ describe("TavernGameService", () => {
 
     expect(result).toMatchObject({
       state: "ready",
-      maxStake: 25,
+      maxStake: 93,
       tavleiEnabled: true,
       kostiEnabled: false
     });
@@ -206,7 +206,7 @@ function config(overrides: Partial<ConstructorParameters<typeof TavernGameServic
     tavernGamesEnabled: false,
     tavernGameTavleiEnabled: false,
     tavernGameKostiEnabled: false,
-    tavernGameMaxStake: 25,
+    tavernGameMaxStake: 93,
     tavernGameCreateCooldownSec: 60,
     ...overrides
   };

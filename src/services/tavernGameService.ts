@@ -340,7 +340,7 @@ export class TavernGameService {
 }
 
 export function listTavernGameStakeOptions(maxStake: number): number[] {
-  return [1, 3, 5, 13, 25]
+  return [1, 5, 13, 23, 42, 93]
     .filter((stake) => stake <= maxStake)
     .filter((stake, index, values) => values.indexOf(stake) === index);
 }
