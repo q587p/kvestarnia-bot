@@ -37,12 +37,9 @@ export function presentLatestEventsPage(input: {
 }
 
 export function presentLatestEventsEmpty(filter: LatestEventFilter = "all"): string {
-  if (filter === "imp") {
-    return [
-      "⭐ Важливе",
-      "",
-      "Поки що без великих пригод. Це не тиша — це пауза перед чиїмось дуже поганим планом."
-    ].join("\n");
+  const filteredEmpty = presentLatestEventsFilteredEmpty(filter);
+  if (filteredEmpty) {
+    return filteredEmpty;
   }
 
   return [
@@ -50,6 +47,38 @@ export function presentLatestEventsEmpty(filter: LatestEventFilter = "all"): str
     "",
     "Поки що тихо. Літописець гріє чорнило, Корчмар — підозри."
   ].join("\n");
+}
+
+function presentLatestEventsFilteredEmpty(filter: LatestEventFilter): string | null {
+  switch (filter) {
+    case "imp":
+      return [
+        "⭐ Важливе",
+        "",
+        "Поки що без великих пригод. Це не тиша — це пауза перед чиїмось дуже поганим планом."
+      ].join("\n");
+    case "adv":
+      return [
+        "👥 Пригодники",
+        "",
+        "Поки що без нових пригодників і гучних рівнів. Літописець тримає перо напоготові."
+      ].join("\n");
+    case "cmb":
+      return [
+        "⚔️ Бої",
+        "",
+        "Поки що без гучних перемог. Мечі мовчать, протокол підслуховує."
+      ].join("\n");
+    case "itm":
+      return [
+        "🎒 Манатки",
+        "",
+        "Поки що без рідкісних манаток. Торба робить вигляд, що так і треба."
+      ].join("\n");
+    case "all":
+    default:
+      return null;
+  }
 }
 
 export function presentLatestEventsError(): string {

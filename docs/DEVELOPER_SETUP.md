@@ -215,6 +215,26 @@ npm run maintenance:backfill-activity-events -- --apply
 npm run maintenance:poll-activity-events -- --limit=13
 ```
 
+На Windows той самий dry-run/apply/poll ланцюжок можна запустити інтерактивним helper-ом із паузами між кроками:
+
+```powershell
+backfill-activity-events.cmd
+```
+
+Для ізольованого local bot runtime helper сам наведе `DATABASE_URL` на runtime `prisma/dev.db`:
+
+```powershell
+backfill-activity-events.cmd --local-runtime
+```
+
+Якщо треба явно вказати іншу БД із Windows-середовища, наприклад production `DATABASE_URL`, передайте Prisma URL першим аргументом у лапках:
+
+```powershell
+backfill-activity-events.cmd "postgresql://USER:PASSWORD@HOST:5432/DATABASE"
+```
+
+У Render/Linux shell використовуйте bash-команди з явним `DATABASE_URL=...`, наведені нижче; `.cmd` призначений для Windows.
+
 Для іншої локальної SQLite БД передайте `DATABASE_URL` у цьому ж PowerShell-сеансі:
 
 ```powershell

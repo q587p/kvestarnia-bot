@@ -11,6 +11,9 @@ describe("latest events presenter", () => {
     expect(presentLatestEventsEmpty()).toContain("📜 Хроніки Квестарні");
     expect(presentLatestEventsEmpty()).toContain("Літописець гріє чорнило");
     expect(presentLatestEventsEmpty("imp")).toContain("⭐ Важливе");
+    expect(presentLatestEventsEmpty("adv")).toContain("👥 Пригодники");
+    expect(presentLatestEventsEmpty("cmb")).toContain("⚔️ Бої");
+    expect(presentLatestEventsEmpty("itm")).toContain("🎒 Манатки");
     expect(presentLatestEventsError()).toContain("упустив перо в суп");
   });
 
