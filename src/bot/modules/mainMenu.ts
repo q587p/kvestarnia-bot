@@ -145,7 +145,8 @@ export function registerMainMenuKeyboard(
     await ctx.reply(presentHelp({
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
-      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
+      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeTavernGames: services.tavernGames?.isEnabled() ?? false
     }), {
       reply_markup: replyMarkup
     });
@@ -498,7 +499,15 @@ async function sendCurrentPresenceLocation(
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_BAR) {
-    await sendKorchmaBar(ctx, services.tavern, services.presence, "reply", services.cellarGrownup, services.fight);
+    await sendKorchmaBar(
+      ctx,
+      services.tavern,
+      services.presence,
+      "reply",
+      services.cellarGrownup,
+      services.fight,
+      services.tavernGames
+    );
     return;
   }
 

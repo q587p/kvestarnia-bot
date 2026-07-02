@@ -7,7 +7,10 @@ describe("help presenter", () => {
 
     expect(text).toContain("📖 Допомога Квестарні");
     expect(text).toContain("👤 Персонаж — рівень, HP/мана, прогрес і титули.");
-    expect(text).toContain("🍺 Корчма — місцини, бочка, шинок і дошка вістей.");
+    expect(text).toContain("🍺 Корчма — зала, стіл зі справами, Низ, Бочка, шинок і Дошка корчми.");
+    expect(text).toContain(
+      "📰 Дошка корчми — Вісти, Останні події, Перекази, подарунки й Пошта Квестарні."
+    );
     expect(text).toContain("🗺️ Квести — пригоди, Низ, Єгер, льох і бойові справи.");
     expect(text).toContain("🎒 Манатки — інвентар, спорядження й корисні дрібниці.");
     expect(text).toContain("👀 Хто поруч — пригодники поруч і соціяльні дії.");
@@ -21,10 +24,23 @@ describe("help presenter", () => {
     expect(text).not.toContain("/dev_help");
     expect(text).not.toContain("/dev_party");
     expect(text).not.toContain("/dev_add_xp");
+    expect(text).not.toContain("🎲 Ігри за столом");
     expect(text).toContain("Крамниці, ремесло й ґільдії ще готуються.");
     expect(text).toContain(
       "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
     );
+  });
+
+  it("mentions Shynok table games only when their player surface is enabled", () => {
+    expect(presentHelp({
+      includeDevReset: false,
+      includeTavernGames: true
+    })).toContain("🎲 Ігри за столом — Тавлеї та Кості у шинку.");
+
+    expect(presentHelp({
+      includeDevReset: false,
+      includeTavernGames: false
+    })).not.toContain("🎲 Ігри за столом");
   });
 
   it("keeps dev commands out of player help even when local gates are enabled", () => {

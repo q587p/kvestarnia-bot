@@ -4,6 +4,7 @@ import { registerHelpCommand } from "../../src/bot/commands/helpCommand";
 import type { DevGrantService } from "../../src/services/devGrantService";
 import type { DevResetService } from "../../src/services/devResetService";
 import type { PartySessionService } from "../../src/services/partySessionService";
+import type { TavernGameService } from "../../src/services/tavernGameService";
 
 describe("help command", () => {
   it("shows public commands through /help", async () => {
@@ -11,7 +12,8 @@ describe("help command", () => {
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
-      partySessions: { areDevHelpersEnabled: () => true }
+      partySessions: { areDevHelpersEnabled: () => true },
+      tavernGames: { isEnabled: () => true }
     });
 
     await bot.handleUpdate(commandUpdate("/help"));
@@ -21,6 +23,10 @@ describe("help command", () => {
     expect(replies[0]).toContain("/start");
     expect(replies[0]).toContain("/help");
     expect(replies[0]).toContain("/support");
+    expect(replies[0]).toContain("Останні події");
+    expect(replies[0]).toContain("Перекази");
+    expect(replies[0]).toContain("Пошта Квестарні");
+    expect(replies[0]).toContain("🎲 Ігри за столом");
     expect(replies[0]).not.toContain("/dev_help");
     expect(replies[0]).not.toContain("/dev_party");
     expect(replies[0]).not.toContain("/dev_add_xp");
@@ -67,6 +73,7 @@ function createTestBot(
     devReset: Pick<DevResetService, "isEnabled">;
     devGrant?: Pick<DevGrantService, "isEnabled">;
     partySessions?: Pick<PartySessionService, "areDevHelpersEnabled">;
+    tavernGames?: Pick<TavernGameService, "isEnabled">;
   }
 ): Bot {
   const bot = new Bot("test-token", {
@@ -92,7 +99,8 @@ function createTestBot(
     services.devReset as DevResetService,
     services.devGrant,
     {
-      partySessionService: services.partySessions
+      partySessionService: services.partySessions,
+      tavernGameService: services.tavernGames
     }
   );
   return bot;

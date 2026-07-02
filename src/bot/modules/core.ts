@@ -50,6 +50,7 @@ export function registerCoreBotModule(
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {
     partySessionService: services.partySessions,
+    tavernGameService: services.tavernGames,
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
       includeAdmin: shouldIncludeAdminMainMenu(services)
     })
@@ -88,7 +89,8 @@ async function handleMenuCallback(
     await safeEditMessageText(ctx, presentHelp({
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
-      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
+      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeTavernGames: services.tavernGames?.isEnabled() ?? false
     }));
     return;
   }
