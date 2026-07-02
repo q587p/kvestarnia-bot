@@ -1139,7 +1139,9 @@ async function handleTavernCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentTavernRoundResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaRoundResultKeyboard(result)
+      reply_markup: buildKorchmaRoundResultKeyboard(result, {
+        tavernGames: Boolean(services.tavernGames?.isEnabled())
+      })
     });
     return;
   }
@@ -1435,7 +1437,9 @@ async function handleCellarGrownupCallback(
     ...HTML_MESSAGE_OPTIONS,
     ...(action === "grownup-turn-in"
       ? {
-          reply_markup: buildKorchmaBarKeyboard()
+          reply_markup: buildKorchmaBarKeyboard({
+            tavernGames: Boolean(services.tavernGames?.isEnabled())
+          })
         }
       : grownupKeyboardState
         ? {

@@ -321,6 +321,8 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:so",
       "v1:place:hall"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ tavernGames: true }))).toContain("🎲 Ігри за столом");
+    expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard({ tavernGames: true }))).toContain("v1:sh:gm");
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
       "🍹 Напої для себе",
       "🍺 Просте всім",
@@ -614,6 +616,10 @@ describe("main menu and scene keyboards", () => {
       "v1:place:barrel",
       "v1:place:hall"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaRoundResultKeyboard({
+      ...blockedByBarrel,
+      state: "completed"
+    }, { tavernGames: true }))).toContain("🎲 Ігри за столом");
   });
 
   it("links to the Barrel and hall when Shynok rounds are blocked by an active raid", () => {

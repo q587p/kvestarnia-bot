@@ -334,7 +334,8 @@ export function buildKorchmaRoundOfferKeyboard(
 }
 
 export function buildKorchmaRoundResultKeyboard(
-  result: Exclude<TavernRoundResult, { state: "no-character" }>
+  result: Exclude<TavernRoundResult, { state: "no-character" }>,
+  options: { tavernGames?: boolean } = {}
 ): InlineKeyboard {
   if (result.state === "raid-required") {
     return new InlineKeyboard()
@@ -343,5 +344,5 @@ export function buildKorchmaRoundResultKeyboard(
       .text("⬅️ До зали", makePlaceCallbackData("hall"));
   }
 
-  return buildKorchmaBarKeyboard();
+  return buildKorchmaBarKeyboard(options);
 }
