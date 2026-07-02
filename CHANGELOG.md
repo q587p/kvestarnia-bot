@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The Korchma bar keyboard can show `🎲 Ігри за столом` only when the new feature flags are enabled; default production behavior remains unchanged.
 - `👀 Хто поруч` in the Shynok now lists open tavern game tables and includes the same join callbacks when tavern games are enabled.
 - Tavern game joins, decisions, resolves and safe refunds now send fresh private table cards to the other seated participants so Tavlei and Kosti cards do not stay stuck on stale waiting states.
+- Tavern game create cooldown copy now explicitly says the player is waiting for a new-table creation pause, not an already-open table, and shows the remaining minutes when available.
 - Shynok callbacks now include compact `v1:sh:g*` game payloads for hub, rules, create, join, cancel, Tavlei tactics, Kosti style/sign decisions and resolve-now.
 - Kosti tables stay joinable while open even after all currently seated players have submitted decisions; resolution starts only when the creator resolves, the table reaches cap and finishes decisions, or the join TTL expires with enough players.
 - Per-game rollout flags now gate stale rules/create/join/decision/resolve/cancel callbacks consistently; disabled existing tables refund escrow instead of accepting new joins or trapping players in decision flows.

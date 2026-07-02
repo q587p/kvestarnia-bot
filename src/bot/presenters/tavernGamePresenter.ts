@@ -67,6 +67,7 @@ export function presentTavernGameActionResult(result: {
   session?: TavernGameSessionRecord;
   resolution?: TavernGameResolution | null;
   character?: { gold: number };
+  now?: Date;
 }): string {
   if (result.resolution) {
     return presentTavernGameResolution(result.resolution);
@@ -104,7 +105,7 @@ export function presentTavernGameActionResult(result: {
         ? ["Ти вже сидиш за іншим ставковим столом.", "", presentTavernGameSession(result.session)].join("\n")
         : "Ти вже сидиш за іншим ставковим столом.";
     case "cooldown":
-      return "Корчмар просить трохи не грюкати новими столами один за одним.";
+      return presentCreateCooldown(result.availableAt, result.now);
     case "created":
       return result.session ? presentTavernGameSession(result.session) : "Стіл відкрито.";
     case "joined":
@@ -213,6 +214,21 @@ function presentBlockReason(reason: string | undefined): string {
   return "Зараз не до шинкових ігор.";
 }
 
+function presentCreateCooldown(availableAt: Date | undefined, now: Date | undefined): string {
+  const lines = [
+    "Новий стіл ще на паузі.",
+    "Ви вже створювали стіл зовсім недавно. Це обмеження на створення нових столів, а не ознака, що десь уже відкрита партія."
+  ];
+
+  if (availableAt && now) {
+    lines.push(`Спробуйте ще раз за ${formatCooldown(availableAt, now)}.`);
+  } else {
+    lines.push("Спробуйте ще раз трохи згодом.");
+  }
+
+  return lines.join("\n");
+}
+
 function gameLabel(gameKey: TavernGameKey): string {
   return gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
 }
@@ -229,4 +245,26 @@ function kostiHandLabel(label: string): string {
     high: "старша кістка"
   };
   return labels[label] ?? "рука";
+}
+
+function formatCooldown(availableAt: Date, now: Date): string {
+  const remainingMs = Math.max(0, availableAt.getTime() - now.getTime());
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+
+  return `${minutes} ${pluralize(minutes, "хвилину", "хвилини", "хвилин")}`;
+}
+
+function pluralize(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+
+  return many;
 }

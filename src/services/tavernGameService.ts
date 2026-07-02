@@ -38,7 +38,14 @@ export type TavernGameHubResult =
       openTables: TavernGameSessionRecord[];
     };
 
-export type TavernGameCreateServiceResult = TavernGameFeatureResult | TavernGameCreateResult;
+type TavernGameCreateCooldownServiceResult = Extract<TavernGameCreateResult, { state: "cooldown" }> & {
+  now: Date;
+};
+
+export type TavernGameCreateServiceResult =
+  | TavernGameFeatureResult
+  | Exclude<TavernGameCreateResult, { state: "cooldown" }>
+  | TavernGameCreateCooldownServiceResult;
 export type TavernGameJoinServiceResult = TavernGameFeatureResult | TavernGameJoinResult;
 export type TavernGameDecisionServiceResult =
   | TavernGameFeatureResult
@@ -107,7 +114,7 @@ export class TavernGameService {
 
     const now = this.now();
     const stake = Math.trunc(stakeGold);
-    return this.repository.createForTelegramUser(telegramUserId, {
+    const result = await this.repository.createForTelegramUser(telegramUserId, {
       gameKey,
       token: randomUUID(),
       seed: `${gameKey}:${randomUUID()}`,
@@ -118,6 +125,8 @@ export class TavernGameService {
       cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
       now
     });
+
+    return result.state === "cooldown" ? { ...result, now } : result;
   }
 
   async joinByTokenForTelegramUser(

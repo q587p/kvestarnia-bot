@@ -74,6 +74,21 @@ describe("TavernGameService", () => {
     expect(repository.lastCreateInput?.joinExpiresAt.toISOString()).toBe("2026-07-02T10:13:00.000Z");
   });
 
+  it("returns the request time with create cooldown results", async () => {
+    const availableAt = new Date("2026-07-02T10:03:00.000Z");
+    const repository = new FakeTavernGameRepository({
+      createResult: { state: "cooldown", availableAt }
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true
+    }), () => now);
+
+    const result = await service.createForTelegramUser(42n, "tavlei", 3);
+
+    expect(result).toEqual({ state: "cooldown", availableAt, now });
+  });
+
   it("blocks disabled per-game create before repository mutation", async () => {
     const repository = new FakeTavernGameRepository();
     const service = new TavernGameService(repository, config({
@@ -125,6 +140,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
   constructor(private readonly options: {
     openTables?: TavernGameSessionRecord[];
     tokenSession?: TavernGameSessionRecord;
+    createResult?: Awaited<ReturnType<TavernGameRepository["createForTelegramUser"]>>;
   } = {}) {}
 
   listOpen(): Promise<TavernGameSessionRecord[]> {
@@ -145,7 +161,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
     input: Parameters<TavernGameRepository["createForTelegramUser"]>[1]
   ): ReturnType<TavernGameRepository["createForTelegramUser"]> {
     this.lastCreateInput = input;
-    return Promise.resolve({ state: "created", session: session() });
+    return Promise.resolve(this.options.createResult ?? { state: "created", session: session() });
   }
 
   joinByTokenForTelegramUser(): ReturnType<TavernGameRepository["joinByTokenForTelegramUser"]> {
