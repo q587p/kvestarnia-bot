@@ -9,7 +9,7 @@
 Manual Telegram QA status for the implementation pass: not run.
 
 1. Open `Дошка корчми`; verify `📣 Останні події` appears and existing `📰 Вісти`, `📖 Перекази`, gifts, postal navigation and `/news` still work.
-2. Open `📣 Останні події`; verify the title is `📜 Хроніки Квестарні`, an empty feed is short and no reward or achievement is granted.
+2. Open `📣 Останні події`; verify the title is `📜 Хроніки Квестарні`, an empty feed is short, the first successful open can grant the rewardless `Хроніка відкрила око` achievement once, there is no manual refresh button, and filter/page or stale legacy refresh-compatible callbacks do not grant XP, gold, items, combat power, separate refresh achievements or duplicate notifications.
 3. Create a new disposable character; reopen the feed and verify one public new-adventurer row appears and duplicate onboarding replays do not add another row.
 4. Trigger or inspect a configured level milestone; verify one deduped level row appears and ordinary non-milestone rewards do not create noise.
 5. Finish one Big Barrel Brother victory; verify exactly one public victory row appears for the terminal boss session and losses/attempt XP create no row.

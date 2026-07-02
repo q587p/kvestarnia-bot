@@ -32,6 +32,7 @@ import {
   makeLevelBarterAutoCallbackData,
   makeLevelBarterOpenCallbackData
 } from "../../src/bot/callbacks/levelBarterCallbackData";
+import { makeLatestEventsListCallbackData } from "../../src/bot/callbacks/latestEventsCallbackData";
 import { makeConfirmCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -3069,6 +3070,47 @@ describe("scene callback HTML options", () => {
     expect(messages.some((call) => String(call.payload.text) === "🍺 Квестарня відчинена.")).toBe(false);
     expect(messages.some((call) => String(call.payload.text).includes("Ви вийшли надвір."))).toBe(false);
     expect(JSON.stringify(achievement?.payload.reply_markup)).toContain(mainMenuButtons.hero);
+  });
+
+  it("tracks the latest events opener achievement after rendering the feed", async () => {
+    const listRecent = vi.fn(() =>
+      Promise.resolve({
+        events: [],
+        page: 0,
+        pageSize: 5,
+        hasNextPage: false
+      })
+    );
+    const trackLatestEventsOpenedByTelegramUserId = vi.fn(() =>
+      Promise.resolve([
+        {
+          id: "achievement.journey.latest-events-opened",
+          title: "Хроніка відкрила око",
+          cosmeticTitleGrantId: null,
+          unlockedAt: new Date("2026-07-02T09:00:00.000Z")
+        }
+      ])
+    );
+    const calls = await captureApiCalls(
+      makeLatestEventsListCallbackData(),
+      servicesWith({
+        activityEvents: {
+          listRecent
+        },
+        hero: {
+          trackLatestEventsOpenedByTelegramUserId
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const achievement = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Нова ачівка")
+    );
+
+    expect(listRecent).toHaveBeenCalledWith("all", { page: 0 });
+    expect(trackLatestEventsOpenedByTelegramUserId).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("📜 Хроніки Квестарні");
+    expect(String(achievement?.payload.text)).toContain("Хроніка відкрила око");
   });
 
   it("uses an outdoor movement notice when leaving the korchma", async () => {

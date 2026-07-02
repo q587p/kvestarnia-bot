@@ -14,6 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the `📜 Хроніки Квестарні` feed with compact `v1:ev:*` callbacks, filters and pagination from the Korchma board/news surface.
 - Added a dry-run-first `maintenance:backfill-activity-events` script for one-time archival feed rows that can be reconstructed from durable tables.
 - Added public activity emission for new characters, configured level milestones, Big Barrel Brother terminal victories, rare/epic manatky and underdog combat victories.
+- Added the rewardless `achievement.journey.latest-events-opened` achievement for first opening/reading `📜 Хроніки Квестарні`.
 - Added focused service, callback, presenter, board routing, character creation, reward and Big Barrel Brother emission coverage.
 
 ### Changed
@@ -29,7 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.
 
 ### Unchanged
-- Reading, opening or re-rendering the feed grants no XP, gold, items, combat power, title power, hidden progress or achievement.
+- Filtering, paginating or pressing a stale legacy refresh-compatible callback can only replay the same one-time first-open record and grants no XP, gold, items, combat power, title power, separate refresh achievement or repeatable hidden progress.
 - No public rows are emitted for losses, deaths, retreats, failed joins, failed drops, failed purchases, failed combat actions, Big Barrel Brother losses or attempt XP.
 - No trophy weights, Yeger bandage gates, dense-bandage docs, deploy notification `вісти` copy, Big Barrel Brother combat rules, rewards, markets, crafting, PvP, ґільдії, Mini App UI or proactive channel auto-posting change in this slice.
 

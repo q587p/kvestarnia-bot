@@ -222,7 +222,8 @@ async function handleLatestEventsCallback(
   await safeAnswerCallbackQuery(ctx);
   await sendLatestEvents(ctx, services.activityEvents, "edit", {
     filter: action.filter,
-    page: action.page
+    page: action.page,
+    achievementTracker: services.hero
   });
 }
 

@@ -21,6 +21,7 @@ import { calculateInventoryRowsGoldValue } from "./inventoryService";
 import type {
   AchievementListFilter,
   AchievementListView,
+  AchievementUnlock,
   CosmeticTitleListView,
   CosmeticTitleMutationResult,
   AchievementRecalculationResult,
@@ -145,6 +146,21 @@ export class HeroService {
       state: "ready",
       view: await this.achievements.listForCharacter(character.id, page, filter)
     };
+  }
+
+  async trackLatestEventsOpenedByTelegramUserId(telegramUserId: bigint): Promise<AchievementUnlock[]> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character || !this.achievements) {
+      return [];
+    }
+
+    return this.achievements.trackEventSafely({
+      type: "latest-events.opened",
+      characterId: character.id,
+      occurredAt: this.clock(),
+      sourceId: character.id
+    });
   }
 
   async recalculateAchievementsByTelegramUserId(
