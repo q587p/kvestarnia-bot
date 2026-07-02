@@ -159,6 +159,7 @@ PR defaults:
 - Ready PRs must target `main` by default and be merge-ready against `main`. If a branch started from another feature branch, rebase or merge it onto current `origin/main` and resolve conflicts before calling the work complete.
 - Stacked PRs are allowed only when the user explicitly asks for a stacked PR or approves a non-main base; mark that clearly in the PR body.
 - For implementation work, "done", "complete", or "PR-ready" means the branch has been committed, pushed to the remote, and a GitHub PR has been opened unless the user explicitly asked to stop before publishing.
+- Before a final handoff after commits, run `git status -sb` or an equivalent branch/upstream check. If the current branch is ahead of its upstream, push it before reporting completion; if pushing is blocked, report the exact blocker. Do not leave committed work only on the local checkout unless the user explicitly asked for local-only work.
 - Do not give a final implementation summary after only local edits/checks unless the user explicitly asked for local-only work. The final response must include the `main` PR link, or a concrete blocker that prevented creating/updating that PR.
 - Prefer ready-for-review PRs; create a draft PR only when the user explicitly asks for draft state or the work is knowingly incomplete.
 - If an active PR already exists for the current work, add small follow-ups to the same branch and PR unless the user asks for a separate branch.
@@ -258,6 +259,7 @@ A change is done when:
 - It matches the requested version task or clearly explains a deviation.
 - Runtime logic has relevant tests, or missing tests are explained.
 - Commands/checks were run or blockers are stated.
+- Any committed implementation, docs, prompt, tooling, or follow-up work is pushed to the remote branch, or a concrete push blocker is stated.
 - No secrets are in the diff.
 - Player-facing text is Ukrainian and follows the style guide.
 - Holocene visible dates and Kyiv-time release/news headings are respected.
