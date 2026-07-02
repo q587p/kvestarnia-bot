@@ -293,14 +293,14 @@ describe("RemortService", () => {
       return;
     }
 
-    const result = await service.selectRace(telegramUserId, opened.draft.token, "domovyk");
+    const result = await service.selectRace(telegramUserId, opened.draft.token, "molfar-soul");
 
     expect(result.state).toBe("ready");
     if (result.state === "ready") {
       expect(result.identity).toMatchObject({
         pronoun: "they",
-        raceId: "race.domovyk",
-        classId: "class.rogue"
+        raceId: "race.molfar-soul",
+        classId: "class.mage"
       });
     }
   });

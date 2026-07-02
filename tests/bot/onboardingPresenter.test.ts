@@ -61,6 +61,15 @@ describe("onboarding presenters and keyboards", () => {
     expect(isRaceAvailableForPronoun("they", "race.drantohor")).toBe(true);
   });
 
+  it("disables Domovyk and dryland Rusalka for they-pronoun onboarding", () => {
+    const buttons = buildRaceKeyboard("they").inline_keyboard.flat();
+
+    expect(isRaceAvailableForPronoun("they", "race.domovyk")).toBe(false);
+    expect(isRaceAvailableForPronoun("they", "race.dryland-rusalka")).toBe(false);
+    expect(buttons.map((button) => button.text)).toContain("🚫 Домовик");
+    expect(buttons.map((button) => button.text)).toContain("🚫 Русалка сухопутна");
+  });
+
   it("shows selected gender before race selection", () => {
     const text = presentGenderSelected("they");
 
