@@ -20,6 +20,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Feed rendering stores and uses event-time display snapshots, groups rows by Kyiv day and escapes/truncates dynamic player, item and monster names.
 - Activity logging is best-effort at gameplay boundaries, so feed write failures do not roll back the successful primary action.
 
+### Fixed
+- Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.
+
 ### Unchanged
 - Reading, opening or refreshing the feed grants no XP, gold, items, combat power, title power, hidden progress or achievement.
 - No public rows are emitted for losses, deaths, retreats, failed joins, failed drops, failed purchases, failed combat actions, Big Barrel Brother losses or attempt XP.
