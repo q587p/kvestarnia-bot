@@ -5,7 +5,7 @@ import type {
   PartyBossSessionRecord
 } from "../../src/db/repositories/partyBossRepository";
 import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
-import type { ActivityEventService } from "../../src/services/activityEventService";
+import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import type { AchievementService } from "../../src/services/achievementService";
 import { PartyBossService } from "../../src/services/partyBossService";
 
@@ -80,7 +80,7 @@ describe("PartyBossService achievements", () => {
 
   it("emits one activity row for a terminal Big Barrel Brother victory", async () => {
     const recordPartyRaidWonSafely =
-      vi.fn<ActivityEventService["recordPartyRaidWonSafely"]>().mockResolvedValue(null);
+      vi.fn<PublicActivityEventPublisher["recordPartyRaidWonSafely"]>().mockResolvedValue(null);
     const result: PartyBossActionResult = {
       state: "resolved",
       session: makeSession("won")
@@ -93,7 +93,7 @@ describe("PartyBossService achievements", () => {
       { enabled: true },
       () => new Date("2026-07-01T19:00:00.000Z"),
       undefined,
-      { recordPartyRaidWonSafely } as unknown as ActivityEventService
+      { recordPartyRaidWonSafely } as unknown as PublicActivityEventPublisher
     );
 
     await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");

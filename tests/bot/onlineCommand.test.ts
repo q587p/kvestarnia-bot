@@ -2,8 +2,13 @@ import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { sendOnline } from "../../src/bot/commands/onlineCommand";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
+import type { TavernGameSessionRecord } from "../../src/db/repositories/tavernGameRepository";
 import { BIG_BARREL_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
-import { PRESENCE_LOCATION_KORCHMA_BARREL, type PresenceService } from "../../src/services/presenceService";
+import {
+  PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  type PresenceService
+} from "../../src/services/presenceService";
 
 describe("online command", () => {
   it("shows current online snapshot without nearby action buttons when only the player is active nearby", async () => {
@@ -211,6 +216,120 @@ describe("online command", () => {
     ]);
   });
 
+  it("shows open Shynok game tables near the Shynok with join buttons", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: PRESENCE_LOCATION_KORCHMA_BAR,
+            name: "Шинок",
+            people: {
+              active: [{ telegramUserId: 42n, name: "Тестовий Герой", status: "active" }],
+              idle: [],
+              total: 1
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+    const openTable = makeTavernGameSession({
+      token: "123e4567-e89b-12d3-a456-426614174000",
+      gameKey: "tavlei",
+      stakeGold: 5,
+      participantNames: ["Kyjivan BooksDragon"]
+    });
+
+    await sendOnline(ctx, presenceService, {
+      duelEnabled: true,
+      tavernGames: {
+        getHub: vi.fn().mockResolvedValue({
+          state: "ready",
+          maxStake: 25,
+          tavleiEnabled: true,
+          kostiEnabled: true,
+          openTables: [openTable]
+        })
+      }
+    });
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain("📍 Шинок: тільки ти.");
+    expect(replies[0]?.text).toContain("🎲 За ігровим столом: 1 пригодник");
+    expect(replies[0]?.text).toContain("— ♟ Тавлеї · 1/2 · ставка 5 зол. · тримає Kyjivan BooksDragon");
+    expect(replies[0]?.text).toContain("Кнопки нижче підсадять до відкритого столу.");
+    expect(inlineButtonTexts(replies[0]?.options)).toEqual(["♟ Тавлеї · 1/2 · 5 зол."]);
+    expect(inlineButtonCallbacks(replies[0]?.options)).toEqual([
+      "v1:sh:gj:123e4567-e89b-12d3-a456-426614174000"
+    ]);
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:nd:open");
+  });
+
+  it("shows Kosti open table capacity as seven near the Shynok", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: PRESENCE_LOCATION_KORCHMA_BAR,
+            name: "Шинок",
+            people: {
+              active: [{ telegramUserId: 42n, name: "Тестовий Герой", status: "active" }],
+              idle: [],
+              total: 1
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+
+    await sendOnline(ctx, presenceService, {
+      tavernGames: {
+        getHub: vi.fn().mockResolvedValue({
+          state: "ready",
+          maxStake: 25,
+          tavleiEnabled: true,
+          kostiEnabled: true,
+          openTables: [makeTavernGameSession({
+            token: "123e4567-e89b-12d3-a456-426614174007",
+            gameKey: "kosti",
+            stakeGold: 5,
+            participantNames: ["Kyjivan BooksDragon", "Shannar de Kassal"]
+          })]
+        })
+      }
+    });
+
+    expect(replies[0]?.text).toContain("— 🎲 Кості · 2/7 · ставка 5 зол. · тримає Kyjivan BooksDragon");
+    expect(inlineButtonTexts(replies[0]?.options)).toEqual(["🎲 Кості · 2/7 · 5 зол."]);
+  });
+
   it("does not show the Bard performance button to non-Bards nearby", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {
@@ -370,6 +489,90 @@ function makePartyCharacter(
     userId: `user-${id}`,
     telegramUserId,
     currentLocationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+    name,
+    pronoun: "they",
+    path: "path.boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 8,
+    xp: 587,
+    gold: 42,
+    hpCurrent: 60,
+    hpMax: 60,
+    manaCurrent: 20,
+    manaMax: 20,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
+  };
+}
+
+function makeTavernGameSession(options: {
+  token: string;
+  gameKey: TavernGameSessionRecord["gameKey"];
+  stakeGold: number;
+  participantNames: string[];
+}): TavernGameSessionRecord {
+  const now = new Date("2026-07-02T10:00:00.000Z");
+  const creator = makeTavernGameCharacter("character-game-creator", 93n, options.participantNames[0] ?? "Гравець");
+
+  return {
+    id: `game-${options.token}`,
+    token: options.token,
+    gameKey: options.gameKey,
+    status: "open",
+    creatorCharacterId: creator.id,
+    stakeGold: options.stakeGold,
+    potGold: options.stakeGold * options.participantNames.length,
+    seed: "seed",
+    rulesVersion: "test",
+    result: null,
+    openedAt: now,
+    joinExpiresAt: new Date("2026-07-02T10:13:00.000Z"),
+    decisionExpiresAt: new Date("2026-07-02T10:18:00.000Z"),
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    creator,
+    participants: options.participantNames.map((name, index) => {
+      const character = index === 0
+        ? creator
+        : makeTavernGameCharacter(`character-game-${index}`, BigInt(94 + index), name);
+
+      return {
+        id: `game-participant-${index}`,
+        sessionId: `game-${options.token}`,
+        characterId: character.id,
+        telegramUserId: character.telegramUserId,
+        displayName: character.name,
+        remortCount: character.remortCount,
+        status: "joined",
+        stakeGold: options.stakeGold,
+        payoutGold: 0,
+        refundedGold: 0,
+        decision: null,
+        result: null,
+        joinedAt: now,
+        decidedAt: null,
+        completedAt: null,
+        character
+      };
+    })
+  };
+}
+
+function makeTavernGameCharacter(
+  id: string,
+  telegramUserId: bigint,
+  name: string
+): TavernGameSessionRecord["creator"] {
+  return {
+    id,
+    userId: `user-${id}`,
+    telegramUserId,
+    currentLocationId: PRESENCE_LOCATION_KORCHMA_BAR,
     name,
     pronoun: "they",
     path: "path.boundary",

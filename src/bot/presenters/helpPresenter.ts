@@ -4,6 +4,7 @@ export interface HelpVisibility {
   includeDevReset: boolean;
   includeDevGrant?: boolean;
   includePartySessions?: boolean;
+  includeTavernGames?: boolean;
 }
 
 export function presentHelp(visibility: boolean | HelpVisibility): string {
@@ -15,7 +16,11 @@ export function presentHelp(visibility: boolean | HelpVisibility): string {
     "📖 Допомога Квестарні",
     "",
     "👤 Персонаж — рівень, HP/мана, прогрес і титули.",
-    "🍺 Корчма — місцини, бочка, шинок і дошка вістей.",
+    "🍺 Корчма — зала, стіл зі справами, Низ, Бочка, шинок і Дошка корчми.",
+    "📰 Дошка корчми — Вісти, Останні події, Перекази, подарунки й Пошта Квестарні.",
+    ...(normalized.includeTavernGames
+      ? ["🎲 Ігри за столом — тавлеї та кості у шинку."]
+      : []),
     "🗺️ Квести — пригоди, Низ, Єгер, льох і бойові справи.",
     "🎒 Манатки — інвентар, спорядження й корисні дрібниці.",
     "👀 Хто поруч — пригодники поруч і соціяльні дії.",
@@ -60,13 +65,15 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
     return {
       includeDevReset: visibility,
       includeDevGrant: visibility,
-      includePartySessions: visibility
+      includePartySessions: visibility,
+      includeTavernGames: visibility
     };
   }
 
   return {
     includeDevReset: visibility.includeDevReset,
     includeDevGrant: visibility.includeDevGrant ?? false,
-    includePartySessions: visibility.includePartySessions ?? false
+    includePartySessions: visibility.includePartySessions ?? false,
+    includeTavernGames: visibility.includeTavernGames ?? false
   };
 }

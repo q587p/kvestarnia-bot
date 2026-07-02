@@ -15,7 +15,7 @@ import type { CharacterRepository } from "../db/repositories/characterRepository
 import type { TelegramUserProfile, UserRepository } from "../db/repositories/userRepository";
 import { err, ok, type Result } from "../shared/result";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export type StartOnboardingResult =
   | { state: "needs-gender-selection" }
@@ -43,7 +43,7 @@ export class OnboardingService {
     private readonly users: UserRepository,
     private readonly characters: CharacterRepository,
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: ActivityEventService
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   async start(player: TelegramUserProfile): Promise<StartOnboardingResult> {

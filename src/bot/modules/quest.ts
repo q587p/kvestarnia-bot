@@ -403,7 +403,15 @@ async function handleQuestCallback(
     }
 
     if (place.locationId !== PRESENCE_LOCATION_KORCHMA_BAR) {
-      await sendKorchmaBar(ctx, services.tavern, services.presence, "edit", services.cellarGrownup, services.fight);
+      await sendKorchmaBar(
+        ctx,
+        services.tavern,
+        services.presence,
+        "edit",
+        services.cellarGrownup,
+        services.fight,
+        services.tavernGames
+      );
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
@@ -423,7 +431,10 @@ async function handleQuestCallback(
       });
       await safeEditMessageText(ctx, presentProblemQuestIssueNext(result), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildKorchmaBarKeyboard(getProblemQuestIssueNextBarKeyboardOptions(result))
+        reply_markup: buildKorchmaBarKeyboard({
+          ...getProblemQuestIssueNextBarKeyboardOptions(result),
+          tavernGames: Boolean(services.tavernGames?.isEnabled())
+        })
       });
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
@@ -444,6 +455,7 @@ async function handleQuestCallback(
     await safeEditMessageText(ctx, presentProblemQuestTurnIn(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildKorchmaBarKeyboard({
+        tavernGames: Boolean(services.tavernGames?.isEnabled()),
         ...(result.state === "turned-in" && result.result.nextStage
           ? { problemQuestAction: "next" }
           : {})

@@ -11,13 +11,13 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 112 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 120 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
 Immediate unlock hooks currently run from successful action boundaries that already emit achievement events: character creation, opening the achievement list, opening the latest-events feed, level/item/equipment events, combat reward paths, problem-chain turn-in and local dev level/item grants. These can notify the player at action time when a definition is newly earned.
 
-Manual recalculation through `🔎 Перевірити` remains the broader idempotent backfill path for durable ledger rows and older characters: current identity, identities selected during stored remorts, remort, starter/cellar/Yeger/adventure daily rows, training/Doppleganger, duels, Barrel, Shynok beer rounds, daily Korchma rounds, gifts, sales, drinks, passage search, hunt contracts, special stored fight outcomes and similar rows proven from persisted state. These rows may appear only after the manual check unless the current runtime flow also emits a direct event. The very first pre-remort identity can only be recovered if it is still the current identity or a future durable snapshot exists; old rows before that snapshot are not guessed.
+Manual recalculation through `🔎 Перевірити` remains the broader idempotent backfill path for durable ledger rows and older characters: current identity, identities selected during stored remorts, remort, starter/cellar/Yeger/adventure daily rows, training/Doppleganger, duels, Barrel, Shynok beer rounds, daily Korchma rounds, tavern table games, gifts, sales, drinks, passage search, hunt contracts, special stored fight outcomes and similar rows proven from persisted state. These rows may appear only after the manual check unless the current runtime flow also emits a direct event. The very first pre-remort identity can only be recovered if it is still the current identity or a future durable snapshot exists; old rows before that snapshot are not guessed.
 
 ## Current Catalog
 
@@ -112,6 +112,14 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.barrel.raid.first-loss` | enabled | visible | `barrel.raid.lost >= 1` | Бочка внесла правки | уперше програти Старшому Братові Бочки й отримати від Корчмаря позначку «пінна розвідка». |
 | `achievement.korchma.round.first` | enabled | visible | `korchma.round.purchased >= 1` | Перший кухоль за компанію | уперше проставити пиво й лишити на столі соціяльний слід. |
 | `achievement.korchma.round.thirteen` | enabled | visible | `korchma.round.purchased >= 13` | Тринадцять кухлів дипломатії | проставити пиво 13 разів і стати окремим пунктом корчемної ввічливости. |
+| `achievement.tavern.game.first` | enabled | visible | `tavern.game.played >= 1` | Перший стіл витримав | уперше завершити гру за столом у Шинку й не отримати нічого, крім запису та погляду Корчмаря. |
+| `achievement.tavern.game.win.first` | enabled | visible | `tavern.game.won >= 1` | Стіл визнав переможця | уперше виграти гру за столом і поводитися так, ніби фішки самі все підтвердять. |
+| `achievement.tavern.game.win.three` | enabled | visible | `tavern.game.won >= 3` | Три партії глянули прихильно | виграти 3 гри за столом і не називати це законом природи при свідках. |
+| `achievement.tavern.game.win.thirteen` | enabled | visible | `tavern.game.won >= 13` | Тринадцять столів аплодували ніжками | виграти 13 ігор за столом і лишити шинковій статистиці нервову усмішку. |
+| `achievement.tavern.game.loss.first` | enabled | visible | `tavern.game.lost >= 1` | Стілець підтримав морально | уперше програти гру за столом і зберегти гідність у приблизно вертикальному стані. |
+| `achievement.tavern.game.loss.three` | enabled | visible | `tavern.game.lost >= 3` | Три поразки без сварки з меблями | програти 3 гри за столом і не подати офіційну скаргу на кості, фішки чи атмосферу. |
+| `achievement.tavern.game.draw.first` | enabled | visible | `tavern.game.drawn >= 1` | Нічия вмостилася посередині | уперше завершити гру за столом нічиєю й дати банку привід повернутися додому. |
+| `achievement.tavern.game.loss.thirteen` | enabled | visible | `tavern.game.lost >= 13` | Тринадцять разів красиво не вийшло | програти 13 ігор за столом і лишитися людиною, якій Корчмар усе ще дає стілець. |
 | `achievement.item.gift.sent.first` | enabled | visible | `item.gift.sent >= 1` | Манатка пішла в люди | уперше подарувати манатку іншому пригоднику й не вимагати драматичного листа подяки. |
 | `achievement.item.gift.sent.thirteen` | enabled | visible | `item.gift.sent >= 13` | Дарувальник із журналом | подарувати манатки 13 разів і змусити щедрість вести облік. |
 | `achievement.item.gift.received.first` | enabled | visible | `item.gift.received >= 1` | Подарунок має інвентарний голос | уперше прийняти подаровану манатку й не питати, що вона про вас знає. |

@@ -1,6 +1,9 @@
 import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { PresenceService } from "../../services/presenceService";
-import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../services/presenceService";
+import {
+  PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL
+} from "../../services/presenceService";
 import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
@@ -11,7 +14,13 @@ import {
 } from "../callbacks/partySessionCallbackData";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartySessionService } from "../../services/partySessionService";
-import { makeShynokBardPerformanceStartCallbackData } from "../callbacks/shynokCallbackData";
+import type { TavernGameService } from "../../services/tavernGameService";
+import type { TavernGameSessionRecord } from "../../db/repositories/tavernGameRepository";
+import {
+  makeShynokBardPerformanceStartCallbackData,
+  makeShynokGameJoinCallbackData
+} from "../callbacks/shynokCallbackData";
+import { formatShynokOpenTableButtonLabel } from "../keyboards/shynokKeyboard";
 import { presentOnline } from "../presenters/presencePresenter";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -23,6 +32,7 @@ export interface OnlineCommandOptions {
   duelEnabled?: boolean;
   itemGiftEnabled?: boolean;
   partySessions?: PartySessionService | undefined;
+  tavernGames?: Pick<TavernGameService, "getHub"> | undefined;
 }
 
 export function registerOnlineCommand(
@@ -49,14 +59,16 @@ export async function sendOnline(
 
   const snapshot = await presenceService.getOnlineForTelegramUser(telegramUserId);
   const recruitingParties = await getVisibleRecruitingParties(snapshot, options);
+  const openTavernGameTables = await getVisibleOpenTavernGameTables(snapshot, options);
   const nearbyActionsKeyboard = await buildNearbyActionsKeyboard(
     snapshot,
     telegramUserId,
     options,
-    recruitingParties
+    recruitingParties,
+    openTavernGameTables
   );
 
-  await ctx.reply(presentOnline(snapshot, { recruitingParties }), {
+  await ctx.reply(presentOnline(snapshot, { recruitingParties, openTavernGameTables }), {
     ...HTML_MESSAGE_OPTIONS,
     ...(nearbyActionsKeyboard
       ? { reply_markup: nearbyActionsKeyboard }
@@ -68,9 +80,12 @@ async function buildNearbyActionsKeyboard(
   snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
   telegramUserId: bigint,
   options: OnlineCommandOptions,
-  recruitingParties: readonly PartySessionRecord[] = []
+  recruitingParties: readonly PartySessionRecord[] = [],
+  openTavernGameTables: readonly TavernGameSessionRecord[] = []
 ): Promise<InlineKeyboard | null> {
-  if (!hasOtherActiveNearby(snapshot, telegramUserId) && recruitingParties.length === 0) {
+  const hasNearby = hasOtherActiveNearby(snapshot, telegramUserId);
+
+  if (!hasNearby && recruitingParties.length === 0 && openTavernGameTables.length === 0) {
     return null;
   }
 
@@ -85,22 +100,32 @@ async function buildNearbyActionsKeyboard(
     hasActions = true;
   }
 
-  if (await hasLiveParty(options.partySessions, telegramUserId)) {
+  for (const table of openTavernGameTables) {
+    keyboard
+      .text(
+        formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold),
+        makeShynokGameJoinCallbackData(table.token)
+      )
+      .row();
+    hasActions = true;
+  }
+
+  if (hasNearby && (await hasLiveParty(options.partySessions, telegramUserId))) {
     keyboard.text("🧭 Покликати у ватагу", makePartySessionNearbyOpenCallbackData()).row();
     hasActions = true;
   }
 
-  if (options.duelEnabled) {
+  if (hasNearby && options.duelEnabled) {
     keyboard.text("🥊 Кинути виклик присутнім", makeNearbyDuelOpenCallbackData()).row();
     hasActions = true;
   }
 
-  if (options.bardPerformanceEnabled && isEligibleNearbyBard(snapshot, telegramUserId)) {
+  if (hasNearby && options.bardPerformanceEnabled && isEligibleNearbyBard(snapshot, telegramUserId)) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
     hasActions = true;
   }
 
-  if (options.itemGiftEnabled) {
+  if (hasNearby && options.itemGiftEnabled) {
     keyboard.text("🎁 Подарувати манатку", makeItemGiftOpenCallbackData()).row();
     keyboard.text("📮 Пошта Квестарні", makeItemPostalOpenCallbackData()).row();
     hasActions = true;
@@ -118,6 +143,19 @@ async function getVisibleRecruitingParties(
   }
 
   return options.partySessions?.listRecruitingBigBarrelBrother() ?? [];
+}
+
+async function getVisibleOpenTavernGameTables(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  options: OnlineCommandOptions
+): Promise<TavernGameSessionRecord[]> {
+  if (snapshot.state !== "ready" || snapshot.location.id !== PRESENCE_LOCATION_KORCHMA_BAR) {
+    return [];
+  }
+
+  const hub = await options.tavernGames?.getHub();
+
+  return hub?.state === "ready" ? [...hub.openTables] : [];
 }
 
 async function hasLiveParty(

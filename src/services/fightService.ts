@@ -126,7 +126,7 @@ import {
   type ProblemQuestStageRecord
 } from "./fight/problemQuest";
 import type { AchievementService, AchievementSimpleEventType, AchievementUnlock } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 
@@ -528,7 +528,7 @@ export interface FightServiceDependencies {
   pendingPassageEncounters?: PendingPassageEncounterRepository;
   shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
   achievements?: AchievementService;
-  activityEvents?: ActivityEventService;
+  activityEvents?: PublicActivityEventPublisher;
 }
 
 export class FightService {
@@ -542,7 +542,7 @@ export class FightService {
   private readonly pendingPassageEncounters: PendingPassageEncounterRepository | undefined;
   private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
   private readonly achievements: AchievementService | undefined;
-  private readonly activityEvents: ActivityEventService | undefined;
+  private readonly activityEvents: PublicActivityEventPublisher | undefined;
 
   constructor({
     characters,

@@ -28,6 +28,7 @@ import type { PresenceService } from "../services/presenceService";
 import type { RemortService } from "../services/remortService";
 import type { RestartService } from "../services/restartService";
 import type { ShynokService } from "../services/shynokService";
+import type { TavernGameService } from "../services/tavernGameService";
 import type { TavernRaidService } from "../services/tavernRaidService";
 import type { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
 import type { YegerQuestService } from "../services/yegerQuestService";
@@ -58,6 +59,7 @@ export interface BotServices {
   levelMilestones?: LevelMilestoneService;
   mantokChest: MantokChestService;
   shynok?: ShynokService;
+  tavernGames?: TavernGameService;
   presence: PresenceService;
   devGrant?: DevGrantService;
   duel?: DuelChallengeService;

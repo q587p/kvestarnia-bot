@@ -2,6 +2,7 @@ import type { Bot, Context, Keyboard } from "grammy";
 import type { DevResetService } from "../../services/devResetService";
 import type { DevGrantService } from "../../services/devGrantService";
 import type { PartySessionService } from "../../services/partySessionService";
+import type { TavernGameService } from "../../services/tavernGameService";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentDevHelp, presentHelp } from "../presenters/helpPresenter";
 
@@ -15,13 +16,15 @@ export function registerHelpCommand(
   devGrantService?: Pick<DevGrantService, "isEnabled">,
   options: HelpCommandOptions & {
     partySessionService?: Pick<PartySessionService, "areDevHelpersEnabled"> | undefined;
+    tavernGameService?: Pick<TavernGameService, "isEnabled"> | undefined;
   } = {}
 ): void {
   bot.command("help", async (ctx) => {
     await ctx.reply(presentHelp({
       includeDevReset: devResetService.isEnabled(),
       includeDevGrant: devGrantService?.isEnabled() ?? false,
-      includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false
+      includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false,
+      includeTavernGames: options.tavernGameService?.isEnabled() ?? false
     }), {
       reply_markup: options.buildMainMenuKeyboard
         ? await options.buildMainMenuKeyboard(ctx)

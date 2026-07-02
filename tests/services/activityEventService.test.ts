@@ -8,7 +8,11 @@ import type {
 } from "../../src/db/repositories/activityEventRepository";
 import { achievements } from "../../src/content";
 import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
-import { ActivityEventService, LATEST_EVENTS_MILESTONE_LEVELS } from "../../src/services/activityEventService";
+import { ActivityEventService } from "../../src/services/activityEventService";
+import {
+  LATEST_EVENTS_MILESTONE_LEVELS,
+  PublicActivityEventPublisher
+} from "../../src/services/publicActivityEventPublisher";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 
 describe("ActivityEventService", () => {
@@ -46,11 +50,24 @@ describe("ActivityEventService", () => {
     })).resolves.toBeNull();
   });
 
+  it("publisher keeps source-fact emission best-effort", async () => {
+    const repository = new FakeActivityEventRepository();
+    repository.failNext = true;
+    const publisher = makePublicActivityEventPublisher(repository);
+
+    await expect(publisher.recordCharacterCreatedSafely({
+      characterId: "character-broken",
+      actorDisplayName: "Арден",
+      occurredAt: new Date("2026-07-02T10:00:00.000Z")
+    })).resolves.toBeNull();
+    expect(repository.rows).toHaveLength(0);
+  });
+
   it("emits configured level and rare item rows without common-item noise", async () => {
     const repository = new FakeActivityEventRepository();
-    const service = new ActivityEventService(repository);
+    const publisher = makePublicActivityEventPublisher(repository);
 
-    await service.recordRewardEventsSafely({
+    await publisher.recordRewardEventsSafely({
       characterId: "character-1",
       actorDisplayName: "Мудрий",
       sourceId: "daily-1",
@@ -85,9 +102,9 @@ describe("ActivityEventService", () => {
 
   it("marks level 8 as an important visible achievement milestone", async () => {
     const repository = new FakeActivityEventRepository();
-    const service = new ActivityEventService(repository);
+    const publisher = makePublicActivityEventPublisher(repository);
 
-    await service.recordRewardEventsSafely({
+    await publisher.recordRewardEventsSafely({
       characterId: "character-1",
       actorDisplayName: "Рейдовий Завсідник",
       sourceId: "daily-8",
@@ -120,10 +137,10 @@ describe("ActivityEventService", () => {
 
   it("emits underdog wins only at the configured threshold", async () => {
     const repository = new FakeActivityEventRepository();
-    const service = new ActivityEventService(repository);
+    const publisher = makePublicActivityEventPublisher(repository);
     const occurredAt = new Date("2026-07-02T10:00:00.000Z");
 
-    await service.recordUnderdogCombatWinSafely({
+    await publisher.recordUnderdogCombatWinSafely({
       characterId: "character-1",
       actorDisplayName: "Пандочка",
       combatSessionId: "combat-ordinary",
@@ -133,7 +150,7 @@ describe("ActivityEventService", () => {
       characterLevel: 2,
       occurredAt
     });
-    await service.recordUnderdogCombatWinSafely({
+    await publisher.recordUnderdogCombatWinSafely({
       characterId: "character-1",
       actorDisplayName: "Пандочка",
       combatSessionId: "combat-underdog",
@@ -154,12 +171,12 @@ describe("ActivityEventService", () => {
 
   it("emits one Big Barrel Brother victory row per terminal boss session", async () => {
     const repository = new FakeActivityEventRepository();
-    const service = new ActivityEventService(repository);
+    const publisher = makePublicActivityEventPublisher(repository);
     const session = makeBigBarrelSession("won");
 
-    await service.recordPartyRaidWonSafely(session);
-    await service.recordPartyRaidWonSafely(session);
-    await service.recordPartyRaidWonSafely(makeBigBarrelSession("lost"));
+    await publisher.recordPartyRaidWonSafely(session);
+    await publisher.recordPartyRaidWonSafely(session);
+    await publisher.recordPartyRaidWonSafely(makeBigBarrelSession("lost"));
 
     expect(repository.rows).toHaveLength(1);
     expect(repository.rows[0]).toMatchObject({
@@ -184,6 +201,10 @@ describe("ActivityEventService", () => {
     });
   });
 });
+
+function makePublicActivityEventPublisher(repository: ActivityEventRepository): PublicActivityEventPublisher {
+  return new PublicActivityEventPublisher(new ActivityEventService(repository));
+}
 
 class FakeActivityEventRepository implements ActivityEventRepository {
   rows: ActivityEventRecord[] = [];

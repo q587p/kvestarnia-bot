@@ -21,7 +21,7 @@ import type {
 } from "../db/repositories/mantokChestRepository";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export type MantokChestOverviewResult =
@@ -92,7 +92,7 @@ export class MantokChestService {
     private readonly clock: () => Date = () => new Date(),
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: ActivityEventService
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   async getOverviewForTelegramUser(telegramUserId: bigint): Promise<MantokChestOverviewResult> {

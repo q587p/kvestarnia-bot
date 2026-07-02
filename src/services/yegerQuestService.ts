@@ -32,7 +32,7 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "./presenceService";
 import { toIsoDate } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export {
@@ -281,7 +281,7 @@ export class YegerQuestService {
     private readonly now: () => Date = () => new Date(),
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: ActivityEventService
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   async getForTelegramUser(telegramUserId: bigint): Promise<YegerQuestLookupResult> {

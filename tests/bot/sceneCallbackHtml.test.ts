@@ -42,6 +42,8 @@ import {
 } from "../../src/bot/callbacks/remortCallbackData";
 import {
   makeShynokBarrelRoundPreviewCallbackData,
+  makeShynokGameJoinCallbackData,
+  makeShynokKostiDecisionCallbackData,
   makeShynokRoundConfirmCallbackData
 } from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
@@ -2729,6 +2731,69 @@ describe("scene callback HTML options", () => {
     );
 
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("notifies existing tavern game participants when another player joins", async () => {
+    const session = tavernGameSession({
+      status: "ready",
+      participants: [
+        tavernGameParticipant(93n, "character-creator", "Kyjivan BooksDragon", "joined", null),
+        tavernGameParticipant(42n, "character-joiner", "Shannar de Kassal", "joined", null)
+      ]
+    });
+
+    const calls = await captureApiCalls(
+      makeShynokGameJoinCallbackData("12345678-1234-4234-9234-123456789abc"),
+      servicesWith({
+        shynok: {},
+        tavernGames: {
+          joinByTokenForTelegramUser: () => Promise.resolve({ state: "joined", session })
+        } as never
+      })
+    );
+
+    const notification = calls.find((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 93
+    );
+    expect(notification?.payload.text).toContain("♟ Тавлеї · ставка <b>1 зол.</b>");
+    expect(notification?.payload.text).toContain("За столом: Kyjivan BooksDragon, Shannar de Kassal");
+    expect(notification?.payload.text).toContain("Оберіть тактику.");
+    expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gt:12345678-1234-4234-9234-123456789abc");
+    expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gm");
+  });
+
+  it("notifies other Kosti participants when a player chooses dice options", async () => {
+    const session = tavernGameSession({
+      gameKey: "kosti",
+      status: "open",
+      participants: [
+        tavernGameParticipant(93n, "character-creator", "Kyjivan BooksDragon", "joined", null),
+        tavernGameParticipant(42n, "character-joiner", "Shannar de Kassal", "decided", {
+          gameKey: "kosti",
+          style: "steady",
+          sign: "two_pairs"
+        })
+      ]
+    });
+
+    const calls = await captureApiCalls(
+      makeShynokKostiDecisionCallbackData("12345678-1234-4234-9234-123456789abc", "steady", "two_pairs"),
+      servicesWith({
+        shynok: {},
+        tavernGames: {
+          submitKostiDecisionForTelegramUser: () => Promise.resolve({ state: "decided", session })
+        } as never
+      })
+    );
+
+    const notification = calls.find((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 93
+    );
+    expect(notification?.payload.text).toContain("За столом зроблено вибір.");
+    expect(notification?.payload.text).toContain("🎲 Кості · ставка <b>1 зол.</b>");
+    expect(notification?.payload.text).toContain("За столом: Kyjivan BooksDragon, Shannar de Kassal");
+    expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gk:12345678-1234-4234-9234-123456789abc");
+    expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gm");
   });
 
   it("opens the pressed location label when the persistent reply keyboard is stale", async () => {
@@ -6129,6 +6194,90 @@ function turnBasedParticipant(characterId: string, displayName: string) {
       luck: 6,
       classId: "class.warrior"
     }
+  };
+}
+
+function tavernGameSession(overrides: Record<string, unknown> = {}) {
+  const now = new Date("2026-07-02T10:00:00.000Z");
+  const participants = (overrides.participants as ReturnType<typeof tavernGameParticipant>[] | undefined) ?? [
+    tavernGameParticipant(93n, "character-creator", "Kyjivan BooksDragon", "joined", null)
+  ];
+
+  return {
+    id: "tavern-game-session-1",
+    token: "12345678-1234-4234-9234-123456789abc",
+    gameKey: "tavlei",
+    status: "open",
+    creatorCharacterId: "character-creator",
+    stakeGold: 1,
+    potGold: participants.length,
+    seed: "seed",
+    rulesVersion: "test",
+    result: null,
+    openedAt: now,
+    joinExpiresAt: new Date("2026-07-02T10:13:00.000Z"),
+    decisionExpiresAt: new Date("2026-07-02T10:18:00.000Z"),
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    creator: tavernGameCharacter(93n, "character-creator", "Kyjivan BooksDragon"),
+    participants,
+    ...overrides
+  };
+}
+
+function tavernGameParticipant(
+  telegramUserId: bigint,
+  characterId: string,
+  displayName: string,
+  status: string,
+  decision: unknown
+) {
+  const now = new Date("2026-07-02T10:00:00.000Z");
+
+  return {
+    id: `participant-${characterId}`,
+    sessionId: "tavern-game-session-1",
+    characterId,
+    telegramUserId,
+    displayName,
+    remortCount: 0,
+    status,
+    stakeGold: 1,
+    payoutGold: 0,
+    refundedGold: 0,
+    decision,
+    result: null,
+    joinedAt: now,
+    decidedAt: null,
+    completedAt: null,
+    character: tavernGameCharacter(telegramUserId, characterId, displayName)
+  };
+}
+
+function tavernGameCharacter(telegramUserId: bigint, id: string, name: string) {
+  return {
+    id,
+    userId: `user-${id}`,
+    telegramUserId,
+    currentLocationId: "location.korchma.bar",
+    name,
+    pronoun: "they",
+    path: "path.boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 8,
+    xp: 587,
+    gold: 42,
+    hpCurrent: 60,
+    hpMax: 60,
+    manaCurrent: 20,
+    manaMax: 20,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
   };
 }
 

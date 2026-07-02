@@ -11,7 +11,7 @@ import { PARTY_BOSS_TURN_MS } from "../domain/partyBoss/partyBoss";
 import { findCombatUsableItemByKey } from "./combatItemUse";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export interface PartyBossServiceOptions {
   enabled: boolean;
@@ -28,7 +28,7 @@ export class PartyBossService {
     private readonly options: PartyBossServiceOptions,
     private readonly clock: Clock = systemClock,
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: ActivityEventService
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   isEnabled(): boolean {

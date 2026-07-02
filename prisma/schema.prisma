@@ -67,6 +67,8 @@ model Character {
   duelCombatSessionsAsTarget DuelCombatSession[] @relation("DuelCombatTarget")
   partySessionsLed PartySession[] @relation("PartySessionLeader")
   partyParticipants PartyParticipant[]
+  tavernGameSessionsCreated TavernGameSession[] @relation("TavernGameCreator")
+  tavernGameParticipants TavernGameParticipant[]
   partyBossActions PartyBossAction[]
   partyBossSessionsLed PartyBossSession[] @relation("PartyBossSessionLeader")
   activeCombatLease ActiveCombatLease?
@@ -888,6 +890,62 @@ model PartyBossAction {
   @@index([sessionId, turn])
   @@index([actorCharacterId])
   @@map("party_boss_actions")
+}
+
+model TavernGameSession {
+  id                 String    @id @default(uuid())
+  token              String    @unique
+  gameKey            String    @map("game_key")
+  status             String    @default("open")
+  creatorCharacterId String    @map("creator_character_id")
+  creator            Character @relation("TavernGameCreator", fields: [creatorCharacterId], references: [id], onDelete: Cascade)
+  stakeGold          Int       @map("stake_gold")
+  potGold            Int       @default(0) @map("pot_gold")
+  seed               String
+  rulesVersion       String    @map("rules_version")
+  resultJson         Json?     @map("result_json")
+  openedAt           DateTime  @map("opened_at")
+  joinExpiresAt      DateTime  @map("join_expires_at")
+  decisionExpiresAt  DateTime? @map("decision_expires_at")
+  completedAt        DateTime? @map("completed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  participants       TavernGameParticipant[]
+
+  @@index([gameKey, status, joinExpiresAt])
+  @@index([status, joinExpiresAt])
+  @@index([status, decisionExpiresAt])
+  @@index([creatorCharacterId, status])
+  @@map("tavern_game_sessions")
+}
+
+model TavernGameParticipant {
+  id               String    @id @default(uuid())
+  sessionId        String    @map("session_id")
+  session          TavernGameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  characterId      String    @map("character_id")
+  character        Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  telegramUserId   BigInt    @map("telegram_user_id")
+  displayName      String    @map("display_name")
+  remortCount      Int       @default(0) @map("remort_count")
+  status           String    @default("joined")
+  stakeGold        Int       @map("stake_gold")
+  payoutGold       Int       @default(0) @map("payout_gold")
+  refundedGold     Int       @default(0) @map("refunded_gold")
+  decisionJson     Json?     @map("decision_json")
+  resultJson       Json?     @map("result_json")
+  activeStakeKey   String?   @unique @map("active_stake_key")
+  joinedAt         DateTime  @map("joined_at")
+  decidedAt        DateTime? @map("decided_at")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sessionId, characterId])
+  @@index([characterId, status])
+  @@index([sessionId, status])
+  @@index([telegramUserId, status])
+  @@map("tavern_game_participants")
 }
 
 model DailyAction {

@@ -1,9 +1,13 @@
 # Tavern Social Games Backlog
 
 This document preserves the useful planning material from the local archive
-`tavern-social-games.zip`. It is future design input only: the current PR must
-not add runtime social-game code, Prisma schema, migrations, callbacks,
-economy changes, rewards or player-visible menu entries for these ideas.
+`tavern-social-games.zip`. The implemented `0.2.21` slice lives in
+`docs/tasks/0.2.21-tavern-social-games.md`,
+`docs/design/tavern-social-games.md`,
+`docs/balance/tavern-social-games-balance.md`,
+`docs/qa/tavern-social-games-qa.md` and runtime code. Remaining ideas below are
+future backlog input only and must not be treated as already shipped unless
+the release docs and code say so.
 
 ## Product Shape
 
@@ -60,7 +64,7 @@ were "almost certainly listening".
 
 Future MVP shape:
 
-- 2-6 players;
+- 2-7 players;
 - equal stake, if wagers are enabled for the slice;
 - open lobby with timeout;
 - one style and one sign choice per participant;
@@ -139,7 +143,7 @@ ever added.
 2. **Core table engine.** Add the session model, migration, escrow helpers,
    expiry/refund path and resolver interface behind a feature flag.
 3. **Tavlei.** Ship one 1v1 game using the shared engine.
-4. **Kosti.** Add the 2-6 player dice table once the engine is proven.
+4. **Kosti.** Add the 2-7 player dice table once the engine is proven.
 5. **Polish.** Add more result templates, recent tavern activity, telemetry,
    caps and manual QA cleanup.
 

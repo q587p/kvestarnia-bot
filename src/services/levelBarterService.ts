@@ -7,7 +7,7 @@ import type {
   LevelBarterSnapshot
 } from "../db/repositories/levelBarterRepository";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
-import type { ActivityEventService } from "./activityEventService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
@@ -96,7 +96,7 @@ export class LevelBarterService {
     private readonly repository: LevelBarterRepository,
     private readonly clock: () => Date = () => new Date(),
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: ActivityEventService
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   async getOfferForTelegramUser(telegramUserId: bigint): Promise<LevelBarterOfferResult> {

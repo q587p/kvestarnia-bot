@@ -44,7 +44,10 @@ export function presentShynokGate(result: { state: string }): string {
   }
 }
 
-export function presentShynokOverview(result: ShynokOverviewResult): string {
+export function presentShynokOverview(
+  result: ShynokOverviewResult,
+  options: { tavernGames?: boolean } = {}
+): string {
   if (result.state !== "ready") {
     return presentShynokGate(result);
   }
@@ -55,6 +58,9 @@ export function presentShynokOverview(result: ShynokOverviewResult): string {
     "Корчмар виставив напої, рахівницю й табличку «манатки приймаємо не всі, бо маємо очі».",
     ...(result.character.classId === "class.bard" && result.character.level >= 3
       ? ["Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує."]
+      : []),
+    ...(options.tavernGames
+      ? ["У кутку скрипить ігровий стіл: тавлеї й кості чекають охочих виглядати спокійно."]
       : []),
     "",
     ...presentActiveDrinkLines(result.activeDrink),

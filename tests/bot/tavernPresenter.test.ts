@@ -498,6 +498,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("<i>Шинок</i>");
     expect(text).toContain("корчмаря");
     expect(text).toContain("частують пивом");
+    expect(text).not.toContain("ігровий стіл");
     expect(text).toContain("Що наливаємо?");
   });
 
@@ -517,11 +518,13 @@ describe("tavern presenter", () => {
     const turnIn = presentKorchmaBar(character, { problemQuestAction: "turn-in" });
     const next = presentKorchmaBar(character, { problemQuestAction: "next" });
     const bottle = presentKorchmaBar(character, { includeBottleTurnIn: true });
+    const games = presentKorchmaBar(character, { tavernGames: true });
 
     expect(take).toContain("можна взяти як нову справу");
     expect(turnIn).toContain("готову справу можна здати просто тут");
     expect(next).toContain("Корчмар відкриє новий лічильник");
     expect(bottle).toContain("є місце для пляшки з льоху");
+    expect(games).toContain("тавлеї й кості чекають");
   });
 
   it("accepts a changing flavor seed for korchma hall greetings", () => {

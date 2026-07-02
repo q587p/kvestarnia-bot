@@ -25,7 +25,9 @@ import { registerPlannedCommands } from "../commands/plannedCommand";
 import { registerSupportCommand } from "../commands/supportCommand";
 import { sendTavern } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
+import { buildShynokGameHubKeyboard } from "../keyboards/shynokKeyboard";
 import { presentHelp } from "../presenters/helpPresenter";
+import { presentTavernGameHub } from "../presenters/tavernGamePresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -45,11 +47,13 @@ export function registerCoreBotModule(
     bardPerformanceEnabled: Boolean(services.bardPerformance),
     duelEnabled: Boolean(services.duel),
     itemGiftEnabled: Boolean(services.itemTransfers),
-    partySessions: services.partySessions
+    partySessions: services.partySessions,
+    tavernGames: services.tavernGames
   });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {
     partySessionService: services.partySessions,
+    tavernGameService: services.tavernGames,
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
       includeAdmin: shouldIncludeAdminMainMenu(services)
     })
@@ -58,6 +62,14 @@ export function registerCoreBotModule(
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
   registerPlannedCommands(bot);
+  bot.command("games", async (ctx) => {
+    const result = await services.tavernGames?.getHub() ?? { state: "disabled" as const };
+
+    await ctx.reply(presentTavernGameHub(result), {
+      parse_mode: "HTML",
+      reply_markup: buildShynokGameHubKeyboard(result)
+    });
+  });
   registerMainMenuKeyboard(bot, services, {
     botUsername: options.botUsername
   });
@@ -88,7 +100,8 @@ async function handleMenuCallback(
     await safeEditMessageText(ctx, presentHelp({
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
-      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
+      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeTavernGames: services.tavernGames?.isEnabled() ?? false
     }));
     return;
   }

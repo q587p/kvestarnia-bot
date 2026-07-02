@@ -139,7 +139,7 @@ describe("application factory wiring", () => {
         pendingPassageEncounters: repositories.pendingPassageEncounters,
         shynok: repositories.shynok,
         achievements,
-        activityEvents
+        activityEvents: publicActivityEvents
       });
     `));
     expect(source).toContain(compact(`
@@ -150,7 +150,7 @@ describe("application factory wiring", () => {
         repositories.soloCombatSessions,
         repositories.equipment,
         achievements,
-        activityEvents
+        publicActivityEvents
       )
     `));
     expect(source).toContain(compact(`
@@ -180,17 +180,17 @@ describe("application factory wiring", () => {
       itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
     `));
     expect(source).toContain(compact(`
-      levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, activityEvents)
+      levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents)
     `));
     expect(source).toContain(compact(`
-      mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, activityEvents)
+      mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, publicActivityEvents)
     `));
     expect(source).toContain(compact(`
       partyBoss: new PartyBossService(repositories.partyBossSessions, {
         enabled: nonProduction ||
           config.bigBarrelBrotherRaidEnabled,
         devHelpersEnabled: nonProduction
-      }, undefined, achievements, activityEvents)
+      }, undefined, achievements, publicActivityEvents)
     `));
     expect(source).toContain(compact(`
       partySessions: new PartySessionService(repositories.partySessions, {
@@ -211,7 +211,7 @@ describe("application factory wiring", () => {
         undefined,
         undefined,
         achievements,
-        activityEvents
+        publicActivityEvents
       )
     `));
   });

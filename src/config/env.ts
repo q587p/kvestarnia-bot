@@ -43,6 +43,11 @@ export const configSchema = z.object({
   partySessionDevHelpersEnabled: z.boolean().default(false),
   bigBarrelBrotherRaidEnabled: z.boolean().default(false),
   combatBalanceAnalyticsEnabled: z.boolean().default(false),
+  tavernGamesEnabled: z.boolean().default(false),
+  tavernGameTavleiEnabled: z.boolean().default(false),
+  tavernGameKostiEnabled: z.boolean().default(false),
+  tavernGameMaxStake: z.number().int().min(1).max(587).default(93),
+  tavernGameCreateCooldownSec: z.number().int().min(0).max(86_400).default(60),
   supportJarUrl: supportJarUrlSchema.optional(),
   supportJarStatus: supportJarStatusSchema
 });
@@ -61,6 +66,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     partySessionDevHelpersEnabled: parseBoolean(env.PARTY_SESSION_DEV_HELPERS_ENABLED),
     bigBarrelBrotherRaidEnabled: parseBoolean(env.BIG_BARREL_BROTHER_RAID_ENABLED),
     combatBalanceAnalyticsEnabled: parseBoolean(env.COMBAT_BALANCE_ANALYTICS_ENABLED),
+    tavernGamesEnabled: parseBoolean(env.TAVERN_GAMES_ENABLED),
+    tavernGameTavleiEnabled: parseBoolean(env.TAVERN_GAME_TAVLEI_ENABLED),
+    tavernGameKostiEnabled: parseBoolean(env.TAVERN_GAME_KOSTI_ENABLED),
+    tavernGameMaxStake: parseOptionalInteger(env.TAVERN_GAME_MAX_STAKE),
+    tavernGameCreateCooldownSec: parseOptionalInteger(env.TAVERN_GAME_CREATE_COOLDOWN_SEC),
     supportJarUrl: blankToUndefined(env.SUPPORT_JAR_URL),
     supportJarStatus: parseSupportJarStatus(env)
   });

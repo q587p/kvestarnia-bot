@@ -2,6 +2,7 @@ import type { BotServices } from "../bot/botServices";
 import type { AppConfig } from "../config/env";
 import { readAppVersion } from "../shared/appVersion";
 import { ActivityEventService } from "../services/activityEventService";
+import { PublicActivityEventPublisher } from "../services/publicActivityEventPublisher";
 import { AchievementService } from "../services/achievementService";
 import { AdventureService } from "../services/adventureService";
 import { BardPerformanceService } from "../services/bardPerformanceService";
@@ -32,6 +33,7 @@ import { PresenceService } from "../services/presenceService";
 import { RemortService } from "../services/remortService";
 import { RestartService } from "../services/restartService";
 import { ShynokService } from "../services/shynokService";
+import { TavernGameService } from "../services/tavernGameService";
 import { TavernRaidService } from "../services/tavernRaidService";
 import { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
 import { YegerQuestService } from "../services/yegerQuestService";
@@ -47,6 +49,7 @@ export function createServices(
 ): ApplicationServices {
   const nonProduction = config.nodeEnv !== "production";
   const activityEvents = new ActivityEventService(repositories.activityEvents);
+  const publicActivityEvents = new PublicActivityEventPublisher(activityEvents);
   const achievements = new AchievementService(repositories.achievements);
   const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
     repositories.combatBalanceAnalytics,
@@ -61,7 +64,7 @@ export function createServices(
     pendingPassageEncounters: repositories.pendingPassageEncounters,
     shynok: repositories.shynok,
     achievements,
-    activityEvents
+    activityEvents: publicActivityEvents
   });
   const presence = new PresenceService(repositories.presence);
   const tavern = new TavernRaidService(
@@ -81,7 +84,7 @@ export function createServices(
       repositories.soloCombatSessions,
       repositories.equipment,
       achievements,
-      activityEvents
+      publicActivityEvents
     ),
     bardPerformance: new BardPerformanceService(repositories.bardPerformances),
     barrelRaidNotifications: repositories.barrelRaidNotifications,
@@ -98,7 +101,7 @@ export function createServices(
       fight,
       tavern,
       achievements,
-      activityEvents
+      publicActivityEvents
     ),
     deployNotifications: new DeployNotificationService(repositories.users, {
       enabled: config.deployNotificationsEnabled,
@@ -144,16 +147,16 @@ export function createServices(
     inventory: new InventoryService(repositories.inventory),
     itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
-    levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, activityEvents),
+    levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
-    mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, activityEvents),
-    onboarding: new OnboardingService(repositories.users, repositories.characters, achievements, activityEvents),
+    mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, publicActivityEvents),
+    onboarding: new OnboardingService(repositories.users, repositories.characters, achievements, publicActivityEvents),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction
-    }, undefined, achievements, activityEvents),
+    }, undefined, achievements, publicActivityEvents),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||
@@ -171,6 +174,7 @@ export function createServices(
       repositories.dailyActions,
       repositories.roundPurchases
     ),
+    tavernGames: new TavernGameService(repositories.tavernGames, config, undefined, achievements),
     tavern,
     trainingDoppelganger: new TrainingDoppelgangerService(
       repositories.characters,
@@ -193,7 +197,7 @@ export function createServices(
       undefined,
       undefined,
       achievements,
-      activityEvents
+      publicActivityEvents
     )
   };
 }

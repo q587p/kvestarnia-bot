@@ -7,16 +7,34 @@ import type {
   ShynokRoundPreviewResult,
   ShynokSaleSelectionResult
 } from "../../services/shynokService";
+import type { TavernGameHubResult } from "../../services/tavernGameService";
+import { listTavernGameStakeOptions } from "../../services/tavernGameService";
 import {
   listBardPerformanceTipOptions,
   type BardPerformanceRespondResult
 } from "../../services/bardPerformanceService";
+import {
+  KOSTI_PLAYER_CAP,
+  KOSTI_SIGNS,
+  KOSTI_STYLES,
+  TAVLEI_PLAYER_CAP,
+  TAVLEI_TACTICS,
+  type TavernGameKey
+} from "../../domain/tavernGames";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
   makeShynokDrinksCallbackData,
+  makeShynokGameCancelCallbackData,
+  makeShynokGameCreateCallbackData,
+  makeShynokGameJoinCallbackData,
+  makeShynokGameLeaderboardCallbackData,
+  makeShynokGameResolveCallbackData,
+  makeShynokGameRulesCallbackData,
+  makeShynokGamesCallbackData,
+  makeShynokKostiDecisionCallbackData,
   makeShynokBardPerformanceApplaudCallbackData,
   makeShynokBardPerformanceDeclineCallbackData,
   makeShynokBardPerformanceStartCallbackData,
@@ -34,10 +52,14 @@ import {
   makeShynokSaleConfirmCallbackData,
   makeShynokSaleOpenCallbackData,
   makeShynokSalePageCallbackData,
-  makeShynokSaleRemoveCallbackData
+  makeShynokSaleRemoveCallbackData,
+  makeShynokTavleiDecisionCallbackData
 } from "../callbacks/shynokCallbackData";
 
-export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): InlineKeyboard {
+export function buildShynokOverviewKeyboard(
+  result?: ShynokOverviewResult,
+  options: { tavernGames?: boolean } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
     .row()
@@ -46,6 +68,10 @@ export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): Inli
     .row()
     .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
     .row();
+
+  if (options.tavernGames) {
+    keyboard.text("🎲 Ігри за столом", makeShynokGamesCallbackData()).row();
+  }
 
   if (
     result?.state === "ready" &&
@@ -65,6 +91,111 @@ export function buildShynokOverviewKeyboard(result?: ShynokOverviewResult): Inli
   }
 
   return keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function buildShynokGameHubKeyboard(result: TavernGameHubResult): InlineKeyboard {
+  if (result.state !== "ready") {
+    return buildBackToShynokKeyboard();
+  }
+
+  const keyboard = new InlineKeyboard();
+
+  keyboard.text("🏆 Рейтинг", makeShynokGameLeaderboardCallbackData()).row();
+
+  if (result.tavleiEnabled) {
+    keyboard.text("♟ Тавлеї", makeShynokGameRulesCallbackData("tavlei")).row();
+  }
+  if (result.kostiEnabled) {
+    keyboard.text("🎲 Кості", makeShynokGameRulesCallbackData("kosti")).row();
+  }
+
+  for (const table of result.openTables.slice(0, 8)) {
+    keyboard
+      .text(
+        formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold),
+        makeShynokGameJoinCallbackData(table.token)
+      )
+      .row();
+  }
+
+  return keyboard.text("↩ Назад", makeShynokOverviewCallbackData());
+}
+
+export function buildShynokGameRulesKeyboard(gameKey: TavernGameKey, maxStake: number): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  for (const stake of listTavernGameStakeOptions(maxStake)) {
+    keyboard.text(`💰 ${stake}`, makeShynokGameCreateCallbackData(gameKey, stake));
+  }
+
+  return keyboard
+    .row()
+    .text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildBackToShynokGamesKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildShynokGameSessionKeyboard(result: {
+  state: string;
+  session?: {
+    token: string;
+    gameKey: TavernGameKey;
+    status: string;
+    creatorCharacterId: string;
+    participants: Array<{ characterId: string; status: string; telegramUserId?: bigint }>;
+  };
+}, options: { viewerTelegramUserId?: bigint } = {}): InlineKeyboard {
+  if (!result.session) {
+    return buildBackToShynokKeyboard();
+  }
+
+  const keyboard = new InlineKeyboard();
+  const viewer = result.session.participants.find((participant) =>
+    participant.telegramUserId === options.viewerTelegramUserId
+  );
+  const viewerIsCreator = viewer?.characterId === result.session.creatorCharacterId;
+  if (
+    result.state !== "not-cancellable" &&
+    result.session.gameKey === "tavlei" &&
+    result.session.status === "open" &&
+    result.session.participants.length < 2 &&
+    viewerIsCreator
+  ) {
+    keyboard.text("✖ Скасувати", makeShynokGameCancelCallbackData(result.session.token)).row();
+  }
+  if (
+    result.session.gameKey === "kosti" &&
+    (result.session.status === "open" || result.session.status === "ready") &&
+    result.session.participants.length >= 2 &&
+    viewerIsCreator
+  ) {
+    keyboard.text("🎲 Кинути зараз", makeShynokGameResolveCallbackData(result.session.token)).row();
+  }
+
+  return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildShynokTavleiDecisionKeyboard(token: string): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  for (const tactic of TAVLEI_TACTICS) {
+    keyboard.text(tavleiTacticButtonLabel(tactic), makeShynokTavleiDecisionCallbackData(token, tactic)).row();
+  }
+
+  return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildShynokKostiDecisionKeyboard(token: string): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const sign of KOSTI_SIGNS) {
+    for (const style of KOSTI_STYLES) {
+      keyboard.text(kostiDecisionButtonLabel(style, sign), makeShynokKostiDecisionCallbackData(token, style, sign));
+    }
+    keyboard.row();
+  }
+
+  return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
 }
 
 export function buildShynokDrinkMenuKeyboard(): InlineKeyboard {
@@ -219,6 +350,46 @@ export function buildBackToShynokKeyboard(): InlineKeyboard {
     .text("⬅️ До Шинку", makePlaceCallbackData("bar"))
     .row()
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
+}
+
+export function formatShynokOpenTableButtonLabel(
+  gameKey: TavernGameKey,
+  participantCount: number,
+  stakeGold: number
+): string {
+  const cap = gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
+  const label = gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
+  return `${label} · ${participantCount}/${cap} · ${stakeGold} зол.`;
+}
+
+function tavleiTacticButtonLabel(tactic: (typeof TAVLEI_TACTICS)[number]): string {
+  return {
+    careful_defense: "🛡 Обачна оборона",
+    quiet_trap: "🕯 Тиха пастка",
+    sharp_opening: "⚔️ Гострий дебют",
+    long_game: "⏳ Довга партія"
+  }[tactic];
+}
+
+function kostiDecisionButtonLabel(
+  style: (typeof KOSTI_STYLES)[number],
+  sign: (typeof KOSTI_SIGNS)[number]
+): string {
+  const styleLabel = {
+    steady: "✋",
+    push: "🔥",
+    sign_hunter: "✨"
+  }[style];
+  const signLabel = {
+    two_pairs: "2п",
+    triple: "3",
+    high_hand: "22+",
+    straight: "шлях",
+    tower: "вежа",
+    no_sign: "без"
+  }[sign];
+
+  return `${styleLabel} ${signLabel}`;
 }
 
 function buildShynokRaidRequiredKeyboard(): InlineKeyboard {

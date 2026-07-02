@@ -646,6 +646,10 @@ function getRecalculationProgress(
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "korchma.round.purchased":
+    case "tavern.game.played":
+    case "tavern.game.won":
+    case "tavern.game.lost":
+    case "tavern.game.drawn":
     case "item.gift.sent":
     case "item.gift.received":
     case "mantok.sale.completed":
@@ -742,6 +746,10 @@ function getRecalculationOccurredAt(
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "korchma.round.purchased":
+    case "tavern.game.played":
+    case "tavern.game.won":
+    case "tavern.game.lost":
+    case "tavern.game.drawn":
     case "item.gift.sent":
     case "item.gift.received":
     case "mantok.sale.completed":
@@ -828,6 +836,10 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "korchma.round.purchased":
+    case "tavern.game.played":
+    case "tavern.game.won":
+    case "tavern.game.lost":
+    case "tavern.game.drawn":
     case "item.gift.sent":
     case "item.gift.received":
     case "mantok.sale.completed":
