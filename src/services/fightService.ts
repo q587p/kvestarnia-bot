@@ -1930,14 +1930,6 @@ export class FightService {
 
     const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
 
-    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
-      return {
-        state: "level-retired",
-        character: characterSummary,
-        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
-      };
-    }
-
     const existingFight = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
       localDate
@@ -1953,6 +1945,14 @@ export class FightService {
         state: "already-completed",
         character: characterSummary,
         questAvailable: !existingAdventure
+      };
+    }
+
+    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      return {
+        state: "level-retired",
+        character: characterSummary,
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
       };
     }
 

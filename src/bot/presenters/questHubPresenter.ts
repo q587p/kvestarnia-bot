@@ -22,6 +22,7 @@ export interface QuestHubSnapshot {
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
+  starterFight?: Exclude<FightLookupResult, { state: "no-character" }>;
   problemQuest: ProblemQuestProgress;
   problemQuestArchive: ProblemQuestProgress[];
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
@@ -82,32 +83,26 @@ function presentAdventureRow(
 }
 
 function presentAdventureArchiveRows(
-  character: CharacterSummary,
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>,
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>
 ): string[] {
-  if (adventure.state === "ready") {
-    return [];
-  }
+  const rows: string[] = [];
 
   if (adventure.state === "already-completed") {
-    return [
+    rows.push(
       "🪧 <i>Три справи на найближчий час</i> — виконано; Корчмар поставив галочку і не визнає повторів."
-    ];
-  }
-
-  if (adventure.state === "active-fight" || adventure.state === "combat-blocked") {
-    return [];
-  }
-
-  const rows = [
-    `🪧 <i>Три справи на найближчий час</i> — відкриється з ${adventure.requiredLevel} рівня; у журналі немає позначки виконання.`
-  ];
-
-  if (
-    character.level <= STARTER_ACTIVITY_MAX_LEVEL &&
-    starterAdventure?.state === "already-completed"
+    );
+  } else if (
+    adventure.state !== "ready" &&
+    adventure.state !== "active-fight" &&
+    adventure.state !== "combat-blocked"
   ) {
+    rows.push(
+      `🪧 <i>Три справи на найближчий час</i> — відкриється з ${adventure.requiredLevel} рівня; у журналі немає позначки виконання.`
+    );
+  }
+
+  if (starterAdventure?.state === "already-completed") {
     rows.push("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
   }
 
@@ -204,6 +199,16 @@ function presentFightArchiveRow(
   }
 
   return null;
+}
+
+function presentStarterFightArchiveRow(
+  starterFight: Exclude<FightLookupResult, { state: "no-character" }> | undefined
+): string | null {
+  if (starterFight?.state !== "already-completed") {
+    return null;
+  }
+
+  return "⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.";
 }
 
 function presentProblemQuestArchiveRows(progresses: ProblemQuestProgress[]): string[] {
@@ -444,13 +449,15 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
 }
 
 function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
+  const starterFightArchiveRow = presentStarterFightArchiveRow(snapshot.starterFight);
   const rows = [
-    ...presentAdventureArchiveRows(snapshot.character, snapshot.adventure, snapshot.starterAdventure),
+    ...presentAdventureArchiveRows(snapshot.adventure, snapshot.starterAdventure),
     !meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL)
       ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)
       : null,
     ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
-    presentFightArchiveRow(snapshot.character, snapshot.fight),
+    starterFightArchiveRow,
+    starterFightArchiveRow ? null : presentFightArchiveRow(snapshot.character, snapshot.fight),
     ...presentYegerArchiveRows(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup),
     snapshot.dailyKorchmaRound?.state === "completed"

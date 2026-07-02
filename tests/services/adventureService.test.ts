@@ -681,6 +681,19 @@ describe("AdventureService", () => {
     });
   });
 
+  it("keeps completed starter shawarma visible after the choice loop opens", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 25 });
+    dailyActions.add(telegramUserId, {
+      key: MIMIC_SHAWARMA_ADVENTURE_KEY,
+      localDate: "2026-06-12"
+    });
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed"
+    });
+  });
+
   it("scales starter shawarma XP to most of the level-two gap after remort", async () => {
     const { service, characters } = setup();
     characters.add(telegramUserId, { level: 1, xp: 0, remortCount: 1 });

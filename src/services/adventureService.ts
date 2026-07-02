@@ -599,14 +599,6 @@ export class AdventureService {
     const equippedItems = await this.getEquippedItemContents(telegramUserId);
     const characterSummary = summarizeCharacter(character, { equippedItems });
 
-    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
-      return {
-        state: "level-retired",
-        character: characterSummary,
-        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
-      };
-    }
-
     const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate
@@ -622,6 +614,14 @@ export class AdventureService {
         state: "already-completed",
         character: characterSummary,
         fightAvailable: !existingFight
+      };
+    }
+
+    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      return {
+        state: "level-retired",
+        character: characterSummary,
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
       };
     }
 

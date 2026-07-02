@@ -861,6 +861,73 @@ describe("quest hub command", () => {
     ]);
   });
 
+  it("keeps completed starter shawarma and first fight in the archive after grownup unlocks", async () => {
+    const activeReplies: Array<{ text: string; options: unknown }> = [];
+    const archiveReplies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+    const services = servicesWith({
+      adventure: {
+        getAdventureOfferForTelegramUser: () =>
+          Promise.resolve({
+            state: "ready",
+            character: grownCharacter,
+            offer: adventureOffer
+          }),
+        getMimicShawarmaForTelegramUser: () =>
+          Promise.resolve({
+            state: "already-completed",
+            character: grownCharacter,
+            fightAvailable: false
+          }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
+      } as unknown as AdventureService,
+      fight: {
+        getProblemQuestProgressForTelegramUser: () =>
+          Promise.resolve({
+            state: "ready",
+            character: grownCharacter,
+            progress: questProgress(0),
+            archive: []
+          }),
+        getFightOverviewForTelegramUser: () =>
+          Promise.resolve({
+            state: "persistent-ready",
+            character: grownCharacter,
+            questProgress: questProgress(0)
+          }),
+        getMimicShawarmaForTelegramUser: () =>
+          Promise.resolve({
+            state: "already-completed",
+            character: grownCharacter,
+            questAvailable: false
+          }),
+        completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      } as unknown as FightService,
+      yeger: readyYegerService(grownCharacter),
+      cellarErrand: readyCellarService(grownCharacter)
+    });
+
+    await sendQuestHub(makeContext(activeReplies), services, "reply");
+    await sendQuestHub(makeContext(archiveReplies), services, "reply", "archive");
+
+    expect(activeReplies[0]?.text).toContain(
+      "🧾 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
+    );
+    expect(activeReplies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i>");
+    expect(activeReplies[0]?.text).not.toContain("⚔️ <i>Новачкова сутичка</i>");
+    const activeButtons = (
+      activeReplies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(activeButtons.map((button) => button.text)).toContain("🪜 До Низу");
+
+    expect(archiveReplies[0]?.text).toContain("📦 Архів справ");
+    expect(archiveReplies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
+    expect(archiveReplies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.");
+    expect(archiveReplies[0]?.text).not.toContain("🪜 <i>Низ</i> — сьогодні вже зараховано.");
+  });
+
   it("keeps the quest table problem button on the difficulty route without starting combat", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(3);

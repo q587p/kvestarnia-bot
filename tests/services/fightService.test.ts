@@ -306,6 +306,23 @@ describe("FightService", () => {
     });
   });
 
+  it("keeps completed starter fight visible after persistent fights unlock", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, MIMIC_SHAWARMA_COMBAT_PROBE_KEY);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      questAvailable: true
+    });
+  });
+
   it("does not duplicate another action after one option was claimed that date", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
