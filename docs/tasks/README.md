@@ -82,7 +82,7 @@ Active task:
 - [0.2.19-monster-trophies-yeger-gates.md](0.2.19-monster-trophies-yeger-gates.md) — concrete trophy coverage for every active monster and locked Yeger bandage supplies until the first Yeger board is completed.
 - [0.2.20-latest-events-feed.md](0.2.20-latest-events-feed.md) — lightweight `📜 Хроніки Квестарні` public activity feed for recent durable milestones.
 - [0.2.21-tavern-social-games.md](0.2.21-tavern-social-games.md) — flagged Shynok table-games foundation with Tavlei, Kosti and table-game leaderboard/achievements.
-- [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md) — craftable `Щільний бинт` and `Польова аптечка` after the second Yeger board, plus narrow solo-combat item restrictions.
+- [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md) — craftable `Щільний бинт` and `Польова аптечка` after the second Yeger board, narrow solo-combat item restrictions and rewardless first craft/use achievements.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.

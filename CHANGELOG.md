@@ -14,6 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added ordinary-bandage item-card craft actions for dense bandages at 8 ordinary bandages and field kits at 13 ordinary bandages, hidden while locked, in combat or below the required stack count.
 - Added backend craft preview/confirm callbacks that recheck character ownership, second-board completion, active combat absence and current ordinary-bandage quantity before mutating inventory.
 - Added solo-combat use support for the crafted items: dense bandages heal up to 42 HP and set a five-own-turn battle cooldown after successful use; field kits raise HP to at least 93% of max HP and can succeed once per battle.
+- Added rewardless achievements for first dense-bandage craft/use, first field-kit craft/use and first ordinary-bandage use in the Big Barrel raid.
 
 ### Changed
 - General item-use copy now refers to medical manatky instead of assuming every usable consumable is the ordinary bandage.
@@ -24,9 +25,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Successful crafting atomically decrements the ordinary bandage stack and grants exactly one crafted item without adding a Prisma migration.
 - Full-HP or above-threshold item uses are no-ops that do not consume items, set dense cooldowns or spend field-kit per-battle limits.
 - Direct stale pre-unlock, active-combat and insufficient-count craft callbacks fail closed without inventory mutation.
+- The new achievement records grant no XP, gold, items, titles, stats, combat power or paid advantage.
 
 ### Unchanged
-- Ordinary bandage healing, Yeger first-board bandage supply, shops, Social Games, Latest Events, Lore Board, Big Barrel combat design, achievements, titles, rewards, raids, trading and broad crafting are unchanged.
+- Ordinary bandage healing, Yeger first-board bandage supply, shops, Social Games, Latest Events, Lore Board, Big Barrel combat design, titles, rewards, raids, trading and broad crafting are unchanged.
 
 ## [0.2.21] - 12026-07-03 - Tavern Social Games
 

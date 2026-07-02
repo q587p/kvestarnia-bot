@@ -594,8 +594,11 @@ async function handleFightCallback(
         character: result.character
       });
     }
-    const achievementText = result.state === "updated" && result.fightReward
-      ? presentAchievementUnlockNotification(result.fightReward.achievementUnlocks ?? [])
+    const achievementText = result.state === "updated"
+      ? presentAchievementUnlockNotification([
+          ...(result.achievementUnlocks ?? []),
+          ...(result.fightReward?.achievementUnlocks ?? [])
+        ])
       : null;
     if (achievementText) {
       await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);

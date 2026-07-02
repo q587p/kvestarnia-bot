@@ -28,6 +28,7 @@ export const achievementTriggerTypes = [
   "combat.persistent.zero-gold-item-win",
   "problem.quest.completed",
   "item.received",
+  "item.crafted",
   "item.used",
   "equipment.item_equipped",
   "starter.mimic-shawarma.completed",
@@ -46,6 +47,7 @@ export const achievementTriggerTypes = [
   "duel.turnbased.resolved",
   "barrel.raid.claimed",
   "barrel.raid.lost",
+  "barrel.raid.bandage-used",
   "korchma.round.purchased",
   "tavern.game.played",
   "tavern.game.won",
@@ -813,6 +815,50 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.ninety-three-bandage-uses"
   },
   {
+    id: "achievement.bandage.dense-crafted",
+    category: "gear",
+    title: "Бинт набрався серйозности",
+    description: "уперше створити Щільний бинт і не назвати це ремеслом із паніки.",
+    hidden: false,
+    lockedDescription: "уперше створити Щільний бинт.",
+    sortOrder: 78.7,
+    status: "enabled",
+    trigger: { type: "item.crafted", itemId: "item.dense-bandage", threshold: 1 }
+  },
+  {
+    id: "achievement.bandage.dense-used",
+    category: "gear",
+    title: "Вузол тримався до кінця",
+    description: "уперше використати Щільний бинт у бою й дати рані коротку службову відпустку.",
+    hidden: false,
+    lockedDescription: "уперше використати Щільний бинт у бою.",
+    sortOrder: 78.72,
+    status: "enabled",
+    trigger: { type: "item.used", itemId: "item.dense-bandage", threshold: 1 }
+  },
+  {
+    id: "achievement.bandage.field-kit-crafted",
+    category: "gear",
+    title: "Аптечка визнала поле",
+    description: "уперше створити Польову аптечку й переконати бинти працювати командою.",
+    hidden: false,
+    lockedDescription: "уперше створити Польову аптечку.",
+    sortOrder: 78.74,
+    status: "enabled",
+    trigger: { type: "item.crafted", itemId: "item.field-kit", threshold: 1 }
+  },
+  {
+    id: "achievement.bandage.field-kit-used",
+    category: "gear",
+    title: "Польова медицина без поля",
+    description: "уперше використати Польову аптечку в бою й не питати, де тут медична комісія.",
+    hidden: false,
+    lockedDescription: "уперше використати Польову аптечку в бою.",
+    sortOrder: 78.76,
+    status: "enabled",
+    trigger: { type: "item.used", itemId: "item.field-kit", threshold: 1 }
+  },
+  {
     id: "achievement.yeger.free-bandage.first",
     category: "gear",
     title: "Єгер дав бинт і не моргнув",
@@ -1154,6 +1200,17 @@ export const achievements = [
     sortOrder: 126.5,
     status: "enabled",
     trigger: { type: "barrel.raid.lost", threshold: 1 }
+  },
+  {
+    id: "achievement.barrel.raid.bandage-used",
+    category: "weird",
+    title: "Бочка дозволила медицину",
+    description: "уперше використати Бинт відповідальної паніки проти Старшого Брата Бочки й не отримати письмової заборони.",
+    hidden: false,
+    lockedDescription: "уперше використати бинт у рейді проти Старшого Брата Бочки.",
+    sortOrder: 126.7,
+    status: "enabled",
+    trigger: { type: "barrel.raid.bandage-used", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.first",

@@ -424,6 +424,12 @@ async function handleItemCraftCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemCraftResultKeyboard()
   });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "crafted" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }
 
 async function hasCombatUseActionForItemId(

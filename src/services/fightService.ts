@@ -363,6 +363,7 @@ export type PersistentFightTurnResult =
       monster: MonsterContent;
       questProgress: ThirteenSmallProblemsProgress;
       fightReward: PersistentFightReward | null;
+      achievementUnlocks?: AchievementUnlock[];
     }
   | {
       state: "terminal";
@@ -2716,6 +2717,14 @@ export class FightService {
         : null;
 
     const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const achievementUnlocks =
+      (await this.achievements?.trackEventSafely({
+        type: "item.used",
+        characterId: currentSession.characterId,
+        itemId: combatItem.item.id,
+        occurredAt: this.clock(),
+        sourceId: `${updated.id}:turn:${input.turn}:item:${combatItem.item.id}`
+      })) ?? [];
 
     return {
       state: "updated",
@@ -2723,7 +2732,8 @@ export class FightService {
       session: updated,
       monster,
       questProgress: refreshedQuestProgress,
-      fightReward
+      fightReward,
+      achievementUnlocks
     };
   }
 

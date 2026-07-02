@@ -9,15 +9,23 @@ import type {
   ItemCraftPreviewRepositoryResult,
   ItemCraftRepository
 } from "../db/repositories/itemCraftRepository";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 
 export interface ItemCraftOption {
   recipe: ItemCraftRecipe;
 }
 
+export type ItemCraftConfirmResult =
+  | Exclude<ItemCraftConfirmRepositoryResult, { state: "crafted" }>
+  | (Extract<ItemCraftConfirmRepositoryResult, { state: "crafted" }> & {
+      achievementUnlocks?: AchievementUnlock[];
+    });
+
 export class ItemCraftService {
   constructor(
     private readonly repository: ItemCraftRepository,
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly achievements?: AchievementService
   ) {}
 
   async getCraftOptionsForTelegramUser(
@@ -54,15 +62,34 @@ export class ItemCraftService {
   async craftForTelegramUser(
     telegramUserId: bigint,
     recipeCode: string
-  ): Promise<ItemCraftConfirmRepositoryResult> {
+  ): Promise<ItemCraftConfirmResult> {
     const recipe = findItemCraftRecipeByCode(recipeCode);
+    const now = this.now();
 
-    return recipe
-      ? this.repository.craftForTelegramUser(telegramUserId, {
+    const result: ItemCraftConfirmRepositoryResult = recipe
+      ? await this.repository.craftForTelegramUser(telegramUserId, {
           recipe,
           itemContents: items,
-          now: this.now()
+          now
         })
       : { state: "locked" };
+
+    if (result.state !== "crafted") {
+      return result;
+    }
+
+    const achievementUnlocks =
+      (await this.achievements?.trackEventSafely({
+        type: "item.crafted",
+        characterId: result.character.id,
+        itemId: result.outputItem.id,
+        occurredAt: now,
+        sourceId: `${result.recipe.id}:${result.outputItem.id}`
+      })) ?? [];
+
+    return {
+      ...result,
+      achievementUnlocks
+    };
   }
 }

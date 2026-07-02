@@ -34,7 +34,7 @@ export interface PartyBossSessionRecord {
 }
 
 export interface PartyBossAchievementEventRecord {
-  type: "barrel.raid.claimed" | "barrel.raid.lost";
+  type: "barrel.raid.claimed" | "barrel.raid.lost" | "barrel.raid.bandage-used";
   characterId: string;
   sourceId: string;
   occurredAt: Date;

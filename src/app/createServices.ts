@@ -146,7 +146,7 @@ export function createServices(
       repositories.huntContracts
     ),
     inventory: new InventoryService(repositories.inventory),
-    itemCraft: new ItemCraftService(repositories.itemCraft),
+    itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),

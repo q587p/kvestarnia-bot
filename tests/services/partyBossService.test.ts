@@ -28,6 +28,12 @@ describe("PartyBossService achievements", () => {
           characterId: "character-joiner",
           sourceId: "boss-session-1",
           occurredAt
+        },
+        {
+          type: "barrel.raid.bandage-used",
+          characterId: "character-healer",
+          sourceId: "boss-action-1",
+          occurredAt
         }
       ]
     };
@@ -43,7 +49,7 @@ describe("PartyBossService achievements", () => {
 
     await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
 
-    expect(trackEventSafely).toHaveBeenCalledTimes(2);
+    expect(trackEventSafely).toHaveBeenCalledTimes(3);
     expect(trackEventSafely).toHaveBeenNthCalledWith(1, {
       type: "barrel.raid.claimed",
       characterId: "character-leader",
@@ -55,6 +61,12 @@ describe("PartyBossService achievements", () => {
       characterId: "character-joiner",
       occurredAt,
       sourceId: "boss-session-1"
+    });
+    expect(trackEventSafely).toHaveBeenNthCalledWith(3, {
+      type: "barrel.raid.bandage-used",
+      characterId: "character-healer",
+      occurredAt,
+      sourceId: "boss-action-1"
     });
   });
 

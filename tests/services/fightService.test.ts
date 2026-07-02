@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   ActivityEventPage,
   ActivityEventRecord,
@@ -57,6 +57,7 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import { ActivityEventService } from "../../src/services/activityEventService";
+import type { AchievementService } from "../../src/services/achievementService";
 import { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import {
   buildCenterBaselinePersistentFightWinXp,
@@ -2039,12 +2040,21 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.combatItemStacks.set("item.responsible-panic-bandage", 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.bandage.first-used",
+        title: "Паніка спрацювала за призначенням",
+        cosmeticTitleGrantId: null,
+        unlockedAt: fixedClock()
+      }
+    ]);
     const service = new FightService({
       characters,
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService
     });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
@@ -2063,6 +2073,21 @@ describe("FightService", () => {
     expect(sessions.consumedCombatItems).toEqual(["item.responsible-panic-bandage"]);
     expect(sessions.combatItemStacks.get("item.responsible-panic-bandage")).toBe(0);
     if (result.state === "updated") {
+      expect(result.achievementUnlocks).toEqual([
+        {
+          id: "achievement.bandage.first-used",
+          title: "Паніка спрацювала за призначенням",
+          cosmeticTitleGrantId: null,
+          unlockedAt: fixedClock()
+        }
+      ]);
+      expect(trackEventSafely).toHaveBeenCalledWith({
+        type: "item.used",
+        characterId: "character-42",
+        itemId: "item.responsible-panic-bandage",
+        occurredAt: fixedClock(),
+        sourceId: `${result.session.id}:turn:1:item:item.responsible-panic-bandage`
+      });
       expect(result.session.state?.turn).toBe(2);
       expect(result.session.state?.lastTurn).toMatchObject({
         action: "item",

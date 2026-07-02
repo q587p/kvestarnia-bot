@@ -50,6 +50,7 @@ const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
+const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
 
 class PartyBossItemUseRollback extends Error {
   constructor(readonly reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]) {
@@ -469,7 +470,20 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "not-found" };
       }
 
-      return { state: created ? "queued" : "duplicate", session: mapSession(current) };
+      return {
+        state: created ? "queued" : "duplicate",
+        session: mapSession(current),
+        ...(created && item.id === BANDAGE_ITEM_ID
+          ? {
+              achievementEvents: [{
+                type: "barrel.raid.bandage-used",
+                characterId: character.id,
+                sourceId: created.id,
+                occurredAt: input.now
+              }]
+            }
+          : {})
+      };
     }).catch(async (error: unknown): Promise<PartyBossActionResult> => {
       if (!(error instanceof PartyBossItemUseRollback)) {
         throw error;
@@ -489,7 +503,16 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
     if (inserted.state === "queued" || inserted.state === "duplicate") {
       const resolved = await this.resolveIfReady(inserted.session.id, "all-actions", input);
-      return resolved ? { state: "resolved", ...resolved } : inserted;
+      return resolved
+        ? {
+            state: "resolved",
+            ...resolved,
+            achievementEvents: [
+              ...(inserted.achievementEvents ?? []),
+              ...(resolved.achievementEvents ?? [])
+            ]
+          }
+        : inserted;
     }
 
     return inserted;
