@@ -126,7 +126,7 @@ export function presentTavernGameActionResult(result: {
     case "full":
       return "На жаль, за столом уже немає місця.";
     case "self-join":
-      return "У тавлеї потрібен суперник. Грати проти власної тіні корчмар дозволяє лише після опівночі.";
+      return "У тавлеї потрібен інший пригодник. Власна тінь уже відмовилась підписувати рівну ставку.";
     case "already-joined":
       return result.session ? presentTavernGameSession(result.session) : "Ви вже сидите за цим столом.";
     case "insufficient-gold":

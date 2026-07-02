@@ -47,6 +47,14 @@ describe("tavern game presenter", () => {
     expect(text).toContain("Спробуйте ще раз за 4 хвилини.");
   });
 
+  it("does not suggest a real midnight self-play mode for Tavlei", () => {
+    const text = presentTavernGameActionResult({ state: "self-join" });
+
+    expect(text).toContain("потрібен інший пригодник");
+    expect(text).toContain("Власна тінь");
+    expect(text).not.toContain("опівноч");
+  });
+
   it("shows tavern game leaderboard for day week and month", () => {
     const text = presentTavernGameLeaderboard({
       state: "ready",

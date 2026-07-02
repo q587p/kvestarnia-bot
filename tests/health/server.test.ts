@@ -83,7 +83,7 @@ describe("health server", () => {
     expect(text).toContain("У грі вже підготовлено");
     expect(text).toContain("рівні ставки між гравцями");
     expect(text).toContain("автоматичні результати");
-    expect(text).toContain("Ще не відчинено публічно");
+    expect(text).toContain("Якщо в шинку видно");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
