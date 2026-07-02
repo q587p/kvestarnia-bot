@@ -270,11 +270,12 @@ async function handleShynokCallback(
 
   if (action.type === "overview") {
     const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
+    const tavernGames = Boolean(services.tavernGames?.isEnabled());
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
-    await safeEditMessageText(ctx, presentShynokOverview(result), {
+    await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready"
-        ? buildShynokOverviewKeyboard(result, { tavernGames: Boolean(services.tavernGames?.isEnabled()) })
+        ? buildShynokOverviewKeyboard(result, { tavernGames })
         : buildBackToShynokKeyboard()
     });
     return;

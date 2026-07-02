@@ -65,7 +65,7 @@ describe("tavern game presenter", () => {
     });
 
     expect(text).toContain("🏆 Рейтинг ігор за столом");
-    expect(text).toContain("Корчмар рахує завершені Тавлеї та Кості");
+    expect(text).toContain("Корчмар рахує завершені тавлеї та кості");
     expect(text).toContain("<b>За добу</b>:");
     expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;стіл&gt;»</i>) — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не дограв");

@@ -22,7 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added source task, design, balance, QA and Ukrainian copy docs under `docs/ai/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.
 
 ### Changed
-- The Korchma bar keyboard can show `🎲 Ігри за столом` only when the new feature flags are enabled; default production behavior remains unchanged.
+- The Korchma bar text and keyboard can show the table-games corner only when the new feature flags are enabled; default production behavior remains unchanged.
 - `👀 Хто поруч` in the Shynok now lists open tavern game tables and includes the same join callbacks when tavern games are enabled.
 - Tavern game joins, decisions, resolves and safe refunds now send fresh private table cards to the other seated participants so Tavlei and Kosti cards do not stay stuck on stale waiting states.
 - Tavern game create cooldown copy now explicitly says the player is waiting for a new-table creation pause, not an already-open table, and shows the remaining minutes when available.

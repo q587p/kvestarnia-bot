@@ -248,6 +248,7 @@ export function presentKorchmaBar(
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
     bardPerformance?: boolean;
+    tavernGames?: boolean;
   } = {}
 ): string {
   const actionLines = presentKorchmaBarActionLines(options);
@@ -282,6 +283,7 @@ function presentKorchmaBarActionLines(options: {
   includeBottleTurnIn?: boolean;
   problemQuestAction?: "turn-in" | "take" | "next";
   bardPerformance?: boolean;
+  tavernGames?: boolean;
 }): string[] {
   const lines: string[] = [];
 
@@ -303,6 +305,10 @@ function presentKorchmaBarActionLines(options: {
 
   if (options.includeBottleTurnIn) {
     lines.push("За стійкою є місце для пляшки з льоху: Корчмар приймає такі речі не відходячи від журналу.");
+  }
+
+  if (options.tavernGames) {
+    lines.push("У кутку скрипить ігровий стіл: тавлеї й кості чекають охочих виглядати спокійно.");
   }
 
   return lines.length > 0 ? ["", ...lines] : [];

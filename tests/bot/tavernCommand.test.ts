@@ -284,6 +284,7 @@ describe("tavern command screens", () => {
     );
 
     expect(replies[0]?.text).toContain("🍻 Шинок");
+    expect(replies[0]?.text).toContain("тавлеї й кості чекають");
     expect(replies[0]?.options).toMatchObject({
       reply_markup: {
         inline_keyboard: [

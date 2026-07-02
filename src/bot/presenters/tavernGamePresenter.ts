@@ -78,7 +78,7 @@ export function presentTavernGameLeaderboard(result: {
   return [
     "🏆 Рейтинг ігор за столом",
     "",
-    "Корчмар рахує завершені Тавлеї та Кості. Нагород тут немає, зате є крейда, яка все бачила.",
+    "Корчмар рахує завершені тавлеї та кості. Нагород тут немає, зате є крейда, яка все бачила.",
     "",
     ...presentLeaderboardSection("За добу", result.leaderboard.day, shownTitleCharacterIds),
     "",

@@ -85,6 +85,21 @@ describe("shynokPresenter", () => {
     expect(html).not.toContain("&lt;i&gt;Шинкова Тестерка&lt;/i&gt;");
     expect(html).not.toContain("<b>Дара</b>");
     expect(html).not.toContain("<i>Шинкова Тестерка</i>");
+    expect(html).not.toContain("ігровий стіл");
+  });
+
+  it("mentions table games on the shynok overview only when enabled", () => {
+    const result: ShynokOverviewResult = {
+      state: "ready",
+      character,
+      activeDrink: null,
+      openRoundOffers: []
+    };
+
+    expect(presentShynokOverview(result)).not.toContain("ігровий стіл");
+    expect(presentShynokOverview(result, { tavernGames: true })).toContain(
+      "тавлеї й кості чекають"
+    );
   });
 
   it("shows current gold on the self-drink menu", () => {
