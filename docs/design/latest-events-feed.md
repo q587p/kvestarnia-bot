@@ -173,6 +173,11 @@ class ActivityEventService {
 
 `recordSafely` must not break the primary gameplay action. If activity logging fails, the player should still receive their level, reward, item, raid settlement or combat result.
 
+Operational checks live outside the player UI:
+
+- `npm run maintenance:backfill-activity-events` dry-runs/applies reconstructable archival public rows.
+- `npm run maintenance:poll-activity-events` reads the current public ledger without mutation; `--watch --interval=13` keeps polling for newly seen rows.
+
 ## Dedupe keys
 
 Use terminal source ids:

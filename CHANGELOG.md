@@ -13,6 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added durable `ActivityEvent` persistence with a Prisma migration, repository and service APIs for deduped `record`, best-effort `recordSafely` and bounded `listRecent` reads.
 - Added the `📜 Хроніки Квестарні` feed with compact `v1:ev:*` callbacks, filters and pagination from the Korchma board/news surface.
 - Added a dry-run-first `maintenance:backfill-activity-events` script for one-time archival feed rows that can be reconstructed from durable tables.
+- Added a read-only `maintenance:poll-activity-events` script for checking/polling the latest public `ActivityEvent` rows from the current `DATABASE_URL`.
 - Added public activity emission for new characters, configured level milestones, Big Barrel Brother terminal victories, rare/epic manatky and underdog combat victories.
 - Added the rewardless `achievement.journey.latest-events-opened` achievement for first opening/reading `📜 Хроніки Квестарні`.
 - Added focused service, callback, presenter, board routing, character creation, reward and Big Barrel Brother emission coverage.

@@ -28,6 +28,7 @@
     "maintenance:cleanup-remort-daily-actions": "ts-node scripts/cleanup-remort-daily-actions.ts",
     "maintenance:cleanup-remort-yeger-actions": "ts-node scripts/cleanup-remort-daily-actions.ts --yeger-only",
     "maintenance:backfill-activity-events": "ts-node scripts/backfill-activity-events.ts",
+    "maintenance:poll-activity-events": "ts-node scripts/poll-activity-events.ts",
     "maintenance:repair-character-resources": "ts-node scripts/repair-character-resources.ts",
     "check": "npm run lint && npm run typecheck && npm run build && npm run test:ci"
   },
