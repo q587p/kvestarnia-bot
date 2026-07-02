@@ -256,7 +256,7 @@ export type ProblemQuestProgressLookupResult =
 export type FightLookupResult =
   | { state: "no-character" }
   | ({ state: "combat-blocked"; character: CharacterSummary } & RecoveryNoticeField)
-  | ({ state: "level-retired"; character: CharacterSummary; maxLevel: number } & RecoveryNoticeField)
+  | ({ state: "level-retired"; character: CharacterSummary; maxLevel: number; completed?: boolean } & RecoveryNoticeField)
   | ({ state: "needs-rest"; character: CharacterSummary } & RecoveryNoticeField)
   | ({
       state: "persistent-not-issued";
@@ -1949,10 +1949,15 @@ export class FightService {
     }
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      const historicalFights = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+        key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+      });
+
       return {
         state: "level-retired",
         character: characterSummary,
-        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL,
+        completed: Boolean(historicalFights?.length)
       };
     }
 

@@ -190,7 +190,7 @@ export type AdventureLookupResult =
 
 export type MimicShawarmaLookupResult =
   | { state: "no-character" }
-  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number; completed?: boolean }
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; fightAvailable: boolean };
 
@@ -618,10 +618,15 @@ export class AdventureService {
     }
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      const historicalAdventures = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+        key: MIMIC_SHAWARMA_ADVENTURE_KEY
+      });
+
       return {
         state: "level-retired",
         character: characterSummary,
-        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL,
+        completed: Boolean(historicalAdventures?.length)
       };
     }
 

@@ -875,9 +875,10 @@ describe("quest hub command", () => {
           }),
         getMimicShawarmaForTelegramUser: () =>
           Promise.resolve({
-            state: "already-completed",
+            state: "level-retired",
             character: grownCharacter,
-            fightAvailable: false
+            maxLevel: 2,
+            completed: true
           }),
         completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
       } as unknown as AdventureService,
@@ -897,9 +898,10 @@ describe("quest hub command", () => {
           }),
         getMimicShawarmaForTelegramUser: () =>
           Promise.resolve({
-            state: "already-completed",
+            state: "level-retired",
             character: grownCharacter,
-            questAvailable: false
+            maxLevel: 2,
+            completed: true
           }),
         completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
       } as unknown as FightService,
@@ -923,9 +925,71 @@ describe("quest hub command", () => {
     expect(activeButtons.map((button) => button.text)).toContain("🪜 До Низу");
 
     expect(archiveReplies[0]?.text).toContain("📦 Архів справ");
-    expect(archiveReplies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
-    expect(archiveReplies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.");
+    expect(archiveReplies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — виконано; соус досі числиться як свідок.");
+    expect(archiveReplies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — виконано; перший висновок вижив у журналі.");
     expect(archiveReplies[0]?.text).not.toContain("🪜 <i>Низ</i> — сьогодні вже зараховано.");
+  });
+
+  it("keeps skipped starter shawarma and first fight in the archive after grownup unlocks", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: {
+          getAdventureOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              offer: adventureOffer
+            }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired",
+              character: grownCharacter,
+              maxLevel: 2,
+              completed: false
+            }),
+          completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
+        } as unknown as AdventureService,
+        fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: questProgress(0),
+              archive: []
+            }),
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready",
+              character: grownCharacter,
+              questProgress: questProgress(0)
+            }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired",
+              character: grownCharacter,
+              maxLevel: 2,
+              completed: false
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        yeger: readyYegerService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain(
+      "🌯 <i>Підозріла шаурма</i> — новачкова справа до 2 рівня; у журналі немає сліду виконання."
+    );
+    expect(replies[0]?.text).toContain(
+      "⚔️ <i>Новачкова сутичка</i> — навчальний бій для 1-2 рівнів; у журналі немає сліду виконання."
+    );
   });
 
   it("keeps the quest table problem button on the difficulty route without starting combat", async () => {

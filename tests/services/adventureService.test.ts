@@ -694,6 +694,21 @@ describe("AdventureService", () => {
     });
   });
 
+  it("keeps completed starter shawarma visible after the starter level gate closes", async () => {
+    const { service, characters, dailyActions } = setup();
+    characters.add(telegramUserId, { xp: 45 });
+    dailyActions.add(telegramUserId, {
+      key: MIMIC_SHAWARMA_ADVENTURE_KEY,
+      localDate: "2026-06-11"
+    });
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 2,
+      completed: true
+    });
+  });
+
   it("scales starter shawarma XP to most of the level-two gap after remort", async () => {
     const { service, characters } = setup();
     characters.add(telegramUserId, { level: 1, xp: 0, remortCount: 1 });
@@ -1349,6 +1364,21 @@ class FakeDailyActionRepository implements DailyActionRepository {
         action.key === input.key &&
         action.localDate.startsWith(input.localDatePrefix)
     ).length;
+  }
+
+  async listForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return [...this.actions.values()]
+      .filter((action) => action.characterId === character.id && action.key === input.key)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 }
 

@@ -323,6 +323,24 @@ describe("FightService", () => {
     });
   });
 
+  it("keeps completed starter fight visible after the starter level gate closes", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 45 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, MIMIC_SHAWARMA_COMBAT_PROBE_KEY, "2026-06-11");
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 2,
+      completed: true
+    });
+  });
+
   it("does not duplicate another action after one option was claimed that date", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
@@ -6043,6 +6061,21 @@ class FakeDailyActionRepository implements DailyActionRepository {
       rewardGold: 0,
       createdAt: new Date("2026-06-12T00:00:00.000Z")
     });
+  }
+
+  async listForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return [...this.actions.values()]
+      .filter((action) => action.characterId === character.id && action.key === input.key)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 }
 

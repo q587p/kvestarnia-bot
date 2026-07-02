@@ -37,7 +37,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/help` and the main `📖 Допомога` button now show the public command catalog again, while dev commands stay isolated in `/dev_help` and the `🧰 Адмінка` button.
 - Onboarding race selection now disables `Домовик` and `Русалка сухопутна` for `Вони`, so the biography-filter note corresponds to visible unavailable options.
 - The quest archive now keeps the completed first Yeger board `Неспокійні справи` visible while `Неспокійні справи 2.0` is active or completed.
-- The quest archive now keeps completed starter `Підозріла шаурма` and `Новачкова сутичка` entries visible after players level into the regular adventure and Nyz flows, while active starter entries stay on the quest table.
+- The quest archive now keeps completed or skipped starter `Підозріла шаурма` and `Новачкова сутичка` entries visible after players level into the regular adventure and Nyz flows, while active starter entries stay on the quest table.
 - The Yeger corner no longer shows the closed quest-detail button after the current Yeger board is completed.
 - `maintenance:poll-activity-events` now prints exact `db:deploy` / local `db:migrate` preflight commands when the current `DATABASE_URL` is missing the `ActivityEvent` table.
 - Empty `maintenance:poll-activity-events` output now explains that existing characters/items are not read directly and points operators to the archival backfill dry-run/apply flow.

@@ -104,6 +104,12 @@ function presentAdventureArchiveRows(
 
   if (starterAdventure?.state === "already-completed") {
     rows.push("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
+  } else if (starterAdventure?.state === "level-retired") {
+    rows.push(
+      starterAdventure.completed === true
+        ? "🌯 <i>Підозріла шаурма</i> — виконано; соус досі числиться як свідок."
+        : `🌯 <i>Підозріла шаурма</i> — новачкова справа до ${starterAdventure.maxLevel} рівня; у журналі немає сліду виконання.`
+    );
   }
 
   return rows;
@@ -204,11 +210,17 @@ function presentFightArchiveRow(
 function presentStarterFightArchiveRow(
   starterFight: Exclude<FightLookupResult, { state: "no-character" }> | undefined
 ): string | null {
-  if (starterFight?.state !== "already-completed") {
-    return null;
+  if (starterFight?.state === "already-completed") {
+    return "⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.";
   }
 
-  return "⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.";
+  if (starterFight?.state === "level-retired") {
+    return starterFight.completed === true
+      ? "⚔️ <i>Новачкова сутичка</i> — виконано; перший висновок вижив у журналі."
+      : `⚔️ <i>Новачкова сутичка</i> — навчальний бій для 1-${starterFight.maxLevel} рівнів; у журналі немає сліду виконання.`;
+  }
+
+  return null;
 }
 
 function presentProblemQuestArchiveRows(progresses: ProblemQuestProgress[]): string[] {
