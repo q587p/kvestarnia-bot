@@ -329,7 +329,8 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
 
         return {
           state: "recycled",
-          run: claimedRun
+          run: claimedRun,
+          characterDisplayName: snapshot.characterDisplayName
         };
       });
     } catch (error) {
@@ -377,7 +378,8 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
       }
     },
     select: {
-      id: true
+      id: true,
+      name: true
     }
   });
 
@@ -419,6 +421,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
 
   return {
     characterId: character.id,
+    characterDisplayName: character.name,
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [

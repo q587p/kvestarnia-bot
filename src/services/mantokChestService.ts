@@ -272,6 +272,7 @@ export class MantokChestService {
       const outputItems = presentRunItems(result.run.outputItems);
       const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
         characterId: result.run.characterId,
+        actorDisplayName: result.characterDisplayName,
         sourceId: result.run.id,
         sourceType: "mantok-chest",
         occurredAt: result.run.completedAt ?? result.run.updatedAt,

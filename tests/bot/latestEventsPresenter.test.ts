@@ -52,9 +52,9 @@ describe("latest events presenter", () => {
     expect(text).toContain("Вчора");
     expect(text).toContain("Новий пригодник у Квестарні: Арден!");
     expect(text).toContain("You®4ik бере 7 рівень!");
-    expect(text).toContain("Ватага здолала «Старший Брат Бочки»: 5 пригодників");
+    expect(text).toContain("Ватага: перемога. Ціль — «Старший Брат Бочки». У протоколі: 5 пригодників.");
     expect(text).toContain("Мудрий: рідкісна манатка — «Пляшка Пінного Міражу».");
-    expect(text).toContain("Пандочка: перемога над «Огрище», сильнішим на 6 рівнів.");
+    expect(text).toContain("Пандочка: перемога. Монстр — «Огрище», перевага рівнів: +6.");
   });
 
   it("escapes, truncates and falls back for dynamic names", () => {

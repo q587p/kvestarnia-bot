@@ -93,7 +93,7 @@ function renderEventRow(event: ActivityEventRecord): string {
     }
     case "party.raid_won": {
       const participantCount = readPayloadNumber(event.payload, "participantCount") ?? 1;
-      return `🏆 ${time} | Ватага здолала «${subject}»: ${participantCount} пригодників, 1 мокрий протокол.`;
+      return `🏆 ${time} | Ватага: перемога. Ціль — «${subject}». У протоколі: ${participantCount} пригодників.`;
     }
     case "item.rare_received": {
       const rarity = readPayloadString(event.payload, "rarity");
@@ -104,7 +104,7 @@ function renderEventRow(event: ActivityEventRecord): string {
     }
     case "combat.underdog_won": {
       const delta = readPayloadNumber(event.payload, "levelDelta") ?? 5;
-      return `🛡️ ${time} | ${actor}: перемога над «${subject}», сильнішим на ${delta} рівнів.`;
+      return `🛡️ ${time} | ${actor}: перемога. Монстр — «${subject}», перевага рівнів: +${delta}.`;
     }
     default:
       return `📌 ${time} | ${actor}: записано нову подію.`;
