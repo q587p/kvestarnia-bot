@@ -1,6 +1,6 @@
 {
   "name": "kvestarnia-bot",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "private": true,
   "description": "Квестарня — гумористична фентезі-РПҐ у Telegram.",
   "main": "dist/bot.js",
@@ -8,9 +8,15 @@
     "dev": "ts-node-dev --respawn --transpile-only src/bot.ts",
     "build": "prisma generate && tsc",
     "start": "node dist/bot.js",
-    "test": "vitest run",
+    "test": "npm run test:ci",
+    "test:unit": "vitest run --config vitest.unit.config.cjs",
+    "test:integration": "vitest run --config vitest.integration.config.cjs",
+    "test:ci": "npm run test:unit && npm run test:integration",
+    "test:changed": "vitest run --changed",
     "typecheck": "prisma generate && tsc --noEmit",
+    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "lint:scripts": "eslint \"scripts/backfill-activity-events.ts\" \"scripts/poll-activity-events.ts\"",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "node scripts/prisma-migrate-dev.cjs",
@@ -23,8 +29,10 @@
     "grant:gift": "ts-node scripts/grant-gift-campaign.ts",
     "maintenance:cleanup-remort-daily-actions": "ts-node scripts/cleanup-remort-daily-actions.ts",
     "maintenance:cleanup-remort-yeger-actions": "ts-node scripts/cleanup-remort-daily-actions.ts --yeger-only",
+    "maintenance:backfill-activity-events": "ts-node scripts/backfill-activity-events.ts",
+    "maintenance:poll-activity-events": "ts-node scripts/poll-activity-events.ts",
     "maintenance:repair-character-resources": "ts-node scripts/repair-character-resources.ts",
-    "check": "npm run lint && npm run typecheck && npm run build && npm test"
+    "check": "npm run lint && npm run lint:scripts && npm run typecheck && npm run typecheck:scripts && npm run build && npm run test:ci"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

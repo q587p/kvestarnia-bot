@@ -74,7 +74,7 @@ export function buildYegerCornerKeyboard(
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  if (result.state !== "level-locked") {
+  if (result.state !== "level-locked" && result.state !== "completed") {
     keyboard.text(`🏹 ${presentYegerQuestTitle(result.progress)}`, makeYegerQuestCallbackData()).row();
   }
 

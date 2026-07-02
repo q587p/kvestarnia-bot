@@ -74,6 +74,7 @@ class FakeMantokChestPrisma {
   private readonly shared = {
     character: {
       id: "character-1",
+      name: "Пані Скриня",
       telegramUserId
     },
     items: [
@@ -139,7 +140,7 @@ class FakeMantokChestPrisma {
           }
 
           return input.where.user.telegramUserId === this.shared.character.telegramUserId
-            ? { id: this.shared.character.id }
+            ? { id: this.shared.character.id, name: this.shared.character.name }
             : null;
         }
       },
@@ -305,7 +306,7 @@ class FakeMantokChestPrisma {
 
 interface FakeMantokChestTx {
   character: {
-    findFirst: (input: { where: { user: { telegramUserId: bigint } } }) => Promise<{ id: string } | null>;
+    findFirst: (input: { where: { user: { telegramUserId: bigint } } }) => Promise<{ id: string; name: string } | null>;
   };
   mantokChestRun: {
     findFirst: (input: { where: { id?: string; characterId?: string; token?: string } }) => Promise<FakeMantokChestRun | null>;

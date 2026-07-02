@@ -99,9 +99,21 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
+    expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);
+  });
+
+  it("adds the admin button to the main keyboard only when requested", () => {
+    const keyboard = buildMainMenuKeyboard({ includeAdmin: true });
+
+    expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
+      [mainMenuButtons.hero, mainMenuButtons.tavern],
+      [mainMenuButtons.quest, mainMenuButtons.inventory],
+      [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
+    ]);
+    expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
   });
 
   it("builds hero inline actions with achievements and optional full restore", () => {
@@ -327,6 +339,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildKorchmaNewsCornerKeyboard())).toEqual([
       "📰 Вісти",
+      "📣 Останні події",
       "📖 Перекази",
       "🎁 Подарувати манатку",
       "📮 Пошта Квестарні",
@@ -334,6 +347,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaNewsCornerKeyboard())).toEqual([
       "v1:news:list:0",
+      "v1:ev:l:all:0",
       "v1:lore:m",
       "v1:gift:open",
       "v1:post:open",
@@ -1948,6 +1962,17 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До справ", "🍺 До зали"]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
     expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:s:"))).toBe(false);
+  });
+
+  it("requires an explicit daily Korchma round start before issuing today's route", () => {
+    const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
+      state: "not-issued",
+      character,
+      dayToken: "20260628"
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🧾 Берусь за обхід", "🍺 Пізніше"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:dkr:b:20260628", "v1:place:quest-table"]);
   });
 
   it("routes daily Korchma round turn-in-ready overview back to the quest table before claiming", () => {

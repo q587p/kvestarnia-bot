@@ -14,14 +14,14 @@ export function registerHelpCommand(
   devResetService: DevResetService,
   devGrantService?: Pick<DevGrantService, "isEnabled">,
   options: HelpCommandOptions & {
-    partySessionService?: Pick<PartySessionService, "isEnabled"> | undefined;
+    partySessionService?: Pick<PartySessionService, "areDevHelpersEnabled"> | undefined;
   } = {}
 ): void {
   bot.command("help", async (ctx) => {
     await ctx.reply(presentHelp({
       includeDevReset: devResetService.isEnabled(),
       includeDevGrant: devGrantService?.isEnabled() ?? false,
-      includePartySessions: options.partySessionService?.isEnabled() ?? false
+      includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: options.buildMainMenuKeyboard
         ? await options.buildMainMenuKeyboard(ctx)
@@ -33,7 +33,7 @@ export function registerHelpCommand(
     await ctx.reply(presentDevHelp({
       includeDevReset: devResetService.isEnabled(),
       includeDevGrant: devGrantService?.isEnabled() ?? false,
-      includePartySessions: options.partySessionService?.isEnabled() ?? false
+      includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false
     }));
   });
 }

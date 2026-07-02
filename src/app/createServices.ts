@@ -1,6 +1,7 @@
 import type { BotServices } from "../bot/botServices";
 import type { AppConfig } from "../config/env";
 import { readAppVersion } from "../shared/appVersion";
+import { ActivityEventService } from "../services/activityEventService";
 import { AchievementService } from "../services/achievementService";
 import { AdventureService } from "../services/adventureService";
 import { BardPerformanceService } from "../services/bardPerformanceService";
@@ -44,6 +45,8 @@ export function createServices(
   repositories: ApplicationRepositories,
   config: AppConfig
 ): ApplicationServices {
+  const nonProduction = config.nodeEnv !== "production";
+  const activityEvents = new ActivityEventService(repositories.activityEvents);
   const achievements = new AchievementService(repositories.achievements);
   const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
     repositories.combatBalanceAnalytics,
@@ -57,7 +60,8 @@ export function createServices(
     combatAnalytics: combatBalanceAnalytics,
     pendingPassageEncounters: repositories.pendingPassageEncounters,
     shynok: repositories.shynok,
-    achievements
+    achievements,
+    activityEvents
   });
   const presence = new PresenceService(repositories.presence);
   const tavern = new TavernRaidService(
@@ -68,6 +72,7 @@ export function createServices(
   );
 
   return {
+    activityEvents,
     achievements,
     adventure: new AdventureService(
       repositories.characters,
@@ -75,7 +80,8 @@ export function createServices(
       undefined,
       repositories.soloCombatSessions,
       repositories.equipment,
-      achievements
+      achievements,
+      activityEvents
     ),
     bardPerformance: new BardPerformanceService(repositories.bardPerformances),
     barrelRaidNotifications: repositories.barrelRaidNotifications,
@@ -91,7 +97,8 @@ export function createServices(
       presence,
       fight,
       tavern,
-      achievements
+      achievements,
+      activityEvents
     ),
     deployNotifications: new DeployNotificationService(repositories.users, {
       enabled: config.deployNotificationsEnabled,
@@ -137,22 +144,21 @@ export function createServices(
     inventory: new InventoryService(repositories.inventory),
     itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
-    levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements),
+    levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, activityEvents),
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
-    mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements),
-    onboarding: new OnboardingService(repositories.users, repositories.characters, achievements),
+    mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, activityEvents),
+    onboarding: new OnboardingService(repositories.users, repositories.characters, achievements, activityEvents),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
-      enabled: config.nodeEnv !== "production" ||
-        config.partySessionDevHelpersEnabled ||
+      enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
-    }, undefined, achievements),
+      devHelpersEnabled: nonProduction
+    }, undefined, achievements, activityEvents),
     partySessions: new PartySessionService(repositories.partySessions, {
-      enabled: config.nodeEnv !== "production" ||
+      enabled: nonProduction ||
         config.partySessionFoundationEnabled ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled,
+      devHelpersEnabled: nonProduction,
       bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
     }),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
@@ -186,7 +192,8 @@ export function createServices(
       repositories.cooldowns,
       undefined,
       undefined,
-      achievements
+      achievements,
+      activityEvents
     )
   };
 }

@@ -1,113 +1,91 @@
 # Docs Index
 
-Цей індекс допомагає швидко знайти актуальне джерело правди в документації Квестарні. README лишається public-facing вітриною; докладні runbook-и, дизайн-рішення й плани живуть тут.
+Це вхід у документацію Квестарні. Root [`README.md`](../README.md) лишається public-facing вітриною: що це за гра, чому вона цікава і як її спробувати. Усі runbook-и, дизайн-рішення, задачі, audit-пакети й Codex workflow живуть тут.
 
+Документація тепер навігується за роллю:
 
-## AI / Codex workflow
+- [`DOCUMENTATION_STRUCTURE.md`](DOCUMENTATION_STRUCTURE.md) — правила структури, категорій, назв і безпечних `git mv`.
+- [`product/README.md`](product/README.md) — продукт, бренд, позиціонування, roadmap і публічна поверхня.
+- [`design/README.md`](design/README.md) — game design, content, термінологія, монстри, квести, лут, досягнення.
+- [`architecture/README.md`](architecture/README.md) — технічний дизайн, безпека, persistence, sessions і future architecture notes.
+- [`operations/README.md`](operations/README.md) — локальний запуск, smoke/playtesting, support jar і runtime runbooks.
+- [`ai/README.md`](ai/README.md) — Codex context, prompt policy, prompt library і agent workflow.
+- [`tasks/README.md`](tasks/README.md) — versioned task docs, активний slice, shipped records і drafts.
+- [`backlog/README.md`](backlog/README.md) — future ideas, deferred loops і not-yet-active planning.
+- [`history/README.md`](history/README.md) — phase closeouts, release notes і historical planning docs.
 
-- [ai/context.md](ai/context.md) — compact context pack for Codex; keep it under 250 lines.
-- [ai/rules-for-future.md](ai/rules-for-future.md) — durable token-economy workflow rules.
-- [ai/prompts/main-new-version-thread.md](ai/prompts/main-new-version-thread.md) — short startup prompt for a fresh main Codex thread.
-- [ai/prompts/second-codex-pr-review.md](ai/prompts/second-codex-pr-review.md) — read-only second Codex PR review prompt; changed files only by default.
-- [ai/prompts/phase2-closeout-main-codex.md](ai/prompts/phase2-closeout-main-codex.md) — main Codex prompt for the `0.1.25` Phase 2 MVP closeout task.
-- [ai/prompts/phase2-regression-audit.md](ai/prompts/phase2-regression-audit.md) — read-only audit prompt for the Phase 2 regression smoke.
-- [ai/prompts/safe-gifting-main-codex.md](ai/prompts/safe-gifting-main-codex.md) — first `0.2.x` implementation prompt for Safe Gifting MVP.
-- [ai/prompts/player-abilities-registry-main-codex.md](ai/prompts/player-abilities-registry-main-codex.md) — main Codex prompt for the `0.2.7` Player Abilities Registry / MVP slice.
-- [ai/prompts/daily-korchma-rounds-main-codex.md](ai/prompts/daily-korchma-rounds-main-codex.md) — future implementation prompt for the daily `Корчмарський обхід` route.
-- [ai/prompts/raid-party-session-foundation-main-codex.md](ai/prompts/raid-party-session-foundation-main-codex.md) — future party-session foundation prompt; use only when that docs-only planning slice becomes active.
-- [ai/prompts/big-barrel-brother-group-raid-main-codex.md](ai/prompts/big-barrel-brother-group-raid-main-codex.md) — future Big Barrel Brother group raid prompt after the party-session foundation exists.
-- [ai/prompts/big-barrel-brother-balance-review.md](ai/prompts/big-barrel-brother-balance-review.md) — future balance review prompt for the Big Barrel Brother planning package.
-- [ai/prompts/big-barrel-brother-group-raid-readonly-review.md](ai/prompts/big-barrel-brother-group-raid-readonly-review.md) — future read-only review prompt for the Big Barrel Brother planning package.
-- [tasks/README.md](tasks/README.md) — version task doc convention and templates.
+## Start here by need
 
-## Canonical project docs
+| Потреба | Відкрити |
+| --- | --- |
+| Зрозуміти, що таке Квестарня | [`../README.md`](../README.md), [`PRODUCT_BRIEF.md`](PRODUCT_BRIEF.md), [`GAME_DESIGN.md`](GAME_DESIGN.md) |
+| Перевірити бренд, voice або public wording | [`BRAND.md`](BRAND.md), [`CONTENT_STYLE_GUIDE.md`](CONTENT_STYLE_GUIDE.md), [`TERMINOLOGY.md`](TERMINOLOGY.md) |
+| Запустити локально або дебажити runtime | [`DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md), [`LOCAL_BOT_RUNTIME.md`](LOCAL_BOT_RUNTIME.md), [`PLAYTESTING.md`](PLAYTESTING.md) |
+| Дати Codex задачу або prompt | [`CODEX_WORKFLOW.md`](CODEX_WORKFLOW.md), [`ai/CODEX_PROMPT_POLICY.md`](ai/CODEX_PROMPT_POLICY.md), [`ai/context.md`](ai/context.md), [`tasks/README.md`](tasks/README.md) |
+| Знайти актуальний task slice | [`tasks/README.md`](tasks/README.md) |
+| Поняти roadmap / phase state | [`ROADMAP.md`](ROADMAP.md), [`phase2/SOCIAL_COMBAT_PLAN.md`](phase2/SOCIAL_COMBAT_PLAN.md), [`PHASE2_DEFERRED_0_2.md`](PHASE2_DEFERRED_0_2.md) |
+| Перевірити баланс, fair play або abuse boundaries | [`BALANCE_NOTES.md`](BALANCE_NOTES.md), [`SECURITY_AND_FAIR_PLAY.md`](SECURITY_AND_FAIR_PLAY.md) |
+| Знайти future backlog | [`backlog/README.md`](backlog/README.md), [`PHASE2_DEFERRED_0_2.md`](PHASE2_DEFERRED_0_2.md), [`tasks/README.md`](tasks/README.md) |
 
-- [BRAND.md](BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
-- [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md) — позиціонування, аудиторія, USP і MVP scope.
-- [GAME_DESIGN.md](GAME_DESIGN.md) — core loop, персонаж, бій, прогресія й майбутні соціяльні механіки.
-- [CONTENT_STYLE_GUIDE.md](CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки й формат Telegram-повідомлень.
-- [TERMINOLOGY.md](TERMINOLOGY.md) — канонічні назви сутностей і місць: пригодник/персонаж/герой, Низ, Сутерени Корчми, Спуск і Зіґурат.
-- [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) — архітектура, дані, callbacks, deployment і технічні борги.
-- [BALANCE_NOTES.md](BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
-- [QUEST_RESOLUTION_VARIETY.md](QUEST_RESOLUTION_VARIETY.md) — authored quest methods, result grades, costs and idempotent reward ledger for Adventure Choice, starter shawarma and cellar mouse.
-- [QUEST_SKILLS_AND_CHECKS.md](QUEST_SKILLS_AND_CHECKS.md) — deterministic quest-resolution check math, technique vocabulary and qualitative chance bands.
-- [QUEST_RESOLUTION_CONTENT_SEEDS.md](QUEST_RESOLUTION_CONTENT_SEEDS.md) — minimum authored content direction for general, generated and starter quest-resolution scenes.
-- [NONCOMBAT_TECHNIQUES.md](NONCOMBAT_TECHNIQUES.md) — class/race/signature non-combat technique planning plus the shipped `0.2.5` Bard Performance proof in Shynok.
-- [PLAYER_IDENTITY_ABILITIES.md](PLAYER_IDENTITY_ABILITIES.md) — реєстр current/planned расових, класових і титульних бойових та соціяльних абілок.
-- [ACHIEVEMENTS_CATALOG.md](ACHIEVEMENTS_CATALOG.md) — shipped `0.2.8` rewardless achievement catalog, trigger contract, secret entries and not-yet-countable ledger notes.
-- [DAILY_KORCHMA_ROUNDS.md](DAILY_KORCHMA_ROUNDS.md) — canonical future design for the daily `Корчмарський обхід` route; not shipped until its task is activated.
-- [LOOT_EXPANSION_CANONICAL_IDS.md](LOOT_EXPANSION_CANONICAL_IDS.md) — adapter boundary для generated loot: canonical class/race ids, title-gate surrogates і equipability filtering.
-- [PROBLEM_QUEST_CHAIN_REFERENCES.md](PROBLEM_QUEST_CHAIN_REFERENCES.md) — внутрішні reference notes для корчмарського ланцюжка `13 -> 23 -> 42 -> 93`.
-- [ROADMAP.md](ROADMAP.md) — фази розвитку й Definition of Done.
-- [SECURITY_AND_FAIR_PLAY.md](SECURITY_AND_FAIR_PLAY.md) — приватність, антиаб’юз, idempotency і чесна гра.
-- [SUPPORT_JAR_BACKLOG.md](SUPPORT_JAR_BACKLOG.md) — добровільна «Банка підтримки», `/support`, deep link подяки й no-advantage guardrails.
-- [SUPPORT_JAR_LIVE_STATUS.md](SUPPORT_JAR_LIVE_STATUS.md) — майбутній read-only live status Банки через Monobank API без donor state, payment confirmation або ігрових переваг.
-- [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) — локальний запуск, Prisma, Render, scripts і troubleshooting.
-- [PLAYTESTING.md](PLAYTESTING.md) — ручний smoke test поточного playable loop.
-- [PLAYTESTING-daily-korchma-rounds-addendum.md](PLAYTESTING-daily-korchma-rounds-addendum.md) — future manual QA addendum for `Корчмарський обхід`, to merge into `PLAYTESTING.md` when activated.
-- [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.
+## Canonical sources of truth
 
-## Codex workflow assets
+These stay high-signal and should be updated when the feature they describe changes:
 
-- [tasks/README.md](tasks/README.md) — версійний task registry, шаблони й архів виконаних slice-ів.
-- [ai/context.md](ai/context.md) — стислий контекст для нових Codex-сесій.
-- [ai/prompts/](ai/prompts/) — готові prompts для основного агента, QA, review і release handoff.
-- [ai/CODEX_TOKEN_ECONOMY_APPLIED.md](ai/CODEX_TOKEN_ECONOMY_APPLIED.md) — коротка нотатка про практичну економію токенів у workflow.
+- [`BRAND.md`](BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
+- [`PRODUCT_BRIEF.md`](PRODUCT_BRIEF.md) — позиціонування, аудиторія, USP і MVP scope.
+- [`GAME_DESIGN.md`](GAME_DESIGN.md) — core loop, персонаж, бій, прогресія й майбутні соціяльні механіки.
+- [`CONTENT_STYLE_GUIDE.md`](CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки й формат Telegram-повідомлень.
+- [`TERMINOLOGY.md`](TERMINOLOGY.md) — канонічні назви сутностей і місць.
+- [`ROADMAP.md`](ROADMAP.md) — фази розвитку й Definition of Done.
+- [`TECHNICAL_PLAN.md`](TECHNICAL_PLAN.md) — архітектура, дані, callbacks, deployment і технічні борги.
+- [`BALANCE_NOTES.md`](BALANCE_NOTES.md) — формули, економіка, RNG і balance guardrails.
+- [`SECURITY_AND_FAIR_PLAY.md`](SECURITY_AND_FAIR_PLAY.md) — приватність, антиаб’юз, idempotency і чесна гра.
+- [`DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md) — локальний запуск, Prisma, Render, scripts і troubleshooting.
+- [`PLAYTESTING.md`](PLAYTESTING.md) — ручний smoke test поточного playable loop.
+- [`CODEX_WORKFLOW.md`](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.
+- [`ai/context.md`](ai/context.md) — compact context pack for Codex; keep it under 250 lines.
+- [`ai/CODEX_PROMPT_POLICY.md`](ai/CODEX_PROMPT_POLICY.md) — durable prompt/integration policy.
+- [`tasks/README.md`](tasks/README.md) — version task convention and task registry.
 
-## Refactoring audit package
+## Gameplay, content and systems references
 
-- [refactoring-audit/README.md](refactoring-audit/README.md) — imported `12026-06-27` audit package with analysis, docs, prompts, task candidates and a machine-readable Codex task board.
+- [`BESTIARY.md`](BESTIARY.md), [`MONSTER_LOOT_DROPS.md`](MONSTER_LOOT_DROPS.md), [`MONSTER_FLAVOR_ROUTING.md`](MONSTER_FLAVOR_ROUTING.md), [`MONSTER_ENCOUNTER_AUTHORING_GUIDE.md`](MONSTER_ENCOUNTER_AUTHORING_GUIDE.md) — monster/content references.
+- [`QUEST_RESOLUTION_VARIETY.md`](QUEST_RESOLUTION_VARIETY.md), [`QUEST_SKILLS_AND_CHECKS.md`](QUEST_SKILLS_AND_CHECKS.md), [`QUEST_RESOLUTION_CONTENT_SEEDS.md`](QUEST_RESOLUTION_CONTENT_SEEDS.md) — authored quest resolution and deterministic check vocabulary.
+- [`NONCOMBAT_TECHNIQUES.md`](NONCOMBAT_TECHNIQUES.md), [`PLAYER_IDENTITY_ABILITIES.md`](PLAYER_IDENTITY_ABILITIES.md) — player identity actions and planned/shipped abilities.
+- [`ACHIEVEMENTS_CATALOG.md`](ACHIEVEMENTS_CATALOG.md), [`ACHIEVEMENTS_DESIGN.md`](ACHIEVEMENTS_DESIGN.md), [`ACHIEVEMENTS_PHASE1.md`](ACHIEVEMENTS_PHASE1.md) — rewardless achievements and cosmetic title notes.
+- [`DAILY_KORCHMA_ROUNDS.md`](DAILY_KORCHMA_ROUNDS.md), [`LOOT_EXPANSION_CANONICAL_IDS.md`](LOOT_EXPANSION_CANONICAL_IDS.md), [`PROBLEM_QUEST_CHAIN_REFERENCES.md`](PROBLEM_QUEST_CHAIN_REFERENCES.md) — focused system references.
+- [`design/latest-events-feed.md`](design/latest-events-feed.md), [`content/latest-events-feed-copy.md`](content/latest-events-feed-copy.md), [`qa/latest-events-feed-qa.md`](qa/latest-events-feed-qa.md) — latest events feed design, copy and QA package.
 
-## Phase 2 roadmap audit package
+## Phase 2 and raid planning
 
-- [phase2-roadmap-audit/README.md](phase2-roadmap-audit/README.md) — imported `12026-06-27` roadmap audit package with post-`0.2.7` ordering, public-surface notes, future task docs, prompts and checklists. Keep it as planning input until a specific next slice is activated.
+Phase 2 is Social Combat & Interactions first, not group-raid-first.
 
-## Phase 1 closeout
+- [`phase2/SOCIAL_COMBAT_PLAN.md`](phase2/SOCIAL_COMBAT_PLAN.md) — головний Phase 2 plan.
+- [`phase2/DUELS_AND_INVITES.md`](phase2/DUELS_AND_INVITES.md) — duels and shareable invite cards.
+- [`phase2/GROUP_COMBAT_AND_RAIDS.md`](phase2/GROUP_COMBAT_AND_RAIDS.md) — party sessions, group combat and raid growth.
+- [`phase2/TRADING_AND_GIFTING.md`](phase2/TRADING_AND_GIFTING.md) — safe gifting/trading boundaries.
+- [`phase2/REMORT.md`](phase2/REMORT.md), [`phase2/ITEM_TAGS_AND_CONSUMABLES.md`](phase2/ITEM_TAGS_AND_CONSUMABLES.md), [`phase2/UNSTABLE_BALANCE_PRINCIPLES.md`](phase2/UNSTABLE_BALANCE_PRINCIPLES.md) — shipped/remort/item/balance notes.
+- [`PHASE2_MVP_RELEASE_NOTES.md`](PHASE2_MVP_RELEASE_NOTES.md), [`PHASE2_MVP_CLOSEOUT_PLAN.md`](PHASE2_MVP_CLOSEOUT_PLAN.md), [`PHASE2_CLOSEOUT_SMOKE.md`](PHASE2_CLOSEOUT_SMOKE.md), [`PHASE2_DEFERRED_0_2.md`](PHASE2_DEFERRED_0_2.md) — closeout and deferred scope.
+- [`phase2-roadmap-audit/README.md`](phase2-roadmap-audit/README.md) — imported roadmap audit package; planning input only until a slice is activated.
 
-- [PHASE1_RELEASE_NOTES.md](PHASE1_RELEASE_NOTES.md) — канонічний підсумок `0.1.0`.
-- [PHASE1_CLOSEOUT_0_1_TRANSITION.md](PHASE1_CLOSEOUT_0_1_TRANSITION.md) — межа `0.0.x` → `0.1.x`.
-- [PHASE1_CLOSEOUT_SMOKE.md](PHASE1_CLOSEOUT_SMOKE.md) — фінальний smoke/release gate.
-- [NEXT_IMPLEMENTATION_BACKLOG.md](NEXT_IMPLEMENTATION_BACKLOG.md) — наступний малий порядок після closeout.
+## AI / Codex workflow assets
 
-## Phase 2 roadmap reset
+- [`ai/README.md`](ai/README.md) — AI/Codex mini-index.
+- [`ai/context.md`](ai/context.md) — compact context pack for new Codex sessions.
+- [`ai/prompts/`](ai/prompts/) — ready prompts for implementation, QA, review and handoff.
+- [`ai/CODEX_PROMPT_POLICY.md`](ai/CODEX_PROMPT_POLICY.md) — rules for prompt artifacts.
+- [`CODEX_WORKFLOW.md`](CODEX_WORKFLOW.md) — human-facing workflow guide.
+- [`refactoring-audit/README.md`](refactoring-audit/README.md) — imported refactoring audit package.
 
-Phase 2 більше не починається з великого групового рейду. `0.1.25` закриває перший **Social Combat & Interactions** MVP: opt-in дуелі, реванші, картки результатів, nearby invites, combat locks, remort boundaries, Nyz preview memory and Shynok economy prep. Далі `0.2.x` починається з safe gifting, multi-enemy foundation, architecture stabilization, threat escalation and the first item-tag/one-use bandage slice; `0.2.17` adds the first feature-flagged Big Barrel Brother route, while broader trading, equipment rebalance and fuller raid mechanics remain later slices.
+## Historical / archived planning
 
-- [PHASE2_MVP_RELEASE_NOTES.md](PHASE2_MVP_RELEASE_NOTES.md) — канонічний підсумок `0.1.25` Phase 2 MVP closeout.
-- [PHASE2_MVP_CLOSEOUT_PLAN.md](PHASE2_MVP_CLOSEOUT_PLAN.md) — межа `0.1.x`, Phase 2 MVP DoD, backlog disposition і порядок closeout.
-- [PHASE2_CLOSEOUT_SMOKE.md](PHASE2_CLOSEOUT_SMOKE.md) — two-player, Shynok і production smoke для закриття Phase 2 MVP.
-- [PHASE2_DEFERRED_0_2.md](PHASE2_DEFERRED_0_2.md) — що переноситься в `0.2.x`, рекомендований порядок і WIP-limit.
-- [backlog/UNFINISHED_CHARACTER_AND_0_1X_TAILS.md](backlog/UNFINISHED_CHARACTER_AND_0_1X_TAILS.md) — shipped `0.2.4` bandage boundary and deferred race ability / achievement / title / signature tails.
-- [phase2/SOCIAL_COMBAT_PLAN.md](phase2/SOCIAL_COMBAT_PLAN.md) — головний план Phase 2.
-- [phase2/DUELS_AND_INVITES.md](phase2/DUELS_AND_INVITES.md) — перший MVP для дуелей і shareable invite cards.
-- [phase2/GROUP_COMBAT_AND_RAIDS.md](phase2/GROUP_COMBAT_AND_RAIDS.md) — як рейди виростають із дуелей, party sessions і multi-enemy combat.
-- [phase2/TRADING_AND_GIFTING.md](phase2/TRADING_AND_GIFTING.md) — безпечний обмін і подарунки між гравцями.
-- [phase2/REMORT.md](phase2/REMORT.md) — shipped `/remort` після 13 рівня з capped legacy, preview і вибором preserved manatky без power snowball, плюс follow-up нотатки.
-- [phase2/ITEM_TAGS_AND_CONSUMABLES.md](phase2/ITEM_TAGS_AND_CONSUMABLES.md) — item tags, одноразові манатки й бойові дії від предметів.
-- [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](phase2/UNSTABLE_BALANCE_PRINCIPLES.md) — як лишати баланс веселим, але не токсичним.
+Keep historical docs discoverable, but do not treat them as active implementation scope unless a current task points to them.
 
-## Future raid planning package
+- [`history/README.md`](history/README.md) — phase closeout and old planning index.
+- [`PHASE1_RELEASE_NOTES.md`](PHASE1_RELEASE_NOTES.md), [`PHASE1_CLOSEOUT_0_1_TRANSITION.md`](PHASE1_CLOSEOUT_0_1_TRANSITION.md), [`PHASE1_CLOSEOUT_SMOKE.md`](PHASE1_CLOSEOUT_SMOKE.md) — Phase 1 closure.
+- [`GROUP_HOOK_DESIGN.md`](GROUP_HOOK_DESIGN.md), [`GROUP_RAID_SESSION_NOTES.md`](GROUP_RAID_SESSION_NOTES.md), [`SOCIAL_ACTIONS_BACKLOG.md`](SOCIAL_ACTIONS_BACKLOG.md), [`MANTOK_CHEST_BACKLOG.md`](MANTOK_CHEST_BACKLOG.md) — useful earlier planning, not the current starting point.
+- [`BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md`](BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md), [`BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md`](BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md), [`design/BIG_BARREL_BROTHER_GROUP_RAID.md`](design/BIG_BARREL_BROTHER_GROUP_RAID.md), [`architecture/GROUP_RAID_SESSION_MODEL.md`](architecture/GROUP_RAID_SESSION_MODEL.md), [`qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md`](qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md) — future raid package, preserved as design input.
 
-The Big Barrel Brother package is preserved as future design input. `0.2.17` ships a feature-flagged MVP on the existing party-boss runtime; the fuller package below still describes later mechanics such as richer phases, buffs, trophies, spotlight rewards, expanded QA and targetable-add follow-ups.
+## Placement rule for new docs
 
-- [BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md](BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md) — package overview and recommended ordering.
-- [BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md](BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md) — source manifest and scope statement.
-- [design/BIG_BARREL_BROTHER_GROUP_RAID.md](design/BIG_BARREL_BROTHER_GROUP_RAID.md) — proposed gameplay flow for the future group raid.
-- [design/BIG_BARREL_BROTHER_BALANCE.md](design/BIG_BARREL_BROTHER_BALANCE.md) — future balance model, scaling and reward guardrails.
-- [content/BIG_BARREL_BROTHER_UA_COPY.md](content/BIG_BARREL_BROTHER_UA_COPY.md) — Ukrainian copy bank and style guardrails for the future raid.
-- [architecture/GROUP_RAID_SESSION_MODEL.md](architecture/GROUP_RAID_SESSION_MODEL.md) — proposed party/raid session model.
-- [implementation/REPOSITORY_CHANGE_MAP.md](implementation/REPOSITORY_CHANGE_MAP.md) — future repository change map.
-- [tasks/0.2.x-raid-party-session-foundation.md](tasks/0.2.x-raid-party-session-foundation.md) — draft prerequisite task for party sessions.
-- [tasks/0.2.x-party-vs-one-boss.md](tasks/0.2.x-party-vs-one-boss.md) — draft bridge from temporary party sessions to real raids.
-- [tasks/0.2.x-big-barrel-brother-group-raid.md](tasks/0.2.x-big-barrel-brother-group-raid.md) — draft fuller raid task after the feature-flagged Big Barrel Brother MVP.
-- [qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md](qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md) — future automated and manual QA matrix.
-- [backlog/BIG_BARREL_BROTHER_TARGETABLE_ADDS.md](backlog/BIG_BARREL_BROTHER_TARGETABLE_ADDS.md) — deferred targetable-adds slice.
-- [references/RAID_INSPIRATION_NOTES.md](references/RAID_INSPIRATION_NOTES.md) — inspiration notes without copying external content.
-
-## Earlier planning docs that remain useful
-
-- [GROUP_HOOK_DESIGN.md](GROUP_HOOK_DESIGN.md) — попередній дизайн малого групового рейду; тепер це later input для party/raid slice, не перший Phase 2 крок.
-- [GROUP_RAID_SESSION_NOTES.md](GROUP_RAID_SESSION_NOTES.md) — нотатки про session rows, учасників і idempotency для майбутніх рейдів.
-- [SOCIAL_ACTIONS_BACKLOG.md](SOCIAL_ACTIONS_BACKLOG.md) — backlog корчемних соціяльних дій, тепер підпорядкований Phase 2 social-combat spine.
-- [ACHIEVEMENTS_PHASE1.md](ACHIEVEMENTS_PHASE1.md) — rewardless ачівки/титули як later slice.
-- [MANTOK_CHEST_BACKLOG.md](MANTOK_CHEST_BACKLOG.md) — item-volume sink і технічний борг ручного вибору.
+Do not add new one-off Markdown files directly under `docs/` unless they are a canonical source of truth listed above. Prefer the category folders and update the matching `README.md` index. When moving old files, use `git mv`, update relative links with `rg`, and keep the PR docs-only unless explicitly requested otherwise.

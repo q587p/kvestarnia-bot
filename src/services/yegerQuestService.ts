@@ -32,6 +32,7 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_RANGER_CORNER } from "./presenceService";
 import { toIsoDate } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export {
@@ -49,11 +50,14 @@ export const YEGER_UNQUIET_TRIAL_TAGS = ["undead", "ghost", "cursed", "unquiet"]
 export const YEGER_UNQUIET_TRIAL_REWARD = {
   maxXp: 80,
   gold: 120,
-  itemId: YEGER_FIRST_NOTCH_ITEM_ID
+  itemId: YEGER_FIRST_NOTCH_ITEM_ID,
+  maxOwnedQuantity: 1
 };
 export const YEGER_UNQUIET_TRIAL_SECOND_REWARD = {
   maxXp: 170,
-  gold: 170
+  gold: 170,
+  itemId: YEGER_FIRST_NOTCH_ITEM_ID,
+  itemQuantity: 2
 };
 export const YEGER_TRACKING_COOLDOWN_KEY = "quest.yeger.unquiet-trial.tracking";
 export const YEGER_TRACKING_MIN_MINUTES = 3;
@@ -84,6 +88,8 @@ interface YegerQuestStage {
     maxXp: number;
     gold: number;
     itemId?: string;
+    itemQuantity?: number;
+    maxOwnedQuantity?: number;
   };
 }
 
@@ -274,7 +280,8 @@ export class YegerQuestService {
     private readonly cooldowns: CooldownRepository,
     private readonly now: () => Date = () => new Date(),
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: ActivityEventService
   ) {}
 
   async getForTelegramUser(telegramUserId: bigint): Promise<YegerQuestLookupResult> {
@@ -535,7 +542,11 @@ export class YegerQuestService {
 
     const stage = getYegerQuestStage(current.progress);
     const itemGrants = stage.reward.itemId
-      ? [{ itemId: stage.reward.itemId, quantity: 1, maxOwnedQuantity: 1 }]
+      ? [{
+          itemId: stage.reward.itemId,
+          quantity: stage.reward.itemQuantity ?? 1,
+          ...(stage.reward.maxOwnedQuantity ? { maxOwnedQuantity: stage.reward.maxOwnedQuantity } : {})
+        }]
       : [];
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: stage.completedKey,
@@ -562,11 +573,14 @@ export class YegerQuestService {
     const achievementUnlocks = claim.state === "created"
       ? await trackRewardAchievementsSafely(this.achievements, {
           characterId: claim.character.id,
+          actorDisplayName: claim.character.name,
           sourceId: claim.action.id,
+          sourceType: "daily-action",
           occurredAt: claim.action.createdAt,
           levelChange: claim.levelChange,
           itemGrants: claim.itemGrants,
-          events: ["yeger.trial.completed"]
+          events: ["yeger.trial.completed"],
+          activityEvents: this.activityEvents
         })
       : [];
 
@@ -763,9 +777,12 @@ export class YegerQuestService {
     const achievementUnlocks = result.state === "bought" && claim.state === "created"
       ? await trackRewardAchievementsSafely(this.achievements, {
           characterId: claim.character.id,
+          actorDisplayName: claim.character.name,
           sourceId: claim.action.id,
+          sourceType: "daily-action",
           occurredAt: claim.action.createdAt,
-          itemGrants: claim.itemGrants
+          itemGrants: claim.itemGrants,
+          activityEvents: this.activityEvents
         })
       : [];
 
@@ -892,10 +909,13 @@ export class YegerQuestService {
 
     const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
       characterId: claim.character.id,
+      actorDisplayName: claim.character.name,
       sourceId: claim.cooldown.id,
+      sourceType: "cooldown",
       occurredAt: claim.cooldown.updatedAt,
       itemGrants: claim.itemGrants,
-      events: ["yeger.free-bandage.claimed"]
+      events: ["yeger.free-bandage.claimed"],
+      activityEvents: this.activityEvents
     });
 
     return {
@@ -1432,7 +1452,7 @@ function buildYegerQuestReward(stage: YegerQuestStage, input?: {
   replayUnavailable?: boolean;
 }): YegerQuestReward {
   const defaultItemGrants = stage.reward.itemId
-    ? [{ itemId: stage.reward.itemId, quantity: 1 }]
+    ? [{ itemId: stage.reward.itemId, quantity: stage.reward.itemQuantity ?? 1 }]
     : [];
 
   return {

@@ -4,6 +4,20 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.20 — Latest Events Feed MVP smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Open `Дошка корчми`; verify `📣 Останні події` appears and existing `📰 Вісти`, `📖 Перекази`, gifts, postal navigation and `/news` still work.
+2. Open `📣 Останні події`; verify the title is `📜 Хроніки Квестарні`, an empty feed is short, the first successful open can grant the rewardless `Хроніка відкрила око` achievement once, there is no manual refresh button, and filter/page or stale legacy refresh-compatible callbacks do not grant XP, gold, items, combat power, separate refresh achievements or duplicate notifications.
+3. Create a new disposable character; reopen the feed and verify one public new-adventurer row appears and duplicate onboarding replays do not add another row.
+4. Trigger or inspect a configured level milestone; verify one deduped level row appears and ordinary non-milestone rewards do not create noise.
+5. Finish one Big Barrel Brother victory; verify exactly one public victory row appears for the terminal boss session and losses/attempt XP create no row.
+6. Grant or win a rare/epic manatka if convenient; verify it appears, while common manatky do not.
+7. Win an underdog fight where the monster is at least 5 levels above the character; verify a row appears, while ordinary wins and losses do not.
+8. Try every feed filter and pagination button; verify old refresh/stale callbacks answer safely and callback payloads do not leak ids.
+9. Use long or HTML-like character/item names in a disposable path if convenient; verify feed rows escape and truncate names and the message stays mobile-sized.
+
 ## 0.2.19 — Monster Trophies And Yeger Supply Gates smoke
 
 Manual Telegram QA status for the implementation pass: not run.
@@ -201,17 +215,18 @@ Use one fresh account plus one account with at least one earned cosmetic title g
 Use one level 2 account and one level 3+ account. Local dev grants/resets are acceptable for setup.
 
 1. On level 2, open the Quest Table and verify `Корчмарський обхід` is hidden.
-2. On level 3+, open the Quest Table; verify the daily overview shows one `Задвірок корчми` scene and two distinct interior scenes, but only offers `До справ` / `До зали` navigation, not direct scene-location buttons.
-3. Walk through normal Korchma navigation to the first required location; verify the active scene opens there, then complete one authored action.
-4. Try the second scene action from the wrong location using an old/stale scene card if available; verify no step row/reward is created and the card names the required place.
-5. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `Не сьогоднішня катастрофа`.
-6. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants level-scaled XP/gold and replays the same exact values.
-7. Replay old overview/scene/action/claim buttons; verify no duplicate step, reward, achievement notification, XP or gold.
-8. Remort before and after claim in local QA; verify same-day progress/reward is not cleared or duplicated and old-life action buttons stale out.
-9. Restart before and after claim; verify the exact same scene ids/order and reward replay.
-10. Locally run `/dev_reset_korchma_round`, reopen the Quest Table and verify the same Kyiv-day route starts again with `0/2` progress.
-11. During active combat and while a pending Barrel raid is active, verify daily mutations are blocked.
-12. Verify the achievement hook is distinct from Shynok beer-round ids and unlocks only the rewardless daily-round record.
+2. On level 3+, open the Quest Table and `Корчмарський обхід`; verify the first card shows `Берусь за обхід` / `Пізніше`, and `Пізніше` returns without starting the round or changing ordinary location cards.
+3. Press `Берусь за обхід`; verify the daily overview shows one `Задвірок корчми` scene and two distinct interior scenes, but only offers `До справ` / `До зали` navigation, not direct scene-location buttons.
+4. Walk through normal Korchma navigation to the first required location; verify the active scene opens there, then complete one authored action.
+5. Try the second scene action from the wrong location using an old/stale scene card if available; verify no step row/reward is created and the card names the required place.
+6. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `Не сьогоднішня катастрофа`.
+7. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants level-scaled XP/gold and replays the same exact values.
+8. Replay old overview/scene/action/claim buttons; verify no duplicate step, reward, achievement notification, XP or gold.
+9. Remort before and after claim in local QA; verify same-day progress/reward is not cleared or duplicated and old-life action buttons stale out.
+10. Restart before and after claim; verify the exact same scene ids/order and reward replay.
+11. Locally run `/dev_reset_korchma_round`, reopen the Quest Table and verify the same Kyiv-day route starts again with `0/2` progress.
+12. During active combat and while a pending Barrel raid is active, verify daily mutations are blocked.
+13. Verify the achievement hook is distinct from Shynok beer-round ids and unlocks only the rewardless daily-round record.
 
 ## 0.2.8 — Achievements and Cosmetic Title Records smoke
 

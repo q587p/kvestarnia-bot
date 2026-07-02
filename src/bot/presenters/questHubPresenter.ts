@@ -3,8 +3,12 @@ import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../ser
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
-import type { DailyKorchmaRoundLookupResult } from "../../services/dailyKorchmaRoundService";
-import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
+import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
+import {
+  YEGER_UNQUIET_TRIAL_REWARD,
+  YEGER_UNQUIET_TRIAL_TARGET,
+  type YegerQuestLookupResult
+} from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
   FIGHTING_CORNER_MIN_LEVEL,
@@ -18,12 +22,13 @@ export interface QuestHubSnapshot {
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
+  starterFight?: Exclude<FightLookupResult, { state: "no-character" }>;
   problemQuest: ProblemQuestProgress;
   problemQuestArchive: ProblemQuestProgress[];
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
-  dailyKorchmaRound?: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }>;
+  dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
 }
 
 export type QuestHubMode = "active" | "archive";
@@ -78,33 +83,33 @@ function presentAdventureRow(
 }
 
 function presentAdventureArchiveRows(
-  character: CharacterSummary,
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>,
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>
 ): string[] {
-  if (adventure.state === "ready") {
-    return [];
-  }
+  const rows: string[] = [];
 
   if (adventure.state === "already-completed") {
-    return [
+    rows.push(
       "🪧 <i>Три справи на найближчий час</i> — виконано; Корчмар поставив галочку і не визнає повторів."
-    ];
-  }
-
-  if (adventure.state === "active-fight" || adventure.state === "combat-blocked") {
-    return [];
-  }
-
-  const rows = [
-    `🪧 <i>Три справи на найближчий час</i> — відкриється з ${adventure.requiredLevel} рівня; у журналі немає позначки виконання.`
-  ];
-
-  if (
-    character.level <= STARTER_ACTIVITY_MAX_LEVEL &&
-    starterAdventure?.state === "already-completed"
+    );
+  } else if (
+    adventure.state !== "ready" &&
+    adventure.state !== "active-fight" &&
+    adventure.state !== "combat-blocked"
   ) {
+    rows.push(
+      `🪧 <i>Три справи на найближчий час</i> — відкриється з ${adventure.requiredLevel} рівня; у журналі немає позначки виконання.`
+    );
+  }
+
+  if (starterAdventure?.state === "already-completed") {
     rows.push("🌯 <i>Підозріла шаурма</i> — сьогодні вже дала свідчення.");
+  } else if (starterAdventure?.state === "level-retired") {
+    rows.push(
+      starterAdventure.completed === true
+        ? "🌯 <i>Підозріла шаурма</i> — виконано; соус досі числиться як свідок."
+        : `🌯 <i>Підозріла шаурма</i> — новачкова справа до ${starterAdventure.maxLevel} рівня; у журналі немає сліду виконання.`
+    );
   }
 
   return rows;
@@ -202,6 +207,22 @@ function presentFightArchiveRow(
   return null;
 }
 
+function presentStarterFightArchiveRow(
+  starterFight: Exclude<FightLookupResult, { state: "no-character" }> | undefined
+): string | null {
+  if (starterFight?.state === "already-completed") {
+    return "⚔️ <i>Новачкова сутичка</i> — сьогодні вже зараховано.";
+  }
+
+  if (starterFight?.state === "level-retired") {
+    return starterFight.completed === true
+      ? "⚔️ <i>Новачкова сутичка</i> — виконано; перший висновок вижив у журналі."
+      : `⚔️ <i>Новачкова сутичка</i> — навчальний бій для 1-${starterFight.maxLevel} рівнів; у журналі немає сліду виконання.`;
+  }
+
+  return null;
+}
+
 function presentProblemQuestArchiveRows(progresses: ProblemQuestProgress[]): string[] {
   return progresses.map(
     (progress) => `🧾 <i>${progress.title}</i> — ${presentProblemQuestStatus(progress)}.`
@@ -264,6 +285,30 @@ function presentYegerArchiveRow(yeger: Exclude<YegerQuestLookupResult, { state: 
   return presentYegerRow(yeger);
 }
 
+function presentYegerArchiveRows(yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>): string[] {
+  const rows: string[] = [];
+
+  if (yeger.state !== "level-locked" && yeger.progress.stageId === "second") {
+    rows.push(presentYegerRow({
+      state: "completed",
+      character: yeger.character,
+      progress: { wins: YEGER_UNQUIET_TRIAL_TARGET, target: YEGER_UNQUIET_TRIAL_TARGET, stageId: "first" },
+      reward: {
+        xp: YEGER_UNQUIET_TRIAL_REWARD.maxXp,
+        gold: YEGER_UNQUIET_TRIAL_REWARD.gold,
+        itemGrants: []
+      }
+    }));
+  }
+
+  const current = presentYegerArchiveRow(yeger);
+  if (current) {
+    rows.push(current);
+  }
+
+  return rows;
+}
+
 function presentCellarRow(
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>,
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
@@ -317,7 +362,7 @@ function presentActiveCellarRow(
 }
 
 function presentDailyKorchmaRoundRow(
-  daily: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }> | undefined
+  daily: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }> | undefined
 ): string | null {
   if (!daily) {
     return null;
@@ -339,6 +384,10 @@ function presentDailyKorchmaRoundRow(
 
   if (daily.state === "pending-barrel") {
     return `${title} — Бочка Пінного Міражу ще ревнує до черги.`;
+  }
+
+  if (daily.state === "not-issued") {
+    return `${title} — доступний сьогодні; Корчмар ще не встиг вручити список дрібних катастроф.`;
   }
 
   if (daily.state === "completed") {
@@ -412,14 +461,16 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
 }
 
 function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
+  const starterFightArchiveRow = presentStarterFightArchiveRow(snapshot.starterFight);
   const rows = [
-    ...presentAdventureArchiveRows(snapshot.character, snapshot.adventure, snapshot.starterAdventure),
+    ...presentAdventureArchiveRows(snapshot.adventure, snapshot.starterAdventure),
     !meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL)
       ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)
       : null,
     ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
-    presentFightArchiveRow(snapshot.character, snapshot.fight),
-    presentYegerArchiveRow(snapshot.yeger),
+    starterFightArchiveRow,
+    starterFightArchiveRow ? null : presentFightArchiveRow(snapshot.character, snapshot.fight),
+    ...presentYegerArchiveRows(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup),
     snapshot.dailyKorchmaRound?.state === "completed"
       ? presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)

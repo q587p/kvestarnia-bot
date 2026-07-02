@@ -7,6 +7,47 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.20] - 12026-07-02 - Latest Events Feed MVP
+
+### Added
+- Added durable `ActivityEvent` persistence with a Prisma migration, repository and service APIs for deduped `record`, best-effort `recordSafely` and bounded `listRecent` reads.
+- Added the `📜 Хроніки Квестарні` feed with compact `v1:ev:*` callbacks, filters and pagination from the Korchma board/news surface.
+- Added a dry-run-first `maintenance:backfill-activity-events` script for one-time archival feed rows that can be reconstructed from durable tables.
+- Added a read-only `maintenance:poll-activity-events` script for checking/polling the latest public `ActivityEvent` rows from the current `DATABASE_URL`.
+- Added public activity emission for new characters, configured level milestones, Big Barrel Brother terminal victories, rare/epic manatky and underdog combat victories.
+- Added the rewardless `achievement.journey.latest-events-opened` achievement for first opening/reading `📜 Хроніки Квестарні`.
+- Added focused service, callback, presenter, board routing, character creation, reward and Big Barrel Brother emission coverage.
+- Added scoped `lint:scripts` and `typecheck:scripts` coverage for the latest-events maintenance scripts, and included both in `npm run check`.
+
+### Changed
+- `Дошка корчми` now includes `📣 Останні події` without replacing `/news`, `📰 Вісти`, `📖 Перекази`, gifts or postal entry points.
+- Latest-events keyboards no longer show a manual `🔄 Оновити` button; opening the feed, switching filters and changing pages reread the current ledger.
+- Feed rendering stores and uses event-time display snapshots, groups rows by Kyiv day and escapes/truncates dynamic player, item and monster names.
+- Activity logging is best-effort at gameplay boundaries, so feed write failures do not roll back the successful primary action.
+- Underdog combat activity now evaluates the frozen effective monster level from the persistent fight session, matching the level used by combat/reward settlement instead of the authored content level alone.
+- Turning in `Неспокійні справи 2.0` now grants two `Єгерська риска на дощечці` keepsakes in addition to XP and gold.
+
+### Fixed
+- Quest-table browsing and daily-round overview inspection no longer auto-issue the daily `Корчмарський обхід`; locations only show route scenes after the player explicitly accepts the round with `🧾 Берусь за обхід`.
+- Opening `Льохова справа` from the quest table now shows the Korchmar/mouse intro, then the cellar movement notice, then the action card instead of sending the movement notice after the quest card.
+- Level 8 reached rows now count as important latest-events milestones, matching the enabled visible level achievement cadence.
+- Active daily `Корчмарський обхід` scenes at `Стіл зі справами` now open with their action buttons from the physical table callback instead of dropping the player into the generic quest hub.
+- Failed grownup cellar roleplay attempts now use the intended `93`-minute retry pause instead of the older `60`-minute wait.
+- Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.
+- `/help` and the main `📖 Допомога` button now show the public command catalog again, while dev commands stay isolated in `/dev_help` and the `🧰 Адмінка` button.
+- Onboarding race selection now disables `Домовик` and `Русалка сухопутна` for `Вони`, so the biography-filter note corresponds to visible unavailable options.
+- The quest archive now keeps the completed first Yeger board `Неспокійні справи` visible while `Неспокійні справи 2.0` is active or completed.
+- The quest archive now keeps completed or skipped starter `Підозріла шаурма` and `Новачкова сутичка` entries visible after players level into the regular adventure and Nyz flows, while active starter entries stay on the quest table.
+- The Yeger corner no longer shows the closed quest-detail button after the current Yeger board is completed.
+- `maintenance:poll-activity-events` now prints exact `db:deploy` / local `db:migrate` preflight commands when the current `DATABASE_URL` is missing the `ActivityEvent` table.
+- Empty `maintenance:poll-activity-events` output now explains that existing characters/items are not read directly and points operators to the archival backfill dry-run/apply flow.
+- Dry-run `maintenance:backfill-activity-events` output now shows the exact npm `-- --apply` command, and docs cover pointing `DATABASE_URL` at the isolated local bot database before backfilling local-bot-visible rows.
+
+### Unchanged
+- Filtering, paginating or pressing a stale legacy refresh-compatible callback can only replay the same one-time first-open record and grants no XP, gold, items, combat power, title power, separate refresh achievement or repeatable hidden progress.
+- No public rows are emitted for losses, deaths, retreats, failed joins, failed drops, failed purchases, failed combat actions, Big Barrel Brother losses or attempt XP.
+- No trophy weights, Yeger bandage gates, dense-bandage docs, deploy notification `вісти` copy, Big Barrel Brother combat rules, rewards, markets, crafting, PvP, ґільдії, Mini App UI or proactive channel auto-posting change in this slice.
+
 ## [0.2.19] - 12026-07-02 - Monster Trophies And Yeger Supply Gates
 
 ### Added

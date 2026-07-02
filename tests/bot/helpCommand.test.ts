@@ -6,12 +6,32 @@ import type { DevResetService } from "../../src/services/devResetService";
 import type { PartySessionService } from "../../src/services/partySessionService";
 
 describe("help command", () => {
+  it("shows public commands through /help", async () => {
+    const replies: string[] = [];
+    const bot = createTestBot(replies, {
+      devReset: { isEnabled: () => true },
+      devGrant: { isEnabled: () => true },
+      partySessions: { areDevHelpersEnabled: () => true }
+    });
+
+    await bot.handleUpdate(commandUpdate("/help"));
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]).toContain("📖 Допомога Квестарні");
+    expect(replies[0]).toContain("/start");
+    expect(replies[0]).toContain("/help");
+    expect(replies[0]).toContain("/support");
+    expect(replies[0]).not.toContain("/dev_help");
+    expect(replies[0]).not.toContain("/dev_party");
+    expect(replies[0]).not.toContain("/dev_add_xp");
+  });
+
   it("shows local dev commands through /dev_help", async () => {
     const replies: string[] = [];
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
-      partySessions: { isEnabled: () => true }
+      partySessions: { areDevHelpersEnabled: () => true }
     });
 
     await bot.handleUpdate(commandUpdate("/dev_help"));
@@ -25,6 +45,20 @@ describe("help command", () => {
     expect(replies[0]).toContain("/dev_add_bandage");
     expect(replies[0]).toContain("/dev_reset_yeger_bandage");
   });
+
+  it("hides party dev help when party runtime is enabled without dev helpers", async () => {
+    const replies: string[] = [];
+    const bot = createTestBot(replies, {
+      devReset: { isEnabled: () => false },
+      partySessions: { areDevHelpersEnabled: () => false }
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_help"));
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]).not.toContain("/dev_party");
+    expect(replies[0]).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
+  });
 });
 
 function createTestBot(
@@ -32,7 +66,7 @@ function createTestBot(
   services: {
     devReset: Pick<DevResetService, "isEnabled">;
     devGrant?: Pick<DevGrantService, "isEnabled">;
-    partySessions?: Pick<PartySessionService, "isEnabled">;
+    partySessions?: Pick<PartySessionService, "areDevHelpersEnabled">;
   }
 ): Bot {
   const bot = new Bot("test-token", {

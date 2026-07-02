@@ -54,6 +54,11 @@ export function registerPartySessionDevCommand(
   options: PartySessionCommandOptions
 ): void {
   bot.command("dev_party", async (ctx) => {
+    if (!service.areDevHelpersEnabled()) {
+      await ctx.reply("Dev-команди тут не ввімкнені. Корчмар сховав мотузку.");
+      return;
+    }
+
     await sendPartyCreate(ctx, service, options, "reply");
   });
 }

@@ -14,6 +14,7 @@ export type AchievementStatus = (typeof achievementStatuses)[number];
 
 export const achievementTriggerTypes = [
   "achievement.list.opened",
+  "latest-events.opened",
   "cosmetic-title.selected",
   "character.created",
   "level.reached",
@@ -114,6 +115,17 @@ export const achievements = [
     sortOrder: 10.5,
     status: "enabled",
     trigger: { type: "achievement.list.opened" }
+  },
+  {
+    id: "achievement.journey.latest-events-opened",
+    category: "onboarding",
+    title: "Хроніка відкрила око",
+    description: "уперше відкрити Хроніки Квестарні й переконатися, що корчемні події самі себе не перепишуть.",
+    hidden: false,
+    lockedDescription: "уперше відкрити Хроніки Квестарні.",
+    sortOrder: 10.55,
+    status: "enabled",
+    trigger: { type: "latest-events.opened" }
   },
   {
     id: "achievement.journey.cosmetic-title-selected",

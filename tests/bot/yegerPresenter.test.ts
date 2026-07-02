@@ -76,6 +76,48 @@ describe("Yeger presenter", () => {
     expect(text).toContain("«Неспокійні справи 2.0»");
   });
 
+  it("renders the second Yeger board keepsake quantity", () => {
+    const text = presentYegerTurnIn({
+      state: "completed",
+      character,
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 56,
+        gold: 170,
+        itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+      },
+      levelChange: {
+        oldLevel: 8,
+        newLevel: 8,
+        leveledUp: false
+      }
+    });
+
+    expect(text).toContain("Неспокійні справи 2.0 закрито");
+    expect(text).toContain("Єгер ставить дві риски на дощечці.");
+    expect(text).toContain("<b>+56 XP\n+170 золота</b>");
+    expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці ×2</i>");
+  });
+
+  it("does not add a third notch when replaying the second Yeger board", () => {
+    const text = presentYegerTurnIn({
+      state: "already-completed",
+      character,
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 56,
+        gold: 170,
+        itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }],
+        itemReplayUnavailable: true
+      },
+      levelChange: null
+    });
+
+    expect(text).toContain("Єгер уже поставив дві риски.");
+    expect(text).toContain("Третю не ставить, бо це була б сильна емоція");
+    expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці ×2</i>");
+  });
+
   it("renames the second Yeger board and previews future advanced supplies", () => {
     const text = presentYegerQuest({
       state: "offered",

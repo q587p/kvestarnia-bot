@@ -55,9 +55,9 @@ Default view:
 Сьогодні
 👋 14:23 | Новий пригодник у Квестарні: Арден!
 🎉 13:56 | You®4ik бере 7 рівень!
-🏆 12:42 | Ватага здолала Старшого Брата Бочки: 5 пригодників, 1 мокрий протокол.
+🏆 12:42 | Ватага: перемога. Ціль — «Старший Брат Бочки». У протоколі: 5 пригодників.
 🎒 12:18 | Мудрий: рідкісна манатка — «Пляшка Пінного Міражу».
-🛡️ 11:07 | Пандочка: перемога над «Огрищем», сильнішим на 6 рівнів.
+🛡️ 11:07 | Пандочка: перемога. Монстр — «Огрище», перевага рівнів: +6.
 
 Вчора
 🎉 23:36 | Val'gert бере 4 рівень!
@@ -68,7 +68,7 @@ Buttons:
 ```text
 [⭐ Важливе] [👥 Пригодники]
 [⚔️ Бої] [🎒 Манатки]
-[🔄 Оновити] [Далі ➡️]
+[Далі ➡️]
 [⬅️ До дошки]
 ```
 
@@ -172,6 +172,11 @@ class ActivityEventService {
 ```
 
 `recordSafely` must not break the primary gameplay action. If activity logging fails, the player should still receive their level, reward, item, raid settlement or combat result.
+
+Operational checks live outside the player UI:
+
+- `npm run maintenance:backfill-activity-events` dry-runs/applies reconstructable archival public rows.
+- `npm run maintenance:poll-activity-events` reads the current public ledger without mutation; `--watch --interval=13` keeps polling for newly seen rows.
 
 ## Dedupe keys
 

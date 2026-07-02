@@ -8,10 +8,10 @@ module.exports = tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ["src/**/*.ts", "tests/**/*.ts"],
+    files: ["src/**/*.ts", "tests/**/*.ts", "scripts/backfill-activity-events.ts", "scripts/poll-activity-events.ts"],
     languageOptions: {
       parserOptions: {
-        project: ["./tsconfig.json", "./tsconfig.test.json"],
+        project: ["./tsconfig.json", "./tsconfig.test.json", "./tsconfig.scripts.json"],
         tsconfigRootDir: __dirname
       }
     },

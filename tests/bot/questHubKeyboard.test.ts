@@ -96,6 +96,22 @@ describe("quest hub keyboard", () => {
     expect(json).toContain("🧾 Здати обхід");
     expect(json).toContain("v1:dkr:c:20260628:7");
   });
+
+  it("offers an untaken daily Korchma round without an existing offer token", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        dailyKorchmaRound: {
+          state: "not-issued",
+          character: character(),
+          dayToken: "20260628"
+        }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🧾 Корчмарський обхід");
+    expect(json).toContain("v1:dkr:o:20260628");
+  });
 });
 
 function makeInput(overrides: Partial<QuestHubKeyboardInput> = {}): QuestHubKeyboardInput {

@@ -11,6 +11,7 @@ import { PARTY_BOSS_TURN_MS } from "../domain/partyBoss/partyBoss";
 import { findCombatUsableItemByKey } from "./combatItemUse";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 
 export interface PartyBossServiceOptions {
   enabled: boolean;
@@ -26,7 +27,8 @@ export class PartyBossService {
     private readonly sessions: PartyBossRepository,
     private readonly options: PartyBossServiceOptions,
     private readonly clock: Clock = systemClock,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: ActivityEventService
   ) {}
 
   isEnabled(): boolean {
@@ -71,6 +73,7 @@ export class PartyBossService {
       nextTurnExpiresAt: nextTurnDeadline(now)
     });
     await this.trackAchievementEvents(result);
+    await this.trackActivityEvents(result);
 
     return result;
   }
@@ -111,6 +114,7 @@ export class PartyBossService {
       }
     );
     await this.trackAchievementEvents(result);
+    await this.trackActivityEvents(result);
 
     return result;
   }
@@ -126,6 +130,7 @@ export class PartyBossService {
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "due");
     await this.trackAchievementEvents(result);
+    await this.trackActivityEvents(result);
 
     return result;
   }
@@ -141,6 +146,7 @@ export class PartyBossService {
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "force-dev");
     await this.trackAchievementEvents(result);
+    await this.trackActivityEvents(result);
 
     return result;
   }
@@ -190,6 +196,14 @@ export class PartyBossService {
         sourceId: event.sourceId
       });
     }
+  }
+
+  private async trackActivityEvents(result: PartyBossActionResult): Promise<void> {
+    if (!this.activityEvents || !("session" in result)) {
+      return;
+    }
+
+    await this.activityEvents.recordPartyRaidWonSafely(result.session);
   }
 }
 

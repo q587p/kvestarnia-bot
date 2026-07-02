@@ -238,7 +238,8 @@ export function getTextPresenceContext(text: string): PresenceContext | null {
     text === mainMenuButtons.hero ||
     text === mainMenuButtons.inventory ||
     text === mainMenuButtons.participants ||
-    text === mainMenuButtons.help
+    text === mainMenuButtons.help ||
+    text === mainMenuButtons.admin
   ) {
     return {};
   }

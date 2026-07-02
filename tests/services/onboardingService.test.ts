@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -10,6 +10,7 @@ import type {
   UserRecord,
   UserRepository
 } from "../../src/db/repositories/userRepository";
+import type { ActivityEventService } from "../../src/services/activityEventService";
 import { OnboardingService } from "../../src/services/onboardingService";
 
 const player: TelegramUserProfile = {
@@ -55,6 +56,28 @@ describe("OnboardingService", () => {
       expect(repeated.value.created).toBe(false);
       expect(repeated.value.character.classId).toBe("class.warrior");
     }
+  });
+
+  it("emits one public activity event when a character is created", async () => {
+    const users = new FakeUserRepository();
+    const characters = new FakeCharacterRepository(users);
+    const recordCharacterCreatedSafely =
+      vi.fn<ActivityEventService["recordCharacterCreatedSafely"]>().mockResolvedValue(null);
+    const service = new OnboardingService(
+      users,
+      characters,
+      undefined,
+      { recordCharacterCreatedSafely } as unknown as ActivityEventService
+    );
+
+    await service.complete(player, "he", "race.human-ish", "class.warrior");
+    await service.complete(player, "he", "race.human-ish", "class.warrior");
+
+    expect(recordCharacterCreatedSafely).toHaveBeenCalledTimes(1);
+    expect(recordCharacterCreatedSafely).toHaveBeenCalledWith(expect.objectContaining({
+      characterId: "character-1",
+      actorDisplayName: "Тестовий Герой із надто довгим і"
+    }));
   });
 
   it("returns hero summary path for /start when character exists", async () => {

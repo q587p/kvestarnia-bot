@@ -1,5 +1,5 @@
 ﻿import type { Context } from "grammy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
@@ -91,6 +91,40 @@ describe("quest hub command", () => {
       currentRaidId: null,
       currentAdventureId: null
     });
+  });
+
+  it("shows an untaken daily Korchma round without issuing it from the quest table view", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const getExistingForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "not-issued" as const,
+        character: characterAtLevel(3),
+        dayToken: "20260628"
+      })
+    );
+    const getForTelegramUser = vi.fn();
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        dailyKorchmaRound: {
+          getExistingForTelegramUser,
+          getForTelegramUser
+        } as unknown as DailyKorchmaRoundService
+      }),
+      "reply"
+    );
+
+    expect(getExistingForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getForTelegramUser).not.toHaveBeenCalled();
+    expect(replies[0]?.text).toContain("🧾 <i>Корчмарський обхід</i> — доступний сьогодні");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    const dailyButton = buttons.find((button) => button.text === "🧾 Корчмарський обхід");
+    expect(dailyButton?.callback_data).toMatch(/^v1:dkr:o:\d{8}$/);
   });
 
   it("keeps locked cellar and hunt out of the active list on level one", async () => {
@@ -522,6 +556,69 @@ describe("quest hub command", () => {
     });
   });
 
+  it("keeps the completed first Yeger board in the archive while the second board is active", async () => {
+    const activeReplies: Array<{ text: string; options: unknown }> = [];
+    const archiveReplies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+    const yeger = {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "turn-in-ready",
+          character: grownCharacter,
+          progress: { wins: 17, target: 17, stageId: "second" }
+        })
+    } as unknown as YegerQuestService;
+
+    const services = servicesWith({
+      adventure: readyAdventureService(grownCharacter),
+      fight: readyFightService(grownCharacter),
+      yeger,
+      cellarErrand: readyCellarService(grownCharacter)
+    });
+
+    await sendQuestHub(makeContext(activeReplies), services, "reply");
+    await sendQuestHub(makeContext(archiveReplies), services, "reply", "archive");
+
+    expect(activeReplies[0]?.text).toContain(
+      "🏹 <i>Неспокійні справи 2.0</i> — 17/17, Єгер чекає дощечку."
+    );
+    expect(activeReplies[0]?.text).not.toContain("🏹 <i>Неспокійні справи</i> — виконано");
+    expect(archiveReplies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
+    expect(archiveReplies[0]?.text).not.toContain("🏹 <i>Неспокійні справи 2.0</i> — виконано");
+  });
+
+  it("shows both completed Yeger boards in the archive after the second board is turned in", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: readyFightService(grownCharacter),
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed",
+              character: grownCharacter,
+              progress: { wins: 17, target: 17, stageId: "second" },
+              reward: {
+                xp: 170,
+                gold: 170,
+                itemGrants: []
+              }
+            })
+        } as unknown as YegerQuestService,
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
+    expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи 2.0</i> — виконано; Єгер удає, що не пишається.");
+  });
+
   it("keeps completed problem-chain stages in the archive history", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(4);
@@ -762,6 +859,137 @@ describe("quest hub command", () => {
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
+  });
+
+  it("keeps completed starter shawarma and first fight in the archive after grownup unlocks", async () => {
+    const activeReplies: Array<{ text: string; options: unknown }> = [];
+    const archiveReplies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+    const services = servicesWith({
+      adventure: {
+        getAdventureOfferForTelegramUser: () =>
+          Promise.resolve({
+            state: "ready",
+            character: grownCharacter,
+            offer: adventureOffer
+          }),
+        getMimicShawarmaForTelegramUser: () =>
+          Promise.resolve({
+            state: "level-retired",
+            character: grownCharacter,
+            maxLevel: 2,
+            completed: true
+          }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
+      } as unknown as AdventureService,
+      fight: {
+        getProblemQuestProgressForTelegramUser: () =>
+          Promise.resolve({
+            state: "ready",
+            character: grownCharacter,
+            progress: questProgress(0),
+            archive: []
+          }),
+        getFightOverviewForTelegramUser: () =>
+          Promise.resolve({
+            state: "persistent-ready",
+            character: grownCharacter,
+            questProgress: questProgress(0)
+          }),
+        getMimicShawarmaForTelegramUser: () =>
+          Promise.resolve({
+            state: "level-retired",
+            character: grownCharacter,
+            maxLevel: 2,
+            completed: true
+          }),
+        completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      } as unknown as FightService,
+      yeger: readyYegerService(grownCharacter),
+      cellarErrand: readyCellarService(grownCharacter)
+    });
+
+    await sendQuestHub(makeContext(activeReplies), services, "reply");
+    await sendQuestHub(makeContext(archiveReplies), services, "reply", "archive");
+
+    expect(activeReplies[0]?.text).toContain(
+      "🧾 <i>Тринадцять дрібних проблем</i> — 0/13 проблем у журналі."
+    );
+    expect(activeReplies[0]?.text).not.toContain("🌯 <i>Підозріла шаурма</i>");
+    expect(activeReplies[0]?.text).not.toContain("⚔️ <i>Новачкова сутичка</i>");
+    const activeButtons = (
+      activeReplies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(activeButtons.map((button) => button.text)).toContain("🪜 До Низу");
+
+    expect(archiveReplies[0]?.text).toContain("📦 Архів справ");
+    expect(archiveReplies[0]?.text).toContain("🌯 <i>Підозріла шаурма</i> — виконано; соус досі числиться як свідок.");
+    expect(archiveReplies[0]?.text).toContain("⚔️ <i>Новачкова сутичка</i> — виконано; перший висновок вижив у журналі.");
+    expect(archiveReplies[0]?.text).not.toContain("🪜 <i>Низ</i> — сьогодні вже зараховано.");
+  });
+
+  it("keeps skipped starter shawarma and first fight in the archive after grownup unlocks", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: {
+          getAdventureOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              offer: adventureOffer
+            }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired",
+              character: grownCharacter,
+              maxLevel: 2,
+              completed: false
+            }),
+          completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
+        } as unknown as AdventureService,
+        fight: {
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character: grownCharacter,
+              progress: questProgress(0),
+              archive: []
+            }),
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-ready",
+              character: grownCharacter,
+              questProgress: questProgress(0)
+            }),
+          getMimicShawarmaForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired",
+              character: grownCharacter,
+              maxLevel: 2,
+              completed: false
+            }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+        } as unknown as FightService,
+        yeger: readyYegerService(grownCharacter),
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("📦 Архів справ");
+    expect(replies[0]?.text).toContain(
+      "🌯 <i>Підозріла шаурма</i> — новачкова справа до 2 рівня; у журналі немає сліду виконання."
+    );
+    expect(replies[0]?.text).toContain(
+      "⚔️ <i>Новачкова сутичка</i> — навчальний бій для 1-2 рівнів; у журналі немає сліду виконання."
+    );
   });
 
   it("keeps the quest table problem button on the difficulty route without starting combat", async () => {
@@ -1069,7 +1297,7 @@ function servicesWith(overrides: {
 
 function lockedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorchmaRoundService {
   return {
-    getForTelegramUser: () =>
+    getExistingForTelegramUser: () =>
       Promise.resolve({
         state: "level-locked",
         character: summary,
@@ -1082,7 +1310,7 @@ function completedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorc
   const completedSceneIds = ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"];
 
   return {
-    getForTelegramUser: () =>
+    getExistingForTelegramUser: () =>
       Promise.resolve({
         state: "completed",
         character: summary,

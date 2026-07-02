@@ -60,6 +60,7 @@ describe("DailyKorchmaRoundService", () => {
     const notIssued = await world.service.getExistingForTelegramUser(telegramUserId);
 
     expect(notIssued.state).toBe("not-issued");
+    expect(notIssued.state === "not-issued" ? notIssued.dayToken : null).toBe("20260628");
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(0);
 
     const issued = await world.service.getForTelegramUser(telegramUserId);
@@ -73,6 +74,55 @@ describe("DailyKorchmaRoundService", () => {
     if (issued.state === "ready" && existing.state === "ready") {
       expect(existing.offer.scenes.map((scene) => scene.id)).toEqual(issued.offer.scenes.map((scene) => scene.id));
     }
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
+  });
+
+  it("does not issue a daily offer from overview inspection, scene, action or claim callbacks", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+
+    await expect(world.service.getExistingForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "not-issued",
+      dayToken: "20260628"
+    });
+    await expect(
+      world.service.openScene(telegramUserId, {
+        dayToken: "20260628",
+        sceneIndex: 0
+      })
+    ).resolves.toMatchObject({ state: "not-issued", dayToken: "20260628" });
+    await expect(
+      world.service.completeStep(telegramUserId, {
+        dayToken: "20260628",
+        sceneIndex: 0,
+        actionId: "repeat-last",
+        lifeToken: 0
+      })
+    ).resolves.toMatchObject({ state: "not-issued", dayToken: "20260628" });
+    await expect(
+      world.service.claimReward(telegramUserId, {
+        dayToken: "20260628",
+        lifeToken: 0
+      })
+    ).resolves.toMatchObject({ state: "not-issued", dayToken: "20260628" });
+
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(0);
+
+    await expect(
+      world.service.completeStep(telegramUserId, {
+        dayToken: "20260627",
+        sceneIndex: 0,
+        actionId: "repeat-last",
+        lifeToken: 0
+      })
+    ).resolves.toMatchObject({
+      state: "stale-day",
+      current: { state: "not-issued", dayToken: "20260628" }
+    });
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(0);
+
+    const started = await world.service.startForTelegramUser(telegramUserId, { dayToken: "20260628" });
+
+    expect(started.state).toBe("ready");
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
   });
 
@@ -226,7 +276,7 @@ describe("DailyKorchmaRoundService", () => {
     expect(world.character?.gold).toBe(23 + expectedReward.gold);
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
 
-    const restarted = new DailyKorchmaRoundService(world, world.daily, world, world, world, undefined, () => now);
+    const restarted = new DailyKorchmaRoundService(world, world.daily, world, world, world, undefined, undefined, () => now);
     const replay = await restarted.claimReward(telegramUserId, {
       dayToken: offer.dayToken,
       lifeToken: offer.lifeToken
@@ -440,7 +490,7 @@ async function readyOffer(world: FakeWorld) {
 
 class FakeWorld implements CharacterRepository, DailyActionRepository {
   readonly daily = new FakeDailyActionRepository(this);
-  readonly service = new DailyKorchmaRoundService(this, this.daily, this, this, this, undefined, () => now);
+  readonly service = new DailyKorchmaRoundService(this, this.daily, this, this, this, undefined, undefined, () => now);
   locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
   fightState: "ready" | "persistent-active" | "training-active" = "ready";
   pendingBarrel = false;

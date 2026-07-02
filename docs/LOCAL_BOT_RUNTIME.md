@@ -102,6 +102,21 @@ That places the manual-testing database inside the isolated runtime rather than 
 
 If migrations detect drift, the launcher may offer to back up and reset only the isolated runtime database. It does not reset the source checkout's database.
 
+## Running maintenance scripts against the isolated DB
+
+Maintenance commands started from the repository read the repository `.env` by default. To repair or backfill data for the running local bot, point `DATABASE_URL` at the isolated runtime database first:
+
+```powershell
+$runtimePath = (node scripts\local-bot-runtime.cjs path --source-root (Get-Location)).Trim()
+$runtimeDb = (Join-Path $runtimePath "prisma\dev.db").Replace("\", "/")
+$env:DATABASE_URL = "file:$runtimeDb"
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --apply
+npm run maintenance:poll-activity-events -- --limit=13
+```
+
+The first backfill command is a dry-run. The `-- --apply` form is required for npm to pass `--apply` to the script.
+
 ## Codex boundary
 
 During ordinary implementation and review, Codex should:

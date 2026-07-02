@@ -7,6 +7,7 @@ import type {
   LevelBarterSnapshot
 } from "../db/repositories/levelBarterRepository";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
@@ -94,7 +95,8 @@ export class LevelBarterService {
   constructor(
     private readonly repository: LevelBarterRepository,
     private readonly clock: () => Date = () => new Date(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: ActivityEventService
   ) {}
 
   async getOfferForTelegramUser(telegramUserId: bigint): Promise<LevelBarterOfferResult> {
@@ -165,14 +167,17 @@ export class LevelBarterService {
       const achievementUnlocks = result.state === "exchanged"
         ? await trackRewardAchievementsSafely(this.achievements, {
             characterId: result.character.id,
+            actorDisplayName: result.character.name,
             sourceId: result.plan.token,
+            sourceType: "level-barter",
             occurredAt: now,
             levelChange: {
               oldLevel: result.plan.levelBefore,
               newLevel: result.plan.levelAfter,
               leveledUp: result.plan.levelAfter > result.plan.levelBefore
             },
-            events: ["level.barter.completed"]
+            events: ["level.barter.completed"],
+            activityEvents: this.activityEvents
           })
         : [];
 

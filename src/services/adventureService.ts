@@ -58,6 +58,7 @@ import {
 } from "../domain/quests/questMethodResolver";
 import { getEquippedItemContents } from "./equipmentService";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { ActivityEventService } from "./activityEventService";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 
 export { ADVENTURE_CHOICE_KEY } from "./dailyActionKeys";
@@ -189,7 +190,7 @@ export type AdventureLookupResult =
 
 export type MimicShawarmaLookupResult =
   | { state: "no-character" }
-  | { state: "level-retired"; character: CharacterSummary; maxLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number; completed?: boolean }
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; fightAvailable: boolean };
 
@@ -294,7 +295,8 @@ export class AdventureService {
       "findActiveByTelegramUserId" | "findLeasedByTelegramUserId" | "releaseLeaseBySessionId"
     >,
     private readonly equipment?: EquipmentRepository,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: ActivityEventService
   ) {}
 
   async getAdventureOfferForTelegramUser(telegramUserId: bigint): Promise<AdventureLookupResult> {
@@ -549,11 +551,14 @@ export class AdventureService {
     ];
     const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
       characterId: claim.character.id,
+      actorDisplayName: claim.character.name,
       sourceId: claim.action.id,
+      sourceType: "daily-action",
       occurredAt: claim.action.createdAt,
       levelChange: claim.levelChange,
       itemGrants: claim.itemGrants,
-      events: achievementEvents
+      events: achievementEvents,
+      activityEvents: this.activityEvents
     });
 
     return {
@@ -594,14 +599,6 @@ export class AdventureService {
     const equippedItems = await this.getEquippedItemContents(telegramUserId);
     const characterSummary = summarizeCharacter(character, { equippedItems });
 
-    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
-      return {
-        state: "level-retired",
-        character: characterSummary,
-        maxLevel: STARTER_ACTIVITY_MAX_LEVEL
-      };
-    }
-
     const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
       localDate
@@ -617,6 +614,19 @@ export class AdventureService {
         state: "already-completed",
         character: characterSummary,
         fightAvailable: !existingFight
+      };
+    }
+
+    if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
+      const historicalAdventures = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+        key: MIMIC_SHAWARMA_ADVENTURE_KEY
+      });
+
+      return {
+        state: "level-retired",
+        character: characterSummary,
+        maxLevel: STARTER_ACTIVITY_MAX_LEVEL,
+        completed: Boolean(historicalAdventures?.length)
       };
     }
 
@@ -729,11 +739,14 @@ export class AdventureService {
 
     const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
       characterId: claim.character.id,
+      actorDisplayName: claim.character.name,
       sourceId: claim.action.id,
+      sourceType: "daily-action",
       occurredAt: claim.action.createdAt,
       levelChange: claim.levelChange,
       itemGrants: claim.itemGrants,
-      events: ["starter.mimic-shawarma.completed"]
+      events: ["starter.mimic-shawarma.completed"],
+      activityEvents: this.activityEvents
     });
 
     return {

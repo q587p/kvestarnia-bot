@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type {
+  ActivityEventPage,
+  ActivityEventRecord,
+  ActivityEventRepository,
+  ListRecentActivityEventsQuery,
+  RecordActivityEventInput
+} from "../../src/db/repositories/activityEventRepository";
+import type {
   CharacterRecord,
   CharacterRepository,
   CreateCharacterInput,
@@ -49,6 +56,7 @@ import { getItemDropChance } from "../../src/domain/loot";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
+import { ActivityEventService } from "../../src/services/activityEventService";
 import {
   buildCenterBaselinePersistentFightWinXp,
   buildHardPersistentFightWinXpFloor,
@@ -295,6 +303,41 @@ describe("FightService", () => {
     await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "already-completed",
       questAvailable: false
+    });
+  });
+
+  it("keeps completed starter fight visible after persistent fights unlock", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, MIMIC_SHAWARMA_COMBAT_PROBE_KEY);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      questAvailable: true
+    });
+  });
+
+  it("keeps completed starter fight visible after the starter level gate closes", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 45 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.addAction(telegramUserId, MIMIC_SHAWARMA_COMBAT_PROBE_KEY, "2026-06-11");
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock
+    });
+
+    await expect(service.getMimicShawarmaForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "level-retired",
+      maxLevel: 2,
+      completed: true
     });
   });
 
@@ -2162,6 +2205,151 @@ describe("FightService", () => {
       manaRegenAt: characterAfterClaim?.manaRegenAt
     });
     expect(rewardRecords).toHaveLength(1);
+  });
+
+  it("records underdog combat wins from the frozen effective monster level", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const character = await characters.findByTelegramUserId(telegramUserId);
+    expect(character).not.toBeNull();
+    if (!character) {
+      return;
+    }
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const activityEvents = new FakeActivityEventRepository();
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      activityEvents: new ActivityEventService(activityEvents),
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active" || !started.session.state) {
+      return;
+    }
+    const authoredMonster = monsters.find((monster) => monster.id === started.session.monsterId);
+    expect(authoredMonster).toBeDefined();
+    if (!authoredMonster) {
+      return;
+    }
+    expect(authoredMonster.level - character.level).toBeLessThan(5);
+
+    const effectiveMonsterLevel = character.level + 5;
+    sessions.addSession({
+      ...started.session,
+      state: {
+        ...started.session.state,
+        monster: {
+          ...started.session.state.monster,
+          hp: 1,
+          debugTrace: {
+            ...started.session.state.monster.debugTrace,
+            baseMonsterLevel: authoredMonster.level,
+            effectiveMonsterLevel
+          }
+        }
+      }
+    });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state !== "updated") {
+      return;
+    }
+    expect(result.session.status).toBe("won");
+    expect(activityEvents.records).toHaveLength(1);
+    expect(activityEvents.records[0]).toMatchObject({
+      eventType: "combat.underdog_won",
+      sourceId: started.session.id,
+      subjectId: started.session.monsterId,
+      payload: {
+        levelDelta: 5
+      }
+    });
+  });
+
+  it("keeps below-threshold wins and losses out of activity events", async () => {
+    const wonEvents = new FakeActivityEventRepository();
+    {
+      const characters = new FakeCharacterRepository();
+      characters.add(telegramUserId, { xp: 25 });
+      const dailyActions = new FakeDailyActionRepository(characters);
+      const sessions = new FakeSoloCombatSessionRepository(characters);
+      const service = new FightService({
+        characters,
+        dailyActions,
+        clock: fixedClock,
+        combatSessions: sessions,
+        activityEvents: new ActivityEventService(wonEvents),
+        rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+      });
+      const started = await service.getFightForTelegramUser(telegramUserId);
+      expect(started.state).toBe("persistent-active");
+      if (started.state === "persistent-active") {
+        sessions.setMonsterHp(started.session.id, 1);
+        await service.resolvePersistentFightTurn(telegramUserId, {
+          sessionId: started.session.id,
+          turn: 1,
+          action: "attack"
+        });
+      }
+    }
+    expect(wonEvents.records).toHaveLength(0);
+
+    const lossEvents = new FakeActivityEventRepository();
+    {
+      const characters = new FakeCharacterRepository();
+      characters.add(telegramUserId, { xp: 25 });
+      const dailyActions = new FakeDailyActionRepository(characters);
+      const sessions = new FakeSoloCombatSessionRepository(characters);
+      const service = new FightService({
+        characters,
+        dailyActions,
+        clock: fixedClock,
+        combatSessions: sessions,
+        activityEvents: new ActivityEventService(lossEvents),
+        rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+      });
+      const started = await service.getFightForTelegramUser(telegramUserId);
+      expect(started.state).toBe("persistent-active");
+      if (started.state === "persistent-active" && started.session.state) {
+        const character = await characters.findByTelegramUserId(telegramUserId);
+        const effectiveMonsterLevel = (character?.level ?? 1) + 5;
+        sessions.addSession({
+          ...started.session,
+          state: {
+            ...started.session.state,
+            hero: {
+              ...started.session.state.hero,
+              hp: 1
+            },
+            monster: {
+              ...started.session.state.monster,
+              hp: 999,
+              debugTrace: {
+                ...started.session.state.monster.debugTrace,
+                effectiveMonsterLevel
+              }
+            }
+          }
+        });
+        await service.resolvePersistentFightTurn(telegramUserId, {
+          sessionId: started.session.id,
+          turn: 1,
+          action: "defend"
+        });
+      }
+    }
+    expect(lossEvents.records).toHaveLength(0);
   });
 
   it("claims and replays one persistent fight reward after a two-enemy victory", async () => {
@@ -5542,6 +5730,49 @@ function buildEquipment(overrides: Partial<CharacterEquipmentRecord>): Character
   };
 }
 
+class FakeActivityEventRepository implements ActivityEventRepository {
+  readonly records: ActivityEventRecord[] = [];
+
+  record(input: RecordActivityEventInput): Promise<ActivityEventRecord> {
+    const record: ActivityEventRecord = {
+      id: `activity-event-${this.records.length + 1}`,
+      eventType: input.eventType,
+      category: input.category,
+      severity: input.severity,
+      visibility: input.visibility ?? "public",
+      actorCharacterId: input.actorCharacterId ?? null,
+      actorDisplayName: input.actorDisplayName ?? null,
+      relatedCharacterIds: input.relatedCharacterIds ? [...input.relatedCharacterIds] : null,
+      subjectKind: input.subjectKind ?? null,
+      subjectId: input.subjectId ?? null,
+      subjectName: input.subjectName ?? null,
+      sourceType: input.sourceType ?? null,
+      sourceId: input.sourceId ?? null,
+      dedupeKey: input.dedupeKey ?? null,
+      payload: input.payload ?? null,
+      occurredAt: input.occurredAt,
+      publishedAt: input.publishedAt ?? null,
+      createdAt: fixedClock()
+    };
+    this.records.push(record);
+    return Promise.resolve(record);
+  }
+
+  listRecent(query: ListRecentActivityEventsQuery = {}): Promise<ActivityEventPage> {
+    const page = query.page ?? 0;
+    const pageSize = query.pageSize ?? 15;
+    const start = page * pageSize;
+    const events = this.records.slice(start, start + pageSize);
+
+    return Promise.resolve({
+      events,
+      page,
+      pageSize,
+      hasNextPage: start + pageSize < this.records.length
+    });
+  }
+}
+
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
   resourceUpdateCount = 0;
@@ -5830,6 +6061,21 @@ class FakeDailyActionRepository implements DailyActionRepository {
       rewardGold: 0,
       createdAt: new Date("2026-06-12T00:00:00.000Z")
     });
+  }
+
+  async listForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return [...this.actions.values()]
+      .filter((action) => action.characterId === character.id && action.key === input.key)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 }
 

@@ -138,6 +138,24 @@ describe("AchievementService", () => {
     ]);
   });
 
+  it("unlocks the latest events opener once", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    const event = {
+      type: "latest-events.opened" as const,
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-02T09:00:00.000Z"),
+      sourceId: "character-1"
+    };
+
+    const first = await service.trackEvent(event);
+    const second = await service.trackEvent(event);
+
+    expect(first.map((unlock) => unlock.id)).toEqual(["achievement.journey.latest-events-opened"]);
+    expect(second).toEqual([]);
+    expect(repo.snapshot.achievements).toHaveLength(1);
+  });
+
   it("lists earned, locked, hidden and unknown stored entries safely", async () => {
     const repo = new FakeAchievementRepository();
     repo.snapshot.achievements.push({

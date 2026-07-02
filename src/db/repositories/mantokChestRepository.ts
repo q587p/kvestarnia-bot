@@ -25,6 +25,7 @@ export interface MantokChestRunRecord {
 
 export interface MantokChestSnapshot {
   characterId: string;
+  characterDisplayName: string;
   items: CharacterItemRecord[];
   equippedItemIds: string[];
   reservedItemIds?: string[];
@@ -37,7 +38,7 @@ export type MantokChestConfirmResult =
   | { state: "expired"; run: MantokChestRunRecord }
   | { state: "stale-inputs"; run: MantokChestRunRecord }
   | { state: "no-output-candidate"; run: MantokChestRunRecord }
-  | { state: "recycled"; run: MantokChestRunRecord }
+  | { state: "recycled"; run: MantokChestRunRecord; characterDisplayName: string }
   | { state: "replayed"; run: MantokChestRunRecord };
 
 export interface MantokChestRepository {

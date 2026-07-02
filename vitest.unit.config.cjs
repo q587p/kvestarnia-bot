@@ -1,0 +1,8 @@
+/** @type {import("vitest/config").UserConfig} */
+module.exports = {
+  test: {
+    environment: "node",
+    include: ["tests/**/*.test.ts"],
+    exclude: ["tests/**/*.integration.test.ts"]
+  }
+};

@@ -94,7 +94,7 @@ export const races = [
       charisma: 1,
       luck: 1
     },
-    allowedPronouns: ["he", "they"],
+    allowedPronouns: ["he"],
     unavailableReasons: {
       she: "Домовичка ще перевіряє, чи ця хата достатньо затишна для альфи."
     }
@@ -110,7 +110,7 @@ export const races = [
       charisma: 1,
       luck: 0
     },
-    allowedPronouns: ["she", "they"],
+    allowedPronouns: ["she"],
     unavailableReasons: {
       he: "Сухопутна русалка подивилась на анкету й сказала: «Ні, хвіст уявний, але принципи реальні»."
     }

@@ -18,7 +18,6 @@ Return buttons:
 ```text
 ⬅️ До дошки
 ⬅️ До корчми
-🔄 Оновити
 Далі ➡️
 ```
 
@@ -115,13 +114,13 @@ Milestone variant:
 ### Group raid victory
 
 ```text
-🏆 HH:mm | Ватага здолала «{boss}»: {participantCount} пригодників, 1 мокрий протокол.
+🏆 HH:mm | Ватага: перемога. Ціль — «{boss}». У протоколі: {participantCount} пригодників.
 ```
 
 First server victory:
 
 ```text
-🏆 HH:mm | Перша перемога над «{boss}»! Ватага вже сперечається, хто саме був планом.
+🏆 HH:mm | Перша перемога ватаги. Ціль — «{boss}». Уже сперечаються, хто саме був планом.
 ```
 
 Compact variant:
@@ -145,7 +144,7 @@ Epic variant:
 ### Underdog combat victory
 
 ```text
-🛡️ HH:mm | {actor}: перемога над «{monster}», сильнішим на {delta} рівнів.
+🛡️ HH:mm | {actor}: перемога. Монстр — «{monster}», перевага рівнів: +{delta}.
 ```
 
 Near-KO variant if the combat result already stores HP safely:

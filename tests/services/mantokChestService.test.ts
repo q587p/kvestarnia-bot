@@ -1,4 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type {
+  ActivityEventPage,
+  ActivityEventRecord,
+  ActivityEventRepository,
+  ListRecentActivityEventsQuery,
+  RecordActivityEventInput
+} from "../../src/db/repositories/activityEventRepository";
 import type { CharacterItemRecord } from "../../src/db/repositories/inventoryRepository";
 import type {
   MantokChestConfirmResult,
@@ -8,6 +15,7 @@ import type {
   MantokChestSnapshot
 } from "../../src/db/repositories/mantokChestRepository";
 import { MantokChestService } from "../../src/services/mantokChestService";
+import { ActivityEventService } from "../../src/services/activityEventService";
 import { FakeRandomSource } from "../../src/shared/random";
 
 const telegramUserId = 42n;
@@ -198,6 +206,40 @@ describe("MantokChestService", () => {
     expect(repository.getTotalQuantity()).toBe(2);
     expect(repository.getQuantities()["item.suspicious-shawarma-wrapper"]).toBeUndefined();
     expect(repository.getQuantities()["item.cheese-of-procedural-doubt"]).toBe(1);
+  });
+
+  it("records rare output activity with the recycled character display name", async () => {
+    const activityRepository = new FakeActivityEventRepository();
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.apophenia-receipt-of-twenty-three", 5)
+    ], [], "Пані Манатка"));
+    const service = new MantokChestService(
+      repository,
+      () => fixedNow,
+      new FakeRandomSource([0]),
+      undefined,
+      new ActivityEventService(activityRepository)
+    );
+    const preview = await service.createAutoPickPreviewForTelegramUser(telegramUserId);
+    expect(preview.state).toBe("preview-created");
+    if (preview.state !== "preview-created") {
+      return;
+    }
+
+    const result = await service.confirmRecycleForTelegramUser(telegramUserId, preview.run.token);
+
+    expect(result.state).toBe("recycled");
+    expect(activityRepository.rows).toEqual([
+      expect.objectContaining({
+        eventType: "item.rare_received",
+        actorCharacterId: "character-42",
+        actorDisplayName: "Пані Манатка",
+        subjectId: "item.towel-of-forty-two-answers",
+        sourceType: "mantok-chest",
+        sourceId: preview.run.id
+      })
+    ]);
+    expect(activityRepository.rows[0]?.actorDisplayName).not.toBe("Пригодник без таблички");
   });
 
   it("replays repeated confirm callbacks without another output", async () => {
@@ -500,9 +542,14 @@ describe("MantokChestService", () => {
   });
 });
 
-function snapshot(items: CharacterItemRecord[], equippedItemIds: string[] = []): MantokChestSnapshot {
+function snapshot(
+  items: CharacterItemRecord[],
+  equippedItemIds: string[] = [],
+  characterDisplayName = "Тестовий Скриняр"
+): MantokChestSnapshot {
   return {
     characterId: "character-42",
+    characterDisplayName,
     items,
     equippedItemIds
   };
@@ -679,7 +726,11 @@ class FakeMantokChestRepository implements MantokChestRepository {
     this.runs.set(input.token, completed);
     this.completedCount += 1;
 
-    return Promise.resolve({ state: "recycled", run: structuredCloneRun(completed) });
+    return Promise.resolve({
+      state: "recycled",
+      run: structuredCloneRun(completed),
+      characterDisplayName: snapshot.characterDisplayName
+    });
   }
 
   expirePendingRunsOlderThan(cutoff: Date, now: Date): Promise<number> {
@@ -768,6 +819,52 @@ class FakeMantokChestRepository implements MantokChestRepository {
       items: this.currentSnapshot.items.map((row) => ({ ...row })),
       equippedItemIds: [...this.currentSnapshot.equippedItemIds]
     };
+  }
+}
+
+class FakeActivityEventRepository implements ActivityEventRepository {
+  rows: ActivityEventRecord[] = [];
+
+  record(input: RecordActivityEventInput): Promise<ActivityEventRecord> {
+    const existing = input.dedupeKey
+      ? this.rows.find((row) => row.dedupeKey === input.dedupeKey)
+      : null;
+    if (existing) {
+      return Promise.resolve(existing);
+    }
+
+    const record: ActivityEventRecord = {
+      id: `activity-${this.rows.length + 1}`,
+      eventType: input.eventType,
+      category: input.category,
+      severity: input.severity,
+      visibility: input.visibility ?? "public",
+      actorCharacterId: input.actorCharacterId ?? null,
+      actorDisplayName: input.actorDisplayName ?? null,
+      relatedCharacterIds: input.relatedCharacterIds ? [...input.relatedCharacterIds] : null,
+      subjectKind: input.subjectKind ?? null,
+      subjectId: input.subjectId ?? null,
+      subjectName: input.subjectName ?? null,
+      sourceType: input.sourceType ?? null,
+      sourceId: input.sourceId ?? null,
+      dedupeKey: input.dedupeKey ?? null,
+      payload: input.payload ?? null,
+      occurredAt: input.occurredAt,
+      publishedAt: input.publishedAt ?? null,
+      createdAt: input.occurredAt
+    };
+    this.rows.push(record);
+
+    return Promise.resolve(record);
+  }
+
+  listRecent(query: ListRecentActivityEventsQuery = {}): Promise<ActivityEventPage> {
+    return Promise.resolve({
+      events: this.rows,
+      page: query.page ?? 0,
+      pageSize: query.pageSize ?? 15,
+      hasNextPage: false
+    });
   }
 }
 

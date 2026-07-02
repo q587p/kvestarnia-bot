@@ -81,6 +81,8 @@ BOT_USERNAME=kvestarnia_bot
 
 `/dev_reset_me` лишається локальним reset-хелпером і працює, коли `NODE_ENV` не `production`.
 
+Усі `/dev_*` команди мають лишатися non-production only: production feature flags можуть відкривати ігрові поверхні, але не мають реєструвати `/dev_*`, показувати їх у `/help` або `/dev_help`, чи дозволяти dev-only callback mutation. Зокрема `PARTY_SESSION_DEV_HELPERS_ENABLED` не повинен відкривати `/dev_party` у `NODE_ENV=production`.
+
 Value-granting helper commands вмикаються тільки явним локальним opt-in:
 
 ```env
@@ -92,6 +94,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
+- `/dev_party` — збирає тимчасову локальну ватагу для перевірки party/session і Big Barrel Brother flows; у production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_add_level [число]` — додає вказану кількість рівнів поточному персонажу; без числа додає 1 рівень.
 - `/dev_add_xp [число]` — додає вказану кількість XP; без числа додає 1 XP.
 - `/dev_add_gold [число]` — додає вказану кількість золота; без числа додає 1 золото.
@@ -107,7 +110,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_monster_rest` — скидає коротку перерву монстрів після серії ordinary боїв у Низі для швидкого локального `/fight` QA.
 - `/dev_two_enemies` — стартує dev-only persistent бій проти двох ворогів для перевірки foundation multi-enemy state; production-маршрути лишаються одно-ворожими.
 
-Ці команди не потрапляють у бокове меню Telegram. `/help` і `/dev_help` показують value-granting dev-команди тільки тоді, коли вони реально enabled.
+Ці команди не потрапляють у бокове меню Telegram і не показуються у звичайному `/help`. `/dev_help` показує dev-команди тільки тоді, коли їхні non-production gates реально enabled; за `DEV_GRANT_COMMANDS_ENABLED=true` у non-production основна клавіатура також показує кнопку `🧰 Адмінка` для цієї dev-довідки.
 
 ## Prisma
 
@@ -166,6 +169,10 @@ npm run check
 - `npm run db:validate` — перевірка Prisma schema.
 - `npm run db:migrate` — локальні міграції Prisma.
 - `npm run db:deploy` — застосування закомічених migrations для Render/CI; якщо Render уже має failed migration record для `0.0.25`, скрипт спершу безпечно розрулює цей known state, а потім продовжує deploy.
+- `npm run maintenance:backfill-activity-events` — dry-run підтягування архівних `ActivityEvent` rows для хронік з поточного `DATABASE_URL`.
+- `npm run maintenance:backfill-activity-events -- --apply` — застосувати підтягування після перевіреного dry-run.
+- `npm run maintenance:poll-activity-events` — read-only перегляд останніх public `ActivityEvent` rows з поточного `DATABASE_URL`.
+- `npm run maintenance:poll-activity-events -- --watch --interval=13` — polling нових activity rows без зміни БД.
 - `npm run maintenance:repair-character-resources` — dry-run перевірка over-max `hpCurrent`/`manaCurrent` у таблиці `characters` для БД з поточного `DATABASE_URL`.
 - `npm run maintenance:repair-character-resources -- --apply` — застосувати repair і clamp over-max ресурсів до поточних максимумів після перевіреного dry-run.
 
@@ -179,6 +186,111 @@ npm run db:deploy
 - `npm run db:studio` — Prisma Studio.
 
 ## Maintenance repair scripts
+
+`npm run maintenance:backfill-activity-events` безпечний за замовчуванням: він лише рахує архівні public activity rows, які може створити для `📜 Хронік Квестарні`, і не змінює БД без `-- --apply`.
+
+За замовчуванням скрипт бере останні 93 дні, як і player-facing retention хронік. Доступні опції:
+
+```powershell
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --days=30
+npm run maintenance:backfill-activity-events -- --since=2026-07-01
+npm run maintenance:backfill-activity-events -- --all
+npm run maintenance:backfill-activity-events -- --apply
+```
+
+Увага: для npm script прапори скрипта передаються після розділювача `--`. Команда `npm run maintenance:backfill-activity-events --apply` не застосує backfill і лишиться dry-run; потрібна форма `npm run maintenance:backfill-activity-events -- --apply`.
+
+Типовий порядок запуску:
+
+1. Переконайтесь, що процес читає правильний `DATABASE_URL`.
+2. Запустіть dry-run без `--apply`.
+3. Перевірте `planned`/`existing`/`invalid` counts.
+4. Запустіть `-- --apply` тільки для перевіреної target-БД.
+5. Перевірте результат read-only polling:
+
+```powershell
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --apply
+npm run maintenance:poll-activity-events -- --limit=13
+```
+
+На Windows той самий dry-run/apply/poll ланцюжок можна запустити інтерактивним helper-ом із паузами між кроками:
+
+```powershell
+backfill-activity-events.cmd
+```
+
+Для ізольованого local bot runtime helper сам наведе `DATABASE_URL` на runtime `prisma/dev.db`:
+
+```powershell
+backfill-activity-events.cmd --local-runtime
+```
+
+Якщо треба явно вказати іншу БД із Windows-середовища, наприклад production SQLite `DATABASE_URL`, передайте Prisma URL першим аргументом у лапках:
+
+```powershell
+backfill-activity-events.cmd "file:/var/data/kvestarnia.db"
+```
+
+У Render/Linux shell використовуйте bash-команди з явним `DATABASE_URL=...`, наведені нижче; `.cmd` призначений для Windows.
+
+Для іншої локальної SQLite БД передайте `DATABASE_URL` у цьому ж PowerShell-сеансі:
+
+```powershell
+$env:DATABASE_URL="file:./prisma/dev.db"
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --apply
+npm run maintenance:poll-activity-events -- --limit=13
+```
+
+Для ізольованого local bot runtime спершу візьміть його runtime path і наведіть `DATABASE_URL` саме на його `prisma/dev.db`, бо бот не читає checkout `.env` БД:
+
+```powershell
+$runtimePath = (node scripts\local-bot-runtime.cjs path --source-root (Get-Location)).Trim()
+$runtimeDb = (Join-Path $runtimePath "prisma\dev.db").Replace("\", "/")
+$env:DATABASE_URL = "file:$runtimeDb"
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --apply
+npm run maintenance:poll-activity-events -- --limit=13
+```
+
+Скрипт відновлює лише події, які можна підтягнути без вигадування історії: створення персонажів, рівні з `character_achievements`, rare/epic манатки з поточного інвентаря та Big Barrel Brother victory sessions. `combat.underdog_won` не backfill-иться, бо архівні combat rows не гарантують точний рівень персонажа на момент бою.
+
+`npm run maintenance:poll-activity-events` нічого не змінює в БД: він читає public `ActivityEvent` rows через той самий bounded feed query, який використовує runtime. Це швидка перевірка, чи хроніки вже мають нові рядки, або чи backfill/apply справді записав очікувані події.
+
+Перед першим polling для БД, яка ще не має таблиці `ActivityEvent`, застосуйте committed migrations:
+
+```powershell
+npm run db:deploy
+```
+
+Для локальної dev-БД, де свідомо використовується Prisma dev workflow, можна натомість виконати:
+
+```powershell
+npm run db:migrate
+```
+
+```powershell
+npm run maintenance:poll-activity-events
+npm run maintenance:poll-activity-events -- --filter=imp --limit=13
+npm run maintenance:poll-activity-events -- --filter=itm --json
+npm run maintenance:poll-activity-events -- --watch --interval=13
+```
+
+Якщо polling показує `Rows: 0`, але в БД вже є персонажі або manatky, це означає, що сам `ActivityEvent` ledger ще порожній. Перевірте, що можна чесно реконструювати:
+
+```powershell
+npm run maintenance:backfill-activity-events
+```
+
+І тільки для правильної target-БД застосуйте dry-run результат:
+
+```powershell
+npm run maintenance:backfill-activity-events -- --apply
+```
+
+Фільтри відповідають runtime feed-фільтрам: `all`, `imp`, `adv`, `cmb`, `itm`. `--watch` повторює read-only polling і друкує тільки нові побачені rows; зупинка — `Ctrl+C`.
 
 `npm run maintenance:repair-character-resources` безпечний за замовчуванням: він лише показує персонажів, у яких `hpCurrent > hpMax` або `manaCurrent > manaMax`, і не змінює БД без `-- --apply`.
 
@@ -220,6 +332,15 @@ SQLite файл має лежати на Persistent Disk, змонтованом
 ```bash
 DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:repair-character-resources
 DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:repair-character-resources -- --apply
+```
+
+Для одноразового production backfill хронік після deploy спершу зроби backup persistent DB і dry-run:
+
+```bash
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events -- --apply
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:poll-activity-events
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:poll-activity-events -- --watch --interval=13
 ```
 
 Build command:

@@ -6,7 +6,6 @@ import type { FightService } from "../../services/fightService";
 import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
-import { STARTER_ACTIVITY_MAX_LEVEL } from "../../domain/progression/activityGates";
 import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
@@ -96,11 +95,15 @@ async function buildQuestHubSnapshot(
   }
 
   const starterAdventure =
-    adventure.state === "level-locked" && adventure.character.level <= STARTER_ACTIVITY_MAX_LEVEL
+    typeof options.adventure.getMimicShawarmaForTelegramUser === "function"
       ? await options.adventure.getMimicShawarmaForTelegramUser(telegramUserId)
       : null;
 
   const fight = await options.fight.getFightOverviewForTelegramUser(telegramUserId);
+  const starterFight =
+    typeof options.fight.getMimicShawarmaForTelegramUser === "function"
+      ? await options.fight.getMimicShawarmaForTelegramUser(telegramUserId)
+      : null;
   const problemQuest = await options.fight.getProblemQuestProgressForTelegramUser(telegramUserId);
   const yeger = await options.yeger.getForTelegramUser(telegramUserId);
   const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
@@ -109,7 +112,7 @@ async function buildQuestHubSnapshot(
       ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
       : null;
   const dailyKorchmaRound = options.dailyKorchmaRound
-    ? await options.dailyKorchmaRound.getForTelegramUser(telegramUserId)
+    ? await options.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
     : null;
 
   if (
@@ -128,6 +131,7 @@ async function buildQuestHubSnapshot(
     adventure,
     ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
     fight,
+    ...(starterFight && starterFight.state !== "no-character" ? { starterFight } : {}),
     problemQuest: problemQuest.progress,
     problemQuestArchive: problemQuest.archive,
     yeger,

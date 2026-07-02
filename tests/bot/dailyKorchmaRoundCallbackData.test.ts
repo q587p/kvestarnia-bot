@@ -5,6 +5,7 @@ import {
   makeDailyKorchmaRoundOverviewCallbackData,
   makeDailyKorchmaRoundSceneCallbackData,
   makeDailyKorchmaRoundSceneHelpCallbackData,
+  makeDailyKorchmaRoundStartCallbackData,
   parseDailyKorchmaRoundCallbackData
 } from "../../src/bot/callbacks/dailyKorchmaRoundCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -13,6 +14,7 @@ describe("daily Korchma round callback data", () => {
   it("round-trips overview, scene, action and claim callbacks within Telegram limits", () => {
     const callbacks = [
       makeDailyKorchmaRoundOverviewCallbackData("20260628"),
+      makeDailyKorchmaRoundStartCallbackData("20260628"),
       makeDailyKorchmaRoundSceneCallbackData("20260628", 2),
       makeDailyKorchmaRoundSceneHelpCallbackData("20260628", 2),
       makeDailyKorchmaRoundActionCallbackData({
@@ -26,6 +28,7 @@ describe("daily Korchma round callback data", () => {
 
     expect(callbacks.map((data) => parseDailyKorchmaRoundCallbackData(data))).toEqual([
       { ok: true, value: { type: "overview", dayToken: "20260628" } },
+      { ok: true, value: { type: "start", dayToken: "20260628" } },
       { ok: true, value: { type: "scene", dayToken: "20260628", sceneIndex: 2 } },
       { ok: true, value: { type: "scene-help", dayToken: "20260628", sceneIndex: 2 } },
       {

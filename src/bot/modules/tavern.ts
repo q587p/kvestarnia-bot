@@ -26,6 +26,7 @@ import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
 import { parseCellarCallbackData,type CellarCallback } from "../callbacks/cellarCallbackData";
 import { parseMemorialCallbackData,type MemorialCallback } from "../callbacks/memorialCallbackData";
+import { parseLatestEventsCallbackData,type LatestEventsCallback } from "../callbacks/latestEventsCallbackData";
 import { parsePlaceCallbackData,type PlaceCallback } from "../callbacks/placeCallbackData";
 import { parseShynokCallbackData,type ShynokCallback } from "../callbacks/shynokCallbackData";
 import { parseTavernCallbackData,type TavernCallback } from "../callbacks/tavernCallbackData";
@@ -33,6 +34,7 @@ import {
 registerCellarCommand,
 sendCellarErrandRouted
 } from "../commands/cellarCommand";
+import { sendLatestEvents } from "../commands/latestEventsCommand";
 import { sendFight } from "../commands/fightCommand";
 import {
 sendHuntBoard,
@@ -203,8 +205,25 @@ export function registerTavernBotModule(
     await handleMemorialCallback(ctx, action, services);
   });
 
+  registerParsedCallbackRoute(bot, /^v1:ev:/, parseLatestEventsCallbackData, async (ctx, action) => {
+    await handleLatestEventsCallback(ctx, action, services);
+  });
+
   registerParsedCallbackRoute(bot, /^v[12]:cellar:/, parseCellarCallbackData, async (ctx, action) => {
     await handleCellarCallback(ctx, action, services);
+  });
+}
+
+async function handleLatestEventsCallback(
+  ctx: Context,
+  action: LatestEventsCallback,
+  services: BotServices
+): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+  await sendLatestEvents(ctx, services.activityEvents, "edit", {
+    filter: action.filter,
+    page: action.page,
+    achievementTracker: services.hero
   });
 }
 
@@ -709,6 +728,12 @@ async function handlePlaceCallback(
 
   if (action === "quest-table") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    if (
+      await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, services)
+    ) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await markScenePresence(ctx, services.presence, {
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

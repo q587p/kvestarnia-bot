@@ -162,7 +162,7 @@ describe("hunt command", () => {
     });
   });
 
-  it("keeps completed quest rewards out of the base Yeger corner", async () => {
+  it("keeps completed quest rewards and the closed quest button out of the base Yeger corner", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
       locationId: PRESENCE_LOCATION_KORCHMA_HALL,
@@ -180,7 +180,8 @@ describe("hunt command", () => {
     expect(replies[0]?.text).toContain("Неспокійні справи закрито.");
     expect(replies[0]?.text).not.toContain("Нагорода:");
     expect(replies[0]?.text).not.toContain("Здобуто:");
-    expect(JSON.stringify(replies[0]?.options)).toContain("🏹 Неспокійні справи");
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("🏹 Неспокійні справи");
+    expect(JSON.stringify(replies[0]?.options)).toContain("🩹 Бинти");
   });
 });
 
