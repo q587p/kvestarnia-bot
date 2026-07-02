@@ -5,7 +5,6 @@ import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownu
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
-import { getKyivDayToken } from "../../shared/kyivDate";
 import {
   BESTIARY_MIN_LEVEL,
   FIGHTING_CORNER_MIN_LEVEL,
@@ -122,7 +121,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
             )
           : makeDailyKorchmaRoundOverviewCallbackData(
               input.dailyKorchmaRound.state === "not-issued"
-                ? getKyivDayToken(new Date())
+                ? input.dailyKorchmaRound.dayToken
                 : input.dailyKorchmaRound.offer.dayToken
             )
       )

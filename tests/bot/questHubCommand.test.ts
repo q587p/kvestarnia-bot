@@ -98,7 +98,8 @@ describe("quest hub command", () => {
     const getExistingForTelegramUser = vi.fn(() =>
       Promise.resolve({
         state: "not-issued" as const,
-        character: characterAtLevel(3)
+        character: characterAtLevel(3),
+        dayToken: "20260628"
       })
     );
     const getForTelegramUser = vi.fn();

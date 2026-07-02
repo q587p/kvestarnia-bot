@@ -215,17 +215,18 @@ Use one fresh account plus one account with at least one earned cosmetic title g
 Use one level 2 account and one level 3+ account. Local dev grants/resets are acceptable for setup.
 
 1. On level 2, open the Quest Table and verify `Корчмарський обхід` is hidden.
-2. On level 3+, open the Quest Table; verify the daily overview shows one `Задвірок корчми` scene and two distinct interior scenes, but only offers `До справ` / `До зали` navigation, not direct scene-location buttons.
-3. Walk through normal Korchma navigation to the first required location; verify the active scene opens there, then complete one authored action.
-4. Try the second scene action from the wrong location using an old/stale scene card if available; verify no step row/reward is created and the card names the required place.
-5. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `Не сьогоднішня катастрофа`.
-6. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants level-scaled XP/gold and replays the same exact values.
-7. Replay old overview/scene/action/claim buttons; verify no duplicate step, reward, achievement notification, XP or gold.
-8. Remort before and after claim in local QA; verify same-day progress/reward is not cleared or duplicated and old-life action buttons stale out.
-9. Restart before and after claim; verify the exact same scene ids/order and reward replay.
-10. Locally run `/dev_reset_korchma_round`, reopen the Quest Table and verify the same Kyiv-day route starts again with `0/2` progress.
-11. During active combat and while a pending Barrel raid is active, verify daily mutations are blocked.
-12. Verify the achievement hook is distinct from Shynok beer-round ids and unlocks only the rewardless daily-round record.
+2. On level 3+, open the Quest Table and `Корчмарський обхід`; verify the first card shows `Берусь за обхід` / `Пізніше`, and `Пізніше` returns without starting the round or changing ordinary location cards.
+3. Press `Берусь за обхід`; verify the daily overview shows one `Задвірок корчми` scene and two distinct interior scenes, but only offers `До справ` / `До зали` navigation, not direct scene-location buttons.
+4. Walk through normal Korchma navigation to the first required location; verify the active scene opens there, then complete one authored action.
+5. Try the second scene action from the wrong location using an old/stale scene card if available; verify no step row/reward is created and the card names the required place.
+6. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `Не сьогоднішня катастрофа`.
+7. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants level-scaled XP/gold and replays the same exact values.
+8. Replay old overview/scene/action/claim buttons; verify no duplicate step, reward, achievement notification, XP or gold.
+9. Remort before and after claim in local QA; verify same-day progress/reward is not cleared or duplicated and old-life action buttons stale out.
+10. Restart before and after claim; verify the exact same scene ids/order and reward replay.
+11. Locally run `/dev_reset_korchma_round`, reopen the Quest Table and verify the same Kyiv-day route starts again with `0/2` progress.
+12. During active combat and while a pending Barrel raid is active, verify daily mutations are blocked.
+13. Verify the achievement hook is distinct from Shynok beer-round ids and unlocks only the rewardless daily-round record.
 
 ## 0.2.8 — Achievements and Cosmetic Title Records smoke
 

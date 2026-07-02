@@ -1,6 +1,8 @@
 import type {
   DailyKorchmaRoundClaimResult,
+  DailyKorchmaRoundExistingLookupResult,
   DailyKorchmaRoundLookupResult,
+  DailyKorchmaRoundOverviewResult,
   DailyKorchmaRoundSceneLookupResult,
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
@@ -8,7 +10,15 @@ import type { DailyKorchmaRoundAction } from "../../content/dailyKorchmaRoundCon
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 
-export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult): string {
+export function presentDailyKorchmaRound(result: DailyKorchmaRoundOverviewResult): string {
+  if (result.state === "stale-day") {
+    return [
+      "🧾 Стара ревізійна дощечка",
+      "",
+      "Цей обхід належить іншому київському дню. Корчмар уже підсунув свіжішу дощечку."
+    ].join("\n");
+  }
+
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Корчмар не видає обхід без людини, яку можна звинуватити в порядку.";
   }
@@ -42,6 +52,17 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundLookupResult):
       "🧾 Корчмарський обхід",
       "",
       "Спершу розберіться з Бочкою Пінного Міражу. Вона ревнує до будь-яких інших катастроф."
+    ].join("\n");
+  }
+
+  if (result.state === "not-issued") {
+    return [
+      "🧾 Корчмарський обхід",
+      "",
+      "Корчмар тримає ревізійну дощечку так, ніби вона вже має власну думку.",
+      "",
+      "Візьмете обхід — дрібні катастрофи розійдуться по корчмі й чекатимуть вас на своїх місцинах.",
+      "Не візьмете — локації працюватимуть як завжди, без бухгалтерії здорового глузду."
     ].join("\n");
   }
 
@@ -206,6 +227,7 @@ export function presentDailyKorchmaRoundClaim(result: DailyKorchmaRoundClaimResu
 function presentDailyKorchmaRoundFallback(
   result:
     | DailyKorchmaRoundLookupResult
+    | DailyKorchmaRoundExistingLookupResult
     | DailyKorchmaRoundSceneLookupResult
     | DailyKorchmaRoundStepResult
     | DailyKorchmaRoundClaimResult
@@ -224,6 +246,7 @@ function presentDailyKorchmaRoundFallback(
 
   if (
     result.state === "no-character" ||
+    result.state === "not-issued" ||
     result.state === "level-locked" ||
     result.state === "hp-blocked" ||
     result.state === "active-fight" ||

@@ -3,6 +3,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type DailyKorchmaRoundCallback =
   | { type: "overview"; dayToken: string }
+  | { type: "start"; dayToken: string }
   | { type: "scene"; dayToken: string; sceneIndex: number }
   | { type: "scene-help"; dayToken: string; sceneIndex: number }
   | { type: "action"; dayToken: string; sceneIndex: number; actionId: string; lifeToken: number }
@@ -22,6 +23,10 @@ const actionIdPattern = /^[a-z0-9][a-z0-9-]{1,48}$/;
 
 export function makeDailyKorchmaRoundOverviewCallbackData(dayToken: string): string {
   return `${PREFIX}:o:${dayToken}`;
+}
+
+export function makeDailyKorchmaRoundStartCallbackData(dayToken: string): string {
+  return `${PREFIX}:b:${dayToken}`;
 }
 
 export function makeDailyKorchmaRoundSceneCallbackData(dayToken: string, sceneIndex: number): string {
@@ -70,6 +75,12 @@ export function parseDailyKorchmaRoundCallbackData(
     const dayToken = parts[0] as string;
 
     return isDayToken(dayToken) ? ok({ type: "overview", dayToken }) : err("invalid-day");
+  }
+
+  if (action === "b" && parts.length === 1) {
+    const dayToken = parts[0] as string;
+
+    return isDayToken(dayToken) ? ok({ type: "start", dayToken }) : err("invalid-day");
   }
 
   if (action === "s" && parts.length === 2) {

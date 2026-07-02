@@ -10,6 +10,18 @@ import type {
 } from "../../src/services/dailyKorchmaRoundService";
 
 describe("daily Korchma round presenter", () => {
+  it("renders an opt-in card before the daily Korchma round is issued", () => {
+    const text = presentDailyKorchmaRound({
+      state: "not-issued",
+      character: dailyRoundCharacter(),
+      dayToken: "20260628"
+    });
+
+    expect(text).toContain("🧾 Корчмарський обхід");
+    expect(text).toContain("Візьмете обхід");
+    expect(text).toContain("локації працюватимуть як завжди");
+  });
+
   it("renders the turn-in location as an italic lower-case place name", () => {
     const text = presentDailyKorchmaRound(turnInReadyRound());
 

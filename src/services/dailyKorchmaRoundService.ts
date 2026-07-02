@@ -62,12 +62,17 @@ export type DailyKorchmaRoundLookupResult =
 
 export type DailyKorchmaRoundExistingLookupResult =
   | DailyKorchmaRoundLookupResult
-  | { state: "not-issued"; character: CharacterSummary };
+  | { state: "not-issued"; character: CharacterSummary; dayToken: string };
+
+export type DailyKorchmaRoundOverviewResult =
+  | DailyKorchmaRoundExistingLookupResult
+  | { state: "stale-day"; current: DailyKorchmaRoundExistingLookupResult };
 
 export type DailyKorchmaRoundSceneLookupResult =
   | Exclude<DailyKorchmaRoundLookupResult, { state: "ready" | "turn-in-ready" | "completed" }>
-  | { state: "stale-day"; current: DailyKorchmaRoundLookupResult }
-  | { state: "unknown-scene"; current: DailyKorchmaRoundLookupResult }
+  | { state: "not-issued"; character: CharacterSummary; dayToken: string }
+  | { state: "stale-day"; current: DailyKorchmaRoundExistingLookupResult }
+  | { state: "unknown-scene"; current: DailyKorchmaRoundExistingLookupResult }
   | {
       state: "scene";
       character: CharacterSummary;
@@ -80,10 +85,11 @@ export type DailyKorchmaRoundSceneLookupResult =
 
 export type DailyKorchmaRoundStepResult =
   | Exclude<DailyKorchmaRoundLookupResult, { state: "ready" | "turn-in-ready" | "completed" }>
-  | { state: "stale-day"; current: DailyKorchmaRoundLookupResult }
-  | { state: "stale-life"; current: DailyKorchmaRoundLookupResult }
-  | { state: "unknown-scene"; current: DailyKorchmaRoundLookupResult }
-  | { state: "unknown-action"; current: DailyKorchmaRoundLookupResult }
+  | { state: "not-issued"; character: CharacterSummary; dayToken: string }
+  | { state: "stale-day"; current: DailyKorchmaRoundExistingLookupResult }
+  | { state: "stale-life"; current: DailyKorchmaRoundExistingLookupResult }
+  | { state: "unknown-scene"; current: DailyKorchmaRoundExistingLookupResult }
+  | { state: "unknown-action"; current: DailyKorchmaRoundExistingLookupResult }
   | {
       state: "wrong-location";
       character: CharacterSummary;
@@ -108,8 +114,9 @@ export type DailyKorchmaRoundStepResult =
 
 export type DailyKorchmaRoundClaimResult =
   | Exclude<DailyKorchmaRoundLookupResult, { state: "ready" | "turn-in-ready" | "completed" }>
-  | { state: "stale-day"; current: DailyKorchmaRoundLookupResult }
-  | { state: "stale-life"; current: DailyKorchmaRoundLookupResult }
+  | { state: "not-issued"; character: CharacterSummary; dayToken: string }
+  | { state: "stale-day"; current: DailyKorchmaRoundExistingLookupResult }
+  | { state: "stale-life"; current: DailyKorchmaRoundExistingLookupResult }
   | { state: "not-ready"; character: CharacterSummary; offer: DailyKorchmaRoundOffer }
   | {
       state: "wrong-location";
@@ -185,19 +192,26 @@ export class DailyKorchmaRoundService {
     return this.resultFromContext(context);
   }
 
+  async startForTelegramUser(
+    telegramUserId: bigint,
+    input: { dayToken: string }
+  ): Promise<DailyKorchmaRoundOverviewResult> {
+    if (!this.isCurrentDay(input.dayToken)) {
+      return { state: "stale-day", current: await this.getExistingForTelegramUser(telegramUserId) };
+    }
+
+    return this.getForTelegramUser(telegramUserId);
+  }
+
   async openScene(
     telegramUserId: bigint,
     input: { dayToken: string; sceneIndex: number }
   ): Promise<DailyKorchmaRoundSceneLookupResult> {
     if (!this.isCurrentDay(input.dayToken)) {
-      return { state: "stale-day", current: await this.getForTelegramUser(telegramUserId) };
+      return { state: "stale-day", current: await this.getExistingForTelegramUser(telegramUserId) };
     }
 
-    const context = await this.getContext(telegramUserId, { ensureOffer: true });
-
-    if (context.state === "not-issued") {
-      return { state: "no-character" };
-    }
+    const context = await this.getContext(telegramUserId, { ensureOffer: false });
 
     if (context.state !== "ready") {
       return context;
@@ -226,14 +240,10 @@ export class DailyKorchmaRoundService {
     input: { dayToken: string; sceneIndex: number; actionId: string; lifeToken: number }
   ): Promise<DailyKorchmaRoundStepResult> {
     if (!this.isCurrentDay(input.dayToken)) {
-      return { state: "stale-day", current: await this.getForTelegramUser(telegramUserId) };
+      return { state: "stale-day", current: await this.getExistingForTelegramUser(telegramUserId) };
     }
 
-    const context = await this.getContext(telegramUserId, { ensureOffer: true });
-
-    if (context.state === "not-issued") {
-      return { state: "no-character" };
-    }
+    const context = await this.getContext(telegramUserId, { ensureOffer: false });
 
     if (context.state !== "ready") {
       return context;
@@ -287,7 +297,7 @@ export class DailyKorchmaRoundService {
     const claim = await this.claimStep(telegramUserId, context, scene, action);
 
     if (!claim) {
-      return { state: "stale-life", current: await this.getForTelegramUser(telegramUserId) };
+      return { state: "stale-life", current: await this.getExistingForTelegramUser(telegramUserId) };
     }
 
     if (claim === "limit-exceeded") {
@@ -358,14 +368,10 @@ export class DailyKorchmaRoundService {
     input: { dayToken: string; lifeToken: number }
   ): Promise<DailyKorchmaRoundClaimResult> {
     if (!this.isCurrentDay(input.dayToken)) {
-      return { state: "stale-day", current: await this.getForTelegramUser(telegramUserId) };
+      return { state: "stale-day", current: await this.getExistingForTelegramUser(telegramUserId) };
     }
 
-    const context = await this.getContext(telegramUserId, { ensureOffer: true });
-
-    if (context.state === "not-issued") {
-      return { state: "no-character" };
-    }
+    const context = await this.getContext(telegramUserId, { ensureOffer: false });
 
     if (context.state !== "ready") {
       return context;
@@ -429,7 +435,7 @@ export class DailyKorchmaRoundService {
     });
 
     if (!claim) {
-      return { state: "stale-life", current: await this.getForTelegramUser(telegramUserId) };
+      return { state: "stale-life", current: await this.getExistingForTelegramUser(telegramUserId) };
     }
 
     if (claim.state === "insufficient-gold") {
@@ -516,7 +522,7 @@ export class DailyKorchmaRoundService {
     | { state: "hp-blocked"; character: CharacterSummary }
     | { state: "active-fight"; character: CharacterSummary }
     | { state: "pending-barrel"; character: CharacterSummary }
-    | { state: "not-issued"; character: CharacterSummary }
+    | { state: "not-issued"; character: CharacterSummary; dayToken: string }
     | DailyKorchmaRoundContext
   > {
     const characterRecord = await this.characters.findByTelegramUserId(telegramUserId);
@@ -550,7 +556,9 @@ export class DailyKorchmaRoundService {
     }
 
     if (!offer) {
-      return options.ensureOffer ? { state: "no-character" } : { state: "not-issued", character };
+      return options.ensureOffer
+        ? { state: "no-character" }
+        : { state: "not-issued", character, dayToken: getKyivDayToken(this.clock()) };
     }
 
     const stepRecords = await this.listStepRecords(telegramUserId, offer.dayKey, offer.scenes);

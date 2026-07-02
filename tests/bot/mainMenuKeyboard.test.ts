@@ -1964,6 +1964,17 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:s:"))).toBe(false);
   });
 
+  it("requires an explicit daily Korchma round start before issuing today's route", () => {
+    const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
+      state: "not-issued",
+      character,
+      dayToken: "20260628"
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🧾 Берусь за обхід", "🍺 Пізніше"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:dkr:b:20260628", "v1:place:quest-table"]);
+  });
+
   it("routes daily Korchma round turn-in-ready overview back to the quest table before claiming", () => {
     const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
       state: "turn-in-ready",

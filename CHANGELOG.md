@@ -28,7 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Turning in `Неспокійні справи 2.0` now grants two `Єгерська риска на дощечці` keepsakes in addition to XP and gold.
 
 ### Fixed
-- Quest-table browsing no longer auto-issues the daily `Корчмарський обхід`; locations only show route scenes after the player explicitly opens the daily round.
+- Quest-table browsing and daily-round overview inspection no longer auto-issue the daily `Корчмарський обхід`; locations only show route scenes after the player explicitly accepts the round with `🧾 Берусь за обхід`.
 - Active daily `Корчмарський обхід` scenes at `Стіл зі справами` now open with their action buttons from the physical table callback instead of dropping the player into the generic quest hub.
 - Failed grownup cellar roleplay attempts now use the intended `93`-minute retry pause instead of the older `60`-minute wait.
 - Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.

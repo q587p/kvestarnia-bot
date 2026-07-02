@@ -102,14 +102,15 @@ describe("quest hub keyboard", () => {
       makeInput({
         dailyKorchmaRound: {
           state: "not-issued",
-          character: character()
+          character: character(),
+          dayToken: "20260628"
         }
       })
     );
     const json = JSON.stringify(keyboard);
 
     expect(json).toContain("🧾 Корчмарський обхід");
-    expect(json).toMatch(/v1:dkr:o:\d{8}/);
+    expect(json).toContain("v1:dkr:o:20260628");
   });
 });
 

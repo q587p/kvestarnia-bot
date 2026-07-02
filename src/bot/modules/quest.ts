@@ -211,7 +211,16 @@ async function handleDailyKorchmaRoundCallback(
   await safeAnswerCallbackQuery(ctx);
 
   if (callback.type === "overview") {
-    const result = await services.dailyKorchmaRound.getForTelegramUser(telegramUserId);
+    const result = await services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentDailyKorchmaRound(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDailyKorchmaRoundOverviewKeyboard(result)
+    });
+    return;
+  }
+
+  if (callback.type === "start") {
+    const result = await services.dailyKorchmaRound.startForTelegramUser(telegramUserId, callback);
     await safeEditMessageText(ctx, presentDailyKorchmaRound(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildDailyKorchmaRoundOverviewKeyboard(result)

@@ -2296,7 +2296,8 @@ describe("scene callback HTML options", () => {
         character: {
           ...character,
           level: 3
-        }
+        },
+        dayToken: "20260628"
       })
     );
     const openScene = vi.fn(() => Promise.resolve({ state: "no-character" as const }));

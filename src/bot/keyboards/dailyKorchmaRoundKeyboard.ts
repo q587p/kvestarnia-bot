@@ -1,7 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type {
   DailyKorchmaRoundClaimResult,
-  DailyKorchmaRoundLookupResult,
+  DailyKorchmaRoundOverviewResult,
   DailyKorchmaRoundSceneLookupResult,
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
@@ -21,14 +21,26 @@ import {
   makeDailyKorchmaRoundActionCallbackData,
   makeDailyKorchmaRoundOverviewCallbackData,
   makeDailyKorchmaRoundSceneCallbackData,
-  makeDailyKorchmaRoundSceneHelpCallbackData
+  makeDailyKorchmaRoundSceneHelpCallbackData,
+  makeDailyKorchmaRoundStartCallbackData
 } from "../callbacks/dailyKorchmaRoundCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
 
 export function buildDailyKorchmaRoundOverviewKeyboard(
-  result: DailyKorchmaRoundLookupResult
+  result: DailyKorchmaRoundOverviewResult
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+
+  if (result.state === "stale-day") {
+    return buildDailyKorchmaRoundOverviewKeyboard(result.current);
+  }
+
+  if (result.state === "not-issued") {
+    return keyboard
+      .text("🧾 Берусь за обхід", makeDailyKorchmaRoundStartCallbackData(result.dayToken))
+      .row()
+      .text("🍺 Пізніше", makePlaceCallbackData("quest-table"));
+  }
 
   if (result.state !== "ready" && result.state !== "turn-in-ready" && result.state !== "completed") {
     return keyboard
@@ -57,8 +69,16 @@ export function buildDailyKorchmaRoundSceneKeyboard(
   const keyboard = new InlineKeyboard();
 
   if (result.state !== "scene") {
+    if (result.state === "not-issued") {
+      return buildDailyKorchmaRoundOverviewKeyboard(result);
+    }
+
     if ("current" in result && result.current.state !== "no-character" && "offer" in result.current) {
       return keyboard.text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.current.offer.dayToken));
+    }
+
+    if ("current" in result && result.current.state === "not-issued") {
+      return buildDailyKorchmaRoundOverviewKeyboard(result.current);
     }
 
     return keyboard.text("🧾 До обходу", makePlaceCallbackData("quest-table"));
@@ -95,6 +115,10 @@ export function buildDailyKorchmaRoundSceneKeyboard(
 
 export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStepResult): InlineKeyboard {
   if (result.state !== "step-completed" && result.state !== "step-replayed") {
+    if (result.state === "not-issued") {
+      return buildDailyKorchmaRoundOverviewKeyboard(result);
+    }
+
     if (result.state === "wrong-location") {
       const keyboard = new InlineKeyboard();
       const place = placeCallbackFromLocation(result.scene.locationId);
@@ -115,6 +139,10 @@ export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStep
         "🧾 До обходу",
         makeDailyKorchmaRoundOverviewCallbackData(result.current.offer.dayToken)
       );
+    }
+
+    if ("current" in result && result.current.state === "not-issued") {
+      return buildDailyKorchmaRoundOverviewKeyboard(result.current);
     }
 
     return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
@@ -161,8 +189,16 @@ export function buildDailyKorchmaRoundClaimKeyboard(result: DailyKorchmaRoundCla
     return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
+  if (result.state === "not-issued") {
+    return buildDailyKorchmaRoundOverviewKeyboard(result);
+  }
+
   if ("offer" in result) {
     return new InlineKeyboard().text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken));
+  }
+
+  if ("current" in result && result.current.state === "not-issued") {
+    return buildDailyKorchmaRoundOverviewKeyboard(result.current);
   }
 
   return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
