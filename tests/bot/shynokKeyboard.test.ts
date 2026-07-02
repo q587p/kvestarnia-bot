@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildShynokGameSessionKeyboard } from "../../src/bot/keyboards/shynokKeyboard";
+import {
+  buildShynokGameSessionKeyboard,
+  formatShynokOpenTableButtonLabel
+} from "../../src/bot/keyboards/shynokKeyboard";
 
 describe("Shynok game keyboards", () => {
   it("shows Tavlei cancellation only to the creator while the table is still alone and open", () => {
@@ -42,6 +45,10 @@ describe("Shynok game keyboards", () => {
 
     expect(flatInlineButtonTexts(openKeyboard)).toEqual(["🎲 Кинути зараз", "↩ До ігор"]);
     expect(flatInlineButtonTexts(completedKeyboard)).toEqual(["↩ До ігор"]);
+  });
+
+  it("labels Kosti table buttons with seven seats", () => {
+    expect(formatShynokOpenTableButtonLabel("kosti", 6, 5)).toBe("🎲 Кості · 6/7 · 5 зол.");
   });
 });
 

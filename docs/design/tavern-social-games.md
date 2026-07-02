@@ -124,7 +124,7 @@ Kosti is louder, faster, and less noble. It is a small group table where players
 
 ### Format
 
-- Players: 2-6.
+- Players: 2-7.
 - Stake: equal stake from each player.
 - Choice: one style and one sign.
 - Dice: 5d6 per player.

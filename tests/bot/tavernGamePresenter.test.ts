@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { presentTavernGameActionResult } from "../../src/bot/presenters/tavernGamePresenter";
+import {
+  presentTavernGameActionResult,
+  presentTavernGameRules
+} from "../../src/bot/presenters/tavernGamePresenter";
 
 describe("tavern game presenter", () => {
+  it("describes Kosti as a seven-player table", () => {
+    expect(presentTavernGameRules("kosti", 25)).toContain("від двох до семи гравців");
+  });
+
   it("explains create cooldown without implying an open table exists", () => {
     const text = presentTavernGameActionResult({
       state: "cooldown",

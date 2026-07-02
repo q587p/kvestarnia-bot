@@ -1,4 +1,4 @@
-import type { TavernGameResolution, TavernGameKey } from "../../domain/tavernGames";
+import { KOSTI_PLAYER_CAP, TAVLEI_PLAYER_CAP, type TavernGameResolution, type TavernGameKey } from "../../domain/tavernGames";
 import type { TavernGameHubResult } from "../../services/tavernGameService";
 import type { TavernGameSessionRecord } from "../../db/repositories/tavernGameRepository";
 import { escapeHtml } from "./telegramHtml";
@@ -50,7 +50,7 @@ export function presentTavernGameRules(gameKey: TavernGameKey, maxStake: number)
   return [
     "🎲 Кості",
     "",
-    "За стіл сідають від двох до шести гравців. Кожен обирає стиль кидка й знак.",
+    "За стіл сідають від двох до семи гравців. Кожен обирає стиль кидка й знак.",
     "Найкраща рука бере основний банк. Ті, чий знак справдився, ділять знаковий банк.",
     "",
     `Межа ставки зараз: <b>${maxStake} зол.</b>`
@@ -196,7 +196,7 @@ function presentTavernGameResolution(resolution: TavernGameResolution): string {
 }
 
 function presentOpenTableLine(session: TavernGameSessionRecord): string {
-  const cap = session.gameKey === "kosti" ? 6 : 2;
+  const cap = session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
   return `• ${gameLabel(session.gameKey)} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
 }
 

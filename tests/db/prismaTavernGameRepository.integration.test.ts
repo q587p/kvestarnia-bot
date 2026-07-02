@@ -77,6 +77,39 @@ describe("PrismaTavernGameRepository integration", () => {
     })).resolves.toEqual({ status: "open", potGold: 9 });
   });
 
+  it("keeps Kosti open through six players and marks it ready on the seventh", async () => {
+    const token = "12345678-1234-4234-9234-000000000107";
+    for (let index = 1; index <= 8; index += 1) {
+      await seedCharacter({
+        telegramUserId: BigInt(300 + index),
+        characterId: `character-kosti-seven-${index}`,
+        name: `Гравець ${index}`,
+        gold: 10
+      });
+    }
+
+    const created = await repository.createForTelegramUser(301n, createInput("kosti", token));
+    expect(created.state).toBe("created");
+
+    for (let index = 2; index <= 6; index += 1) {
+      const joined = await repository.joinByTokenForTelegramUser(BigInt(300 + index), token, joinInput());
+      expect(joined.state).toBe("joined");
+      expect(joined.state === "joined" ? joined.session.status : null).toBe("open");
+    }
+
+    const seventh = await repository.joinByTokenForTelegramUser(307n, token, joinInput());
+    const eighth = await repository.joinByTokenForTelegramUser(308n, token, joinInput());
+
+    expect(seventh.state).toBe("joined");
+    expect(seventh.state === "joined" ? seventh.session.status : null).toBe("ready");
+    expect(seventh.state === "joined" ? seventh.session.participants : []).toHaveLength(7);
+    expect(eighth.state).toBe("closed");
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, potGold: true }
+    })).resolves.toEqual({ status: "ready", potGold: 21 });
+  });
+
   it("terminalizes payout invariant failures as a failed safe refund and replays without double refund", async () => {
     await seedCharacter({ telegramUserId: 201n, characterId: "character-fail-creator", name: "Р Р°С…С–РІРЅРёРє", gold: 10 });
     await seedCharacter({ telegramUserId: 202n, characterId: "character-fail-joiner", name: "РЎРІС–РґРѕРє", gold: 10 });

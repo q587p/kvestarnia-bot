@@ -51,7 +51,7 @@
 - Open table list excludes completed/refunded sessions.
 - Tavlei moves to `READY` when the second player joins.
 - Tavlei decision buttons work and stale decision callbacks are friendly.
-- Kosti accepts 2-6 players.
+- Kosti accepts 2-7 players.
 - Kosti can resolve after minimum players if a `resolve now` action exists.
 - Stale join/decision/resolve callbacks return friendly messages.
 - Insufficient gold path is friendly and does not create a session.

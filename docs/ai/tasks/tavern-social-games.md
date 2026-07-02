@@ -11,7 +11,7 @@ Make the tavern a small socialization center by adding lightweight table games t
 MVP games:
 
 - `Tavlei`: a 1v1 intellectual duel with a shared stake, one tactic choice, character stats, and light luck.
-- `Kosti`: a 2-6 player dice table with a shared stake, a style choice, a chosen sign, strong luck, and a small tactical layer.
+- `Kosti`: a 2-7 player dice table with a shared stake, a style choice, a chosen sign, strong luck, and a small tactical layer.
 
 ## Player experience
 
@@ -106,7 +106,7 @@ A session is terminal after `COMPLETED`, `CANCELLED_REFUND`, `EXPIRED_REFUND`, o
 - Reserve creator stake in a transaction.
 - Create session and creator participant.
 - For Tavlei, wait for exactly one opponent.
-- For Kosti, allow 2-6 players and a creator-controlled or timeout-driven resolve path.
+- For Kosti, allow 2-7 players and a creator-controlled or timeout-driven resolve path.
 
 ### Join session
 
@@ -167,7 +167,7 @@ Required constraints/indexes:
 - Tavern menu exposes `🎲 Ігри за столом` behind the configured feature flag.
 - Open tables list works for Tavlei and Kosti.
 - Tavlei can be created, joined, decided, resolved, drawn/refunded, and completed.
-- Kosti can be created, joined by 2-6 players, decided, resolved, split between main and sign pools, and completed.
+- Kosti can be created, joined by 2-7 players, decided, resolved, split between main and sign pools, and completed.
 - Escrow, refunds, and payouts are idempotent and transaction-safe.
 - Duplicate/stale callbacks never double-subtract or double-pay.
 - Combat lock behavior matches the existing project policy and is not bypassed.

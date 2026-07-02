@@ -17,6 +17,10 @@ export type KostiStyle = typeof KOSTI_STYLES[number];
 export const KOSTI_SIGNS = ["two_pairs", "triple", "high_hand", "straight", "tower", "no_sign"] as const;
 export type KostiSign = typeof KOSTI_SIGNS[number];
 
+export const TAVLEI_PLAYER_CAP = 2;
+export const KOSTI_MIN_PLAYERS = 2;
+export const KOSTI_PLAYER_CAP = 7;
+
 export interface TavernGamePlayer {
   participantId: string;
   characterId: string;
@@ -233,8 +237,8 @@ export function resolveKosti(input: {
   stakeGold: number;
   players: TavernGamePlayer[];
 }): Extract<TavernGameResolution, { gameKey: "kosti" }> {
-  if (input.players.length < 2 || input.players.length > 6) {
-    throw new Error("Kosti requires two to six players.");
+  if (input.players.length < KOSTI_MIN_PLAYERS || input.players.length > KOSTI_PLAYER_CAP) {
+    throw new Error("Kosti requires two to seven players.");
   }
 
   const potGold = input.stakeGold * input.players.length;

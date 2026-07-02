@@ -7,13 +7,13 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.21] - 12026-07-02 - Tavern Social Games
+## [0.2.21] - 12026-07-03 - Tavern Social Games
 
 ### Added
 - Added flagged `🎲 Ігри за столом` Shynok hub support, hidden by default behind `TAVERN_GAMES_ENABLED` plus per-game `TAVERN_GAME_TAVLEI_ENABLED` / `TAVERN_GAME_KOSTI_ENABLED`.
 - Added a generic tavern game session engine with Prisma-backed sessions, participants, escrowed equal stakes, terminal statuses, replay-safe result storage and opportunistic expiry.
 - Added `♟ Тавлеї`: 1v1 equal-stake table creation/joining, one tactic choice per player and deterministic automatic resolution with win or draw/refund outcomes.
-- Added `🎲 Кості`: 2-6 player equal-stake tables, per-player style plus sign choices, deterministic 5d6 resolution, main/sign pool payout conservation and creator resolve-now support.
+- Added `🎲 Кості`: 2-7 player equal-stake tables, per-player style plus sign choices, deterministic 5d6 resolution, main/sign pool payout conservation and creator resolve-now support.
 - Added config defaults for max stake, daily net-win cap and create cooldown; the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
 - Added focused domain, service, config and Shynok callback coverage for resolver invariants, feature flags and compact Telegram callback data.
 - Added source task, design, balance, QA and Ukrainian copy docs under `docs/ai/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.

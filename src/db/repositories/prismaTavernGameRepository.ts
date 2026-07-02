@@ -1,9 +1,12 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   isTavernGameKey,
+  KOSTI_MIN_PLAYERS,
+  KOSTI_PLAYER_CAP,
   parseTavernGameDecision,
   resolveTavernGame,
   TAVERN_GAME_RULES_VERSION,
+  TAVLEI_PLAYER_CAP,
   type TavernGameDecision,
   type TavernGameKey,
   type TavernGamePlayer,
@@ -851,11 +854,11 @@ function parseGameKey(value: string): TavernGameKey {
 }
 
 function getParticipantCap(gameKey: string): number {
-  return gameKey === "kosti" ? 6 : 2;
+  return gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
 }
 
 function getMinimumParticipants(gameKey: string): number {
-  return gameKey === "kosti" ? 2 : 2;
+  return gameKey === "kosti" ? KOSTI_MIN_PLAYERS : TAVLEI_PLAYER_CAP;
 }
 
 function countLiveParticipants(row: TavernGameSessionRow): number {

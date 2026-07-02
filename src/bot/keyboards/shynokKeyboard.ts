@@ -13,7 +13,14 @@ import {
   listBardPerformanceTipOptions,
   type BardPerformanceRespondResult
 } from "../../services/bardPerformanceService";
-import { KOSTI_SIGNS, KOSTI_STYLES, TAVLEI_TACTICS, type TavernGameKey } from "../../domain/tavernGames";
+import {
+  KOSTI_PLAYER_CAP,
+  KOSTI_SIGNS,
+  KOSTI_STYLES,
+  TAVLEI_PLAYER_CAP,
+  TAVLEI_TACTICS,
+  type TavernGameKey
+} from "../../domain/tavernGames";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
@@ -343,7 +350,7 @@ export function formatShynokOpenTableButtonLabel(
   participantCount: number,
   stakeGold: number
 ): string {
-  const cap = gameKey === "kosti" ? 6 : 2;
+  const cap = gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
   const label = gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
   return `${label} · ${participantCount}/${cap} · ${stakeGold} зол.`;
 }

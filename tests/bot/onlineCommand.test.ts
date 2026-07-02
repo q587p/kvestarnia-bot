@@ -278,6 +278,58 @@ describe("online command", () => {
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:nd:open");
   });
 
+  it("shows Kosti open table capacity as seven near the Shynok", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: PRESENCE_LOCATION_KORCHMA_BAR,
+            name: "Шинок",
+            people: {
+              active: [{ telegramUserId: 42n, name: "Тестовий Герой", status: "active" }],
+              idle: [],
+              total: 1
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+
+    await sendOnline(ctx, presenceService, {
+      tavernGames: {
+        getHub: vi.fn().mockResolvedValue({
+          state: "ready",
+          maxStake: 25,
+          tavleiEnabled: true,
+          kostiEnabled: true,
+          openTables: [makeTavernGameSession({
+            token: "123e4567-e89b-12d3-a456-426614174007",
+            gameKey: "kosti",
+            stakeGold: 5,
+            participantNames: ["Kyjivan BooksDragon", "Shannar de Kassal"]
+          })]
+        })
+      }
+    });
+
+    expect(replies[0]?.text).toContain("— 🎲 Кості · 2/7 · ставка 5 зол. · тримає Kyjivan BooksDragon");
+    expect(inlineButtonTexts(replies[0]?.options)).toEqual(["🎲 Кості · 2/7 · 5 зол."]);
+  });
+
   it("does not show the Bard performance button to non-Bards nearby", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {

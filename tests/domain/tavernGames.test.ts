@@ -74,6 +74,24 @@ describe("tavernGames", () => {
     expect(Object.values(result.payouts).reduce((sum, value) => sum + value, 0)).toBe(15);
     expect(result.refunds).toEqual({});
   });
+
+  it("allows Kosti tables with seven players", () => {
+    const players = Array.from({ length: 7 }, (_, index) =>
+      player(`player-${index + 1}`, {
+        decision: { gameKey: "kosti", style: "steady", sign: "high_hand" }
+      })
+    );
+
+    const result = resolveKosti({
+      seed: "kosti-seven",
+      stakeGold: 3,
+      players
+    });
+
+    expect(result.players).toHaveLength(7);
+    expect(result.potGold).toBe(21);
+    expect(Object.values(result.payouts).reduce((sum, value) => sum + value, 0)).toBe(21);
+  });
 });
 
 function player(

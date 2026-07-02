@@ -58,7 +58,7 @@ Future task doc: [0.2.x-dense-bandage-field-kit.md](tasks/0.2.x-dense-bandage-fi
 Future source doc: [TAVERN_SOCIAL_GAMES.md](TAVERN_SOCIAL_GAMES.md).
 
 **Objective**
-Додати в шинок короткі opt-in `Ігри за столом`: спершу загальний table-game engine, потім `Тавлеї` як 1v1 тактичну партію і `Кості` як 2-6 player dice table.
+Додати в шинок короткі opt-in `Ігри за столом`: спершу загальний table-game engine, потім `Тавлеї` як 1v1 тактичну партію і `Кості` як 2-7 player dice table.
 
 **Scope guard**
 Це не частина Lore Board MVP і не runtime поточного PR. Не додавати меню, callbacks, Prisma schema, migrations, escrow, ставки, винагороди, telemetry або player-facing обіцянку, доки окрема version task не активує цей напрям.

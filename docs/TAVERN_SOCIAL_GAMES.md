@@ -60,7 +60,7 @@ were "almost certainly listening".
 
 Future MVP shape:
 
-- 2-6 players;
+- 2-7 players;
 - equal stake, if wagers are enabled for the slice;
 - open lobby with timeout;
 - one style and one sign choice per participant;
@@ -139,7 +139,7 @@ ever added.
 2. **Core table engine.** Add the session model, migration, escrow helpers,
    expiry/refund path and resolver interface behind a feature flag.
 3. **Tavlei.** Ship one 1v1 game using the shared engine.
-4. **Kosti.** Add the 2-6 player dice table once the engine is proven.
+4. **Kosti.** Add the 2-7 player dice table once the engine is proven.
 5. **Polish.** Add more result templates, recent tavern activity, telemetry,
    caps and manual QA cleanup.
 

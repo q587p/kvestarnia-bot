@@ -8,6 +8,7 @@ import type {
 } from "../../services/presenceService";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { TavernGameSessionRecord } from "../../db/repositories/tavernGameRepository";
+import { KOSTI_PLAYER_CAP, TAVLEI_PLAYER_CAP } from "../../domain/tavernGames";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_HUNT_BOARD,
@@ -193,7 +194,7 @@ function presentOpenTavernGameTables(sessions: readonly TavernGameSessionRecord[
 }
 
 function presentOpenTavernGameTable(session: TavernGameSessionRecord): string {
-  const cap = session.gameKey === "kosti" ? 6 : 2;
+  const cap = session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
   const label = session.gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
 
   return `— ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
