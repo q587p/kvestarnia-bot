@@ -7,7 +7,10 @@ export interface HelpVisibility {
 }
 
 export function presentHelp(visibility: boolean | HelpVisibility): string {
-  void visibility;
+  const normalized = normalizeHelpVisibility(visibility);
+  const publicCommands = getHelpCommandEntries(normalized)
+    .filter((entry) => !entry.devOnly)
+    .map((entry) => `${entry.icon} /${entry.command} — ${entry.description}`);
   const lines = [
     "📖 Допомога Квестарні",
     "",
@@ -16,6 +19,9 @@ export function presentHelp(visibility: boolean | HelpVisibility): string {
     "🗺️ Квести — пригоди, Низ, Єгер, льох і бойові справи.",
     "🎒 Манатки — інвентар, спорядження й корисні дрібниці.",
     "👀 Хто поруч — пригодники поруч і соціяльні дії.",
+    "",
+    "Команди:",
+    ...publicCommands,
     "",
     "Підказка: найзручніше ходити кнопками основної клавіатури."
   ];

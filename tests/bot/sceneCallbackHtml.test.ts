@@ -3677,7 +3677,11 @@ describe("scene callback HTML options", () => {
 
     expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
     expect(String(reply?.payload.text)).toContain("📖 Допомога Квестарні");
-    expect(String(reply?.payload.text)).not.toContain("/start");
+    expect(String(reply?.payload.text)).toContain("/start");
+    expect(String(reply?.payload.text)).toContain("/help");
+    expect(String(reply?.payload.text)).toContain("/support");
+    expect(String(reply?.payload.text)).not.toContain("Підтримати:");
+    expect(String(reply?.payload.text)).not.toContain("/dev_help");
   });
 
   it("opens dev help from the admin main-menu button when local grants are enabled", async () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { presentDevHelp, presentHelp } from "../../src/bot/presenters/helpPresenter";
 
 describe("help presenter", () => {
-  it("renders player help without command catalog rows", () => {
+  it("renders player help with public command catalog rows", () => {
     const text = presentHelp(false);
 
     expect(text).toContain("📖 Допомога Квестарні");
@@ -11,13 +11,20 @@ describe("help presenter", () => {
     expect(text).toContain("🗺️ Квести — пригоди, Низ, Єгер, льох і бойові справи.");
     expect(text).toContain("🎒 Манатки — інвентар, спорядження й корисні дрібниці.");
     expect(text).toContain("👀 Хто поруч — пригодники поруч і соціяльні дії.");
+    expect(text).toContain("Команди:");
+    expect(text).toContain("🚪 /start — почати пригоду");
+    expect(text).toContain("👤 /hero — персонаж і прогрес");
+    expect(text).toContain("🗺️ /quest — стіл зі справами");
+    expect(text).toContain("📖 /help — допомога");
+    expect(text).toContain("🫙 /support — добровільна підтримка без бонусів");
     expect(text).toContain("Підказка: найзручніше ходити кнопками основної клавіатури.");
-    expect(text).not.toContain(" /");
+    expect(text).not.toContain("/dev_help");
+    expect(text).not.toContain("/dev_party");
+    expect(text).not.toContain("/dev_add_xp");
     expect(text).toContain("Крамниці, ремесло й ґільдії ще готуються.");
     expect(text).toContain(
       "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
     );
-    expect(text.split("\n").length).toBeLessThanOrEqual(13);
   });
 
   it("keeps dev commands out of player help even when local gates are enabled", () => {
