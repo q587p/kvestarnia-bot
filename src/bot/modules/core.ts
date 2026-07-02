@@ -45,7 +45,8 @@ export function registerCoreBotModule(
     bardPerformanceEnabled: Boolean(services.bardPerformance),
     duelEnabled: Boolean(services.duel),
     itemGiftEnabled: Boolean(services.itemTransfers),
-    partySessions: services.partySessions
+    partySessions: services.partySessions,
+    tavernGames: services.tavernGames
   });
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {

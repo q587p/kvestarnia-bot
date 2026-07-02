@@ -7,6 +7,7 @@ import type {
   PresencePerson
 } from "../../services/presenceService";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
+import type { TavernGameSessionRecord } from "../../db/repositories/tavernGameRepository";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_HUNT_BOARD,
@@ -27,7 +28,10 @@ interface PresencePeoplePresentationOptions {
 
 export function presentOnline(
   snapshot: OnlineSnapshot,
-  options: { recruitingParties?: readonly PartySessionRecord[] } = {}
+  options: {
+    recruitingParties?: readonly PartySessionRecord[];
+    openTavernGameTables?: readonly TavernGameSessionRecord[];
+  } = {}
 ): string {
   if (snapshot.state === "no-character") {
     return "Спершу створіть пригодника через /start. Квестарня не рахує тіні без анкети.";
@@ -44,6 +48,13 @@ export function presentOnline(
   if (recruitingParties.length > 0) {
     lines.push("");
     lines.push(...presentRecruitingParties(recruitingParties));
+  }
+
+  const openTavernGameTables = options.openTavernGameTables ?? [];
+
+  if (openTavernGameTables.length > 0) {
+    lines.push("");
+    lines.push(...presentOpenTavernGameTables(openTavernGameTables));
   }
 
   if (snapshot.activity) {
@@ -168,6 +179,24 @@ function presentRecruitingParties(sessions: readonly PartySessionRecord[]): stri
       ? [header, ...participants]
       : ["", header, ...participants];
   });
+}
+
+function presentOpenTavernGameTables(sessions: readonly TavernGameSessionRecord[]): string[] {
+  const visible = sessions.slice(0, 8);
+  const participantCount = visible.reduce((sum, session) => sum + session.participants.length, 0);
+
+  return [
+    `🎲 За ігровим столом: ${participantCount} ${pluralize(participantCount, "пригодник", "пригодники", "пригодників")}`,
+    ...visible.map(presentOpenTavernGameTable),
+    "Кнопки нижче підсадять до відкритого столу."
+  ];
+}
+
+function presentOpenTavernGameTable(session: TavernGameSessionRecord): string {
+  const cap = session.gameKey === "kosti" ? 6 : 2;
+  const label = session.gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
+
+  return `— ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
 }
 
 function presentActivityName(activity: PresenceActivitySnapshot): string {

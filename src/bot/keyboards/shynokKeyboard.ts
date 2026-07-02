@@ -101,7 +101,10 @@ export function buildShynokGameHubKeyboard(result: TavernGameHubResult): InlineK
 
   for (const table of result.openTables.slice(0, 8)) {
     keyboard
-      .text(openTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold), makeShynokGameJoinCallbackData(table.token))
+      .text(
+        formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold),
+        makeShynokGameJoinCallbackData(table.token)
+      )
       .row();
   }
 
@@ -323,7 +326,11 @@ export function buildBackToShynokKeyboard(): InlineKeyboard {
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
-function openTableButtonLabel(gameKey: TavernGameKey, participantCount: number, stakeGold: number): string {
+export function formatShynokOpenTableButtonLabel(
+  gameKey: TavernGameKey,
+  participantCount: number,
+  stakeGold: number
+): string {
   const cap = gameKey === "kosti" ? 6 : 2;
   const label = gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
   return `${label} · ${participantCount}/${cap} · ${stakeGold} зол.`;

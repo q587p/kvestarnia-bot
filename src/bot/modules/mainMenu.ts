@@ -130,7 +130,8 @@ export function registerMainMenuKeyboard(
       bardPerformanceEnabled: Boolean(services.bardPerformance),
       duelEnabled: Boolean(services.duel),
       itemGiftEnabled: Boolean(services.itemTransfers),
-      partySessions: services.partySessions
+      partySessions: services.partySessions,
+      tavernGames: services.tavernGames
     });
   });
 
