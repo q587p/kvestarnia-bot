@@ -25,6 +25,11 @@ import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
+type CellarRouteOptions = {
+  tavernRaid?: TavernRaidService;
+  grownupQuest?: CellarGrownupQuestService;
+  afterIntro?: () => Promise<void>;
+};
 
 export function registerCellarCommand(
   bot: Bot,
@@ -52,7 +57,7 @@ export async function sendCellarErrandRouted(
   cellarErrandService: CellarErrandService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options?: { tavernRaid?: TavernRaidService; grownupQuest?: CellarGrownupQuestService }
+  options?: CellarRouteOptions
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -84,7 +89,7 @@ export async function sendCellarErrandRouted(
     cellarErrandService,
     presenceService,
     mode,
-    options?.grownupQuest ? { grownupQuest: options.grownupQuest } : undefined
+    options
   );
 }
 
@@ -93,7 +98,7 @@ export async function sendCellarErrand(
   cellarErrandService: CellarErrandService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options?: { grownupQuest?: CellarGrownupQuestService }
+  options?: Pick<CellarRouteOptions, "grownupQuest" | "afterIntro">
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -154,15 +159,17 @@ export async function sendCellarErrand(
     return;
   }
 
-  await sendCellarReady(ctx, mode, result);
+  await sendCellarReady(ctx, mode, result, options);
 }
 
 async function sendCellarReady(
   ctx: Context,
   mode: "reply" | "edit",
-  result: Extract<CellarErrandLookupResult, { state: "ready" }>
+  result: Extract<CellarErrandLookupResult, { state: "ready" }>,
+  options?: Pick<CellarRouteOptions, "afterIntro">
 ): Promise<void> {
   await sendText(ctx, mode, presentCellarIntro(result));
+  await options?.afterIntro?.();
   await sendText(ctx, "reply", presentCellarStart(result), {
     state: "ready",
     character: result.character

@@ -9,6 +9,7 @@ PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
 PRESENCE_ADVENTURE_SOLO_FIGHT,
 PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
 PRESENCE_LOCATION_KORCHMA_BAR,
+PRESENCE_LOCATION_KORCHMA_CELLAR,
 PRESENCE_LOCATION_KORCHMA_DEEP,
 PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
 PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
@@ -468,6 +469,13 @@ async function handleQuestCallback(
     return;
   }
 
+  const cellarPreviousPlace = telegramUserId
+    ? await services.presence.getCurrentPlaceForTelegramUser(telegramUserId)
+    : null;
+  const cellarPreviousLocationId = cellarPreviousPlace?.state === "ready"
+    ? cellarPreviousPlace.locationId
+    : null;
+
   await sendCellarErrandRouted(
     ctx,
     services.cellarErrand,
@@ -475,7 +483,11 @@ async function handleQuestCallback(
     "reply",
     {
       tavernRaid: services.tavern,
-      ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
+      ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {}),
+      afterIntro: () =>
+        refreshMainMenuLocationKeyboard(ctx, PRESENCE_LOCATION_KORCHMA_CELLAR, {
+          previousLocationId: cellarPreviousLocationId
+        })
     }
   );
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);

@@ -935,6 +935,33 @@ describe("scene callback HTML options", () => {
     expect(String(message?.payload.text)).toContain(expectedText);
   });
 
+  it("opens quest-table cellar route as intro, movement, then cellar action card", async () => {
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("cellar"),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready" as const, character }),
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.quest_table",
+              locationName: "Стіл зі справами",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const messages = calls.filter((call) => call.method === "sendMessage");
+
+    expect(String(messages[0]?.payload.text)).toContain("Корчмар показує на люк під баром.");
+    expect(String(messages[1]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
+    expect(String(messages[2]?.payload.text)).toContain("🐭 Льохова справа");
+  });
+
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {
     const calls = await captureApiCalls(
       makeAdventureApproachCallbackData({
