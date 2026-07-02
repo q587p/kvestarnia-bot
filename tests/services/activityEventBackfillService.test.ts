@@ -1,0 +1,153 @@
+import { describe, expect, it } from "vitest";
+import type { RecordActivityEventInput } from "../../src/db/repositories/activityEventRepository";
+import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
+import {
+  backfillActivityEvents,
+  type ActivityEventBackfillStore,
+  type BackfillCharacterCreatedRow,
+  type BackfillLevelAchievementRow,
+  type BackfillPartyBossSessionRow,
+  type BackfillRareCharacterItemRow
+} from "../../src/services/activityEventBackfillService";
+
+describe("backfillActivityEvents", () => {
+  it("plans archival activity rows without writing in dry-run mode", async () => {
+    const store = new FakeBackfillStore();
+    const recorder = new FakeBackfillRecorder();
+
+    const summary = await backfillActivityEvents({
+      store,
+      recorder,
+      apply: false,
+      since: new Date("2026-07-01T00:00:00.000Z")
+    });
+
+    expect(summary.dryRun).toBe(true);
+    expect(recorder.events).toHaveLength(0);
+    expect(summary.counts["character.created"]).toMatchObject({ scanned: 1, planned: 1, applied: 0 });
+    expect(summary.counts["character.level_reached"]).toMatchObject({ scanned: 1, planned: 1, applied: 0 });
+    expect(summary.counts["item.rare_received"]).toMatchObject({ scanned: 1, planned: 1, applied: 0 });
+    expect(summary.counts["party.raid_won"]).toMatchObject({ scanned: 1, planned: 1, applied: 0 });
+  });
+
+  it("applies new rows and skips existing dedupe and rare item rows", async () => {
+    const store = new FakeBackfillStore();
+    store.existingDedupeKeys.add("character.created:character-1");
+    store.existingRareItems.add("character-1:item.towel-of-forty-two-answers");
+    const recorder = new FakeBackfillRecorder();
+
+    const summary = await backfillActivityEvents({
+      store,
+      recorder,
+      apply: true
+    });
+
+    expect(summary.dryRun).toBe(false);
+    expect(summary.counts["character.created"]).toMatchObject({
+      scanned: 1,
+      planned: 0,
+      applied: 0,
+      skippedExisting: 1
+    });
+    expect(summary.counts["item.rare_received"]).toMatchObject({
+      scanned: 1,
+      planned: 0,
+      applied: 0,
+      skippedExisting: 1
+    });
+    expect(recorder.events.map((event) => event.eventType)).toEqual([
+      "character.level_reached",
+      "party.raid_won"
+    ]);
+    expect(recorder.events[0]).toMatchObject({
+      dedupeKey: "character.level_reached:character-1:5",
+      payload: { level: 5 }
+    });
+    expect(recorder.events[1]).toMatchObject({
+      dedupeKey: "party.raid_won:boss-session-1",
+      payload: { participantCount: 2 }
+    });
+  });
+});
+
+class FakeBackfillStore implements ActivityEventBackfillStore {
+  readonly existingDedupeKeys = new Set<string>();
+  readonly existingRareItems = new Set<string>();
+
+  listCharactersCreatedSince(): Promise<BackfillCharacterCreatedRow[]> {
+    return Promise.resolve([
+      {
+        id: "character-1",
+        name: "Arden",
+        createdAt: new Date("2026-07-01T08:00:00.000Z")
+      }
+    ]);
+  }
+
+  listLevelAchievementsSince(): Promise<BackfillLevelAchievementRow[]> {
+    return Promise.resolve([
+      {
+        id: "achievement-row-1",
+        characterId: "character-1",
+        characterName: "Arden",
+        achievementId: "achievement.level.5",
+        sourceType: "daily-action",
+        sourceId: "daily-1",
+        unlockedAt: new Date("2026-07-01T09:00:00.000Z")
+      }
+    ]);
+  }
+
+  listRareCharacterItemsSince(): Promise<BackfillRareCharacterItemRow[]> {
+    return Promise.resolve([
+      {
+        id: "character-item-1",
+        characterId: "character-1",
+        characterName: "Arden",
+        itemId: "item.towel-of-forty-two-answers",
+        createdAt: new Date("2026-07-01T10:00:00.000Z")
+      }
+    ]);
+  }
+
+  listWonPartyBossSessionsSince(): Promise<BackfillPartyBossSessionRow[]> {
+    return Promise.resolve([
+      {
+        id: "boss-session-1",
+        status: "won",
+        rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
+        bossKey: BIG_BARREL_BROTHER_BOSS_KEY,
+        stateJson: {
+          boss: {
+            monsterId: BIG_BARREL_BROTHER_BOSS_KEY,
+            name: "Big Barrel Brother"
+          },
+          participants: [
+            { characterId: "character-1" },
+            { characterId: "character-2" }
+          ],
+          completedAt: "2026-07-01T11:00:00.000Z"
+        },
+        completedAt: new Date("2026-07-01T11:00:00.000Z"),
+        createdAt: new Date("2026-07-01T10:30:00.000Z")
+      }
+    ]);
+  }
+
+  hasActivityEventDedupeKey(dedupeKey: string): Promise<boolean> {
+    return Promise.resolve(this.existingDedupeKeys.has(dedupeKey));
+  }
+
+  hasRareItemEvent(characterId: string, itemId: string): Promise<boolean> {
+    return Promise.resolve(this.existingRareItems.has(`${characterId}:${itemId}`));
+  }
+}
+
+class FakeBackfillRecorder {
+  readonly events: RecordActivityEventInput[] = [];
+
+  record(input: RecordActivityEventInput): Promise<unknown> {
+    this.events.push(input);
+    return Promise.resolve(input);
+  }
+}

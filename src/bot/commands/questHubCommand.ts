@@ -109,7 +109,7 @@ async function buildQuestHubSnapshot(
       ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
       : null;
   const dailyKorchmaRound = options.dailyKorchmaRound
-    ? await options.dailyKorchmaRound.getForTelegramUser(telegramUserId)
+    ? await options.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
     : null;
 
   if (

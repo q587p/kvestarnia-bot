@@ -3,8 +3,7 @@ import { latestEventFilters, type LatestEventFilter } from "../../services/activ
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type LatestEventsCallback =
-  | { type: "list"; filter: LatestEventFilter; page: number }
-  | { type: "refresh"; filter: LatestEventFilter; page: number };
+  | { type: "list"; filter: LatestEventFilter; page: number };
 
 export type LatestEventsCallbackError =
   | "invalid-version"
@@ -18,10 +17,6 @@ const PREFIX = "v1:ev";
 
 export function makeLatestEventsListCallbackData(filter: LatestEventFilter = "all", page = 0): string {
   return `${PREFIX}:l:${filter}:${normalizePage(page)}`;
-}
-
-export function makeLatestEventsRefreshCallbackData(filter: LatestEventFilter = "all", page = 0): string {
-  return `${PREFIX}:r:${filter}:${normalizePage(page)}`;
 }
 
 export function parseLatestEventsCallbackData(
@@ -58,7 +53,7 @@ export function parseLatestEventsCallbackData(
   }
 
   return ok({
-    type: action === "r" ? "refresh" : "list",
+    type: "list",
     filter,
     page: parsedPage
   });

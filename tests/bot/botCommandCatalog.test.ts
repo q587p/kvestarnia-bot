@@ -74,7 +74,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
   });
 
-  it("keeps local dev commands in help but not in the side menu", () => {
+  it("keeps local dev commands available for dev help but not in the side menu", () => {
     for (const command of [
       "dev_help",
       "dev_party",

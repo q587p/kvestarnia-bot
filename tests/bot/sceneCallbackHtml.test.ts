@@ -2187,6 +2187,106 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:dkr:a:20260628:0:repeat-last:0");
   });
 
+  it("opens an active daily Korchma round scene after physical quest-table place navigation", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const level3Character = {
+      ...character,
+      level: 3,
+      hpCurrent: 24,
+      hpMax: 24,
+      manaCurrent: 12,
+      manaMax: 12
+    };
+    const questTableScene = {
+      id: "scene.quest-table.ink",
+      icon: "ink",
+      title: "Ink needs a signature",
+      locationId: "location.korchma.quest_table",
+      hook: "The ink has a mood and no signature.",
+      actions: [
+        {
+          id: "sign-ink",
+          label: "Sign the ink",
+          outcome: "The ink accepted the signature and stopped supervising the table."
+        },
+        {
+          id: "dry-ink",
+          label: "Dry the ink",
+          outcome: "The ink became paperwork."
+        }
+      ]
+    };
+    const offer = {
+      dayKey: "2026-06-28",
+      dayToken: "20260628",
+      lifeToken: 0,
+      requiredSteps: 2,
+      scenes: [questTableScene],
+      completedSceneIds: [],
+      omittedSceneId: null
+    };
+    const openScene = vi.fn(() =>
+      Promise.resolve({
+        state: "scene" as const,
+        character: level3Character,
+        offer,
+        scene: questTableScene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      })
+    );
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("quest-table"),
+      servicesWith({
+        dailyKorchmaRound: {
+          getExistingForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character: level3Character,
+              offer
+            }),
+          openScene
+        },
+        presence: {
+          markAction,
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" as const }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.hall",
+              locationName: "Р—Р°Р»Р° РєРѕСЂС‡РјРё",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const scene = calls.find(
+      (call) => call.method === "sendMessage" && String(call.payload.text).includes("Ink needs a signature")
+    );
+    const keyboard = JSON.stringify(scene?.payload.reply_markup);
+
+    expect(openScene).toHaveBeenCalledWith(42n, {
+      dayToken: "20260628",
+      sceneIndex: 0
+    });
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.quest_table",
+        currentRaidId: null,
+        currentAdventureId: null
+      })
+    );
+    expect(scene).toBeDefined();
+    expect(keyboard).toContain("v1:dkr:a:20260628:0:sign-ink:0");
+    expect(calls.some((call) => String(call.payload.text).includes("РЎС‚С–Р» Р·С– СЃРїСЂР°РІР°РјРё"))).toBe(false);
+  });
+
   it("falls through to ordinary location content when no daily Korchma offer was issued yet", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const getExistingForTelegramUser = vi.fn(() =>
@@ -3534,7 +3634,28 @@ describe("scene callback HTML options", () => {
     const reply = calls.find((call) => call.method === "sendMessage");
 
     expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
-    expect(String(reply?.payload.text)).toContain("/start");
+    expect(String(reply?.payload.text)).toContain("📖 Допомога Квестарні");
+    expect(String(reply?.payload.text)).not.toContain("/start");
+  });
+
+  it("opens dev help from the admin main-menu button when local grants are enabled", async () => {
+    const calls = await captureTextApiCalls(
+      mainMenuButtons.admin,
+      servicesWith({
+        devReset: {
+          isEnabled: () => true
+        },
+        devGrant: {
+          isEnabled: () => true
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(String(reply?.payload.text)).toContain("🧰 Dev-довідка Квестарні");
+    expect(String(reply?.payload.text)).toContain("/dev_help");
+    expect(String(reply?.payload.text)).toContain("/dev_add_xp");
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(mainMenuButtons.admin);
   });
 
   it("lets persistent, training, and starter combat callbacks reach their handlers", async () => {

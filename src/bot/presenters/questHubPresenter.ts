@@ -3,7 +3,7 @@ import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../ser
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
-import type { DailyKorchmaRoundLookupResult } from "../../services/dailyKorchmaRoundService";
+import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
@@ -23,7 +23,7 @@ export interface QuestHubSnapshot {
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
-  dailyKorchmaRound?: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }>;
+  dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
 }
 
 export type QuestHubMode = "active" | "archive";
@@ -317,7 +317,7 @@ function presentActiveCellarRow(
 }
 
 function presentDailyKorchmaRoundRow(
-  daily: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }> | undefined
+  daily: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }> | undefined
 ): string | null {
   if (!daily) {
     return null;
@@ -339,6 +339,10 @@ function presentDailyKorchmaRoundRow(
 
   if (daily.state === "pending-barrel") {
     return `${title} — Бочка Пінного Міражу ще ревнує до черги.`;
+  }
+
+  if (daily.state === "not-issued") {
+    return `${title} — доступний сьогодні; Корчмар ще не встиг вручити список дрібних катастроф.`;
   }
 
   if (daily.state === "completed") {

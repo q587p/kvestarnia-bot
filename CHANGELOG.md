@@ -11,20 +11,25 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added durable `ActivityEvent` persistence with a Prisma migration, repository and service APIs for deduped `record`, best-effort `recordSafely` and bounded `listRecent` reads.
-- Added the `📜 Хроніки Квестарні` feed with compact `v1:ev:*` callbacks, filters, refresh and pagination from the Korchma board/news surface.
+- Added the `📜 Хроніки Квестарні` feed with compact `v1:ev:*` callbacks, filters and pagination from the Korchma board/news surface.
+- Added a dry-run-first `maintenance:backfill-activity-events` script for one-time archival feed rows that can be reconstructed from durable tables.
 - Added public activity emission for new characters, configured level milestones, Big Barrel Brother terminal victories, rare/epic manatky and underdog combat victories.
 - Added focused service, callback, presenter, board routing, character creation, reward and Big Barrel Brother emission coverage.
 
 ### Changed
 - `Дошка корчми` now includes `📣 Останні події` without replacing `/news`, `📰 Вісти`, `📖 Перекази`, gifts or postal entry points.
+- Latest-events keyboards no longer show a manual `🔄 Оновити` button; opening the feed, switching filters and changing pages reread the current ledger.
 - Feed rendering stores and uses event-time display snapshots, groups rows by Kyiv day and escapes/truncates dynamic player, item and monster names.
 - Activity logging is best-effort at gameplay boundaries, so feed write failures do not roll back the successful primary action.
 
 ### Fixed
+- Quest-table browsing no longer auto-issues the daily `Корчмарський обхід`; locations only show route scenes after the player explicitly opens the daily round.
+- Active daily `Корчмарський обхід` scenes at `Стіл зі справами` now open with their action buttons from the physical table callback instead of dropping the player into the generic quest hub.
+- Failed grownup cellar roleplay attempts now use the intended `93`-minute retry pause instead of the older `60`-minute wait.
 - Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.
 
 ### Unchanged
-- Reading, opening or refreshing the feed grants no XP, gold, items, combat power, title power, hidden progress or achievement.
+- Reading, opening or re-rendering the feed grants no XP, gold, items, combat power, title power, hidden progress or achievement.
 - No public rows are emitted for losses, deaths, retreats, failed joins, failed drops, failed purchases, failed combat actions, Big Barrel Brother losses or attempt XP.
 - No trophy weights, Yeger bandage gates, dense-bandage docs, deploy notification `вісти` copy, Big Barrel Brother combat rules, rewards, markets, crafting, PvP, ґільдії, Mini App UI or proactive channel auto-posting change in this slice.
 

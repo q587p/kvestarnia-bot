@@ -77,7 +77,7 @@ import {
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
-import { buildCurrentMainMenuKeyboard } from "./mainMenu";
+import { buildCurrentMainMenuKeyboard, shouldIncludeAdminMainMenu } from "./mainMenu";
 import type { BotModuleDependencies } from "./types";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -101,7 +101,9 @@ export function registerCharacterBotModule(
     }
   );
   registerHeroCommand(bot, services.hero, {
-    buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence)
+    buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
+      includeAdmin: shouldIncludeAdminMainMenu(services)
+    })
   });
   if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant);

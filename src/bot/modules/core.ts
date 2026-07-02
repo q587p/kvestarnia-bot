@@ -32,7 +32,8 @@ import { safeEditMessageText } from "../safeEditMessageText";
 import {
   buildCurrentMainMenuKeyboard,
   registerCallbackMainMenuLocationRefresh,
-  registerMainMenuKeyboard
+  registerMainMenuKeyboard,
+  shouldIncludeAdminMainMenu
 } from "./mainMenu";
 import type { BotModuleDependencies } from "./types";
 
@@ -49,7 +50,9 @@ export function registerCoreBotModule(
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {
     partySessionService: services.partySessions,
-    buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence)
+    buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
+      includeAdmin: shouldIncludeAdminMainMenu(services)
+    })
   });
   registerNewsCommand(bot);
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);

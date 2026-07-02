@@ -1,5 +1,5 @@
 ﻿import type { Context } from "grammy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
@@ -91,6 +91,39 @@ describe("quest hub command", () => {
       currentRaidId: null,
       currentAdventureId: null
     });
+  });
+
+  it("shows an untaken daily Korchma round without issuing it from the quest table view", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const getExistingForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "not-issued" as const,
+        character: characterAtLevel(3)
+      })
+    );
+    const getForTelegramUser = vi.fn();
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        dailyKorchmaRound: {
+          getExistingForTelegramUser,
+          getForTelegramUser
+        } as unknown as DailyKorchmaRoundService
+      }),
+      "reply"
+    );
+
+    expect(getExistingForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getForTelegramUser).not.toHaveBeenCalled();
+    expect(replies[0]?.text).toContain("🧾 <i>Корчмарський обхід</i> — доступний сьогодні");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    const dailyButton = buttons.find((button) => button.text === "🧾 Корчмарський обхід");
+    expect(dailyButton?.callback_data).toMatch(/^v1:dkr:o:\d{8}$/);
   });
 
   it("keeps locked cellar and hunt out of the active list on level one", async () => {
@@ -1069,7 +1102,7 @@ function servicesWith(overrides: {
 
 function lockedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorchmaRoundService {
   return {
-    getForTelegramUser: () =>
+    getExistingForTelegramUser: () =>
       Promise.resolve({
         state: "level-locked",
         character: summary,
@@ -1082,7 +1115,7 @@ function completedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorc
   const completedSceneIds = ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"];
 
   return {
-    getForTelegramUser: () =>
+    getExistingForTelegramUser: () =>
       Promise.resolve({
         state: "completed",
         character: summary,

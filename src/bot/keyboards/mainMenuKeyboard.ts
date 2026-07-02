@@ -26,7 +26,8 @@ export const mainMenuButtons = {
   quest: "🗺️ Квести",
   inventory: "🎒 Манатки",
   participants: "👀 Хто поруч",
-  help: "📖 Допомога"
+  help: "📖 Допомога",
+  admin: "🧰 Адмінка"
 } as const;
 
 export const mainMenuLocationButtons = {
@@ -77,12 +78,13 @@ export const mainMenuLocationButtonTexts: readonly string[] = [
 
 export interface MainMenuKeyboardOptions {
   locationId?: string | null;
+  includeAdmin?: boolean;
 }
 
 export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Keyboard {
   const locationButton = getMainMenuLocationButtonText(options.locationId);
 
-  return new Keyboard()
+  const keyboard = new Keyboard()
     .text(mainMenuButtons.hero)
     .text(locationButton)
     .row()
@@ -90,10 +92,13 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.inventory)
     .row()
     .text(mainMenuButtons.participants)
-    .text(mainMenuButtons.help)
-    .resized()
-    .persistent()
-    .placeholder("Що робимо далі?");
+    .text(mainMenuButtons.help);
+
+  if (options.includeAdmin) {
+    keyboard.text(mainMenuButtons.admin);
+  }
+
+  return keyboard.resized().persistent().placeholder("Що робимо далі?");
 }
 
 export function getMainMenuLocationButtonText(locationId: string | null | undefined): string {

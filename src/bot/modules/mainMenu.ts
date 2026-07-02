@@ -51,7 +51,8 @@ buildMainMenuKeyboard,
 getMainMenuLocationButtonPresenceId,
 getMainMenuLocationButtonText,
 mainMenuButtons,
-mainMenuLocationButtonTexts
+mainMenuLocationButtonTexts,
+type MainMenuKeyboardOptions
 } from "../keyboards/mainMenuKeyboard";
 import {
 buildDailyKorchmaRoundSceneKeyboard
@@ -59,7 +60,7 @@ buildDailyKorchmaRoundSceneKeyboard
 import {
 presentDailyKorchmaRoundScene
 } from "../presenters/dailyKorchmaRoundPresenter";
-import { presentHelp } from "../presenters/helpPresenter";
+import { presentDevHelp, presentHelp } from "../presenters/helpPresenter";
 
 import {
 showActivePassageSearchIfNeeded
@@ -80,6 +81,8 @@ export function registerMainMenuKeyboard(
   services: BotServices,
   options: MainMenuRouteOptions = {}
 ): void {
+  const includeAdmin = shouldIncludeAdminMainMenu(services);
+
   bot.hears(mainMenuButtons.hero, async (ctx) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
     if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
@@ -87,7 +90,7 @@ export function registerMainMenuKeyboard(
     }
 
     await sendHero(ctx, services.hero, "reply", {
-      mainMenuKeyboard: await buildCurrentMainMenuKeyboard(ctx, services.presence)
+      mainMenuKeyboard: await buildCurrentMainMenuKeyboard(ctx, services.presence, { includeAdmin })
     });
   });
 
@@ -137,7 +140,7 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    const replyMarkup = await buildCurrentMainMenuKeyboard(ctx, services.presence);
+    const replyMarkup = await buildCurrentMainMenuKeyboard(ctx, services.presence, { includeAdmin });
 
     await ctx.reply(presentHelp({
       includeDevReset: services.devReset.isEnabled(),
@@ -147,22 +150,47 @@ export function registerMainMenuKeyboard(
       reply_markup: replyMarkup
     });
   });
+
+  bot.hears(mainMenuButtons.admin, async (ctx) => {
+    if (!includeAdmin) {
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
+      return;
+    }
+
+    await ctx.reply(presentDevHelp({
+      includeDevReset: services.devReset.isEnabled(),
+      includeDevGrant: services.devGrant?.isEnabled() ?? false,
+      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
+    }), {
+      reply_markup: await buildCurrentMainMenuKeyboard(ctx, services.presence, { includeAdmin })
+    });
+  });
+}
+
+export function shouldIncludeAdminMainMenu(services: Pick<BotServices, "devGrant">): boolean {
+  return services.devGrant?.isEnabled() ?? false;
 }
 
 export async function buildCurrentMainMenuKeyboard(
   ctx: Context,
-  presenceService: PresenceService
+  presenceService: PresenceService,
+  options: Pick<MainMenuKeyboardOptions, "includeAdmin"> = {}
 ): Promise<ReturnType<typeof buildMainMenuKeyboard>> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
-    return buildMainMenuKeyboard();
+    return buildMainMenuKeyboard(options);
   }
 
   const place = await presenceService.getCurrentPlaceForTelegramUser(telegramUserId);
 
   return buildMainMenuKeyboard({
-    locationId: place.state === "ready" ? place.locationId : null
+    locationId: place.state === "ready" ? place.locationId : null,
+    ...(options.includeAdmin === undefined ? {} : { includeAdmin: options.includeAdmin })
   });
 }
 

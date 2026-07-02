@@ -99,9 +99,21 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
+    expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
     expect(keyboard.is_persistent).toBe(true);
+  });
+
+  it("adds the admin button to the main keyboard only when requested", () => {
+    const keyboard = buildMainMenuKeyboard({ includeAdmin: true });
+
+    expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
+      [mainMenuButtons.hero, mainMenuButtons.tavern],
+      [mainMenuButtons.quest, mainMenuButtons.inventory],
+      [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
+    ]);
+    expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
   });
 
   it("builds hero inline actions with achievements and optional full restore", () => {

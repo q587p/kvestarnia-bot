@@ -219,7 +219,7 @@ async function handleLatestEventsCallback(
   action: LatestEventsCallback,
   services: BotServices
 ): Promise<void> {
-  await safeAnswerCallbackQuery(ctx, action.type === "refresh" ? { text: "Оновлено.", show_alert: false } : undefined);
+  await safeAnswerCallbackQuery(ctx);
   await sendLatestEvents(ctx, services.activityEvents, "edit", {
     filter: action.filter,
     page: action.page
@@ -727,6 +727,12 @@ async function handlePlaceCallback(
 
   if (action === "quest-table") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    if (
+      await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, services)
+    ) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
     await markScenePresence(ctx, services.presence, {
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

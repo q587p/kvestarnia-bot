@@ -24,7 +24,7 @@ export const CELLAR_GROWNUP_SEAL_PURCHASE_KEY = "cellar.grownup.seal-purchase";
 export const CELLAR_GROWNUP_BOTTLE_KEY = "cellar.grownup.bottle";
 export const CELLAR_GROWNUP_COMPLETION_KEY = "cellar.grownup.completed";
 export const CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY = "cellar.grownup.roleplay";
-export const CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_MS = 60 * 60 * 1000;
+export const CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_MS = 93 * 60 * 1000;
 export const CELLAR_GROWNUP_SEAL_PRICE = 240;
 export const CELLAR_GROWNUP_ROLEPLAY_MAX_CHANCE = 0.13;
 

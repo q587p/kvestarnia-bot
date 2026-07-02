@@ -15,7 +15,7 @@ Manual Telegram QA status for the implementation pass: not run.
 5. Finish one Big Barrel Brother victory; verify exactly one public victory row appears for the terminal boss session and losses/attempt XP create no row.
 6. Grant or win a rare/epic manatka if convenient; verify it appears, while common manatky do not.
 7. Win an underdog fight where the monster is at least 5 levels above the character; verify a row appears, while ordinary wins and losses do not.
-8. Try every feed filter, refresh and pagination button; verify old/stale callbacks answer safely and callback payloads do not leak ids.
+8. Try every feed filter and pagination button; verify old refresh/stale callbacks answer safely and callback payloads do not leak ids.
 9. Use long or HTML-like character/item names in a disposable path if convenient; verify feed rows escape and truncate names and the message stays mobile-sized.
 
 ## 0.2.19 — Monster Trophies And Yeger Supply Gates smoke

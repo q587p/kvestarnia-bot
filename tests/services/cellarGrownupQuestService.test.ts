@@ -37,6 +37,10 @@ const telegramUserId = 42n;
 const now = new Date("2026-06-15T09:00:00.000Z");
 
 describe("CellarGrownupQuestService", () => {
+  it("waits ninety-three minutes after a failed grownup roleplay attempt", () => {
+    expect(CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_MS).toBe(93 * 60 * 1000);
+  });
+
   it("keeps level three on the old mouse behavior", async () => {
     const world = new FakeCellarGrownupWorld();
     world.addCharacter({ xp: 25 });

@@ -11,7 +11,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../src/services/presenceService";
-import { mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
+import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
 describe("presence routing", () => {
   it.each([
@@ -245,7 +245,15 @@ describe("presence routing", () => {
     expect(getTextPresenceContext("/start@kvestarnia_test_bot")).toEqual({});
   });
 
-  it.each(["🍺 Корчма", "🗺️ Квести", "👤 Персонаж", "🎒 Манатки", "👀 Хто поруч", "📖 Допомога"])(
+  it.each([
+    "🍺 Корчма",
+    "🗺️ Квести",
+    "👤 Персонаж",
+    "🎒 Манатки",
+    "👀 Хто поруч",
+    "📖 Допомога",
+    mainMenuButtons.admin
+  ])(
     "routes main menu text %s without moving place",
     (text) => {
       expect(getTextPresenceContext(text)).toEqual({});

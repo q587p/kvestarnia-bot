@@ -110,7 +110,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_monster_rest` — скидає коротку перерву монстрів після серії ordinary боїв у Низі для швидкого локального `/fight` QA.
 - `/dev_two_enemies` — стартує dev-only persistent бій проти двох ворогів для перевірки foundation multi-enemy state; production-маршрути лишаються одно-ворожими.
 
-Ці команди не потрапляють у бокове меню Telegram. `/help` і `/dev_help` показують dev-команди тільки тоді, коли їхні non-production gates реально enabled.
+Ці команди не потрапляють у бокове меню Telegram і не показуються у звичайному `/help`. `/dev_help` показує dev-команди тільки тоді, коли їхні non-production gates реально enabled; за `DEV_GRANT_COMMANDS_ENABLED=true` у non-production основна клавіатура також показує кнопку `🧰 Адмінка` для цієї dev-довідки.
 
 ## Prisma
 
@@ -169,6 +169,8 @@ npm run check
 - `npm run db:validate` — перевірка Prisma schema.
 - `npm run db:migrate` — локальні міграції Prisma.
 - `npm run db:deploy` — застосування закомічених migrations для Render/CI; якщо Render уже має failed migration record для `0.0.25`, скрипт спершу безпечно розрулює цей known state, а потім продовжує deploy.
+- `npm run maintenance:backfill-activity-events` — dry-run підтягування архівних `ActivityEvent` rows для хронік з поточного `DATABASE_URL`.
+- `npm run maintenance:backfill-activity-events -- --apply` — застосувати підтягування після перевіреного dry-run.
 - `npm run maintenance:repair-character-resources` — dry-run перевірка over-max `hpCurrent`/`manaCurrent` у таблиці `characters` для БД з поточного `DATABASE_URL`.
 - `npm run maintenance:repair-character-resources -- --apply` — застосувати repair і clamp over-max ресурсів до поточних максимумів після перевіреного dry-run.
 
@@ -182,6 +184,20 @@ npm run db:deploy
 - `npm run db:studio` — Prisma Studio.
 
 ## Maintenance repair scripts
+
+`npm run maintenance:backfill-activity-events` безпечний за замовчуванням: він лише рахує архівні public activity rows, які може створити для `📜 Хронік Квестарні`, і не змінює БД без `-- --apply`.
+
+За замовчуванням скрипт бере останні 93 дні, як і player-facing retention хронік. Доступні опції:
+
+```powershell
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --days=30
+npm run maintenance:backfill-activity-events -- --since=2026-07-01
+npm run maintenance:backfill-activity-events -- --all
+npm run maintenance:backfill-activity-events -- --apply
+```
+
+Скрипт відновлює лише події, які можна підтягнути без вигадування історії: створення персонажів, рівні з `character_achievements`, rare/epic манатки з поточного інвентаря та Big Barrel Brother victory sessions. `combat.underdog_won` не backfill-иться, бо архівні combat rows не гарантують точний рівень персонажа на момент бою.
 
 `npm run maintenance:repair-character-resources` безпечний за замовчуванням: він лише показує персонажів, у яких `hpCurrent > hpMax` або `manaCurrent > manaMax`, і не змінює БД без `-- --apply`.
 
@@ -223,6 +239,13 @@ SQLite файл має лежати на Persistent Disk, змонтованом
 ```bash
 DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:repair-character-resources
 DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:repair-character-resources -- --apply
+```
+
+Для одноразового production backfill хронік після deploy спершу зроби backup persistent DB і dry-run:
+
+```bash
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events -- --apply
 ```
 
 Build command:

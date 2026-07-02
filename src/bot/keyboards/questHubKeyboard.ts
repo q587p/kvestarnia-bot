@@ -3,8 +3,9 @@ import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../ser
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
-import type { DailyKorchmaRoundLookupResult } from "../../services/dailyKorchmaRoundService";
+import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
+import { getKyivDayToken } from "../../shared/kyivDate";
 import {
   BESTIARY_MIN_LEVEL,
   FIGHTING_CORNER_MIN_LEVEL,
@@ -29,7 +30,7 @@ export interface QuestHubKeyboardInput {
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
-  dailyKorchmaRound?: Exclude<DailyKorchmaRoundLookupResult, { state: "no-character" }>;
+  dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
 }
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
@@ -106,7 +107,11 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  if (input.dailyKorchmaRound?.state === "ready" || input.dailyKorchmaRound?.state === "turn-in-ready") {
+  if (
+    input.dailyKorchmaRound?.state === "not-issued" ||
+    input.dailyKorchmaRound?.state === "ready" ||
+    input.dailyKorchmaRound?.state === "turn-in-ready"
+  ) {
     keyboard
       .text(
         input.dailyKorchmaRound.state === "turn-in-ready" ? "🧾 Здати обхід" : "🧾 Корчмарський обхід",
@@ -115,7 +120,11 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
               input.dailyKorchmaRound.offer.dayToken,
               input.dailyKorchmaRound.offer.lifeToken
             )
-          : makeDailyKorchmaRoundOverviewCallbackData(input.dailyKorchmaRound.offer.dayToken)
+          : makeDailyKorchmaRoundOverviewCallbackData(
+              input.dailyKorchmaRound.state === "not-issued"
+                ? getKyivDayToken(new Date())
+                : input.dailyKorchmaRound.offer.dayToken
+            )
       )
       .row();
   }
@@ -221,6 +230,7 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.yeger.state === "turn-in-ready" ||
     input.cellar.state === "ready" ||
     (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed") ||
+    input.dailyKorchmaRound?.state === "not-issued" ||
     input.dailyKorchmaRound?.state === "ready" ||
     input.dailyKorchmaRound?.state === "turn-in-ready"
   );
