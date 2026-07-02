@@ -148,10 +148,10 @@ async function printLatestEvents(events: ActivityEventService, options: PollOpti
     `ActivityEvent latest rows: filter=${options.filter}, page=${page.page}, limit=${page.pageSize}, retentionDays=${options.retentionDays}`
   );
   console.log(`Rows: ${page.events.length}${page.hasNextPage ? " (more available)" : ""}`);
-  printEvents(page.events, false);
+  printEvents(page.events, false, getEmptyEventsHint(options));
 }
 
-function printEvents(events: readonly ActivityEventRecord[], json: boolean): void {
+function printEvents(events: readonly ActivityEventRecord[], json: boolean, emptyHint: readonly string[] = []): void {
   if (json) {
     for (const event of events) {
       console.log(JSON.stringify(event));
@@ -161,12 +161,31 @@ function printEvents(events: readonly ActivityEventRecord[], json: boolean): voi
 
   if (events.length === 0) {
     console.log("- no public activity events found");
+    for (const line of emptyHint) {
+      console.log(line);
+    }
     return;
   }
 
   for (const event of events) {
     console.log(formatEvent(event));
   }
+}
+
+export function getEmptyEventsHint(options: Pick<PollOptions, "filter" | "page">): string[] {
+  if (options.page > 0) {
+    return ["- this page is empty; try --page=0 to read the newest rows first"];
+  }
+
+  if (options.filter !== "all") {
+    return ["- this filter/window is empty; try --filter=all or a larger --retention-days value"];
+  }
+
+  return [
+    "- existing characters/items are not read directly by this script; it only reads ActivityEvent rows",
+    "- to preview reconstructable historical rows, run: npm run maintenance:backfill-activity-events",
+    "- to write those rows into the current DATABASE_URL, run: npm run maintenance:backfill-activity-events -- --apply"
+  ];
 }
 
 function formatEvent(event: ActivityEventRecord): string {

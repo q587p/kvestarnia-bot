@@ -222,6 +222,18 @@ npm run maintenance:poll-activity-events -- --filter=itm --json
 npm run maintenance:poll-activity-events -- --watch --interval=13
 ```
 
+Якщо polling показує `Rows: 0`, але в БД вже є персонажі або manatky, це означає, що сам `ActivityEvent` ledger ще порожній. Перевірте, що можна чесно реконструювати:
+
+```powershell
+npm run maintenance:backfill-activity-events
+```
+
+І тільки для правильної target-БД застосуйте dry-run результат:
+
+```powershell
+npm run maintenance:backfill-activity-events -- --apply
+```
+
 Фільтри відповідають runtime feed-фільтрам: `all`, `imp`, `adv`, `cmb`, `itm`. `--watch` повторює read-only polling і друкує тільки нові побачені rows; зупинка — `Ctrl+C`.
 
 `npm run maintenance:repair-character-resources` безпечний за замовчуванням: він лише показує персонажів, у яких `hpCurrent > hpMax` або `manaCurrent > manaMax`, і не змінює БД без `-- --apply`.

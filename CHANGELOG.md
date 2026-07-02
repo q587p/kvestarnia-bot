@@ -34,6 +34,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The quest archive now keeps the completed first Yeger board `Неспокійні справи` visible while `Неспокійні справи 2.0` is active or completed.
 - The Yeger corner no longer shows the closed quest-detail button after the current Yeger board is completed.
 - `maintenance:poll-activity-events` now prints exact `db:deploy` / local `db:migrate` preflight commands when the current `DATABASE_URL` is missing the `ActivityEvent` table.
+- Empty `maintenance:poll-activity-events` output now explains that existing characters/items are not read directly and points operators to the archival backfill dry-run/apply flow.
 
 ### Unchanged
 - Filtering, paginating or pressing a stale legacy refresh-compatible callback can only replay the same one-time first-open record and grants no XP, gold, items, combat power, title power, separate refresh achievement or repeatable hidden progress.
