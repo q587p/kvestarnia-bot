@@ -247,6 +247,10 @@ function printHelp(): void {
       "  npm run maintenance:poll-activity-events -- --filter=imp --limit=13",
       "  npm run maintenance:poll-activity-events -- --watch --interval=13",
       "",
+      "Preflight:",
+      "  If this DATABASE_URL does not have ActivityEvent yet, run npm run db:deploy first.",
+      "  For a local Prisma dev database, npm run db:migrate is also valid.",
+      "",
       "Options:",
       `  --filter=${latestEventFilters.join("|")}       Feed filter to read. Default: all.`,
       "  --limit=N                 Rows per page, 1..25. Default: 13.",
@@ -260,16 +264,25 @@ function printHelp(): void {
   );
 }
 
-main().catch((error: unknown) => {
-  console.error(formatCliError(error));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    console.error(formatCliError(error));
+    process.exitCode = 1;
+  });
+}
 
-function formatCliError(error: unknown): string {
+export function formatCliError(error: unknown): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
     return [
       "Current DATABASE_URL is missing the ActivityEvent table.",
-      "Run database migrations for this checkout first, then rerun the polling script."
+      "Apply committed migrations first:",
+      "  npm run db:deploy",
+      "",
+      "For a local development database that intentionally uses Prisma dev migrations, use:",
+      "  npm run db:migrate",
+      "",
+      "Then rerun:",
+      "  npm run maintenance:poll-activity-events"
     ].join("\n");
   }
 

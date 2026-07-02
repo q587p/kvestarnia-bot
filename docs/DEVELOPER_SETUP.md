@@ -203,6 +203,18 @@ npm run maintenance:backfill-activity-events -- --apply
 
 `npm run maintenance:poll-activity-events` нічого не змінює в БД: він читає public `ActivityEvent` rows через той самий bounded feed query, який використовує runtime. Це швидка перевірка, чи хроніки вже мають нові рядки, або чи backfill/apply справді записав очікувані події.
 
+Перед першим polling для БД, яка ще не має таблиці `ActivityEvent`, застосуйте committed migrations:
+
+```powershell
+npm run db:deploy
+```
+
+Для локальної dev-БД, де свідомо використовується Prisma dev workflow, можна натомість виконати:
+
+```powershell
+npm run db:migrate
+```
+
 ```powershell
 npm run maintenance:poll-activity-events
 npm run maintenance:poll-activity-events -- --filter=imp --limit=13
