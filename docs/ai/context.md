@@ -51,6 +51,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `AGENTS.md` — hard project/Codex rules.
 - `README.md` — public-facing project window.
 - `docs/README.md` — docs index.
+- `docs/DOCUMENTATION_STRUCTURE.md` and category `README.md` files under `docs/product/`, `docs/design/`, `docs/architecture/`, `docs/operations/`, `docs/ai/`, `docs/backlog/`, and `docs/history/` — documentation placement and navigation rules.
 - `docs/CODEX_WORKFLOW.md` — workflow and token-economy rules.
 - `docs/ai/CODEX_PROMPT_POLICY.md` — durable prompt-writing policy for Codex prompts and delta integration instructions.
 - `docs/tasks/README.md` — version task doc convention.

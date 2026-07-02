@@ -126,43 +126,26 @@
 - Vitest, ESLint і strict TypeScript для перевірок;
 - Render Web Service з маленьким healthcheck server для production-процесу.
 
-Технічні інструкції свідомо винесені з README, щоб цей файл лишався вітриною проєкту:
+Технічні інструкції свідомо винесені з README, щоб цей файл лишався вітриною проєкту. Для розробки починай звідси:
 
 - [`docs/DEVELOPER_SETUP.md`](docs/DEVELOPER_SETUP.md) — локальний запуск, `.env`, Prisma, Render, scripts і troubleshooting.
 - [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md) — ручний smoke test поточного playable loop.
+- [`docs/LOCAL_BOT_RUNTIME.md`](docs/LOCAL_BOT_RUNTIME.md) — ізольований локальний runtime для ручної перевірки бота.
+- [`docs/CODEX_WORKFLOW.md`](docs/CODEX_WORKFLOW.md) — як ставити задачі Codex, приймати PR і тримати docs-only зміни окремо від runtime.
 
 ## 📚 Документація
 
-- [`docs/README.md`](docs/README.md) — індекс документації, Phase 1 closeout, Phase 2 MVP closeout і `0.2.x` handoff.
+Повний вхід у документацію: [`docs/README.md`](docs/README.md). Він навігує за роллю документа, а не за історією його появи.
 
-- [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md) — позиціонування, аудиторія, обіцянка гри й MVP scope.
-- [`docs/BRAND.md`](docs/BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
-- [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) — core loop, персонаж, раси, класи, бойові й пригодові зрізи.
-- [`docs/BESTIARY.md`](docs/BESTIARY.md) — перший ростер із 20 монстрів і їхніми reaction hooks.
-- [`docs/MONSTER_LOOT_DROPS.md`](docs/MONSTER_LOOT_DROPS.md) — monster → item mapping для контрольованого loot engine.
-- [`docs/MONSTER_FLAVOR_ROUTING.md`](docs/MONSTER_FLAVOR_ROUTING.md) — selector-пріоритети для race/class/path/combo monster flavor.
-- [`docs/MANTOK_CHEST_BACKLOG.md`](docs/MANTOK_CHEST_BACKLOG.md) — наступний item-volume sink: Дружня Скриня / Манатко-скриня для переробки зайвих манаток.
-- [`docs/ACHIEVEMENTS_PHASE1.md`](docs/ACHIEVEMENTS_PHASE1.md) — план rewardless ачівок/титулів для later PR після основної бойової петлі.
-- [`docs/CONTENT_STYLE_GUIDE.md`](docs/CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки, формат Telegram-повідомлень.
-- [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md) — очищені джерела смаку, безпечні правила запозичення й backlog монстрів, манаток, пригод та алюзій.
-- [`docs/TERMINOLOGY.md`](docs/TERMINOLOGY.md) — правило `пригодник` / `персонаж` / `герой` і репутаційні шляхи.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — фази розвитку й Definition of Done для продукту.
-- [`docs/phase2/SOCIAL_COMBAT_PLAN.md`](docs/phase2/SOCIAL_COMBAT_PLAN.md) — Phase 2 roadmap reset: запрошення на дуель, картки результатів, подарунки/обміни, кілька ворогів і гуртові бої.
-- [`docs/PHASE1_FINISH_PLAN.md`](docs/PHASE1_FINISH_PLAN.md) — scope lock для добивання combat → equipment stats → loot → рівнів 1-13, із ачівками як rewardless later slice.
-- [`docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md`](docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md) — cutline для закриття лінійки `0.0.x`, closure PR `0.1.0` і deferred backlog `0.1.x`.
-- [`docs/PHASE1_CLOSEOUT_SMOKE.md`](docs/PHASE1_CLOSEOUT_SMOKE.md) — фінальний smoke/release gate перед тим, як назвати Phase 1 закритою.
-- [`docs/PHASE1_RELEASE_NOTES.md`](docs/PHASE1_RELEASE_NOTES.md) — канонічний підсумок Phase 1 closure у `0.1.0`, відомі обмеження й порядок `0.1.x`.
-- [`docs/PHASE2_MVP_RELEASE_NOTES.md`](docs/PHASE2_MVP_RELEASE_NOTES.md) — канонічний підсумок Phase 2 Social Combat MVP closure у `0.1.25`.
-- [`docs/PHASE2_DEFERRED_0_2.md`](docs/PHASE2_DEFERRED_0_2.md) — що переноситься в `0.2.x`, включно з safe gifting, multi-enemy, item tags і party/raid work.
-- [`docs/phase2-roadmap-audit/README.md`](docs/phase2-roadmap-audit/README.md) — audit/handoff-пакет із рекомендованим post-`0.2.7` порядком, public-surface нотатками, future task docs, prompts і checklists; це planning input, не початок реалізації.
-- [`docs/BALANCE_NOTES.md`](docs/BALANCE_NOTES.md) — формули, економіка, RNG і балансні guardrails.
-- [`docs/SECURITY_AND_FAIR_PLAY.md`](docs/SECURITY_AND_FAIR_PLAY.md) — антиаб’юз, приватність, idempotency і чесна гра.
-- [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md) — архітектура, домени, дані й майбутні технічні рішення.
-- [`docs/GROUP_HOOK_DESIGN.md`](docs/GROUP_HOOK_DESIGN.md) — дизайн першого малого групового рейду й Telegram flow.
-- [`docs/GROUP_RAID_SESSION_NOTES.md`](docs/GROUP_RAID_SESSION_NOTES.md) — концепт сесій, учасників, дій і idempotency для групового hook-а.
-- [`docs/SOCIAL_ACTIONS_BACKLOG.md`](docs/SOCIAL_ACTIONS_BACKLOG.md) — соціяльні дії після першого групового рейду.
-- [`docs/CODEX_WORKFLOW.md`](docs/CODEX_WORKFLOW.md) — як ставити задачі Codex і приймати PR.
-- [`AGENTS.md`](AGENTS.md) — робочі інструкції для coding agents.
+Швидкі двері:
+
+- [`docs/product/README.md`](docs/product/README.md) — продукт, бренд, публічна обіцянка, roadmap.
+- [`docs/design/README.md`](docs/design/README.md) — game design, content style, термінологія, монстри, квести, лут і досягнення.
+- [`docs/architecture/README.md`](docs/architecture/README.md) — архітектура, безпека, session/idempotency notes і технічні guardrails.
+- [`docs/operations/README.md`](docs/operations/README.md) — локальний запуск, smoke tests, playtesting, support jar і runtime runbooks.
+- [`docs/ai/README.md`](docs/ai/README.md) — Codex context, prompt policy, prompts і workflow assets.
+- [`docs/tasks/README.md`](docs/tasks/README.md) — versioned task docs, active slice і архів задач.
+- [`docs/DOCUMENTATION_STRUCTURE.md`](docs/DOCUMENTATION_STRUCTURE.md) — правила, куди класти нові документи й як безпечно рухати старі.
 
 ## 🧙 Натхнення
 
