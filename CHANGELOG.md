@@ -17,12 +17,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added public activity emission for new characters, configured level milestones, Big Barrel Brother terminal victories, rare/epic manatky and underdog combat victories.
 - Added the rewardless `achievement.journey.latest-events-opened` achievement for first opening/reading `📜 Хроніки Квестарні`.
 - Added focused service, callback, presenter, board routing, character creation, reward and Big Barrel Brother emission coverage.
+- Added scoped `lint:scripts` and `typecheck:scripts` coverage for the latest-events maintenance scripts, and included both in `npm run check`.
 
 ### Changed
 - `Дошка корчми` now includes `📣 Останні події` without replacing `/news`, `📰 Вісти`, `📖 Перекази`, gifts or postal entry points.
 - Latest-events keyboards no longer show a manual `🔄 Оновити` button; opening the feed, switching filters and changing pages reread the current ledger.
 - Feed rendering stores and uses event-time display snapshots, groups rows by Kyiv day and escapes/truncates dynamic player, item and monster names.
 - Activity logging is best-effort at gameplay boundaries, so feed write failures do not roll back the successful primary action.
+- Underdog combat activity now evaluates the frozen effective monster level from the persistent fight session, matching the level used by combat/reward settlement instead of the authored content level alone.
 - Turning in `Неспокійні справи 2.0` now grants two `Єгерська риска на дощечці` keepsakes in addition to XP and gold.
 
 ### Fixed

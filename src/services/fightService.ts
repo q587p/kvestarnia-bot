@@ -2954,13 +2954,14 @@ export class FightService {
       ...withAchievementCombatOutcome(session.state?.status ?? session.status)
     });
     if ((session.state?.status ?? session.status) === "won") {
+      const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
       await this.activityEvents?.recordUnderdogCombatWinSafely({
         characterId: claim.character.id,
         actorDisplayName: claim.character.name,
         combatSessionId: session.id,
         monsterId: session.monsterId,
         monsterName: monster.name,
-        monsterLevel: monster.level,
+        monsterLevel: effectiveMonsterLevel,
         characterLevel: character.level,
         occurredAt: this.clock()
       });
