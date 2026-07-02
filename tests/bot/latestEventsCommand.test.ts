@@ -1,9 +1,17 @@
 import type { Context } from "grammy";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { sendLatestEvents } from "../../src/bot/commands/latestEventsCommand";
+import {
+  clearMessageFreshnessTracking,
+  rememberLatestMessageForChat
+} from "../../src/bot/messageFreshness";
 import type { ActivityEventService } from "../../src/services/activityEventService";
 
 describe("latest events command", () => {
+  afterEach(() => {
+    clearMessageFreshnessTracking();
+  });
+
   it("does not show an error card when the achievement notice reply fails after a feed reply", async () => {
     const ctx = makeContext();
     const feedReply = vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("notice failed"));
@@ -36,15 +44,42 @@ describe("latest events command", () => {
     expect(noticeReply.mock.calls[0]?.[0]).toContain("Нова ачівка");
     expect(editMessageText.mock.calls.some(([text]) => String(text).includes("упустив перо в суп"))).toBe(false);
   });
+
+  it("does not show an error card when stale edit fallback reply succeeds before achievement notice reply fails", async () => {
+    rememberLatestMessageForChat(42, 100);
+    const ctx = makeContext({
+      callbackQuery: {
+        message: {
+          message_id: 99,
+          chat: { id: 42 }
+        }
+      }
+    });
+    const editMessageText = vi.fn().mockResolvedValue({});
+    const reply = vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("notice failed"));
+    ctx.editMessageText = editMessageText;
+    ctx.reply = reply;
+
+    await sendLatestEvents(ctx, makeActivityEvents(), "edit", {
+      achievementTracker: makeAchievementTracker()
+    });
+
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply.mock.calls[0]?.[0]).toContain("Хроніки Квестарні");
+    expect(reply.mock.calls[1]?.[0]).toContain("Нова ачівка");
+    expect(reply.mock.calls.some(([text]) => String(text).includes("упустив перо в суп"))).toBe(false);
+  });
 });
 
-function makeContext(): Context {
+function makeContext(overrides: Partial<Context> = {}): Context {
   return {
     from: {
       id: 42,
       is_bot: false,
       first_name: "Тестовий"
-    }
+    },
+    ...overrides
   } as Context;
 }
 
