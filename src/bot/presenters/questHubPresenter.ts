@@ -4,7 +4,11 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
-import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
+import {
+  YEGER_UNQUIET_TRIAL_REWARD,
+  YEGER_UNQUIET_TRIAL_TARGET,
+  type YegerQuestLookupResult
+} from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
   FIGHTING_CORNER_MIN_LEVEL,
@@ -264,6 +268,30 @@ function presentYegerArchiveRow(yeger: Exclude<YegerQuestLookupResult, { state: 
   return presentYegerRow(yeger);
 }
 
+function presentYegerArchiveRows(yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>): string[] {
+  const rows: string[] = [];
+
+  if (yeger.state !== "level-locked" && yeger.progress.stageId === "second") {
+    rows.push(presentYegerRow({
+      state: "completed",
+      character: yeger.character,
+      progress: { wins: YEGER_UNQUIET_TRIAL_TARGET, target: YEGER_UNQUIET_TRIAL_TARGET, stageId: "first" },
+      reward: {
+        xp: YEGER_UNQUIET_TRIAL_REWARD.maxXp,
+        gold: YEGER_UNQUIET_TRIAL_REWARD.gold,
+        itemGrants: []
+      }
+    }));
+  }
+
+  const current = presentYegerArchiveRow(yeger);
+  if (current) {
+    rows.push(current);
+  }
+
+  return rows;
+}
+
 function presentCellarRow(
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>,
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
@@ -423,7 +451,7 @@ function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
       : null,
     ...presentProblemQuestArchiveRows(snapshot.problemQuestArchive),
     presentFightArchiveRow(snapshot.character, snapshot.fight),
-    presentYegerArchiveRow(snapshot.yeger),
+    ...presentYegerArchiveRows(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup),
     snapshot.dailyKorchmaRound?.state === "completed"
       ? presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)

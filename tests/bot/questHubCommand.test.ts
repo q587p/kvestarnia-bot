@@ -555,6 +555,69 @@ describe("quest hub command", () => {
     });
   });
 
+  it("keeps the completed first Yeger board in the archive while the second board is active", async () => {
+    const activeReplies: Array<{ text: string; options: unknown }> = [];
+    const archiveReplies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+    const yeger = {
+      getForTelegramUser: () =>
+        Promise.resolve({
+          state: "turn-in-ready",
+          character: grownCharacter,
+          progress: { wins: 17, target: 17, stageId: "second" }
+        })
+    } as unknown as YegerQuestService;
+
+    const services = servicesWith({
+      adventure: readyAdventureService(grownCharacter),
+      fight: readyFightService(grownCharacter),
+      yeger,
+      cellarErrand: readyCellarService(grownCharacter)
+    });
+
+    await sendQuestHub(makeContext(activeReplies), services, "reply");
+    await sendQuestHub(makeContext(archiveReplies), services, "reply", "archive");
+
+    expect(activeReplies[0]?.text).toContain(
+      "🏹 <i>Неспокійні справи 2.0</i> — 17/17, Єгер чекає дощечку."
+    );
+    expect(activeReplies[0]?.text).not.toContain("🏹 <i>Неспокійні справи</i> — виконано");
+    expect(archiveReplies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
+    expect(archiveReplies[0]?.text).not.toContain("🏹 <i>Неспокійні справи 2.0</i> — виконано");
+  });
+
+  it("shows both completed Yeger boards in the archive after the second board is turned in", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const grownCharacter = characterAtLevel(4);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(grownCharacter),
+        fight: readyFightService(grownCharacter),
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed",
+              character: grownCharacter,
+              progress: { wins: 17, target: 17, stageId: "second" },
+              reward: {
+                xp: 170,
+                gold: 170,
+                itemGrants: []
+              }
+            })
+        } as unknown as YegerQuestService,
+        cellarErrand: readyCellarService(grownCharacter)
+      }),
+      "reply",
+      "archive"
+    );
+
+    expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
+    expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи 2.0</i> — виконано; Єгер удає, що не пишається.");
+  });
+
   it("keeps completed problem-chain stages in the archive history", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const grownCharacter = characterAtLevel(4);

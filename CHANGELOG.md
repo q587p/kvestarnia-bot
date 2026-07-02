@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Failed grownup cellar roleplay attempts now use the intended `93`-minute retry pause instead of the older `60`-minute wait.
 - Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.
 - `/help` and the main `📖 Допомога` button now show the public command catalog again, while dev commands stay isolated in `/dev_help` and the `🧰 Адмінка` button.
+- The quest archive now keeps the completed first Yeger board `Неспокійні справи` visible while `Неспокійні справи 2.0` is active or completed.
 
 ### Unchanged
 - Filtering, paginating or pressing a stale legacy refresh-compatible callback can only replay the same one-time first-open record and grants no XP, gold, items, combat power, title power, separate refresh achievement or repeatable hidden progress.
