@@ -8,6 +8,7 @@ import {
   backfillActivityEvents,
   getActivityEventBackfillLevelAchievementIds,
   getActivityEventBackfillRareItemIds,
+  type ActivityEventBackfillPage,
   type ActivityEventBackfillStore,
   type ActivityEventBackfillSummary,
   type BackfillCharacterCreatedRow,
@@ -17,10 +18,15 @@ import {
 } from "../src/services/activityEventBackfillService";
 import { LATEST_EVENTS_RETENTION_DAYS } from "../src/services/activityEventService";
 
+export const DEFAULT_ACTIVITY_EVENT_BACKFILL_BATCH_SIZE = 93;
+
 class PrismaActivityEventBackfillStore implements ActivityEventBackfillStore {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async listCharactersCreatedSince(since: Date | null): Promise<BackfillCharacterCreatedRow[]> {
+  async listCharactersCreatedSince(
+    since: Date | null,
+    page?: ActivityEventBackfillPage
+  ): Promise<BackfillCharacterCreatedRow[]> {
     return this.prisma.character.findMany({
       where: since ? { createdAt: { gte: since } } : {},
       select: {
@@ -28,13 +34,15 @@ class PrismaActivityEventBackfillStore implements ActivityEventBackfillStore {
         name: true,
         createdAt: true
       },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      ...(page ? { skip: page.skip, take: page.take } : {})
     });
   }
 
   async listLevelAchievementsSince(
     since: Date | null,
-    achievementIds: readonly string[]
+    achievementIds: readonly string[],
+    page?: ActivityEventBackfillPage
   ): Promise<BackfillLevelAchievementRow[]> {
     const rows = await this.prisma.characterAchievement.findMany({
       where: {
@@ -54,7 +62,8 @@ class PrismaActivityEventBackfillStore implements ActivityEventBackfillStore {
           }
         }
       },
-      orderBy: [{ unlockedAt: "asc" }, { id: "asc" }]
+      orderBy: [{ unlockedAt: "asc" }, { id: "asc" }],
+      ...(page ? { skip: page.skip, take: page.take } : {})
     });
 
     return rows.map((row) => ({
@@ -70,7 +79,8 @@ class PrismaActivityEventBackfillStore implements ActivityEventBackfillStore {
 
   async listRareCharacterItemsSince(
     since: Date | null,
-    itemIds: readonly string[]
+    itemIds: readonly string[],
+    page?: ActivityEventBackfillPage
   ): Promise<BackfillRareCharacterItemRow[]> {
     const rows = await this.prisma.characterItem.findMany({
       where: {
@@ -88,7 +98,8 @@ class PrismaActivityEventBackfillStore implements ActivityEventBackfillStore {
           }
         }
       },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      ...(page ? { skip: page.skip, take: page.take } : {})
     });
 
     return rows.map((row) => ({
@@ -100,7 +111,10 @@ class PrismaActivityEventBackfillStore implements ActivityEventBackfillStore {
     }));
   }
 
-  async listWonPartyBossSessionsSince(since: Date | null): Promise<BackfillPartyBossSessionRow[]> {
+  async listWonPartyBossSessionsSince(
+    since: Date | null,
+    page?: ActivityEventBackfillPage
+  ): Promise<BackfillPartyBossSessionRow[]> {
     const rows = await this.prisma.partyBossSession.findMany({
       where: {
         status: "won",
@@ -123,7 +137,8 @@ class PrismaActivityEventBackfillStore implements ActivityEventBackfillStore {
         completedAt: true,
         createdAt: true
       },
-      orderBy: [{ completedAt: "asc" }, { id: "asc" }]
+      orderBy: [{ completedAt: "asc" }, { id: "asc" }],
+      ...(page ? { skip: page.skip, take: page.take } : {})
     });
 
     return rows;
@@ -161,7 +176,8 @@ async function main(): Promise<void> {
       store,
       recorder,
       apply: options.apply,
-      since: options.since
+      since: options.since,
+      batchSize: options.batchSize
     });
 
     printSummary(summary, process.argv.slice(2));
@@ -170,11 +186,15 @@ async function main(): Promise<void> {
   }
 }
 
-function parseArgs(args: string[]): { apply: boolean; since: Date | null } {
+function parseArgs(args: string[]): { apply: boolean; since: Date | null; batchSize: number } {
   const apply = args.includes("--apply");
   const all = args.includes("--all");
   const sinceArg = args.find((arg) => arg.startsWith("--since="));
   const daysArg = args.find((arg) => arg.startsWith("--days="));
+  const batchSizeArg = args.find((arg) => arg.startsWith("--batch-size="));
+  const batchSize = batchSizeArg
+    ? parsePositiveInteger(batchSizeArg.slice("--batch-size=".length), "--batch-size")
+    : DEFAULT_ACTIVITY_EVENT_BACKFILL_BATCH_SIZE;
 
   if (all && sinceArg) {
     throw new Error("Use either --all or --since=YYYY-MM-DD, not both.");
@@ -185,11 +205,11 @@ function parseArgs(args: string[]): { apply: boolean; since: Date | null } {
   }
 
   if (sinceArg) {
-    return { apply, since: parseDateArgument(sinceArg.slice("--since=".length)) };
+    return { apply, since: parseDateArgument(sinceArg.slice("--since=".length)), batchSize };
   }
 
   if (all) {
-    return { apply, since: null };
+    return { apply, since: null, batchSize };
   }
 
   const days = daysArg
@@ -197,7 +217,8 @@ function parseArgs(args: string[]): { apply: boolean; since: Date | null } {
     : LATEST_EVENTS_RETENTION_DAYS;
   return {
     apply,
-    since: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    since: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+    batchSize
   };
 }
 
@@ -224,6 +245,7 @@ function parsePositiveInteger(value: string, name: string): number {
 function printSummary(summary: ActivityEventBackfillSummary, args: readonly string[] = []): void {
   console.log(summary.dryRun ? "Dry run: activity event archival backfill" : "Applied: activity event archival backfill");
   console.log(`Since: ${summary.since ? summary.since.toISOString() : "all available history"}`);
+  console.log(`Batch size: ${parseBatchSizeForDisplay(args)}`);
   console.log(`Level achievement ids: ${getActivityEventBackfillLevelAchievementIds().join(", ")}`);
   console.log(`Rare/epic item ids: ${getActivityEventBackfillRareItemIds().length}`);
   console.log("Counts:");
@@ -252,13 +274,26 @@ if (require.main === module) {
 }
 
 export function formatDryRunApplyHint(args: readonly string[] = []): string[] {
-  const scopeArgs = args.filter((arg) => arg === "--all" || arg.startsWith("--since=") || arg.startsWith("--days="));
+  const scopeArgs = args.filter(
+    (arg) =>
+      arg === "--all" ||
+      arg.startsWith("--since=") ||
+      arg.startsWith("--days=") ||
+      arg.startsWith("--batch-size=")
+  );
   const applyCommand = ["npm run maintenance:backfill-activity-events", "--", ...scopeArgs, "--apply"].join(" ");
   return [
     "Dry run only: no rows were written.",
     `To write planned rows through npm, run: ${applyCommand}`,
     "Note the npm argument separator: -- --apply"
   ];
+}
+
+function parseBatchSizeForDisplay(args: readonly string[] = []): number {
+  const batchSizeArg = args.find((arg) => arg.startsWith("--batch-size="));
+  return batchSizeArg
+    ? parsePositiveInteger(batchSizeArg.slice("--batch-size=".length), "--batch-size")
+    : DEFAULT_ACTIVITY_EVENT_BACKFILL_BATCH_SIZE;
 }
 
 export function formatCliError(error: unknown): string {

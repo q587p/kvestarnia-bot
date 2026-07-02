@@ -1,6 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
-import { formatCliError, formatDryRunApplyHint } from "../../scripts/backfill-activity-events";
+import {
+  DEFAULT_ACTIVITY_EVENT_BACKFILL_BATCH_SIZE,
+  formatCliError,
+  formatDryRunApplyHint
+} from "../../scripts/backfill-activity-events";
 
 describe("backfill activity events script", () => {
   it("prints the npm argument separator for apply after a dry run", () => {
@@ -14,6 +18,13 @@ describe("backfill activity events script", () => {
   it("keeps dry-run scope arguments in the apply command", () => {
     expect(formatDryRunApplyHint(["--days=30"])).toContain(
       "To write planned rows through npm, run: npm run maintenance:backfill-activity-events -- --days=30 --apply"
+    );
+  });
+
+  it("keeps the explicit batch size in the apply command", () => {
+    expect(DEFAULT_ACTIVITY_EVENT_BACKFILL_BATCH_SIZE).toBe(93);
+    expect(formatDryRunApplyHint(["--days=30", "--batch-size=13"])).toContain(
+      "To write planned rows through npm, run: npm run maintenance:backfill-activity-events -- --days=30 --batch-size=13 --apply"
     );
   });
 

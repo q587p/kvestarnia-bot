@@ -42,6 +42,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `maintenance:poll-activity-events` now prints exact `db:deploy` / local `db:migrate` preflight commands when the current `DATABASE_URL` is missing the `ActivityEvent` table.
 - Empty `maintenance:poll-activity-events` output now explains that existing characters/items are not read directly and points operators to the archival backfill dry-run/apply flow.
 - Dry-run `maintenance:backfill-activity-events` output now shows the exact npm `-- --apply` command, and docs cover pointing `DATABASE_URL` at the isolated local bot database before backfilling local-bot-visible rows.
+- `maintenance:backfill-activity-events` now scans source tables in bounded batches by default, avoiding production Node heap spikes during dry-run/apply backfills.
 
 ### Unchanged
 - Filtering, paginating or pressing a stale legacy refresh-compatible callback can only replay the same one-time first-open record and grants no XP, gold, items, combat power, title power, separate refresh achievement or repeatable hidden progress.

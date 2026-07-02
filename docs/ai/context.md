@@ -118,7 +118,7 @@ From `package.json`:
 - `npm run db:deploy`
 - `npm run maintenance:repair-character-resources` = dry-run over-max HP/mana repair for current `DATABASE_URL`
 - `npm run maintenance:repair-character-resources -- --apply` = apply the same repair after reviewed dry-run
-- `npm run maintenance:backfill-activity-events` = dry-run reconstructable latest-events archive rows for current `DATABASE_URL`; apply only after review with `npm run maintenance:backfill-activity-events -- --apply`; for the isolated local bot DB, point `DATABASE_URL` at the runtime `prisma/dev.db` first.
+- `npm run maintenance:backfill-activity-events` = dry-run reconstructable latest-events archive rows for current `DATABASE_URL`; it scans source tables in bounded batches (`--batch-size=93` by default) and applies only after review with `npm run maintenance:backfill-activity-events -- --apply`; for the isolated local bot DB, point `DATABASE_URL` at the runtime `prisma/dev.db` first.
 - `npm run maintenance:poll-activity-events` = read-only latest `ActivityEvent` row check/poll for current `DATABASE_URL`
 
 Prefer focused tests first, then broader checks.
