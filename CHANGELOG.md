@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Quest-table browsing and daily-round overview inspection no longer auto-issue the daily `Корчмарський обхід`; locations only show route scenes after the player explicitly accepts the round with `🧾 Берусь за обхід`.
 - Opening `Льохова справа` from the quest table now shows the Korchmar/mouse intro, then the cellar movement notice, then the action card instead of sending the movement notice after the quest card.
+- Level 8 reached rows now count as important latest-events milestones, matching the enabled visible level achievement cadence.
 - Active daily `Корчмарський обхід` scenes at `Стіл зі справами` now open with their action buttons from the physical table callback instead of dropping the player into the generic quest hub.
 - Failed grownup cellar roleplay attempts now use the intended `93`-minute retry pause instead of the older `60`-minute wait.
 - Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.

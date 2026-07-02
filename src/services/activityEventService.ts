@@ -15,7 +15,7 @@ import type { PartyBossSessionRecord } from "../db/repositories/partyBossReposit
 export const LATEST_EVENTS_PAGE_SIZE = 15;
 export const LATEST_EVENTS_RETENTION_DAYS = 93;
 export const LATEST_EVENTS_PUBLIC_MIN_LEVEL = 2;
-export const LATEST_EVENTS_MILESTONE_LEVELS = [5, 10, 13] as const;
+export const LATEST_EVENTS_MILESTONE_LEVELS = [5, 8, 10, 13] as const;
 export const LATEST_EVENTS_UNDERDOG_LEVEL_DELTA = 5;
 export const LATEST_EVENTS_PUBLIC_ITEM_RARITIES = ["rare", "epic"] as const;
 export const LATEST_EVENTS_LEGENDARY_ITEM_RARITIES = ["epic"] as const;

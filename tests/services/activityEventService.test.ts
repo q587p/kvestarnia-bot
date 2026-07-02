@@ -6,8 +6,9 @@ import type {
   ListRecentActivityEventsQuery,
   RecordActivityEventInput
 } from "../../src/db/repositories/activityEventRepository";
+import { achievements } from "../../src/content";
 import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
-import { ActivityEventService } from "../../src/services/activityEventService";
+import { ActivityEventService, LATEST_EVENTS_MILESTONE_LEVELS } from "../../src/services/activityEventService";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 
 describe("ActivityEventService", () => {
@@ -80,6 +81,41 @@ describe("ActivityEventService", () => {
       subjectId: "item.cellar.foamy-mirage-bottle",
       severity: "high"
     });
+  });
+
+  it("marks level 8 as an important visible achievement milestone", async () => {
+    const repository = new FakeActivityEventRepository();
+    const service = new ActivityEventService(repository);
+
+    await service.recordRewardEventsSafely({
+      characterId: "character-1",
+      actorDisplayName: "Рейдовий Завсідник",
+      sourceId: "daily-8",
+      sourceType: "daily-action",
+      occurredAt: new Date("2026-07-02T10:00:00.000Z"),
+      levelChange: { oldLevel: 7, newLevel: 8, leveledUp: true }
+    });
+
+    expect(repository.rows).toHaveLength(1);
+    expect(repository.rows[0]).toMatchObject({
+      eventType: "character.level_reached",
+      severity: "high",
+      dedupeKey: "character.level_reached:character-1:8",
+      payload: { level: 8 }
+    });
+  });
+
+  it("keeps important level milestones backed by enabled visible level achievements", () => {
+    const visibleAchievementLevels = achievements.flatMap((achievement) => {
+      if (achievement.status !== "enabled" || achievement.hidden || achievement.trigger.type !== "level.reached") {
+        return [];
+      }
+
+      return typeof achievement.trigger.threshold === "number" ? [achievement.trigger.threshold] : [];
+    });
+
+    expect(visibleAchievementLevels).toEqual([2, 3, 5, 8, 10, 13]);
+    expect(LATEST_EVENTS_MILESTONE_LEVELS.every((level) => visibleAchievementLevels.includes(level))).toBe(true);
   });
 
   it("emits underdog wins only at the configured threshold", async () => {

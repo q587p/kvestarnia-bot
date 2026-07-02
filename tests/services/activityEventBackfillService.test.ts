@@ -68,11 +68,51 @@ describe("backfillActivityEvents", () => {
       payload: { participantCount: 2 }
     });
   });
+
+  it("backfills level 8 achievements as important milestone rows", async () => {
+    const store = new FakeBackfillStore();
+    store.levelAchievements = [
+      {
+        id: "achievement-row-8",
+        characterId: "character-1",
+        characterName: "Arden",
+        achievementId: "achievement.level.8",
+        sourceType: "daily-action",
+        sourceId: "daily-8",
+        unlockedAt: new Date("2026-07-01T09:08:00.000Z")
+      }
+    ];
+    const recorder = new FakeBackfillRecorder();
+
+    await backfillActivityEvents({
+      store,
+      recorder,
+      apply: true
+    });
+
+    const levelEvent = recorder.events.find((event) => event.eventType === "character.level_reached");
+    expect(levelEvent).toMatchObject({
+      severity: "high",
+      dedupeKey: "character.level_reached:character-1:8",
+      payload: { level: 8 }
+    });
+  });
 });
 
 class FakeBackfillStore implements ActivityEventBackfillStore {
   readonly existingDedupeKeys = new Set<string>();
   readonly existingRareItems = new Set<string>();
+  levelAchievements: BackfillLevelAchievementRow[] = [
+    {
+      id: "achievement-row-1",
+      characterId: "character-1",
+      characterName: "Arden",
+      achievementId: "achievement.level.5",
+      sourceType: "daily-action",
+      sourceId: "daily-1",
+      unlockedAt: new Date("2026-07-01T09:00:00.000Z")
+    }
+  ];
 
   listCharactersCreatedSince(): Promise<BackfillCharacterCreatedRow[]> {
     return Promise.resolve([
@@ -85,17 +125,7 @@ class FakeBackfillStore implements ActivityEventBackfillStore {
   }
 
   listLevelAchievementsSince(): Promise<BackfillLevelAchievementRow[]> {
-    return Promise.resolve([
-      {
-        id: "achievement-row-1",
-        characterId: "character-1",
-        characterName: "Arden",
-        achievementId: "achievement.level.5",
-        sourceType: "daily-action",
-        sourceId: "daily-1",
-        unlockedAt: new Date("2026-07-01T09:00:00.000Z")
-      }
-    ]);
+    return Promise.resolve(this.levelAchievements);
   }
 
   listRareCharacterItemsSince(): Promise<BackfillRareCharacterItemRow[]> {

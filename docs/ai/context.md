@@ -196,6 +196,7 @@ For Telegram/gameplay changes, always consider:
 - `0.2.20` starter archive follow-up: completed starter `Підозріла шаурма` and `Новачкова сутичка` rows stay visible in `📦 Архів` after players level into the regular adventure and Nyz flows, while active starter rows remain on `📋 Стіл зі справами`.
 - `0.2.20` onboarding balance follow-up: `Домовик` and `Русалка сухопутна` are unavailable for `Вони`, so the race biography-filter note has visible disabled options.
 - `0.2.20` cellar routing follow-up: opening `Льохова справа` from the quest table sends the Korchmar/mouse intro dialogue first, then the cellar movement notice, then the action card.
+- `0.2.20` latest-events milestone follow-up: level 8 reached rows are important (`high`) events alongside levels 5, 10 and 13, matching the enabled visible level-achievement cadence.
 - Local `/dev_restore_mana` bypasses the active combat lock for QA, matching `/dev_heal` and `/dev_add_bandage`; local `/dev_heal` also updates active solo-combat, party-boss/Big Barrel Brother and turn-based duel HP state, not only stored character resources.
 
 ## Current product direction
