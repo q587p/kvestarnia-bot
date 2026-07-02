@@ -22,6 +22,7 @@ import type { FightService } from "../../src/services/fightService";
 import type { PresenceService } from "../../src/services/presenceService";
 import type { LevelMilestoneService } from "../../src/services/levelMilestoneService";
 import type { RemortService } from "../../src/services/remortService";
+import type { TavernGameService } from "../../src/services/tavernGameService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 
 const shynokActionRows = [
@@ -258,6 +259,36 @@ describe("tavern command screens", () => {
       reply_markup: {
         inline_keyboard: [
           ...shynokActionRows,
+          [
+            {
+              text: "⬅️ До зали",
+              callback_data: makePlaceCallbackData("hall")
+            }
+          ]
+        ]
+      }
+    });
+  });
+
+  it("shows the tavern games action in the Shynok when tavern games are enabled", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      undefined,
+      { isEnabled: () => true } as Pick<TavernGameService, "isEnabled"> as TavernGameService
+    );
+
+    expect(replies[0]?.text).toContain("🍻 Шинок");
+    expect(replies[0]?.options).toMatchObject({
+      reply_markup: {
+        inline_keyboard: [
+          ...shynokActionRows,
+          [{ text: "🎲 Ігри за столом", callback_data: "v1:sh:gm" }],
           [
             {
               text: "⬅️ До зали",

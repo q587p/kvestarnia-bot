@@ -135,7 +135,8 @@ presentShynokSaleSelection
 import {
 presentTavernGameActionResult,
 presentTavernGameHub,
-presentTavernGameRules
+presentTavernGameRules,
+presentTavernGameSession
 } from "../presenters/tavernGamePresenter";
 import {
 presentKorchmaDeepLevelLocked,
@@ -360,6 +361,7 @@ async function handleShynokCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTavernGameActionKeyboard(result, telegramUserId)
     });
+    await notifyTavernGameParticipants(ctx, result, telegramUserId);
     return;
   }
 
@@ -623,6 +625,71 @@ function buildTavernGameActionKeyboard(result: {
   }
 
   return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId });
+}
+
+async function notifyTavernGameParticipants(
+  ctx: Context,
+  result: Parameters<typeof presentTavernGameActionResult>[0],
+  actorTelegramUserId: bigint
+): Promise<void> {
+  if (!shouldNotifyTavernGameParticipants(result)) {
+    return;
+  }
+
+  const session = result.session;
+  if (!session) {
+    return;
+  }
+
+  const recipients = session.participants.filter((participant) =>
+    participant.telegramUserId !== actorTelegramUserId
+  );
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await Promise.allSettled(recipients.map((participant) =>
+    ctx.api.sendMessage(
+      Number(participant.telegramUserId),
+      presentTavernGameParticipantUpdate(result),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildTavernGameActionKeyboard(result, participant.telegramUserId)
+      }
+    )
+  ));
+}
+
+function shouldNotifyTavernGameParticipants(
+  result: Parameters<typeof presentTavernGameActionResult>[0]
+): boolean {
+  return [
+    "joined",
+    "decided",
+    "resolved",
+    "cancelled",
+    "failed-refund",
+    "game-disabled-refunded"
+  ].includes(result.state);
+}
+
+function presentTavernGameParticipantUpdate(
+  result: Parameters<typeof presentTavernGameActionResult>[0]
+): string {
+  if (!result.session) {
+    return presentTavernGameActionResult(result);
+  }
+
+  if (result.state === "joined") {
+    return ["До столу підсів ще один пригодник.", "", presentTavernGameSession(result.session)].join("\n");
+  }
+
+  if (result.state === "decided") {
+    return ["За столом зроблено вибір.", "", presentTavernGameSession(result.session)].join("\n");
+  }
+
+  return presentTavernGameActionResult(result);
 }
 
 async function notifyBardPerformanceAudience(
