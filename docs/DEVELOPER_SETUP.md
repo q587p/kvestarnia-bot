@@ -199,6 +199,8 @@ npm run maintenance:backfill-activity-events -- --all
 npm run maintenance:backfill-activity-events -- --apply
 ```
 
+Увага: для npm script прапори скрипта передаються після розділювача `--`. Команда `npm run maintenance:backfill-activity-events --apply` не застосує backfill і лишиться dry-run; потрібна форма `npm run maintenance:backfill-activity-events -- --apply`.
+
 Типовий порядок запуску:
 
 1. Переконайтесь, що процес читає правильний `DATABASE_URL`.
@@ -217,6 +219,17 @@ npm run maintenance:poll-activity-events -- --limit=13
 
 ```powershell
 $env:DATABASE_URL="file:./prisma/dev.db"
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --apply
+npm run maintenance:poll-activity-events -- --limit=13
+```
+
+Для ізольованого local bot runtime спершу візьміть його runtime path і наведіть `DATABASE_URL` саме на його `prisma/dev.db`, бо бот не читає checkout `.env` БД:
+
+```powershell
+$runtimePath = (node scripts\local-bot-runtime.cjs path --source-root (Get-Location)).Trim()
+$runtimeDb = (Join-Path $runtimePath "prisma\dev.db").Replace("\", "/")
+$env:DATABASE_URL = "file:$runtimeDb"
 npm run maintenance:backfill-activity-events
 npm run maintenance:backfill-activity-events -- --apply
 npm run maintenance:poll-activity-events -- --limit=13

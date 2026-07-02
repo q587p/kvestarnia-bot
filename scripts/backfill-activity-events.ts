@@ -164,7 +164,7 @@ async function main(): Promise<void> {
       since: options.since
     });
 
-    printSummary(summary);
+    printSummary(summary, process.argv.slice(2));
   } finally {
     await prisma.$disconnect();
   }
@@ -221,7 +221,7 @@ function parsePositiveInteger(value: string, name: string): number {
   return parsed;
 }
 
-function printSummary(summary: ActivityEventBackfillSummary): void {
+function printSummary(summary: ActivityEventBackfillSummary, args: readonly string[] = []): void {
   console.log(summary.dryRun ? "Dry run: activity event archival backfill" : "Applied: activity event archival backfill");
   console.log(`Since: ${summary.since ? summary.since.toISOString() : "all available history"}`);
   console.log(`Level achievement ids: ${getActivityEventBackfillLevelAchievementIds().join(", ")}`);
@@ -238,20 +238,40 @@ function printSummary(summary: ActivityEventBackfillSummary): void {
   console.log("Unsupported:");
   console.log("- combat.underdog_won: not backfilled; archived rows do not reliably prove character level at fight time.");
   if (summary.dryRun) {
-    console.log("Run with --apply to write planned rows.");
+    for (const line of formatDryRunApplyHint(args)) {
+      console.log(line);
+    }
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(formatCliError(error));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    console.error(formatCliError(error));
+    process.exitCode = 1;
+  });
+}
 
-function formatCliError(error: unknown): string {
+export function formatDryRunApplyHint(args: readonly string[] = []): string[] {
+  const scopeArgs = args.filter((arg) => arg === "--all" || arg.startsWith("--since=") || arg.startsWith("--days="));
+  const applyCommand = ["npm run maintenance:backfill-activity-events", "--", ...scopeArgs, "--apply"].join(" ");
+  return [
+    "Dry run only: no rows were written.",
+    `To write planned rows through npm, run: ${applyCommand}`,
+    "Note the npm argument separator: -- --apply"
+  ];
+}
+
+export function formatCliError(error: unknown): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
     return [
       "Current DATABASE_URL is missing an expected table for activity event backfill.",
-      "Run database migrations for this checkout first, then rerun the dry run."
+      "Apply committed migrations first:",
+      "  npm run db:deploy",
+      "",
+      "For a local development database that intentionally uses Prisma dev migrations, use:",
+      "  npm run db:migrate",
+      "",
+      "Then rerun the dry run."
     ].join("\n");
   }
 
