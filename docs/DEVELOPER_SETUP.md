@@ -227,10 +227,10 @@ backfill-activity-events.cmd
 backfill-activity-events.cmd --local-runtime
 ```
 
-Якщо треба явно вказати іншу БД із Windows-середовища, наприклад production `DATABASE_URL`, передайте Prisma URL першим аргументом у лапках:
+Якщо треба явно вказати іншу БД із Windows-середовища, наприклад production SQLite `DATABASE_URL`, передайте Prisma URL першим аргументом у лапках:
 
 ```powershell
-backfill-activity-events.cmd "postgresql://USER:PASSWORD@HOST:5432/DATABASE"
+backfill-activity-events.cmd "file:/var/data/kvestarnia.db"
 ```
 
 У Render/Linux shell використовуйте bash-команди з явним `DATABASE_URL=...`, наведені нижче; `.cmd` призначений для Windows.
