@@ -15,6 +15,7 @@ import {
   makeShynokBarrelRoundPreviewCallbackData,
   makeShynokBardPerformanceStartCallbackData,
   makeShynokDrinksCallbackData,
+  makeShynokGamesCallbackData,
   makeShynokRoundPreviewCallbackData,
   makeShynokSaleOpenCallbackData
 } from "../callbacks/shynokCallbackData";
@@ -155,6 +156,7 @@ export function buildKorchmaBarKeyboard(
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
     bardPerformance?: boolean;
+    tavernGames?: boolean;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
@@ -165,6 +167,10 @@ export function buildKorchmaBarKeyboard(
     .row()
     .text("💰 Продати манатки", makeShynokSaleOpenCallbackData())
     .row();
+
+  if (options.tavernGames) {
+    keyboard.text("🎲 Ігри за столом", makeShynokGamesCallbackData()).row();
+  }
 
   if (options.bardPerformance) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();

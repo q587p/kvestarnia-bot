@@ -13,6 +13,7 @@ import {
   PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import type { TavernGameService } from "../../services/tavernGameService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { PartyBossService } from "../../services/partyBossService";
 import {
@@ -96,6 +97,7 @@ type TavernCommandKeyboard =
       includeBottleTurnIn?: boolean;
       problemQuestAction?: "turn-in" | "take" | "next";
       bardPerformance?: boolean;
+      tavernGames?: boolean;
     }
   | "front"
   | {
@@ -599,7 +601,8 @@ export async function sendKorchmaBar(
   presenceService: PresenceService,
   mode: "reply" | "edit",
   cellarGrownupQuestService?: CellarGrownupQuestService,
-  fightService?: FightService
+  fightService?: FightService,
+  tavernGameService?: TavernGameService
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -631,6 +634,7 @@ export async function sendKorchmaBar(
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
     bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
+    tavernGames: Boolean(tavernGameService?.isEnabled()),
     ...(problemQuestAction ? { problemQuestAction } : {})
   } as const;
 
@@ -874,6 +878,7 @@ async function sendText(
               ? buildKorchmaBarKeyboard({
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn),
                   bardPerformance: Boolean(keyboard.bardPerformance),
+                  tavernGames: Boolean(keyboard.tavernGames),
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })
             : keyboard === "fighting-corner"

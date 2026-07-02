@@ -5,10 +5,18 @@ import {
   makeShynokBardPerformanceTipCallbackData,
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
+  makeShynokGameCancelCallbackData,
+  makeShynokGameCreateCallbackData,
+  makeShynokGameJoinCallbackData,
+  makeShynokGameResolveCallbackData,
+  makeShynokGameRulesCallbackData,
+  makeShynokGamesCallbackData,
+  makeShynokKostiDecisionCallbackData,
   makeShynokRoundConfirmCallbackData,
   makeShynokRoundReplacementConfirmCallbackData,
   makeShynokSaleAddCallbackData,
   makeShynokSaleConfirmCallbackData,
+  makeShynokTavleiDecisionCallbackData,
   parseShynokCallbackData
 } from "../../src/bot/callbacks/shynokCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -68,5 +76,51 @@ describe("shynokCallbackData", () => {
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(makeShynokBardPerformanceTipCallbackData(token, 13), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("round-trips tavern social game callbacks", () => {
+    expect(parseShynokCallbackData(makeShynokGamesCallbackData())).toEqual({
+      ok: true,
+      value: { type: "games" }
+    });
+    expect(parseShynokCallbackData(makeShynokGameRulesCallbackData("kosti"))).toEqual({
+      ok: true,
+      value: { type: "game-rules", gameKey: "kosti" }
+    });
+    expect(parseShynokCallbackData(makeShynokGameCreateCallbackData("tavlei", 13))).toEqual({
+      ok: true,
+      value: { type: "game-create", gameKey: "tavlei", stakeGold: 13 }
+    });
+    expect(parseShynokCallbackData(makeShynokGameJoinCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-join", token }
+    });
+    expect(parseShynokCallbackData(makeShynokGameCancelCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-cancel", token }
+    });
+    expect(parseShynokCallbackData(makeShynokTavleiDecisionCallbackData(token, "quiet_trap"))).toEqual({
+      ok: true,
+      value: { type: "game-tavlei-decision", token, tactic: "quiet_trap" }
+    });
+    expect(parseShynokCallbackData(makeShynokKostiDecisionCallbackData(token, "sign_hunter", "straight"))).toEqual({
+      ok: true,
+      value: { type: "game-kosti-decision", token, style: "sign_hunter", sign: "straight" }
+    });
+    expect(parseShynokCallbackData(makeShynokGameResolveCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-resolve", token }
+    });
+  });
+
+  it("keeps combined Kosti decision callbacks below Telegram limits", () => {
+    expect(Buffer.byteLength(makeShynokKostiDecisionCallbackData(token, "sign_hunter", "straight"), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("rejects invalid tavern social game callbacks", () => {
+    expect(parseShynokCallbackData("v1:sh:gc:x:3").ok).toBe(false);
+    expect(parseShynokCallbackData(`v1:sh:gt:${token}:bad`).ok).toBe(false);
+    expect(parseShynokCallbackData(`v1:sh:gk:${token}:st:bad`).ok).toBe(false);
   });
 });

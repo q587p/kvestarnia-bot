@@ -7,6 +7,31 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.21] - 12026-07-02 - Tavern Social Games
+
+### Added
+- Added flagged `🎲 Ігри за столом` Shynok hub support, hidden by default behind `TAVERN_GAMES_ENABLED` plus per-game `TAVERN_GAME_TAVLEI_ENABLED` / `TAVERN_GAME_KOSTI_ENABLED`.
+- Added a generic tavern game session engine with Prisma-backed sessions, participants, escrowed equal stakes, terminal statuses, replay-safe result storage and opportunistic expiry.
+- Added `♟ Тавлеї`: 1v1 equal-stake table creation/joining, one tactic choice per player and deterministic automatic resolution with win or draw/refund outcomes.
+- Added `🎲 Кості`: 2-6 player equal-stake tables, per-player style plus sign choices, deterministic 5d6 resolution, main/sign pool payout conservation and creator resolve-now support.
+- Added config defaults for max stake, daily net-win cap, create cooldown and active-session limit; the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
+- Added focused domain, service, config and Shynok callback coverage for resolver invariants, feature flags and compact Telegram callback data.
+- Added source task, design, balance, QA and Ukrainian copy docs under `docs/ai/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.
+
+### Changed
+- The Korchma bar keyboard can show `🎲 Ігри за столом` only when the new feature flags are enabled; default production behavior remains unchanged.
+- Shynok callbacks now include compact `v1:sh:g*` game payloads for hub, rules, create, join, cancel, Tavlei tactics, Kosti style/sign decisions and resolve-now.
+
+### Safety
+- Stakes are debited only inside repository transactions, returned through payout/refund terminal paths and guarded by unique active stake keys.
+- Duplicate joins, stale decisions, cancel/expire/resolve races and terminal replays are routed to current state or stored results instead of paying twice.
+- Combat lock, wrong-place and pending-raid checks reuse the same character/presence snapshot policy as Shynok money actions.
+- Richer daily net-win enforcement and repeated-pair reporting remain a rollout follow-up; session/participant rows store per-table audit data in this slice.
+
+### Unchanged
+- Tavern Social Games ship disabled by default; no public table button appears without explicit flags.
+- No NPC gamblers, tournaments, leaderboards, spectator betting, drink outcome modifiers, real board play, XP, items, achievements, PvP, trading, markets, crafting, guild systems or Mini App UI ship in this slice.
+
 ## [0.2.20] - 12026-07-02 - Latest Events Feed MVP
 
 ### Added

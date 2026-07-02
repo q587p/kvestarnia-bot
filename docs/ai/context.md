@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.2.20`.
+- Current package version in this repository snapshot: `0.2.21`.
 
 ## Language split
 
@@ -82,6 +82,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/tasks/0.2.18-lore-board-mvp.md`, `docs/design/kvestarnia-lore-board.md`, `docs/content/kvestarnia-lore-current-canon.md`, `docs/content/kvestarnia-lore-seed.md` — shipped static `📖 Перекази` route from `Дошка корчми`, backed by current canon seed docs and live runtime ids where practical; active race/class/current Korchma location entries live in runtime, while `🧌 Бестіарій` links to the existing Bestiary surface.
 - `docs/tasks/0.2.19-monster-trophies-yeger-gates.md` — shipped concrete monster trophy coverage and Yeger supply gates; future dense bandage / field-kit work requires second Yeger board completion.
 - `docs/tasks/0.2.20-latest-events-feed.md`, `docs/design/latest-events-feed.md`, `docs/content/latest-events-feed-copy.md`, `docs/qa/latest-events-feed-qa.md` — lightweight `📜 Хроніки Квестарні` public recent events feed from the Korchma board/news surface.
+- `docs/ai/tasks/tavern-social-games.md`, `docs/design/tavern-social-games.md`, `docs/balance/tavern-social-games-balance.md`, `docs/qa/tavern-social-games-qa.md`, `docs/content/tavern-social-games-copy.uk.md` — `0.2.21` flagged Shynok table-games package.
 - `docs/tasks/future-deploy-notification-visti.md` — shipped `0.2.19` private deploy/update notification wording as `вісти`, with the latest release title, first narrative paragraph, `/news` archive and channel link.
 
 ## Code map
@@ -198,13 +199,14 @@ For Telegram/gameplay changes, always consider:
 - `0.2.20` cellar routing follow-up: opening `Льохова справа` from the quest table sends the Korchmar/mouse intro dialogue first, then the cellar movement notice, then the action card.
 - `0.2.20` latest-events milestone follow-up: level 8 reached rows are important (`high`) events alongside levels 5, 10 and 13, matching the enabled visible level-achievement cadence.
 - Local `/dev_restore_mana` bypasses the active combat lock for QA, matching `/dev_heal` and `/dev_add_bandage`; local `/dev_heal` also updates active solo-combat, party-boss/Big Barrel Brother and turn-based duel HP state, not only stored character resources.
+- `0.2.21` Tavern Social Games: `TAVERN_GAMES_ENABLED` plus per-game flags expose `🎲 Ігри за столом` from Shynok; defaults hide the button. Prisma `TavernGameSession` / `TavernGameParticipant` rows escrow equal gold stakes, enforce one active stake session per character, create cooldown and max stake, then settle through terminal payout/refund states. `♟ Тавлеї` is 1v1 with one tactic each and automatic win/draw resolution; `🎲 Кості` is 2-6 players with style + sign choices and 5d6 main/sign bank payout conservation. Richer daily net-win enforcement/repeated-pair reporting remains a follow-up; table/participant result JSON is the current per-session audit trail.
 
 ## Current product direction
 
 - `0.0.x` foundation is closed after `0.0.30`.
 - `0.1.x` is closed after `0.1.25` unless an emergency hotfix is needed.
 - Phase 2 direction stays Social Combat & Interactions, not a group-raid-first roadmap; the first shipped MVP is closed, and expansion continues in `0.2.x`.
-- `0.2.0` safe gifting, `0.2.1` multi-enemy foundation, `0.2.2` architecture stabilization, `0.2.3` threat escalation, `0.2.4` item tags / one-use bandages, `0.2.5` Bard Performance, `0.2.6` Passage Search, `0.2.7` Player Abilities, `0.2.8` Achievements/Cosmetic Title Records, `0.2.9` Daily Korchma Rounds, `0.2.10` Active Cosmetic Title Selection, `0.2.11` Combat Balance / Monster Signature Proof, `0.2.12` Two-Enemy Threat Simulation / Outlier Tuning, `0.2.13` Postal Manatka Delivery, `0.2.14` Adventure Quest Readability / Local Failure, `0.2.15` Party Session Foundation, `0.2.16` Party Vs One Boss MVP, `0.2.17` Big Barrel Brother Raid MVP, `0.2.18` Lore Board MVP, the combined `0.2.19` trophy/Yeger/deploy-notification slice and `0.2.20` Latest Events Feed MVP are shipped `0.2.x` slices; next `0.2.x` work should stay similarly narrow unless the task doc says otherwise.
+- `0.2.0` safe gifting, `0.2.1` multi-enemy foundation, `0.2.2` architecture stabilization, `0.2.3` threat escalation, `0.2.4` item tags / one-use bandages, `0.2.5` Bard Performance, `0.2.6` Passage Search, `0.2.7` Player Abilities, `0.2.8` Achievements/Cosmetic Title Records, `0.2.9` Daily Korchma Rounds, `0.2.10` Active Cosmetic Title Selection, `0.2.11` Combat Balance / Monster Signature Proof, `0.2.12` Two-Enemy Threat Simulation / Outlier Tuning, `0.2.13` Postal Manatka Delivery, `0.2.14` Adventure Quest Readability / Local Failure, `0.2.15` Party Session Foundation, `0.2.16` Party Vs One Boss MVP, `0.2.17` Big Barrel Brother Raid MVP, `0.2.18` Lore Board MVP, the combined `0.2.19` trophy/Yeger/deploy-notification slice, `0.2.20` Latest Events Feed MVP and `0.2.21` flagged Tavern Social Games slice are shipped `0.2.x` slices; next `0.2.x` work should stay similarly narrow unless the task doc says otherwise.
 - Real PvP, trading, fuller raid mechanics, shops, crafting, and ґільдії remain small future slices unless a task explicitly targets one. Mini App UI is not a current planned slice.
 
 ## Do not promise as shipped

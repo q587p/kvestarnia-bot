@@ -74,12 +74,17 @@ buildBackToShynokKeyboard,
 buildShynokDrinkMenuKeyboard,
 buildShynokDrinkPreviewKeyboard,
 buildShynokDrinkResultKeyboard,
+buildShynokGameHubKeyboard,
+buildShynokGameRulesKeyboard,
+buildShynokGameSessionKeyboard,
+buildShynokKostiDecisionKeyboard,
 buildShynokOverviewKeyboard,
 buildShynokRoundOfferNotificationKeyboard,
 buildShynokRoundOfferResponseKeyboard,
 buildShynokRoundPreviewKeyboard,
 buildShynokRoundResultKeyboard,
-buildShynokSaleSelectionKeyboard
+buildShynokSaleSelectionKeyboard,
+buildShynokTavleiDecisionKeyboard
 } from "../keyboards/shynokKeyboard";
 import {
 buildBackToKorchmaHallKeyboard,
@@ -127,6 +132,11 @@ presentShynokRoundPreview,
 presentShynokSaleConfirm,
 presentShynokSaleSelection
 } from "../presenters/shynokPresenter";
+import {
+presentTavernGameActionResult,
+presentTavernGameHub,
+presentTavernGameRules
+} from "../presenters/tavernGamePresenter";
 import {
 presentKorchmaDeepLevelLocked,
 presentTavernNoCharacter,
@@ -258,8 +268,82 @@ async function handleShynokCallback(
     await safeEditMessageText(ctx, presentShynokOverview(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready"
-        ? buildShynokOverviewKeyboard(result)
+        ? buildShynokOverviewKeyboard(result, { tavernGames: Boolean(services.tavernGames?.isEnabled()) })
         : buildBackToShynokKeyboard()
+    });
+    return;
+  }
+
+  if (action.type === "games") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await services.tavernGames.getHub();
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentTavernGameHub(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokGameHubKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "game-rules") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(
+      ctx,
+      presentTavernGameRules(action.gameKey, services.tavernGames.getMaxStake()),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildShynokGameRulesKeyboard(action.gameKey, services.tavernGames.getMaxStake())
+      }
+    );
+    return;
+  }
+
+  if (
+    action.type === "game-create" ||
+    action.type === "game-join" ||
+    action.type === "game-cancel" ||
+    action.type === "game-tavlei-decision" ||
+    action.type === "game-kosti-decision" ||
+    action.type === "game-resolve"
+  ) {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result =
+      action.type === "game-create"
+        ? await services.tavernGames.createForTelegramUser(telegramUserId, action.gameKey, action.stakeGold)
+        : action.type === "game-join"
+          ? await services.tavernGames.joinByTokenForTelegramUser(telegramUserId, action.token)
+          : action.type === "game-cancel"
+            ? await services.tavernGames.cancelForTelegramUser(telegramUserId, action.token)
+            : action.type === "game-tavlei-decision"
+              ? await services.tavernGames.submitTavleiDecisionForTelegramUser(telegramUserId, action.token, action.tactic)
+              : action.type === "game-kosti-decision"
+                ? await services.tavernGames.submitKostiDecisionForTelegramUser(
+                    telegramUserId,
+                    action.token,
+                    action.style,
+                    action.sign
+                  )
+                : await services.tavernGames.resolveKostiForTelegramUser(telegramUserId, action.token);
+
+    await safeAnswerCallbackQuery(ctx, {
+      show_alert: !["created", "joined", "decided", "resolved", "cancelled", "replayed", "already-joined"].includes(result.state)
+    });
+    await safeEditMessageText(ctx, presentTavernGameActionResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildTavernGameActionKeyboard(result, telegramUserId)
     });
     return;
   }
@@ -492,6 +576,39 @@ async function notifyShynokRoundRecipients(
   ));
 }
 
+function buildTavernGameActionKeyboard(result: {
+  state: string;
+  session?: {
+    token: string;
+    gameKey: "tavlei" | "kosti";
+    status: string;
+    participants: Array<{
+      telegramUserId: bigint;
+      status: string;
+      decision: unknown;
+      characterId: string;
+    }>;
+  };
+}, telegramUserId: bigint) {
+  const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
+  const canChoose = participant &&
+    (participant.status === "joined" || participant.status === "decided") &&
+    !participant.decision;
+
+  if (result.session?.gameKey === "tavlei" && result.session.status === "ready" && canChoose) {
+    return buildShynokTavleiDecisionKeyboard(result.session.token);
+  }
+  if (
+    result.session?.gameKey === "kosti" &&
+    (result.session.status === "open" || result.session.status === "ready") &&
+    canChoose
+  ) {
+    return buildShynokKostiDecisionKeyboard(result.session.token);
+  }
+
+  return buildShynokGameSessionKeyboard(result);
+}
+
 async function notifyBardPerformanceAudience(
   ctx: Context,
   performerName: string,
@@ -681,7 +798,15 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendKorchmaBar(ctx, services.tavern, services.presence, "reply", services.cellarGrownup, services.fight);
+    await sendKorchmaBar(
+      ctx,
+      services.tavern,
+      services.presence,
+      "reply",
+      services.cellarGrownup,
+      services.fight,
+      services.tavernGames
+    );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }

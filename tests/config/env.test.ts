@@ -119,6 +119,18 @@ describe("loadConfig", () => {
     expect(config.bigBarrelBrotherRaidEnabled).toBe(false);
   });
 
+  it("keeps tavern social games disabled by default", () => {
+    const config = loadConfig(validEnv);
+
+    expect(config.tavernGamesEnabled).toBe(false);
+    expect(config.tavernGameTavleiEnabled).toBe(false);
+    expect(config.tavernGameKostiEnabled).toBe(false);
+    expect(config.tavernGameMaxStake).toBe(25);
+    expect(config.tavernGameDailyNetWinCap).toBe(150);
+    expect(config.tavernGameCreateCooldownSec).toBe(60);
+    expect(config.tavernGameActiveSessionLimit).toBe(1);
+  });
+
   it("can enable deploy notifications explicitly", () => {
     const config = loadConfig({
       ...validEnv,
@@ -178,6 +190,34 @@ describe("loadConfig", () => {
     });
 
     expect(config.bigBarrelBrotherRaidEnabled).toBe(true);
+  });
+
+  it("can enable tavern social games explicitly", () => {
+    const config = loadConfig({
+      ...validEnv,
+      TAVERN_GAMES_ENABLED: "true",
+      TAVERN_GAME_TAVLEI_ENABLED: "true",
+      TAVERN_GAME_KOSTI_ENABLED: "on",
+      TAVERN_GAME_MAX_STAKE: "13",
+      TAVERN_GAME_DAILY_NET_WIN_CAP: "93",
+      TAVERN_GAME_CREATE_COOLDOWN_SEC: "42",
+      TAVERN_GAME_ACTIVE_SESSION_LIMIT: "1"
+    });
+
+    expect(config.tavernGamesEnabled).toBe(true);
+    expect(config.tavernGameTavleiEnabled).toBe(true);
+    expect(config.tavernGameKostiEnabled).toBe(true);
+    expect(config.tavernGameMaxStake).toBe(13);
+    expect(config.tavernGameDailyNetWinCap).toBe(93);
+    expect(config.tavernGameCreateCooldownSec).toBe(42);
+    expect(config.tavernGameActiveSessionLimit).toBe(1);
+  });
+
+  it("rejects unsafe tavern social game numeric limits", () => {
+    expect(() => loadConfig({ ...validEnv, TAVERN_GAME_MAX_STAKE: "0" })).toThrow();
+    expect(() => loadConfig({ ...validEnv, TAVERN_GAME_DAILY_NET_WIN_CAP: "0" })).toThrow();
+    expect(() => loadConfig({ ...validEnv, TAVERN_GAME_CREATE_COOLDOWN_SEC: "90000" })).toThrow();
+    expect(() => loadConfig({ ...validEnv, TAVERN_GAME_ACTIVE_SESSION_LIMIT: "0" })).toThrow();
   });
 
   it("parses the dev grant flag in production but leaves production blocking to the service", () => {

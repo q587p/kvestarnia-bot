@@ -32,6 +32,7 @@ import { PresenceService } from "../services/presenceService";
 import { RemortService } from "../services/remortService";
 import { RestartService } from "../services/restartService";
 import { ShynokService } from "../services/shynokService";
+import { TavernGameService } from "../services/tavernGameService";
 import { TavernRaidService } from "../services/tavernRaidService";
 import { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
 import { YegerQuestService } from "../services/yegerQuestService";
@@ -171,6 +172,7 @@ export function createServices(
       repositories.dailyActions,
       repositories.roundPurchases
     ),
+    tavernGames: new TavernGameService(repositories.tavernGames, config),
     tavern,
     trainingDoppelganger: new TrainingDoppelgangerService(
       repositories.characters,
