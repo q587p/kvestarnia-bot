@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.2.21`.
+- Current package version in this repository snapshot: `0.2.22`.
 
 ## Language split
 
@@ -83,6 +83,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/tasks/0.2.19-monster-trophies-yeger-gates.md` — shipped concrete monster trophy coverage and Yeger supply gates; future dense bandage / field-kit work requires second Yeger board completion.
 - `docs/tasks/0.2.20-latest-events-feed.md`, `docs/design/latest-events-feed.md`, `docs/content/latest-events-feed-copy.md`, `docs/qa/latest-events-feed-qa.md` — lightweight `📜 Хроніки Квестарні` public recent events feed from the Korchma board/news surface.
 - `docs/ai/tasks/tavern-social-games.md`, `docs/design/tavern-social-games.md`, `docs/balance/tavern-social-games-balance.md`, `docs/qa/tavern-social-games-qa.md`, `docs/content/tavern-social-games-copy.uk.md` — `0.2.21` flagged Shynok table-games package.
+- `docs/tasks/0.2.22-dense-bandage-field-kit.md` — shipped craftable `Щільний бинт` and `Польова аптечка` from ordinary bandages after second Yeger board completion; solo combat use adds dense cooldown / field-kit once-per-battle state, while party-boss item support remains ordinary-bandage only.
 - `docs/tasks/future-deploy-notification-visti.md` — shipped `0.2.19` private deploy/update notification wording as `вісти`, with the latest release title, first narrative paragraph, `/news` archive and channel link.
 
 ## Code map

@@ -16,7 +16,7 @@ describe("itemUsePresenter", () => {
   it("does not promise a combat item button when the active fight does not support one", () => {
     const text = presentItemUsePreview({ state: "combat-locked" });
 
-    expect(text).toContain("Під час цього бою бинт не можна використати з торби.");
+    expect(text).toContain("Під час цього бою манатку не можна використати з торби.");
     expect(text).not.toContain("кнопка піде в поточний хід");
   });
 

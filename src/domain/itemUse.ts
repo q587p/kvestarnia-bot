@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ItemContent, ItemUseEffectContent } from "../content/schema";
 
-export const ITEM_USE_RULES_VERSION = "item-use-v1";
+export const ITEM_USE_RULES_VERSION = "item-use-v2";
 
 export interface ItemUsePreviewSnapshot {
   rulesVersion: typeof ITEM_USE_RULES_VERSION;
@@ -12,7 +12,7 @@ export interface ItemUsePreviewSnapshot {
 }
 
 export interface ItemUseCompletedResult extends ItemUsePreviewSnapshot {
-  kind: "heal-hp";
+  kind: ItemUseEffectContent["kind"];
   itemId: string;
   itemName: string;
 }
@@ -36,7 +36,6 @@ export function getItemUseEffect(item: ItemContent): ItemUseEffectContent | null
   if (
     item.slot !== "consumable" ||
     !item.useEffect ||
-    item.useEffect.kind !== "heal-hp" ||
     !tags.has("consumable") ||
     !tags.has("one-use")
   ) {
@@ -65,10 +64,11 @@ export function calculateHealingPreview(input: {
 }): ItemUsePreviewSnapshot {
   const hpMax = Math.max(1, Math.floor(input.hpMax));
   const hpBefore = Math.min(hpMax, Math.max(0, Math.floor(input.hpCurrent)));
-  const healAmount = Math.min(
-    Math.max(0, Math.floor(input.effect.amount)),
-    Math.max(0, hpMax - hpBefore)
-  );
+  const healAmount = calculateHealAmount({
+    hpBefore,
+    hpMax,
+    effect: input.effect
+  });
 
   return {
     rulesVersion: ITEM_USE_RULES_VERSION,
@@ -77,4 +77,26 @@ export function calculateHealingPreview(input: {
     healAmount,
     hpAfter: Math.min(hpMax, hpBefore + healAmount)
   };
+}
+
+function calculateHealAmount(input: {
+  hpBefore: number;
+  hpMax: number;
+  effect: ItemUseEffectContent;
+}): number {
+  switch (input.effect.kind) {
+    case "heal-hp":
+      return Math.min(
+        Math.max(0, Math.floor(input.effect.amount)),
+        Math.max(0, input.hpMax - input.hpBefore)
+      );
+    case "heal-hp-to-min-percent": {
+      const target = Math.min(
+        input.hpMax,
+        Math.ceil(input.hpMax * Math.max(1, Math.min(100, Math.floor(input.effect.percent))) / 100)
+      );
+
+      return Math.max(0, target - input.hpBefore);
+    }
+  }
 }

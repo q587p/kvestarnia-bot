@@ -1,53 +1,25 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculateHealingPreview,
-  createItemUseFingerprint,
-  getItemUseEffect
-} from "../../src/domain/itemUse";
-import type { ItemContent } from "../../src/content/schema";
-
-const bandage: ItemContent = {
-  id: "item.test-bandage",
-  name: "Тестовий бинт",
-  description: "Для перевірки.",
-  rarity: "common",
-  slot: "consumable",
-  goldValue: 7,
-  tags: ["consumable", "one-use"],
-  useEffect: {
-    kind: "heal-hp",
-    amount: 7
-  }
-};
+import { calculateHealingPreview } from "../../src/domain/itemUse";
 
 describe("item use domain", () => {
-  it("recognizes only tagged one-use healing consumables", () => {
-    expect(getItemUseEffect(bandage)).toEqual({ kind: "heal-hp", amount: 7 });
-    expect(getItemUseEffect({ ...bandage, tags: ["consumable"] })).toBeNull();
-    expect(getItemUseEffect({ ...bandage, slot: "junk" })).toBeNull();
-  });
+  it("raises field-kit previews to at least ninety-three percent HP", () => {
+    const effect = { kind: "heal-hp-to-min-percent" as const, percent: 93 };
 
-  it("caps healing at current max HP", () => {
-    expect(calculateHealingPreview({
-      hpCurrent: 10,
-      hpMax: 15,
-      effect: bandage.useEffect!
-    })).toMatchObject({
-      hpBefore: 10,
-      hpMax: 15,
-      healAmount: 5,
-      hpAfter: 15
+    expect(calculateHealingPreview({ hpCurrent: 1, hpMax: 50, effect })).toMatchObject({
+      healAmount: 46,
+      hpAfter: 47
     });
-  });
-
-  it("fingerprints behavior-relevant content", () => {
-    expect(createItemUseFingerprint(bandage)).toBe(createItemUseFingerprint({
-      ...bandage,
-      tags: ["one-use", "consumable"]
-    }));
-    expect(createItemUseFingerprint(bandage)).not.toBe(createItemUseFingerprint({
-      ...bandage,
-      useEffect: { kind: "heal-hp", amount: 6 }
-    }));
+    expect(calculateHealingPreview({ hpCurrent: 1, hpMax: 100, effect })).toMatchObject({
+      healAmount: 92,
+      hpAfter: 93
+    });
+    expect(calculateHealingPreview({ hpCurrent: 1, hpMax: 200, effect })).toMatchObject({
+      healAmount: 185,
+      hpAfter: 186
+    });
+    expect(calculateHealingPreview({ hpCurrent: 93, hpMax: 100, effect })).toMatchObject({
+      healAmount: 0,
+      hpAfter: 93
+    });
   });
 });

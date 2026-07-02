@@ -9,6 +9,7 @@ import type {
 } from "../db/repositories/partyBossRepository";
 import { PARTY_BOSS_TURN_MS } from "../domain/partyBoss/partyBoss";
 import { findCombatUsableItemByKey } from "./combatItemUse";
+import { BANDAGE_ITEM_ID } from "./itemUseService";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
@@ -91,6 +92,14 @@ export class PartyBossService {
     const now = this.clock();
     const combatItem = findCombatUsableItemByKey(items, itemKey);
     if (!combatItem) {
+      const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
+      return {
+        state: "item-unavailable",
+        reason: "not-usable",
+        ...(session ? { session } : {})
+      };
+    }
+    if (combatItem.item.id !== BANDAGE_ITEM_ID || combatItem.effect.kind !== "heal-hp") {
       const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
       return {
         state: "item-unavailable",

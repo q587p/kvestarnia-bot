@@ -19,6 +19,7 @@ import { FightService } from "../services/fightService";
 import { HeroService } from "../services/heroService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
+import { ItemCraftService } from "../services/itemCraftService";
 import { ItemUseService } from "../services/itemUseService";
 import { ItemTransferService } from "../services/itemTransferService";
 import { LevelBarterService } from "../services/levelBarterService";
@@ -145,6 +146,7 @@ export function createServices(
       repositories.huntContracts
     ),
     inventory: new InventoryService(repositories.inventory),
+    itemCraft: new ItemCraftService(repositories.itemCraft),
     itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),

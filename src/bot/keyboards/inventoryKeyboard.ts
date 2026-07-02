@@ -7,6 +7,10 @@ import {
   makeUnequipSlotCallbackData
 } from "../callbacks/itemCallbackData";
 import {
+  makeItemCraftConfirmCallbackData,
+  makeItemCraftPreviewCallbackData
+} from "../callbacks/itemCraftCallbackData";
+import {
   makeItemUseCancelCallbackData,
   makeItemUseConfirmCallbackData,
   makeItemUsePreviewCallbackData,
@@ -17,6 +21,7 @@ import { makePartyBossItemUseCallbackData } from "../callbacks/partySessionCallb
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentService";
+import type { ItemCraftOption } from "../../services/itemCraftService";
 import { isEquippableItem } from "../../services/equipmentService";
 import {
   clampInventoryPage,
@@ -95,6 +100,7 @@ export function buildItemDetailKeyboard(
           turn: number;
           itemKey: string;
         };
+    craftOptions?: ItemCraftOption[];
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -108,6 +114,12 @@ export function buildItemDetailKeyboard(
       keyboard.text("Зняти", makeUnequipSlotCallbackData(equippedSlot)).row();
     } else {
       keyboard.text("🧥 Екіпірувати", makeEquipItemCallbackData(result.item.itemId)).row();
+    }
+  }
+
+  if (result.state === "found" && options.craftOptions && options.craftOptions.length > 0) {
+    for (const option of options.craftOptions) {
+      keyboard.text(option.recipe.buttonLabel, makeItemCraftPreviewCallbackData(option.recipe.code)).row();
     }
   }
 
@@ -158,6 +170,21 @@ export function buildItemUseResultKeyboard(
     .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
+}
+
+export function buildItemCraftPreviewKeyboard(recipeCode: ItemCraftOption["recipe"]["code"]): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("✅ Створити", makeItemCraftConfirmCallbackData(recipeCode))
+    .text("✖️ Скасувати", makeItemDetailCallbackData("item.responsible-panic-bandage"))
+    .row()
+    .text("⬅️ До манаток", makeInventoryCallbackData());
+}
+
+export function buildItemCraftResultKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔎 До бинта", makeItemDetailCallbackData("item.responsible-panic-bandage"))
+    .row()
+    .text("⬅️ До манаток", makeInventoryCallbackData());
 }
 
 export function buildEquipItemResultKeyboard(): InlineKeyboard {

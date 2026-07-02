@@ -23,6 +23,7 @@ import {
   type CombatState,
   type MonsterCombatStats
 } from "../../src/domain/combat";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import { FakeRandomSource } from "../../src/shared/random";
 
 const warrior: CombatActorStats = {
@@ -290,6 +291,134 @@ describe("combat domain engine", () => {
     expect(result.state.lastTurn?.action).toBe("item");
     expect(result.state.turnLog?.at(-1)?.summary.action).toBe("item");
     expect(result.state.hero.hp).toBeGreaterThanOrEqual(10);
+  });
+
+  it("puts dense bandages on a five own-turn combat cooldown after successful use", () => {
+    const first = resolveCombatItemTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster }),
+        hero: {
+          hp: 1,
+          hpMax: warrior.hpMax,
+          mana: warrior.manaMax,
+          manaMax: warrior.manaMax
+        }
+      },
+      item: {
+        id: DENSE_BANDAGE_ITEM_ID,
+        name: "Щільний бинт",
+        effect: { kind: "heal-hp", amount: 42 }
+      },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99, 0.99, 0.99])
+    });
+
+    expect(first.ok).toBe(true);
+    expect(first.state.combatItems?.cooldowns?.[DENSE_BANDAGE_ITEM_ID]).toMatchObject({
+      itemId: DENSE_BANDAGE_ITEM_ID,
+      remainingTurns: 5
+    });
+
+    const blocked = resolveCombatItemTurn({
+      state: first.state,
+      item: {
+        id: DENSE_BANDAGE_ITEM_ID,
+        name: "Щільний бинт",
+        effect: { kind: "heal-hp", amount: 42 }
+      },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99])
+    });
+
+    expect(blocked).toMatchObject({
+      ok: false,
+      reason: "item-on-cooldown"
+    });
+
+    let state = first.state;
+    for (let index = 0; index < 5; index += 1) {
+      const ticked = resolveCombatTurn({
+        state,
+        action: "defend",
+        hero: warrior,
+        monster,
+        rng: new FakeRandomSource([0.99])
+      });
+      expect(ticked.ok).toBe(true);
+      state = ticked.state;
+    }
+    expect(state.combatItems?.cooldowns?.[DENSE_BANDAGE_ITEM_ID]).toBeUndefined();
+  });
+
+  it("allows one field kit use per combat and treats target HP as a no-op", () => {
+    const first = resolveCombatItemTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster }),
+        hero: {
+          hp: 1,
+          hpMax: 100,
+          mana: warrior.manaMax,
+          manaMax: warrior.manaMax
+        }
+      },
+      item: {
+        id: FIELD_KIT_ITEM_ID,
+        name: "Польова аптечка",
+        effect: { kind: "heal-hp-to-min-percent", percent: 93 }
+      },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99, 0.99, 0.99])
+    });
+
+    expect(first.ok).toBe(true);
+    expect(first.summary.heroHealing).toBe(92);
+    expect(first.state.combatItems?.uses?.[FIELD_KIT_ITEM_ID]).toMatchObject({
+      itemId: FIELD_KIT_ITEM_ID,
+      count: 1
+    });
+
+    const blocked = resolveCombatItemTurn({
+      state: {
+        ...first.state,
+        hero: {
+          ...first.state.hero,
+          hp: 10
+        }
+      },
+      item: {
+        id: FIELD_KIT_ITEM_ID,
+        name: "Польова аптечка",
+        effect: { kind: "heal-hp-to-min-percent", percent: 93 }
+      },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99])
+    });
+    expect(blocked).toMatchObject({ ok: false, reason: "item-limit-reached" });
+
+    const enoughHp = resolveCombatItemTurn({
+      state: {
+        ...startCombat({ hero: warrior, monster }),
+        hero: {
+          hp: 93,
+          hpMax: 100,
+          mana: warrior.manaMax,
+          manaMax: warrior.manaMax
+        }
+      },
+      item: {
+        id: FIELD_KIT_ITEM_ID,
+        name: "Польова аптечка",
+        effect: { kind: "heal-hp-to-min-percent", percent: 93 }
+      },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99])
+    });
+    expect(enoughHp).toMatchObject({ ok: false, reason: "full-hp" });
   });
 
   it("applies hero-side activation effects during a two-enemy item turn", () => {

@@ -140,7 +140,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("Використання: <b>можна застосувати в бою або поза боєм</b>.");
-    expect(text).toContain("У бою бинт витрачає хід і лікує одразу.");
+    expect(text).toContain("У бою манатка витрачає хід і лікує одразу.");
     expect(text).not.toContain("Використання: <b>можна застосувати поза боєм</b>.");
   });
 

@@ -1625,6 +1625,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   }
 
   const cooldowns = parseCooldowns(value.cooldowns);
+  const combatItems = parseCombatItems(value.combatItems);
 
   return {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
@@ -1644,6 +1645,7 @@ export function parseCombatState(value: unknown): CombatState | null {
     monster,
     ...(enemies ? { enemies } : {}),
     ...(cooldowns ? { cooldowns } : {}),
+    ...(combatItems ? { combatItems } : {}),
     ...(guard ? { guard } : {}),
     ...(context ? { context } : {}),
     ...(barks ? { barks } : {}),
@@ -1654,6 +1656,64 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(turnLog.length > 0 ? { turnLog } : {}),
     ...(playerAbilityFumbles ? { playerAbilityFumbles } : {})
   };
+}
+
+function parseCombatItems(value: unknown): CombatState["combatItems"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const cooldowns = parseCombatItemCooldowns(value.cooldowns);
+  const uses = parseCombatItemUses(value.uses);
+
+  return cooldowns || uses
+    ? {
+        ...(cooldowns ? { cooldowns } : {}),
+        ...(uses ? { uses } : {})
+      }
+    : null;
+}
+
+function parseCombatItemCooldowns(value: unknown): NonNullable<NonNullable<CombatState["combatItems"]>["cooldowns"]> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const entries = Object.entries(value).flatMap(([itemId, raw]) => {
+    if (!isRecord(raw) || raw.itemId !== itemId || itemId.length === 0 || itemId.length > 128) {
+      return [];
+    }
+
+    const parsed = boundedOptionalInt(raw.remainingTurns, 0, 93);
+    if (parsed === undefined) {
+      return [];
+    }
+
+    return [[itemId, { itemId, remainingTurns: parsed }]] as const;
+  });
+
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+function parseCombatItemUses(value: unknown): NonNullable<NonNullable<CombatState["combatItems"]>["uses"]> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const entries = Object.entries(value).flatMap(([itemId, raw]) => {
+    if (!isRecord(raw) || raw.itemId !== itemId || itemId.length === 0 || itemId.length > 128) {
+      return [];
+    }
+
+    const parsed = boundedOptionalInt(raw.count, 1, 13);
+    if (parsed === undefined) {
+      return [];
+    }
+
+    return [[itemId, { itemId, count: parsed }]] as const;
+  });
+
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
 function parsePlayerAbilityFumbles(value: unknown): CombatState["playerAbilityFumbles"] | null {

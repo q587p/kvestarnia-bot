@@ -15,11 +15,11 @@ export function presentItemUsePreview(
   options: CombatLockedItemUseOptions = {}
 ): string {
   if (result.state === "no-character") {
-    return "Спершу створіть пригодника через /start. Бинти не лікують порожні анкети.";
+    return "Спершу створіть пригодника через /start. Манатки не лікують порожні анкети.";
   }
 
   if (result.state === "not-owned") {
-    return "Цього бинта в торбі вже немає. Торба мовчить підозріло переконливо.";
+    return "Цієї манатки в торбі вже немає. Торба мовчить підозріло переконливо.";
   }
 
   if (result.state === "not-usable") {
@@ -36,15 +36,15 @@ export function presentItemUsePreview(
 
   if (result.state === "full-hp") {
     return [
-      "🩹 Бинт чекає",
+      "🩹 Манатка чекає",
       "",
-      `HP уже повні: <b>${result.preview.hpBefore}/${result.preview.hpMax}</b>.`,
-      "Єгер не дозволив витрачати бинт просто для драматичного вигляду."
+      presentHpNoopLine(result.preview),
+      "Єгер не дозволив витрачати медицину просто для драматичного вигляду."
     ].join("\n");
   }
 
   return [
-    "🩹 Використати бинт?",
+    "🩹 Використати манатку?",
     "",
     `<b>${escapeHtml(result.order.itemName)}</b> зникне з торби.`,
     `HP: <b>${result.order.preview.hpBefore}/${result.order.preview.hpMax}</b> → <b>${result.order.preview.hpAfter}/${result.order.preview.hpMax}</b>.`,
@@ -62,7 +62,7 @@ export function presentItemUseConfirm(
   }
 
   if (result.state === "invalid-token") {
-    return "Цей бинт загубив службову записку. Відкрийте манатку ще раз.";
+    return "Ця манатка загубила службову записку. Відкрийте її ще раз.";
   }
 
   if (result.state === "combat-locked") {
@@ -70,11 +70,11 @@ export function presentItemUseConfirm(
   }
 
   if (result.state === "expired") {
-    return "Це підтвердження прострочилось. Бинт повернувся в торбу й робить вигляд, що так і планував.";
+    return "Це підтвердження прострочилось. Манатка повернулася в торбу й робить вигляд, що так і планувала.";
   }
 
   if (result.state === "cancelled") {
-    return "Використання скасовано. Бинт лишився цілим і трохи самовдоволеним.";
+    return "Використання скасовано. Манатка лишилася цілою і трохи самовдоволеною.";
   }
 
   if (result.state === "stale-selection") {
@@ -85,19 +85,19 @@ export function presentItemUseConfirm(
     const outcome = result.order.result ?? result.order.preview;
 
     return [
-      "🩹 Бинт не витрачено",
+      "🩹 Манатку не витрачено",
       "",
-      `HP уже повні: <b>${outcome.hpBefore}/${outcome.hpMax}</b>.`,
+      presentHpNoopLine(outcome),
       "Єгер схвалює економію."
     ].join("\n");
   }
 
-  const replay = result.state === "replayed" ? "Результат уже записано раніше." : "Бинт використано.";
+  const replay = result.state === "replayed" ? "Результат уже записано раніше." : "Манатку використано.";
   const outcome = result.order.result ?? result.order.preview;
   const restoredToFull = result.order.preview.mode === "restore-to-full";
 
   return [
-    restoredToFull ? "🩹 Відновлення завершено" : "🩹 Бинт спрацював",
+    restoredToFull ? "🩹 Відновлення завершено" : "🩹 Манатка спрацювала",
     "",
     `${replay}`,
     ...(restoredToFull ? [`Використано бинтів: <b>${result.order.quantity}</b>.`] : []),
@@ -117,7 +117,7 @@ export function presentItemUseCancel(result: ItemUseCancelRepositoryResult): str
   }
 
   if (result.state === "completed") {
-    return "Бинт уже використано. Скасування запізнилось, як герой після вступної заставки.";
+    return "Манатку вже використано. Скасування запізнилось, як герой після вступної заставки.";
   }
 
   if (result.state === "expired") {
@@ -125,10 +125,10 @@ export function presentItemUseCancel(result: ItemUseCancelRepositoryResult): str
   }
 
   if (result.state === "stale-selection") {
-    return "Бинт зараз завершує іншу дію. Відкрийте манатку ще раз.";
+    return "Манатка зараз завершує іншу дію. Відкрийте її ще раз.";
   }
 
-  return "Використання скасовано. Бинт лишився в торбі.";
+  return "Використання скасовано. Манатка лишилася в торбі.";
 }
 
 export function presentItemUseRestoreToFull(
@@ -204,5 +204,11 @@ function presentCombatLockedItemUse(options: CombatLockedItemUseOptions): string
     return "Під час бою манатку треба використати як бойову дію. Відкрийте її з торби ще раз: кнопка піде в поточний хід.";
   }
 
-  return "Під час цього бою бинт не можна використати з торби. Завершіть бій або поверніться до бойової картки з доступними діями.";
+  return "Під час цього бою манатку не можна використати з торби. Завершіть бій або поверніться до бойової картки з доступними діями.";
+}
+
+function presentHpNoopLine(preview: { hpBefore: number; hpMax: number }): string {
+  return preview.hpBefore >= preview.hpMax
+    ? `HP уже повні: <b>${preview.hpBefore}/${preview.hpMax}</b>.`
+    : `HP уже достатньо для цієї манатки: <b>${preview.hpBefore}/${preview.hpMax}</b>.`;
 }

@@ -13,6 +13,7 @@ import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChal
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRepository";
+import { PrismaItemCraftRepository } from "../db/repositories/prismaItemCraftRepository";
 import { PrismaItemUseRepository } from "../db/repositories/prismaItemUseRepository";
 import { PrismaItemTransferRepository } from "../db/repositories/prismaItemTransferRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "../db/repositories/prismaKorchmaRoundPurchaseRepository";
@@ -48,6 +49,7 @@ export function createRepositories(prisma: PrismaClient) {
     equipment: new PrismaEquipmentRepository(prisma),
     huntContracts: new PrismaHuntContractRepository(prisma),
     inventory: new PrismaInventoryRepository(prisma),
+    itemCraft: new PrismaItemCraftRepository(prisma),
     itemUse: new PrismaItemUseRepository(prisma),
     itemTransfers: new PrismaItemTransferRepository(prisma),
     levelBarter: new PrismaLevelBarterRepository(prisma),

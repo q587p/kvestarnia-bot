@@ -192,6 +192,8 @@ describe("content tables", () => {
 
   it("validates the narrow item tag and use-effect contract", () => {
     const bandage = items.find((item) => item.id === "item.responsible-panic-bandage");
+    const denseBandage = items.find((item) => item.id === "item.dense-bandage");
+    const fieldKit = items.find((item) => item.id === "item.field-kit");
 
     expect(bandage).toMatchObject({
       slot: "consumable",
@@ -199,6 +201,22 @@ describe("content tables", () => {
       useEffect: {
         kind: "heal-hp",
         amount: 7
+      }
+    });
+    expect(denseBandage).toMatchObject({
+      slot: "consumable",
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+      useEffect: {
+        kind: "heal-hp",
+        amount: 42
+      }
+    });
+    expect(fieldKit).toMatchObject({
+      slot: "consumable",
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+      useEffect: {
+        kind: "heal-hp-to-min-percent",
+        percent: 93
       }
     });
     expect(() => itemSchema.parse({

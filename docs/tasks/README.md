@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- [0.2.20-latest-events-feed.md](0.2.20-latest-events-feed.md) — lightweight public recent events feed from the Korchma board/news surface.
+- None. The latest shipped version task is [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md).
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -81,12 +81,14 @@ Active task:
 - [0.2.18-lore-board-mvp.md](0.2.18-lore-board-mvp.md) — static `📖 Перекази` section on `Дошка корчми`, backed by typed lore entries and canonical reference validation.
 - [0.2.19-monster-trophies-yeger-gates.md](0.2.19-monster-trophies-yeger-gates.md) — concrete trophy coverage for every active monster and locked Yeger bandage supplies until the first Yeger board is completed.
 - [0.2.20-latest-events-feed.md](0.2.20-latest-events-feed.md) — lightweight `📜 Хроніки Квестарні` public activity feed for recent durable milestones.
+- [0.2.21-tavern-social-games.md](0.2.21-tavern-social-games.md) — flagged Shynok table-games foundation with Tavlei, Kosti and table-game leaderboard/achievements.
+- [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md) — craftable `Щільний бинт` and `Польова аптечка` after the second Yeger board, plus narrow solo-combat item restrictions.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
 - [0.2.x-lore-board.md](0.2.x-lore-board.md) — draft future `Дошка корчми` / news-corner `📖 Перекази` section backed by current Kvestarnia canon seed content; docs-only until explicitly activated.
-- [0.2.x-dense-bandage-field-kit.md](0.2.x-dense-bandage-field-kit.md) — draft future craftable medical item task for `Щільний бинт` and `Польова аптечка`; docs-only until explicitly activated.
+- [0.2.x-dense-bandage-field-kit.md](0.2.x-dense-bandage-field-kit.md) — archived draft activated as [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md).
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
 - [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — archived draft for the shipped [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) route.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.

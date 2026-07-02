@@ -350,7 +350,7 @@ export type PersistentFightTurnResult =
     }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -2603,6 +2603,17 @@ export class FightService {
         return {
           state: "item-unavailable",
           reason: "full-hp",
+          character: characterSummary,
+          session: currentSession,
+          monster,
+          questProgress
+        };
+      }
+
+      if (resolved.reason === "item-on-cooldown" || resolved.reason === "item-limit-reached") {
+        return {
+          state: "item-unavailable",
+          reason: resolved.reason,
           character: characterSummary,
           session: currentSession,
           monster,

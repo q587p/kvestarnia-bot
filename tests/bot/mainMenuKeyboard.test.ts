@@ -1619,6 +1619,66 @@ describe("main menu and scene keyboards", () => {
             item: {
               id: "character-item-bandage",
               itemId: "item.responsible-panic-bandage",
+              quantity: 13,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                slot: "consumable",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 7
+              }
+            }
+          },
+          null,
+          0,
+          null,
+          {
+            canUse: true,
+            craftOptions: [
+              {
+                recipe: {
+                  id: "dense-bandage",
+                  code: "dense",
+                  sourceItemId: "item.responsible-panic-bandage",
+                  outputItemId: "item.dense-bandage",
+                  sourceQuantity: 8,
+                  outputQuantity: 1,
+                  buttonLabel: "🧵 Створити щільний бинт"
+                }
+              },
+              {
+                recipe: {
+                  id: "field-kit",
+                  code: "kit",
+                  sourceItemId: "item.responsible-panic-bandage",
+                  outputItemId: "item.field-kit",
+                  sourceQuantity: 13,
+                  outputQuantity: 1,
+                  buttonLabel: "🧰 Створити польову аптечку"
+                }
+              }
+            ]
+          }
+        )
+      )
+    ).toEqual([
+      "🧵 Створити щільний бинт",
+      "🧰 Створити польову аптечку",
+      "🩹 Використати",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
               quantity: 1,
               content: {
                 id: "item.responsible-panic-bandage",

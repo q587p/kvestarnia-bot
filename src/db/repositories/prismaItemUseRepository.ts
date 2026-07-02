@@ -249,9 +249,12 @@ export class PrismaItemUseRepository implements ItemUseRepository {
 
         const item = input.itemContents.find((candidate) => candidate.id === order.itemId);
         const effect = item ? getItemUseEffect(item) : null;
-        if (!item || !effect || blocksAccidentalItemUse(item)) {
+        if (!item || !effect || blocksAccidentalItemUse(item) || (isRestoreToFullOrder(order) && effect.kind !== "heal-hp")) {
           return await staleTerminalConfirm(tx, order, input.now, character);
         }
+        const restoreEffect = isRestoreToFullOrder(order) && effect.kind === "heal-hp"
+          ? effect
+          : null;
 
         if (
           item.name !== order.itemName ||
@@ -299,7 +302,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
 
         const settlement = getRegeneratedResources(character, input.itemContents, input.now);
         const restorePreview = isRestoreToFullOrder(order)
-          ? buildRestoreToFullPreview(character, input.itemContents, input.now, effect)
+          ? buildRestoreToFullPreview(character, input.itemContents, input.now, restoreEffect!)
           : null;
         const preview = restorePreview?.preview ?? calculateHealingPreview({
           hpCurrent: settlement.resources.hpCurrent,
@@ -466,7 +469,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }
 
         const effect = getItemUseEffect(input.item);
-        if (!effect || blocksAccidentalItemUse(input.item) || effect.amount <= 0) {
+        if (!effect || blocksAccidentalItemUse(input.item) || effect.kind !== "heal-hp" || effect.amount <= 0) {
           return { state: "not-usable" };
         }
 
@@ -866,7 +869,12 @@ async function validatePendingRestoreToFullRefresh(
     return { state: "not-usable" };
   }
 
-  if (!input.effect || blocksAccidentalItemUse(input.item) || input.effect.amount <= 0) {
+  if (
+    !input.effect ||
+    blocksAccidentalItemUse(input.item) ||
+    input.effect.kind !== "heal-hp" ||
+    input.effect.amount <= 0
+  ) {
     return { state: "not-usable" };
   }
 
@@ -1004,7 +1012,7 @@ async function recoverLiveRestoreToFullAfterReservationConflict(
 
     const item = input.itemContents.find((candidate) => candidate.id === input.itemId);
     const effect = item ? getItemUseEffect(item) : null;
-    if (!item || !effect || blocksAccidentalItemUse(item) || effect.amount <= 0) {
+    if (!item || !effect || blocksAccidentalItemUse(item) || effect.kind !== "heal-hp" || effect.amount <= 0) {
       return null;
     }
 
@@ -1072,7 +1080,7 @@ function buildRestoreToFullPreview(
   character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
   itemContents: readonly ItemContent[],
   now: Date,
-  effect: NonNullable<ReturnType<typeof getItemUseEffect>>
+  effect: Extract<NonNullable<ReturnType<typeof getItemUseEffect>>, { kind: "heal-hp" }>
 ): {
   preview: ItemUsePreview;
   neededQuantity: number;
