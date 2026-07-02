@@ -117,13 +117,13 @@ export function presentTavernGameActionResult(result: {
     case "not-participant":
       return "За цим столом для вас немає стільця.";
     case "not-creator":
-      return "Кидок може почати лише той, хто тримає стіл.";
+      return "Цю дію може зробити лише той, хто тримає стіл.";
     case "not-ready":
       return result.session ? presentTavernGameSession(result.session) : "Стіл ще не готовий.";
     case "cancelled":
       return "Стіл скасовано, ставку повернено.";
     case "not-cancellable":
-      return "Цей стіл уже не можна тихо прибрати зі стійки.";
+      return "Скасувати можна лише відкритий стіл, де ще ніхто не підсів. Цей стіл уже рушив, тож скасування більше не діє.";
     case "failed-refund":
       return "Стіл спіткнувся на підрахунку. Корчмар повернув ставки й записав це у ганебну книгу.";
     default:
