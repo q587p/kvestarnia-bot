@@ -17,7 +17,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `/games` as a feature-gated public command and Telegram side-menu entry for opening the table-games hub when tavern games are enabled.
 - Added a `🏆 Рейтинг` table-games board with day, week and month win/draw/loss leaders across completed Tavlei and Kosti sessions.
 - Added rewardless table-game achievements for first completed game, first draw, win milestones and loss milestones, with live unlock notifications and durable recalculation from completed table rows.
-- Added config defaults for max stake, daily net-win cap and create cooldown; the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
+- Added config defaults for max stake and create cooldown; richer daily net-win enforcement remains follow-up, while the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
 - Added focused domain, service, config and Shynok callback coverage for resolver invariants, feature flags and compact Telegram callback data.
 - Added source task, design, balance, QA and Ukrainian copy docs under `docs/ai/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.
 

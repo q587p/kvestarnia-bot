@@ -1,9 +1,13 @@
 # Tavern Social Games Backlog
 
 This document preserves the useful planning material from the local archive
-`tavern-social-games.zip`. It is future design input only: the current PR must
-not add runtime social-game code, Prisma schema, migrations, callbacks,
-economy changes, rewards or player-visible menu entries for these ideas.
+`tavern-social-games.zip`. The implemented `0.2.21` slice lives in
+`docs/tasks/0.2.21-tavern-social-games.md`,
+`docs/design/tavern-social-games.md`,
+`docs/balance/tavern-social-games-balance.md`,
+`docs/qa/tavern-social-games-qa.md` and runtime code. Remaining ideas below are
+future backlog input only and must not be treated as already shipped unless
+the release docs and code say so.
 
 ## Product Shape
 

@@ -126,7 +126,6 @@ describe("loadConfig", () => {
     expect(config.tavernGameTavleiEnabled).toBe(false);
     expect(config.tavernGameKostiEnabled).toBe(false);
     expect(config.tavernGameMaxStake).toBe(25);
-    expect(config.tavernGameDailyNetWinCap).toBe(150);
     expect(config.tavernGameCreateCooldownSec).toBe(60);
   });
 
@@ -198,7 +197,6 @@ describe("loadConfig", () => {
       TAVERN_GAME_TAVLEI_ENABLED: "true",
       TAVERN_GAME_KOSTI_ENABLED: "on",
       TAVERN_GAME_MAX_STAKE: "13",
-      TAVERN_GAME_DAILY_NET_WIN_CAP: "93",
       TAVERN_GAME_CREATE_COOLDOWN_SEC: "42"
     });
 
@@ -206,13 +204,11 @@ describe("loadConfig", () => {
     expect(config.tavernGameTavleiEnabled).toBe(true);
     expect(config.tavernGameKostiEnabled).toBe(true);
     expect(config.tavernGameMaxStake).toBe(13);
-    expect(config.tavernGameDailyNetWinCap).toBe(93);
     expect(config.tavernGameCreateCooldownSec).toBe(42);
   });
 
   it("rejects unsafe tavern social game numeric limits", () => {
     expect(() => loadConfig({ ...validEnv, TAVERN_GAME_MAX_STAKE: "0" })).toThrow();
-    expect(() => loadConfig({ ...validEnv, TAVERN_GAME_DAILY_NET_WIN_CAP: "0" })).toThrow();
     expect(() => loadConfig({ ...validEnv, TAVERN_GAME_CREATE_COOLDOWN_SEC: "90000" })).toThrow();
   });
 

@@ -171,7 +171,7 @@ export function presentTavernGameSession(session: TavernGameSessionRecord): stri
 
   if (session.status === "open") {
     lines.push(session.gameKey === "kosti"
-      ? "Можна обрати стиль і знак. Кидок почнеться, коли стіл матиме щонайменше двох гравців."
+      ? "Можна обрати стиль і знак. Кидок почнеться, коли творець натисне «Кинути зараз», стіл заповниться або час збору добіжить кінця."
       : "Чекаємо другого гравця.");
   } else if (session.status === "ready") {
     lines.push(session.gameKey === "tavlei"

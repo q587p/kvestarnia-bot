@@ -2,12 +2,36 @@ import { describe, expect, it } from "vitest";
 import {
   presentTavernGameActionResult,
   presentTavernGameLeaderboard,
-  presentTavernGameRules
+  presentTavernGameRules,
+  presentTavernGameSession
 } from "../../src/bot/presenters/tavernGamePresenter";
 
 describe("tavern game presenter", () => {
   it("describes Kosti as a seven-player table", () => {
     expect(presentTavernGameRules("kosti", 25)).toContain("від двох до семи гравців");
+  });
+
+  it("does not imply an open Kosti table resolves immediately after two players decide", () => {
+    const text = presentTavernGameSession({
+      id: "session-1",
+      token: "12345678-1234-4234-9234-123456789abc",
+      gameKey: "kosti",
+      status: "open",
+      stakeGold: 1,
+      potGold: 2,
+      creatorCharacterId: "character-1",
+      createdAt: new Date("2026-07-02T10:00:00.000Z"),
+      expiresAt: new Date("2026-07-02T10:13:00.000Z"),
+      participants: [
+        { characterId: "character-1", displayName: "Shannar de Kassal" },
+        { characterId: "character-2", displayName: "Kyjivan BooksDragon" }
+      ]
+    });
+
+    expect(text).toContain("Кинути зараз");
+    expect(text).toContain("стіл заповниться");
+    expect(text).toContain("час збору добіжить кінця");
+    expect(text).not.toContain("щонайменше двох гравців");
   });
 
   it("explains create cooldown without implying an open table exists", () => {
