@@ -1,6 +1,10 @@
-import type { Context } from "grammy";
+import { Bot, type Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
-import { handlePartySessionCallback, sendPartyJoinFromStartPayload } from "../../src/bot/commands/partySessionCommand";
+import {
+  handlePartySessionCallback,
+  registerPartySessionDevCommand,
+  sendPartyJoinFromStartPayload
+} from "../../src/bot/commands/partySessionCommand";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { PartySessionService } from "../../src/services/partySessionService";
@@ -8,6 +12,43 @@ import type { PartyBossService } from "../../src/services/partyBossService";
 import type { PresenceService } from "../../src/services/presenceService";
 
 describe("handlePartySessionCallback", () => {
+  it("does not create a dev party when the command is accidentally registered without dev helpers", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: {
+        id: 123,
+        is_bot: true,
+        first_name: "Квестарня",
+        username: "kvestarnia_bot"
+      }
+    });
+    const replies: string[] = [];
+    const createForTelegramUser = vi.fn();
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        replies.push(String(payload.text));
+      }
+
+      return Promise.resolve({
+        ok: true,
+        result: { message_id: replies.length }
+      });
+    });
+
+    registerPartySessionDevCommand(
+      bot,
+      serviceWith({
+        areDevHelpersEnabled: () => false,
+        createForTelegramUser
+      }),
+      { presence: {} as PresenceService }
+    );
+
+    await bot.handleUpdate(commandUpdate("/dev_party"));
+
+    expect(createForTelegramUser).not.toHaveBeenCalled();
+    expect(replies).toEqual(["Dev-команди тут не ввімкнені. Корчмар сховав мотузку."]);
+  });
+
   it("opens a standalone nearby party invite picker", async () => {
     const session = makeSession("recruiting");
     const getLiveRecruitingByTelegramUser = vi.fn().mockResolvedValue(session);
@@ -623,6 +664,33 @@ function createCallbackContext(): {
   apiEditMessageText: ReturnType<typeof vi.fn>;
   reply: ReturnType<typeof vi.fn>;
   sendMessage: ReturnType<typeof vi.fn>;
+}
+
+function commandUpdate(text: string) {
+  return {
+    update_id: 1,
+    message: {
+      message_id: 1,
+      date: 1,
+      chat: {
+        id: 42,
+        type: "private"
+      },
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      text,
+      entities: [
+        {
+          offset: 0,
+          length: text.length,
+          type: "bot_command"
+        }
+      ]
+    }
+  };
 }
 function createCallbackContext(telegramUserId = 42): {
   ctx: Context;

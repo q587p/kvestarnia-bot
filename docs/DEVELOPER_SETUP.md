@@ -81,6 +81,8 @@ BOT_USERNAME=kvestarnia_bot
 
 `/dev_reset_me` лишається локальним reset-хелпером і працює, коли `NODE_ENV` не `production`.
 
+Усі `/dev_*` команди мають лишатися non-production only: production feature flags можуть відкривати ігрові поверхні, але не мають реєструвати `/dev_*`, показувати їх у `/help` або `/dev_help`, чи дозволяти dev-only callback mutation. Зокрема `PARTY_SESSION_DEV_HELPERS_ENABLED` не повинен відкривати `/dev_party` у `NODE_ENV=production`.
+
 Value-granting helper commands вмикаються тільки явним локальним opt-in:
 
 ```env
@@ -92,6 +94,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
+- `/dev_party` — збирає тимчасову локальну ватагу для перевірки party/session і Big Barrel Brother flows; у production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_add_level [число]` — додає вказану кількість рівнів поточному персонажу; без числа додає 1 рівень.
 - `/dev_add_xp [число]` — додає вказану кількість XP; без числа додає 1 XP.
 - `/dev_add_gold [число]` — додає вказану кількість золота; без числа додає 1 золото.
@@ -107,7 +110,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_monster_rest` — скидає коротку перерву монстрів після серії ordinary боїв у Низі для швидкого локального `/fight` QA.
 - `/dev_two_enemies` — стартує dev-only persistent бій проти двох ворогів для перевірки foundation multi-enemy state; production-маршрути лишаються одно-ворожими.
 
-Ці команди не потрапляють у бокове меню Telegram. `/help` і `/dev_help` показують value-granting dev-команди тільки тоді, коли вони реально enabled.
+Ці команди не потрапляють у бокове меню Telegram. `/help` і `/dev_help` показують dev-команди тільки тоді, коли їхні non-production gates реально enabled.
 
 ## Prisma
 

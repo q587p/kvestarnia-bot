@@ -85,7 +85,7 @@ async function handleMenuCallback(
     await safeEditMessageText(ctx, presentHelp({
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
-      includePartySessions: services.partySessions?.isEnabled() ?? false
+      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
     }));
     return;
   }

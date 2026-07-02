@@ -142,7 +142,7 @@ export function registerMainMenuKeyboard(
     await ctx.reply(presentHelp({
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
-      includePartySessions: services.partySessions?.isEnabled() ?? false
+      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: replyMarkup
     });

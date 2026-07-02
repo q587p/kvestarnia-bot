@@ -45,6 +45,7 @@ export function createServices(
   repositories: ApplicationRepositories,
   config: AppConfig
 ): ApplicationServices {
+  const nonProduction = config.nodeEnv !== "production";
   const activityEvents = new ActivityEventService(repositories.activityEvents);
   const achievements = new AchievementService(repositories.achievements);
   const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
@@ -149,16 +150,15 @@ export function createServices(
     onboarding: new OnboardingService(repositories.users, repositories.characters, achievements, activityEvents),
     passageSearch: new PassageSearchService(repositories.passageSearches, fight),
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
-      enabled: config.nodeEnv !== "production" ||
-        config.partySessionDevHelpersEnabled ||
+      enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
+      devHelpersEnabled: nonProduction
     }, undefined, achievements, activityEvents),
     partySessions: new PartySessionService(repositories.partySessions, {
-      enabled: config.nodeEnv !== "production" ||
+      enabled: nonProduction ||
         config.partySessionFoundationEnabled ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled,
+      devHelpersEnabled: nonProduction,
       bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
     }),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),

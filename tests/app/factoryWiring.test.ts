@@ -187,18 +187,17 @@ describe("application factory wiring", () => {
     `));
     expect(source).toContain(compact(`
       partyBoss: new PartyBossService(repositories.partyBossSessions, {
-        enabled: config.nodeEnv !== "production" ||
-          config.partySessionDevHelpersEnabled ||
+        enabled: nonProduction ||
           config.bigBarrelBrotherRaidEnabled,
-        devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled
+        devHelpersEnabled: nonProduction
       }, undefined, achievements, activityEvents)
     `));
     expect(source).toContain(compact(`
       partySessions: new PartySessionService(repositories.partySessions, {
-        enabled: config.nodeEnv !== "production" ||
+        enabled: nonProduction ||
           config.partySessionFoundationEnabled ||
           config.bigBarrelBrotherRaidEnabled,
-        devHelpersEnabled: config.nodeEnv !== "production" || config.partySessionDevHelpersEnabled,
+        devHelpersEnabled: nonProduction,
         bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
       })
     `));
@@ -216,9 +215,22 @@ describe("application factory wiring", () => {
       )
     `));
   });
+
+  it("does not let party-session dev helper flags enable dev commands in production", () => {
+    const services = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production",
+      partySessionDevHelpersEnabled: true,
+      bigBarrelBrotherRaidEnabled: true
+    }));
+
+    expect(services.partySessions.isEnabled()).toBe(true);
+    expect(services.partySessions.areDevHelpersEnabled()).toBe(false);
+    expect(services.partyBoss.isEnabled()).toBe(true);
+    expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
+  });
 });
 
-function makeConfig(): AppConfig {
+function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   return {
     nodeEnv: "test",
     databaseUrl: "file:./test.db",
@@ -227,7 +239,8 @@ function makeConfig(): AppConfig {
     combatBalanceAnalyticsEnabled: false,
     partySessionFoundationEnabled: false,
     partySessionDevHelpersEnabled: false,
-    bigBarrelBrotherRaidEnabled: false
+    bigBarrelBrotherRaidEnabled: false,
+    ...overrides
   };
 }
 

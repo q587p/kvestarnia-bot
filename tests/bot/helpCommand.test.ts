@@ -11,7 +11,7 @@ describe("help command", () => {
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
-      partySessions: { isEnabled: () => true }
+      partySessions: { areDevHelpersEnabled: () => true }
     });
 
     await bot.handleUpdate(commandUpdate("/dev_help"));
@@ -25,6 +25,20 @@ describe("help command", () => {
     expect(replies[0]).toContain("/dev_add_bandage");
     expect(replies[0]).toContain("/dev_reset_yeger_bandage");
   });
+
+  it("hides party dev help when party runtime is enabled without dev helpers", async () => {
+    const replies: string[] = [];
+    const bot = createTestBot(replies, {
+      devReset: { isEnabled: () => false },
+      partySessions: { areDevHelpersEnabled: () => false }
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_help"));
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]).not.toContain("/dev_party");
+    expect(replies[0]).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
+  });
 });
 
 function createTestBot(
@@ -32,7 +46,7 @@ function createTestBot(
   services: {
     devReset: Pick<DevResetService, "isEnabled">;
     devGrant?: Pick<DevGrantService, "isEnabled">;
-    partySessions?: Pick<PartySessionService, "isEnabled">;
+    partySessions?: Pick<PartySessionService, "areDevHelpersEnabled">;
   }
 ): Bot {
   const bot = new Bot("test-token", {
