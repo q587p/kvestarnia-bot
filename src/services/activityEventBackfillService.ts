@@ -42,17 +42,30 @@ export interface BackfillPartyBossSessionRow {
   createdAt: Date;
 }
 
+export interface ActivityEventBackfillPage {
+  skip: number;
+  take: number;
+}
+
 export interface ActivityEventBackfillStore {
-  listCharactersCreatedSince(since: Date | null): Promise<BackfillCharacterCreatedRow[]>;
+  listCharactersCreatedSince(
+    since: Date | null,
+    page?: ActivityEventBackfillPage
+  ): Promise<BackfillCharacterCreatedRow[]>;
   listLevelAchievementsSince(
     since: Date | null,
-    achievementIds: readonly string[]
+    achievementIds: readonly string[],
+    page?: ActivityEventBackfillPage
   ): Promise<BackfillLevelAchievementRow[]>;
   listRareCharacterItemsSince(
     since: Date | null,
-    itemIds: readonly string[]
+    itemIds: readonly string[],
+    page?: ActivityEventBackfillPage
   ): Promise<BackfillRareCharacterItemRow[]>;
-  listWonPartyBossSessionsSince(since: Date | null): Promise<BackfillPartyBossSessionRow[]>;
+  listWonPartyBossSessionsSince(
+    since: Date | null,
+    page?: ActivityEventBackfillPage
+  ): Promise<BackfillPartyBossSessionRow[]>;
   hasActivityEventDedupeKey(dedupeKey: string): Promise<boolean>;
   hasRareItemEvent(characterId: string, itemId: string): Promise<boolean>;
 }
@@ -94,6 +107,7 @@ export async function backfillActivityEvents(input: {
   recorder: ActivityEventBackfillRecorder;
   apply: boolean;
   since?: Date | null | undefined;
+  batchSize?: number | undefined;
 }): Promise<ActivityEventBackfillSummary> {
   const since = input.since ?? null;
   const summary: ActivityEventBackfillSummary = {
@@ -105,10 +119,12 @@ export async function backfillActivityEvents(input: {
     }
   };
 
-  await backfillCharacterCreated(input, summary, since);
-  await backfillLevelAchievements(input, summary, since);
-  await backfillRareItems(input, summary, since);
-  await backfillPartyRaids(input, summary, since);
+  const batchSize = normalizeBatchSize(input.batchSize);
+
+  await backfillCharacterCreated(input, summary, since, batchSize);
+  await backfillLevelAchievements(input, summary, since, batchSize);
+  await backfillRareItems(input, summary, since, batchSize);
+  await backfillPartyRaids(input, summary, since, batchSize);
 
   return summary;
 }
@@ -130,24 +146,55 @@ async function backfillCharacterCreated(
     apply: boolean;
   },
   summary: ActivityEventBackfillSummary,
-  since: Date | null
+  since: Date | null,
+  batchSize: number | null
 ): Promise<void> {
-  const rows = await input.store.listCharactersCreatedSince(since);
-
-  for (const row of rows) {
-    const dedupeKey = `character.created:${row.id}`;
-    await recordCandidate(input, summary, "character.created", dedupeKey, {
-      eventType: "character.created",
-      category: "adventurer",
-      severity: "normal",
-      actorCharacterId: row.id,
-      actorDisplayName: row.name,
-      sourceType: "character",
-      sourceId: row.id,
-      dedupeKey,
-      occurredAt: row.createdAt
-    });
+  for await (const rows of listBackfillBatches((page) => input.store.listCharactersCreatedSince(since, page), batchSize)) {
+    for (const row of rows) {
+      const dedupeKey = `character.created:${row.id}`;
+      await recordCandidate(input, summary, "character.created", dedupeKey, {
+        eventType: "character.created",
+        category: "adventurer",
+        severity: "normal",
+        actorCharacterId: row.id,
+        actorDisplayName: row.name,
+        sourceType: "character",
+        sourceId: row.id,
+        dedupeKey,
+        occurredAt: row.createdAt
+      });
+    }
   }
+}
+
+async function* listBackfillBatches<T>(
+  list: (page?: ActivityEventBackfillPage) => Promise<T[]>,
+  batchSize: number | null
+): AsyncGenerator<T[]> {
+  if (!batchSize) {
+    const rows = await list();
+    if (rows.length > 0) {
+      yield rows;
+    }
+    return;
+  }
+
+  for (let skip = 0; ; skip += batchSize) {
+    const rows = await list({ skip, take: batchSize });
+    if (rows.length === 0) {
+      return;
+    }
+
+    yield rows;
+
+    if (rows.length < batchSize) {
+      return;
+    }
+  }
+}
+
+function normalizeBatchSize(batchSize: number | undefined): number | null {
+  return batchSize && Number.isSafeInteger(batchSize) && batchSize > 0 ? batchSize : null;
 }
 
 async function backfillLevelAchievements(
@@ -157,36 +204,42 @@ async function backfillLevelAchievements(
     apply: boolean;
   },
   summary: ActivityEventBackfillSummary,
-  since: Date | null
+  since: Date | null,
+  batchSize: number | null
 ): Promise<void> {
   const levelsByAchievementId = new Map(
     getLevelAchievementEntries().map((entry) => [entry.achievementId, entry.level])
   );
-  const rows = await input.store.listLevelAchievementsSince(since, [...levelsByAchievementId.keys()]);
+  const achievementIds = [...levelsByAchievementId.keys()];
 
-  for (const row of rows) {
-    const level = levelsByAchievementId.get(row.achievementId);
-    if (!level) {
-      summary.counts["character.level_reached"].scanned += 1;
-      summary.counts["character.level_reached"].skippedInvalid += 1;
-      continue;
+  for await (const rows of listBackfillBatches(
+    (page) => input.store.listLevelAchievementsSince(since, achievementIds, page),
+    batchSize
+  )) {
+    for (const row of rows) {
+      const level = levelsByAchievementId.get(row.achievementId);
+      if (!level) {
+        summary.counts["character.level_reached"].scanned += 1;
+        summary.counts["character.level_reached"].skippedInvalid += 1;
+        continue;
+      }
+
+      const dedupeKey = `character.level_reached:${row.characterId}:${level}`;
+      await recordCandidate(input, summary, "character.level_reached", dedupeKey, {
+        eventType: "character.level_reached",
+        category: "progression",
+        severity: LATEST_EVENTS_MILESTONE_LEVELS.includes(level as (typeof LATEST_EVENTS_MILESTONE_LEVELS)[number])
+          ? "high"
+          : "normal",
+        actorCharacterId: row.characterId,
+        actorDisplayName: row.characterName,
+        sourceType: row.sourceType,
+        sourceId: row.sourceId ?? row.id,
+        dedupeKey,
+        payload: { level },
+        occurredAt: row.unlockedAt
+      });
     }
-
-    const dedupeKey = `character.level_reached:${row.characterId}:${level}`;
-    await recordCandidate(input, summary, "character.level_reached", dedupeKey, {
-      eventType: "character.level_reached",
-      category: "progression",
-      severity: LATEST_EVENTS_MILESTONE_LEVELS.includes(level as (typeof LATEST_EVENTS_MILESTONE_LEVELS)[number])
-        ? "high"
-        : "normal",
-      actorCharacterId: row.characterId,
-      actorDisplayName: row.characterName,
-      sourceType: row.sourceType,
-      sourceId: row.sourceId ?? row.id,
-      dedupeKey,
-      payload: { level },
-      occurredAt: row.unlockedAt
-    });
   }
 }
 
@@ -197,49 +250,55 @@ async function backfillRareItems(
     apply: boolean;
   },
   summary: ActivityEventBackfillSummary,
-  since: Date | null
+  since: Date | null,
+  batchSize: number | null
 ): Promise<void> {
   const itemById = new Map(items.map((item) => [item.id, item]));
-  const rows = await input.store.listRareCharacterItemsSince(since, getActivityEventBackfillRareItemIds());
+  const itemIds = getActivityEventBackfillRareItemIds();
 
-  for (const row of rows) {
-    const count = summary.counts["item.rare_received"];
-    count.scanned += 1;
+  for await (const rows of listBackfillBatches(
+    (page) => input.store.listRareCharacterItemsSince(since, itemIds, page),
+    batchSize
+  )) {
+    for (const row of rows) {
+      const count = summary.counts["item.rare_received"];
+      count.scanned += 1;
 
-    const item = itemById.get(row.itemId);
-    if (!item || !isPublicItemRarity(item.rarity)) {
-      count.skippedInvalid += 1;
-      continue;
-    }
+      const item = itemById.get(row.itemId);
+      if (!item || !isPublicItemRarity(item.rarity)) {
+        count.skippedInvalid += 1;
+        continue;
+      }
 
-    if (await input.store.hasRareItemEvent(row.characterId, item.id)) {
-      count.skippedExisting += 1;
-      continue;
-    }
+      if (await input.store.hasRareItemEvent(row.characterId, item.id)) {
+        count.skippedExisting += 1;
+        continue;
+      }
 
-    const dedupeKey = `item.rare_received:character-item:${row.id}:${row.characterId}:${item.id}`;
-    await recordCandidate(
-      input,
-      summary,
-      "item.rare_received",
-      dedupeKey,
-      {
-        eventType: "item.rare_received",
-        category: "manatky",
-        severity: isLegendaryItemRarity(item.rarity) ? "legendary" : "high",
-        actorCharacterId: row.characterId,
-        actorDisplayName: row.characterName,
-        subjectKind: "item",
-        subjectId: item.id,
-        subjectName: item.name,
-        sourceType: "character-item",
-        sourceId: row.id,
+      const dedupeKey = `item.rare_received:character-item:${row.id}:${row.characterId}:${item.id}`;
+      await recordCandidate(
+        input,
+        summary,
+        "item.rare_received",
         dedupeKey,
-        payload: { rarity: item.rarity },
-        occurredAt: row.createdAt
-      },
-      { alreadyScanned: true }
-    );
+        {
+          eventType: "item.rare_received",
+          category: "manatky",
+          severity: isLegendaryItemRarity(item.rarity) ? "legendary" : "high",
+          actorCharacterId: row.characterId,
+          actorDisplayName: row.characterName,
+          subjectKind: "item",
+          subjectId: item.id,
+          subjectName: item.name,
+          sourceType: "character-item",
+          sourceId: row.id,
+          dedupeKey,
+          payload: { rarity: item.rarity },
+          occurredAt: row.createdAt
+        },
+        { alreadyScanned: true }
+      );
+    }
   }
 }
 
@@ -250,33 +309,34 @@ async function backfillPartyRaids(
     apply: boolean;
   },
   summary: ActivityEventBackfillSummary,
-  since: Date | null
+  since: Date | null,
+  batchSize: number | null
 ): Promise<void> {
-  const rows = await input.store.listWonPartyBossSessionsSince(since);
+  for await (const rows of listBackfillBatches((page) => input.store.listWonPartyBossSessionsSince(since, page), batchSize)) {
+    for (const row of rows) {
+      const parsed = parsePartyBossState(row);
+      if (!parsed) {
+        summary.counts["party.raid_won"].scanned += 1;
+        summary.counts["party.raid_won"].skippedInvalid += 1;
+        continue;
+      }
 
-  for (const row of rows) {
-    const parsed = parsePartyBossState(row);
-    if (!parsed) {
-      summary.counts["party.raid_won"].scanned += 1;
-      summary.counts["party.raid_won"].skippedInvalid += 1;
-      continue;
+      const dedupeKey = `party.raid_won:${row.id}`;
+      await recordCandidate(input, summary, "party.raid_won", dedupeKey, {
+        eventType: "party.raid_won",
+        category: "raid",
+        severity: "high",
+        relatedCharacterIds: parsed.relatedCharacterIds,
+        subjectKind: "monster",
+        subjectId: parsed.monsterId,
+        subjectName: parsed.monsterName,
+        sourceType: "party-boss",
+        sourceId: row.id,
+        dedupeKey,
+        payload: { participantCount: parsed.participantCount },
+        occurredAt: row.completedAt ?? parsed.completedAt ?? row.createdAt
+      });
     }
-
-    const dedupeKey = `party.raid_won:${row.id}`;
-    await recordCandidate(input, summary, "party.raid_won", dedupeKey, {
-      eventType: "party.raid_won",
-      category: "raid",
-      severity: "high",
-      relatedCharacterIds: parsed.relatedCharacterIds,
-      subjectKind: "monster",
-      subjectId: parsed.monsterId,
-      subjectName: parsed.monsterName,
-      sourceType: "party-boss",
-      sourceId: row.id,
-      dedupeKey,
-      payload: { participantCount: parsed.participantCount },
-      occurredAt: row.completedAt ?? parsed.completedAt ?? row.createdAt
-    });
   }
 }
 

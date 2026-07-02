@@ -195,11 +195,19 @@ npm run db:deploy
 npm run maintenance:backfill-activity-events
 npm run maintenance:backfill-activity-events -- --days=30
 npm run maintenance:backfill-activity-events -- --since=2026-07-01
+npm run maintenance:backfill-activity-events -- --batch-size=93
 npm run maintenance:backfill-activity-events -- --all
 npm run maintenance:backfill-activity-events -- --apply
 ```
 
 Увага: для npm script прапори скрипта передаються після розділювача `--`. Команда `npm run maintenance:backfill-activity-events --apply` не застосує backfill і лишиться dry-run; потрібна форма `npm run maintenance:backfill-activity-events -- --apply`.
+
+Backfill читає production source tables батчами, щоб не тримати весь архів у Node heap. Default batch size is `93`; for memory-constrained Render shells, keep the default or pass a smaller explicit value:
+
+```bash
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events -- --batch-size=93
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events -- --batch-size=93 --apply
+```
 
 Типовий порядок запуску:
 
@@ -338,7 +346,7 @@ DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:repair-character-r
 
 ```bash
 DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events
-DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events -- --apply
+DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:backfill-activity-events -- --batch-size=93 --apply
 DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:poll-activity-events
 DATABASE_URL=file:/var/data/kvestarnia.db npm run maintenance:poll-activity-events -- --watch --interval=13
 ```
