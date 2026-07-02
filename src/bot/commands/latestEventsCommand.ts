@@ -84,6 +84,6 @@ async function sendLatestEventsAchievementNotification(
   const text = presentAchievementUnlockNotification(unlocks);
 
   if (text) {
-    await ctx.reply(text, HTML_MESSAGE_OPTIONS);
+    await ctx.reply(text, HTML_MESSAGE_OPTIONS).catch(() => undefined);
   }
 }
