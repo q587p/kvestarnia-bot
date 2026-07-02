@@ -69,6 +69,7 @@ buildCellarResultKeyboard
 import {
 buildBardPerformanceResponseKeyboard,
 buildBardPerformanceRespondResultKeyboard,
+buildBackToShynokGamesKeyboard,
 buildBackToCurrentPlaceKeyboard,
 buildBackToShynokKeyboard,
 buildShynokDrinkMenuKeyboard,
@@ -96,6 +97,9 @@ buildTavernParticipantsKeyboard,
 buildTavernResultKeyboard
 } from "../keyboards/tavernKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import {
+presentAchievementUnlockNotification
+} from "../presenters/achievementPresenter";
 import {
 presentCellarCooldown,
 presentCellarGrownupQuest,
@@ -135,6 +139,7 @@ presentShynokSaleSelection
 import {
 presentTavernGameActionResult,
 presentTavernGameHub,
+presentTavernGameLeaderboard,
 presentTavernGameRules,
 presentTavernGameSession
 } from "../presenters/tavernGamePresenter";
@@ -290,6 +295,21 @@ async function handleShynokCallback(
     return;
   }
 
+  if (action.type === "game-leaderboard") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await services.tavernGames.getLeaderboard();
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentTavernGameLeaderboard(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildBackToShynokGamesKeyboard()
+    });
+    return;
+  }
+
   if (action.type === "game-rules") {
     if (!services.tavernGames) {
       await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
@@ -362,6 +382,7 @@ async function handleShynokCallback(
       reply_markup: buildTavernGameActionKeyboard(result, telegramUserId)
     });
     await notifyTavernGameParticipants(ctx, result, telegramUserId);
+    await notifyTavernGameAchievements(ctx, result);
     return;
   }
 
@@ -659,6 +680,28 @@ async function notifyTavernGameParticipants(
       }
     )
   ));
+}
+
+async function notifyTavernGameAchievements(
+  ctx: Context,
+  result: Parameters<typeof presentTavernGameActionResult>[0] & {
+    achievementNotifications?: Array<{
+      telegramUserId: bigint;
+      unlocks: Parameters<typeof presentAchievementUnlockNotification>[0];
+    }>;
+  }
+): Promise<void> {
+  if (!result.achievementNotifications) {
+    return;
+  }
+
+  await Promise.allSettled(result.achievementNotifications.map((notification) => {
+    const text = presentAchievementUnlockNotification(notification.unlocks);
+
+    return text
+      ? ctx.api.sendMessage(Number(notification.telegramUserId), text, HTML_MESSAGE_OPTIONS)
+      : Promise.resolve(undefined);
+  }));
 }
 
 function shouldNotifyTavernGameParticipants(

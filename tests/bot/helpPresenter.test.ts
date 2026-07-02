@@ -25,6 +25,7 @@ describe("help presenter", () => {
     expect(text).not.toContain("/dev_party");
     expect(text).not.toContain("/dev_add_xp");
     expect(text).not.toContain("🎲 Ігри за столом");
+    expect(text).not.toContain("/games");
     expect(text).toContain("Крамниці, ремесло й ґільдії ще готуються.");
     expect(text).toContain(
       "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
@@ -36,6 +37,10 @@ describe("help presenter", () => {
       includeDevReset: false,
       includeTavernGames: true
     })).toContain("🎲 Ігри за столом — Тавлеї та Кості у шинку.");
+    expect(presentHelp({
+      includeDevReset: false,
+      includeTavernGames: true
+    })).toContain("♟️ /games — ігри за столом");
 
     expect(presentHelp({
       includeDevReset: false,

@@ -30,6 +30,7 @@ import {
   makeShynokGameCancelCallbackData,
   makeShynokGameCreateCallbackData,
   makeShynokGameJoinCallbackData,
+  makeShynokGameLeaderboardCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
   makeShynokGamesCallbackData,
@@ -99,6 +100,8 @@ export function buildShynokGameHubKeyboard(result: TavernGameHubResult): InlineK
 
   const keyboard = new InlineKeyboard();
 
+  keyboard.text("🏆 Рейтинг", makeShynokGameLeaderboardCallbackData()).row();
+
   if (result.tavleiEnabled) {
     keyboard.text("♟ Тавлеї", makeShynokGameRulesCallbackData("tavlei")).row();
   }
@@ -127,6 +130,10 @@ export function buildShynokGameRulesKeyboard(gameKey: TavernGameKey, maxStake: n
   return keyboard
     .row()
     .text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildBackToShynokGamesKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("↩ До ігор", makeShynokGamesCallbackData());
 }
 
 export function buildShynokGameSessionKeyboard(result: {

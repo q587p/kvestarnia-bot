@@ -49,6 +49,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "gear")).toBe(false);
     expect(commands.some((entry) => entry.command === "equip")).toBe(false);
     expect(commands.some((entry) => entry.command === "online")).toBe(false);
+    expect(commands.some((entry) => entry.command === "games")).toBe(false);
     expect(commands.some((entry) => entry.command === "look")).toBe(false);
     expect(commands.some((entry) => entry.command === "guild")).toBe(false);
     expect(commands.some((entry) => entry.command === "restart")).toBe(false);
@@ -72,6 +73,19 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage_day")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
+  });
+
+  it("shows tavern games commands only when their player surface is enabled", () => {
+    const hidden = getHelpCommandEntries({ includeDevReset: false, includeTavernGames: false });
+    const visible = getHelpCommandEntries({ includeDevReset: false, includeTavernGames: true });
+    const menu = getTelegramMenuCommands({ includeDevReset: false, includeTavernGames: true });
+
+    expect(hidden.some((entry) => entry.command === "games")).toBe(false);
+    expect(visible.find((entry) => entry.command === "games")).toMatchObject({
+      icon: "♟️",
+      description: "ігри за столом"
+    });
+    expect(menu.map((entry) => entry.command)).toContain("games");
   });
 
   it("keeps local dev commands available for dev help but not in the side menu", () => {

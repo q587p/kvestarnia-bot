@@ -469,6 +469,62 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.quest.daily-korchma-round.thirteen")?.current).toBe(13);
   });
 
+  it("unlocks tavern table game milestones from durable completed table rows", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      activityDates: {
+        "tavern.game.played": [new Date("2026-07-02T09:00:00.000Z")],
+        "tavern.game.won": [
+          new Date("2026-07-02T09:00:00.000Z"),
+          new Date("2026-07-02T09:10:00.000Z"),
+          new Date("2026-07-02T09:20:00.000Z")
+        ],
+        "tavern.game.lost": Array.from({ length: 13 }, (_, index) => new Date(2026, 6, 2, 10, index)),
+        "tavern.game.drawn": [new Date("2026-07-02T11:00:00.000Z")]
+      }
+    });
+    const service = new AchievementService(repo);
+
+    const played = await service.trackEvent({
+      type: "tavern.game.played",
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-02T09:00:00.000Z"),
+      sourceId: "table-1"
+    });
+    const won = await service.trackEvent({
+      type: "tavern.game.won",
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-02T09:20:00.000Z"),
+      sourceId: "table-3"
+    });
+    const lost = await service.trackEvent({
+      type: "tavern.game.lost",
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-02T10:12:00.000Z"),
+      sourceId: "table-loss-13"
+    });
+    const drawn = await service.trackEvent({
+      type: "tavern.game.drawn",
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-02T11:00:00.000Z"),
+      sourceId: "table-draw-1"
+    });
+
+    expect(played.map((unlock) => unlock.id)).toEqual(["achievement.tavern.game.first"]);
+    expect(won.map((unlock) => unlock.id)).toEqual([
+      "achievement.tavern.game.win.first",
+      "achievement.tavern.game.win.three"
+    ]);
+    expect(lost.map((unlock) => unlock.id)).toEqual([
+      "achievement.tavern.game.loss.first",
+      "achievement.tavern.game.loss.three",
+      "achievement.tavern.game.loss.thirteen"
+    ]);
+    expect(drawn.map((unlock) => unlock.id)).toEqual(["achievement.tavern.game.draw.first"]);
+    expect(repo.progressFor("achievement.tavern.game.win.three")?.current).toBe(3);
+    expect(repo.progressFor("achievement.tavern.game.loss.thirteen")?.current).toBe(13);
+  });
+
   it("recalculates provable historical achievements from the current character snapshot", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = {

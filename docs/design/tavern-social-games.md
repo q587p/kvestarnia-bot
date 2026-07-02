@@ -116,6 +116,17 @@ Show:
 - winner and payout, or draw/refund;
 - no raw formula/debug values in player-facing text.
 
+### Table rating
+
+The Shynok games hub exposes a read-only table-games rating for completed sessions:
+
+- windows: last day, last week and last month;
+- rows: wins, draws and losses;
+- scope: both Tavlei and Kosti;
+- Tavlei draw counts as a draw for both players;
+- Kosti win counts only for the main-pot winner; sign-pool recipients are not leaderboard winners;
+- the rating grants no XP, gold, items, power or extra rewards.
+
 ## Kosti
 
 ### Fantasy

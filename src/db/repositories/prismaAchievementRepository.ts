@@ -227,6 +227,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       claimedBarrelRaidActions,
       lostBigBarrelRaids,
       korchmaRounds,
+      completedTavernGameParticipations,
       completedGiftsSent,
       completedGiftsReceived,
       completedMantokSales,
@@ -412,6 +413,27 @@ export class PrismaAchievementRepository implements AchievementRepository {
         select: { createdAt: true },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }]
       }),
+      this.prisma.tavernGameParticipant.findMany({
+        where: {
+          characterId,
+          completedAt: { not: null },
+          session: {
+            status: "completed"
+          }
+        },
+        select: {
+          completedAt: true,
+          updatedAt: true,
+          session: {
+            select: {
+              resultJson: true,
+              completedAt: true,
+              updatedAt: true
+            }
+          }
+        },
+        orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
+      }),
       this.prisma.itemTransfer.findMany({
         where: {
           senderCharacterId: characterId,
@@ -562,6 +584,18 @@ export class PrismaAchievementRepository implements AchievementRepository {
         .filter((row) => isBigBarrelLossForCharacter(row.stateJson, characterId))
         .map((row) => row.completedAt ?? row.updatedAt),
       "korchma.round.purchased": korchmaRounds.map((row) => row.createdAt),
+      "tavern.game.played": completedTavernGameParticipations.map((row) =>
+        row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt
+      ),
+      "tavern.game.won": completedTavernGameParticipations
+        .filter((row) => getTavernGameOutcomeForCharacter(row.session.resultJson, characterId) === "win")
+        .map((row) => row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt),
+      "tavern.game.lost": completedTavernGameParticipations
+        .filter((row) => getTavernGameOutcomeForCharacter(row.session.resultJson, characterId) === "loss")
+        .map((row) => row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt),
+      "tavern.game.drawn": completedTavernGameParticipations
+        .filter((row) => getTavernGameOutcomeForCharacter(row.session.resultJson, characterId) === "draw")
+        .map((row) => row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt),
       "item.gift.sent": completedGiftsSent.map((row) => row.completedAt ?? row.updatedAt),
       "item.gift.received": completedGiftsReceived.map((row) => row.completedAt ?? row.updatedAt),
       "mantok.sale.completed": completedMantokSales.map((row) => row.completedAt ?? row.updatedAt),
@@ -939,6 +973,39 @@ function getDuelWinnerCharacterId(value: Prisma.JsonValue | null): string | null
 
   const winnerCharacterId = (value as Record<string, unknown>).winnerCharacterId;
   return typeof winnerCharacterId === "string" ? winnerCharacterId : null;
+}
+
+function getTavernGameOutcomeForCharacter(
+  value: Prisma.JsonValue | null,
+  characterId: string
+): "win" | "draw" | "loss" | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (!Array.isArray(source.players)) {
+    return null;
+  }
+
+  const players = source.players.filter(isRecord);
+  if (!players.some((player) => player.characterId === characterId)) {
+    return null;
+  }
+
+  if (source.gameKey === "tavlei") {
+    if (source.outcome === "draw") {
+      return "draw";
+    }
+
+    return source.outcome === "win" && source.winnerCharacterId === characterId ? "win" : "loss";
+  }
+
+  if (source.gameKey === "kosti" && source.outcome === "completed") {
+    return source.mainWinnerCharacterId === characterId ? "win" : "loss";
+  }
+
+  return null;
 }
 
 function hasCombatThreat(value: Prisma.JsonValue | null): boolean {

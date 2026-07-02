@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AppConfig } from "../config/env";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 import {
   isKostiSign,
   isKostiStyle,
@@ -8,12 +10,15 @@ import {
   type KostiStyle,
   type TavernGameDecision,
   type TavernGameKey,
+  type TavernGameResolution,
   type TavleiTactic
 } from "../domain/tavernGames";
 import type {
   TavernGameCancelResult,
   TavernGameCreateResult,
   TavernGameDecisionResult,
+  TavernGameLeaderboard,
+  TavernGameLeaderboardEntry,
   TavernGameJoinResult,
   TavernGameRepository,
   TavernGameResolveResult,
@@ -22,6 +27,8 @@ import type {
 
 export const TAVERN_GAME_JOIN_TTL_MS = 13 * 60_000;
 export const TAVERN_GAME_DECISION_TTL_MS = 5 * 60_000;
+const TAVERN_GAME_LEADERBOARD_LIMIT = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type TavernGameFeatureResult =
   | { state: "disabled" }
@@ -50,9 +57,21 @@ export type TavernGameJoinServiceResult = TavernGameFeatureResult | TavernGameJo
 export type TavernGameDecisionServiceResult =
   | TavernGameFeatureResult
   | { state: "invalid-decision" }
-  | TavernGameDecisionResult;
-export type TavernGameResolveServiceResult = TavernGameFeatureResult | TavernGameResolveResult;
+  | TavernGameDecisionResultWithAchievements;
+export type TavernGameResolveServiceResult = TavernGameFeatureResult | TavernGameResolveResultWithAchievements;
 export type TavernGameCancelServiceResult = TavernGameFeatureResult | TavernGameCancelResult;
+
+export interface TavernGameAchievementNotification {
+  telegramUserId: bigint;
+  unlocks: AchievementUnlock[];
+}
+
+type TavernGameAchievementPayload = {
+  achievementNotifications?: TavernGameAchievementNotification[];
+};
+
+type TavernGameDecisionResultWithAchievements = TavernGameDecisionResult & TavernGameAchievementPayload;
+type TavernGameResolveResultWithAchievements = TavernGameResolveResult & TavernGameAchievementPayload;
 
 export class TavernGameService {
   constructor(
@@ -65,7 +84,8 @@ export class TavernGameService {
       | "tavernGameMaxStake"
       | "tavernGameCreateCooldownSec"
     >,
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly achievements?: AchievementService
   ) {}
 
   isEnabled(): boolean {
@@ -99,6 +119,27 @@ export class TavernGameService {
       tavleiEnabled: this.isTavleiEnabled(),
       kostiEnabled: this.isKostiEnabled(),
       openTables: enabledOpenTables
+    };
+  }
+
+  async getLeaderboard(): Promise<TavernGameFeatureResult | { state: "ready"; leaderboard: TavernGameLeaderboard }> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const now = this.now();
+    const daySince = new Date(now.getTime() - DAY_MS);
+    const weekSince = new Date(now.getTime() - 7 * DAY_MS);
+    const monthSince = new Date(now.getTime() - 31 * DAY_MS);
+    const records = await this.repository.listCompletedSince(monthSince);
+
+    return {
+      state: "ready",
+      leaderboard: {
+        day: buildLeaderboard(records, daySince),
+        week: buildLeaderboard(records, weekSince),
+        month: buildLeaderboard(records, monthSince)
+      }
     };
   }
 
@@ -180,7 +221,8 @@ export class TavernGameService {
       return tokenGate;
     }
 
-    return this.repository.resolveKostiForTelegramUser(telegramUserId, token, now);
+    const result = await this.repository.resolveKostiForTelegramUser(telegramUserId, token, now);
+    return this.withResolvedAchievements(result, now);
   }
 
   async cancelForTelegramUser(
@@ -207,7 +249,58 @@ export class TavernGameService {
       return tokenGate;
     }
 
-    return this.repository.submitDecisionForTelegramUser(telegramUserId, token, decision, now);
+    const result = await this.repository.submitDecisionForTelegramUser(telegramUserId, token, decision, now);
+    return this.withResolvedAchievements(result, now);
+  }
+
+  private async withResolvedAchievements<
+    T extends TavernGameDecisionResult | TavernGameResolveResult
+  >(
+    result: T,
+    now: Date
+  ): Promise<T & TavernGameAchievementPayload> {
+    if (result.state !== "resolved" || !this.achievements) {
+      return result;
+    }
+
+    const notifications: TavernGameAchievementNotification[] = [];
+    const outcomes = getParticipantOutcomes(result.resolution);
+
+    for (const participant of result.session.participants) {
+      const outcome = outcomes.get(participant.characterId);
+      if (!outcome) {
+        continue;
+      }
+
+      const unlocks: AchievementUnlock[] = [];
+      unlocks.push(...await this.achievements.trackEventSafely({
+        type: "tavern.game.played",
+        characterId: participant.characterId,
+        occurredAt: now,
+        sourceId: result.session.id
+      }));
+      unlocks.push(...await this.achievements.trackEventSafely({
+        type: outcome === "win"
+          ? "tavern.game.won"
+          : outcome === "draw"
+            ? "tavern.game.drawn"
+            : "tavern.game.lost",
+        characterId: participant.characterId,
+        occurredAt: now,
+        sourceId: result.session.id
+      }));
+
+      if (unlocks.length > 0) {
+        notifications.push({
+          telegramUserId: participant.telegramUserId,
+          unlocks
+        });
+      }
+    }
+
+    return notifications.length > 0
+      ? { ...result, achievementNotifications: notifications }
+      : result;
   }
 
   private requireGame(gameKey: TavernGameKey): TavernGameFeatureResult | null {
@@ -255,3 +348,116 @@ export function listTavernGameStakeOptions(maxStake: number): number[] {
 export type PresentedKostiStyle = KostiStyle;
 export type PresentedKostiSign = KostiSign;
 export type PresentedTavleiTactic = TavleiTactic;
+
+function buildLeaderboard(
+  records: TavernGameSessionRecord[],
+  since: Date
+): TavernGameLeaderboardEntry[] {
+  const entries = new Map<string, TavernGameLeaderboardEntry>();
+
+  for (const record of records) {
+    if (!record.completedAt || record.completedAt < since) {
+      continue;
+    }
+
+    const resolution = parseStoredResolution(record.result);
+    if (!resolution) {
+      continue;
+    }
+
+    const outcomes = getParticipantOutcomes(resolution);
+    for (const participant of record.participants) {
+      const outcome = outcomes.get(participant.characterId);
+      if (!outcome) {
+        continue;
+      }
+
+      const entry = getOrCreateLeaderboardEntry(entries, participant);
+      if (outcome === "win") {
+        entry.winCount += 1;
+      } else if (outcome === "draw") {
+        entry.drawCount += 1;
+      } else {
+        entry.lossCount += 1;
+      }
+    }
+  }
+
+  return [...entries.values()]
+    .sort((left, right) => {
+      const winDiff = right.winCount - left.winCount;
+      const drawDiff = right.drawCount - left.drawCount;
+      const lossDiff = left.lossCount - right.lossCount;
+
+      if (winDiff !== 0) {
+        return winDiff;
+      }
+      if (drawDiff !== 0) {
+        return drawDiff;
+      }
+
+      return lossDiff === 0 ? left.name.localeCompare(right.name, "uk") : lossDiff;
+    })
+    .slice(0, TAVERN_GAME_LEADERBOARD_LIMIT);
+}
+
+function getOrCreateLeaderboardEntry(
+  entries: Map<string, TavernGameLeaderboardEntry>,
+  participant: TavernGameSessionRecord["participants"][number]
+): TavernGameLeaderboardEntry {
+  const current = entries.get(participant.characterId);
+
+  if (current) {
+    return current;
+  }
+
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(participant.character.activeCosmeticTitleGrantId);
+  const next: TavernGameLeaderboardEntry = {
+    characterId: participant.characterId,
+    name: participant.displayName,
+    ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
+    winCount: 0,
+    drawCount: 0,
+    lossCount: 0
+  };
+
+  entries.set(participant.characterId, next);
+  return next;
+}
+
+function getParticipantOutcomes(resolution: TavernGameResolution): Map<string, "win" | "draw" | "loss"> {
+  const outcomes = new Map<string, "win" | "draw" | "loss">();
+
+  if (resolution.gameKey === "tavlei") {
+    for (const player of resolution.players) {
+      outcomes.set(
+        player.characterId,
+        resolution.outcome === "draw"
+          ? "draw"
+          : player.characterId === resolution.winnerCharacterId
+            ? "win"
+            : "loss"
+      );
+    }
+    return outcomes;
+  }
+
+  for (const player of resolution.players) {
+    outcomes.set(player.characterId, player.characterId === resolution.mainWinnerCharacterId ? "win" : "loss");
+  }
+
+  return outcomes;
+}
+
+function parseStoredResolution(input: unknown): TavernGameResolution | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+
+  const value = input as { gameKey?: unknown; players?: unknown };
+  if ((value.gameKey === "tavlei" || value.gameKey === "kosti") && Array.isArray(value.players)) {
+    return input as TavernGameResolution;
+  }
+
+  return null;
+}

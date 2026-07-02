@@ -1,6 +1,11 @@
 import { KOSTI_PLAYER_CAP, TAVLEI_PLAYER_CAP, type TavernGameResolution, type TavernGameKey } from "../../domain/tavernGames";
 import type { TavernGameHubResult } from "../../services/tavernGameService";
-import type { TavernGameSessionRecord } from "../../db/repositories/tavernGameRepository";
+import type {
+  TavernGameLeaderboard,
+  TavernGameLeaderboardEntry,
+  TavernGameSessionRecord
+} from "../../db/repositories/tavernGameRepository";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentTavernGameHub(result: TavernGameHubResult): string {
@@ -54,6 +59,32 @@ export function presentTavernGameRules(gameKey: TavernGameKey, maxStake: number)
     "Найкраща рука бере основний банк. Ті, чий знак справдився, ділять знаковий банк.",
     "",
     `Межа ставки зараз: <b>${maxStake} зол.</b>`
+  ].join("\n");
+}
+
+export function presentTavernGameLeaderboard(result: {
+  state: string;
+  leaderboard?: TavernGameLeaderboard;
+}): string {
+  if (result.state === "disabled") {
+    return "🎲 Ігри за столом ще не відчинені.";
+  }
+  if (result.state !== "ready" || !result.leaderboard) {
+    return "🏆 Рейтинг столів зараз не читається. Крейда образилась на дошку.";
+  }
+
+  const shownTitleCharacterIds = new Set<string>();
+
+  return [
+    "🏆 Рейтинг ігор за столом",
+    "",
+    "Корчмар рахує завершені Тавлеї та Кості. Нагород тут немає, зате є крейда, яка все бачила.",
+    "",
+    ...presentLeaderboardSection("За добу", result.leaderboard.day, shownTitleCharacterIds),
+    "",
+    ...presentLeaderboardSection("За тиждень", result.leaderboard.week, shownTitleCharacterIds),
+    "",
+    ...presentLeaderboardSection("За місяць", result.leaderboard.month, shownTitleCharacterIds)
   ].join("\n");
 }
 
@@ -198,6 +229,42 @@ function presentTavernGameResolution(resolution: TavernGameResolution): string {
 function presentOpenTableLine(session: TavernGameSessionRecord): string {
   const cap = session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
   return `• ${gameLabel(session.gameKey)} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
+}
+
+function presentLeaderboardSection(
+  title: string,
+  entries: TavernGameLeaderboardEntry[],
+  shownTitleCharacterIds: Set<string>
+): string[] {
+  if (entries.length === 0) {
+    return [`<b>${title}</b>: ще ніхто не дограв. Дошка тримає крейду напоготові.`];
+  }
+
+  return [
+    `<b>${title}</b>:`,
+    ...entries.map((entry, index) =>
+      presentLeaderboardEntry(entry, index + 1, shownTitleCharacterIds)
+    )
+  ];
+}
+
+function presentLeaderboardEntry(
+  entry: TavernGameLeaderboardEntry,
+  rank: number,
+  shownTitleCharacterIds: Set<string>
+): string {
+  const displayEntry = shownTitleCharacterIds.has(entry.characterId)
+    ? { ...entry, activeCosmeticTitle: null }
+    : entry;
+
+  shownTitleCharacterIds.add(entry.characterId);
+
+  return [
+    `${rank}. ${presentCharacterDisplayName(displayEntry, { boldName: false })} — `,
+    `${entry.winCount} ${pluralize(entry.winCount, "перемога", "перемоги", "перемог")}`,
+    `, ${entry.drawCount} ${pluralize(entry.drawCount, "нічия", "нічиї", "нічиїх")}`,
+    `, ${entry.lossCount} ${pluralize(entry.lossCount, "поразка", "поразки", "поразок")}`
+  ].join("");
 }
 
 function presentBlockReason(reason: string | undefined): string {

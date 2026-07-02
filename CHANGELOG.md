@@ -14,6 +14,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a generic tavern game session engine with Prisma-backed sessions, participants, escrowed equal stakes, terminal statuses, replay-safe result storage and opportunistic expiry.
 - Added `♟ Тавлеї`: 1v1 equal-stake table creation/joining, one tactic choice per player and deterministic automatic resolution with win or draw/refund outcomes.
 - Added `🎲 Кості`: 2-7 player equal-stake tables, per-player style plus sign choices, deterministic 5d6 resolution, main/sign pool payout conservation and creator resolve-now support.
+- Added `/games` as a feature-gated public command and Telegram side-menu entry for opening the table-games hub when tavern games are enabled.
+- Added a `🏆 Рейтинг` table-games board with day, week and month win/draw/loss leaders across completed Tavlei and Kosti sessions.
+- Added rewardless table-game achievements for first completed game, first draw, win milestones and loss milestones, with live unlock notifications and durable recalculation from completed table rows.
 - Added config defaults for max stake, daily net-win cap and create cooldown; the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
 - Added focused domain, service, config and Shynok callback coverage for resolver invariants, feature flags and compact Telegram callback data.
 - Added source task, design, balance, QA and Ukrainian copy docs under `docs/ai/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.
@@ -37,7 +40,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Unchanged
 - Tavern Social Games ship disabled by default; no public table button appears without explicit flags.
-- No NPC gamblers, tournaments, leaderboards, spectator betting, drink outcome modifiers, real board play, XP, items, achievements, PvP, trading, markets, crafting, guild systems or Mini App UI ship in this slice.
+- No NPC gamblers, tournaments, spectator betting, drink outcome modifiers, real board play, XP, items, paid power, PvP, trading, markets, crafting, guild systems or Mini App UI ship in this slice.
 
 ## [0.2.20] - 12026-07-02 - Latest Events Feed MVP
 

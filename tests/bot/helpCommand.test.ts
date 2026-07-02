@@ -27,6 +27,7 @@ describe("help command", () => {
     expect(replies[0]).toContain("Перекази");
     expect(replies[0]).toContain("Пошта Квестарні");
     expect(replies[0]).toContain("🎲 Ігри за столом");
+    expect(replies[0]).toContain("/games");
     expect(replies[0]).not.toContain("/dev_help");
     expect(replies[0]).not.toContain("/dev_party");
     expect(replies[0]).not.toContain("/dev_add_xp");

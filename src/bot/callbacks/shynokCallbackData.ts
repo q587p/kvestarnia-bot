@@ -42,6 +42,7 @@ export type ShynokCallback =
   | { type: "sale-confirm"; token: string }
   | { type: "sale-cancel"; token: string }
   | { type: "games" }
+  | { type: "game-leaderboard" }
   | { type: "game-rules"; gameKey: TavernGameKey }
   | { type: "game-create"; gameKey: TavernGameKey; stakeGold: number }
   | { type: "game-join"; token: string }
@@ -140,6 +141,10 @@ export function makeShynokSaleCancelCallbackData(token: string): string {
 
 export function makeShynokGamesCallbackData(): string {
   return assertData(`${PREFIX}:gm`);
+}
+
+export function makeShynokGameLeaderboardCallbackData(): string {
+  return assertData(`${PREFIX}:gl`);
 }
 
 export function makeShynokGameRulesCallbackData(gameKey: TavernGameKey): string {
@@ -281,6 +286,9 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   }
   if (action === "gm" && first === undefined) {
     return { ok: true, value: { type: "games" } };
+  }
+  if (action === "gl" && first === undefined) {
+    return { ok: true, value: { type: "game-leaderboard" } };
   }
   if (action === "gr" && first && decodeGameKey(first) && second === undefined) {
     return { ok: true, value: { type: "game-rules", gameKey: decodeGameKey(first)! } };

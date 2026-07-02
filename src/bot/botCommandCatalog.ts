@@ -3,6 +3,7 @@ export interface BotCommandCatalogEntry {
   icon: string;
   description: string;
   includeInMenu: boolean;
+  featureOnly?: "tavern-games";
   devOnly?: "reset" | "grant" | "party";
 }
 
@@ -138,6 +139,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     icon: "👥",
     description: "хто поруч",
     includeInMenu: false
+  },
+  {
+    command: "games",
+    icon: "♟️",
+    description: "ігри за столом",
+    includeInMenu: true,
+    featureOnly: "tavern-games"
   },
   {
     command: "look",
@@ -354,6 +362,7 @@ export interface DevCommandVisibility {
   includeDevReset: boolean;
   includeDevGrant?: boolean;
   includePartySessions?: boolean;
+  includeTavernGames?: boolean;
 }
 
 export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility): BotCommandCatalogEntry[] {
@@ -361,7 +370,7 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
   return botCommandCatalog.filter((entry) => {
     if (!entry.devOnly) {
-      return true;
+      return !entry.featureOnly || normalized.includeTavernGames;
     }
 
     if (entry.devOnly === "reset") {
@@ -393,13 +402,15 @@ function normalizeDevCommandVisibility(
     return {
       includeDevReset: visibility,
       includeDevGrant: visibility,
-      includePartySessions: visibility
+      includePartySessions: visibility,
+      includeTavernGames: visibility
     };
   }
 
   return {
     includeDevReset: visibility.includeDevReset,
     includeDevGrant: visibility.includeDevGrant ?? false,
-    includePartySessions: visibility.includePartySessions ?? false
+    includePartySessions: visibility.includePartySessions ?? false,
+    includeTavernGames: visibility.includeTavernGames ?? false
   };
 }

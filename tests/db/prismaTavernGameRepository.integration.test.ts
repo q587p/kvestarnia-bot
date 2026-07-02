@@ -110,6 +110,33 @@ describe("PrismaTavernGameRepository integration", () => {
     })).resolves.toEqual({ status: "ready", potGold: 21 });
   });
 
+  it("lists completed sessions since the requested cutoff with participants", async () => {
+    const recentToken = "12345678-1234-4234-9234-000000000401";
+    const oldToken = "12345678-1234-4234-9234-000000000403";
+    const recentCompletedAt = new Date("2026-07-02T09:00:00.000Z");
+    const oldCompletedAt = new Date("2026-06-01T09:00:00.000Z");
+    await seedCharacter({ telegramUserId: 401n, characterId: "character-recent-creator", name: "Recent Creator", gold: 10 });
+    await seedCharacter({ telegramUserId: 402n, characterId: "character-recent-joiner", name: "Recent Joiner", gold: 10 });
+    await seedCharacter({ telegramUserId: 403n, characterId: "character-old-creator", name: "Old Creator", gold: 10 });
+    await seedCharacter({ telegramUserId: 404n, characterId: "character-old-joiner", name: "Old Joiner", gold: 10 });
+
+    await repository.createForTelegramUser(401n, createInput("tavlei", recentToken));
+    await repository.joinByTokenForTelegramUser(402n, recentToken, joinInput());
+    await repository.createForTelegramUser(403n, createInput("tavlei", oldToken));
+    await repository.joinByTokenForTelegramUser(404n, oldToken, joinInput());
+    await completeTavleiSession(recentToken, "character-recent-creator", recentCompletedAt);
+    await completeTavleiSession(oldToken, "character-old-creator", oldCompletedAt);
+
+    const records = await repository.listCompletedSince(new Date("2026-07-01T00:00:00.000Z"), 10);
+
+    expect(records.map((record) => record.token)).toEqual([recentToken]);
+    expect(records[0]?.completedAt).toEqual(recentCompletedAt);
+    expect(records[0]?.participants.map((participant) => participant.characterId).sort()).toEqual([
+      "character-recent-creator",
+      "character-recent-joiner"
+    ]);
+  });
+
   it("terminalizes payout invariant failures as a failed safe refund and replays without double refund", async () => {
     await seedCharacter({ telegramUserId: 201n, characterId: "character-fail-creator", name: "Р Р°С…С–РІРЅРёРє", gold: 10 });
     await seedCharacter({ telegramUserId: 202n, characterId: "character-fail-joiner", name: "РЎРІС–РґРѕРє", gold: 10 });
@@ -221,6 +248,41 @@ describe("PrismaTavernGameRepository integration", () => {
       select: { gold: true }
     });
     return row?.gold ?? null;
+  }
+
+  async function completeTavleiSession(token: string, winnerCharacterId: string, completedAt: Date): Promise<void> {
+    const session = await prisma.tavernGameSession.findUniqueOrThrow({
+      where: { token },
+      select: {
+        id: true,
+        participants: {
+          select: { characterId: true }
+        }
+      }
+    });
+    await prisma.tavernGameSession.update({
+      where: { token },
+      data: {
+        status: "completed",
+        completedAt,
+        resultJson: {
+          gameKey: "tavlei",
+          outcome: "win",
+          winnerCharacterId,
+          players: session.participants.map((participant) => ({
+            characterId: participant.characterId
+          }))
+        }
+      }
+    });
+    await prisma.tavernGameParticipant.updateMany({
+      where: { sessionId: session.id },
+      data: {
+        status: "completed",
+        completedAt,
+        activeStakeKey: null
+      }
+    });
   }
 });
 

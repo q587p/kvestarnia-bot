@@ -174,7 +174,7 @@ export function createServices(
       repositories.dailyActions,
       repositories.roundPurchases
     ),
-    tavernGames: new TavernGameService(repositories.tavernGames, config),
+    tavernGames: new TavernGameService(repositories.tavernGames, config, undefined, achievements),
     tavern,
     trainingDoppelganger: new TrainingDoppelgangerService(
       repositories.characters,

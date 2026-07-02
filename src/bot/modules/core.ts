@@ -25,7 +25,9 @@ import { registerPlannedCommands } from "../commands/plannedCommand";
 import { registerSupportCommand } from "../commands/supportCommand";
 import { sendTavern } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
+import { buildShynokGameHubKeyboard } from "../keyboards/shynokKeyboard";
 import { presentHelp } from "../presenters/helpPresenter";
+import { presentTavernGameHub } from "../presenters/tavernGamePresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -60,6 +62,14 @@ export function registerCoreBotModule(
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
   registerPlannedCommands(bot);
+  bot.command("games", async (ctx) => {
+    const result = await services.tavernGames?.getHub() ?? { state: "disabled" as const };
+
+    await ctx.reply(presentTavernGameHub(result), {
+      parse_mode: "HTML",
+      reply_markup: buildShynokGameHubKeyboard(result)
+    });
+  });
   registerMainMenuKeyboard(bot, services, {
     botUsername: options.botUsername
   });

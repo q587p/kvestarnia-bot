@@ -35,7 +35,7 @@ Start disabled by default unless the repo has a different feature flag release c
 
 - Enable Tavlei with low max stake.
 - Watch repeated pair transfers and refund rate.
-- Avoid leaderboard or streak rewards.
+- Avoid reward-bearing leaderboards or streak rewards; read-only win/draw/loss rating is acceptable only as public history, not as power progression.
 
 ### Phase 2: Kosti
 

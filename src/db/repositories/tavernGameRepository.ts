@@ -61,6 +61,21 @@ export interface TavernGameSessionRecord {
   participants: TavernGameParticipantRecord[];
 }
 
+export interface TavernGameLeaderboardEntry {
+  characterId: string;
+  name: string;
+  activeCosmeticTitle?: string | null;
+  winCount: number;
+  drawCount: number;
+  lossCount: number;
+}
+
+export interface TavernGameLeaderboard {
+  day: TavernGameLeaderboardEntry[];
+  week: TavernGameLeaderboardEntry[];
+  month: TavernGameLeaderboardEntry[];
+}
+
 export type TavernGameGateReason = "wrong-place" | "active-combat" | "pending-raid";
 
 export type TavernGameCreateResult =
@@ -114,6 +129,7 @@ export type TavernGameCancelResult =
 
 export interface TavernGameRepository {
   listOpen(now: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
+  listCompletedSince(since: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
   peekByToken(token: string): Promise<TavernGameSessionRecord | null>;
   getByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null>;
   createForTelegramUser(

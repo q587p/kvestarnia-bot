@@ -100,6 +100,25 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     return rows.map(mapSession);
   }
 
+  async listCompletedSince(since: Date, limit = 587): Promise<TavernGameSessionRecord[]> {
+    const rows = await this.prisma.tavernGameSession.findMany({
+      where: {
+        status: "completed",
+        completedAt: {
+          gte: since
+        }
+      },
+      include: tavernGameSessionInclude,
+      orderBy: [
+        { completedAt: "desc" },
+        { id: "asc" }
+      ],
+      take: limit
+    });
+
+    return rows.map(mapSession);
+  }
+
   async peekByToken(token: string): Promise<TavernGameSessionRecord | null> {
     const row = await findSessionByToken(this.prisma, token);
     return row ? mapSession(row) : null;

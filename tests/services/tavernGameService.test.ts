@@ -118,6 +118,87 @@ describe("TavernGameService", () => {
     expect(repository.refundDisabledCalls).toBe(1);
     expect(repository.joinCalls).toBe(0);
   });
+
+  it("builds day week and month leaderboards from completed tables", async () => {
+    const alice = participant("character-a", 101n, "Аля");
+    const bob = participant("character-b", 102n, "Боб");
+    const chub = participant("character-c", 103n, "Чуб");
+    const repository = new FakeTavernGameRepository({
+      completedTables: [
+        session({
+          id: "kosti-day",
+          gameKey: "kosti",
+          status: "completed",
+          completedAt: new Date("2026-07-02T09:00:00.000Z"),
+          result: {
+            gameKey: "kosti",
+            outcome: "completed",
+            players: [
+              { characterId: alice.characterId },
+              { characterId: bob.characterId }
+            ],
+            mainWinnerCharacterId: alice.characterId
+          },
+          participants: [alice, bob]
+        }),
+        session({
+          id: "tavlei-week",
+          gameKey: "tavlei",
+          status: "completed",
+          completedAt: new Date("2026-06-30T09:00:00.000Z"),
+          result: {
+            gameKey: "tavlei",
+            outcome: "draw",
+            players: [
+              { characterId: alice.characterId },
+              { characterId: chub.characterId }
+            ]
+          },
+          participants: [alice, chub]
+        }),
+        session({
+          id: "tavlei-month",
+          gameKey: "tavlei",
+          status: "completed",
+          completedAt: new Date("2026-06-22T09:00:00.000Z"),
+          result: {
+            gameKey: "tavlei",
+            outcome: "win",
+            players: [
+              { characterId: alice.characterId },
+              { characterId: chub.characterId }
+            ],
+            winnerCharacterId: chub.characterId
+          },
+          participants: [alice, chub]
+        })
+      ]
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.getLeaderboard();
+
+    expect(result.state).toBe("ready");
+    expect(result.state === "ready" ? result.leaderboard.day : []).toEqual([
+      { characterId: "character-a", name: "Аля", winCount: 1, drawCount: 0, lossCount: 0 },
+      { characterId: "character-b", name: "Боб", winCount: 0, drawCount: 0, lossCount: 1 }
+    ]);
+    expect(result.state === "ready" ? result.leaderboard.week : []).toEqual([
+      { characterId: "character-a", name: "Аля", winCount: 1, drawCount: 1, lossCount: 0 },
+      { characterId: "character-c", name: "Чуб", winCount: 0, drawCount: 1, lossCount: 0 },
+      { characterId: "character-b", name: "Боб", winCount: 0, drawCount: 0, lossCount: 1 }
+    ]);
+    expect(result.state === "ready" ? result.leaderboard.month : []).toEqual([
+      { characterId: "character-c", name: "Чуб", winCount: 1, drawCount: 1, lossCount: 0 },
+      { characterId: "character-a", name: "Аля", winCount: 1, drawCount: 1, lossCount: 1 },
+      { characterId: "character-b", name: "Боб", winCount: 0, drawCount: 0, lossCount: 1 }
+    ]);
+    expect(repository.lastCompletedSince?.toISOString()).toBe("2026-06-01T10:00:00.000Z");
+  });
 });
 
 function config(overrides: Partial<ConstructorParameters<typeof TavernGameService>[1]> = {}): ConstructorParameters<typeof TavernGameService>[1] {
@@ -139,6 +220,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
 
   constructor(private readonly options: {
     openTables?: TavernGameSessionRecord[];
+    completedTables?: TavernGameSessionRecord[];
     tokenSession?: TavernGameSessionRecord;
     createResult?: Awaited<ReturnType<TavernGameRepository["createForTelegramUser"]>>;
   } = {}) {}
@@ -146,6 +228,15 @@ class FakeTavernGameRepository implements TavernGameRepository {
   listOpen(): Promise<TavernGameSessionRecord[]> {
     this.listOpenCalls += 1;
     return Promise.resolve(this.options.openTables ?? []);
+  }
+
+  lastCompletedSince: Date | null = null;
+
+  listCompletedSince(since: Date): Promise<TavernGameSessionRecord[]> {
+    this.lastCompletedSince = since;
+    return Promise.resolve((this.options.completedTables ?? []).filter((table) =>
+      table.completedAt !== null && table.completedAt >= since
+    ));
   }
 
   peekByToken(): Promise<TavernGameSessionRecord | null> {
@@ -189,6 +280,55 @@ class FakeTavernGameRepository implements TavernGameRepository {
   expireDue(): Promise<number> {
     return Promise.resolve(0);
   }
+}
+
+function participant(
+  characterId: string,
+  telegramUserId: bigint,
+  displayName: string
+): TavernGameSessionRecord["participants"][number] {
+  const character = {
+    id: characterId,
+    userId: `user-${characterId}`,
+    telegramUserId,
+    currentLocationId: "location.korchma.bar",
+    name: displayName,
+    pronoun: "they" as const,
+    path: "path",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    xp: 0,
+    gold: 10,
+    hpCurrent: 10,
+    hpMax: 10,
+    manaCurrent: 5,
+    manaMax: 5,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
+  };
+
+  return {
+    id: `participant-${characterId}`,
+    sessionId: "session-1",
+    characterId,
+    telegramUserId,
+    displayName,
+    remortCount: 0,
+    status: "completed",
+    stakeGold: 3,
+    payoutGold: 0,
+    refundedGold: 0,
+    decision: null,
+    result: null,
+    joinedAt: now,
+    decidedAt: now,
+    completedAt: now,
+    character
+  };
 }
 
 function session(overrides: Partial<TavernGameSessionRecord> = {}): TavernGameSessionRecord {

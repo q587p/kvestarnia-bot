@@ -8,6 +8,7 @@ import {
   makeShynokGameCancelCallbackData,
   makeShynokGameCreateCallbackData,
   makeShynokGameJoinCallbackData,
+  makeShynokGameLeaderboardCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
   makeShynokGamesCallbackData,
@@ -82,6 +83,10 @@ describe("shynokCallbackData", () => {
     expect(parseShynokCallbackData(makeShynokGamesCallbackData())).toEqual({
       ok: true,
       value: { type: "games" }
+    });
+    expect(parseShynokCallbackData(makeShynokGameLeaderboardCallbackData())).toEqual({
+      ok: true,
+      value: { type: "game-leaderboard" }
     });
     expect(parseShynokCallbackData(makeShynokGameRulesCallbackData("kosti"))).toEqual({
       ok: true,

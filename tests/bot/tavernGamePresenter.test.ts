@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentTavernGameActionResult,
+  presentTavernGameLeaderboard,
   presentTavernGameRules
 } from "../../src/bot/presenters/tavernGamePresenter";
 
@@ -20,5 +21,31 @@ describe("tavern game presenter", () => {
     expect(text).toContain("обмеження на створення нових столів");
     expect(text).toContain("не ознака, що десь уже відкрита партія");
     expect(text).toContain("Спробуйте ще раз за 4 хвилини.");
+  });
+
+  it("shows tavern game leaderboard for day week and month", () => {
+    const text = presentTavernGameLeaderboard({
+      state: "ready",
+      leaderboard: {
+        day: [{
+          characterId: "character-1",
+          name: "<b>Дара</b>",
+          activeCosmeticTitle: "Перший <стіл>",
+          winCount: 2,
+          drawCount: 1,
+          lossCount: 5
+        }],
+        week: [],
+        month: [{ characterId: "character-2", name: "Нестор", winCount: 11, drawCount: 12, lossCount: 14 }]
+      }
+    });
+
+    expect(text).toContain("🏆 Рейтинг ігор за столом");
+    expect(text).toContain("Корчмар рахує завершені Тавлеї та Кості");
+    expect(text).toContain("<b>За добу</b>:");
+    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;стіл&gt;»</i>) — 2 перемоги, 1 нічия, 5 поразок");
+    expect(text).toContain("<b>За тиждень</b>: ще ніхто не дограв");
+    expect(text).toContain("1. Нестор — 11 перемог, 12 нічиїх, 14 поразок");
+    expect(text).not.toContain("<b>Дара</b>");
   });
 });
