@@ -124,18 +124,23 @@ export function buildShynokGameSessionKeyboard(result: {
   session?: {
     token: string;
     gameKey: TavernGameKey;
-    participants: Array<{ characterId: string; status: string }>;
+    creatorCharacterId: string;
+    participants: Array<{ characterId: string; status: string; telegramUserId?: bigint }>;
   };
-}): InlineKeyboard {
+}, options: { viewerTelegramUserId?: bigint } = {}): InlineKeyboard {
   if (!result.session) {
     return buildBackToShynokKeyboard();
   }
 
   const keyboard = new InlineKeyboard();
+  const viewer = result.session.participants.find((participant) =>
+    participant.telegramUserId === options.viewerTelegramUserId
+  );
+  const viewerIsCreator = viewer?.characterId === result.session.creatorCharacterId;
   if (result.session.gameKey === "tavlei" && result.session.participants.length < 2) {
     keyboard.text("✖ Скасувати", makeShynokGameCancelCallbackData(result.session.token)).row();
   }
-  if (result.session.gameKey === "kosti" && result.session.participants.length >= 2) {
+  if (result.session.gameKey === "kosti" && result.session.participants.length >= 2 && viewerIsCreator) {
     keyboard.text("🎲 Кинути зараз", makeShynokGameResolveCallbackData(result.session.token)).row();
   }
 

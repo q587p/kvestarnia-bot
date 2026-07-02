@@ -92,6 +92,7 @@ export type TavernGameDecisionResult =
   | { state: "closed"; session: TavernGameSessionRecord }
   | { state: "decided"; session: TavernGameSessionRecord }
   | { state: "replayed"; session: TavernGameSessionRecord }
+  | { state: "failed-refund"; session: TavernGameSessionRecord }
   | { state: "resolved"; session: TavernGameSessionRecord; resolution: TavernGameResolution };
 
 export type TavernGameResolveResult =
@@ -100,6 +101,7 @@ export type TavernGameResolveResult =
   | { state: "not-creator"; session: TavernGameSessionRecord }
   | { state: "not-ready"; session: TavernGameSessionRecord }
   | { state: "closed"; session: TavernGameSessionRecord }
+  | { state: "failed-refund"; session: TavernGameSessionRecord }
   | { state: "resolved"; session: TavernGameSessionRecord; resolution: TavernGameResolution }
   | { state: "replayed"; session: TavernGameSessionRecord; resolution: TavernGameResolution | null };
 
@@ -112,6 +114,7 @@ export type TavernGameCancelResult =
 
 export interface TavernGameRepository {
   listOpen(now: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
+  peekByToken(token: string): Promise<TavernGameSessionRecord | null>;
   getByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null>;
   createForTelegramUser(
     telegramUserId: bigint,
@@ -144,5 +147,6 @@ export interface TavernGameRepository {
     now: Date
   ): Promise<TavernGameResolveResult>;
   cancelForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<TavernGameCancelResult>;
+  refundDisabledByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null>;
   expireDue(now: Date, limit?: number): Promise<number>;
 }

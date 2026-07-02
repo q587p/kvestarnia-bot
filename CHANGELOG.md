@@ -14,17 +14,20 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a generic tavern game session engine with Prisma-backed sessions, participants, escrowed equal stakes, terminal statuses, replay-safe result storage and opportunistic expiry.
 - Added `♟ Тавлеї`: 1v1 equal-stake table creation/joining, one tactic choice per player and deterministic automatic resolution with win or draw/refund outcomes.
 - Added `🎲 Кості`: 2-6 player equal-stake tables, per-player style plus sign choices, deterministic 5d6 resolution, main/sign pool payout conservation and creator resolve-now support.
-- Added config defaults for max stake, daily net-win cap, create cooldown and active-session limit; the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
+- Added config defaults for max stake, daily net-win cap and create cooldown; the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
 - Added focused domain, service, config and Shynok callback coverage for resolver invariants, feature flags and compact Telegram callback data.
 - Added source task, design, balance, QA and Ukrainian copy docs under `docs/ai/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.
 
 ### Changed
 - The Korchma bar keyboard can show `🎲 Ігри за столом` only when the new feature flags are enabled; default production behavior remains unchanged.
 - Shynok callbacks now include compact `v1:sh:g*` game payloads for hub, rules, create, join, cancel, Tavlei tactics, Kosti style/sign decisions and resolve-now.
+- Kosti tables stay joinable while open even after all currently seated players have submitted decisions; resolution starts only when the creator resolves, the table reaches cap and finishes decisions, or the join TTL expires with enough players.
+- Per-game rollout flags now gate stale rules/create/join/decision/resolve/cancel callbacks consistently; disabled existing tables refund escrow instead of accepting new joins or trapping players in decision flows.
 
 ### Safety
 - Stakes are debited only inside repository transactions, returned through payout/refund terminal paths and guarded by unique active stake keys.
 - Duplicate joins, stale decisions, cancel/expire/resolve races and terminal replays are routed to current state or stored results instead of paying twice.
+- Resolver invariant failures terminalize as `failed_safe_refund`, clear active stake keys and replay without double refunds.
 - Combat lock, wrong-place and pending-raid checks reuse the same character/presence snapshot policy as Shynok money actions.
 - Richer daily net-win enforcement and repeated-pair reporting remain a rollout follow-up; session/participant rows store per-table audit data in this slice.
 

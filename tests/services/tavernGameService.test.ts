@@ -35,6 +35,24 @@ describe("TavernGameService", () => {
     expect(result.state === "ready" ? result.openTables : []).toHaveLength(1);
   });
 
+  it("filters disabled game tables out of the hub", async () => {
+    const repository = new FakeTavernGameRepository({
+      openTables: [
+        session({ id: "session-tavlei", gameKey: "tavlei" }),
+        session({ id: "session-kosti", gameKey: "kosti" })
+      ]
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true,
+      tavernGameKostiEnabled: false
+    }), () => now);
+
+    const result = await service.getHub();
+
+    expect(result.state === "ready" ? result.openTables.map((table) => table.gameKey) : []).toEqual(["tavlei"]);
+  });
+
   it("passes bounded create inputs to the repository", async () => {
     const repository = new FakeTavernGameRepository();
     const service = new TavernGameService(repository, config({
@@ -69,6 +87,22 @@ describe("TavernGameService", () => {
     expect(result).toEqual({ state: "game-disabled", gameKey: "kosti" });
     expect(repository.lastCreateInput).toBeNull();
   });
+
+  it("refunds a stale token table when that game is disabled before joining", async () => {
+    const existing = session({ gameKey: "kosti", token: "12345678-1234-4234-9234-000000000321" });
+    const repository = new FakeTavernGameRepository({ tokenSession: existing });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true,
+      tavernGameKostiEnabled: false
+    }), () => now);
+
+    const result = await service.joinByTokenForTelegramUser(42n, existing.token);
+
+    expect(result).toEqual({ state: "game-disabled-refunded", gameKey: "kosti", session: existing });
+    expect(repository.refundDisabledCalls).toBe(1);
+    expect(repository.joinCalls).toBe(0);
+  });
 });
 
 function config(overrides: Partial<ConstructorParameters<typeof TavernGameService>[1]> = {}): ConstructorParameters<typeof TavernGameService>[1] {
@@ -84,17 +118,26 @@ function config(overrides: Partial<ConstructorParameters<typeof TavernGameServic
 
 class FakeTavernGameRepository implements TavernGameRepository {
   listOpenCalls = 0;
+  joinCalls = 0;
+  refundDisabledCalls = 0;
   lastCreateInput: Parameters<TavernGameRepository["createForTelegramUser"]>[1] | null = null;
 
-  constructor(private readonly options: { openTables?: TavernGameSessionRecord[] } = {}) {}
+  constructor(private readonly options: {
+    openTables?: TavernGameSessionRecord[];
+    tokenSession?: TavernGameSessionRecord;
+  } = {}) {}
 
   listOpen(): Promise<TavernGameSessionRecord[]> {
     this.listOpenCalls += 1;
     return Promise.resolve(this.options.openTables ?? []);
   }
 
+  peekByToken(): Promise<TavernGameSessionRecord | null> {
+    return Promise.resolve(this.options.tokenSession ?? null);
+  }
+
   getByToken(): Promise<TavernGameSessionRecord | null> {
-    return Promise.reject(new Error("Not implemented in fake."));
+    return Promise.resolve(this.options.tokenSession ?? null);
   }
 
   createForTelegramUser(
@@ -106,7 +149,8 @@ class FakeTavernGameRepository implements TavernGameRepository {
   }
 
   joinByTokenForTelegramUser(): ReturnType<TavernGameRepository["joinByTokenForTelegramUser"]> {
-    return Promise.reject(new Error("Not implemented in fake."));
+    this.joinCalls += 1;
+    return Promise.resolve({ state: "joined", session: session() });
   }
 
   submitDecisionForTelegramUser(): ReturnType<TavernGameRepository["submitDecisionForTelegramUser"]> {
@@ -121,12 +165,17 @@ class FakeTavernGameRepository implements TavernGameRepository {
     return Promise.reject(new Error("Not implemented in fake."));
   }
 
+  refundDisabledByToken(): Promise<TavernGameSessionRecord | null> {
+    this.refundDisabledCalls += 1;
+    return Promise.resolve(this.options.tokenSession ?? null);
+  }
+
   expireDue(): Promise<number> {
     return Promise.resolve(0);
   }
 }
 
-function session(): TavernGameSessionRecord {
+function session(overrides: Partial<TavernGameSessionRecord> = {}): TavernGameSessionRecord {
   const character = {
     id: "character-1",
     userId: "user-1",
@@ -169,6 +218,7 @@ function session(): TavernGameSessionRecord {
     createdAt: now,
     updatedAt: now,
     creator: character,
-    participants: []
+    participants: [],
+    ...overrides
   };
 }

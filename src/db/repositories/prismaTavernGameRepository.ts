@@ -28,6 +28,9 @@ import type {
 type TxClient = Prisma.TransactionClient;
 type TavernGameSessionRow = Prisma.TavernGameSessionGetPayload<{ include: typeof tavernGameSessionInclude }>;
 type CharacterRow = Prisma.CharacterGetPayload<{ include: typeof tavernGameCharacterInclude }>;
+type ResolveSessionTxResult =
+  | { state: "resolved"; session: TavernGameSessionRow; resolution: TavernGameResolution }
+  | { state: "failed-refund"; session: TavernGameSessionRow };
 
 const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
 const JOINED_STATUSES = ["joined", "decided"] as const;
@@ -78,9 +81,7 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     await this.expireDue(now);
     const rows = await this.prisma.tavernGameSession.findMany({
       where: {
-        status: {
-          in: ["open", "ready"]
-        },
+        status: "open",
         joinExpiresAt: {
           gt: now
         }
@@ -94,6 +95,11 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     });
 
     return rows.map(mapSession);
+  }
+
+  async peekByToken(token: string): Promise<TavernGameSessionRecord | null> {
+    const row = await findSessionByToken(this.prisma, token);
+    return row ? mapSession(row) : null;
   }
 
   async getByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null> {
@@ -290,6 +296,8 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
           potGold: { increment: session.stakeGold },
           ...(session.gameKey === "tavlei" && nextCount === 2
             ? { status: "ready", decisionExpiresAt: input.decisionExpiresAt }
+            : session.gameKey === "kosti" && nextCount === getParticipantCap(session.gameKey)
+              ? { status: "ready", decisionExpiresAt: input.decisionExpiresAt }
             : {})
         }
       });
@@ -362,6 +370,12 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
       }
       if (shouldResolveAfterDecision(updated)) {
         const resolved = await resolveSessionTx(tx, updated, now);
+        if (resolved.state === "failed-refund") {
+          return {
+            state: "failed-refund",
+            session: mapSession(resolved.session)
+          };
+        }
         return {
           state: "resolved",
           session: mapSession(resolved.session),
@@ -398,7 +412,11 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
       if (session.creatorCharacterId !== character.id) {
         return { state: "not-creator", session: mapSession(session) };
       }
-      if (session.gameKey !== "kosti" || countLiveParticipants(session) < 2 || session.status !== "open") {
+      if (
+        session.gameKey !== "kosti" ||
+        countLiveParticipants(session) < 2 ||
+        (session.status !== "open" && session.status !== "ready")
+      ) {
         return { state: "not-ready", session: mapSession(session) };
       }
 
@@ -411,6 +429,12 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
         include: tavernGameSessionInclude
       });
       const resolved = await resolveSessionTx(tx, ready, now);
+      if (resolved.state === "failed-refund") {
+        return {
+          state: "failed-refund",
+          session: mapSession(resolved.session)
+        };
+      }
       return {
         state: "resolved",
         session: mapSession(resolved.session),
@@ -443,6 +467,23 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
 
       const refunded = await refundSessionTx(tx, session, "cancelled_refund", now);
       return { state: "cancelled", session: mapSession(refunded) };
+    });
+  }
+
+  async refundDisabledByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null> {
+    return this.prisma.$transaction(async (tx): Promise<TavernGameSessionRecord | null> => {
+      const session = await findSessionByToken(tx, token);
+      if (!session) {
+        return null;
+      }
+      if (isTerminal(session.status)) {
+        return mapSession(session);
+      }
+
+      const refunded = await refundSessionTx(tx, session, "cancelled_refund", now, {
+        kind: "disabled_refund"
+      });
+      return mapSession(refunded);
     });
   }
 
@@ -504,7 +545,7 @@ async function resolveSessionTx(
   tx: TxClient,
   row: TavernGameSessionRow,
   now: Date
-): Promise<{ session: TavernGameSessionRow; resolution: TavernGameResolution }> {
+): Promise<ResolveSessionTxResult> {
   const claimed = await tx.tavernGameSession.updateMany({
     where: {
       id: row.id,
@@ -521,22 +562,31 @@ async function resolveSessionTx(
     const replay = await findSessionById(tx, row.id);
     const resolution = replay ? parseResolution(replay.resultJson) : null;
     if (replay && resolution) {
-      return { session: replay, resolution };
+      return { state: "resolved", session: replay, resolution };
     }
     throw new Error("Tavern game resolution race lost without replay.");
   }
 
   const liveParticipants = row.participants.filter((participant) => isJoinedStatus(participant.status));
-  const resolution = resolveTavernGame({
-    gameKey: parseGameKey(row.gameKey),
-    seed: row.seed,
-    stakeGold: row.stakeGold,
-    players: liveParticipants.map((participant) => toResolverPlayer(participant, parseGameKey(row.gameKey)))
-  });
-  const payoutTotal = Object.values(resolution.payouts).reduce((sum, value) => sum + value, 0);
-  const refundTotal = Object.values(resolution.refunds).reduce((sum, value) => sum + value, 0);
-  if (payoutTotal + refundTotal !== row.potGold) {
-    throw new Error(`Tavern game pot mismatch: ${payoutTotal + refundTotal} != ${row.potGold}`);
+  let resolution: TavernGameResolution;
+  try {
+    resolution = resolveTavernGame({
+      gameKey: parseGameKey(row.gameKey),
+      seed: row.seed,
+      stakeGold: row.stakeGold,
+      players: liveParticipants.map((participant) => toResolverPlayer(participant, parseGameKey(row.gameKey)))
+    });
+    const payoutTotal = Object.values(resolution.payouts).reduce((sum, value) => sum + value, 0);
+    const refundTotal = Object.values(resolution.refunds).reduce((sum, value) => sum + value, 0);
+    if (payoutTotal + refundTotal !== row.potGold) {
+      throw new Error(`Tavern game pot mismatch: ${payoutTotal + refundTotal} != ${row.potGold}`);
+    }
+  } catch (error) {
+    const refunded = await refundSessionTx(tx, row, "failed_safe_refund", now, {
+      kind: "failed_safe_refund",
+      reason: error instanceof Error ? error.message : "unknown"
+    });
+    return { state: "failed-refund", session: refunded };
   }
 
   for (const participant of liveParticipants) {
@@ -572,14 +622,15 @@ async function resolveSessionTx(
     include: tavernGameSessionInclude
   });
 
-  return { session: completed, resolution };
+  return { state: "resolved", session: completed, resolution };
 }
 
 async function refundSessionTx(
   tx: TxClient,
   row: TavernGameSessionRow,
   status: "cancelled_refund" | "expired_refund" | "failed_safe_refund",
-  now: Date
+  now: Date,
+  resultExtra: Record<string, unknown> = {}
 ): Promise<TavernGameSessionRow> {
   const claimed = await tx.tavernGameSession.updateMany({
     where: {
@@ -620,6 +671,7 @@ async function refundSessionTx(
       status,
       resultJson: {
         kind: status,
+        ...resultExtra,
         refundedGold: row.participants
           .filter((entry) => isJoinedStatus(entry.status))
           .reduce((sum, participant) => sum + participant.stakeGold, 0)
@@ -636,7 +688,7 @@ function shouldResolveAfterDecision(row: TavernGameSessionRow): boolean {
     return live.length === 2 && live.every((participant) => participant.decisionJson !== null);
   }
 
-  return live.length >= 2 && live.every((participant) => participant.decisionJson !== null);
+  return row.status === "ready" && live.length >= 2 && live.every((participant) => participant.decisionJson !== null);
 }
 
 function toResolverPlayer(

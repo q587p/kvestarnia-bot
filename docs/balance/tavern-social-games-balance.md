@@ -19,7 +19,6 @@ TAVERN_GAME_KOSTI_ENABLED=false
 TAVERN_GAME_MAX_STAKE=25
 TAVERN_GAME_DAILY_NET_WIN_CAP=150
 TAVERN_GAME_CREATE_COOLDOWN_SEC=60
-TAVERN_GAME_ACTIVE_SESSION_LIMIT=1
 ```
 
 Start disabled by default unless the repo has a different feature flag release convention.
@@ -103,7 +102,7 @@ Mitigations:
 - Character gold never becomes negative.
 - A stake is reserved at most once per participant.
 - A participant belongs to a session at most once.
-- One character has at most one active stake session unless the repo explicitly supports more.
+- One character has at most one active stake session, enforced by the active stake key.
 - A session reaches exactly one terminal state.
 - Terminal sessions never mutate payouts again.
 - `sum(payouts) == pot` for completed sessions.

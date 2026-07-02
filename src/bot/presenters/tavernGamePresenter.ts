@@ -77,6 +77,8 @@ export function presentTavernGameActionResult(result: {
       return "🎲 Ігри за столом ще не відчинені.";
     case "game-disabled":
       return "Цей стіл ще не виставили. Корчмар ховає правила під рахівницею.";
+    case "game-disabled-refunded":
+      return "Цей стіл зараз зачинений. Корчмар повернув ставки й вдає, що так і було задумано.";
     case "invalid-stake":
       return `Ставка має бути від 1 до ${result.maxStake ?? 25} зол.`;
     case "invalid-decision":
@@ -121,6 +123,8 @@ export function presentTavernGameActionResult(result: {
       return "Стіл скасовано, ставку повернено.";
     case "not-cancellable":
       return "Цей стіл уже не можна тихо прибрати зі стійки.";
+    case "failed-refund":
+      return "Стіл спіткнувся на підрахунку. Корчмар повернув ставки й записав це у ганебну книгу.";
     default:
       return "Ця кнопка вже не діє, але стіл не постраждав.";
   }

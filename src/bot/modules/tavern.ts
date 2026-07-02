@@ -295,6 +295,21 @@ async function handleShynokCallback(
       return;
     }
 
+    const enabled = action.gameKey === "tavlei"
+      ? services.tavernGames.isTavleiEnabled()
+      : services.tavernGames.isKostiEnabled();
+    if (!enabled) {
+      await safeAnswerCallbackQuery(ctx, { show_alert: true });
+      await safeEditMessageText(ctx, presentTavernGameActionResult({
+        state: services.tavernGames.isEnabled() ? "game-disabled" : "disabled",
+        gameKey: action.gameKey
+      }), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildBackToShynokKeyboard()
+      });
+      return;
+    }
+
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(
       ctx,
@@ -582,6 +597,7 @@ function buildTavernGameActionKeyboard(result: {
     token: string;
     gameKey: "tavlei" | "kosti";
     status: string;
+    creatorCharacterId: string;
     participants: Array<{
       telegramUserId: bigint;
       status: string;
@@ -606,7 +622,7 @@ function buildTavernGameActionKeyboard(result: {
     return buildShynokKostiDecisionKeyboard(result.session.token);
   }
 
-  return buildShynokGameSessionKeyboard(result);
+  return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId });
 }
 
 async function notifyBardPerformanceAudience(

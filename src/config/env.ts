@@ -49,7 +49,6 @@ export const configSchema = z.object({
   tavernGameMaxStake: z.number().int().min(1).max(587).default(25),
   tavernGameDailyNetWinCap: z.number().int().min(1).max(5870).default(150),
   tavernGameCreateCooldownSec: z.number().int().min(0).max(86_400).default(60),
-  tavernGameActiveSessionLimit: z.number().int().min(1).max(6).default(1),
   supportJarUrl: supportJarUrlSchema.optional(),
   supportJarStatus: supportJarStatusSchema
 });
@@ -74,7 +73,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     tavernGameMaxStake: parseOptionalInteger(env.TAVERN_GAME_MAX_STAKE),
     tavernGameDailyNetWinCap: parseOptionalInteger(env.TAVERN_GAME_DAILY_NET_WIN_CAP),
     tavernGameCreateCooldownSec: parseOptionalInteger(env.TAVERN_GAME_CREATE_COOLDOWN_SEC),
-    tavernGameActiveSessionLimit: parseOptionalInteger(env.TAVERN_GAME_ACTIVE_SESSION_LIMIT),
     supportJarUrl: blankToUndefined(env.SUPPORT_JAR_URL),
     supportJarStatus: parseSupportJarStatus(env)
   });

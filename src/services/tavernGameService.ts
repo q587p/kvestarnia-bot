@@ -23,7 +23,10 @@ import type {
 export const TAVERN_GAME_JOIN_TTL_MS = 13 * 60_000;
 export const TAVERN_GAME_DECISION_TTL_MS = 5 * 60_000;
 
-export type TavernGameFeatureResult = { state: "disabled" } | { state: "game-disabled"; gameKey: TavernGameKey };
+export type TavernGameFeatureResult =
+  | { state: "disabled" }
+  | { state: "game-disabled"; gameKey: TavernGameKey }
+  | { state: "game-disabled-refunded"; gameKey: TavernGameKey; session: TavernGameSessionRecord };
 
 export type TavernGameHubResult =
   | TavernGameFeatureResult
@@ -81,13 +84,14 @@ export class TavernGameService {
 
     const now = this.now();
     const openTables = await this.repository.listOpen(now);
+    const enabledOpenTables = openTables.filter((session) => this.isGameEnabled(session.gameKey));
 
     return {
       state: "ready",
       maxStake: this.config.tavernGameMaxStake,
       tavleiEnabled: this.isTavleiEnabled(),
       kostiEnabled: this.isKostiEnabled(),
-      openTables
+      openTables: enabledOpenTables
     };
   }
 
@@ -120,11 +124,12 @@ export class TavernGameService {
     telegramUserId: bigint,
     token: string
   ): Promise<TavernGameJoinServiceResult> {
-    if (!this.isEnabled()) {
-      return { state: "disabled" };
+    const now = this.now();
+    const tokenGate = await this.refundIfTokenGameDisabled(token, now);
+    if (tokenGate) {
+      return tokenGate;
     }
 
-    const now = this.now();
     return this.repository.joinByTokenForTelegramUser(telegramUserId, token, {
       now,
       decisionExpiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS)
@@ -160,23 +165,26 @@ export class TavernGameService {
     telegramUserId: bigint,
     token: string
   ): Promise<TavernGameResolveServiceResult> {
-    const gate = this.requireGame("kosti");
-    if (gate) {
-      return gate;
+    const now = this.now();
+    const tokenGate = await this.refundIfTokenGameDisabled(token, now);
+    if (tokenGate) {
+      return tokenGate;
     }
 
-    return this.repository.resolveKostiForTelegramUser(telegramUserId, token, this.now());
+    return this.repository.resolveKostiForTelegramUser(telegramUserId, token, now);
   }
 
   async cancelForTelegramUser(
     telegramUserId: bigint,
     token: string
   ): Promise<TavernGameCancelServiceResult> {
-    if (!this.isEnabled()) {
-      return { state: "disabled" };
+    const now = this.now();
+    const tokenGate = await this.refundIfTokenGameDisabled(token, now);
+    if (tokenGate) {
+      return tokenGate;
     }
 
-    return this.repository.cancelForTelegramUser(telegramUserId, token, this.now());
+    return this.repository.cancelForTelegramUser(telegramUserId, token, now);
   }
 
   private async submitDecisionForTelegramUser(
@@ -184,26 +192,48 @@ export class TavernGameService {
     token: string,
     decision: TavernGameDecision
   ): Promise<TavernGameDecisionServiceResult> {
-    const gate = this.requireGame(decision.gameKey);
-    if (gate) {
-      return gate;
+    const now = this.now();
+    const tokenGate = await this.refundIfTokenGameDisabled(token, now);
+    if (tokenGate) {
+      return tokenGate;
     }
 
-    return this.repository.submitDecisionForTelegramUser(telegramUserId, token, decision, this.now());
+    return this.repository.submitDecisionForTelegramUser(telegramUserId, token, decision, now);
   }
 
   private requireGame(gameKey: TavernGameKey): TavernGameFeatureResult | null {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
-    if (gameKey === "tavlei" && !this.isTavleiEnabled()) {
-      return { state: "game-disabled", gameKey };
-    }
-    if (gameKey === "kosti" && !this.isKostiEnabled()) {
+    if (!this.isGameEnabled(gameKey)) {
       return { state: "game-disabled", gameKey };
     }
 
     return null;
+  }
+
+  private isGameEnabled(gameKey: TavernGameKey): boolean {
+    return gameKey === "tavlei" ? this.isTavleiEnabled() : this.isKostiEnabled();
+  }
+
+  private async refundIfTokenGameDisabled(
+    token: string,
+    now: Date
+  ): Promise<TavernGameFeatureResult | null> {
+    const session = await this.repository.peekByToken(token);
+    if (!session) {
+      return this.isEnabled() ? null : { state: "disabled" };
+    }
+    if (this.isGameEnabled(session.gameKey)) {
+      return null;
+    }
+
+    const refunded = await this.repository.refundDisabledByToken(token, now);
+    return {
+      state: "game-disabled-refunded",
+      gameKey: session.gameKey,
+      session: refunded ?? session
+    };
   }
 }
 
