@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Latest-events keyboards no longer show a manual `🔄 Оновити` button; opening the feed, switching filters and changing pages reread the current ledger.
 - Feed rendering stores and uses event-time display snapshots, groups rows by Kyiv day and escapes/truncates dynamic player, item and monster names.
 - Activity logging is best-effort at gameplay boundaries, so feed write failures do not roll back the successful primary action.
+- Turning in `Неспокійні справи 2.0` now grants two `Єгерська риска на дощечці` keepsakes in addition to XP and gold.
 
 ### Fixed
 - Quest-table browsing no longer auto-issues the daily `Корчмарський обхід`; locations only show route scenes after the player explicitly opens the daily round.
@@ -31,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Party-boss / Big Barrel Brother inventory item-use callbacks now bypass the generic combat-lock redirect, so the combat-usable bandage button from the inventory reaches the raid action handler instead of reopening the combat-lock card.
 - `/help` and the main `📖 Допомога` button now show the public command catalog again, while dev commands stay isolated in `/dev_help` and the `🧰 Адмінка` button.
 - The quest archive now keeps the completed first Yeger board `Неспокійні справи` visible while `Неспокійні справи 2.0` is active or completed.
+- The Yeger corner no longer shows the closed quest-detail button after the current Yeger board is completed.
 
 ### Unchanged
 - Filtering, paginating or pressing a stale legacy refresh-compatible callback can only replay the same one-time first-open record and grants no XP, gold, items, combat power, title power, separate refresh achievement or repeatable hidden progress.

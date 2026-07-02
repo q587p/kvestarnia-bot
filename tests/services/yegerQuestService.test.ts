@@ -37,6 +37,7 @@ import {
   YEGER_TRACKING_COOLDOWN_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_REWARD,
   YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
   YEGER_UNQUIET_TRIAL_REWARD,
   YEGER_UNQUIET_TRIAL_STARTED_KEY,
@@ -248,6 +249,44 @@ describe("YegerQuestService", () => {
     });
   });
 
+  it("claims two keepsake notches for the completed second Yeger board", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 8, xp: 320, gold: 120 });
+    world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, new Date("2026-06-15T09:00:00.000Z"), {
+      rewardXp: 42,
+      rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+    });
+    world.addAction(YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY, startedAt);
+    for (let index = 0; index < 17; index += 1) {
+      world.sessions.push({
+        monsterId: "monster.stamp-doorkeeper-skeleton",
+        status: "won",
+        createdAt: new Date(startedAt.getTime() + index)
+      });
+    }
+
+    const first = await world.service().turnInForTelegramUser(telegramUserId);
+    const repeated = await world.service().turnInForTelegramUser(telegramUserId);
+
+    expect(first).toMatchObject({
+      state: "completed",
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 63,
+        gold: YEGER_UNQUIET_TRIAL_SECOND_REWARD.gold,
+        itemGrants: [{ itemId: YEGER_UNQUIET_TRIAL_SECOND_REWARD.itemId, quantity: 2 }]
+      }
+    });
+    expect(repeated).toMatchObject({ state: "already-completed" });
+    expect(world.actions.filter((action) => action.key === YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY))
+      .toHaveLength(1);
+    expect(world.itemGrants).toEqual([{ itemId: YEGER_UNQUIET_TRIAL_SECOND_REWARD.itemId, quantity: 2 }]);
+    expect(world.character).toMatchObject({
+      xp: 383,
+      gold: 290
+    });
+  });
+
   it("scales turn-in XP by level so low-level Yeger completion cannot jump two levels", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 4, xp: 69 });
@@ -294,7 +333,7 @@ describe("YegerQuestService", () => {
     });
   });
 
-  it("replays completed second Yeger board without first-board keepsake fallback", async () => {
+  it("replays completed second Yeger board with the second keepsake reward copy", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 8, xp: 320, gold: 290 });
     world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
@@ -312,7 +351,8 @@ describe("YegerQuestService", () => {
       reward: {
         xp: 56,
         gold: 170,
-        itemGrants: []
+        itemGrants: [{ itemId: YEGER_UNQUIET_TRIAL_SECOND_REWARD.itemId, quantity: 2 }],
+        itemReplayUnavailable: true
       }
     });
   });

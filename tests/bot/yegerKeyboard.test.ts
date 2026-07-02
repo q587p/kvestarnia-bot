@@ -20,18 +20,39 @@ import {
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("Yeger keyboard", () => {
-  it("opens the quest details from the base Yeger corner", () => {
+  it("opens active quest details from the base Yeger corner", () => {
     const keyboard = buildYegerCornerKeyboard({
-      state: "completed",
+      state: "offered",
       character,
-      progress: { wins: 5, target: 5 },
-      reward
+      progress: { wins: 0, target: 5 }
     });
 
     expect(flatButtons(keyboard)[0]).toEqual({
       text: "🏹 Неспокійні справи",
       callback_data: makeYegerQuestCallbackData()
     });
+  });
+
+  it("hides the quest detail button after the board is closed", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "completed",
+      character,
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 56,
+        gold: 170,
+        itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+      }
+    });
+
+    expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
+      makeYegerQuestCallbackData()
+    );
+    expect(flatButtons(keyboard).map((button) => button.text)).toEqual([
+      "🩹 Бинти",
+      "📖 Бестіарій",
+      "🍺 До зали"
+    ]);
   });
 
   it("keeps paid Yeger bandages inside the bandages submenu", () => {
