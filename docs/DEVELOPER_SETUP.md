@@ -199,6 +199,29 @@ npm run maintenance:backfill-activity-events -- --all
 npm run maintenance:backfill-activity-events -- --apply
 ```
 
+Типовий порядок запуску:
+
+1. Переконайтесь, що процес читає правильний `DATABASE_URL`.
+2. Запустіть dry-run без `--apply`.
+3. Перевірте `planned`/`existing`/`invalid` counts.
+4. Запустіть `-- --apply` тільки для перевіреної target-БД.
+5. Перевірте результат read-only polling:
+
+```powershell
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --apply
+npm run maintenance:poll-activity-events -- --limit=13
+```
+
+Для іншої локальної SQLite БД передайте `DATABASE_URL` у цьому ж PowerShell-сеансі:
+
+```powershell
+$env:DATABASE_URL="file:./prisma/dev.db"
+npm run maintenance:backfill-activity-events
+npm run maintenance:backfill-activity-events -- --apply
+npm run maintenance:poll-activity-events -- --limit=13
+```
+
 Скрипт відновлює лише події, які можна підтягнути без вигадування історії: створення персонажів, рівні з `character_achievements`, rare/epic манатки з поточного інвентаря та Big Barrel Brother victory sessions. `combat.underdog_won` не backfill-иться, бо архівні combat rows не гарантують точний рівень персонажа на момент бою.
 
 `npm run maintenance:poll-activity-events` нічого не змінює в БД: він читає public `ActivityEvent` rows через той самий bounded feed query, який використовує runtime. Це швидка перевірка, чи хроніки вже мають нові рядки, або чи backfill/apply справді записав очікувані події.
