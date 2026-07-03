@@ -18,7 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a Yeger notch exchange after the second board: one `Єгерська риска на дощечці` can be exchanged for a `Щільний бинт`, and two notches can be exchanged for a `Польова аптечка`.
 - Added rewardless achievements for first dense-bandage craft/use, first field-kit craft/use and first medical item use in the Big Barrel raid.
 - Added a `Разові` filter button to `Манатки`, reusing the inventory filter flow so one-use consumables can be listed without equipment or junk stacks.
-- Added local `/dev_add_dense_bandage [count]` and `/dev_add_field_kit [count]` helpers for faster dense-bandage and field-kit combat QA.
+- Added local `/dev_add_dense_bandage [count]`, `/dev_add_field_kit [count]` and `/dev_add_yeger_line [count]` helpers for faster dense-bandage, field-kit and Yeger notch exchange QA.
 - Added local `/dev_yeger_first_done` and `/dev_yeger_second_done` helpers that fill the first and second Yeger boards with real terminal Yeger wins, while leaving normal turn-in rewards and achievements on the existing Yeger flow.
 
 ### Changed

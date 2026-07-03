@@ -217,6 +217,7 @@ describe("presence routing", () => {
     ["dev_add_bandage", {}],
     ["dev_add_dense_bandage", {}],
     ["dev_add_field_kit", {}],
+    ["dev_add_yeger_line", {}],
     ["dev_reset_yeger_bandage", {}],
     ["dev_reset_yeger_bandage_day", {}],
     ["dev_yeger_first_done", {}],

@@ -318,6 +318,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_add_bandage" ||
     command === "dev_add_dense_bandage" ||
     command === "dev_add_field_kit" ||
+    command === "dev_add_yeger_line" ||
     command === "dev_reset_yeger_bandage" ||
     command === "dev_reset_yeger_bandage_day" ||
     command === "dev_yeger_first_done" ||

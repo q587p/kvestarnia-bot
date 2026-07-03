@@ -68,6 +68,17 @@ describe("dev grant commands", () => {
     expect(String(yegerSecondDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи 2.0» доведено до 17/17");
   });
 
+  it("adds Yeger notch lines with default and explicit amounts", async () => {
+    const devGrant = fakeDevGrantService();
+    const defaultCalls = await captureMessageCalls("/dev_add_yeger_line", devGrant);
+    const explicitCalls = await captureMessageCalls("/dev_add_yeger_line 4", devGrant);
+
+    expect(devGrant.addYegerLines).toHaveBeenCalledWith(42n, 1);
+    expect(devGrant.addYegerLines).toHaveBeenCalledWith(42n, 4);
+    expect(String(defaultCalls.at(-1)?.payload.text)).toContain("Єгерська риска на дощечці");
+    expect(String(explicitCalls.at(-1)?.payload.text)).toContain("Єгерська риска на дощечці");
+  });
+
   it("rejects invalid amounts before mutating", async () => {
     const devGrant = fakeDevGrantService();
     const levelCalls = await captureMessageCalls("/dev_add_level 0", devGrant);
@@ -108,6 +119,14 @@ describe("dev grant commands", () => {
     );
   });
 
+  it("rejects invalid Yeger notch line amounts before mutating", async () => {
+    const devGrant = fakeDevGrantService();
+    const calls = await captureMessageCalls("/dev_add_yeger_line 0", devGrant);
+
+    expect(devGrant.addYegerLines).not.toHaveBeenCalled();
+    expect(String(calls.at(-1)?.payload.text)).toContain("/dev_add_yeger_line");
+  });
+
   it("shows active combat HP when dev heal updates a battle state", async () => {
     const devGrant = fakeDevGrantService({
       combatHeal: {
@@ -129,6 +148,7 @@ describe("dev grant commands", () => {
     const bandageCalls = await captureMessageCalls("/dev_add_bandage 5", devGrant);
     const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 2", devGrant);
     const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 3", devGrant);
+    const yegerLineCalls = await captureMessageCalls("/dev_add_yeger_line 4", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 4", devGrant);
     const yegerCalls = await captureMessageCalls("/dev_reset_yeger_bandage", devGrant);
     const yegerDayCalls = await captureMessageCalls("/dev_reset_yeger_bandage_day", devGrant);
@@ -141,6 +161,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addBandages).not.toHaveBeenCalled();
     expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
     expect(devGrant.addFieldKits).not.toHaveBeenCalled();
+    expect(devGrant.addYegerLines).not.toHaveBeenCalled();
     expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(devGrant.resetYegerBandageCooldown).not.toHaveBeenCalled();
     expect(devGrant.resetYegerBandageDay).not.toHaveBeenCalled();
@@ -152,6 +173,7 @@ describe("dev grant commands", () => {
     expect(bandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(denseBandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(fieldKitCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(yegerLineCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(manaCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerDayCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -250,6 +272,9 @@ function fakeDevGrantService(input: {
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
   >;
   addFieldKits: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
+  >;
+  addYegerLines: ReturnType<
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
   >;
   resetYegerBandageCooldown: ReturnType<
@@ -374,6 +399,19 @@ function fakeDevGrantService(input: {
         {
           itemId: "item.field-kit",
           name: "Польова аптечка",
+          quantity: amount
+        }
+      ]
+    })),
+    addYegerLines: vi.fn((_telegramUserId, amount) => Promise.resolve({
+      state: "updated",
+      kind: "items",
+      amount,
+      character,
+      itemGrants: [
+        {
+          itemId: "item.yeger.first-notch",
+          name: "Єгерська риска на дощечці",
           quantity: amount
         }
       ]

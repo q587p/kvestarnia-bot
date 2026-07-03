@@ -26,6 +26,7 @@ type DevGrantCommand =
   | "dev_add_bandage"
   | "dev_add_dense_bandage"
   | "dev_add_field_kit"
+  | "dev_add_yeger_line"
   | "dev_heal"
   | "dev_restore_mana";
 type DevGrantContext = Context & { match?: string };
@@ -90,6 +91,15 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
       devGrantService,
       "dev_add_field_kit",
       (telegramUserId, amount) => devGrantService.addFieldKits(telegramUserId, amount)
+    );
+  });
+
+  bot.command("dev_add_yeger_line", async (ctx) => {
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_yeger_line",
+      (telegramUserId, amount) => devGrantService.addYegerLines(telegramUserId, amount)
     );
   });
 

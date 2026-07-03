@@ -15,7 +15,7 @@ import { items } from "../../src/content";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
 import { DevGrantService } from "../../src/services/devGrantService";
-import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
+import { BANDAGE_ITEM_ID, YEGER_FIRST_NOTCH_ITEM_ID } from "../../src/services/itemGrant";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
 import {
   YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
@@ -278,6 +278,24 @@ describe("DevGrantService", () => {
     });
     expect(repository.calls).toContain(`items:42:${DENSE_BANDAGE_ITEM_ID}:2`);
     expect(repository.calls).toContain(`items:42:${FIELD_KIT_ITEM_ID}:3`);
+  });
+
+  it("adds Yeger notch lines directly for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addYegerLines(42n, 4)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 4,
+      itemGrants: [
+        {
+          itemId: YEGER_FIRST_NOTCH_ITEM_ID,
+          quantity: 4
+        }
+      ]
+    });
+    expect(repository.calls).toContain(`items:42:${YEGER_FIRST_NOTCH_ITEM_ID}:4`);
   });
 
   it("resets the Yeger free bandage cooldown for the current character", async () => {

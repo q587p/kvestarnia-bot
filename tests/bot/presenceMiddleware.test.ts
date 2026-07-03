@@ -232,6 +232,7 @@ describe("presence middleware", () => {
     ["/dev_add_bandage 5", "addBandages"],
     ["/dev_add_dense_bandage 2", "addDenseBandages"],
     ["/dev_add_field_kit 3", "addFieldKits"],
+    ["/dev_add_yeger_line 4", "addYegerLines"],
     ["/dev_yeger_first_done", "completeFirstYegerQuestProgress"],
     ["/dev_yeger_second_done", "completeSecondYegerQuestProgress"]
   ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
@@ -298,6 +299,20 @@ describe("presence middleware", () => {
               itemId: "item.field-kit",
               name: "Польова аптечка",
               quantity: 3
+            }]
+          });
+        },
+        addYegerLines: () => {
+          calls.push("addYegerLines");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "items" as const,
+            amount: 4,
+            character: characterRecord(),
+            itemGrants: [{
+              itemId: "item.yeger.first-notch",
+              name: "Єгерська риска на дощечці",
+              quantity: 4
             }]
           });
         },

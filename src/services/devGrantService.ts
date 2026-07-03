@@ -3,7 +3,12 @@ import type { CharacterRecord } from "../db/repositories/characterRepository";
 import type { DevGrantRepository, DevGrantYegerQuestStage } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
-import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
+import {
+  BANDAGE_ITEM_ID,
+  YEGER_FIRST_NOTCH_ITEM_ID,
+  enrichRewardItemGrants,
+  type RewardItemGrant
+} from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { AchievementService, type AchievementUnlock } from "./achievementService";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
@@ -233,6 +238,14 @@ export class DevGrantService {
       amount,
       itemId: FIELD_KIT_ITEM_ID,
       sourceKind: "dev.add_field_kit"
+    });
+  }
+
+  async addYegerLines(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+    return this.addSpecificItems(telegramUserId, {
+      amount,
+      itemId: YEGER_FIRST_NOTCH_ITEM_ID,
+      sourceKind: "dev.add_yeger_line"
     });
   }
 

@@ -8,7 +8,7 @@
 
 Manual Telegram QA status for the implementation pass: not run.
 
-Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage` and `/dev_add_field_kit` to seed the exact medical stacks needed for combat and Big Barrel checks when `DEV_GRANT_COMMANDS_ENABLED=true`. Use `/dev_yeger_first_done` and `/dev_yeger_second_done` to fill the Yeger boards with real terminal wins, then turn them in through the normal Yeger buttons.
+Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage`, `/dev_add_field_kit` and `/dev_add_yeger_line` to seed the exact medical stacks and Yeger notches needed for combat, Big Barrel and exchange checks when `DEV_GRANT_COMMANDS_ENABLED=true`. Use `/dev_yeger_first_done` and `/dev_yeger_second_done` to fill the Yeger boards with real terminal wins, then turn them in through the normal Yeger buttons.
 
 1. Open `/hunt` / the Yeger corner, then open or take the current Yeger case; verify the corner intro appears only on the corner card, no separate duplicate `Ви підійшли до єгерського кутка.` notice appears before the Yeger card or Yeger daily scene, quest cards return to `Єгерський куток`, and ordinary Yeger exits return to `Бочка`.
 1. Before completing the second Yeger `Неспокійні справи 2.0` board, open an ordinary `Бинт відповідальної паніки` item card with enough bandages and verify no advanced craft buttons appear.
@@ -784,6 +784,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_bandage [число]` — у локальному режимі додає бинти відповідальної паніки; без числа додає один бинт.
 - `/dev_add_dense_bandage [число]` — у локальному режимі додає щільні бинти; без числа додає один щільний бинт.
 - `/dev_add_field_kit [число]` — у локальному режимі додає польові аптечки; без числа додає одну аптечку.
+- `/dev_add_yeger_line [число]` — у локальному режимі додає єгерські риски на дощечці; без числа додає одну риску.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
 - `/dev_yeger_first_done` — у локальному режимі доводить першу Єгерську дошку до `5/5` реальними перемогами, лишаючи звичайну здачу квеста.
