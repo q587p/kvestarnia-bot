@@ -19,6 +19,14 @@ import {
   PRESENCE_LOCATION_KORCHMA_YARD,
   normalizePresenceLocationId
 } from "../../services/presenceService";
+import {
+  QuestMarker,
+  decorateButtonLabel,
+  resolveQuestMarkerForPresenceLocation,
+  resolveQuestMarkerForTarget,
+  stripQuestMarkerSuffix,
+  type QuestMarkerInput
+} from "./questButtonMarkers";
 
 export const mainMenuButtons = {
   hero: "👤 Персонаж",
@@ -73,22 +81,33 @@ const presenceIdByLocationButton = new Map<string, string>(
 
 export const mainMenuLocationButtonTexts: readonly string[] = [
   mainMenuButtons.tavern,
-  ...new Set(Object.values(mainMenuLocationButtons))
+  ...withQuestMarkerVariants([...new Set(Object.values(mainMenuLocationButtons))])
 ];
+
+export const mainMenuQuestButtonTexts: readonly string[] = withQuestMarkerVariants([mainMenuButtons.quest]);
 
 export interface MainMenuKeyboardOptions {
   locationId?: string | null;
   includeAdmin?: boolean;
+  questMarkers?: QuestMarkerInput | null;
 }
 
 export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Keyboard {
   const locationButton = getMainMenuLocationButtonText(options.locationId);
+  const markedLocationButton = decorateButtonLabel(
+    locationButton,
+    resolveQuestMarkerForPresenceLocation(options.questMarkers ?? undefined, options.locationId)
+  );
+  const questButton = decorateButtonLabel(
+    mainMenuButtons.quest,
+    resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "menu.quest")
+  );
 
   const keyboard = new Keyboard()
     .text(mainMenuButtons.hero)
-    .text(locationButton)
+    .text(markedLocationButton)
     .row()
-    .text(mainMenuButtons.quest)
+    .text(questButton)
     .text(mainMenuButtons.inventory)
     .row()
     .text(mainMenuButtons.participants)
@@ -116,11 +135,21 @@ export function isMainMenuLocationButtonText(text: string | undefined): boolean 
 }
 
 export function getMainMenuLocationButtonPresenceId(text: string | undefined): string | null {
-  if (!text || text === mainMenuButtons.tavern) {
+  const strippedText = text ? stripQuestMarkerSuffix(text) : undefined;
+
+  if (!strippedText || strippedText === mainMenuButtons.tavern) {
     return null;
   }
 
-  return presenceIdByLocationButton.get(text) ?? null;
+  return presenceIdByLocationButton.get(strippedText) ?? null;
+}
+
+function withQuestMarkerVariants(labels: readonly string[]): string[] {
+  return labels.flatMap((label) => [
+    label,
+    decorateButtonLabel(label, QuestMarker.CAN_ACCEPT),
+    decorateButtonLabel(label, QuestMarker.CAN_TURN_IN)
+  ]);
 }
 
 export function buildDevResetKeyboard(): InlineKeyboard {

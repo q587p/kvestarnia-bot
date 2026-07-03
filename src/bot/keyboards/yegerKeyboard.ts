@@ -26,13 +26,21 @@ import {
   makeYegerTurnInCallbackData
 } from "../callbacks/yegerCallbackData";
 import { presentYegerQuestTitle } from "../presenters/yegerQuestTitle";
+import {
+  QuestMarker,
+  decorateButtonLabel,
+  resolveQuestMarkerForTarget
+} from "./questButtonMarkers";
 
 export function buildYegerKeyboard(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
 ): InlineKeyboard {
   if (result.state === "offered") {
     return baseYegerKeyboard()
-      .text("🏹 Взяти справу", makeYegerStartCallbackData())
+      .text(
+        decorateButtonLabel("🏹 Взяти справу", QuestMarker.CAN_ACCEPT),
+        makeYegerStartCallbackData()
+      )
       .row()
       .text("📖 Кого шукати?", makeYegerHelpCallbackData())
       .row()
@@ -50,7 +58,10 @@ export function buildYegerKeyboard(
 
   if (result.state === "turn-in-ready") {
     return baseYegerKeyboard()
-      .text("🏹 Здати Єгерю", makeYegerTurnInCallbackData())
+      .text(
+        decorateButtonLabel("🏹 Здати Єгерю", resolveQuestMarkerForTarget({ yeger: result }, "quest.yeger")),
+        makeYegerTurnInCallbackData()
+      )
       .row()
       .text("📖 Кого шукати?", makeYegerHelpCallbackData())
       .row()
@@ -83,9 +94,18 @@ export function buildYegerCornerKeyboard(
   const keyboard = new InlineKeyboard();
 
   if (result.state === "turn-in-ready") {
-    keyboard.text("🏹 Здати Єгерю", makeYegerTurnInCallbackData()).row();
+    keyboard.text(
+      decorateButtonLabel("🏹 Здати Єгерю", resolveQuestMarkerForTarget({ yeger: result }, "quest.yeger")),
+      makeYegerTurnInCallbackData()
+    ).row();
   } else if (result.state !== "level-locked" && result.state !== "completed") {
-    keyboard.text(`🏹 ${presentYegerQuestTitle(result.progress)}`, makeYegerQuestCallbackData()).row();
+    keyboard.text(
+      decorateButtonLabel(
+        `🏹 ${presentYegerQuestTitle(result.progress)}`,
+        resolveQuestMarkerForTarget({ yeger: result }, "quest.yeger")
+      ),
+      makeYegerQuestCallbackData()
+    ).row();
   }
 
   if (isBaseYegerQuestCompleted(result)) {
@@ -178,7 +198,10 @@ export function buildYegerTurnInKeyboard(
 ): InlineKeyboard {
   if (result.state === "not-started") {
     return new InlineKeyboard()
-      .text("🏹 Взяти справу", makeYegerStartCallbackData())
+      .text(
+        decorateButtonLabel("🏹 Взяти справу", QuestMarker.CAN_ACCEPT),
+        makeYegerStartCallbackData()
+      )
       .row()
       .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
   }

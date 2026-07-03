@@ -162,6 +162,29 @@ describe("main menu and scene keyboards", () => {
     expect(mainMenuLocationButtons.yard).not.toBe(mainMenuButtons.tavern);
   });
 
+  it("appends quest markers to reply buttons without breaking location routing", () => {
+    const keyboard = buildMainMenuKeyboard({
+      locationId: "location.korchma.hall",
+      questMarkers: {
+        characterLevel: 4,
+        yeger: {
+          state: "turn-in-ready",
+          character,
+          progress: { wins: 5, target: 5 }
+        }
+      }
+    });
+
+    expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
+      [mainMenuButtons.hero, `${mainMenuLocationButtons.hall} ✅`],
+      [`${mainMenuButtons.quest} ✅`, mainMenuButtons.inventory],
+      [mainMenuButtons.participants, mainMenuButtons.help]
+    ]);
+    expect(getMainMenuLocationButtonPresenceId(`${mainMenuLocationButtons.hall} ✅`)).toBe(
+      "location.korchma.hall"
+    );
+  });
+
   it("builds korchma place navigation", () => {
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard())).toEqual([
       "🚪 Зайти в корчму",
@@ -2491,10 +2514,10 @@ describe("main menu and scene keyboards", () => {
         fullHubKeyboard
       )
     ).toEqual([
-      "🪧 Обрати пригоду",
-      "⚔️ До сутички",
-      "🏹 До Єгеря",
-      "🧹 У льох",
+      "🪧 Обрати пригоду 📜",
+      "⚔️ До сутички 📜",
+      "🏹 До Єгеря 📜",
+      "🧹 У льох 📜",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -2529,7 +2552,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
-      "🍻 До шинку",
+      "🍻 До шинку 📜",
       "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
@@ -2647,7 +2670,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🧹 У льох",
+      "🧹 У льох 📜",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -2676,7 +2699,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🏹 До Єгеря",
+      "🏹 До Єгеря 📜",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",

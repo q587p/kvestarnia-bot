@@ -75,17 +75,17 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду 📜",
       "🪜 До Низу",
-      "🧹 У льох",
+      "🧹 У льох 📜",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
-      { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
+      { text: "🪧 Обрати пригоду 📜", callback_data: makeQuestCallbackData("adventure") },
       { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") },
-      { text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }
+      { text: "🧹 У льох 📜", callback_data: makeQuestCallbackData("cellar") }
     ]));
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -124,7 +124,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    const dailyButton = buttons.find((button) => button.text === "🧾 Корчмарський обхід");
+    const dailyButton = buttons.find((button) => button.text === "🧾 Корчмарський обхід 📜");
     expect(dailyButton?.callback_data).toMatch(/^v1:dkr:o:\d{8}$/);
   });
 
@@ -157,8 +157,8 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🌯 До підозрілої шаурми",
-      "⚔️ До сутички",
+      "🌯 До підозрілої шаурми 📜",
+      "⚔️ До сутички 📜",
       "📦 Архів",
       "🍺 До зали"
     ]);
@@ -193,9 +193,9 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🌯 До підозрілої шаурми",
-      "⚔️ До сутички",
-      "🧹 У льох",
+      "🌯 До підозрілої шаурми 📜",
+      "⚔️ До сутички 📜",
+      "🧹 У льох 📜",
       "📦 Архів",
       "🍺 До зали"
     ]);
@@ -346,7 +346,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🧹 У льох",
+      "🧹 У льох 📜",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -396,7 +396,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду 📜",
       "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
@@ -459,9 +459,9 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду 📜",
       "🪜 До Низу",
-      "🏹 До Єгеря",
+      "🏹 До Єгеря 📜",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -590,7 +590,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(activeButtons).toEqual(expect.arrayContaining([
-      { text: "🏹 Здати Єгерю", callback_data: makeYegerTurnInCallbackData() }
+      { text: "🏹 Здати Єгерю ✅", callback_data: makeYegerTurnInCallbackData() }
     ]));
     expect(activeButtons.map((button) => button.callback_data)).not.toContain("v1:tavern:ranger");
     expect(archiveReplies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
@@ -832,7 +832,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
+    expect(buttons.map((button) => button.text)).toContain("🍻 До шинку 📜");
     expect(buttons.map((button) => button.text)).toContain("🪜 До Низу");
   });
 
@@ -862,9 +862,9 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду 📜",
       "🪜 До Низу",
-      "🧹 У льох",
+      "🧹 У льох 📜",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -1083,9 +1083,9 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🍻 До шинку",
-      "🪧 Обрати пригоду",
-      "🧹 У льох",
+      "🍻 До шинку 📜",
+      "🪧 Обрати пригоду 📜",
+      "🧹 У льох 📜",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"

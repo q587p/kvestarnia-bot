@@ -36,7 +36,7 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)[0]).toEqual({
-      text: "🏹 Неспокійні справи",
+      text: "🏹 Неспокійні справи 📜",
       callback_data: makeYegerQuestCallbackData()
     });
   });
@@ -49,7 +49,7 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)[0]).toEqual({
-      text: "🏹 Здати Єгерю",
+      text: "🏹 Здати Єгерю ✅",
       callback_data: makeYegerTurnInCallbackData()
     });
     expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
@@ -264,7 +264,7 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
-      { text: "🏹 Взяти справу", callback_data: makeYegerStartCallbackData() },
+      { text: "🏹 Взяти справу 📜", callback_data: makeYegerStartCallbackData() },
       { text: "⬅️ До єгерського кутка", callback_data: makeYegerOpenCallbackData() }
     ]));
     expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
@@ -338,7 +338,7 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)).toContainEqual({
-      text: "🏹 Неспокійні справи 2.0",
+      text: "🏹 Неспокійні справи 2.0 📜",
       callback_data: makeYegerQuestCallbackData()
     });
     expect(flatButtons(keyboard)).toContainEqual({
