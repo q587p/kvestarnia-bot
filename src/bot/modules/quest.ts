@@ -52,6 +52,7 @@ import {
 sendKorchmaBar
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
+import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
 import {
 buildAdventureApproachKeyboard,
 buildAdventureApproachHelpKeyboard,
@@ -433,11 +434,12 @@ async function handleQuestCallback(
         currentRaidId: null,
         currentAdventureId: null
       });
+      const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
       await safeEditMessageText(ctx, presentProblemQuestIssueNext(result), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildKorchmaBarKeyboard({
           ...getProblemQuestIssueNextBarKeyboardOptions(result),
-          tavernGames: Boolean(services.tavernGames?.isEnabled())
+          ...tavernGameOptions
         })
       });
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
@@ -456,10 +458,11 @@ async function handleQuestCallback(
       currentRaidId: null,
       currentAdventureId: null
     });
+    const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
     await safeEditMessageText(ctx, presentProblemQuestTurnIn(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildKorchmaBarKeyboard({
-        tavernGames: Boolean(services.tavernGames?.isEnabled()),
+        ...tavernGameOptions,
         ...(result.state === "turned-in" && result.result.nextStage
           ? { problemQuestAction: "next" }
           : {})

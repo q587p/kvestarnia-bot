@@ -216,6 +216,7 @@ export function buildKorchmaBarKeyboard(
     problemQuestAction?: "turn-in" | "take" | "next";
     bardPerformance?: boolean;
     tavernGames?: boolean;
+    tavernGameTableCount?: number;
     questMarkers?: QuestMarkerInput | null;
   } = {}
 ): InlineKeyboard {
@@ -229,7 +230,7 @@ export function buildKorchmaBarKeyboard(
     .row();
 
   if (options.tavernGames) {
-    keyboard.text("🎲 Ігри за столом", makeShynokGamesCallbackData()).row();
+    keyboard.text(formatTavernGamesButtonLabel(options.tavernGameTableCount), makeShynokGamesCallbackData()).row();
   }
 
   if (options.bardPerformance) {
@@ -419,7 +420,7 @@ export function buildKorchmaRoundOfferKeyboard(
 
 export function buildKorchmaRoundResultKeyboard(
   result: Exclude<TavernRoundResult, { state: "no-character" }>,
-  options: { tavernGames?: boolean } = {}
+  options: { tavernGames?: boolean; tavernGameTableCount?: number } = {}
 ): InlineKeyboard {
   if (result.state === "raid-required") {
     return new InlineKeyboard()
@@ -429,4 +430,8 @@ export function buildKorchmaRoundResultKeyboard(
   }
 
   return buildKorchmaBarKeyboard(options);
+}
+
+export function formatTavernGamesButtonLabel(tableCount = 0): string {
+  return `🎲 Ігри за столом (${Math.max(0, Math.trunc(tableCount))})`;
 }

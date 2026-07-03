@@ -87,6 +87,7 @@ import {
 } from "../presenters/partySessionPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
+import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 type TavernCommandKeyboard =
@@ -99,6 +100,7 @@ type TavernCommandKeyboard =
       problemQuestAction?: "turn-in" | "take" | "next";
       bardPerformance?: boolean;
       tavernGames?: boolean;
+      tavernGameTableCount?: number;
       questMarkers?: QuestMarkerInput | null;
     }
   | "front"
@@ -647,12 +649,13 @@ export async function sendKorchmaBar(
     problemQuest?.state === "ready" && result.character.level >= PROBLEM_QUEST_REQUIRED_LEVEL
       ? getProblemQuestBarActionFromProgress(problemQuest.progress)
       : undefined;
+  const tavernGameOptions = await getTavernGameButtonOptions(tavernGameService);
   const barOptions = {
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
     bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
-    tavernGames: Boolean(tavernGameService?.isEnabled()),
+    ...tavernGameOptions,
     ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers }),
     ...(problemQuestAction ? { problemQuestAction } : {})
   } as const;
@@ -901,6 +904,9 @@ async function sendText(
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn),
                   bardPerformance: Boolean(keyboard.bardPerformance),
                   tavernGames: Boolean(keyboard.tavernGames),
+                  ...(keyboard.tavernGameTableCount === undefined
+                    ? {}
+                    : { tavernGameTableCount: keyboard.tavernGameTableCount }),
                   ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }),
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })

@@ -280,7 +280,17 @@ describe("tavern command screens", () => {
       "reply",
       undefined,
       undefined,
-      { isEnabled: () => true } as Pick<TavernGameService, "isEnabled"> as TavernGameService
+      {
+        isEnabled: () => true,
+        getHub: () =>
+          Promise.resolve({
+            state: "ready",
+            maxStake: 25,
+            tavleiEnabled: true,
+            kostiEnabled: true,
+            openTables: [{}, {}]
+          })
+      } as unknown as TavernGameService
     );
 
     expect(replies[0]?.text).toContain("🍻 Шинок");
@@ -289,7 +299,7 @@ describe("tavern command screens", () => {
       reply_markup: {
         inline_keyboard: [
           ...shynokActionRows,
-          [{ text: "🎲 Ігри за столом", callback_data: "v1:sh:gm" }],
+          [{ text: "🎲 Ігри за столом (2)", callback_data: "v1:sh:gm" }],
           [
             {
               text: "⬅️ До зали",

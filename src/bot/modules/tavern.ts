@@ -61,6 +61,7 @@ sendTavernBarrel
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
 import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
+import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
 import {
 buildCellarGrownupKeyboard,
 buildCellarMethodHelpKeyboard,
@@ -272,12 +273,12 @@ async function handleShynokCallback(
 
   if (action.type === "overview") {
     const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
-    const tavernGames = Boolean(services.tavernGames?.isEnabled());
+    const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
-    await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames }), {
+    await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames: tavernGameOptions.tavernGames }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready"
-        ? buildShynokOverviewKeyboard(result, { tavernGames })
+        ? buildShynokOverviewKeyboard(result, tavernGameOptions)
         : buildBackToShynokKeyboard()
     });
     return;
@@ -1257,11 +1258,10 @@ async function handleTavernCallback(
     }
 
     await safeAnswerCallbackQuery(ctx);
+    const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
     await safeEditMessageText(ctx, presentTavernRoundResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaRoundResultKeyboard(result, {
-        tavernGames: Boolean(services.tavernGames?.isEnabled())
-      })
+      reply_markup: buildKorchmaRoundResultKeyboard(result, tavernGameOptions)
     });
     return;
   }
@@ -1552,13 +1552,14 @@ async function handleCellarGrownupCallback(
 
   await safeAnswerCallbackQuery(ctx);
   const grownupKeyboardState = getCellarGrownupKeyboardState(result);
+  const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
 
   await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     ...(action === "grownup-turn-in"
       ? {
           reply_markup: buildKorchmaBarKeyboard({
-            tavernGames: Boolean(services.tavernGames?.isEnabled())
+            ...tavernGameOptions
           })
         }
       : grownupKeyboardState

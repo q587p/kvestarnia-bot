@@ -23,6 +23,7 @@ import {
 } from "../../domain/tavernGames";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { formatTavernGamesButtonLabel } from "./tavernKeyboard";
 import {
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
@@ -58,7 +59,7 @@ import {
 
 export function buildShynokOverviewKeyboard(
   result?: ShynokOverviewResult,
-  options: { tavernGames?: boolean } = {}
+  options: { tavernGames?: boolean; tavernGameTableCount?: number } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
@@ -70,7 +71,7 @@ export function buildShynokOverviewKeyboard(
     .row();
 
   if (options.tavernGames) {
-    keyboard.text("🎲 Ігри за столом", makeShynokGamesCallbackData()).row();
+    keyboard.text(formatTavernGamesButtonLabel(options.tavernGameTableCount), makeShynokGamesCallbackData()).row();
   }
 
   if (

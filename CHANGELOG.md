@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Kept direct starter quest-table buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми` and `⚔️ До сутички`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`.
 - Marked the currently equipped item in slot-filtered inventory keyboards with a left-side `✅` icon.
 - Added available-task markers to Korchma entry buttons and a first-entry hint explaining how the marker leads to current affairs.
+- Displayed active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
