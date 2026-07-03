@@ -67,7 +67,22 @@ describe("PrismaActivityEventRepository integration", () => {
   it("lists bounded recent public rows with category and severity filters", async () => {
     const now = new Date("2026-07-02T12:00:00.000Z");
     await repository.record(makeEvent("event-1", "character.created", "adventurer", "normal", "2026-07-02T11:00:00.000Z"));
-    await repository.record(makeEvent("event-2", "item.rare_received", "manatky", "high", "2026-07-02T10:00:00.000Z"));
+    await repository.record(makeEvent(
+      "event-2",
+      "item.rare_received",
+      "manatky",
+      "high",
+      "2026-07-02T10:00:00.000Z",
+      { rarity: "rare" }
+    ));
+    await repository.record(makeEvent(
+      "event-3",
+      "item.rare_received",
+      "manatky",
+      "legendary",
+      "2026-07-02T09:30:00.000Z",
+      { rarity: "epic" }
+    ));
     await repository.record(makeEvent("event-old", "combat.underdog_won", "combat", "high", "2026-03-01T10:00:00.000Z"));
 
     const manatky = await repository.listRecent({
@@ -78,14 +93,15 @@ describe("PrismaActivityEventRepository integration", () => {
     });
     const important = await repository.listRecent({
       severities: ["high", "legendary"],
+      excludeRareManatky: true,
       pageSize: 5,
       now,
       retentionDays: 93
     });
 
     expect(manatky.events.map((event) => event.dedupeKey)).toEqual(["event-2"]);
-    expect(manatky.hasNextPage).toBe(false);
-    expect(important.events.map((event) => event.dedupeKey)).toEqual(["event-2"]);
+    expect(manatky.hasNextPage).toBe(true);
+    expect(important.events.map((event) => event.dedupeKey)).toEqual(["event-3"]);
   });
 });
 
@@ -93,8 +109,9 @@ function makeEvent(
   dedupeKey: string,
   eventType: "character.created" | "item.rare_received" | "combat.underdog_won",
   category: "adventurer" | "manatky" | "combat",
-  severity: "normal" | "high",
-  occurredAt: string
+  severity: "normal" | "high" | "legendary",
+  occurredAt: string,
+  payload?: Record<string, unknown>
 ) {
   return {
     eventType,
@@ -104,6 +121,7 @@ function makeEvent(
     sourceType: "test",
     sourceId: dedupeKey,
     dedupeKey,
+    payload,
     occurredAt: new Date(occurredAt)
   };
 }

@@ -45,10 +45,11 @@ export class ActivityEventService {
 export function filterToQuery(filter: LatestEventFilter): {
   categories?: ActivityEventCategory[] | undefined;
   severities?: ActivityEventSeverity[] | undefined;
+  excludeRareManatky?: boolean | undefined;
 } {
   switch (filter) {
     case "imp":
-      return { severities: ["high", "legendary"] };
+      return { severities: ["high", "legendary"], excludeRareManatky: true };
     case "adv":
       return { categories: ["adventurer", "progression"] };
     case "cmb":

@@ -69,7 +69,7 @@ export class PublicActivityEventPublisher {
       await this.recordSafely({
         eventType: "item.rare_received",
         category: "manatky",
-        severity: rarity === "epic" ? "legendary" : "high",
+        severity: rarity === "epic" ? "legendary" : "normal",
         actorCharacterId: input.characterId,
         actorDisplayName: input.actorDisplayName,
         subjectKind: "item",

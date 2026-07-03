@@ -77,7 +77,7 @@ describe("ActivityEventService", () => {
       itemIds: [
         "item.pan-of-persuasion",
         "item.towel-of-forty-two-answers",
-        "item.cellar.foamy-mirage-bottle"
+        "item.loot-v1-w029"
       ]
     });
 
@@ -92,11 +92,11 @@ describe("ActivityEventService", () => {
     });
     expect(repository.rows[1]).toMatchObject({
       subjectId: "item.towel-of-forty-two-answers",
-      severity: "high"
+      severity: "normal"
     });
     expect(repository.rows[2]).toMatchObject({
-      subjectId: "item.cellar.foamy-mirage-bottle",
-      severity: "high"
+      subjectId: "item.loot-v1-w029",
+      severity: "legendary"
     });
   });
 
@@ -196,6 +196,20 @@ describe("ActivityEventService", () => {
     expect(repository.lastQuery).toMatchObject({
       categories: ["combat", "raid"],
       page: 2,
+      pageSize: 15,
+      retentionDays: 93
+    });
+  });
+
+  it("keeps rare manatky out of the important latest-events filter", async () => {
+    const repository = new FakeActivityEventRepository();
+    const service = new ActivityEventService(repository);
+
+    await service.listRecent("imp");
+
+    expect(repository.lastQuery).toMatchObject({
+      severities: ["high", "legendary"],
+      excludeRareManatky: true,
       pageSize: 15,
       retentionDays: 93
     });

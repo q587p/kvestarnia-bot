@@ -65,7 +65,20 @@ export class PrismaActivityEventRepository implements ActivityEventRepository {
         visibility: "public",
         occurredAt: { gte: since },
         ...(query.categories && query.categories.length > 0 ? { category: { in: [...query.categories] } } : {}),
-        ...(query.severities && query.severities.length > 0 ? { severity: { in: [...query.severities] } } : {})
+        ...(query.severities && query.severities.length > 0 ? { severity: { in: [...query.severities] } } : {}),
+        ...(query.excludeRareManatky
+          ? {
+              NOT: [
+                {
+                  eventType: "item.rare_received",
+                  payloadJson: {
+                    path: "$.rarity",
+                    equals: "rare"
+                  }
+                }
+              ]
+            }
+          : {})
       },
       orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
       skip: page * pageSize,

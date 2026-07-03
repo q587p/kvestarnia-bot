@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Restore-to-full shortcuts remain fixed-heal only and ordinary-bandage-only in repeat-use UI.
 - Party-boss / Big Barrel item use now accepts the same combat-usable medical manatky as solo combat, including dense-bandage cooldowns and field-kit once-per-battle limits.
 - Successful dense-bandage and field-kit crafting can save 1-5 ordinary bandages based on the character's level and luck, while still requiring the full recipe stack before the craft starts.
+- The `⭐ Важливе` latest-events filter now leaves rare manatky to `🎒 Манатки` and keeps only epic manatky as important item drops.
 
 ### Safety
 - Successful crafting atomically decrements the ordinary bandage stack and grants exactly one crafted item without adding a Prisma migration.
@@ -33,7 +34,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Dense-bandage and field-kit dev helpers remain non-production only and bypass active-combat locks like the existing local bandage helper.
 
 ### Unchanged
-- Ordinary bandage healing, paid Yeger bandage purchases, shops, Social Games, Latest Events, Lore Board, Big Barrel rewards, titles, raids, trading and broad crafting are unchanged.
+- Ordinary bandage healing, paid Yeger bandage purchases, shops, Social Games, Lore Board, Big Barrel rewards, titles, raids, trading and broad crafting are unchanged.
 
 ## [0.2.21] - 12026-07-03 - Tavern Social Games
 

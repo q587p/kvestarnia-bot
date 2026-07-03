@@ -98,6 +98,48 @@ describe("backfillActivityEvents", () => {
     });
   });
 
+  it("backfills rare manatky as normal and epic manatky as legendary", async () => {
+    const store = new FakeBackfillStore();
+    store.levelAchievements = [];
+    store.partyBossSessions = [];
+    store.rareItems = [
+      {
+        id: "character-item-rare",
+        characterId: "character-1",
+        characterName: "Arden",
+        itemId: "item.towel-of-forty-two-answers",
+        createdAt: new Date("2026-07-01T10:00:00.000Z")
+      },
+      {
+        id: "character-item-epic",
+        characterId: "character-1",
+        characterName: "Arden",
+        itemId: "item.loot-v1-w029",
+        createdAt: new Date("2026-07-01T10:01:00.000Z")
+      }
+    ];
+    const recorder = new FakeBackfillRecorder();
+
+    await backfillActivityEvents({
+      store,
+      recorder,
+      apply: true
+    });
+
+    expect(recorder.events.filter((event) => event.eventType === "item.rare_received")).toEqual([
+      expect.objectContaining({
+        subjectId: "item.towel-of-forty-two-answers",
+        severity: "normal",
+        payload: { rarity: "rare" }
+      }),
+      expect.objectContaining({
+        subjectId: "item.loot-v1-w029",
+        severity: "legendary",
+        payload: { rarity: "epic" }
+      })
+    ]);
+  });
+
   it("scans source rows in batches when a batch size is provided", async () => {
     const store = new FakeBackfillStore();
     store.characters = [

@@ -60,6 +60,7 @@ export interface RecordActivityEventInput {
 export interface ListRecentActivityEventsQuery {
   categories?: readonly ActivityEventCategory[] | undefined;
   severities?: readonly ActivityEventSeverity[] | undefined;
+  excludeRareManatky?: boolean | undefined;
   page?: number | undefined;
   pageSize?: number | undefined;
   now?: Date | undefined;
