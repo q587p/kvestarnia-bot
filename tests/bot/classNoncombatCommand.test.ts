@@ -1,8 +1,18 @@
 import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
-import { makePriestHealCallbackData, makeRoguePickpocketCallbackData, parseClassNoncombatCallbackData } from "../../src/bot/callbacks/classNoncombatCallbackData";
+import {
+  makePriestBlessCallbackData,
+  makePriestHealCallbackData,
+  makeRoguePickpocketCallbackData,
+  parseClassNoncombatCallbackData
+} from "../../src/bot/callbacks/classNoncombatCallbackData";
 import { handleClassNoncombatCallback } from "../../src/bot/commands/classNoncombatCommand";
-import type { PriestHealResult, RoguePickpocketResult } from "../../src/services/classNoncombatService";
+import type {
+  ClassNoncombatOpenResult,
+  PriestBlessResult,
+  PriestHealResult,
+  RoguePickpocketResult
+} from "../../src/services/classNoncombatService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 const now = new Date("2026-07-03T09:00:00.000Z");
@@ -31,8 +41,9 @@ describe("class noncombat command", () => {
   });
 
   it("does not notify achievements for blocked Priest no-op results", async () => {
-    const { ctx, reply, sendMessage } = callbackContext();
+    const { ctx, editMessageText, reply, sendMessage } = callbackContext();
     const service = {
+      openForTelegramUser: vi.fn().mockResolvedValue(priestOpenResult()),
       healForTelegramUser: vi.fn().mockResolvedValue({
         state: "blocked",
         reason: "full-hp",
@@ -52,6 +63,53 @@ describe("class noncombat command", () => {
 
     expect(sendMessage).not.toHaveBeenCalled();
     expect(reply).not.toHaveBeenCalled();
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("HP уже повне");
+    expect(options.parse_mode).toBe("HTML");
+    expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
+      "🩹 Полікувати себе",
+      "✨ Благословити себе"
+    ]));
+  });
+
+  it("keeps Priest action buttons under already-blessed results", async () => {
+    const { ctx, editMessageText, reply, sendMessage } = callbackContext();
+    const service = {
+      openForTelegramUser: vi.fn().mockResolvedValue(priestOpenResult()),
+      blessForTelegramUser: vi.fn().mockResolvedValue({
+        state: "blocked",
+        reason: "already-blessed",
+        actor: character("Жрець", "class.priest"),
+        target: character("Жрець", "class.priest"),
+        blessing: {
+          id: "blessing-1",
+          actorName: "Жрець",
+          targetName: "Жрець",
+          expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+          bonusStat: null,
+          bonusAmount: 0
+        }
+      } satisfies PriestBlessResult)
+    };
+    const callback = parseClassNoncombatCallbackData(makePriestBlessCallbackData({
+      targetTelegramUserId: null,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      page: 0
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(ctx, callback.ok ? callback.value : neverCallback(), service as never);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(reply).not.toHaveBeenCalled();
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("На цілі вже тримається благословення");
+    expect(options.parse_mode).toBe("HTML");
+    expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
+      "🩹 Полікувати себе",
+      "✨ Благословити себе"
+    ]));
   });
 
   it("does not notify achievements or target again for Rogue duplicate replay", async () => {
@@ -97,7 +155,7 @@ describe("class noncombat command", () => {
 
 function callbackContext() {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
-  const editMessageText = vi.fn().mockResolvedValue(true);
+  const editMessageText = vi.fn<(text: string, options: EditOptions) => Promise<boolean>>().mockResolvedValue(true);
   const reply = vi.fn().mockResolvedValue(true);
   const sendMessage = vi.fn().mockResolvedValue(true);
   const ctx = {
@@ -115,6 +173,28 @@ function callbackContext() {
   } as unknown as Context;
 
   return { ctx, answerCallbackQuery, editMessageText, reply, sendMessage };
+}
+
+interface EditOptions {
+  parse_mode?: "HTML";
+  reply_markup?: {
+    inline_keyboard?: Array<Array<{ text: string }>>;
+  };
+}
+
+function firstEditCall(
+  editMessageText: ReturnType<typeof callbackContext>["editMessageText"]
+): [string, EditOptions] {
+  const call = editMessageText.mock.calls[0];
+  if (!call) {
+    throw new Error("Expected edited message.");
+  }
+
+  return call;
+}
+
+function keyboardTexts(options: EditOptions): string[] {
+  return options.reply_markup?.inline_keyboard?.flat().map((button) => button.text) ?? [];
 }
 
 function priestHealResult(): PriestHealResult {
@@ -173,6 +253,31 @@ function roguePickpocketResult(options: { created: boolean }): RoguePickpocketRe
           unlockedAt: now
         }]
       : []
+  };
+}
+
+function priestOpenResult(): ClassNoncombatOpenResult {
+  return {
+    state: "ready",
+    mode: "priest",
+    character: character("Жрець", "class.priest"),
+    locationName: "Стіл зі справами",
+    targets: [{
+      telegramUserId: targetTelegramUserId,
+      characterId: "target",
+      name: "Ціль",
+      classId: "class.warrior",
+      level: 3,
+      hpCurrent: 10,
+      hpMax: 20,
+      gold: 13,
+      remortCount: 0,
+      canPriestAid: true,
+      canRoguePickpocket: false
+    }],
+    priestHealCooldownAvailableAt: null,
+    priestBlessCooldownAvailableAt: null,
+    roguePickpocketCooldownAvailableAt: null
   };
 }
 

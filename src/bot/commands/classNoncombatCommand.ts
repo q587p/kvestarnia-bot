@@ -45,7 +45,7 @@ export async function handleClassNoncombatCallback(
       expectedActorRemortCount: callback.actorRemortCount,
       expectedTargetRemortCount: callback.targetRemortCount
     });
-    await safeEditMessageText(ctx, presentPriestHealResult(result), HTML_MESSAGE_OPTIONS);
+    await editPriestResult(ctx, service, telegramUserId, callback.page, presentPriestHealResult(result), result.state);
     if (result.state === "completed" && result.action.actorTelegramUserId !== result.action.targetTelegramUserId) {
       await notifyTarget(ctx, result.action.targetTelegramUserId, presentPriestHealTargetNotification(result));
     }
@@ -59,7 +59,7 @@ export async function handleClassNoncombatCallback(
       expectedActorRemortCount: callback.actorRemortCount,
       expectedTargetRemortCount: callback.targetRemortCount
     });
-    await safeEditMessageText(ctx, presentPriestBlessResult(result), HTML_MESSAGE_OPTIONS);
+    await editPriestResult(ctx, service, telegramUserId, callback.page, presentPriestBlessResult(result), result.state);
     if (result.state === "completed" && result.action.actorTelegramUserId !== result.action.targetTelegramUserId) {
       await notifyTarget(ctx, result.action.targetTelegramUserId, presentPriestBlessTargetNotification(result));
     }
@@ -93,6 +93,26 @@ async function editOpen(
   const result = await service.openForTelegramUser(telegramUserId, mode, page);
   const keyboard = result.state === "ready" ? buildClassNoncombatKeyboard(result, page) : undefined;
   await safeEditMessageText(ctx, presentClassNoncombatOpen(result), keyboard
+    ? { ...HTML_MESSAGE_OPTIONS, reply_markup: keyboard }
+    : HTML_MESSAGE_OPTIONS);
+}
+
+async function editPriestResult(
+  ctx: Context,
+  service: ClassNoncombatService,
+  telegramUserId: bigint,
+  page: number,
+  text: string,
+  state: "completed" | "blocked"
+): Promise<void> {
+  if (state === "completed") {
+    await safeEditMessageText(ctx, text, HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  const openResult = await service.openForTelegramUser(telegramUserId, "priest", page);
+  const keyboard = openResult.state === "ready" ? buildClassNoncombatKeyboard(openResult, page) : undefined;
+  await safeEditMessageText(ctx, text, keyboard
     ? { ...HTML_MESSAGE_OPTIONS, reply_markup: keyboard }
     : HTML_MESSAGE_OPTIONS);
 }

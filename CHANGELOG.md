@@ -38,6 +38,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, damage, victory flavor, `Винагорода за бій`, then item grants.
 - Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
+- Kept Priest action buttons under blocked no-op heal and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
