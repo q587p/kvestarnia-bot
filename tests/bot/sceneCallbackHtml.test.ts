@@ -945,7 +945,8 @@ describe("scene callback HTML options", () => {
     expect(String(message?.payload.text)).toContain(expectedText);
   });
 
-  it("opens quest-table cellar route as intro, movement, then cellar action card", async () => {
+  it("opens quest-table cellar route without duplicate cellar movement notices", async () => {
+    let currentLocationId = "location.korchma.quest_table";
     const calls = await captureApiCalls(
       makeQuestCallbackData("cellar"),
       servicesWith({
@@ -954,22 +955,29 @@ describe("scene callback HTML options", () => {
           complete: () => Promise.resolve({ state: "no-character" as const })
         },
         presence: {
-          markAction: () => Promise.resolve(),
+          markAction: (input) => {
+            currentLocationId = input.locationId;
+            return Promise.resolve();
+          },
           getCurrentPlaceForTelegramUser: () =>
             Promise.resolve({
               state: "ready" as const,
-              locationId: "location.korchma.quest_table",
-              locationName: "Стіл зі справами",
+              locationId: currentLocationId,
+              locationName: currentLocationId === "location.korchma.cellar" ? "Льох" : "Стіл зі справами",
               insideKorchma: true
             })
         }
       })
     );
     const messages = calls.filter((call) => call.method === "sendMessage");
+    const movementMessages = messages.filter((message) =>
+      String(message.payload.text).includes("Ви спустилися до льоху корчми.")
+    );
 
     expect(String(messages[0]?.payload.text)).toContain("Корчмар показує на люк під баром.");
-    expect(String(messages[1]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
-    expect(String(messages[2]?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(messages[1]?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(messages[2]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
+    expect(movementMessages).toHaveLength(1);
   });
 
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {

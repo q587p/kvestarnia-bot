@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added available-task markers to Korchma entry buttons and a first-entry hint explaining how the marker leads to current affairs.
 - Displayed active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`.
 - Changed generated adventure method complication headlines from `⚠️` to `💥` and separated injury HP lines with visible heart icons.
+- Removed the duplicate cellar movement notice when entering the cellar quest from the quest table.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
