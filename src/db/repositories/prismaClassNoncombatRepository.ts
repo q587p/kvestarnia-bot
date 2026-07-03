@@ -1,0 +1,900 @@
+import { Prisma, type Character, type PrismaClient } from "@prisma/client";
+import {
+  CLASS_NONCOMBAT_MIN_LEVEL,
+  CLASS_NONCOMBAT_RULES_VERSION,
+  PRIEST_DIRECT_BLESSING_TECHNIQUE_ID,
+  PRIEST_DIRECT_HEAL_TECHNIQUE_ID,
+  ROGUE_PICKPOCKET_TECHNIQUE_ID
+} from "../../domain/noncombat/classNoncombatTechniques";
+import {
+  getLocationName,
+  normalizePresenceLocationId
+} from "../../services/presenceService";
+import type { CharacterRecord } from "./characterRepository";
+import { getIncludedRemortCount } from "./prismaRemortCount";
+import type {
+  ClassNoncombatRepository,
+  NoncombatActionSnapshot,
+  NoncombatGateReason,
+  PriestAidRecord,
+  PriestBlessRepositoryResult,
+  PriestBlessingRecord,
+  PriestHealRepositoryResult,
+  RoguePickpocketAttemptRecord,
+  RoguePickpocketRepositoryResult
+} from "./classNoncombatRepository";
+
+type TxClient = Prisma.TransactionClient;
+
+const PRIEST_CLASS_ID = "class.priest";
+const ROGUE_CLASS_ID = "class.rogue";
+const PRIEST_HEAL_COOLDOWN_KEY = "noncombat.priest.direct-heal";
+const PRIEST_BLESS_COOLDOWN_KEY = "noncombat.priest.direct-blessing";
+const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
+
+export class PrismaClassNoncombatRepository implements ClassNoncombatRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async getSnapshotForTelegramUser(
+    telegramUserId: bigint,
+    input: { activeSince: Date; page: number; pageSize: number; now: Date }
+  ): Promise<NoncombatActionSnapshot | null> {
+    const actor = await findCharacter(this.prisma, telegramUserId);
+    if (!actor) {
+      return null;
+    }
+
+    const actorRecord = toCharacterRecord(actor);
+    const locationId = normalizePresenceLocationId(actor.user.lastSeenLocationId);
+    const [targets, healCooldown, blessCooldown, pickpocketCooldown] = await Promise.all([
+      listActiveTargets(this.prisma, actor.id, locationId, input.activeSince),
+      findCooldown(this.prisma, actor.id, PRIEST_HEAL_COOLDOWN_KEY),
+      findCooldown(this.prisma, actor.id, PRIEST_BLESS_COOLDOWN_KEY),
+      findCooldown(this.prisma, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY)
+    ]);
+    const safePageSize = Math.max(1, Math.min(50, Math.trunc(input.pageSize)));
+    const start = Math.max(0, Math.trunc(input.page)) * safePageSize;
+
+    return {
+      character: actorRecord,
+      targets: targets.slice(start, start + safePageSize),
+      locationId,
+      locationName: getLocationName(locationId),
+      priestHealCooldownAvailableAt: healCooldown?.availableAt && healCooldown.availableAt > input.now
+        ? healCooldown.availableAt
+        : null,
+      priestBlessCooldownAvailableAt: blessCooldown?.availableAt && blessCooldown.availableAt > input.now
+        ? blessCooldown.availableAt
+        : null,
+      roguePickpocketCooldownAvailableAt: pickpocketCooldown?.availableAt && pickpocketCooldown.availableAt > input.now
+        ? pickpocketCooldown.availableAt
+        : null
+    };
+  }
+
+  async completePriestHeal(
+    actorTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["completePriestHeal"]>[1]
+  ): Promise<PriestHealRepositoryResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const gate = await loadAndValidatePriestTarget(tx, actorTelegramUserId, {
+          targetTelegramUserId: input.targetTelegramUserId,
+          expectedActorRemortCount: input.expectedActorRemortCount,
+          expectedTargetRemortCount: input.expectedTargetRemortCount,
+          activeSince: input.activeSince,
+          now: input.now
+        });
+        if (gate.state === "blocked") {
+          return gate;
+        }
+
+        const { actor, target, actorRecord, targetRecord, locationId } = gate;
+        if (target.hpCurrent >= target.hpMax) {
+          return { state: "blocked", reason: "full-hp", actor: actorRecord, target: targetRecord };
+        }
+        if (actor.manaCurrent < input.manaCost) {
+          return { state: "blocked", reason: "insufficient-mana", actor: actorRecord, target: targetRecord };
+        }
+
+        const cooldown = await claimCooldown(tx, actor.id, PRIEST_HEAL_COOLDOWN_KEY, input.now, input.cooldownAvailableAt);
+        if (cooldown.state === "cooldown") {
+          return {
+            state: "blocked",
+            reason: "cooldown",
+            actor: actorRecord,
+            target: targetRecord,
+            availableAt: cooldown.availableAt
+          };
+        }
+
+        const hpAfter = Math.min(target.hpMax, target.hpCurrent + input.healAmount);
+        const spent = input.manaCost;
+        const mutated = actor.id === target.id
+          ? await tx.character.updateMany({
+              where: {
+                id: actor.id,
+                hpCurrent: actor.hpCurrent,
+                manaCurrent: actor.manaCurrent
+              },
+              data: {
+                hpCurrent: hpAfter,
+                manaCurrent: actor.manaCurrent - spent,
+                hpRegenAt: hpAfter >= target.hpMax ? input.now : target.hpRegenAt,
+                manaRegenAt: actor.manaRegenAt ?? input.now
+              }
+            })
+          : await mutatePriestHealPair(tx, actor, target, hpAfter, spent, input.now);
+        if (mutated.count !== 1) {
+          throw new ResourceRaceError();
+        }
+
+        const action = await tx.noncombatPriestAidAction.create({
+          data: {
+            actorCharacterId: actor.id,
+            targetCharacterId: target.id,
+            actorTelegramUserId,
+            targetTelegramUserId: target.user.telegramUserId,
+            actorName: actor.name,
+            targetName: target.name,
+            actorRemortCount: actorRecord.remortCount ?? 0,
+            targetRemortCount: targetRecord.remortCount ?? 0,
+            actionKind: "heal",
+            techniqueId: PRIEST_DIRECT_HEAL_TECHNIQUE_ID,
+            rulesVersion: CLASS_NONCOMBAT_RULES_VERSION,
+            locationId,
+            status: "completed",
+            healAmount: hpAfter - target.hpCurrent,
+            manaCost: spent,
+            resultJson: toJson({
+              statSnapshot: input.statSnapshot,
+              hpBefore: target.hpCurrent,
+              hpAfter,
+              manaBefore: actor.manaCurrent,
+              manaAfter: actor.manaCurrent - spent
+            }),
+            cooldownAvailableAt: input.cooldownAvailableAt,
+            completedAt: input.now
+          }
+        });
+        await setCooldownResult(tx, cooldown.id, {
+          actionId: action.id,
+          techniqueId: PRIEST_DIRECT_HEAL_TECHNIQUE_ID,
+          cooldownAvailableAt: input.cooldownAvailableAt.toISOString()
+        });
+
+        return {
+          state: "completed",
+          action: mapPriestAid(action),
+          actor: toCharacterRecord(await findCharacterByIdOrThrow(tx, actor.id)),
+          target: toCharacterRecord(await findCharacterByIdOrThrow(tx, target.id)),
+          created: true
+        };
+      });
+    } catch (error) {
+      if (error instanceof ResourceRaceError || isUniqueConstraintError(error)) {
+        return { state: "blocked", reason: "stale" };
+      }
+      throw error;
+    }
+  }
+
+  async completePriestBlessing(
+    actorTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["completePriestBlessing"]>[1]
+  ): Promise<PriestBlessRepositoryResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const gate = await loadAndValidatePriestTarget(tx, actorTelegramUserId, {
+          targetTelegramUserId: input.targetTelegramUserId,
+          expectedActorRemortCount: input.expectedActorRemortCount,
+          expectedTargetRemortCount: input.expectedTargetRemortCount,
+          activeSince: input.activeSince,
+          now: input.now
+        });
+        if (gate.state === "blocked") {
+          return gate;
+        }
+
+        const { actor, target, actorRecord, targetRecord, locationId } = gate;
+        if (actor.manaCurrent < input.manaCost) {
+          return { state: "blocked", reason: "insufficient-mana", actor: actorRecord, target: targetRecord };
+        }
+
+        await expireBlessings(tx, target.id, input.now);
+        const existingBlessing = mapBlessing(await tx.noncombatPriestBlessing.findFirst({
+          where: { targetCharacterId: target.id, status: "active", expiresAt: { gt: input.now } },
+          orderBy: { startedAt: "desc" }
+        }));
+        if (existingBlessing) {
+          return {
+            state: "blocked",
+            reason: "already-blessed",
+            actor: actorRecord,
+            target: targetRecord,
+            blessing: existingBlessing
+          };
+        }
+
+        const cooldown = await claimCooldown(tx, actor.id, PRIEST_BLESS_COOLDOWN_KEY, input.now, input.cooldownAvailableAt);
+        if (cooldown.state === "cooldown") {
+          return {
+            state: "blocked",
+            reason: "cooldown",
+            actor: actorRecord,
+            target: targetRecord,
+            availableAt: cooldown.availableAt
+          };
+        }
+
+        const actorUpdate = await tx.character.updateMany({
+          where: { id: actor.id, manaCurrent: actor.manaCurrent },
+          data: {
+            manaCurrent: actor.manaCurrent - input.manaCost,
+            manaRegenAt: actor.manaRegenAt ?? input.now
+          }
+        });
+        if (actorUpdate.count !== 1) {
+          throw new ResourceRaceError();
+        }
+
+        const blessing = await tx.noncombatPriestBlessing.create({
+          data: {
+            actorCharacterId: actor.id,
+            targetCharacterId: target.id,
+            actorTelegramUserId,
+            targetTelegramUserId: target.user.telegramUserId,
+            actorName: actor.name,
+            targetName: target.name,
+            actorRemortCount: actorRecord.remortCount ?? 0,
+            targetRemortCount: targetRecord.remortCount ?? 0,
+            techniqueId: PRIEST_DIRECT_BLESSING_TECHNIQUE_ID,
+            rulesVersion: CLASS_NONCOMBAT_RULES_VERSION,
+            locationId,
+            status: "active",
+            activeGuard: target.id,
+            bonusStat: null,
+            bonusAmount: 0,
+            resultJson: toJson({
+              statSnapshot: input.statSnapshot,
+              manaBefore: actor.manaCurrent,
+              manaAfter: actor.manaCurrent - input.manaCost,
+              gameplayStatHook: "deferred"
+            }),
+            startedAt: input.now,
+            expiresAt: input.expiresAt
+          }
+        });
+        const action = await tx.noncombatPriestAidAction.create({
+          data: {
+            actorCharacterId: actor.id,
+            targetCharacterId: target.id,
+            actorTelegramUserId,
+            targetTelegramUserId: target.user.telegramUserId,
+            actorName: actor.name,
+            targetName: target.name,
+            actorRemortCount: actorRecord.remortCount ?? 0,
+            targetRemortCount: targetRecord.remortCount ?? 0,
+            actionKind: "blessing",
+            techniqueId: PRIEST_DIRECT_BLESSING_TECHNIQUE_ID,
+            rulesVersion: CLASS_NONCOMBAT_RULES_VERSION,
+            locationId,
+            status: "completed",
+            healAmount: 0,
+            manaCost: input.manaCost,
+            blessingId: blessing.id,
+            resultJson: toJson({
+              blessingId: blessing.id,
+              statSnapshot: input.statSnapshot,
+              gameplayStatHook: "deferred"
+            }),
+            cooldownAvailableAt: input.cooldownAvailableAt,
+            completedAt: input.now
+          }
+        });
+        await setCooldownResult(tx, cooldown.id, {
+          actionId: action.id,
+          blessingId: blessing.id,
+          techniqueId: PRIEST_DIRECT_BLESSING_TECHNIQUE_ID,
+          cooldownAvailableAt: input.cooldownAvailableAt.toISOString()
+        });
+
+        return {
+          state: "completed",
+          action: mapPriestAid(action),
+          blessing: mapBlessing(blessing)!,
+          actor: toCharacterRecord(await findCharacterByIdOrThrow(tx, actor.id)),
+          target: toCharacterRecord(await findCharacterByIdOrThrow(tx, target.id)),
+          created: true
+        };
+      });
+    } catch (error) {
+      if (error instanceof ResourceRaceError || isUniqueConstraintError(error)) {
+        return { state: "blocked", reason: "stale" };
+      }
+      throw error;
+    }
+  }
+
+  async completeRoguePickpocket(
+    actorTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["completeRoguePickpocket"]>[1]
+  ): Promise<RoguePickpocketRepositoryResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const gate = await loadAndValidateRogueTarget(tx, actorTelegramUserId, input);
+        if (gate.state === "blocked") {
+          return gate;
+        }
+
+        const { actor, target, actorRecord, targetRecord, locationId } = gate;
+        const existing = await tx.noncombatRoguePickpocketAttempt.findUnique({
+          where: {
+            actorCharacterId_targetCharacterId_localDate: {
+              actorCharacterId: actor.id,
+              targetCharacterId: target.id,
+              localDate: input.localDate
+            }
+          }
+        });
+        if (existing) {
+          return {
+            state: "completed",
+            attempt: mapRogueAttempt(existing),
+            actor: actorRecord,
+            target: targetRecord,
+            created: false
+          };
+        }
+
+        const cooldown = await claimCooldown(tx, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY, input.now, input.cooldownAvailableAt);
+        if (cooldown.state === "cooldown") {
+          return {
+            state: "blocked",
+            reason: "cooldown",
+            actor: actorRecord,
+            target: targetRecord,
+            availableAt: cooldown.availableAt
+          };
+        }
+
+        let outcome = input.outcome;
+        let stolenGold = Math.max(0, Math.min(13, target.gold, input.stolenGold));
+        let actorHpAfter: number | null = null;
+        if (input.stolenGold > 0 && stolenGold <= 0) {
+          outcome = "empty";
+        }
+
+        if (stolenGold > 0) {
+          const debit = await tx.character.updateMany({
+            where: { id: target.id, gold: { gte: stolenGold } },
+            data: { gold: { decrement: stolenGold } }
+          });
+          if (debit.count === 1) {
+            await tx.character.update({
+              where: { id: actor.id },
+              data: { gold: { increment: stolenGold } }
+            });
+          } else {
+            outcome = "empty";
+            stolenGold = 0;
+          }
+        }
+
+        if (outcome === "caught-badly") {
+          await tx.character.update({
+            where: { id: actor.id },
+            data: { hpCurrent: 0, hpRegenAt: input.now }
+          });
+          actorHpAfter = 0;
+        }
+
+        const attempt = await tx.noncombatRoguePickpocketAttempt.create({
+          data: {
+            actorCharacterId: actor.id,
+            targetCharacterId: target.id,
+            actorTelegramUserId,
+            targetTelegramUserId: target.user.telegramUserId,
+            actorName: actor.name,
+            targetName: target.name,
+            actorRemortCount: actorRecord.remortCount ?? 0,
+            targetRemortCount: targetRecord.remortCount ?? 0,
+            techniqueId: ROGUE_PICKPOCKET_TECHNIQUE_ID,
+            rulesVersion: CLASS_NONCOMBAT_RULES_VERSION,
+            locationId,
+            localDate: input.localDate,
+            status: "completed",
+            outcome,
+            stolenGold,
+            actorHpAfter,
+            statSnapshotJson: toJson(input.statSnapshot),
+            resultJson: toJson({
+              outcome,
+              stolenGold,
+              actorHpAfter,
+              statSnapshot: input.statSnapshot
+            }),
+            cooldownAvailableAt: input.cooldownAvailableAt,
+            completedAt: input.now
+          }
+        });
+        await setCooldownResult(tx, cooldown.id, {
+          attemptId: attempt.id,
+          techniqueId: ROGUE_PICKPOCKET_TECHNIQUE_ID,
+          cooldownAvailableAt: input.cooldownAvailableAt.toISOString()
+        });
+
+        return {
+          state: "completed",
+          attempt: mapRogueAttempt(attempt),
+          actor: toCharacterRecord(await findCharacterByIdOrThrow(tx, actor.id)),
+          target: toCharacterRecord(await findCharacterByIdOrThrow(tx, target.id)),
+          created: true
+        };
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        const replay = await this.replayRogueAttempt(actorTelegramUserId, input);
+        return replay ?? { state: "blocked", reason: "stale" };
+      }
+      throw error;
+    }
+  }
+
+  private async replayRogueAttempt(
+    actorTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["completeRoguePickpocket"]>[1]
+  ): Promise<RoguePickpocketRepositoryResult | null> {
+    const actor = await findCharacter(this.prisma, actorTelegramUserId);
+    const target = await findCharacter(this.prisma, input.targetTelegramUserId);
+    if (!actor || !target) {
+      return null;
+    }
+    const attempt = await this.prisma.noncombatRoguePickpocketAttempt.findUnique({
+      where: {
+        actorCharacterId_targetCharacterId_localDate: {
+          actorCharacterId: actor.id,
+          targetCharacterId: target.id,
+          localDate: input.localDate
+        }
+      }
+    });
+
+    return attempt
+      ? {
+          state: "completed",
+          attempt: mapRogueAttempt(attempt),
+          actor: toCharacterRecord(actor),
+          target: toCharacterRecord(target),
+          created: false
+        }
+      : null;
+  }
+}
+
+async function loadAndValidatePriestTarget(
+  tx: TxClient,
+  actorTelegramUserId: bigint,
+  input: {
+    targetTelegramUserId: bigint | null;
+    expectedActorRemortCount: number;
+    expectedTargetRemortCount: number;
+    activeSince: Date;
+    now: Date;
+  }
+) {
+  const actor = await findCharacter(tx, actorTelegramUserId);
+  if (!actor) {
+    return { state: "blocked" as const, reason: "no-character" as const };
+  }
+  const target = input.targetTelegramUserId === null
+    ? actor
+    : await findCharacter(tx, input.targetTelegramUserId);
+  const gate = validateSharedTarget(actor, target, input, { allowSelf: true });
+  if (gate) {
+    return gate;
+  }
+  const actorRecord = toCharacterRecord(actor);
+  const targetRecord = toCharacterRecord(target!);
+  if (actor.classId !== PRIEST_CLASS_ID) {
+    return { state: "blocked" as const, reason: "not-priest" as const, actor: actorRecord, target: targetRecord };
+  }
+  if (Math.max(actor.level, actorRecord.level) < CLASS_NONCOMBAT_MIN_LEVEL) {
+    return { state: "blocked" as const, reason: "level-locked" as const, actor: actorRecord, target: targetRecord };
+  }
+
+  return {
+    state: "ready" as const,
+    actor,
+    target: target!,
+    actorRecord,
+    targetRecord,
+    locationId: normalizePresenceLocationId(actor.user.lastSeenLocationId)
+  };
+}
+
+async function loadAndValidateRogueTarget(
+  tx: TxClient,
+  actorTelegramUserId: bigint,
+  input: {
+    targetTelegramUserId: bigint;
+    expectedActorRemortCount: number;
+    expectedTargetRemortCount: number;
+    activeSince: Date;
+  }
+) {
+  const actor = await findCharacter(tx, actorTelegramUserId);
+  if (!actor) {
+    return { state: "blocked" as const, reason: "no-character" as const };
+  }
+  const target = await findCharacter(tx, input.targetTelegramUserId);
+  const gate = validateSharedTarget(actor, target, input, { allowSelf: false });
+  if (gate) {
+    return gate;
+  }
+  const actorRecord = toCharacterRecord(actor);
+  const targetRecord = toCharacterRecord(target!);
+  if (actor.classId !== ROGUE_CLASS_ID) {
+    return { state: "blocked" as const, reason: "not-rogue" as const, actor: actorRecord, target: targetRecord };
+  }
+  if (Math.max(actor.level, actorRecord.level) < CLASS_NONCOMBAT_MIN_LEVEL) {
+    return { state: "blocked" as const, reason: "level-locked" as const, actor: actorRecord, target: targetRecord };
+  }
+  if (Math.max(target!.level, targetRecord.level) < CLASS_NONCOMBAT_MIN_LEVEL) {
+    return { state: "blocked" as const, reason: "target-level-locked" as const, actor: actorRecord, target: targetRecord };
+  }
+  if (actor.hpCurrent <= 0) {
+    return { state: "blocked" as const, reason: "actor-defeated" as const, actor: actorRecord, target: targetRecord };
+  }
+
+  return {
+    state: "ready" as const,
+    actor,
+    target: target!,
+    actorRecord,
+    targetRecord,
+    locationId: normalizePresenceLocationId(actor.user.lastSeenLocationId)
+  };
+}
+
+function validateSharedTarget(
+  actor: IncludedCharacter,
+  target: IncludedCharacter | null,
+  input: {
+    expectedActorRemortCount: number;
+    expectedTargetRemortCount: number;
+    activeSince: Date;
+  },
+  options: { allowSelf: boolean }
+): { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord } | null {
+  const actorRecord = toCharacterRecord(actor);
+  if (!target) {
+    return { state: "blocked", reason: "target-not-found", actor: actorRecord };
+  }
+  const targetRecord = toCharacterRecord(target);
+  if (!options.allowSelf && actor.id === target.id) {
+    return { state: "blocked", reason: "self-target", actor: actorRecord, target: targetRecord };
+  }
+  if ((actorRecord.remortCount ?? 0) !== input.expectedActorRemortCount) {
+    return { state: "blocked", reason: "actor-remort-mismatch", actor: actorRecord, target: targetRecord };
+  }
+  if ((targetRecord.remortCount ?? 0) !== input.expectedTargetRemortCount) {
+    return { state: "blocked", reason: "target-remort-mismatch", actor: actorRecord, target: targetRecord };
+  }
+  const actorLocation = normalizePresenceLocationId(actor.user.lastSeenLocationId);
+  const targetLocation = normalizePresenceLocationId(target.user.lastSeenLocationId);
+  if (actorLocation !== targetLocation) {
+    return { state: "blocked", reason: "wrong-location", actor: actorRecord, target: targetRecord };
+  }
+  if (actor.id !== target.id && (!target.user.lastActionAt || target.user.lastActionAt < input.activeSince)) {
+    return { state: "blocked", reason: "target-inactive", actor: actorRecord, target: targetRecord };
+  }
+  if (isBlocked(actor)) {
+    return { state: "blocked", reason: "actor-blocked", actor: actorRecord, target: targetRecord };
+  }
+  if (isBlocked(target)) {
+    return { state: "blocked", reason: "target-blocked", actor: actorRecord, target: targetRecord };
+  }
+
+  return null;
+}
+
+async function mutatePriestHealPair(
+  tx: TxClient,
+  actor: IncludedCharacter,
+  target: IncludedCharacter,
+  hpAfter: number,
+  manaCost: number,
+  now: Date
+): Promise<{ count: number }> {
+  const actorUpdate = await tx.character.updateMany({
+    where: { id: actor.id, manaCurrent: actor.manaCurrent },
+    data: {
+      manaCurrent: actor.manaCurrent - manaCost,
+      manaRegenAt: actor.manaRegenAt ?? now
+    }
+  });
+  if (actorUpdate.count !== 1) {
+    return { count: 0 };
+  }
+  return tx.character.updateMany({
+    where: { id: target.id, hpCurrent: target.hpCurrent },
+    data: {
+      hpCurrent: hpAfter,
+      hpRegenAt: hpAfter >= target.hpMax ? now : target.hpRegenAt
+    }
+  });
+}
+
+async function claimCooldown(
+  tx: TxClient,
+  characterId: string,
+  key: string,
+  now: Date,
+  availableAt: Date
+): Promise<{ state: "claimed"; id: string } | { state: "cooldown"; availableAt: Date }> {
+  const existing = await tx.characterCooldown.findUnique({
+    where: { characterId_key: { characterId, key } }
+  });
+  if (existing && existing.availableAt > now) {
+    return { state: "cooldown", availableAt: existing.availableAt };
+  }
+  if (existing) {
+    const updated = await tx.characterCooldown.updateMany({
+      where: { id: existing.id, availableAt: { lte: now } },
+      data: { availableAt }
+    });
+    if (updated.count !== 1) {
+      return { state: "cooldown", availableAt: existing.availableAt };
+    }
+    return { state: "claimed", id: existing.id };
+  }
+
+  const created = await tx.characterCooldown.create({
+    data: { characterId, key, availableAt }
+  });
+  return { state: "claimed", id: created.id };
+}
+
+async function setCooldownResult(tx: TxClient, id: string, resultJson: unknown): Promise<void> {
+  await tx.characterCooldown.update({
+    where: { id },
+    data: { resultJson: toJson(resultJson) }
+  });
+}
+
+function toJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
+}
+
+async function expireBlessings(tx: TxClient, targetCharacterId: string, now: Date): Promise<void> {
+  await tx.noncombatPriestBlessing.updateMany({
+    where: {
+      targetCharacterId,
+      status: "active",
+      expiresAt: { lte: now }
+    },
+    data: {
+      status: "expired",
+      activeGuard: null,
+      endedAt: now
+    }
+  });
+}
+
+async function findCooldown(client: TxClient | PrismaClient, characterId: string, key: string) {
+  return client.characterCooldown.findUnique({
+    where: { characterId_key: { characterId, key } }
+  });
+}
+
+async function listActiveTargets(
+  client: PrismaClient,
+  actorCharacterId: string,
+  locationId: string,
+  activeSince: Date
+) {
+  const locationIds = getPresenceLocationQueryIds(locationId);
+  const users = await client.user.findMany({
+    where: {
+      lastSeenLocationId: { in: locationIds },
+      lastActionAt: { gte: activeSince },
+      character: { is: { id: { not: actorCharacterId } } }
+    },
+    include: {
+      character: { include: remortCountInclude }
+    },
+    orderBy: { lastActionAt: "desc" }
+  });
+
+  return users.flatMap((user) =>
+    user.character
+      ? [{
+          telegramUserId: user.telegramUserId,
+          characterId: user.character.id,
+          name: user.character.name,
+          classId: user.character.classId,
+          level: user.character.level,
+          hpCurrent: user.character.hpCurrent,
+          hpMax: user.character.hpMax,
+          gold: user.character.gold,
+          remortCount: getIncludedRemortCount(user.character)
+        }]
+      : []
+  );
+}
+
+function getPresenceLocationQueryIds(locationId: string): string[] {
+  const normalized = normalizePresenceLocationId(locationId);
+  if (normalized === "location.korchma.front") {
+    return ["location.korchma.front", "location.korchma.hall"];
+  }
+  if (normalized === "location.korchma.deep.level1") {
+    return ["location.korchma.deep.level1", "location.korchma.cellar"];
+  }
+  return [normalized];
+}
+
+function isBlocked(character: IncludedCharacter): boolean {
+  return Boolean(character.activeCombatLease || character.user.currentRaidId || character.user.currentAdventureId);
+}
+
+type IncludedCharacter = Character & {
+  user: {
+    telegramUserId: bigint;
+    lastSeenLocationId: string | null;
+    lastActionAt: Date | null;
+    currentRaidId: string | null;
+    currentAdventureId: string | null;
+  };
+  activeCombatLease: { kind: string; referenceId: string } | null;
+  _count?: { remorts?: number };
+};
+
+const remortCountInclude = {
+  _count: {
+    select: {
+      remorts: true
+    }
+  }
+} satisfies Prisma.CharacterInclude;
+
+const characterInclude = {
+  user: {
+    select: {
+      telegramUserId: true,
+      lastSeenLocationId: true,
+      lastActionAt: true,
+      currentRaidId: true,
+      currentAdventureId: true
+    }
+  },
+  activeCombatLease: {
+    select: {
+      kind: true,
+      referenceId: true
+    }
+  },
+  ...remortCountInclude
+} satisfies Prisma.CharacterInclude;
+
+async function findCharacter(client: TxClient | PrismaClient, telegramUserId: bigint): Promise<IncludedCharacter | null> {
+  return client.character.findFirst({
+    where: { user: { telegramUserId } },
+    include: characterInclude
+  });
+}
+
+async function findCharacterByIdOrThrow(client: TxClient, characterId: string): Promise<IncludedCharacter> {
+  return client.character.findUniqueOrThrow({
+    where: { id: characterId },
+    include: characterInclude
+  });
+}
+
+function toCharacterRecord(character: IncludedCharacter): CharacterRecord {
+  const { user, activeCombatLease, ...record } = character;
+  void activeCombatLease;
+  delete (record as { _count?: unknown })._count;
+
+  return {
+    ...record,
+    currentLocationId: user.lastSeenLocationId,
+    remortCount: getIncludedRemortCount(character)
+  };
+}
+
+function mapPriestAid(row: {
+  id: string;
+  actorCharacterId: string;
+  targetCharacterId: string;
+  actorTelegramUserId: bigint;
+  targetTelegramUserId: bigint;
+  actorName: string;
+  targetName: string;
+  actionKind: string;
+  healAmount: number;
+  manaCost: number;
+  cooldownAvailableAt: Date;
+  completedAt: Date;
+}): PriestAidRecord {
+  return {
+    id: row.id,
+    actorCharacterId: row.actorCharacterId,
+    targetCharacterId: row.targetCharacterId,
+    actorTelegramUserId: row.actorTelegramUserId,
+    targetTelegramUserId: row.targetTelegramUserId,
+    actorName: row.actorName,
+    targetName: row.targetName,
+    actionKind: row.actionKind === "blessing" ? "blessing" : "heal",
+    healAmount: row.healAmount,
+    manaCost: row.manaCost,
+    cooldownAvailableAt: row.cooldownAvailableAt,
+    completedAt: row.completedAt
+  };
+}
+
+function mapBlessing(row: {
+  id: string;
+  actorName: string;
+  targetName: string;
+  expiresAt: Date;
+  bonusStat: string | null;
+  bonusAmount: number;
+} | null): PriestBlessingRecord | null {
+  return row
+    ? {
+        id: row.id,
+        actorName: row.actorName,
+        targetName: row.targetName,
+        expiresAt: row.expiresAt,
+        bonusStat: row.bonusStat,
+        bonusAmount: row.bonusAmount
+      }
+    : null;
+}
+
+function mapRogueAttempt(row: {
+  id: string;
+  actorCharacterId: string;
+  targetCharacterId: string;
+  actorTelegramUserId: bigint;
+  targetTelegramUserId: bigint;
+  actorName: string;
+  targetName: string;
+  outcome: string;
+  stolenGold: number;
+  actorHpAfter: number | null;
+  cooldownAvailableAt: Date;
+  completedAt: Date;
+}): RoguePickpocketAttemptRecord {
+  return {
+    id: row.id,
+    actorCharacterId: row.actorCharacterId,
+    targetCharacterId: row.targetCharacterId,
+    actorTelegramUserId: row.actorTelegramUserId,
+    targetTelegramUserId: row.targetTelegramUserId,
+    actorName: row.actorName,
+    targetName: row.targetName,
+    outcome: row.outcome === "clean-success" ||
+      row.outcome === "noticed-success" ||
+      row.outcome === "noticed-failure" ||
+      row.outcome === "caught-badly"
+      ? row.outcome
+      : "empty",
+    stolenGold: row.stolenGold,
+    actorHpAfter: row.actorHpAfter,
+    cooldownAvailableAt: row.cooldownAvailableAt,
+    completedAt: row.completedAt
+  };
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+class ResourceRaceError extends Error {
+  constructor() {
+    super("Class noncombat resource mutation lost an optimistic race.");
+  }
+}

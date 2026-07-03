@@ -3,11 +3,13 @@ import { type CallbackParseResult, registerParsedCallbackRoute } from "../callba
 import { parseDuelCallbackData } from "../callbacks/duelCallbackData";
 import { parseItemGiftCallbackData } from "../callbacks/itemGiftCallbackData";
 import { parseItemPostalCallbackData } from "../callbacks/itemPostalCallbackData";
+import { parseClassNoncombatCallbackData } from "../callbacks/classNoncombatCallbackData";
 import { parseNearbyDuelCallbackData } from "../callbacks/nearbyDuelCallbackData";
 import { parsePartySessionCallbackData } from "../callbacks/partySessionCallbackData";
 import { handleDuelCallback, registerDuelCommand } from "../commands/duelCommand";
 import { handleItemGiftCallback } from "../commands/itemGiftCommand";
 import { handleItemPostalCallback } from "../commands/itemPostalCommand";
+import { handleClassNoncombatCallback } from "../commands/classNoncombatCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
 import { handlePartySessionCallback, registerPartySessionDevCommand } from "../commands/partySessionCommand";
 import { playerFromContext } from "../context";
@@ -103,6 +105,20 @@ export function registerSocialBotModule(
         duel: service,
         tavernRaid: services.tavern
       });
+    }
+  );
+
+  registerParsedCallbackRoute(
+    bot,
+    /^v1:nc:/,
+    (data) => parseWhenAvailable(data, parseClassNoncombatCallbackData, services.classNoncombat),
+    async (ctx, { callback, service }) => {
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit"))) {
+        return;
+      }
+
+      await handleClassNoncombatCallback(ctx, callback, service);
     }
   );
 

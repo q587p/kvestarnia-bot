@@ -2,6 +2,8 @@
 
 This started as a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. `0.2.5` now ships the first narrow runtime proof: Bard Performance solo in Shynok or in any other current location with another active same-location character, plus Shynok-only house payout. Keep the rest as planning input for future narrow `0.2.x+` tasks after the current branch is merged and `main` is refreshed.
 
+`0.2.25` ships the second narrow runtime proof: level 3+ Priest direct heal/blessing and level 3+ Rogue same-location pickpocket. This intentionally changes older planning assumptions: Priest aid is direct rather than an accept/decline offer in this MVP, and tightly bounded player-targeted Rogue gold theft is allowed with durable replay, private notifications and no public shame feed.
+
 ## Product Goal
 
 Non-combat techniques should give players reasons to:
@@ -85,6 +87,8 @@ Example: a Priest offers a blessing or heal to a nearby player.
 - resource mutation happens only after accept;
 - mana spend, heal and XP/result ledger are one replay-safe transition.
 
+`0.2.25` exception: Priest direct aid is not an offer flow. A level 3+ Priest can heal or bless self or an active same-location target directly outside combat. Mana/cooldown are spent only after a successful durable mutation, failed/full-HP/already-blessed/stale attempts do not mutate, and another target receives a private best-effort notification after the stored result exists.
+
 ### Performance / Local Event
 
 Example: a Bard performs for active nearby characters in the current location.
@@ -105,6 +109,8 @@ Example: a Rogue pocket-theatre challenge.
 - non-lethal failure;
 - audit and replay;
 - not a first release.
+
+`0.2.25` exception: Rogue pickpocket MVP allows tightly bounded forced same-location gold theft. It is actor-target/day scoped, actor-cooldown gated, target-level protected, private, replay-safe and capped at tiny gold amounts. It never steals items, creates gold, counts as trade/gift/quest/hunt/combat progress or emits a public shame/feed row. Caught-badly sets Rogue HP to `0` but adds no extra caught cooldown beyond the normal 93-minute pickpocket cooldown.
 
 ### Information Action
 
@@ -232,16 +238,16 @@ Shipped in `0.2.5`:
 
 ### Priest Community Blessing
 
-Status: near, after Bard proves same-location offers.
+Status: shipped in `0.2.25` as direct Priest aid, not an offer flow.
 
 - level 3+ Priest;
-- self plus one consenting nearby target;
-- Shynok or Korchma hall;
+- self plus one active nearby target;
+- any current location covered by same-location presence;
 - 93-minute cooldown;
-- atomic mana cost and HP heal after accept;
+- atomic mana cost and HP heal after durable validation;
 - no over-heal;
 - no target in active combat;
-- small role-action XP for the actor on a completed useful blessing;
+- no XP in the MVP;
 - no gold, item, group heal or forced mutation.
 
 Suggested calculation:
@@ -258,6 +264,13 @@ manaCost = max(
 )
 ```
 
+Shipped behavior:
+
+- direct heal uses the formula above and sends a private target notification only after success;
+- direct blessing creates one visible non-stacking `priest.blessing` status for 93 minutes;
+- blessing currently stores `bonusStat = null` and `bonusAmount = 0`; a real `+1 luck` or other effective-stat hook is deferred until a shared timed-status/stat architecture exists;
+- remort, location, activity, combat/raid/passage/party/duel blocking flows and duplicate callbacks fail closed.
+
 ### Race And Signature Techniques
 
 - add stable signature ids;
@@ -268,7 +281,7 @@ manaCost = max(
 
 ### Rogue NPC Practice
 
-Ship before any player theft.
+Superseded by the `0.2.25` Rogue pickpocket MVP for the first Rogue noncombat slice. NPC practice can still be a later lower-friction training/economy slice.
 
 - level 3+;
 - Korchma/market-like scene;
@@ -281,7 +294,7 @@ Ship before any player theft.
 - non-lethal failure;
 - no real player target.
 
-Player-targeted Rogue tricks are later and opt-in only.
+Player-targeted Rogue item theft, broad PvP, markets and public shame/failure feeds remain later and out of scope.
 
 ### Informational Techniques
 

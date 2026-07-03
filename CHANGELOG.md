@@ -7,6 +7,39 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.25] - 12026-07-03 - Class Noncombat Priest and Rogue Techniques
+
+### Added
+- Added level 3+ Priest direct aid outside combat: `✨ Жрецька поміч` opens from `Хто поруч`, supports self/active same-location targets, and can heal with mana or create a direct blessing without an accept/decline offer flow.
+- Added the preserved Priest heal formula with no overheal and mana/cooldown spend only after a successful durable mutation.
+- Added a visible non-stacking 93-minute Priest blessing status. The gameplay stat hook is intentionally deferred; stored blessing rows currently use `bonusStat = null` and `bonusAmount = 0`.
+- Added level 3+ Rogue `🗡️ Тиха кишеня` from `Хто поруч` for active same-location targets with target level protection, once-per-actor-target Kyiv-day replay, a 93-minute actor cooldown after every resolved attempt and stored deterministic outcomes.
+- Added Rogue outcomes for clean success, noticed success, empty/no opportunity, noticed failure and caught badly. Caught badly sets Rogue HP to `0` through the character resource row and does not create an extra caught cooldown.
+- Added private best-effort target notifications after successful Priest heal/blessing and relevant Rogue pickpocket outcomes.
+- Added rewardless achievements for first Priest heal, first Priest blessing, first Rogue pickpocket attempt, first successful pickpocket and first caught-badly outcome.
+- Added class noncombat callback, keyboard, presenter, service and repository slices with `v1:nc` callback routing.
+- Added Prisma tables for Priest aid actions, Priest blessings and Rogue pickpocket attempts.
+
+### Changed
+- Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
+- Updated `📖 Перекази` class entries for Priest and Rogue to mention the new noncombat behavior.
+- Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
+
+### Safety
+- Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
+- Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start cooldown.
+- Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
+- Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking.
+- No public shame/latest-events row, PvP tournament, item theft, universal noncombat engine, combat ability rebalance or paid advantage ships here.
+- No local `/dev_*` helper ships for this slice; the task doc records the decision and focused tests cover cooldown/day replay gates.
+
+### Tests
+- Added domain tests for Priest heal math and deterministic Rogue amount/outcome shaping.
+- Added callback parser tests for `v1:nc` open/action payloads and stale-click remort counters.
+- Added service tests for Priest heal/blessing planning, Rogue deterministic planning, duplicate replay and achievement hooks.
+- Added Prisma repository integration tests for atomic Rogue gold movement, no-gold empty outcomes, duplicate replay and caught-badly HP mutation.
+- Added online/presence routing tests for the `Хто поруч` discovery surface and neutral `v1:nc` callback presence.
+
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
 
 ### Changed

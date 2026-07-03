@@ -8,6 +8,7 @@ import { AdventureService } from "../services/adventureService";
 import { BardPerformanceService } from "../services/bardPerformanceService";
 import { CellarErrandService } from "../services/cellarErrandService";
 import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
+import { ClassNoncombatService } from "../services/classNoncombatService";
 import { CombatBalanceAnalyticsService } from "../services/combatBalanceAnalyticsService";
 import { DeployNotificationService } from "../services/deployNotificationService";
 import { DevGrantService } from "../services/devGrantService";
@@ -95,6 +96,7 @@ export function createServices(
       repositories.dailyActions,
       repositories.cooldowns
     ),
+    classNoncombat: new ClassNoncombatService(repositories.classNoncombat, undefined, undefined, achievements),
     dailyKorchmaRound: new DailyKorchmaRoundService(
       repositories.characters,
       repositories.dailyActions,

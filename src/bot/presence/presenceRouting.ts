@@ -78,6 +78,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data.startsWith("v1:nc:")) {
+    return {};
+  }
+
   if (data.startsWith("v1:hunt:")) {
     return {};
   }

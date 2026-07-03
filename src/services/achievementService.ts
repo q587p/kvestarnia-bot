@@ -691,6 +691,11 @@ function getRecalculationProgress(
     case "item.gift.received":
     case "mantok.sale.completed":
     case "bard.performance.completed":
+    case "priest.heal.completed":
+    case "priest.blessing.completed":
+    case "rogue.pickpocket.attempted":
+    case "rogue.pickpocket.success":
+    case "rogue.pickpocket.caught":
     case "yeger.free-bandage.claimed":
     case "shynok.drink.activated":
     case "passage.search.completed":
@@ -793,6 +798,11 @@ function getRecalculationOccurredAt(
     case "item.gift.received":
     case "mantok.sale.completed":
     case "bard.performance.completed":
+    case "priest.heal.completed":
+    case "priest.blessing.completed":
+    case "rogue.pickpocket.attempted":
+    case "rogue.pickpocket.success":
+    case "rogue.pickpocket.caught":
     case "yeger.free-bandage.claimed":
     case "shynok.drink.activated":
     case "passage.search.completed":
@@ -888,6 +898,11 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "item.gift.received":
     case "mantok.sale.completed":
     case "bard.performance.completed":
+    case "priest.heal.completed":
+    case "priest.blessing.completed":
+    case "rogue.pickpocket.attempted":
+    case "rogue.pickpocket.success":
+    case "rogue.pickpocket.caught":
     case "yeger.free-bandage.claimed":
     case "shynok.drink.activated":
     case "passage.search.completed":

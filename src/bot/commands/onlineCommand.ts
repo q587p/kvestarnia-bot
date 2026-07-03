@@ -7,6 +7,7 @@ import {
 import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
+import { makeClassNoncombatOpenCallbackData } from "../callbacks/classNoncombatCallbackData";
 import { makeNearbyDuelOpenCallbackData } from "../callbacks/nearbyDuelCallbackData";
 import {
   makePartySessionJoinCallbackData,
@@ -29,6 +30,7 @@ const HTML_MESSAGE_OPTIONS = {
 
 export interface OnlineCommandOptions {
   bardPerformanceEnabled?: boolean;
+  classNoncombatEnabled?: boolean;
   duelEnabled?: boolean;
   itemGiftEnabled?: boolean;
   partySessions?: PartySessionService | undefined;
@@ -84,8 +86,9 @@ async function buildNearbyActionsKeyboard(
   openTavernGameTables: readonly TavernGameSessionRecord[] = []
 ): Promise<InlineKeyboard | null> {
   const hasNearby = hasOtherActiveNearby(snapshot, telegramUserId);
+  const canUseClassNoncombat = Boolean(options.classNoncombatEnabled && isEligibleClassNoncombat(snapshot, telegramUserId));
 
-  if (!hasNearby && recruitingParties.length === 0 && openTavernGameTables.length === 0) {
+  if (!hasNearby && !canUseClassNoncombat && recruitingParties.length === 0 && openTavernGameTables.length === 0) {
     return null;
   }
 
@@ -122,6 +125,16 @@ async function buildNearbyActionsKeyboard(
 
   if (hasNearby && options.bardPerformanceEnabled && isEligibleNearbyBard(snapshot, telegramUserId)) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
+    hasActions = true;
+  }
+
+  if (options.classNoncombatEnabled && isEligibleNearbyPriest(snapshot, telegramUserId)) {
+    keyboard.text("✨ Жрецька поміч", makeClassNoncombatOpenCallbackData("priest")).row();
+    hasActions = true;
+  }
+
+  if (hasNearby && options.classNoncombatEnabled && isEligibleNearbyRogue(snapshot, telegramUserId)) {
+    keyboard.text("🗡️ Тиха кишеня", makeClassNoncombatOpenCallbackData("rogue")).row();
     hasActions = true;
   }
 
@@ -169,14 +182,43 @@ function isEligibleNearbyBard(
   snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
   telegramUserId: bigint
 ): boolean {
+  const self = findSelf(snapshot, telegramUserId);
+  return self?.classId === "class.bard" && (self.level ?? 0) >= 3;
+}
+
+function isEligibleClassNoncombat(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+): boolean {
+  return isEligibleNearbyPriest(snapshot, telegramUserId) || isEligibleNearbyRogue(snapshot, telegramUserId);
+}
+
+function isEligibleNearbyPriest(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+): boolean {
+  const self = findSelf(snapshot, telegramUserId);
+  return self?.classId === "class.priest" && (self.level ?? 0) >= 3;
+}
+
+function isEligibleNearbyRogue(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+): boolean {
+  const self = findSelf(snapshot, telegramUserId);
+  return self?.classId === "class.rogue" && (self.level ?? 0) >= 3;
+}
+
+function findSelf(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+) {
   if (snapshot.state !== "ready") {
-    return false;
+    return null;
   }
 
-  const self = [...snapshot.location.people.active, ...snapshot.location.people.idle]
-    .find((person) => person.telegramUserId === telegramUserId);
-
-  return self?.classId === "class.bard" && (self.level ?? 0) >= 3;
+  return [...snapshot.location.people.active, ...snapshot.location.people.idle]
+    .find((person) => person.telegramUserId === telegramUserId) ?? null;
 }
 
 function hasOtherActiveNearby(

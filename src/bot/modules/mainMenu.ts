@@ -129,6 +129,7 @@ export function registerMainMenuKeyboard(
 
     await sendOnline(ctx, services.presence, {
       bardPerformanceEnabled: Boolean(services.bardPerformance),
+      classNoncombatEnabled: Boolean(services.classNoncombat),
       duelEnabled: Boolean(services.duel),
       itemGiftEnabled: Boolean(services.itemTransfers),
       partySessions: services.partySessions,

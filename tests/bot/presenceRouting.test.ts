@@ -59,6 +59,7 @@ describe("presence routing", () => {
     ["v1:adv:mimic:poke", {}],
     ["v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:1:attack", {}],
     ["v1:spar:open", {}],
+    ["v1:nc:o:p:0", {}],
     ["v1:hunt:view:12026-06-16T08:abc123", {}],
     ["v1:ygr:track", {}],
     ["v1:item:inventory", {}],
