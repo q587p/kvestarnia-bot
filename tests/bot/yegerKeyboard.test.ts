@@ -215,6 +215,33 @@ describe("Yeger keyboard", () => {
     ]));
   });
 
+  it("offers unlocked bandage crafts from the Yeger bandages submenu", () => {
+    const denseRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "dense")!;
+    const kitRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "kit")!;
+    const bandages = buildYegerBandagesKeyboard(
+      {
+        state: "completed",
+        character,
+        progress: { wins: 17, target: 17, stageId: "second" },
+        reward
+      },
+      {
+        craftOptions: [denseRecipe, kitRecipe].map((recipe) => ({ recipe }))
+      }
+    );
+
+    expect(flatButtons(bandages)).toEqual(expect.arrayContaining([
+      {
+        text: denseRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("dense")
+      },
+      {
+        text: kitRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("kit")
+      }
+    ]));
+  });
+
   it("can label an affordable paid-bandage confirmation quantity", () => {
     const token = "123e4567-e89b-42d3-a456-426614174000";
     const keyboard = buildYegerBandagePurchaseKeyboard(token, { confirmLabel: "✅ Купити 5" });

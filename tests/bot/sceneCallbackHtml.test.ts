@@ -49,6 +49,7 @@ import {
 } from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import {
+  makeYegerBandagesCallbackData,
   makeYegerOpenCallbackData,
   makeYegerTrackCallbackData,
   makeYegerTurnInCallbackData
@@ -1730,6 +1731,39 @@ describe("scene callback HTML options", () => {
               summary: {
                 availableNotches: 0,
                 options: []
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(getCraftOptionsForTelegramUser).toHaveBeenCalledWith(42n, "item.responsible-panic-bandage");
+    expect(keyboard).toContain("v1:craft:p:dense");
+    expect(keyboard).toContain("v1:craft:p:kit");
+  });
+
+  it("offers craft shortcuts from the Yeger bandages submenu when craft options are available", async () => {
+    const getCraftOptionsForTelegramUser = vi.fn(() =>
+      Promise.resolve(ITEM_CRAFT_RECIPES.map((recipe) => ({ recipe })))
+    );
+    const calls = await captureApiCalls(
+      makeYegerBandagesCallbackData(),
+      servicesWith({
+        itemCraft: {
+          getCraftOptionsForTelegramUser
+        },
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              progress: { wins: 17, target: 17, stageId: "second" as const },
+              reward: {
+                xp: 56,
+                gold: 170,
+                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Р„РіРµСЂСЊРєР° СЂРёСЃРєР° РЅР° РґРѕС‰РµС‡С†С–", quantity: 2 }]
               }
             })
         }

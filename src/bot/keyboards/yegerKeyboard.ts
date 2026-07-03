@@ -103,7 +103,8 @@ export function buildYegerCornerKeyboard(
 }
 
 export function buildYegerBandagesKeyboard(
-  result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
+  result: Exclude<YegerQuestLookupResult, { state: "no-character" }>,
+  options: { craftOptions?: ItemCraftOption[] } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -112,6 +113,7 @@ export function buildYegerBandagesKeyboard(
     keyboard.text("🩹 5 бинтів", makeYegerBuyBandageCallbackData(5)).row();
     keyboard.text("🩹 17 бинтів", makeYegerBuyBandageCallbackData(17));
     keyboard.text("🩹 93 бинти", makeYegerBuyBandageCallbackData(93)).row();
+    addCraftButtons(keyboard, options.craftOptions ?? []);
     if (result.character.classId === "class.ranger") {
       if (result.rangerBandage?.state === "available") {
         keyboard.text("🧰 5 єгерських бинтів", makeYegerFreeBandageCallbackData("bandage")).row();
