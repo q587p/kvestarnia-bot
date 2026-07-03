@@ -90,6 +90,73 @@ describe("PrismaEquipmentRepository integration", () => {
     });
   });
 
+  it("reports only one changed equip for concurrent duplicate same-item writes", async () => {
+    const results = await Promise.all([
+      repository.equipForCharacterAtomically({
+        characterId,
+        slot: "weapon",
+        itemId: "item.pan-of-persuasion"
+      }),
+      repository.equipForCharacterAtomically({
+        characterId,
+        slot: "weapon",
+        itemId: "item.pan-of-persuasion"
+      })
+    ]);
+    const rows = await prisma.characterEquipment.findMany({
+      where: { characterId },
+      orderBy: { slot: "asc" }
+    });
+
+    expect(results.map((result) => result.changed).sort()).toEqual([false, true]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion"
+    });
+  });
+
+  it("clears a conflicting hand in the same atomic equip write", async () => {
+    await prisma.characterEquipment.createMany({
+      data: [
+        {
+          characterId,
+          slot: "weapon",
+          itemId: "item.pan-of-persuasion"
+        },
+        {
+          characterId,
+          slot: "offhand",
+          itemId: "item.stamp-of-minor-authority"
+        }
+      ]
+    });
+
+    const result = await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.test-twohand-ladle",
+      clearSlot: "offhand"
+    });
+    const rows = await prisma.characterEquipment.findMany({
+      where: { characterId },
+      orderBy: { slot: "asc" }
+    });
+
+    expect(result).toMatchObject({
+      changed: true,
+      record: {
+        slot: "weapon",
+        itemId: "item.test-twohand-ladle"
+      }
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.test-twohand-ladle"
+    });
+  });
+
   it("clears both canonical chest and legacy armor rows on chest unequip", async () => {
     await prisma.characterEquipment.createMany({
       data: [

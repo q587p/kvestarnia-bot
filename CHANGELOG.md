@@ -28,6 +28,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the `0.2.24` task doc with compact balance rationale, protected-flow checklist and deterministic combat probe summary.
 
 ### Fixed
+- Concurrent duplicate same-item equip callbacks now rely on an atomic equipment write result before emitting the equipment achievement event, so rapid double taps cannot over-count the hidden `93` successful-equips progress.
+- Confirmed twohand replacements now clear the conflicting hand and equip the target item inside one equipment repository transaction.
 - Remort confirmation now emits the live `remort.completed` achievement hook and the new race/class identity hook exactly once, so remorted characters receive current-life race/class achievements without waiting for manual `🔎 Перевірити` recalculation.
 
 ### Safety

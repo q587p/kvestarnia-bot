@@ -389,12 +389,17 @@ export class EquipmentService {
       }
     }
 
-    if (twohandPrompt && options.confirmTwohand === true) {
-      await this.equipment.unequipForCharacter(snapshot.characterId, twohandPrompt.clearedSlot);
-    }
-
-    const equipped = await this.equipment.equipForCharacter(snapshot.characterId, slot, itemId);
-    const changedEquippedItem = replacedItem?.itemId !== itemId;
+    const equipResult = await this.equipForCharacter({
+      characterId: snapshot.characterId,
+      slot,
+      itemId,
+      ...(replacedItem ? { previousItemId: replacedItem.itemId } : {}),
+      ...(twohandPrompt && options.confirmTwohand === true
+        ? { clearSlot: twohandPrompt.clearedSlot }
+        : {})
+    });
+    const equipped = equipResult.record;
+    const changedEquippedItem = equipResult.changed;
     const achievementUnlocks = changedEquippedItem
       ? (await this.achievements?.trackEventSafely({
           type: "equipment.item_equipped",
@@ -424,6 +429,29 @@ export class EquipmentService {
       ...(twohandPrompt ? { clearedHandItem: twohandPrompt.clearedItem } : {}),
       slots: buildSlots(nextRows),
       achievementUnlocks
+    };
+  }
+
+  private async equipForCharacter(input: {
+    characterId: string;
+    slot: EquipmentSlot;
+    itemId: string;
+    previousItemId?: string;
+    clearSlot?: EquipmentSlot;
+  }): Promise<{ record: CharacterEquipmentRecord; changed: boolean }> {
+    if (this.equipment.equipForCharacterAtomically) {
+      return this.equipment.equipForCharacterAtomically(input);
+    }
+
+    if (input.clearSlot) {
+      await this.equipment.unequipForCharacter(input.characterId, input.clearSlot);
+    }
+
+    const record = await this.equipment.equipForCharacter(input.characterId, input.slot, input.itemId);
+
+    return {
+      record,
+      changed: input.previousItemId !== input.itemId
     };
   }
 

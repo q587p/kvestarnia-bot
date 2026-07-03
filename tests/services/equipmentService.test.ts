@@ -7,6 +7,7 @@ import type {
 import type {
   CharacterEquipmentRecord,
   CharacterEquipmentSnapshot,
+  EquipForCharacterResult,
   EquipmentRepository,
   EquipmentSlot
 } from "../../src/db/repositories/equipmentRepository";
@@ -643,6 +644,40 @@ describe("EquipmentService", () => {
     expect(track).toHaveBeenCalledTimes(1);
   });
 
+  it("tracks one achievement event for concurrent duplicate same-item equip callbacks", async () => {
+    const inventoryRows = [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })];
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const achievements = {
+      trackEventSafely: () => Promise.resolve([])
+    } as Pick<AchievementService, "trackEventSafely">;
+    const track = vi.spyOn(achievements, "trackEventSafely");
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository(inventoryRows),
+      undefined,
+      achievements as AchievementService
+    );
+
+    const [first, second] = await Promise.all([
+      service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion"),
+      service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion")
+    ]);
+
+    expect(first).toMatchObject({
+      state: "equipped",
+      slot: "weapon"
+    });
+    expect(second).toMatchObject({
+      state: "equipped",
+      slot: "weapon"
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(track).toHaveBeenCalledTimes(1);
+  });
+
   it("reads legacy armor equipment rows through the chest slot", async () => {
     const service = createService({
       snapshot: {
@@ -837,6 +872,36 @@ class FakeEquipmentRepository implements EquipmentRepository {
       row
     ];
     return Promise.resolve(row);
+  }
+
+  equipForCharacterAtomically(input: {
+    characterId: string;
+    slot: EquipmentSlot;
+    itemId: string;
+    clearSlot?: EquipmentSlot;
+  }): Promise<EquipForCharacterResult> {
+    if (input.clearSlot) {
+      this.rows = this.rows.filter((row) => normalizeEquipmentSlot(row.slot) !== input.clearSlot);
+    }
+
+    const existing = this.rows.find((row) => normalizeEquipmentSlot(row.slot) === input.slot);
+    const changed = existing?.itemId !== input.itemId;
+    const row = {
+      ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot: input.slot })),
+      characterId: input.characterId,
+      slot: input.slot,
+      itemId: input.itemId
+    };
+
+    this.rows = [
+      ...this.rows.filter((candidate) => normalizeEquipmentSlot(candidate.slot) !== input.slot),
+      row
+    ];
+
+    return Promise.resolve({
+      record: row,
+      changed
+    });
   }
 
   unequipForCharacter(_characterId: string, slot: EquipmentSlot): Promise<boolean> {
