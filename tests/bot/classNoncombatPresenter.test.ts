@@ -185,6 +185,27 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("Наступна спроба: <i>93 хвилини</i>.");
   });
 
+  it("names Rogue cooldown blockers and bolds the wait", () => {
+    const text = presentRoguePickpocketResult({
+      state: "blocked",
+      reason: "cooldown",
+      availableAt: new Date("2026-07-03T10:32:00.000Z"),
+      actor: {
+        id: "rogue-1",
+        name: "Злодій"
+      },
+      target: {
+        id: "target-1",
+        name: "Сусід"
+      }
+    } as unknown as RoguePickpocketResult);
+
+    expect(text).toContain("🗡️ <b>Пальці ще відсапуються</b>");
+    expect(text).toContain("Після попередньої кишенькової пригоди треба зачекати ще <b>92 хвилини</b>.");
+    expect(text).not.toContain("Кишеня не піддалася");
+    expect(text).not.toContain("Техніка відсапується");
+  });
+
   it("uses reason-specific Priest blocked headings", () => {
     const healText = presentPriestHealResult({
       state: "blocked",

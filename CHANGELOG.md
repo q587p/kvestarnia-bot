@@ -42,7 +42,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Removed the noncombat Priest heal cooldown; direct healing is now limited by missing HP and mana, while direct blessing keeps the 93-minute actor cooldown.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
-- Rogue pickpocket result cards now italicize the next-attempt wait, and fresh Rogue target lists hide targets already attempted by that Rogue on the current Kyiv day.
+- Rogue pickpocket result cards now italicize the next-attempt wait, cooldown blockers name the finger-rest wait directly with bold remaining time, and fresh Rogue target lists hide targets already attempted by that Rogue on the current Kyiv day.
 - Kept Priest action buttons under blocked no-op heal, blessing cooldown and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, cooldown and repeated blessing blockers.
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
 - Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.

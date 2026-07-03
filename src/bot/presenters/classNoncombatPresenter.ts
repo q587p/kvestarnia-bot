@@ -101,6 +101,10 @@ export function presentPriestBlessResult(result: PriestBlessResult): string {
 
 export function presentRoguePickpocketResult(result: RoguePickpocketResult): string {
   if (result.state === "blocked") {
+    if (result.reason === "cooldown") {
+      return presentRogueCooldownBlocked(result.availableAt);
+    }
+
     return presentBlocked("🗡️", "Кишеня не піддалася", result.reason, result.availableAt);
   }
 
@@ -124,6 +128,16 @@ export function presentRoguePickpocketResult(result: RoguePickpocketResult): str
     outcome === "caught-badly" ? "HP злодія: <b>0</b>." : "",
     `Наступна спроба: <i>${formatRemaining(result.attempt.cooldownAvailableAt)}</i>.${replayLine}`
   ].filter(Boolean).join("\n");
+}
+
+function presentRogueCooldownBlocked(availableAt?: Date): string {
+  return [
+    "🗡️ <b>Пальці ще відсапуються</b>",
+    "",
+    availableAt
+      ? `Після попередньої кишенькової пригоди треба зачекати ще <b>${formatRemaining(availableAt)}</b>.`
+      : "Після попередньої кишенькової пригоди пальцям треба трохи відсапатись."
+  ].join("\n");
 }
 
 export function presentPriestHealTargetNotification(result: Extract<PriestHealResult, { state: "completed" }>): string {
