@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.2.23`.
+- Current package version in this repository snapshot: `0.2.24`.
 
 ## Language split
 
@@ -87,6 +87,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/tasks/future-deploy-notification-visti.md` — shipped `0.2.19` private deploy/update notification wording as `вісти`, with the latest release title, first narrative paragraph, `/news` archive and channel link.
 
 - `docs/tasks/0.2.23-mantok-equipment-slot-foundation.md` — canonical manatka equipment slots are `weapon`, `offhand`, `head`, `chest`, `legs`, `accessory` and `tool`; item content can declare explicit `equipmentSlot`, validation rejects equipment slots on non-equipment, starter gear declares precise slots, generated Loot Expansion tool gear routes to `tool`, legacy stored `armor` rows read/unequip through `chest`, and new chest equips clean up old `armor` keys. Inventory/equipment filters and item-detail/equip-result copy expose slot and replacement consequences, occupied equipment rows pair `Показати ...` and `Зняти ...` on one keyboard row, offhand empty copy/icon stays neutral instead of implying a shield-only slot, and the Big Barrel raid quick-use combat item button says `🎒 1 разові манатки` instead of implying only the ordinary bandage can use that route. This slice does not rebalance stats, values, drops, shops, transfers, remort, Mantok Chest or combat formulas and adds no achievements.
+- `docs/tasks/0.2.24-mantok-balance-audit.md` — Mantok balance audit on top of the slot foundation: generated Loot Expansion v1 equipment now declares canonical slots, source base stats and `+N` enhancement tiers produce visible monotonic stat growth inside each practical family, rare crit-bearing weapons expose small visible `luck` identity, very cheap authored trophy equipment is capped to trophy-scale power, and focused effective-stat/combat/protected-flow regressions cover the tuning. Ordinary consumables, medical item behavior, item ids, reward tables, shops, transfers, remort, Mantok Chest, combat formulas, achievements and two-handed/offhand mechanics remain unchanged.
 
 ## Code map
 
@@ -209,7 +210,7 @@ For Telegram/gameplay changes, always consider:
 - `0.0.x` foundation is closed after `0.0.30`.
 - `0.1.x` is closed after `0.1.25` unless an emergency hotfix is needed.
 - Phase 2 direction stays Social Combat & Interactions, not a group-raid-first roadmap; the first shipped MVP is closed, and expansion continues in `0.2.x`.
-- `0.2.0` safe gifting, `0.2.1` multi-enemy foundation, `0.2.2` architecture stabilization, `0.2.3` threat escalation, `0.2.4` item tags / one-use bandages, `0.2.5` Bard Performance, `0.2.6` Passage Search, `0.2.7` Player Abilities, `0.2.8` Achievements/Cosmetic Title Records, `0.2.9` Daily Korchma Rounds, `0.2.10` Active Cosmetic Title Selection, `0.2.11` Combat Balance / Monster Signature Proof, `0.2.12` Two-Enemy Threat Simulation / Outlier Tuning, `0.2.13` Postal Manatka Delivery, `0.2.14` Adventure Quest Readability / Local Failure, `0.2.15` Party Session Foundation, `0.2.16` Party Vs One Boss MVP, `0.2.17` Big Barrel Brother Raid MVP, `0.2.18` Lore Board MVP, the combined `0.2.19` trophy/Yeger/deploy-notification slice, `0.2.20` Latest Events Feed MVP and `0.2.21` flagged Tavern Social Games slice are shipped `0.2.x` slices; next `0.2.x` work should stay similarly narrow unless the task doc says otherwise.
+- `0.2.0` safe gifting, `0.2.1` multi-enemy foundation, `0.2.2` architecture stabilization, `0.2.3` threat escalation, `0.2.4` item tags / one-use bandages, `0.2.5` Bard Performance, `0.2.6` Passage Search, `0.2.7` Player Abilities, `0.2.8` Achievements/Cosmetic Title Records, `0.2.9` Daily Korchma Rounds, `0.2.10` Active Cosmetic Title Selection, `0.2.11` Combat Balance / Monster Signature Proof, `0.2.12` Two-Enemy Threat Simulation / Outlier Tuning, `0.2.13` Postal Manatka Delivery, `0.2.14` Adventure Quest Readability / Local Failure, `0.2.15` Party Session Foundation, `0.2.16` Party Vs One Boss MVP, `0.2.17` Big Barrel Brother Raid MVP, `0.2.18` Lore Board MVP, the combined `0.2.19` trophy/Yeger/deploy-notification slice, `0.2.20` Latest Events Feed MVP, `0.2.21` flagged Tavern Social Games, `0.2.22` Dense Bandage and Field Kit, `0.2.23` Mantok Equipment Slot Foundation and `0.2.24` Mantok Balance Audit slices are shipped `0.2.x` slices; next `0.2.x` work should stay similarly narrow unless the task doc says otherwise.
 - Real PvP, trading, fuller raid mechanics, shops, crafting, and ґільдії remain small future slices unless a task explicitly targets one. Mini App UI is not a current planned slice.
 
 ## Do not promise as shipped

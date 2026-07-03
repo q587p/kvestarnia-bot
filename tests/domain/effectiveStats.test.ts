@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findLootExpansionVariantByItemId } from "../../src/content/lootExpansionV1";
 import { buildEffectiveCharacterStats } from "../../src/domain/progression/effectiveStats";
 import type { CharacterStats } from "../../src/domain/characters/starterStats";
 
@@ -186,6 +187,43 @@ describe("buildEffectiveCharacterStats", () => {
       hpMax: 26,
       manaCurrent: 3,
       manaMax: 13
+    });
+  });
+
+  it("applies tuned generated equipment bonuses to effective combat stats", () => {
+    const weapon = findLootExpansionVariantByItemId("item.loot-v1-w001-plus-1")?.item;
+    const armor = findLootExpansionVariantByItemId("item.loot-v1-a001-plus-1")?.item;
+
+    expect(weapon?.effect).toMatchObject({ weaponDamage: 3 });
+    expect(armor?.effect).toMatchObject({ armor: 2, hpMax: 3 });
+
+    const result = buildEffectiveCharacterStats(
+      input({
+        level: 1,
+        equipment: [
+          {
+            itemId: weapon?.id ?? "missing-weapon",
+            itemName: weapon?.name ?? "Missing weapon",
+            effect: weapon?.effect
+          },
+          {
+            itemId: armor?.id ?? "missing-armor",
+            itemName: armor?.name ?? "Missing armor",
+            effect: armor?.effect
+          }
+        ]
+      })
+    );
+
+    expect(result).toMatchObject({
+      hpCurrent: 11,
+      hpMax: 23,
+      manaMax: 10,
+      equipmentEffects: {
+        hpMax: 3,
+        armor: 2,
+        weaponDamage: 3
+      }
     });
   });
 });

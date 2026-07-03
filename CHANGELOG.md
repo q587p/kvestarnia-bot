@@ -7,6 +7,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
+
+### Changed
+- Rebalanced generated Loot Expansion v1 equipment effects so source package base stats and `+N` enhancement tiers produce visible stat differences instead of many higher-price variants repeating the same `+0` power.
+- Generated weapons now scale from their source `damage` band, and crit-bearing generated weapons expose a small `luck` identity instead of being only expensive low-damage variants.
+- Generated armor now declares the canonical `chest` equipment slot and scales armor/HP more clearly by enhancement.
+- Generated accessories and tools keep visible utility-stat identity with monotonic enhancement growth and no hidden procs.
+- Very cheap authored monster equipment now stays closer to trophy-scale power: `Клітинка відповідального болю` and `Пляма хоробрості на фартуху` keep small defensive identity without matching stronger chest gear at junk-tier prices.
+
+### Added
+- Added content tests that cap very cheap authored equipment power.
+- Added Loot Expansion v1 tests requiring every generated equippable item to declare a canonical slot and every enhancement tier inside a practical family to cost more while gaining a visible stat without losing existing bonuses.
+- Added an effective-stat regression proving tuned generated equipment bonuses reach the combat stat aggregation layer.
+- Added the `0.2.24` task doc with compact balance rationale, protected-flow checklist and deterministic combat probe summary.
+
+### Safety
+- Ordinary consumables and the `0.2.22` medical item behavior are unchanged.
+- Equipped/protected item safety for Mantok Chest, Shynok sale, gift/postal transfer, remort preservation and Munchkin barter remains unchanged.
+- No Prisma migration, item id rewrite, reward-table rewrite, shop change, hidden proc, class ability change, achievement, new slot or two-handed/offhand conflict rule is included.
+
+### Balance probe
+- A deterministic 400-fight probe across level 3, 6 and 10 same-level ordinary fights showed tuned loadouts increasing win rate and reducing average fight duration, while sampled average turns stayed below the `> 6` balance-review red flag.
+
 ## [0.2.23] - 12026-07-03 - Mantok Equipment Slot Foundation
 
 ### Added

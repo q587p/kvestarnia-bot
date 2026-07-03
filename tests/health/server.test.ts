@@ -78,11 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Манатки розклали полицями, але полиці ще сперечаються");
-    expect(text).toContain("куди саме лягає кожна екіпірована дивина");
-    expect(text).toContain("спорядження показує всі підготовлені слоти");
-    expect(text).toContain("попередня лишилася в торбі");
-    expect(text).toContain("фундамент, а не велика перебалансовка");
+    expect(text).toContain("Манатки перестали сперечатися з власними цінниками");
+    expect(text).toContain("посилені манатки з пакунку знахідок");
+    expect(text).toContain("зброя, обладунок, аксесуари й інструменти");
+    expect(text).toContain("частина дешевих трофейних дрібниць");
+    expect(text).toContain("не нова крамниця й не нова система спорядження");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
