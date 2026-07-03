@@ -91,6 +91,8 @@ Example: a Priest offers a blessing or heal to a nearby player.
 
 Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + floor((charisma + intelligence) / 3) + floor(level / 2))`; mana cost is `max(7, ceil(heal * 0.75) + 2)`. Missing HP, full-HP checks and healing caps use the target's current effective HP maximum, including level-derived HP.
 
+Priest aid keyboards do not show healing buttons for full-HP targets. Healing rows use the `⚕️` marker, while actual bandage icons stay reserved for medical manatky and Yeger supplies.
+
 ### Performance / Local Event
 
 Example: a Bard performs for active nearby characters in the current location.

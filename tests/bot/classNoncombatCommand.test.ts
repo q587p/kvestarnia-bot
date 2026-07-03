@@ -275,6 +275,8 @@ function priestOpenResult(): ClassNoncombatOpenResult {
       canPriestAid: true,
       canRoguePickpocket: false
     }],
+    targetPage: 0,
+    targetTotalPages: 1,
     priestHealCooldownAvailableAt: null,
     priestBlessCooldownAvailableAt: null,
     roguePickpocketCooldownAvailableAt: null

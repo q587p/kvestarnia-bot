@@ -91,7 +91,7 @@ async function editOpen(
   page: number
 ): Promise<void> {
   const result = await service.openForTelegramUser(telegramUserId, mode, page);
-  const keyboard = result.state === "ready" ? buildClassNoncombatKeyboard(result, page) : undefined;
+  const keyboard = result.state === "ready" ? buildClassNoncombatKeyboard(result) : undefined;
   await safeEditMessageText(ctx, presentClassNoncombatOpen(result), keyboard
     ? { ...HTML_MESSAGE_OPTIONS, reply_markup: keyboard }
     : HTML_MESSAGE_OPTIONS);
@@ -111,7 +111,7 @@ async function editPriestResult(
   }
 
   const openResult = await service.openForTelegramUser(telegramUserId, "priest", page);
-  const keyboard = openResult.state === "ready" ? buildClassNoncombatKeyboard(openResult, page) : undefined;
+  const keyboard = openResult.state === "ready" ? buildClassNoncombatKeyboard(openResult) : undefined;
   await safeEditMessageText(ctx, text, keyboard
     ? { ...HTML_MESSAGE_OPTIONS, reply_markup: keyboard }
     : HTML_MESSAGE_OPTIONS);

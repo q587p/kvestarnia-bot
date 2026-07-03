@@ -37,6 +37,8 @@ export type ClassNoncombatOpenResult =
       character: CharacterSummary;
       locationName: string;
       targets: ClassNoncombatTarget[];
+      targetPage: number;
+      targetTotalPages: number;
       priestHealCooldownAvailableAt: Date | null;
       priestBlessCooldownAvailableAt: Date | null;
       roguePickpocketCooldownAvailableAt: Date | null;
@@ -107,6 +109,8 @@ export class ClassNoncombatService {
       mode,
       character,
       locationName: snapshot.locationName,
+      targetPage: snapshot.targetPage,
+      targetTotalPages: snapshot.targetTotalPages,
       targets: snapshot.targets.map((target) => ({
         ...target,
         canPriestAid: mode === "priest",

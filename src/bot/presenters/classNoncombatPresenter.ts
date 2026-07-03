@@ -29,7 +29,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         "",
         `📍 ${escapeHtml(result.locationName)}`,
         `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>. Лікування бере ману, не бинти.`,
-        presentCooldownLine("🩹 Лікування", result.priestHealCooldownAvailableAt),
+        presentCooldownLine("⚕️ Лікування", result.priestHealCooldownAvailableAt),
         presentCooldownLine("✨ Благословення", result.priestBlessCooldownAvailableAt),
         "",
         result.targets.length > 0
@@ -54,12 +54,12 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
 
 export function presentPriestHealResult(result: PriestHealResult): string {
   if (result.state === "blocked") {
-    return presentBlocked("🩹", "Лікування не відбулося", result.reason, result.availableAt, result.blessing);
+    return presentBlocked("⚕️", "Лікування не відбулося", result.reason, result.availableAt, result.blessing);
   }
 
   const targetSelf = result.action.actorTelegramUserId === result.action.targetTelegramUserId;
   return [
-    "🩹 <b>Лікування спрацювало</b>",
+    "⚕️ <b>Лікування спрацювало</b>",
     "",
     targetSelf
       ? "Жрець приклав ману до себе. Мана трохи обурилась, але виконала обов’язок."
@@ -117,7 +117,7 @@ export function presentRoguePickpocketResult(result: RoguePickpocketResult): str
 
 export function presentPriestHealTargetNotification(result: Extract<PriestHealResult, { state: "completed" }>): string {
   return [
-    "🩹 <b>Вас полікували</b>",
+    "⚕️ <b>Вас полікували</b>",
     "",
     `${presentCharacterDisplayName(result.actor)} полікував вас без бинтів, зате з маною.`,
     `❤️ HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`

@@ -25,6 +25,7 @@ import {
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
+import { addPaginationControls } from "./pagination";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
 const RESPONSIBLE_PANIC_BANDAGE_ID = "item.responsible-panic-bandage";
@@ -188,19 +189,11 @@ export function buildPartySessionNearbyCandidatesKeyboard(
       .row();
   }
 
-  if (snapshot.totalPages > 1) {
-    if (snapshot.page > 0) {
-      keyboard.text("⬅️", makePartySessionNearbyOpenCallbackData(snapshot.page - 1));
-    }
-
-    keyboard.text(`${snapshot.page + 1}/${snapshot.totalPages}`, makePartySessionNearbyOpenCallbackData(snapshot.page));
-
-    if (snapshot.page + 1 < snapshot.totalPages) {
-      keyboard.text("➡️", makePartySessionNearbyOpenCallbackData(snapshot.page + 1));
-    }
-
-    keyboard.row();
-  }
+  addPaginationControls(keyboard, {
+    page: snapshot.page,
+    totalPages: snapshot.totalPages,
+    makeCallbackData: makePartySessionNearbyOpenCallbackData
+  });
 
   keyboard.text("🔎 Оновити", makePartySessionNearbyOpenCallbackData(snapshot.page));
   return keyboard;

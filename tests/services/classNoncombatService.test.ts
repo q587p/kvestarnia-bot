@@ -230,6 +230,8 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
         gold: this.target.gold,
         remortCount: this.target.remortCount ?? 0
       }],
+      targetPage: 0,
+      targetTotalPages: 1,
       locationId: "location.korchma.front",
       locationName: "Перед Корчмою",
       priestHealCooldownAvailableAt: null,

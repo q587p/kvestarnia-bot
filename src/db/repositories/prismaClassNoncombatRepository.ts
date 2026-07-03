@@ -60,11 +60,15 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       findCooldown(this.prisma, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY)
     ]);
     const safePageSize = Math.max(1, Math.min(50, Math.trunc(input.pageSize)));
-    const start = Math.max(0, Math.trunc(input.page)) * safePageSize;
+    const totalPages = Math.max(1, Math.ceil(targets.length / safePageSize));
+    const safePage = clampPage(input.page, totalPages);
+    const start = safePage * safePageSize;
 
     return {
       character: actorRecord,
       targets: targets.slice(start, start + safePageSize),
+      targetPage: safePage,
+      targetTotalPages: totalPages,
       locationId,
       locationName: getLocationName(locationId),
       priestHealCooldownAvailableAt: healCooldown?.availableAt && healCooldown.availableAt > input.now
@@ -956,6 +960,14 @@ function isUniqueConstraintError(error: unknown): boolean {
 
 function safePositiveInteger(value: number, fallback: number): number {
   return Number.isFinite(value) ? Math.max(1, Math.floor(value)) : fallback;
+}
+
+function clampPage(page: number, totalPages: number): number {
+  if (!Number.isFinite(page)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(0, Math.floor(page)), Math.max(0, totalPages - 1));
 }
 
 class ResourceRaceError extends Error {

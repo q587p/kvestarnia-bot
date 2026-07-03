@@ -90,6 +90,30 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect(hall?.targets.map((target) => target.telegramUserId).sort()).toEqual([402n, 403n]);
   });
 
+  it("returns bounded target-page metadata for class noncombat target lists", async () => {
+    await seedCharacter({ telegramUserId: 801n, userId: "user-priest", characterId: "priest", classId: "class.priest", level: 3 });
+    for (let index = 0; index < 6; index += 1) {
+      await seedCharacter({
+        telegramUserId: BigInt(802 + index),
+        userId: `user-target-${index}`,
+        characterId: `target-${index}`,
+        level: 3
+      });
+    }
+
+    const snapshot = await repository.getSnapshotForTelegramUser(801n, {
+      ...snapshotInput(),
+      page: 9,
+      pageSize: 5
+    });
+
+    expect(snapshot).toMatchObject({
+      targetPage: 1,
+      targetTotalPages: 2
+    });
+    expect(snapshot?.targets).toHaveLength(1);
+  });
+
   it("stores active Priest blessing for hero display and spends mana", async () => {
     await seedCharacter({
       telegramUserId: 701n,

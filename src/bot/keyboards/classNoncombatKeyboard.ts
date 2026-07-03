@@ -6,14 +6,16 @@ import {
   makePriestHealCallbackData,
   makeRoguePickpocketCallbackData
 } from "../callbacks/classNoncombatCallbackData";
+import { addPaginationControls } from "./pagination";
 
-export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult, page = 0): InlineKeyboard | undefined {
+export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): InlineKeyboard | undefined {
   if (result.state !== "ready") {
     return undefined;
   }
 
   const keyboard = new InlineKeyboard();
   const actorRemortCount = result.character.remortCount ?? 0;
+  const currentPage = result.targetPage;
 
   if (result.mode === "priest") {
     if (canHeal(result.character)) {
@@ -22,7 +24,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult, pa
           targetTelegramUserId: null,
           actorRemortCount,
           targetRemortCount: actorRemortCount,
-          page
+          page: currentPage
         }))
         .row();
     }
@@ -32,26 +34,36 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult, pa
         targetTelegramUserId: null,
         actorRemortCount,
         targetRemortCount: actorRemortCount,
-        page
+        page: currentPage
       }))
       .row();
 
     for (const target of result.targets) {
+      const canHealTarget = canHeal(target);
+      if (canHealTarget) {
+        keyboard.text(`⚕️ ${formatName(target.name)}`, makePriestHealCallbackData({
+          targetTelegramUserId: target.telegramUserId,
+          actorRemortCount,
+          targetRemortCount: target.remortCount,
+          page: currentPage
+        }));
+      }
+
       keyboard
-        .text(`🩹 ${formatName(target.name)}`, makePriestHealCallbackData({
+        .text(canHealTarget ? "✨" : `✨ ${formatName(target.name)}`, makePriestBlessCallbackData({
           targetTelegramUserId: target.telegramUserId,
           actorRemortCount,
           targetRemortCount: target.remortCount,
-          page
-        }))
-        .text("✨", makePriestBlessCallbackData({
-          targetTelegramUserId: target.telegramUserId,
-          actorRemortCount,
-          targetRemortCount: target.remortCount,
-          page
+          page: currentPage
         }))
         .row();
     }
+
+    addPaginationControls(keyboard, {
+      page: result.targetPage,
+      totalPages: result.targetTotalPages,
+      makeCallbackData: (targetPage) => makeClassNoncombatOpenCallbackData(result.mode, targetPage)
+    });
   } else {
     for (const target of result.targets.filter((candidate) => candidate.canRoguePickpocket)) {
       keyboard
@@ -59,13 +71,19 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult, pa
           targetTelegramUserId: target.telegramUserId,
           actorRemortCount,
           targetRemortCount: target.remortCount,
-          page
+          page: currentPage
         }))
         .row();
     }
+
+    addPaginationControls(keyboard, {
+      page: result.targetPage,
+      totalPages: result.targetTotalPages,
+      makeCallbackData: (targetPage) => makeClassNoncombatOpenCallbackData(result.mode, targetPage)
+    });
   }
 
-  keyboard.text("🔄 Оновити", makeClassNoncombatOpenCallbackData(result.mode, page)).row();
+  keyboard.text("🔄 Оновити", makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
 
   return keyboard;
 }
@@ -74,6 +92,6 @@ function formatName(name: string): string {
   return name.length > 24 ? `${name.slice(0, 23)}…` : name;
 }
 
-function canHeal(character: Extract<ClassNoncombatOpenResult, { state: "ready" }>["character"]): boolean {
+function canHeal(character: { hpCurrent: number; hpMax: number }): boolean {
   return character.hpCurrent < character.hpMax;
 }

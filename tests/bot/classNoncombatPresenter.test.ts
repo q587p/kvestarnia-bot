@@ -146,5 +146,7 @@ describe("class noncombat presenter", () => {
 
     expect(text).toContain("❤️ HP: <b>+4</b> · тепер <b>20/32</b>.");
     expect(text).toContain("🌌 Мана витрачена: <b>10</b>.");
+    expect(text).toContain("⚕️ <b>Лікування спрацювало</b>");
+    expect(text).not.toContain("🩹 <b>Лікування спрацювало</b>");
   });
 });

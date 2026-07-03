@@ -16,6 +16,8 @@ export interface NoncombatTargetRecord {
 export interface NoncombatActionSnapshot {
   character: CharacterRecord;
   targets: NoncombatTargetRecord[];
+  targetPage: number;
+  targetTotalPages: number;
   locationId: string;
   locationName: string;
   priestHealCooldownAvailableAt: Date | null;
