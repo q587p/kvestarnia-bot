@@ -108,6 +108,7 @@ export interface PartyBossParticipantActionSummary {
   itemId?: string;
   itemName?: string;
   healing?: number;
+  hpAfter?: number;
 }
 
 export interface PartyBossRetaliationSummary {
@@ -285,7 +286,8 @@ export function resolvePartyBossRound(input: {
         manaSpent: 0,
         itemId: committed.item.id,
         itemName: committed.item.name,
-        healing: participant.resources.hp - beforeHp
+        healing: participant.resources.hp - beforeHp,
+        hpAfter: participant.resources.hp
       });
       continue;
     }

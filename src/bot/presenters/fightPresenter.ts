@@ -11,6 +11,7 @@ import {
   type CombatTurnLogEntry,
   type CombatTurnSummary
 } from "../../domain/combat";
+import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
 import { items } from "../../content";
 import type {
   FightLookupResult,
@@ -948,6 +949,18 @@ function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | 
   return null;
 }
 
+function presentItemUseHealingSummary(summary: CombatTurnSummary): string {
+  if (!summary.heroHealing) {
+    return "";
+  }
+
+  if (summary.itemId === FIELD_KIT_ITEM_ID && summary.heroHpAfter !== undefined) {
+    return ` HP підтягнулись до ${summary.heroHpAfter}.`;
+  }
+
+  return ` HP підросли на ${summary.heroHealing}.`;
+}
+
 function presentLostFightQuestLines(progress: ThirteenSmallProblemsProgress | null): string[] {
   if (progress?.completed) {
     return [];
@@ -1158,9 +1171,7 @@ function presentTurnSummary(
 
   if (summary.heroOutcome === "item-used") {
     const itemName = escapeHtml(summary.itemName ?? "манатку");
-    const healing = summary.heroHealing
-      ? ` HP підросли на ${summary.heroHealing}.`
-      : "";
+    const healing = presentItemUseHealingSummary(summary);
 
     return withMonsterBark(summary, [
       ...heading,

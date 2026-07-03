@@ -541,6 +541,7 @@ function resolveSingleEnemyCombatItemTurn(
     critical: false,
     item,
     heroHealing,
+    heroHpAfter: nextState.hero.hp,
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
     ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
@@ -585,6 +586,7 @@ function resolveMultiEnemyCombatItemTurn(
     critical: false,
     item,
     heroHealing,
+    heroHpAfter: nextState.hero.hp,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
     ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
   });
@@ -1852,6 +1854,7 @@ function buildSummary(input: {
   critical: boolean;
   item?: ResolveCombatItemTurnInput["item"];
   heroHealing?: number;
+  heroHpAfter?: number;
   skill?: CombatSkillProfile;
   monsterSkill?: CombatSkillProfile;
   enemyResults?: CombatEnemyAbilityResult[];
@@ -1899,6 +1902,7 @@ function buildSummary(input: {
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
     ...(input.item ? { itemId: input.item.id, itemName: input.item.name } : {}),
     ...(input.heroHealing ? { heroHealing: input.heroHealing } : {}),
+    ...(input.heroHpAfter !== undefined ? { heroHpAfter: input.heroHpAfter } : {}),
     ...(input.enemyResults && input.enemyResults.length > 0 ? { enemyResults: input.enemyResults } : {}),
     ...(input.allyResults && input.allyResults.length > 0 ? { allyResults: input.allyResults } : {}),
     ...(input.fumble ? { fumble: input.fumble } : {}),

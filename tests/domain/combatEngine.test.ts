@@ -375,6 +375,7 @@ describe("combat domain engine", () => {
 
     expect(first.ok).toBe(true);
     expect(first.summary.heroHealing).toBe(92);
+    expect(first.summary.heroHpAfter).toBe(93);
     expect(first.state.combatItems?.uses?.[FIELD_KIT_ITEM_ID]).toMatchObject({
       itemId: FIELD_KIT_ITEM_ID,
       count: 1

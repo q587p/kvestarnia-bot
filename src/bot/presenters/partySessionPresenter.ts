@@ -17,6 +17,7 @@ import {
   isMeaningfulBigBarrelParticipant,
   PARTY_BOSS_TURN_MS
 } from "../../domain/partyBoss/partyBoss";
+import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -922,9 +923,7 @@ function presentPartyBossActionLine(
 
   if (action.outcome === "item-used") {
     const itemName = escapeHtml(action.itemName ?? "манатку");
-    const healing = action.healing && action.healing > 0
-      ? ` HP відновлено на ${action.healing}.`
-      : " Але журнал не знайшов браку HP.";
+    const healing = presentPartyBossItemHealing(action);
 
     return isViewer
       ? `Ви застосували <b>${itemName}</b>.${healing}`
@@ -971,6 +970,20 @@ function presentPartyBossActionLine(
         ? `${subject} влучає на ${action.damage} шкоди.`
         : `${subject} спрацьовує без прямої шкоди.`;
   }
+}
+
+function presentPartyBossItemHealing(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
+): string {
+  if (!action.healing || action.healing <= 0) {
+    return " Але журнал не знайшов браку HP.";
+  }
+
+  if (action.itemId === FIELD_KIT_ITEM_ID && action.hpAfter !== undefined) {
+    return ` HP підтягнуто до ${action.hpAfter}.`;
+  }
+
+  return ` HP відновлено на ${action.healing}.`;
 }
 
 function presentPartyBossActionSubject(

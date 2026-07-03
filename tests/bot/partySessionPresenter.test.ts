@@ -202,6 +202,35 @@ describe("party session presenter", () => {
     expect(text).not.toContain("Ватага зняла");
   });
 
+  it("describes Big Barrel field kit healing as reaching the resulting HP", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "leader",
+            action: "item",
+            origin: "manual",
+            outcome: "item-used",
+            damage: 0,
+            manaSpent: 0,
+            itemId: "item.field-kit",
+            itemName: "Польова аптечка",
+            healing: 83,
+            hpAfter: 93
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 100,
+        bossRetaliations: [],
+        statusAfter: "active"
+      }]
+    }), { viewerCharacterId: "leader" });
+
+    expect(text).toContain("Ви застосували <b>Польова аптечка</b>. HP підтягнуто до 93.");
+    expect(text).not.toContain("Польова аптечка</b>. HP відновлено на 83.");
+  });
+
   it("uses participant names instead of viewer shorthand on completed Big Barrel Brother cards", () => {
     const leader = participant("leader", "Голова");
     leader.resources = {

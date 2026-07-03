@@ -220,7 +220,8 @@ describe("party boss reducer", () => {
 
     expect(fieldKitResult.round.actions[0]).toMatchObject({
       itemId: "item.field-kit",
-      healing: 83
+      healing: 83,
+      hpAfter: 93
     });
     expect(fieldKitResult.state.participants[0]?.resources.hp).toBe(93);
     expect(fieldKitResult.state.participants[0]?.combatItems?.uses?.["item.field-kit"]).toEqual({
