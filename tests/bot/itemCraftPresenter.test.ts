@@ -14,6 +14,7 @@ import type {
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 
 const denseRecipe = ITEM_CRAFT_RECIPES[0];
+const fieldKitRecipe = ITEM_CRAFT_RECIPES[1];
 const sourceItem = items.find((item) => item.id === RESPONSIBLE_PANIC_BANDAGE_ITEM_ID)!;
 const outputItem = items.find((item) => item.id === denseRecipe.outputItemId)!;
 
@@ -27,6 +28,15 @@ describe("item craft presenter", () => {
     expect(warrior).toContain("Для цього класу рецепт витрачає рівно стільки бинтів");
     expect(warrior).not.toContain("може зекономити");
     expect(warrior).not.toContain("Рівень і удача");
+  });
+
+  it("keeps field-kit preview savings copy ranger-only", () => {
+    const priest = presentItemCraftPreview(previewResult("class.priest", fieldKitRecipe));
+
+    expect(priest).toContain("Створити Польова аптечка?");
+    expect(priest).toContain("Для цього класу рецепт витрачає рівно стільки бинтів");
+    expect(priest).not.toContain("може зекономити");
+    expect(priest).not.toContain("Рівень і удача");
   });
 
   it("does not imply a failed savings roll for non-ranger craft results", () => {
@@ -47,13 +57,16 @@ describe("item craft presenter", () => {
   });
 });
 
-function previewResult(characterClassId: string): ItemCraftPreviewRepositoryResult {
+function previewResult(
+  characterClassId: string,
+  recipe = denseRecipe
+): ItemCraftPreviewRepositoryResult {
   return {
     state: "preview",
     preview: {
-      recipe: denseRecipe,
+      recipe,
       sourceItem,
-      outputItem,
+      outputItem: items.find((item) => item.id === recipe.outputItemId)!,
       availableQuantity: 111,
       characterClassId
     }
