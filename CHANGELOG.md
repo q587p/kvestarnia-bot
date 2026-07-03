@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added Loot Expansion v1 tests requiring every generated equippable item to declare a canonical slot and every enhancement tier inside a practical family to cost more while gaining a visible stat without losing existing bonuses.
 - Added an effective-stat regression proving tuned generated equipment bonuses reach the combat stat aggregation layer.
 - Added rewardless equipment achievements for filling all seven canonical equipment slots and for a hidden long-term cumulative `93` successful-equips milestone.
+- Added `/chronicles` as a help-listed command that opens the existing `📜 Хроніки Квестарні` / `📣 Останні події` feed without adding it to the Telegram side menu.
 - Added the `0.2.24` task doc with compact balance rationale, protected-flow checklist and deterministic combat probe summary.
 
 ### Safety

@@ -13,9 +13,10 @@ Manual Telegram QA status for the implementation pass: not run.
 3. Open a generated `+1` or higher Loot Expansion item if local data can seed one; verify the item detail shows a visible improvement over the simpler version in the same family.
 4. Equip a tuned item into an occupied slot and verify the result card still says the previous manatka stayed in the bag.
 5. Fill all seven equipment slots if local data can seed enough manatky; verify the rewardless full-slots achievement can appear once and duplicate same-item equip callbacks do not create duplicate achievement notices.
-6. Try Mantok Chest, Shynok sale, gifting/postal transfer and remort preview with equipped/protected items; verify equipped/protected stacks remain blocked as before.
-7. Run a few ordinary fights before and after equipping tuned items; verify visible stats match combat behavior and fights do not feel stuck in long loops.
-8. Check generated tool/accessory items if local data can seed them; verify tool items appear under `Інструмент`, accessory items under `Аксесуар`, and neither suggests hidden procs.
+6. Run `/chronicles`; verify it opens `📜 Хроніки Квестарні` / `📣 Останні події`, has the same filters as the board entry and can trigger the existing first-open achievement only once.
+7. Try Mantok Chest, Shynok sale, gifting/postal transfer and remort preview with equipped/protected items; verify equipped/protected stacks remain blocked as before.
+8. Run a few ordinary fights before and after equipping tuned items; verify visible stats match combat behavior and fights do not feel stuck in long loops.
+9. Check generated tool/accessory items if local data can seed them; verify tool items appear under `Інструмент`, accessory items under `Аксесуар`, and neither suggests hidden procs.
 
 ## 0.2.23 — Mantok Equipment Slot Foundation smoke
 
@@ -800,6 +801,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 
 - `/version` — показує поточну версію бота.
 - `/news` — читає останню новину й архів із `news.md`.
+- `/chronicles` — відкриває `📜 Хроніки Квестарні` / `📣 Останні події`.
 - `/restart` — видаляє персонажа поточного Telegram-користувача після підтвердження.
 - `/remort` — після 13 рівня відкриває explicit prestige reset із preview, памʼяттю минулих пригод і без прихованого wipe.
 - `/dev_help` — у локальному режимі показує доступні dev-команди.

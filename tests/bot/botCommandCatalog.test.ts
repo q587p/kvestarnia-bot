@@ -54,6 +54,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "guild")).toBe(false);
     expect(commands.some((entry) => entry.command === "restart")).toBe(false);
     expect(commands.some((entry) => entry.command === "version")).toBe(false);
+    expect(commands.some((entry) => entry.command === "chronicles")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_help")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_me")).toBe(false);
@@ -78,6 +79,18 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_yeger_first_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_yeger_second_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
+  });
+
+  it("lists /chronicles in help without adding it to the side menu", () => {
+    expect(getHelpCommandEntries(false).find((entry) => entry.command === "chronicles"))
+      .toMatchObject({
+        icon: "📣",
+        description: "останні події",
+        includeInMenu: false
+      });
+    expect(getTelegramMenuCommands(false).some((entry) => entry.command === "chronicles")).toBe(
+      false
+    );
   });
 
   it("shows tavern games commands only when their player surface is enabled", () => {

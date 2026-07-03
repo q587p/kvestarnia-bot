@@ -34,7 +34,7 @@ import {
 registerCellarCommand,
 sendCellarErrandRouted
 } from "../commands/cellarCommand";
-import { sendLatestEvents } from "../commands/latestEventsCommand";
+import { registerLatestEventsCommand, sendLatestEvents } from "../commands/latestEventsCommand";
 import { sendFight } from "../commands/fightCommand";
 import {
 sendHuntBoard,
@@ -198,6 +198,7 @@ export function registerTavernBotModule(
     partyBoss: services.partyBoss,
     partySessions: services.partySessions
   });
+  registerLatestEventsCommand(bot, services.activityEvents, services.hero);
   registerBardPerformanceDevResetHandler(bot, services);
   registerPassageSearchDevResetHandler(bot, services);
 
