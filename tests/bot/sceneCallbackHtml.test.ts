@@ -540,6 +540,55 @@ describe("scene callback HTML options", () => {
     expect(String(edits[1]?.payload.text)).not.toContain("Списано");
   });
 
+  it("hides grownup mouse negotiation after unaffordable seal while cooldown is active", async () => {
+    const cooldownNow = new Date("2026-06-13T10:00:00.000Z");
+    const grownupCharacter = {
+      ...character,
+      level: 4,
+      gold: 5
+    };
+    const calls = await captureApiCalls(
+      makeCellarCallbackData("grownup-buy-seal"),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired" as const,
+              character: grownupCharacter,
+              maxLevel: 3,
+              completed: false
+            }),
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        cellarGrownup: {
+          buySeal: () =>
+            Promise.resolve({
+              state: "insufficient-gold" as const,
+              character: grownupCharacter,
+              price: 240,
+              roleplayCooldown: {
+                availableAt: new Date("2026-06-13T11:33:00.000Z"),
+                now: cooldownNow
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const buttons = (edit?.payload as {
+      reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> };
+    }).reply_markup?.inline_keyboard?.flat().map((button) => button.text) ?? [];
+
+    expect(String(edit?.payload.text)).toContain("🧀 Пломба дивиться дорого.");
+    expect(String(edit?.payload.text)).toContain("Домовлятися можна буде за 93 хвилини.");
+    expect(buttons).toEqual([
+      "🧀 Купити пломбу",
+      "🏹 Дошка полювання",
+      "⬅️ До зали"
+    ]);
+    expect(buttons).not.toContain("🐭 Домовитись із мишею");
+  });
+
   it("renders adventure method help without completing the selected problem", async () => {
     const completeAdventureApproach = vi.fn();
     const selectAdventureProblem = vi.fn(() =>

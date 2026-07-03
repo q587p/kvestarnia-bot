@@ -78,6 +78,7 @@ export type CellarGrownupKeyboardState =
 
 export interface CellarGrownupKeyboardOptions {
   includeKeptBottle?: boolean;
+  hideRoleplay?: boolean;
 }
 
 export function buildCellarGrownupKeyboard(
@@ -116,7 +117,7 @@ export function buildCellarGrownupKeyboard(
 
   const keyboard = new InlineKeyboard();
 
-  if (state !== "roleplay-cooldown") {
+  if (state !== "roleplay-cooldown" && !options.hideRoleplay) {
     keyboard.text("🐭 Домовитись із мишею", makeCellarCallbackData("grownup-roleplay")).row();
   }
 

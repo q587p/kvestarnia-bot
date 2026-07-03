@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.25] - 12026-07-03 - Class Noncombat Priest and Rogue Techniques
+## [0.2.25] - 12026-07-04 - Class Noncombat Priest and Rogue Techniques
 
 ### Added
 - Added level 3+ Priest direct aid outside combat: `✨ Жрецька поміч` opens from `Хто поруч`, supports self/active same-location targets, and can heal with mana or create a direct blessing without an accept/decline offer flow.
@@ -26,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
 - Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
 - Kept direct starter quest-table and Yeger accept buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми`, `⚔️ До сутички` and `🏹 Взяти справу`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`, `🛢️ Бочка ⚠️` and barrel-result `🧥 Єгер ⚠️` routes for an offered Yeger quest.
+- Hid the grownup cellar `🐭 Домовитись із мишею` action from unaffordable cheese-seal result screens while the mouse roleplay cooldown is still active, and adjusted the Korchmar copy to explain the wait.
 - Restored the native `🪧 Обрати пригоду` action icon on quest-table adventure buttons.
 - Marked currently equipped items in inventory keyboards with a left-side `✅` icon in both general and slot-filtered views.
 - Lowercased equipment slot names after the equipped-status dash in item detail cards, for example `вдягнено — основна рука`.

@@ -2407,6 +2407,19 @@ describe("main menu and scene keyboards", () => {
     ]);
   });
 
+  it("hides grownup cellar mouse roleplay while the roleplay cooldown is active", () => {
+    const labels = flatInlineButtonTexts(buildCellarGrownupKeyboard("insufficient", {
+      hideRoleplay: true
+    }));
+
+    expect(labels).toEqual([
+      "🧀 Купити пломбу",
+      "🏹 Дошка полювання",
+      "⬅️ До зали"
+    ]);
+    expect(labels).not.toContain("🐭 Домовитись із мишею");
+  });
+
   it("keeps daily Korchma round overview as a location list without scene teleport buttons", () => {
     const keyboard = buildDailyKorchmaRoundOverviewKeyboard({
       state: "ready",

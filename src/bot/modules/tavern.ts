@@ -1570,7 +1570,8 @@ async function handleCellarGrownupCallback(
       : grownupKeyboardState
         ? {
             reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
-              includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
+              includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result),
+              hideRoleplay: shouldHideCellarGrownupRoleplayButton(result)
             })
           }
       : {})
@@ -1611,5 +1612,12 @@ function shouldShowCellarGrownupKeptBottleButton(result: CellarGrownupQuestResul
   return (
     (result.state === "completed" || result.state === "already-completed") &&
     result.ending === "keep"
+  );
+}
+
+function shouldHideCellarGrownupRoleplayButton(result: CellarGrownupQuestResult): boolean {
+  return (
+    result.state === "insufficient-gold" &&
+    Boolean(result.roleplayCooldown && result.roleplayCooldown.availableAt > result.roleplayCooldown.now)
   );
 }

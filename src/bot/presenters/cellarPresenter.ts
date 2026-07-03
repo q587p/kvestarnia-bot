@@ -180,12 +180,17 @@ export function presentCellarGrownupResult(result: CellarGrownupQuestResult): st
   }
 
   if (result.state === "insufficient-gold") {
+    const cooldownLine =
+      result.roleplayCooldown && result.roleplayCooldown.availableAt > result.roleplayCooldown.now
+        ? `Миша ще рахує попередню розмову. Домовлятися можна буде за ${formatCooldown(result.roleplayCooldown.availableAt, result.roleplayCooldown.now)}.`
+        : "Заробіть на дошці полювання або спробуйте домовитись із мишею. Я теж колись вірив у розмови.";
+
     return [
       "🧀 Пломба дивиться дорого.",
       "",
       `Потрібно ${result.price} золота. У вас — ${result.character.gold}.`,
       "",
-      npcQuote("Корчмар", "Заробіть на дошці полювання або спробуйте домовитись із мишею. Я теж колись вірив у розмови.")
+      npcQuote("Корчмар", cooldownLine)
     ].join("\n");
   }
 

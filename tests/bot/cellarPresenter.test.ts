@@ -189,6 +189,26 @@ describe("cellar presenter", () => {
     expect(text).not.toContain("Що робимо?");
   });
 
+  it("explains active grownup roleplay cooldown on unaffordable seal results", () => {
+    const text = presentCellarGrownupResult({
+      state: "insufficient-gold",
+      character: {
+        ...character,
+        level: 4,
+        gold: 5
+      },
+      price: 240,
+      roleplayCooldown: {
+        availableAt: new Date("2026-06-13T11:33:00.000Z"),
+        now
+      }
+    });
+
+    expect(text).toContain("Потрібно 240 золота. У вас — 5.");
+    expect(text).toContain("Домовлятися можна буде за 93 хвилини.");
+    expect(text).not.toContain("спробуйте домовитись із мишею");
+  });
+
   it("sends the obtained grownup cellar bottle to the Шинок instead of resolving it in the cellar", () => {
     const lookupText = presentCellarGrownupQuest({
       state: "bottle-obtained",
