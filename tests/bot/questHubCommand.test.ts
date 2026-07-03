@@ -157,8 +157,8 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "До підозрілої шаурми",
-      "До сутички",
+      "🌯 До підозрілої шаурми",
+      "⚔️ До сутички",
       "📦 Архів",
       "🍺 До зали"
     ]);
@@ -193,8 +193,8 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "До підозрілої шаурми",
-      "До сутички",
+      "🌯 До підозрілої шаурми",
+      "⚔️ До сутички",
       "🧹 У льох ⚠️",
       "📦 Архів",
       "🍺 До зали"
