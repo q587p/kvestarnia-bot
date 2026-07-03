@@ -71,6 +71,78 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(prisma.noncombatRoguePickpocketAttempt.count()).resolves.toBe(1);
   });
 
+  it("lists only exact normalized same-location noncombat targets", async () => {
+    await seedCharacter({ telegramUserId: 401n, userId: "user-priest", characterId: "priest", classId: "class.priest", level: 3, locationId: "location.korchma.front" });
+    await seedCharacter({ telegramUserId: 402n, userId: "user-hall", characterId: "hall-target", level: 3, locationId: "location.korchma.hall" });
+    await seedCharacter({ telegramUserId: 403n, userId: "user-tavern", characterId: "tavern-target", level: 3, locationId: "location.tavern" });
+
+    const front = await repository.getSnapshotForTelegramUser(401n, snapshotInput());
+
+    expect(front?.targets.map((target) => target.telegramUserId)).toEqual([]);
+
+    await prisma.user.update({
+      where: { telegramUserId: 401n },
+      data: { lastSeenLocationId: "location.korchma.hall" }
+    });
+
+    const hall = await repository.getSnapshotForTelegramUser(401n, snapshotInput());
+
+    expect(hall?.targets.map((target) => target.telegramUserId).sort()).toEqual([402n, 403n]);
+  });
+
+  it("replays Rogue same-day duplicate even after live location gates drift", async () => {
+    await seedCharacter({ telegramUserId: 501n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
+    await seedCharacter({ telegramUserId: 502n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
+
+    const first = await repository.completeRoguePickpocket(501n, rogueInput({
+      targetTelegramUserId: 502n,
+      outcome: "clean-success",
+      stolenGold: 5
+    }));
+    await prisma.user.update({
+      where: { telegramUserId: 502n },
+      data: { lastSeenLocationId: "location.korchma.hall" }
+    });
+    const replay = await repository.completeRoguePickpocket(501n, rogueInput({
+      targetTelegramUserId: 502n,
+      outcome: "caught-badly",
+      stolenGold: 13
+    }));
+
+    expect(first).toMatchObject({ state: "completed", created: true });
+    expect(replay).toMatchObject({
+      state: "completed",
+      created: false,
+      attempt: { outcome: "clean-success", stolenGold: 5 }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "rogue" } })).resolves.toMatchObject({
+      gold: 6,
+      hpCurrent: 20
+    });
+    await expect(prisma.character.findUnique({ where: { id: "target" } })).resolves.toMatchObject({
+      gold: 3
+    });
+    await expect(prisma.noncombatRoguePickpocketAttempt.count()).resolves.toBe(1);
+  });
+
+  it("caps theft by target balance without creating gold", async () => {
+    await seedCharacter({ telegramUserId: 601n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
+    await seedCharacter({ telegramUserId: 602n, userId: "user-target", characterId: "target", level: 5, gold: 3 });
+
+    const result = await repository.completeRoguePickpocket(601n, rogueInput({
+      targetTelegramUserId: 602n,
+      outcome: "clean-success",
+      stolenGold: 13
+    }));
+
+    expect(result).toMatchObject({
+      state: "completed",
+      attempt: { outcome: "clean-success", stolenGold: 3 }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "rogue" } })).resolves.toMatchObject({ gold: 4 });
+    await expect(prisma.character.findUnique({ where: { id: "target" } })).resolves.toMatchObject({ gold: 0 });
+  });
+
   it("caps theft by target balance and stores empty outcome when no gold is available", async () => {
     await seedCharacter({ telegramUserId: 201n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
     await seedCharacter({ telegramUserId: 202n, userId: "user-target", characterId: "target", level: 5, gold: 0 });
@@ -131,6 +203,15 @@ function rogueInput(overrides: {
     outcome: overrides.outcome,
     stolenGold: overrides.stolenGold,
     statSnapshot: { test: true }
+  };
+}
+
+function snapshotInput() {
+  return {
+    activeSince: new Date("2026-07-03T08:55:00.000Z"),
+    page: 0,
+    pageSize: 10,
+    now
   };
 }
 

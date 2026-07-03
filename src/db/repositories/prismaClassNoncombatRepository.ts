@@ -8,7 +8,13 @@ import {
 } from "../../domain/noncombat/classNoncombatTechniques";
 import {
   getLocationName,
-  normalizePresenceLocationId
+  normalizePresenceLocationId,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_SHAWARMA,
+  PRESENCE_LOCATION_TAVERN,
+  PRESENCE_LOCATION_TAVERN_CELLAR
 } from "../../services/presenceService";
 import type { CharacterRecord } from "./characterRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
@@ -322,31 +328,43 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
   ): Promise<RoguePickpocketRepositoryResult> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const gate = await loadAndValidateRogueTarget(tx, actorTelegramUserId, input);
-        if (gate.state === "blocked") {
-          return gate;
+        const actor = await findCharacter(tx, actorTelegramUserId);
+        if (!actor) {
+          return { state: "blocked", reason: "no-character" };
         }
-
-        const { actor, target, actorRecord, targetRecord, locationId } = gate;
-        const existing = await tx.noncombatRoguePickpocketAttempt.findUnique({
-          where: {
-            actorCharacterId_targetCharacterId_localDate: {
-              actorCharacterId: actor.id,
-              targetCharacterId: target.id,
-              localDate: input.localDate
-            }
-          }
-        });
+        const target = await findCharacter(tx, input.targetTelegramUserId);
+        const existing = target
+          ? await tx.noncombatRoguePickpocketAttempt.findUnique({
+              where: {
+                actorCharacterId_targetCharacterId_localDate: {
+                  actorCharacterId: actor.id,
+                  targetCharacterId: target.id,
+                  localDate: input.localDate
+                }
+              }
+            })
+          : null;
         if (existing) {
           return {
             state: "completed",
             attempt: mapRogueAttempt(existing),
-            actor: actorRecord,
-            target: targetRecord,
+            actor: toCharacterRecord(actor),
+            target: toCharacterRecord(target!),
             created: false
           };
         }
 
+        const gate = validateRogueTarget(actor, target, input);
+        if (gate.state === "blocked") {
+          return gate;
+        }
+
+        const {
+          target: validatedTarget,
+          actorRecord,
+          targetRecord,
+          locationId
+        } = gate;
         const cooldown = await claimCooldown(tx, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY, input.now, input.cooldownAvailableAt);
         if (cooldown.state === "cooldown") {
           return {
@@ -359,7 +377,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         }
 
         let outcome = input.outcome;
-        let stolenGold = Math.max(0, Math.min(13, target.gold, input.stolenGold));
+        let stolenGold = Math.max(0, Math.min(13, validatedTarget.gold, input.stolenGold));
         let actorHpAfter: number | null = null;
         if (input.stolenGold > 0 && stolenGold <= 0) {
           outcome = "empty";
@@ -367,7 +385,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
         if (stolenGold > 0) {
           const debit = await tx.character.updateMany({
-            where: { id: target.id, gold: { gte: stolenGold } },
+            where: { id: validatedTarget.id, gold: { gte: stolenGold } },
             data: { gold: { decrement: stolenGold } }
           });
           if (debit.count === 1) {
@@ -392,11 +410,11 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         const attempt = await tx.noncombatRoguePickpocketAttempt.create({
           data: {
             actorCharacterId: actor.id,
-            targetCharacterId: target.id,
+            targetCharacterId: validatedTarget.id,
             actorTelegramUserId,
-            targetTelegramUserId: target.user.telegramUserId,
+            targetTelegramUserId: validatedTarget.user.telegramUserId,
             actorName: actor.name,
-            targetName: target.name,
+            targetName: validatedTarget.name,
             actorRemortCount: actorRecord.remortCount ?? 0,
             targetRemortCount: targetRecord.remortCount ?? 0,
             techniqueId: ROGUE_PICKPOCKET_TECHNIQUE_ID,
@@ -428,7 +446,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           state: "completed",
           attempt: mapRogueAttempt(attempt),
           actor: toCharacterRecord(await findCharacterByIdOrThrow(tx, actor.id)),
-          target: toCharacterRecord(await findCharacterByIdOrThrow(tx, target.id)),
+          target: toCharacterRecord(await findCharacterByIdOrThrow(tx, validatedTarget.id)),
           created: true
         };
       });
@@ -513,9 +531,9 @@ async function loadAndValidatePriestTarget(
   };
 }
 
-async function loadAndValidateRogueTarget(
-  tx: TxClient,
-  actorTelegramUserId: bigint,
+function validateRogueTarget(
+  actor: IncludedCharacter,
+  target: IncludedCharacter | null,
   input: {
     targetTelegramUserId: bigint;
     expectedActorRemortCount: number;
@@ -523,11 +541,6 @@ async function loadAndValidateRogueTarget(
     activeSince: Date;
   }
 ) {
-  const actor = await findCharacter(tx, actorTelegramUserId);
-  if (!actor) {
-    return { state: "blocked" as const, reason: "no-character" as const };
-  }
-  const target = await findCharacter(tx, input.targetTelegramUserId);
   const gate = validateSharedTarget(actor, target, input, { allowSelf: false });
   if (gate) {
     return gate;
@@ -726,12 +739,17 @@ async function listActiveTargets(
 
 function getPresenceLocationQueryIds(locationId: string): string[] {
   const normalized = normalizePresenceLocationId(locationId);
-  if (normalized === "location.korchma.front") {
-    return ["location.korchma.front", "location.korchma.hall"];
+
+  if (normalized === PRESENCE_LOCATION_KORCHMA_HALL) {
+    return [PRESENCE_LOCATION_KORCHMA_HALL, PRESENCE_LOCATION_TAVERN];
   }
-  if (normalized === "location.korchma.deep.level1") {
-    return ["location.korchma.deep.level1", "location.korchma.cellar"];
+  if (normalized === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
+    return [PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, PRESENCE_LOCATION_SHAWARMA];
   }
+  if (normalized === PRESENCE_LOCATION_KORCHMA_CELLAR) {
+    return [PRESENCE_LOCATION_KORCHMA_CELLAR, PRESENCE_LOCATION_TAVERN_CELLAR];
+  }
+
   return [normalized];
 }
 

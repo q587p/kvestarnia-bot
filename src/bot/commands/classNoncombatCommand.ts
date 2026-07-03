@@ -12,6 +12,7 @@ import {
   presentRoguePickpocketResult,
   presentRoguePickpocketTargetNotification
 } from "../presenters/classNoncombatPresenter";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -48,6 +49,7 @@ export async function handleClassNoncombatCallback(
     if (result.state === "completed" && result.action.actorTelegramUserId !== result.action.targetTelegramUserId) {
       await notifyTarget(ctx, result.action.targetTelegramUserId, presentPriestHealTargetNotification(result));
     }
+    await notifyActorAchievements(ctx, result.state === "completed" ? result.unlocks : []);
     return;
   }
 
@@ -61,6 +63,7 @@ export async function handleClassNoncombatCallback(
     if (result.state === "completed" && result.action.actorTelegramUserId !== result.action.targetTelegramUserId) {
       await notifyTarget(ctx, result.action.targetTelegramUserId, presentPriestBlessTargetNotification(result));
     }
+    await notifyActorAchievements(ctx, result.state === "completed" ? result.unlocks : []);
     return;
   }
 
@@ -77,6 +80,7 @@ export async function handleClassNoncombatCallback(
       await notifyTarget(ctx, result.attempt.targetTelegramUserId, notification);
     }
   }
+  await notifyActorAchievements(ctx, result.state === "completed" ? result.unlocks : []);
 }
 
 async function editOpen(
@@ -98,5 +102,15 @@ async function notifyTarget(ctx: Context, telegramUserId: bigint, text: string):
     await ctx.api.sendMessage(Number(telegramUserId), text, HTML_MESSAGE_OPTIONS);
   } catch {
     // Private class-action notifications are best-effort after the durable mutation.
+  }
+}
+
+async function notifyActorAchievements(
+  ctx: Context,
+  unlocks: Parameters<typeof presentAchievementUnlockNotification>[0]
+): Promise<void> {
+  const text = presentAchievementUnlockNotification(unlocks);
+  if (text) {
+    await ctx.reply(text, HTML_MESSAGE_OPTIONS);
   }
 }

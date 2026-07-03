@@ -24,12 +24,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
 - Updated `📖 Перекази` class entries for Priest and Rogue to mention the new noncombat behavior.
 - Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
+- Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
 - Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start cooldown.
 - Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
-- Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking.
+- Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
+- Standard actor achievement notifications are sent only for fresh completed Priest heal/bless or Rogue attempts; blocked/no-op states and duplicate Rogue replays do not notify again.
 - No public shame/latest-events row, PvP tournament, item theft, universal noncombat engine, combat ability rebalance or paid advantage ships here.
 - No local `/dev_*` helper ships for this slice; the task doc records the decision and focused tests cover cooldown/day replay gates.
 
@@ -37,7 +39,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added domain tests for Priest heal math and deterministic Rogue amount/outcome shaping.
 - Added callback parser tests for `v1:nc` open/action payloads and stale-click remort counters.
 - Added service tests for Priest heal/blessing planning, Rogue deterministic planning, duplicate replay and achievement hooks.
-- Added Prisma repository integration tests for atomic Rogue gold movement, no-gold empty outcomes, duplicate replay and caught-badly HP mutation.
+- Added Prisma repository integration tests for exact normalized target listing, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
+- Added class noncombat command tests for actor achievement notifications and duplicate Rogue replay silence.
 - Added online/presence routing tests for the `Хто поруч` discovery surface and neutral `v1:nc` callback presence.
 
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
