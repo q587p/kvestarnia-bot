@@ -286,7 +286,7 @@ async function handleItemUseCallback(
       reply_markup:
         result.state === "preview-created" || result.state === "preview-replayed"
           ? buildItemUsePreviewKeyboard(result.order.token)
-          : buildItemUseResultKeyboard()
+          : buildItemUseResultKeyboard(result.state === "full-hp" ? { detailItemId: action.itemId } : {})
     });
     return;
   }
@@ -331,7 +331,7 @@ async function handleItemUseCallback(
       reply_markup:
         result.state === "preview-created" || result.state === "preview-replayed"
           ? buildItemUsePreviewKeyboard(result.order.token)
-          : buildItemUseResultKeyboard()
+          : buildItemUseResultKeyboard(result.state === "full-hp" ? { detailItemId: action.itemId } : {})
     });
     return;
   }
@@ -359,7 +359,11 @@ async function handleItemUseCallback(
   );
   await safeEditMessageText(ctx, presentItemUseConfirm(result, { combatUseAvailable }), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUseResultKeyboard(repeat)
+    reply_markup: buildItemUseResultKeyboard(
+      result.state === "full-hp"
+        ? { detailItemId: result.order.itemId }
+        : repeat
+    )
   });
   const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks ?? []);
   if (achievementText) {

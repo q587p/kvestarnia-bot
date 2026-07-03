@@ -163,7 +163,11 @@ export function buildItemUsePreviewKeyboard(token: string): InlineKeyboard {
 }
 
 export function buildItemUseResultKeyboard(
-  options: { repeatItemId?: string | null; restoreToFullItemId?: string | null } = {}
+  options: {
+    repeatItemId?: string | null;
+    restoreToFullItemId?: string | null;
+    detailItemId?: string | null;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -175,10 +179,31 @@ export function buildItemUseResultKeyboard(
     keyboard.row();
   }
 
+  if (options.detailItemId) {
+    keyboard
+      .text(
+        presentItemUseDetailButtonLabel(options.detailItemId),
+        makeItemDetailCallbackData(options.detailItemId)
+      )
+      .row();
+  }
+
   return keyboard
     .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
+}
+
+function presentItemUseDetailButtonLabel(itemId: string): string {
+  if (itemId === "item.field-kit") {
+    return "🔎 До аптечки";
+  }
+
+  if (itemId === "item.responsible-panic-bandage" || itemId === "item.dense-bandage") {
+    return "🔎 До бинта";
+  }
+
+  return "🔎 До манатки";
 }
 
 function presentInventoryBackButtonLabel(filter: InventoryFilter): string {

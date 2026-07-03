@@ -15,6 +15,7 @@ Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage` and `/dev_
 2. After the second Yeger board completion, open the ordinary bandage card outside combat with `7`, `8`, `12`, `13` and `14` ordinary bandages; verify `Щільний бинт` appears at `8+` and `Польова аптечка` appears at `13+`.
 3. Craft each item and verify ordinary bandage counts decrease by the recipe cost or by a smaller successful savings spend, exactly one crafted item appears and the matching rewardless craft achievement can appear once.
 3a. With a higher-level/lucky character, repeat several crafts and verify a successful savings roll can preserve `1-5` ordinary bandages without allowing the craft below the up-front `8` / `13` ordinary-bandage requirement.
+3b. At full HP, try a medical item from its detail card; verify the no-op card says treatment is not needed and offers `До бинта` / `До аптечки` back to the source item detail.
 4. Replay an old craft button after the count is no longer sufficient and verify no extra item is granted.
 5. Try craft preview/confirm during an active solo fight and verify it is denied without inventory mutation.
 6. Use `Щільний бинт` outside combat at full HP, low HP and near max HP; verify no-op uses do not consume.

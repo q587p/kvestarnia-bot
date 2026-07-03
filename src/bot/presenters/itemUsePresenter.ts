@@ -36,7 +36,7 @@ export function presentItemUsePreview(
 
   if (result.state === "full-hp") {
     return [
-      "🩹 Манатка чекає",
+      "🩹 Лікування не потрібне",
       "",
       presentHpNoopLine(result.preview),
       "Єгер не дозволив витрачати медицину просто для драматичного вигляду."

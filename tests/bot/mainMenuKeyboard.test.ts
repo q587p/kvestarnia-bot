@@ -1896,6 +1896,27 @@ describe("main menu and scene keyboards", () => {
       "🛡️ Спорядження"
     ]);
     expect(
+      flatInlineButtonTexts(buildItemUseResultKeyboard({ detailItemId: "item.responsible-panic-bandage" }))
+    ).toEqual([
+      "🔎 До бинта",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
+      flatInlineButtonCallbacks(buildItemUseResultKeyboard({ detailItemId: "item.responsible-panic-bandage" }))
+    ).toEqual([
+      "v1:item:detail:item.responsible-panic-bandage",
+      "v1:item:inventory",
+      "v1:equip:view"
+    ]);
+    expect(
+      flatInlineButtonTexts(buildItemUseResultKeyboard({ detailItemId: "item.field-kit" }))
+    ).toEqual([
+      "🔎 До аптечки",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
       flatInlineButtonTexts(buildItemUseResultKeyboard({
         repeatItemId: "item.responsible-panic-bandage",
         restoreToFullItemId: "item.responsible-panic-bandage"
