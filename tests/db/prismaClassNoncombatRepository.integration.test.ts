@@ -114,6 +114,27 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect(snapshot?.targets).toHaveLength(1);
   });
 
+  it("hides same-day Rogue attempted targets from filtered target snapshots", async () => {
+    await seedCharacter({ telegramUserId: 901n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
+    await seedCharacter({ telegramUserId: 902n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
+    await seedCharacter({ telegramUserId: 903n, userId: "user-bystander", characterId: "bystander", level: 5, gold: 8 });
+
+    await repository.completeRoguePickpocket(901n, rogueInput({
+      targetTelegramUserId: 902n,
+      outcome: "clean-success",
+      stolenGold: 1
+    }));
+
+    const filtered = await repository.getSnapshotForTelegramUser(901n, {
+      ...snapshotInput(),
+      excludeRogueAttemptedLocalDate: "2026-07-03"
+    });
+    const unfiltered = await repository.getSnapshotForTelegramUser(901n, snapshotInput());
+
+    expect(filtered?.targets.map((target) => target.telegramUserId)).toEqual([903n]);
+    expect(unfiltered?.targets.map((target) => target.telegramUserId).sort()).toEqual([902n, 903n]);
+  });
+
   it("stores active Priest blessing for hero display and spends mana", async () => {
     await seedCharacter({
       telegramUserId: 701n,

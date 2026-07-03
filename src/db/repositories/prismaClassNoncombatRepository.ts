@@ -43,7 +43,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
   async getSnapshotForTelegramUser(
     telegramUserId: bigint,
-    input: { activeSince: Date; page: number; pageSize: number; now: Date }
+    input: Parameters<ClassNoncombatRepository["getSnapshotForTelegramUser"]>[1]
   ): Promise<NoncombatActionSnapshot | null> {
     const actor = await findCharacter(this.prisma, telegramUserId);
     if (!actor) {
@@ -52,11 +52,18 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
     const actorRecord = toCharacterRecord(actor);
     const locationId = normalizePresenceLocationId(actor.user.lastSeenLocationId);
-    const [targets, blessCooldown, pickpocketCooldown] = await Promise.all([
+    const [rawTargets, attemptedRogueTargetIds, blessCooldown, pickpocketCooldown] = await Promise.all([
       listActiveTargets(this.prisma, actor.id, locationId, input.activeSince),
+      input.excludeRogueAttemptedLocalDate
+        ? listRogueAttemptedTargetIds(this.prisma, actor.id, input.excludeRogueAttemptedLocalDate)
+        : Promise.resolve([]),
       findCooldown(this.prisma, actor.id, PRIEST_BLESS_COOLDOWN_KEY),
       findCooldown(this.prisma, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY)
     ]);
+    const attemptedRogueTargetIdSet = new Set(attemptedRogueTargetIds);
+    const targets = attemptedRogueTargetIdSet.size > 0
+      ? rawTargets.filter((target) => !attemptedRogueTargetIdSet.has(target.characterId))
+      : rawTargets;
     const safePageSize = Math.max(1, Math.min(50, Math.trunc(input.pageSize)));
     const totalPages = Math.max(1, Math.ceil(targets.length / safePageSize));
     const safePage = clampPage(input.page, totalPages);
@@ -741,6 +748,19 @@ async function listActiveTargets(
         }]
       : []
   );
+}
+
+async function listRogueAttemptedTargetIds(
+  client: PrismaClient,
+  actorCharacterId: string,
+  localDate: string
+): Promise<string[]> {
+  const attempts = await client.noncombatRoguePickpocketAttempt.findMany({
+    where: { actorCharacterId, localDate },
+    select: { targetCharacterId: true }
+  });
+
+  return attempts.map((attempt) => attempt.targetCharacterId);
 }
 
 function getPresenceLocationQueryIds(locationId: string): string[] {

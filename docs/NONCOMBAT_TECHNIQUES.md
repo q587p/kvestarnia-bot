@@ -116,7 +116,7 @@ Example: a Rogue pocket-theatre challenge.
 - audit and replay;
 - not a first release.
 
-`0.2.25` exception: Rogue pickpocket MVP allows tightly bounded forced same-location gold theft. It is actor-target/day scoped, actor-cooldown gated, target-level protected, private, replay-safe and capped at tiny gold amounts. It never steals items, creates gold, counts as trade/gift/quest/hunt/combat progress or emits a public shame/feed row. Caught-badly sets Rogue HP to `0` but adds no extra caught cooldown beyond the normal 93-minute pickpocket cooldown.
+`0.2.25` exception: Rogue pickpocket MVP allows tightly bounded forced same-location gold theft. It is actor-target/day scoped, actor-cooldown gated, target-level protected, private, replay-safe and capped at tiny gold amounts. Fresh pickpocket target lists hide targets already attempted by this Rogue on the current Kyiv day, while duplicate callbacks still replay the stored result. It never steals items, creates gold, counts as trade/gift/quest/hunt/combat progress or emits a public shame/feed row. Caught-badly sets Rogue HP to `0` but adds no extra caught cooldown beyond the normal 93-minute pickpocket cooldown.
 
 ### Information Action
 

@@ -88,7 +88,8 @@ export class ClassNoncombatService {
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       page,
       pageSize: 5,
-      now
+      now,
+      ...(mode === "rogue" ? { excludeRogueAttemptedLocalDate: toKorchmaLocalDate(now) } : {})
     });
     if (!snapshot) {
       return { state: "no-character" };

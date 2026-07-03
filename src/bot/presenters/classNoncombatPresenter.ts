@@ -122,7 +122,7 @@ export function presentRoguePickpocketResult(result: RoguePickpocketResult): str
     `Ціль: ${presentCharacterDisplayName(result.target, { boldName: false })}`,
     body,
     outcome === "caught-badly" ? "HP злодія: <b>0</b>." : "",
-    `Наступна спроба: ${formatRemaining(result.attempt.cooldownAvailableAt)}.${replayLine}`
+    `Наступна спроба: <i>${formatRemaining(result.attempt.cooldownAvailableAt)}</i>.${replayLine}`
   ].filter(Boolean).join("\n");
 }
 

@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   presentClassNoncombatOpen,
   presentPriestBlessResult,
-  presentPriestHealResult
+  presentPriestHealResult,
+  presentRoguePickpocketResult
 } from "../../src/bot/presenters/classNoncombatPresenter";
 import type {
   ClassNoncombatOpenResult,
   PriestBlessResult,
-  PriestHealResult
+  PriestHealResult,
+  RoguePickpocketResult
 } from "../../src/services/classNoncombatService";
 
 describe("class noncombat presenter", () => {
@@ -149,6 +151,38 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("⚕️ <b>Лікування спрацювало</b>");
     expect(text).not.toContain("Відпочинок техніки");
     expect(text).not.toContain("🩹 <b>Лікування спрацювало</b>");
+  });
+
+  it("formats Rogue next-attempt time in italics", () => {
+    const text = presentRoguePickpocketResult({
+      state: "completed",
+      attempt: {
+        id: "pickpocket-1",
+        actorCharacterId: "rogue-1",
+        targetCharacterId: "target-1",
+        actorTelegramUserId: 1001n,
+        targetTelegramUserId: 1002n,
+        actorName: "Злодій",
+        targetName: "Сусід",
+        outcome: "clean-success",
+        stolenGold: 6,
+        actorHpAfter: null,
+        cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+        completedAt: new Date("2026-07-03T09:00:00.000Z")
+      },
+      actor: {
+        id: "rogue-1",
+        name: "Злодій"
+      },
+      target: {
+        id: "target-1",
+        name: "Сусід"
+      },
+      created: true,
+      unlocks: []
+    } as unknown as RoguePickpocketResult);
+
+    expect(text).toContain("Наступна спроба: <i>93 хвилини</i>.");
   });
 
   it("uses reason-specific Priest blocked headings", () => {

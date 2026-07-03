@@ -165,6 +165,20 @@ describe("ClassNoncombatService", () => {
     expect(achievements.events).toEqual([]);
   });
 
+  it("requests same-day attempted target filtering when opening the Rogue list", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: rogue()
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0]));
+
+    const result = await service.openForTelegramUser(actorTelegramUserId, "rogue");
+
+    expect(result).toMatchObject({ state: "ready", mode: "rogue" });
+    expect(repository.lastSnapshotInput).toMatchObject({
+      excludeRogueAttemptedLocalDate: "2026-07-03"
+    });
+  });
+
   it("tracks caught badly without creating a success event", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue({ level: 3, statsJson: { dexterity: 1, luck: 1 } }),
@@ -192,6 +206,7 @@ describe("ClassNoncombatService", () => {
 });
 
 class FakeClassNoncombatRepository implements ClassNoncombatRepository {
+  lastSnapshotInput: Parameters<ClassNoncombatRepository["getSnapshotForTelegramUser"]>[1] | null = null;
   lastHealInput: Parameters<ClassNoncombatRepository["completePriestHeal"]>[1] | null = null;
   lastBlessInput: Parameters<ClassNoncombatRepository["completePriestBlessing"]>[1] | null = null;
   lastPickpocketInput: Parameters<ClassNoncombatRepository["completeRoguePickpocket"]>[1] | null = null;
@@ -216,7 +231,11 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     this.pickpocketResult = options.pickpocketResult;
   }
 
-  getSnapshotForTelegramUser(): Promise<NoncombatActionSnapshot> {
+  getSnapshotForTelegramUser(
+    _telegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["getSnapshotForTelegramUser"]>[1]
+  ): Promise<NoncombatActionSnapshot> {
+    this.lastSnapshotInput = input;
     return Promise.resolve({
       character: this.actor,
       targets: [{

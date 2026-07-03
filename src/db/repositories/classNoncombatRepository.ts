@@ -107,7 +107,7 @@ export type RoguePickpocketRepositoryResult =
 export interface ClassNoncombatRepository {
   getSnapshotForTelegramUser(
     telegramUserId: bigint,
-    input: { activeSince: Date; page: number; pageSize: number; now: Date }
+    input: { activeSince: Date; page: number; pageSize: number; now: Date; excludeRogueAttemptedLocalDate?: string }
   ): Promise<NoncombatActionSnapshot | null>;
 
   getActivePriestBlessingForTelegramUser(
