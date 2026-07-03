@@ -26,13 +26,13 @@ type EquipRequirementDetails = Extract<
 >["requirements"];
 
 const equipmentSlots: readonly SlotView[] = [
-  { id: "weapon", icon: "🗡️", label: "Зброя", emptyText: "стійка чекає важкий аргумент." },
-  { id: "offhand", icon: "✋", label: "Друга рука", emptyText: "вільна рука поки чекає, що саме їй довірять." },
   { id: "head", icon: "🎩", label: "Голова", emptyText: "полиця для шолома дивиться зверху." },
   { id: "chest", icon: "🧥", label: "Тулуб", emptyText: "манекен мерзне професійно." },
   { id: "legs", icon: "🥾", label: "Ноги", emptyText: "поножі ще не знайшли своїх колін." },
   { id: "accessory", icon: "💍", label: "Аксесуар", emptyText: "поличка чекає велику дивину." },
-  { id: "tool", icon: "🧰", label: "Інструмент", emptyText: "кишеня для корисного ще не підписана." }
+  { id: "tool", icon: "🧰", label: "Інструмент", emptyText: "кишеня для корисного ще не підписана." },
+  { id: "weapon", icon: "🗡️", label: "Основна рука", emptyText: "долоня чекає, що саме їй довірять." },
+  { id: "offhand", icon: "✋", label: "Друга рука", emptyText: "вільна рука поки репетирує корисність." }
 ];
 
 export function presentEquipment(result: EquipmentResult): string {

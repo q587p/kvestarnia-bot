@@ -212,7 +212,7 @@ describe("hero presenter", () => {
     expect(text).toContain("❤️ HP 26/26");
     expect(text).toContain("🎒 Манатки: +2 HP · +1 Вдачі");
     expect(text).toContain("🛡️ Захист спорядження: +1 до захисту");
-    expect(text).toContain("🗡️ Зброя: +2 до удару");
+    expect(text).toContain("🗡️ Удар: +2 до удару");
     expect(text).toContain("Зміна: +4 HP · +2 мани · +1 Спритності");
   });
 

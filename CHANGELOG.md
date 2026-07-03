@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added an effective-stat regression proving tuned generated equipment bonuses reach the combat stat aggregation layer.
 - Added rewardless equipment achievements for filling all seven canonical equipment slots and for a hidden long-term cumulative `93` successful-equips milestone.
 - Added `/chronicles` as a help-listed command that opens the existing `📜 Хроніки Квестарні` / `📣 Останні події` feed without adding it to the Telegram side menu.
+- Renamed the player-facing `weapon` equipment slot to `Основна рука` and moved both hand slots below body/tool slots in the equipment card and slot-filter buttons.
 - Added the `0.2.24` task doc with compact balance rationale, protected-flow checklist and deterministic combat probe summary.
 
 ### Safety

@@ -17,7 +17,7 @@ describe("equipment presenter", () => {
     const text = presentEquipment(emptyEquipment());
 
     expect(text).toContain("🧥 <b>Спорядження</b>");
-    expect(text).toContain("🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>");
+    expect(text).toContain("🗡️ <b>Основна рука</b>: <i>долоня чекає, що саме їй довірять.</i>");
     expect(text).toContain("✋ <b>Друга рука</b>");
     expect(text).toContain("🎩 <b>Голова</b>");
     expect(text).toContain("🧥 <b>Тулуб</b>");
@@ -26,10 +26,6 @@ describe("equipment presenter", () => {
     expect(text).toContain("🧰 <b>Інструмент</b>");
     expect(text).toContain(
       [
-        "🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>",
-        "",
-        "✋ <b>Друга рука</b>: <i>вільна рука поки чекає, що саме їй довірять.</i>",
-        "",
         "🎩 <b>Голова</b>: <i>полиця для шолома дивиться зверху.</i>",
         "",
         "🧥 <b>Тулуб</b>: Фартух піностійкого пригодника",
@@ -40,7 +36,11 @@ describe("equipment presenter", () => {
         "💍 <b>Аксесуар</b>: Корковий перстень серйозних справ",
         "Ефект: <i>+1 Вдачі</i>",
         "",
-        "🧰 <b>Інструмент</b>: <i>кишеня для корисного ще не підписана.</i>"
+        "🧰 <b>Інструмент</b>: <i>кишеня для корисного ще не підписана.</i>",
+        "",
+        "🗡️ <b>Основна рука</b>: <i>долоня чекає, що саме їй довірять.</i>",
+        "",
+        "✋ <b>Друга рука</b>: <i>вільна рука поки репетирує корисність.</i>"
       ].join("\n")
     );
     expect(text).toContain("Манатки нарешті штовхають циферки");
@@ -53,7 +53,7 @@ describe("equipment presenter", () => {
   it("shows equipped items in their persisted slots", () => {
     const text = presentEquipment(foundEquipment());
 
-    expect(text).toContain("🗡️ <b>Зброя</b>: Пательня переконання");
+    expect(text).toContain("🗡️ <b>Основна рука</b>: Пательня переконання");
     expect(text).toContain("Ефект: <i>+2 до удару</i>");
     expect(text).toContain("🧥 <b>Тулуб</b>: Фартух піностійкого пригодника");
     expect(text).toContain("💍 <b>Аксесуар</b>: Корковий перстень серйозних справ");

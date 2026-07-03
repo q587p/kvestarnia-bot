@@ -23,7 +23,7 @@ Manual Telegram QA status for the implementation pass: not run.
 Manual Telegram QA status for the implementation pass: not run.
 
 1. Open `🎒 Манатки`, then each equipment slot filter: weapon, offhand, head, chest, legs, accessory and tool. Verify the list stays compact, the title matches the selected slot and back buttons return to the same filtered view.
-2. Open `/equipment`, `/gear` or `/equip`; verify all seven slots appear: `Зброя`, `Друга рука`, `Голова`, `Тулуб`, `Ноги`, `Аксесуар`, `Інструмент`, occupied slots show `Показати ...` and `Зняти ...` on one row, and the empty `Друга рука` copy/icon does not imply a shield-only slot.
+2. Open `/equipment`, `/gear` or `/equip`; verify all seven slots appear in body-first order: `Голова`, `Тулуб`, `Ноги`, `Аксесуар`, `Інструмент`, `Основна рука`, `Друга рука`; occupied slots show `Показати ...` and `Зняти ...` on one row, and the hand-slot copy/icons do not imply weapon- or shield-only slots.
 3. Open starter weapon, head, chest and accessory manatka detail cards; verify each equip line names the correct target slot.
 4. Equip a manatka into an occupied slot and verify the result card says the previous manatka stayed in the bag.
 5. If local data can seed a generated tool-category manatka, verify it appears under the tool filter and equips into `Інструмент`.

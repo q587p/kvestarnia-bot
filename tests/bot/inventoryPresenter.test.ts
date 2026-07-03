@@ -131,7 +131,7 @@ describe("inventory presenter", () => {
       }
     });
 
-    expect(text).toContain("🗡️ <b>Манатки-зброя</b>");
+    expect(text).toContain("🗡️ <b>Манатки для основної руки</b>");
     expect(text).toContain("Показано лише те, що можна спробувати вдягнути в цей слот.");
     expect(text).toContain("Вдягнено: <b>Швабра Далекого Контакту +3</b>");
     expect(text).toContain("Ефект: <i>+2 Спритности · +3 до удару</i>");

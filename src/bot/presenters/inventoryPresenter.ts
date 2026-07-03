@@ -160,7 +160,7 @@ function presentEmptyFilterLine(filter: Exclude<InventoryFilter, null>): string 
 
 function presentSlotFilterTitle(slot: EquipmentSlot): string {
   const titles: Record<EquipmentSlot, string> = {
-    weapon: "Манатки-зброя",
+    weapon: "Манатки для основної руки",
     offhand: "Манатки для другої руки",
     head: "Манатки-шоломи",
     chest: "Манатки для тулуба",

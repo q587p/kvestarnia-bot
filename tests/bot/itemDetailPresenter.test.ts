@@ -53,7 +53,7 @@ describe("item detail presenter", () => {
     expect(text).toContain("Категорія: <b>зброя</b>");
     expect(text).toContain("Вартість: <b>25 золота</b>");
     expect(text).toContain("Ефект: <b>+2 до удару</b>");
-    expect(text).toContain("можна екіпірувати у слот «Зброя»");
+    expect(text).toContain("можна екіпірувати у слот «Основна рука»");
     expect(text).not.toContain("бонуси поки лежать у бухгалтерії");
   });
 
@@ -216,7 +216,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("вдягнено");
-    expect(text).toContain("Зброя");
+    expect(text).toContain("Основна рука");
     expect(text).toContain("Ефект: <b>+2 до удару</b>");
     expect(text).not.toContain("Бонуси ще не рахуються");
   });

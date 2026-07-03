@@ -278,19 +278,19 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
 }
 
 const equipmentSlotButtons: ReadonlyArray<{ slot: EquipmentSlot; showLabel: string }> = [
-  { slot: "weapon", showLabel: "🗡️ Показати зброю" },
-  { slot: "offhand", showLabel: "✋ Показати другу руку" },
   { slot: "head", showLabel: "🎩 Показати голову" },
   { slot: "chest", showLabel: "🧥 Показати тулуб" },
   { slot: "legs", showLabel: "🥾 Показати ноги" },
   { slot: "accessory", showLabel: "💍 Показати аксесуари" },
-  { slot: "tool", showLabel: "🧰 Показати інструменти" }
+  { slot: "tool", showLabel: "🧰 Показати інструменти" },
+  { slot: "weapon", showLabel: "🗡️ Показати основну руку" },
+  { slot: "offhand", showLabel: "✋ Показати другу руку" }
 ];
 
 function presentUnequipSlotButtonLabel(slot: EquipmentSlot): string {
   const labels: Record<EquipmentSlot, string> = {
-    weapon: "Зняти зброю",
-    offhand: "Зняти другу руку",
+    weapon: "Зняти з основної руки",
+    offhand: "Зняти з другої руки",
     head: "Зняти шолом",
     chest: "Зняти обладунок",
     legs: "Зняти поножі",

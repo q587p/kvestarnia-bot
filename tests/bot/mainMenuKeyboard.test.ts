@@ -1829,13 +1829,13 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      ["🗡️ Показати зброю", "Зняти зброю"],
-      ["✋ Показати другу руку"],
       ["🎩 Показати голову"],
       ["🧥 Показати тулуб"],
       ["🥾 Показати ноги"],
       ["💍 Показати аксесуари", "Зняти аксесуар"],
       ["🧰 Показати інструменти"],
+      ["🗡️ Показати основну руку", "Зняти з основної руки"],
+      ["✋ Показати другу руку"],
       ["⬅️ До манаток"]
     ]);
     expect(
@@ -1879,15 +1879,15 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "v1:item:inventory:s:w",
-      "v1:equip:clear:weapon",
-      "v1:item:inventory:s:o",
       "v1:item:inventory:s:h",
       "v1:item:inventory:s:c",
       "v1:item:inventory:s:l",
       "v1:item:inventory:s:a",
       "v1:equip:clear:accessory",
       "v1:item:inventory:s:t",
+      "v1:item:inventory:s:w",
+      "v1:equip:clear:weapon",
+      "v1:item:inventory:s:o",
       "v1:item:inventory"
     ]);
   });
