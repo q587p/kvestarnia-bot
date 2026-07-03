@@ -124,6 +124,7 @@ export interface ClassNoncombatRepository {
       now: Date;
       cooldownAvailableAt: Date;
       healAmount: number;
+      targetEffectiveHpMax: number;
       manaCost: number;
       statSnapshot: unknown;
     }

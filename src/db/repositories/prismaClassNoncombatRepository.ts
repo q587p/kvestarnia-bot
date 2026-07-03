@@ -17,6 +17,7 @@ import {
   PRESENCE_LOCATION_TAVERN_CELLAR
 } from "../../services/presenceService";
 import type { CharacterRecord } from "./characterRepository";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import type {
   ClassNoncombatRepository,
@@ -115,7 +116,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         }
 
         const { actor, target, actorRecord, targetRecord, locationId } = gate;
-        if (target.hpCurrent >= target.hpMax) {
+        const targetEffectiveHpMax = Math.max(target.hpMax, safePositiveInteger(input.targetEffectiveHpMax, target.hpMax));
+        if (target.hpCurrent >= targetEffectiveHpMax) {
           return { state: "blocked", reason: "full-hp", actor: actorRecord, target: targetRecord };
         }
         if (actor.manaCurrent < input.manaCost) {
@@ -133,7 +135,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           };
         }
 
-        const hpAfter = Math.min(target.hpMax, target.hpCurrent + input.healAmount);
+        const hpAfter = Math.min(targetEffectiveHpMax, target.hpCurrent + input.healAmount);
         const spent = input.manaCost;
         const mutated = actor.id === target.id
           ? await tx.character.updateMany({
@@ -145,11 +147,11 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
               data: {
                 hpCurrent: hpAfter,
                 manaCurrent: actor.manaCurrent - spent,
-                hpRegenAt: hpAfter >= target.hpMax ? input.now : target.hpRegenAt,
+                hpRegenAt: hpAfter >= targetEffectiveHpMax ? input.now : target.hpRegenAt,
                 manaRegenAt: actor.manaRegenAt ?? input.now
               }
             })
-          : await mutatePriestHealPair(tx, actor, target, hpAfter, spent, input.now);
+          : await mutatePriestHealPair(tx, actor, target, hpAfter, targetEffectiveHpMax, spent, input.now);
         if (mutated.count !== 1) {
           throw new ResourceRaceError();
         }
@@ -173,6 +175,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             manaCost: spent,
             resultJson: toJson({
               statSnapshot: input.statSnapshot,
+              targetEffectiveHpMax,
               hpBefore: target.hpCurrent,
               hpAfter,
               manaBefore: actor.manaCurrent,
@@ -636,6 +639,7 @@ async function mutatePriestHealPair(
   actor: IncludedCharacter,
   target: IncludedCharacter,
   hpAfter: number,
+  targetEffectiveHpMax: number,
   manaCost: number,
   now: Date
 ): Promise<{ count: number }> {
@@ -653,7 +657,7 @@ async function mutatePriestHealPair(
     where: { id: target.id, hpCurrent: target.hpCurrent },
     data: {
       hpCurrent: hpAfter,
-      hpRegenAt: hpAfter >= target.hpMax ? now : target.hpRegenAt
+      hpRegenAt: hpAfter >= targetEffectiveHpMax ? now : target.hpRegenAt
     }
   });
 }
@@ -748,7 +752,7 @@ async function listActiveTargets(
           classId: user.character.classId,
           level: user.character.level,
           hpCurrent: user.character.hpCurrent,
-          hpMax: user.character.hpMax,
+          hpMax: getEffectiveHpMax(user.character),
           gold: user.character.gold,
           remortCount: getIncludedRemortCount(user.character)
         }]
@@ -841,6 +845,26 @@ function toCharacterRecord(character: IncludedCharacter): CharacterRecord {
   };
 }
 
+function getEffectiveHpMax(character: Character & { _count?: { remorts: number } }): number {
+  return summarizeCharacter({
+    name: character.name,
+    pronoun: character.pronoun,
+    path: character.path,
+    currentLocationId: null,
+    raceId: character.raceId,
+    classId: character.classId,
+    level: character.level,
+    xp: character.xp,
+    gold: character.gold,
+    hpCurrent: character.hpCurrent,
+    hpMax: character.hpMax,
+    manaCurrent: character.manaCurrent,
+    manaMax: character.manaMax,
+    statsJson: character.statsJson,
+    remortCount: getIncludedRemortCount(character)
+  }).hpMax;
+}
+
 function mapPriestAid(row: {
   id: string;
   actorCharacterId: string;
@@ -928,6 +952,10 @@ function mapRogueAttempt(row: {
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function safePositiveInteger(value: number, fallback: number): number {
+  return Number.isFinite(value) ? Math.max(1, Math.floor(value)) : fallback;
 }
 
 class ResourceRaceError extends Error {

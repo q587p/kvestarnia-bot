@@ -151,6 +151,7 @@ export class ClassNoncombatService {
       now,
       cooldownAvailableAt: addMinutes(now, PRIEST_DIRECT_AID_COOLDOWN_MINUTES),
       healAmount: plan.heal,
+      targetEffectiveHpMax: target?.hpMax ?? 1,
       manaCost: plan.manaCost,
       statSnapshot: actor ? { level: actor.level, charisma: actor.stats.charisma, intelligence: actor.stats.intelligence } : {}
     });

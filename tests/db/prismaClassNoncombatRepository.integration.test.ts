@@ -126,6 +126,45 @@ describe("PrismaClassNoncombatRepository integration", () => {
     });
   });
 
+  it("heals Priest targets up to the effective HP max instead of the stored base max", async () => {
+    await seedCharacter({
+      telegramUserId: 711n,
+      userId: "user-priest",
+      characterId: "priest",
+      classId: "class.priest",
+      level: 4,
+      hpCurrent: 16,
+      manaCurrent: 20
+    });
+
+    const result = await repository.completePriestHeal(711n, priestHealInput({
+      targetTelegramUserId: null,
+      healAmount: 10,
+      targetEffectiveHpMax: 32,
+      manaCost: 10
+    }));
+
+    expect(result).toMatchObject({
+      state: "completed",
+      action: {
+        healAmount: 10,
+        manaCost: 10
+      },
+      actor: {
+        hpCurrent: 26,
+        manaCurrent: 10
+      },
+      target: {
+        hpCurrent: 26
+      }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "priest" } })).resolves.toMatchObject({
+      hpCurrent: 26,
+      hpMax: 20,
+      manaCurrent: 10
+    });
+  });
+
   it("replays Rogue same-day duplicate even after live location gates drift", async () => {
     await seedCharacter({ telegramUserId: 501n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
     await seedCharacter({ telegramUserId: 502n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
@@ -236,6 +275,26 @@ function priestBlessInput(overrides: {
     expiresAt: overrides.expiresAt,
     cooldownAvailableAt,
     manaCost: 7,
+    statSnapshot: { test: true }
+  };
+}
+
+function priestHealInput(overrides: {
+  targetTelegramUserId?: bigint | null;
+  healAmount: number;
+  targetEffectiveHpMax: number;
+  manaCost: number;
+}) {
+  return {
+    targetTelegramUserId: overrides.targetTelegramUserId ?? null,
+    expectedActorRemortCount: 0,
+    expectedTargetRemortCount: 0,
+    activeSince: new Date("2026-07-03T08:55:00.000Z"),
+    now,
+    cooldownAvailableAt,
+    healAmount: overrides.healAmount,
+    targetEffectiveHpMax: overrides.targetEffectiveHpMax,
+    manaCost: overrides.manaCost,
     statSnapshot: { test: true }
   };
 }

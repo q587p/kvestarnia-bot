@@ -44,6 +44,31 @@ describe("ClassNoncombatService", () => {
     ]);
   });
 
+  it("passes effective self HP max into the Priest heal transaction", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: priest({
+        level: 4,
+        hpCurrent: 16,
+        hpMax: 20,
+        manaCurrent: 20,
+        statsJson: { charisma: 9, intelligence: 8 }
+      })
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0]));
+
+    await service.healForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0
+    });
+
+    expect(repository.lastHealInput).toMatchObject({
+      healAmount: 11,
+      manaCost: 11,
+      targetEffectiveHpMax: 32
+    });
+  });
+
   it("keeps full-HP Priest heal as a no-op without achievement tracking", async () => {
     const repository = new FakeClassNoncombatRepository({
       healResult: { state: "blocked", reason: "full-hp", actor: priest(), target: target({ hpCurrent: 20, hpMax: 20 }) }
@@ -226,7 +251,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       state: "completed",
       action: priestAid("aid-heal", "heal", input.healAmount, input.manaCost, input.cooldownAvailableAt),
       actor: this.actor,
-      target: { ...this.target, hpCurrent: Math.min(this.target.hpMax, this.target.hpCurrent + input.healAmount) },
+      target: { ...this.target, hpCurrent: Math.min(input.targetEffectiveHpMax, this.target.hpCurrent + input.healAmount) },
       created: true
     });
   }

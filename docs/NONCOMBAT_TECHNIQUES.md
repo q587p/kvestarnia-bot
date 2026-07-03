@@ -89,6 +89,8 @@ Example: a Priest offers a blessing or heal to a nearby player.
 
 `0.2.25` exception: Priest direct aid is not an offer flow. A level 3+ Priest can heal or bless self or an active same-location target directly outside combat. Mana/cooldown are spent only after a successful durable mutation, failed/full-HP/already-blessed/stale attempts do not mutate, and another target receives a private best-effort notification after the stored result exists.
 
+Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + floor((charisma + intelligence) / 3) + floor(level / 2))`; mana cost is `max(7, ceil(heal * 0.75) + 2)`. Missing HP, full-HP checks and healing caps use the target's current effective HP maximum, including level-derived HP.
+
 ### Performance / Local Event
 
 Example: a Bard performs for active nearby characters in the current location.
