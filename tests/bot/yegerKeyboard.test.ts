@@ -15,7 +15,8 @@ import {
   makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerOutsideCallbackData,
-  makeYegerQuestCallbackData
+  makeYegerQuestCallbackData,
+  makeYegerTurnInCallbackData
 } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
@@ -31,6 +32,22 @@ describe("Yeger keyboard", () => {
       text: "🏹 Неспокійні справи",
       callback_data: makeYegerQuestCallbackData()
     });
+  });
+
+  it("turns in ready boards directly from the base Yeger corner", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "turn-in-ready",
+      character,
+      progress: { wins: 5, target: 5 }
+    });
+
+    expect(flatButtons(keyboard)[0]).toEqual({
+      text: "🏹 Здати Єгерю",
+      callback_data: makeYegerTurnInCallbackData()
+    });
+    expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
+      makeYegerQuestCallbackData()
+    );
   });
 
   it("hides the quest detail button after the board is closed", () => {

@@ -74,7 +74,9 @@ export function buildYegerCornerKeyboard(
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  if (result.state !== "level-locked" && result.state !== "completed") {
+  if (result.state === "turn-in-ready") {
+    keyboard.text("🏹 Здати Єгерю", makeYegerTurnInCallbackData()).row();
+  } else if (result.state !== "level-locked" && result.state !== "completed") {
     keyboard.text(`🏹 ${presentYegerQuestTitle(result.progress)}`, makeYegerQuestCallbackData()).row();
   }
 

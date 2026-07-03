@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
+import { makeYegerTurnInCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import { sendQuestHub } from "../../src/bot/commands/questHubCommand";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -583,6 +584,15 @@ describe("quest hub command", () => {
       "🏹 <i>Неспокійні справи 2.0</i> — 17/17, Єгер чекає дощечку."
     );
     expect(activeReplies[0]?.text).not.toContain("🏹 <i>Неспокійні справи</i> — виконано");
+    const activeButtons = (
+      activeReplies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(activeButtons).toEqual(expect.arrayContaining([
+      { text: "🏹 Здати Єгерю", callback_data: makeYegerTurnInCallbackData() }
+    ]));
+    expect(activeButtons.map((button) => button.callback_data)).not.toContain("v1:tavern:ranger");
     expect(archiveReplies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
     expect(archiveReplies[0]?.text).not.toContain("🏹 <i>Неспокійні справи 2.0</i> — виконано");
   });
