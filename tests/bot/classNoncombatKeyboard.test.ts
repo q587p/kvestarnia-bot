@@ -10,7 +10,7 @@ describe("class noncombat keyboard", () => {
       hpMax: 20
     }));
 
-    expect(buttonTexts(keyboard)).not.toContain("🩹 Полікувати себе");
+    expect(buttonTexts(keyboard)).not.toContain("⚕️ Полікувати себе");
     expect(buttonTexts(keyboard)).toContain("✨ Благословити себе");
     expect(buttonTexts(keyboard)).toContain("🔄 Оновити");
   });
@@ -21,7 +21,7 @@ describe("class noncombat keyboard", () => {
       hpMax: 20
     }));
 
-    expect(buttonTexts(keyboard)).toContain("🩹 Полікувати себе");
+    expect(buttonTexts(keyboard)).toContain("⚕️ Полікувати себе");
     expect(buttonTexts(keyboard)).toContain("✨ Благословити себе");
   });
 });

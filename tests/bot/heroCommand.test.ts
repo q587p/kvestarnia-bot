@@ -71,6 +71,73 @@ describe("hero command", () => {
       parse_mode: "HTML"
     });
   });
+
+  it("shows Priest self-heal on the hero card when wounded and mana is available", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () =>
+        Promise.resolve({
+          state: "existing-character" as const,
+          character: {
+            ...character,
+            classId: "class.priest",
+            className: "Жрець",
+            level: 3,
+            hpCurrent: 11,
+            hpMax: 32,
+            manaCurrent: 9,
+            manaMax: 16,
+            remortCount: 2
+          },
+          inventoryGoldValue: 0,
+          activeDrink: null,
+          activeCosmeticTitle: null,
+          activePriestBlessing: null,
+          restoreToFullItemId: null
+        })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(inlineButtonRows(replies[0]?.options)).toContainEqual(["⚕️ Полікувати себе"]);
+    expect(flatInlineButtonCallbacks(replies[0]?.options)).toContain("v1:nc:h:s:2:2:0");
+  });
+
+  it("hides Priest self-heal on the hero card when HP is full or mana is empty", async () => {
+    const fullHpReplies: Array<{ text: string; options: unknown }> = [];
+    const noManaReplies: Array<{ text: string; options: unknown }> = [];
+    const woundedPriest = {
+      ...character,
+      classId: "class.priest",
+      className: "Жрець",
+      level: 3,
+      hpCurrent: 11,
+      hpMax: 32,
+      manaCurrent: 9,
+      manaMax: 16
+    };
+    const makeHeroService = (overrides: Partial<CharacterSummary>) => ({
+      findByTelegramUserId: () =>
+        Promise.resolve({
+          state: "existing-character" as const,
+          character: {
+            ...woundedPriest,
+            ...overrides
+          },
+          inventoryGoldValue: 0,
+          activeDrink: null,
+          activeCosmeticTitle: null,
+          activePriestBlessing: null,
+          restoreToFullItemId: null
+        })
+    }) as unknown as HeroService;
+
+    await sendHero(makeReplyContext(fullHpReplies), makeHeroService({ hpCurrent: 32 }), "reply");
+    await sendHero(makeReplyContext(noManaReplies), makeHeroService({ manaCurrent: 0 }), "reply");
+
+    expect(flatInlineButtonTexts(fullHpReplies[0]?.options)).not.toContain("⚕️ Полікувати себе");
+    expect(flatInlineButtonTexts(noManaReplies[0]?.options)).not.toContain("⚕️ Полікувати себе");
+  });
 });
 
 function makeReplyContext(replies: Array<{ text: string; options: unknown }>): Context {
@@ -99,6 +166,23 @@ function makeEditContext(edits: Array<{ text: string; options: unknown }>): Cont
       return Promise.resolve({});
     }
   } as unknown as Context;
+}
+
+function inlineButtonRows(options: unknown): string[][] {
+  return getInlineKeyboard(options).map((row) => row.map((button) => button.text));
+}
+
+function flatInlineButtonTexts(options: unknown): string[] {
+  return inlineButtonRows(options).flat();
+}
+
+function flatInlineButtonCallbacks(options: unknown): string[] {
+  return getInlineKeyboard(options).flat().map((button) => button.callback_data);
+}
+
+function getInlineKeyboard(options: unknown): Array<Array<{ text: string; callback_data: string }>> {
+  return (options as { reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data: string }>> } })
+    .reply_markup?.inline_keyboard ?? [];
 }
 
 const character: CharacterSummary = {

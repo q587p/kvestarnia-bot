@@ -100,7 +100,7 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.quest, mainMenuButtons.inventory],
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
-    expect(mainMenuButtons.quest).toBe("Квести");
+    expect(mainMenuButtons.quest).toBe("🗺️ Квести");
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
@@ -123,16 +123,19 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual(["v1:ach:list:all:0", "v1:ach:titles"]);
 
     const keyboard = buildHeroAchievementsKeyboard({
+      priestSelfHealCallbackData: "v1:nc:h:s:0:0:0",
       restoreCallbackData: "v1:use:full:item.responsible-panic-bandage"
     });
 
     expect(inlineButtonRows(keyboard)).toEqual([
       ["🏅 Ачівки", "🏷️ Титули"],
+      ["⚕️ Полікувати себе"],
       ["🧻 До відновлення"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:ach:list:all:0",
       "v1:ach:titles",
+      "v1:nc:h:s:0:0:0",
       "v1:use:full:item.responsible-panic-bandage"
     ]);
   });

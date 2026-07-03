@@ -1,5 +1,8 @@
 import { InlineKeyboard, type Bot, type Context, type Keyboard } from "grammy";
 import type { HeroService } from "../../services/heroService";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import { CLASS_NONCOMBAT_MIN_LEVEL } from "../../domain/noncombat/classNoncombatTechniques";
+import { makePriestHealCallbackData } from "../callbacks/classNoncombatCallbackData";
 import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallbackData";
 import { telegramUserIdFromContext } from "../context";
 import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
@@ -53,6 +56,7 @@ export async function sendHero(
     });
 
     const heroKeyboard = buildHeroAchievementsKeyboard({
+      priestSelfHealCallbackData: getPriestSelfHealCallbackData(result.character),
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
         : null
@@ -71,6 +75,25 @@ export async function sendHero(
   }
 
   await sendText(ctx, mode, presentHeroMissing(), false);
+}
+
+function getPriestSelfHealCallbackData(character: CharacterSummary): string | null {
+  if (
+    character.classId !== "class.priest" ||
+    character.level < CLASS_NONCOMBAT_MIN_LEVEL ||
+    character.hpCurrent >= character.hpMax ||
+    character.manaCurrent <= 0
+  ) {
+    return null;
+  }
+
+  const remortCount = character.remortCount ?? 0;
+  return makePriestHealCallbackData({
+    targetTelegramUserId: null,
+    actorRemortCount: remortCount,
+    targetRemortCount: remortCount,
+    page: 0
+  });
 }
 
 async function sendText(

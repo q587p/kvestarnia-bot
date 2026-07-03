@@ -9,11 +9,18 @@ import {
 } from "../callbacks/achievementCallbackData";
 
 export function buildHeroAchievementsKeyboard(
-  options: { restoreCallbackData?: string | null } = {}
+  options: {
+    priestSelfHealCallbackData?: string | null;
+    restoreCallbackData?: string | null;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🏅 Ачівки", makeAchievementListCallbackData(0))
     .text("🏷️ Титули", makeCosmeticTitleListCallbackData());
+
+  if (options.priestSelfHealCallbackData) {
+    keyboard.row().text("⚕️ Полікувати себе", options.priestSelfHealCallbackData);
+  }
 
   if (options.restoreCallbackData) {
     keyboard.row().text("🧻 До відновлення", options.restoreCallbackData);

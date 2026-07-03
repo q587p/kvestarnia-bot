@@ -30,7 +30,7 @@ import {
 export const mainMenuButtons = {
   hero: "👤 Персонаж",
   tavern: "🍺 Корчма",
-  quest: "Квести",
+  quest: "🗺️ Квести",
   inventory: "🎒 Манатки",
   participants: "👀 Хто поруч",
   help: "📖 Допомога",
@@ -84,7 +84,7 @@ export const mainMenuLocationButtonTexts: readonly string[] = [
 ];
 
 export const mainMenuQuestButtonTexts: readonly string[] = [
-  ...withQuestMarkerVariants([mainMenuButtons.quest, "🗺️ Квести"]),
+  ...withQuestMarkerVariants([mainMenuButtons.quest, "Квести"]),
   "🗺️ Квест"
 ];
 

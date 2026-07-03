@@ -18,7 +18,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult, pa
   if (result.mode === "priest") {
     if (canHeal(result.character)) {
       keyboard
-        .text("🩹 Полікувати себе", makePriestHealCallbackData({
+        .text("⚕️ Полікувати себе", makePriestHealCallbackData({
           targetTelegramUserId: null,
           actorRemortCount,
           targetRemortCount: actorRemortCount,

@@ -67,7 +67,7 @@ describe("class noncombat command", () => {
     expect(text).toContain("HP уже повне");
     expect(options.parse_mode).toBe("HTML");
     expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
-      "🩹 Полікувати себе",
+      "⚕️ Полікувати себе",
       "✨ Благословити себе"
     ]));
   });
@@ -107,7 +107,7 @@ describe("class noncombat command", () => {
     expect(text).toContain("На цілі вже тримається благословення");
     expect(options.parse_mode).toBe("HTML");
     expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
-      "🩹 Полікувати себе",
+      "⚕️ Полікувати себе",
       "✨ Благословити себе"
     ]));
   });
