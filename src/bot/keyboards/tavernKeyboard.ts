@@ -28,6 +28,7 @@ import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule
 import {
   decorateButtonLabel,
   resolveQuestMarkerForTarget,
+  QuestMarker,
   type QuestMarkerInput
 } from "./questButtonMarkers";
 
@@ -62,7 +63,13 @@ export function buildKorchmaFrontKeyboard(
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
-    .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
+    .text(
+      decorateButtonLabel(
+        "🚪 Зайти в корчму",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall")
+      ),
+      makePlaceCallbackData("hall")
+    )
     .row();
 
   keyboard
@@ -126,8 +133,18 @@ export function buildKorchmaYardKeyboard(options: { questMarkers?: QuestMarkerIn
     .text("⬅️ До дверей", makePlaceCallbackData("front"));
 }
 
-export function buildEnterKorchmaKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text("🚪 Зайти в корчму", makePlaceCallbackData("hall"));
+export function buildEnterKorchmaKeyboard(
+  options: { questMarkers?: QuestMarkerInput | null } = {}
+): InlineKeyboard {
+  const marker =
+    options.questMarkers === undefined
+      ? QuestMarker.CAN_ACCEPT
+      : resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall");
+
+  return new InlineKeyboard().text(
+    decorateButtonLabel("🚪 Зайти в корчму", marker),
+    makePlaceCallbackData("hall")
+  );
 }
 
 export function buildKorchmaHallKeyboard(options: { characterLevel?: number; questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {

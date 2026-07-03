@@ -58,7 +58,7 @@ export interface QuestMarkerInput {
 
 const MARKER_SUFFIX: Record<QuestMarker, string> = {
   [QuestMarker.NONE]: "",
-  [QuestMarker.CAN_ACCEPT]: "📜",
+  [QuestMarker.CAN_ACCEPT]: "⚠️",
   [QuestMarker.CAN_TURN_IN]: "✅"
 };
 
@@ -69,7 +69,7 @@ export function decorateButtonLabel(label: string, marker: QuestMarker | undefin
 }
 
 export function stripQuestMarkerSuffix(label: string): string {
-  return label.replace(/\s(?:📜|✅)$/u, "");
+  return label.replace(/\s(?:⚠️|📜|✅)$/u, "");
 }
 
 export function mergeQuestMarkers(markers: readonly (QuestMarker | undefined)[]): QuestMarker {

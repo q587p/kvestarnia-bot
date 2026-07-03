@@ -1,4 +1,4 @@
-﻿import type { Context } from "grammy";
+import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { sendFight } from "../../src/bot/commands/fightCommand";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
@@ -53,7 +53,7 @@ describe("fight command", () => {
         inline_keyboard: [
           [
             {
-              text: "🚪 Зайти в корчму",
+              text: "🚪 Зайти в корчму ⚠️",
               callback_data: makePlaceCallbackData("hall")
             }
           ]

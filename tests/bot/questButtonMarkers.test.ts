@@ -9,13 +9,14 @@ import {
 
 describe("quest button markers", () => {
   it("decorates labels with passive quest suffixes", () => {
-    expect(decorateButtonLabel("💚 Цілитель", QuestMarker.CAN_ACCEPT)).toBe("💚 Цілитель 📜");
+    expect(decorateButtonLabel("💚 Цілитель", QuestMarker.CAN_ACCEPT)).toBe("💚 Цілитель ⚠️");
     expect(decorateButtonLabel("💚 Цілитель", QuestMarker.CAN_TURN_IN)).toBe("💚 Цілитель ✅");
     expect(decorateButtonLabel("💚 Цілитель", QuestMarker.NONE)).toBe("💚 Цілитель");
   });
 
   it("strips suffix markers for reply keyboard routing", () => {
     expect(stripQuestMarkerSuffix("📌 🍺 Таверна ✅")).toBe("📌 🍺 Таверна");
+    expect(stripQuestMarkerSuffix("📌 🍺 Таверна ⚠️")).toBe("📌 🍺 Таверна");
     expect(stripQuestMarkerSuffix("📌 🍺 Таверна 📜")).toBe("📌 🍺 Таверна");
     expect(stripQuestMarkerSuffix("📌 🍺 Таверна")).toBe("📌 🍺 Таверна");
   });

@@ -60,7 +60,7 @@ describe("adventure command", () => {
         inline_keyboard: [
           [
             {
-              text: "🚪 Зайти в корчму",
+              text: "🚪 Зайти в корчму ⚠️",
               callback_data: makePlaceCallbackData("hall")
             }
           ]

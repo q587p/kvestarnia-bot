@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parseOnboardingCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import {
   buildClassKeyboard,
@@ -293,7 +293,7 @@ describe("onboarding presenters and keyboards", () => {
     );
 
     expect(text).toBe(
-      "🎒 Пригодника створено.\n\nВи отримали титул: <i>Завідувач Чужої Полиці</i>\n\n🍺 Квестарня відчинена."
+      "🎒 Пригодника створено.\n\nВи отримали титул: <i>Завідувач Чужої Полиці</i>\n\n🍺 Квестарня відчинена.\n\n⚠️ Бачите такий знак на кнопці: там чекає актуальна справа. Корчма називає це навігацією, а не приводом нервувати."
     );
   });
 });

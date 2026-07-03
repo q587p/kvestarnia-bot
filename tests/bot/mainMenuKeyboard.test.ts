@@ -248,7 +248,28 @@ describe("main menu and scene keyboards", () => {
       "🏅 Пропамʼятна дошка",
       "🏹 До полювання"
     ]);
-    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard({
+      characterLevel: 2,
+      questMarkers: {
+        characterLevel: 2,
+        cellar: {
+          state: "ready",
+          character
+        }
+      }
+    }))).toContainEqual(["🚪 Зайти в корчму ⚠️"]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму ⚠️"]]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard({ questMarkers: null }))).toEqual([["🚪 Зайти в корчму"]]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard({
+      questMarkers: {
+        characterLevel: 4,
+        yeger: {
+          state: "turn-in-ready",
+          character,
+          progress: { wins: 5, target: 5 }
+        }
+      }
+    }))).toEqual([["🚪 Зайти в корчму ✅"]]);
     expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
       "🚪 Зайти в корчму",
@@ -327,7 +348,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toContain("🐭 Льох 📜");
+    ).toContain("🐭 Льох ⚠️");
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
       "🥊 Потренуватися",
       "⚡ Миттєва дуель",
@@ -2539,14 +2560,14 @@ describe("main menu and scene keyboards", () => {
     ).toEqual([
       "Обрати пригоду",
       "До сутички",
-      "🏹 До Єгеря 📜",
-      "🧹 У льох 📜",
+      "🏹 До Єгеря ⚠️",
+      "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
     ]);
     expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
-    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму");
+    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму ⚠️");
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toContain("📋 Стіл зі справами");
 
     const level13HubKeyboard = buildQuestHubKeyboard({
@@ -2577,7 +2598,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(level13HubKeyboard)).toEqual([
       "🕯️ Реморт",
-      "🍻 До шинку 📜",
+      "🍻 До шинку ⚠️",
       "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
@@ -2695,7 +2716,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🧹 У льох 📜",
+      "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
       "🍺 До зали"
@@ -2724,7 +2745,7 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🏹 До Єгеря 📜",
+      "🏹 До Єгеря ⚠️",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
