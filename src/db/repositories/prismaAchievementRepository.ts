@@ -11,6 +11,8 @@ import type {
   UnlockAchievementResult
 } from "./achievementRepository";
 import { normalizeEquipmentSlot } from "../../content/equipmentSlots";
+import { items } from "../../content/items";
+import type { ItemContent } from "../../content/schema";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
 
 const PROBLEM_QUEST_REWARD_KEYS = [
@@ -336,6 +338,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       this.prisma.characterEquipment.findMany({
         where: { characterId },
         select: {
+          itemId: true,
           slot: true,
           createdAt: true,
           updatedAt: true
@@ -528,10 +531,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       ])
     );
     const equipmentObservedAt = maxDate(equipment.map((row) => row.updatedAt));
-    const equippedCanonicalSlotCount = new Set(equipment.flatMap((row) => {
-      const slot = normalizeEquipmentSlot(row.slot);
-      return slot ? [slot] : [];
-    })).size;
+    const equippedCanonicalSlotCount = getEquippedCanonicalSlotCount(equipment);
     const soloCombatItemUseDatesByItem = getSoloCombatItemUseDatesByItem(combatSessions);
     const orderItemUseDatesByItem = getOrderItemUseDatesByItem(completedItemUseOrders);
     const partyBossItemUseDatesByItem = getPartyBossItemUseDatesByItem(completedPartyBossItemActions);
@@ -932,6 +932,28 @@ function maxDate(dates: readonly Date[]): Date | null {
 
 function compareDates(left: Date, right: Date): number {
   return left.getTime() - right.getTime();
+}
+
+export function getEquippedCanonicalSlotCount(
+  equipment: ReadonlyArray<{ slot: string; itemId: string }>
+): number {
+  const slots = new Set(equipment.flatMap((row) => {
+    const slot = normalizeEquipmentSlot(row.slot);
+
+    return slot ? [slot] : [];
+  }));
+  const hasTwohandMain = equipment.some((row) => {
+    const slot = normalizeEquipmentSlot(row.slot);
+    const item = (items as readonly ItemContent[]).find((candidate) => candidate.id === row.itemId);
+
+    return slot === "weapon" && item?.tags?.includes("twohand");
+  });
+
+  if (hasTwohandMain) {
+    slots.add("offhand");
+  }
+
+  return slots.size;
 }
 
 function getClaimedBarrelRaidDates(

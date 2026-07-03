@@ -1,5 +1,6 @@
 import type {
   EquipmentResult,
+  EquipmentSlotDeniedReason,
   EquipmentSlot,
   EquipmentSlotSummary,
   EquipItemResult,
@@ -79,13 +80,28 @@ export function presentEquipItemResult(result: EquipItemResult): string {
     return "Для цієї манатки ще немає місця. Корчмар записав борг у майбутню шафу.";
   }
 
+  if (result.state === "slot-not-allowed") {
+    return presentSlotDeniedEquipResult(result.item.content.name, result.slot, result.reason);
+  }
+
+  if (result.state === "twohand-confirm-required") {
+    return [
+      `Дворучна примірка: ${plainTextForCallback(result.item.content.name)} займе обидві руки.`,
+      `Звільниться: ${plainTextForCallback(result.clearedHandItem.content.name)}.`,
+      "Підтвердити?"
+    ].join(" ");
+  }
+
   const effect = presentItemEffect(result.item.content.effect);
   const effectText = effect ? ` Ефект: ${effect}.` : " Бойового ефекту не виявлено.";
   const replacementText = result.replacedItem
     ? ` Попередня манатка зі слота «${presentEquipmentSlotLabel(result.slot)}» лишилася в торбі: ${plainTextForCallback(result.replacedItem.content.name)}.`
     : ` Слот: ${presentEquipmentSlotLabel(result.slot)}.`;
+  const clearedHandText = result.clearedHandItem
+    ? ` Конфліктна рука звільнилася: ${plainTextForCallback(result.clearedHandItem.content.name)} лишилася в торбі.`
+    : "";
 
-  return `Екіпіровано: ${plainTextForCallback(result.item.content.name)}.${effectText}${replacementText}`;
+  return `Екіпіровано: ${plainTextForCallback(result.item.content.name)}.${effectText}${replacementText}${clearedHandText}`;
 }
 
 export function presentUnequipSlotResult(result: UnequipSlotResult): string {
@@ -107,18 +123,56 @@ export function presentEquipmentSlotLabel(slot: EquipmentSlot): string {
 }
 
 function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): string {
-  const equipped = slots.find((candidate) => candidate.slot === slot.id)?.item;
+  const slotSummary = slots.find((candidate) => candidate.slot === slot.id);
+  const equipped = slotSummary?.item;
 
   if (equipped) {
     const effect = presentItemEffect(equipped.content.effect);
+    const name = slotSummary?.occupiedByTwohand
+      ? `${escapeHtml(equipped.content.name)} <i>(дворучна)</i>`
+      : escapeHtml(equipped.content.name);
 
     return [
-      `${slot.icon} <b>${slot.label}</b>: ${escapeHtml(equipped.content.name)}`,
+      `${slot.icon} <b>${slot.label}</b>: ${name}`,
       `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`
     ].join("\n");
   }
 
   return `${slot.icon} <b>${slot.label}</b>: <i>${slot.emptyText}</i>`;
+}
+
+export function presentSlotDeniedReason(
+  reason: EquipmentSlotDeniedReason,
+  slot: EquipmentSlot
+): string {
+  if (reason === "offhand-restricted") {
+    return "дві зброї Корчмар довіряє тільки воїнам. Іншим потрібна манатка, що прямо проситься в другу руку";
+  }
+
+  if (reason === "not-enough-copies") {
+    return "ця манатка вже зайнята на іншому гачку. Для цього слота потрібен ще один екземпляр";
+  }
+
+  if (reason === "twohand-conflict") {
+    return "ця манатка просить обидві руки. Корчмар рахує пальці й не бачить зайвої долоні";
+  }
+
+  return `слот «${presentEquipmentSlotLabel(slot)}» не для цієї манатки. Корчмар уже дістав лінійку здорового глузду`;
+}
+
+function presentSlotDeniedEquipResult(
+  itemName: string,
+  slot: EquipmentSlot,
+  reason: EquipmentSlotDeniedReason
+): string {
+  return [
+    `Не екіпірується в слот «${presentEquipmentSlotLabel(slot)}»: ${plainTextForCallback(itemName)}.`,
+    `${capitalizeFirst(presentSlotDeniedReason(reason, slot))}.`
+  ].join(" ");
+}
+
+function capitalizeFirst(value: string): string {
+  return value.length > 0 ? value[0]!.toLocaleUpperCase("uk-UA") + value.slice(1) : value;
 }
 
 function intersperseBlankLines(lines: string[]): string[] {

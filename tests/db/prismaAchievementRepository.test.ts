@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS,
   getBigBarrelMedicalPartyBossItemUseDates,
+  getEquippedCanonicalSlotCount,
   getPartyBossItemActionAchievementWhere,
   getAdventureChoiceConsequence,
   isAdventureChoiceFightComplication,
   isAdventureChoiceResolvedForAchievement
 } from "../../src/db/repositories/prismaAchievementRepository";
+import { items } from "../../src/content/items";
+import type { ItemContent } from "../../src/content/schema";
 import { DAILY_KORCHMA_ROUND_REWARD_KEY } from "../../src/services/dailyActionKeys";
 
 describe("PrismaAchievementRepository recalculation snapshot", () => {
@@ -78,6 +81,37 @@ describe("PrismaAchievementRepository recalculation snapshot", () => {
     ])).toEqual([bandageAt, denseAt, fieldKitAt]);
   });
 
+  it("counts a twohand weapon as occupying both hand slots for full-slot achievements", () => {
+    const cleanup = addTemporaryItem({
+      id: "item.test-twohand-for-achievement",
+      name: "Тестова дворучна палиця",
+      description: "Рахує руки без подвоєння сили.",
+      rarity: "rare",
+      slot: "weapon",
+      equipmentSlot: "weapon",
+      tags: ["twohand"],
+      goldValue: 93
+    });
+
+    try {
+      expect(getEquippedCanonicalSlotCount([
+        { slot: "weapon", itemId: "item.pan-of-persuasion" },
+        { slot: "chest", itemId: "item.apron-of-foam-resistance" }
+      ])).toBe(2);
+
+      expect(getEquippedCanonicalSlotCount([
+        { slot: "weapon", itemId: "item.test-twohand-for-achievement" },
+        { slot: "head", itemId: "item.pot-helmet-of-early-access" },
+        { slot: "chest", itemId: "item.apron-of-foam-resistance" },
+        { slot: "legs", itemId: "item.loot-v1-a001-plus-1" },
+        { slot: "accessory", itemId: "item.cork-ring-of-serious-business" },
+        { slot: "tool", itemId: "item.loot-v1-x001-plus-1" }
+      ])).toBe(7);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("classifies Adventure Choice achievement rows from stored consequence", () => {
     expect(getAdventureChoiceConsequence({ consequence: "local-failure" })).toBe("local-failure");
     expect(isAdventureChoiceResolvedForAchievement({ consequence: "local-failure" })).toBe(false);
@@ -91,3 +125,15 @@ describe("PrismaAchievementRepository recalculation snapshot", () => {
     expect(isAdventureChoiceResolvedForAchievement(null)).toBe(true);
   });
 });
+
+function addTemporaryItem(item: ItemContent): () => void {
+  (items as ItemContent[]).push(item);
+
+  return () => {
+    const index = items.findIndex((candidate) => candidate.id === item.id);
+
+    if (index >= 0) {
+      (items as ItemContent[]).splice(index, 1);
+    }
+  };
+}

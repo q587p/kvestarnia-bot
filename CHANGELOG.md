@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Generated armor now declares the canonical `chest` equipment slot and scales armor/HP more clearly by enhancement.
 - Generated accessories and tools keep visible utility-stat identity with monotonic enhancement growth and no hidden procs.
 - Very cheap authored monster equipment now stays closer to trophy-scale power: `Клітинка відповідального болю` and `Пляма хоробрості на фартуху` keep small defensive identity without matching stronger chest gear at junk-tier prices.
+- Hand-slot compatibility is now explicit: warriors can dual-wield ordinary weapons, other classes need an `offhand`-capable item, and `twohand` items occupy both hands while applying their combat effect only once.
 
 ### Added
 - Added content tests that cap very cheap authored equipment power.
@@ -23,12 +24,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added rewardless equipment achievements for filling all seven canonical equipment slots and for a hidden long-term cumulative `93` successful-equips milestone.
 - Added `/chronicles` as a help-listed command that opens the existing `📜 Хроніки Квестарні` / `📣 Останні події` feed without adding it to the Telegram side menu.
 - Renamed the player-facing `weapon` equipment slot to `Основна рука` and moved both hand slots below body/tool slots in the equipment card and slot-filter buttons.
+- Added `offhand` and `twohand` item tags, target-slot equip callbacks and confirmation keyboards for replacing a conflicting hand while leaving the cleared manatka in the bag.
 - Added the `0.2.24` task doc with compact balance rationale, protected-flow checklist and deterministic combat probe summary.
 
 ### Safety
 - Ordinary consumables and the `0.2.22` medical item behavior are unchanged.
 - Equipped/protected item safety for Mantok Chest, Shynok sale, gift/postal transfer, remort preservation and Munchkin barter remains unchanged.
-- No Prisma migration, item id rewrite, reward-table rewrite, shop change, hidden proc, class ability change, new slot or two-handed/offhand conflict rule is included.
+- No Prisma migration, item id rewrite, reward-table rewrite, shop change, hidden proc, class ability change or new equipment slot is included.
 
 ### Balance probe
 - A deterministic 400-fight probe across level 3, 6 and 10 same-level ordinary fights showed tuned loadouts increasing win rate and reducing average fight duration, while sampled average turns stayed below the `> 6` balance-review red flag.

@@ -12,11 +12,13 @@ Manual Telegram QA status for the implementation pass: not run.
 2. Open `🎒 Манатки`, then each equipment slot filter. Compare several common/uncommon/rare/epic items in the same slot and verify the names, rarity, values and effects feel coherent rather than obviously inverted.
 3. Open a generated `+1` or higher Loot Expansion item if local data can seed one; verify the item detail shows a visible improvement over the simpler version in the same family.
 4. Equip a tuned item into an occupied slot and verify the result card still says the previous manatka stayed in the bag.
-5. Fill all seven equipment slots if local data can seed enough manatky; verify the rewardless full-slots achievement can appear once and duplicate same-item equip callbacks do not create duplicate achievement notices.
-6. Run `/chronicles`; verify it opens `📜 Хроніки Квестарні` / `📣 Останні події`, has the same filters as the board entry and can trigger the existing first-open achievement only once.
-7. Try Mantok Chest, Shynok sale, gifting/postal transfer and remort preview with equipped/protected items; verify equipped/protected stacks remain blocked as before.
-8. Run a few ordinary fights before and after equipping tuned items; verify visible stats match combat behavior and fights do not feel stuck in long loops.
-9. Check generated tool/accessory items if local data can seed them; verify tool items appear under `Інструмент`, accessory items under `Аксесуар`, and neither suggests hidden procs.
+5. On a warrior, equip two different ordinary weapons into `Основна рука` and `Друга рука`; on a non-warrior, verify ordinary weapons do not appear as second-hand options unless the manatka is explicitly offhand-capable.
+6. If local data can seed a `twohand` item, equip it and verify both hand slots show the same manatka, the offhand line marks it as `дворучна`, combat stats count the item once and replacing either hand asks for confirmation before clearing the conflicting hand.
+7. Fill all seven equipment slots if local data can seed enough manatky; a twohand item should count as both hand slots. Verify the rewardless full-slots achievement can appear once and duplicate same-item equip callbacks do not create duplicate achievement notices.
+8. Run `/chronicles`; verify it opens `📜 Хроніки Квестарні` / `📣 Останні події`, has the same filters as the board entry and can trigger the existing first-open achievement only once.
+9. Try Mantok Chest, Shynok sale, gifting/postal transfer and remort preview with equipped/protected items; verify equipped/protected stacks remain blocked as before.
+10. Run a few ordinary fights before and after equipping tuned items; verify visible stats match combat behavior and fights do not feel stuck in long loops.
+11. Check generated tool/accessory items if local data can seed them; verify tool items appear under `Інструмент`, accessory items under `Аксесуар`, and neither suggests hidden procs.
 
 ## 0.2.23 — Mantok Equipment Slot Foundation smoke
 

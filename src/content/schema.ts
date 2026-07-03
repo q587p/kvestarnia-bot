@@ -55,6 +55,8 @@ export const itemTagSchema = z.enum([
   "trade-blocked",
   "duel-blocked",
   "raid-blocked",
+  "offhand",
+  "twohand",
   "story",
   "memory",
   "sentimental",

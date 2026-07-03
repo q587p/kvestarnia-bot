@@ -20,7 +20,12 @@ import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
 import { makePartyBossItemUseCallbackData } from "../callbacks/partySessionCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
-import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentService";
+import type {
+  EquipmentResult,
+  EquipmentSlot,
+  EquipItemResult,
+  ItemEquipPreviewResult
+} from "../../services/equipmentService";
 import type { ItemCraftOption } from "../../services/itemCraftService";
 import { isEquippableItem } from "../../services/equipmentService";
 import {
@@ -33,7 +38,8 @@ import {
 import {
   clampInventoryPage,
   getInventoryPageItems,
-  getInventoryTotalPages
+  getInventoryTotalPages,
+  type InventoryPresenterOptions
 } from "../presenters/inventoryPresenter";
 
 export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
@@ -41,7 +47,8 @@ export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
 export function buildInventoryKeyboard(
   result: InventoryResult,
   page = 0,
-  filter: InventoryFilter = null
+  filter: InventoryFilter = null,
+  options: InventoryPresenterOptions = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -63,10 +70,10 @@ export function buildInventoryKeyboard(
     return keyboard;
   }
 
-  const safePage = clampInventoryPage(result, page, filter);
-  const totalPages = getInventoryTotalPages(result, filter);
+  const safePage = clampInventoryPage(result, page, filter, options);
+  const totalPages = getInventoryTotalPages(result, filter, options);
 
-  for (const item of getInventoryPageItems(result, safePage, filter)) {
+  for (const item of getInventoryPageItems(result, safePage, filter, options)) {
     keyboard
       .row()
       .text(
@@ -117,6 +124,7 @@ export function buildItemDetailKeyboard(
           itemKey: string;
         };
     craftOptions?: ItemCraftOption[];
+    equipPreview?: ItemEquipPreviewResult | null;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -126,10 +134,28 @@ export function buildItemDetailKeyboard(
   }
 
   if (result.state === "found" && isEquippableItem(result.item.content)) {
-    if (equippedSlot) {
+    const targetSlot = isInventoryEquipmentSlotFilter(filter) ? filter : null;
+
+    if (equippedSlot && (!targetSlot || equippedSlot === targetSlot)) {
       keyboard.text("Зняти", makeUnequipSlotCallbackData(equippedSlot)).row();
     } else {
-      keyboard.text("🧥 Екіпірувати", makeEquipItemCallbackData(result.item.itemId)).row();
+      const canEquipTarget =
+        !targetSlot ||
+        options.equipPreview === undefined ||
+        (
+          (options.equipPreview?.state === "can-equip" ||
+            options.equipPreview?.state === "twohand-confirm-required") &&
+          options.equipPreview.slot === targetSlot
+        );
+
+      if (canEquipTarget) {
+        const targetLabel = targetSlot === "offhand" ? " в другу руку" : "";
+
+        keyboard.text(
+          `🧥 Екіпірувати${targetLabel}`,
+          makeEquipItemCallbackData(result.item.itemId, targetSlot)
+        ).row();
+      }
     }
   }
 
@@ -246,8 +272,19 @@ export function buildItemCraftResultKeyboard(options: { repeatRecipeCode?: ItemC
     .text("⬅️ До манаток", makeInventoryCallbackData());
 }
 
-export function buildEquipItemResultKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildEquipItemResultKeyboard(result?: EquipItemResult): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (result?.state === "twohand-confirm-required") {
+    keyboard
+      .text(
+        "✅ Так, звільнити руку",
+        makeEquipItemCallbackData(result.item.itemId, result.slot, { confirmTwohand: true })
+      )
+      .row();
+  }
+
+  return keyboard
     .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());

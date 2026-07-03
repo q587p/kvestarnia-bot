@@ -272,6 +272,93 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("відповідний титул");
   });
 
+  it("shows slot-specific equipment denials in item details", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        itemId: "item.stamp-of-minor-authority",
+        content: {
+          id: "item.stamp-of-minor-authority",
+          name: "Печатка дрібної переваги",
+          description: "Б'є не сильно, зате залишає слід «розглянуто».",
+          rarity: "uncommon",
+          slot: "weapon",
+          goldValue: 16
+        }
+      }),
+      {
+        equipPreview: {
+          state: "slot-not-allowed",
+          reason: "offhand-restricted",
+          slot: "offhand",
+          item: {
+            itemId: "item.stamp-of-minor-authority",
+            content: {
+              id: "item.stamp-of-minor-authority",
+              name: "Печатка дрібної переваги",
+              description: "Б'є не сильно, зате залишає слід «розглянуто».",
+              rarity: "uncommon",
+              slot: "weapon",
+              goldValue: 16
+            }
+          }
+        }
+      }
+    );
+
+    expect(text).toContain("Екіпірування: <i>у слот «Друга рука» зараз не можна:");
+    expect(text).toContain("дві зброї Корчмар довіряє тільки воїнам");
+  });
+
+  it("shows twohand confirmation requirements in item details", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        itemId: "item.test-twohand-broom",
+        content: {
+          id: "item.test-twohand-broom",
+          name: "Дворучна мітла протоколу",
+          description: "Мете так переконливо.",
+          rarity: "rare",
+          slot: "weapon",
+          tags: ["twohand"],
+          goldValue: 93
+        }
+      }),
+      {
+        equipPreview: {
+          state: "twohand-confirm-required",
+          slot: "weapon",
+          item: {
+            itemId: "item.test-twohand-broom",
+            content: {
+              id: "item.test-twohand-broom",
+              name: "Дворучна мітла протоколу",
+              description: "Мете так переконливо.",
+              rarity: "rare",
+              slot: "weapon",
+              tags: ["twohand"],
+              goldValue: 93
+            }
+          },
+          currentItem: null,
+          clearedHandItem: {
+            itemId: "item.stamp-of-minor-authority",
+            content: {
+              id: "item.stamp-of-minor-authority",
+              name: "Печатка дрібної переваги",
+              description: "Б'є не сильно.",
+              rarity: "uncommon",
+              slot: "weapon",
+              goldValue: 16
+            }
+          }
+        }
+      }
+    );
+
+    expect(text).toContain("можна екіпірувати у слот «Основна рука»");
+    expect(text).toContain("Печатка дрібної переваги лишиться в торбі");
+  });
+
   it("escapes unsafe item names and descriptions", () => {
     const text = presentOwnedItemDetail(
       itemSummary({

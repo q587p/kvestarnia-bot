@@ -141,6 +141,24 @@ describe("inventory presenter", () => {
     expect(text).not.toContain("<b>Тестова квитанція</b>");
   });
 
+  it("uses slot-compatible ids for offhand filters", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        item("item.test-weapon", "Тестова пательня", "weapon"),
+        item("item.test-offhand", "Тестова друга рука", "weapon", ["offhand"]),
+        item("item.test-junk", "Тестова квитанція", "junk")
+      ]
+    };
+    const text = presentInventory(result, 0, "offhand", {
+      slotCompatibleItemIds: new Set(["item.test-offhand"])
+    });
+
+    expect(text).toContain("✋ <b>Манатки для другої руки</b>");
+    expect(text).toContain("Знайдено підхожих манаток: <b>1</b>.");
+  });
+
   it("filters inventory by one-use manatky", () => {
     const result: InventoryResult = {
       state: "found",
