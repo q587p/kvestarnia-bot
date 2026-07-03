@@ -202,8 +202,15 @@ export class AchievementService {
     let recalculationSnapshot: AchievementRecalculationSnapshot | null | undefined;
 
     for (const definition of matching) {
-      const eventProgress = getEventProgress(definition, event);
-      const snapshotProgress = await getSnapshotProgressForEventDefinition(
+      const cumulativeProgress = isCumulativeProgressDefinition(definition, event)
+        ? await this.achievementsRepository.incrementProgress({
+            characterId: event.characterId,
+            achievementId: definition.id,
+            amount: 1,
+            ...(definition.progressTarget ? { target: definition.progressTarget } : {})
+          })
+        : null;
+      const current = cumulativeProgress?.current ?? await getCurrentEventProgress(
         definition,
         event,
         async () => {
@@ -211,9 +218,8 @@ export class AchievementService {
           return recalculationSnapshot;
         }
       );
-      const current = snapshotProgress ?? eventProgress;
 
-      if (definition.progressTarget && current !== null) {
+      if (!cumulativeProgress && definition.progressTarget && current !== null) {
         await this.achievementsRepository.updateProgressMax({
           characterId: event.characterId,
           achievementId: definition.id,
@@ -556,6 +562,23 @@ function getEventProgress(definition: AchievementDefinition, event: AchievementE
   }
 
   return null;
+}
+
+async function getCurrentEventProgress(
+  definition: AchievementDefinition,
+  event: AchievementEvent,
+  loadSnapshot: () => Promise<AchievementRecalculationSnapshot | null>
+): Promise<number | null> {
+  const eventProgress = getEventProgress(definition, event);
+  const snapshotProgress = await getSnapshotProgressForEventDefinition(definition, event, loadSnapshot);
+
+  return snapshotProgress ?? eventProgress;
+}
+
+function isCumulativeProgressDefinition(definition: AchievementDefinition, event: AchievementEvent): boolean {
+  return definition.trigger.countMode === "cumulative" &&
+    definition.trigger.type === "equipment.item_equipped" &&
+    event.type === "equipment.item_equipped";
 }
 
 async function getSnapshotProgressForEventDefinition(

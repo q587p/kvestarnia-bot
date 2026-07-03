@@ -10,6 +10,7 @@ import type {
   UnlockAchievementInput,
   UnlockAchievementResult
 } from "./achievementRepository";
+import { normalizeEquipmentSlot } from "../../content/equipmentSlots";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
 
 const PROBLEM_QUEST_REWARD_KEYS = [
@@ -231,7 +232,6 @@ export class PrismaAchievementRepository implements AchievementRepository {
       selectedDailyActions,
       inventory,
       equipment,
-      equippedItemCount,
       completedChestRuns,
       completedLevelBarters,
       completedTrainingSessions,
@@ -336,12 +336,12 @@ export class PrismaAchievementRepository implements AchievementRepository {
       this.prisma.characterEquipment.findMany({
         where: { characterId },
         select: {
+          slot: true,
           createdAt: true,
           updatedAt: true
         },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }]
       }),
-      this.prisma.characterEquipment.count({ where: { characterId } }),
       this.prisma.mantokChestRun.findMany({
         where: { characterId, status: "completed" },
         select: { completedAt: true, updatedAt: true },
@@ -528,6 +528,10 @@ export class PrismaAchievementRepository implements AchievementRepository {
       ])
     );
     const equipmentObservedAt = maxDate(equipment.map((row) => row.updatedAt));
+    const equippedCanonicalSlotCount = new Set(equipment.flatMap((row) => {
+      const slot = normalizeEquipmentSlot(row.slot);
+      return slot ? [slot] : [];
+    })).size;
     const soloCombatItemUseDatesByItem = getSoloCombatItemUseDatesByItem(combatSessions);
     const orderItemUseDatesByItem = getOrderItemUseDatesByItem(completedItemUseOrders);
     const partyBossItemUseDatesByItem = getPartyBossItemUseDatesByItem(completedPartyBossItemActions);
@@ -691,7 +695,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       inventoryItemRows: inventoryRows,
       firstInventoryItemReceivedAt: minDate(inventory.map((row) => row.createdAt)),
       inventoryObservedAt: maxDate(inventory.map((row) => row.updatedAt)),
-      equippedItemCount,
+      equippedItemCount: equippedCanonicalSlotCount,
       firstEquippedItemAt: equipment[0]?.createdAt ?? null,
       equipmentObservedAt,
       activeCosmeticTitleGrantId: character.activeCosmeticTitleGrantId,
@@ -797,6 +801,35 @@ export class PrismaAchievementRepository implements AchievementRepository {
       update: {
         current,
         target: input.target ?? existing?.target ?? null
+      }
+    });
+
+    return toProgressRecord(row);
+  }
+
+  async incrementProgress(input: {
+    characterId: string;
+    achievementId: string;
+    amount?: number;
+    target?: number;
+  }): Promise<CharacterAchievementProgressRecord> {
+    const amount = Math.max(0, Math.floor(input.amount ?? 1));
+    const row = await this.prisma.characterAchievementProgress.upsert({
+      where: {
+        characterId_achievementId: {
+          characterId: input.characterId,
+          achievementId: input.achievementId
+        }
+      },
+      create: {
+        characterId: input.characterId,
+        achievementId: input.achievementId,
+        current: amount,
+        target: input.target ?? null
+      },
+      update: {
+        current: { increment: amount },
+        ...(input.target !== undefined ? { target: input.target } : {})
       }
     });
 

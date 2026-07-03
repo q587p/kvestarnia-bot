@@ -20,12 +20,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added content tests that cap very cheap authored equipment power.
 - Added Loot Expansion v1 tests requiring every generated equippable item to declare a canonical slot and every enhancement tier inside a practical family to cost more while gaining a visible stat without losing existing bonuses.
 - Added an effective-stat regression proving tuned generated equipment bonuses reach the combat stat aggregation layer.
+- Added rewardless equipment achievements for filling all seven canonical equipment slots and for a hidden long-term cumulative `93` successful-equips milestone.
 - Added the `0.2.24` task doc with compact balance rationale, protected-flow checklist and deterministic combat probe summary.
 
 ### Safety
 - Ordinary consumables and the `0.2.22` medical item behavior are unchanged.
 - Equipped/protected item safety for Mantok Chest, Shynok sale, gift/postal transfer, remort preservation and Munchkin barter remains unchanged.
-- No Prisma migration, item id rewrite, reward-table rewrite, shop change, hidden proc, class ability change, achievement, new slot or two-handed/offhand conflict rule is included.
+- No Prisma migration, item id rewrite, reward-table rewrite, shop change, hidden proc, class ability change, new slot or two-handed/offhand conflict rule is included.
 
 ### Balance probe
 - A deterministic 400-fight probe across level 3, 6 and 10 same-level ordinary fights showed tuned loadouts increasing win rate and reducing average fight duration, while sampled average turns stayed below the `> 6` balance-review red flag.

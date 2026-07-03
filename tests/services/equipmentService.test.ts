@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -15,6 +15,7 @@ import type {
   InventoryRepository
 } from "../../src/db/repositories/inventoryRepository";
 import { normalizeEquipmentSlot } from "../../src/content/equipmentSlots";
+import type { AchievementService } from "../../src/services/achievementService";
 import { EquipmentService } from "../../src/services/equipmentService";
 
 const telegramUserId = 42n;
@@ -253,7 +254,16 @@ describe("EquipmentService", () => {
       characterId,
       equipment: []
     });
-    const service = new EquipmentService(equipment, new FakeInventoryRepository(inventoryRows));
+    const achievements = {
+      trackEventSafely: () => Promise.resolve([])
+    } as Pick<AchievementService, "trackEventSafely">;
+    const track = vi.spyOn(achievements, "trackEventSafely");
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository(inventoryRows),
+      undefined,
+      achievements as AchievementService
+    );
 
     const first = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
     const second = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
@@ -273,6 +283,7 @@ describe("EquipmentService", () => {
       slot: "weapon",
       itemId: "item.pan-of-persuasion"
     });
+    expect(track).toHaveBeenCalledTimes(1);
   });
 
   it("reads legacy armor equipment rows through the chest slot", async () => {

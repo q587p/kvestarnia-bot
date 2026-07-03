@@ -247,14 +247,16 @@ export class EquipmentService {
 
     const replacedItem = findCurrentItemForSlot(snapshot.equipment, slot);
     const equipped = await this.equipment.equipForCharacter(snapshot.characterId, slot, itemId);
-    const achievementUnlocks =
-      (await this.achievements?.trackEventSafely({
-        type: "equipment.item_equipped",
-        characterId: snapshot.characterId,
-        itemId,
-        occurredAt: new Date(),
-        sourceId: equipped.id
-      })) ?? [];
+    const changedEquippedItem = replacedItem?.itemId !== itemId;
+    const achievementUnlocks = changedEquippedItem
+      ? (await this.achievements?.trackEventSafely({
+          type: "equipment.item_equipped",
+          characterId: snapshot.characterId,
+          itemId,
+          occurredAt: new Date(),
+          sourceId: equipped.id
+        })) ?? []
+      : [];
     const nextRows = [
       ...snapshot.equipment.filter((row) => normalizeEquipmentSlot(row.slot) !== slot),
       equipped

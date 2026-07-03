@@ -415,6 +415,49 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.equipment.three-equipped")?.current).toBe(3);
   });
 
+  it("unlocks full-slot equipment and cumulative hidden fitting milestones", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      equippedItemCount: 7,
+      firstEquippedItemAt: new Date("2026-07-03T10:00:00.000Z"),
+      equipmentObservedAt: new Date("2026-07-03T10:07:00.000Z")
+    });
+    const service = new AchievementService(repo);
+
+    const fullSlots = await service.trackEvent({
+      type: "equipment.item_equipped",
+      characterId: "character-1",
+      itemId: "item.full-slot-test",
+      occurredAt: new Date("2026-07-03T10:07:00.000Z"),
+      sourceId: "equip-full"
+    });
+
+    expect(fullSlots.map((unlock) => unlock.id)).toEqual(expect.arrayContaining([
+      "achievement.equipment.first-equipped",
+      "achievement.equipment.three-equipped",
+      "achievement.equipment.all-slots-equipped"
+    ]));
+    expect(repo.progressFor("achievement.equipment.all-slots-equipped")?.current).toBe(7);
+
+    const cumulativeRepo = new FakeAchievementRepository();
+    const cumulativeService = new AchievementService(cumulativeRepo);
+    let lastUnlockIds: string[] = [];
+
+    for (let index = 0; index < 93; index += 1) {
+      const unlocks = await cumulativeService.trackEvent({
+        type: "equipment.item_equipped",
+        characterId: "character-1",
+        itemId: `item.fitting-${index}`,
+        occurredAt: new Date(2026, 6, 3, 10, index),
+        sourceId: `equip-${index}`
+      });
+      lastUnlockIds = unlocks.map((unlock) => unlock.id);
+    }
+
+    expect(lastUnlockIds).toContain("achievement.equipment.ninety-three-equipped-total");
+    expect(cumulativeRepo.progressFor("achievement.equipment.ninety-three-equipped-total")?.current).toBe(93);
+  });
+
   it("unlocks bandage craft and use achievements from direct item events", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);
@@ -1211,6 +1254,33 @@ class FakeAchievementRepository implements AchievementRepository {
       createdAt: new Date("2026-06-28T09:00:00.000Z")
     };
     row.current = input.current;
+    row.target = input.target ?? row.target;
+
+    if (!existing) {
+      this.snapshot.progress.push(row);
+    }
+
+    return Promise.resolve(row);
+  }
+
+  incrementProgress(input: {
+    characterId: string;
+    achievementId: string;
+    amount?: number;
+    target?: number;
+  }): Promise<CharacterAchievementProgressRecord> {
+    const existing = this.progressFor(input.achievementId);
+    const row = existing ?? {
+      id: `progress-row-${this.snapshot.progress.length + 1}`,
+      characterId: input.characterId,
+      achievementId: input.achievementId,
+      current: 0,
+      target: input.target ?? null,
+      updatedAt: new Date("2026-06-28T09:00:00.000Z"),
+      createdAt: new Date("2026-06-28T09:00:00.000Z")
+    };
+
+    row.current += Math.max(0, Math.floor(input.amount ?? 1));
     row.target = input.target ?? row.target;
 
     if (!existing) {
