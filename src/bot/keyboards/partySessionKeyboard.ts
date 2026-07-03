@@ -115,7 +115,7 @@ export function buildPartyBossKeyboard(
 
     keyboard.row();
     keyboard
-      .text("🩹 Бинт", makePartyBossItemUseCallbackData({
+      .text("🎒 1 разові манатки", makePartyBossItemUseCallbackData({
         token: session.partyInviteToken,
         turn: session.turn,
         itemKey: getCombatItemUseKey(RESPONSIBLE_PANIC_BANDAGE_ID)

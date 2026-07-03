@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Stored legacy `armor` equipment rows now read through the canonical `chest` slot, and new chest equips clean up the old key before writing the canonical slot.
 - `/equipment` now shows all seven foundation slots with compact empty-state copy.
 - Equipment callback slot codes now cover every canonical slot while preserving safe parsing for supported slot filters.
+- The Big Barrel raid quick-use button now says `🎒 1 разові манатки` instead of implying that only the ordinary bandage can use that combat item route.
 
 ### Safety
 - No Prisma migration, item id rewrite, reward-table rebalance, shop change, transfer-rule change or remort-rule change is included in this slice.
