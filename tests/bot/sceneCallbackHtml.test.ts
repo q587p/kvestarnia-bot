@@ -1722,6 +1722,15 @@ describe("scene callback HTML options", () => {
               },
               levelChange: null,
               achievementUnlocks: []
+            }),
+          getNotchExchangeForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character,
+              summary: {
+                availableNotches: 0,
+                options: []
+              }
             })
         }
       })

@@ -6,6 +6,8 @@ import {
   makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
+  makeYegerNotchExchangeCallbackData,
+  makeYegerNotchExchangeOpenCallbackData,
   makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData,
@@ -74,6 +76,18 @@ describe("Yeger callback data", () => {
       ok: true,
       value: { type: "free-bandage", kind: "field-kit" }
     });
+    expect(parseYegerCallbackData(makeYegerNotchExchangeOpenCallbackData())).toEqual({
+      ok: true,
+      value: { type: "notch-exchange-open" }
+    });
+    expect(parseYegerCallbackData(makeYegerNotchExchangeCallbackData("dense-bandage", 2))).toEqual({
+      ok: true,
+      value: { type: "notch-exchange", kind: "dense-bandage", expectedNotches: 2 }
+    });
+    expect(parseYegerCallbackData(makeYegerNotchExchangeCallbackData("field-kit", 2))).toEqual({
+      ok: true,
+      value: { type: "notch-exchange", kind: "field-kit", expectedNotches: 2 }
+    });
   });
 
   it("parses opaque bandage purchase confirm and cancel tokens", () => {
@@ -106,6 +120,9 @@ describe("Yeger callback data", () => {
       makeYegerFreeBandageCallbackData(),
       makeYegerFreeBandageCallbackData("dense-bandage"),
       makeYegerFreeBandageCallbackData("field-kit"),
+      makeYegerNotchExchangeOpenCallbackData(),
+      makeYegerNotchExchangeCallbackData("dense-bandage", 2),
+      makeYegerNotchExchangeCallbackData("field-kit", 2),
       makeYegerConfirmBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000"),
       makeYegerCancelBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000")
     ]) {
@@ -118,6 +135,7 @@ describe("Yeger callback data", () => {
     expect(parseYegerCallbackData("v1:hunt:open")).toEqual({ ok: false, error: "invalid-prefix" });
     expect(parseYegerCallbackData("v1:ygr:start:u2")).toEqual({ ok: false, error: "invalid-quest" });
     expect(parseYegerCallbackData("v1:ygr:dance:u1")).toEqual({ ok: false, error: "invalid-action" });
+    expect(parseYegerCallbackData("v1:ygr:nxd:many")).toEqual({ ok: false, error: "invalid-prefix" });
     expect(parseYegerCallbackData(`v1:ygr:help:${"a".repeat(80)}`)).toEqual({ ok: false, error: "too-long" });
   });
 });

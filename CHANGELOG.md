@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added backend craft preview/confirm callbacks that recheck character ownership, second-board completion, active combat absence and current ordinary-bandage quantity before mutating inventory.
 - Added solo-combat and Big Barrel raid use support for the crafted items: dense bandages heal up to 42 HP and set a five-own-turn battle cooldown after successful use; field kits raise HP to at least 93% of max HP and can succeed once per battle.
 - Added improved Ranger/Yeger class supplies: after the first Yeger board, the free 93-minute claim grants 5 ordinary bandages; after the second board, Rangers can also claim 1 dense bandage every 93 minutes and 1 field kit every 24 hours.
+- Added a Yeger notch exchange after the second board: one `Єгерська риска на дощечці` can be exchanged for a `Щільний бинт`, and two notches can be exchanged for a `Польова аптечка`.
 - Added rewardless achievements for first dense-bandage craft/use, first field-kit craft/use and first medical item use in the Big Barrel raid.
 - Added a `Разові` filter button to `Манатки`, reusing the inventory filter flow so one-use consumables can be listed without equipment or junk stacks.
 - Added local `/dev_add_dense_bandage [count]` and `/dev_add_field_kit [count]` helpers for faster dense-bandage and field-kit combat QA.
@@ -30,6 +31,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Successful craft result cards now offer `Створити ще` when the remaining ordinary bandage stack can pay the same recipe again.
 - Inventory list cards now keep the message body compact by removing per-item descriptions, while item buttons show stack quantity in parentheses when more than one unit is owned.
 - Consumable item detail cards now describe non-equipping as applying the manatka rather than trying it on, and use consumable-specific fallback flavor instead of trophy/shelf wording.
+- `Єгерська риска на дощечці` item detail copy now describes the mark as an exchangeable Yeger token instead of routing it through generic trophy/shelf fallback wording.
 - The `⭐ Важливе` latest-events filter now leaves rare manatky to `🎒 Манатки` and keeps only epic manatky as important item drops.
 - Yeger quest cards now stay separate from the `Єгерський куток` atmosphere card, return to the Yeger corner, and leave ordinary Yeger exits pointing back to the Barrel instead of the Korchma hall.
 - Yeger corner entry no longer sends a separate movement notice before the Yeger card, and completed second-board turn-in cards can offer dense-bandage and field-kit craft shortcuts when the ordinary-bandage stack is sufficient.
@@ -39,6 +41,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Successful crafting atomically decrements the ordinary bandage stack and grants exactly one crafted item without adding a Prisma migration.
 - Full-HP or above-threshold item uses are no-ops that do not consume items, set dense cooldowns or spend field-kit per-battle limits.
 - Direct stale pre-unlock, active-combat and insufficient-count craft callbacks fail closed without inventory mutation.
+- Yeger notch exchange callbacks carry the current notch-count snapshot, so duplicate/stale buttons fail closed instead of spending fresh notches.
 - The new achievement records grant no XP, gold, items, titles, stats, combat power or paid advantage.
 - Dense-bandage, field-kit and Yeger-board dev helpers remain non-production only and bypass active-combat locks like the existing local bandage helper.
 

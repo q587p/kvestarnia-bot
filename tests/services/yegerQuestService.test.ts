@@ -19,6 +19,12 @@ import {
   type DailyActionRepository
 } from "../../src/db/repositories/dailyActionRepository";
 import type { SoloCombatSessionRepository } from "../../src/db/repositories/soloCombatSessionRepository";
+import type {
+  YegerNotchExchangeKind,
+  YegerNotchExchangeLookupRepositoryResult,
+  YegerNotchExchangeRepository,
+  YegerNotchExchangeRepositoryResult
+} from "../../src/db/repositories/yegerNotchExchangeRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { items, monsters } from "../../src/content";
 import { summarizeCharacter, type CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -1036,9 +1042,80 @@ describe("YegerQuestService", () => {
     expect(world.cooldowns.find((cooldown) => cooldown.key === YEGER_RANGER_FREE_FIELD_KIT_KEY)?.availableAt)
       .toEqual(new Date("2026-06-16T10:05:00.000Z"));
   });
+
+  it("offers Yeger notch exchanges only for affordable medical supplies after the second board", async () => {
+    const world = new FakeWorld();
+    world.addCharacter();
+    completeSecondYegerQuest(world);
+    world.itemQuantities.set("item.yeger.first-notch", 1);
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "completed",
+      notchExchange: {
+        availableNotches: 1,
+        options: [{ kind: "dense-bandage", requiredNotches: 1, outputItemId: "item.dense-bandage" }]
+      }
+    });
+
+    world.itemQuantities.set("item.yeger.first-notch", 2);
+    await expect(world.service().getNotchExchangeForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "ready",
+      summary: {
+        availableNotches: 2,
+        options: [
+          { kind: "dense-bandage", requiredNotches: 1, outputItemId: "item.dense-bandage" },
+          { kind: "field-kit", requiredNotches: 2, outputItemId: "item.field-kit" }
+        ]
+      }
+    });
+  });
+
+  it("exchanges Yeger notches and treats old quantity snapshots as stale", async () => {
+    const world = new FakeWorld();
+    world.addCharacter();
+    completeSecondYegerQuest(world);
+    world.itemQuantities.set("item.yeger.first-notch", 2);
+    const service = world.service();
+
+    await expect(service.exchangeNotchForTelegramUser(telegramUserId, {
+      kind: "field-kit",
+      expectedNotches: 2
+    })).resolves.toMatchObject({
+      state: "exchanged",
+      spentNotches: 2,
+      itemGrants: [{ itemId: "item.field-kit", quantity: 1 }],
+      summary: { availableNotches: 0, options: [] }
+    });
+    await expect(service.exchangeNotchForTelegramUser(telegramUserId, {
+      kind: "field-kit",
+      expectedNotches: 2
+    })).resolves.toMatchObject({
+      state: "stale",
+      expectedNotches: 2,
+      currentNotches: 0
+    });
+    expect(world.itemQuantities.get("item.yeger.first-notch")).toBe(0);
+    expect(world.itemQuantities.get("item.field-kit")).toBe(1);
+  });
+
+  it("keeps Yeger notch exchange locked before the second board is closed", async () => {
+    const world = new FakeWorld();
+    world.addCharacter();
+    completeBaseYegerQuest(world);
+    world.itemQuantities.set("item.yeger.first-notch", 2);
+
+    await expect(world.service().getNotchExchangeForTelegramUser(telegramUserId))
+      .resolves.toMatchObject({ state: "locked" });
+    await expect(world.service().exchangeNotchForTelegramUser(telegramUserId, {
+      kind: "dense-bandage",
+      expectedNotches: 2
+    })).resolves.toMatchObject({ state: "locked" });
+    expect(world.itemQuantities.get("item.yeger.first-notch")).toBe(2);
+    expect(world.itemQuantities.get("item.dense-bandage")).toBeUndefined();
+  });
 });
 
-class FakeWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository, CooldownRepository {
+class FakeWorld implements CharacterRepository, DailyActionRepository, SoloCombatSessionRepository, CooldownRepository, YegerNotchExchangeRepository {
   character: CharacterRecord | null = null;
   readonly actions: DailyActionRecord[] = [];
   readonly sessions: Array<{
@@ -1050,6 +1127,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     state?: { completedAt?: string } | null;
   }> = [];
   readonly itemGrants: Array<{ itemId: string; quantity: number }> = [];
+  readonly itemQuantities = new Map<string, number>();
   readonly cooldowns: CharacterCooldownRecord[] = [];
   readonly fightStartOptions: PersistentFightStartOptions[] = [];
   randomValues: number[] = [0];
@@ -1072,6 +1150,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
           return this.fightResult();
         }
       } as unknown as FightService,
+      this,
       this,
       () => now,
       new FakeRandomSource(this.randomValues),
@@ -1230,6 +1309,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     };
     const itemGrants = input.itemGrants?.map((grant) => ({ itemId: grant.itemId, quantity: grant.quantity })) ?? [];
     this.itemGrants.push(...itemGrants);
+    this.applyItemGrants(itemGrants);
 
     return Promise.resolve({
       state: "completed",
@@ -1313,6 +1393,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     };
     const itemGrants = input.itemGrants?.map((grant) => ({ itemId: grant.itemId, quantity: grant.quantity })) ?? [];
     this.itemGrants.push(...itemGrants);
+    this.applyItemGrants(itemGrants);
     if (itemGrants.length > 0) {
       action.resultJson = {
         ...(action.resultJson && typeof action.resultJson === "object" && !Array.isArray(action.resultJson)
@@ -1335,6 +1416,100 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       },
       itemGrants
     });
+  }
+
+  getForTelegramUser(): Promise<YegerNotchExchangeLookupRepositoryResult> {
+    if (!this.character) {
+      return Promise.resolve({ state: "no-character" });
+    }
+
+    if (!this.actions.some((action) => action.key === YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY)) {
+      return Promise.resolve({ state: "locked" });
+    }
+
+    return Promise.resolve({
+      state: "ready",
+      summary: this.buildNotchExchangeSummary()
+    });
+  }
+
+  exchangeForTelegramUser(
+    _telegramUserId: bigint,
+    input: { kind: YegerNotchExchangeKind; expectedNotches: number; now: Date }
+  ): Promise<YegerNotchExchangeRepositoryResult> {
+    if (!this.character) {
+      return Promise.resolve({ state: "no-character" });
+    }
+
+    if (!this.actions.some((action) => action.key === YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY)) {
+      return Promise.resolve({ state: "locked", character: { ...this.character } });
+    }
+
+    const currentNotches = this.itemQuantities.get("item.yeger.first-notch") ?? 0;
+    if (currentNotches !== input.expectedNotches) {
+      return Promise.resolve({
+        state: "stale",
+        character: { ...this.character },
+        expectedNotches: input.expectedNotches,
+        currentNotches,
+        summary: this.buildNotchExchangeSummary()
+      });
+    }
+
+    const requiredNotches = input.kind === "field-kit" ? 2 : 1;
+    const outputItemId = input.kind === "field-kit" ? "item.field-kit" : "item.dense-bandage";
+    if (currentNotches < requiredNotches) {
+      return Promise.resolve({
+        state: "not-enough",
+        character: { ...this.character },
+        summary: this.buildNotchExchangeSummary()
+      });
+    }
+
+    this.itemQuantities.set("item.yeger.first-notch", currentNotches - requiredNotches);
+    this.applyItemGrants([{ itemId: outputItemId, quantity: 1 }]);
+    this.itemGrants.push({ itemId: outputItemId, quantity: 1 });
+
+    return Promise.resolve({
+      state: "exchanged",
+      character: { ...this.character },
+      actionId: `notch-exchange-${this.itemGrants.length}`,
+      spentNotches: requiredNotches,
+      itemGrants: [{ itemId: outputItemId, quantity: 1 }],
+      summary: this.buildNotchExchangeSummary()
+    });
+  }
+
+  private applyItemGrants(itemGrants: Array<{ itemId: string; quantity: number }>): void {
+    for (const grant of itemGrants) {
+      this.itemQuantities.set(grant.itemId, (this.itemQuantities.get(grant.itemId) ?? 0) + grant.quantity);
+    }
+  }
+
+  private buildNotchExchangeSummary() {
+    const availableNotches = this.itemQuantities.get("item.yeger.first-notch") ?? 0;
+
+    return {
+      availableNotches,
+      options: [
+        ...(availableNotches >= 1
+          ? [{
+              kind: "dense-bandage" as const,
+              requiredNotches: 1,
+              outputItemId: "item.dense-bandage",
+              outputQuantity: 1 as const
+            }]
+          : []),
+        ...(availableNotches >= 2
+          ? [{
+              kind: "field-kit" as const,
+              requiredNotches: 2,
+              outputItemId: "item.field-kit",
+              outputQuantity: 1 as const
+            }]
+          : [])
+      ]
+    };
   }
 
   listForTelegramUser(

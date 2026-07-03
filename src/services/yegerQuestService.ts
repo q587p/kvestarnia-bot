@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { items } from "../content";
 import { monsters } from "../content/monsters";
 import type { MonsterContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
@@ -35,6 +36,13 @@ import { toIsoDate } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
+import type {
+  YegerNotchExchangeKind,
+  YegerNotchExchangeRepository,
+  YegerNotchExchangeSummaryRecord
+} from "../db/repositories/yegerNotchExchangeRepository";
+
+export type { YegerNotchExchangeKind } from "../db/repositories/yegerNotchExchangeRepository";
 
 export {
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
@@ -180,6 +188,17 @@ interface YegerRangerBandageLookup {
   rangerFieldKit?: YegerRangerBandageSummary;
 }
 
+export interface YegerNotchExchangeSummary {
+  availableNotches: number;
+  options: Array<{
+    kind: YegerNotchExchangeKind;
+    requiredNotches: number;
+    outputItemId: string;
+    outputQuantity: 1;
+    outputItemName: string;
+  }>;
+}
+
 export type YegerQuestLookupResult =
   | { state: "no-character" }
   | ({ state: "level-locked"; character: CharacterSummary; requiredLevel: number } & YegerRangerBandageLookup)
@@ -196,7 +215,7 @@ export type YegerQuestLookupResult =
       character: CharacterSummary;
       progress: YegerQuestProgress;
       reward: YegerQuestReward;
-    } & YegerRangerBandageLookup);
+    } & YegerRangerBandageLookup & { notchExchange?: YegerNotchExchangeSummary });
 
 export type YegerQuestStartResult =
   | { state: "no-character" }
@@ -326,6 +345,31 @@ export type YegerRangerBandageResult =
     }
   | { state: "on-cooldown"; kind: YegerRangerSupplyKind; character: CharacterSummary; nextAvailableAt: Date; now: Date };
 
+export type YegerNotchExchangeLookupResult =
+  | { state: "no-character" }
+  | { state: "locked" }
+  | { state: "ready"; summary: YegerNotchExchangeSummary };
+
+export type YegerNotchExchangeResult =
+  | { state: "no-character" }
+  | { state: "locked"; character: CharacterSummary }
+  | { state: "not-enough"; character: CharacterSummary; summary: YegerNotchExchangeSummary }
+  | {
+      state: "stale";
+      character: CharacterSummary;
+      expectedNotches: number;
+      currentNotches: number;
+      summary: YegerNotchExchangeSummary;
+    }
+  | {
+      state: "exchanged";
+      character: CharacterSummary;
+      spentNotches: number;
+      itemGrants: RewardItemGrant[];
+      summary: YegerNotchExchangeSummary;
+      achievementUnlocks?: AchievementUnlock[];
+    };
+
 export class YegerQuestService {
   constructor(
     private readonly characters: CharacterRepository,
@@ -333,6 +377,7 @@ export class YegerQuestService {
     private readonly combatSessions: SoloCombatSessionRepository,
     private readonly fight: FightService,
     private readonly cooldowns: CooldownRepository,
+    private readonly notchExchanges?: YegerNotchExchangeRepository,
     private readonly now: () => Date = () => new Date(),
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly achievements?: AchievementService,
@@ -377,7 +422,8 @@ export class YegerQuestService {
         character: summary,
         progress: buildYegerQuestProgress(YEGER_UNQUIET_TRIAL_SECOND_STAGE, YEGER_UNQUIET_TRIAL_SECOND_TARGET),
         reward: buildYegerQuestReward(YEGER_UNQUIET_TRIAL_SECOND_STAGE, replayReward),
-        ...withRangerSupplies(rangerSupplies)
+        ...withRangerSupplies(rangerSupplies),
+        ...(await this.getNotchExchangeLookup(telegramUserId))
       };
     }
 
@@ -1007,6 +1053,94 @@ export class YegerQuestService {
     };
   }
 
+  async getNotchExchangeForTelegramUser(telegramUserId: bigint): Promise<YegerNotchExchangeLookupResult> {
+    if (!this.notchExchanges) {
+      return { state: "locked" };
+    }
+
+    const result = await this.notchExchanges.getForTelegramUser(telegramUserId);
+
+    if (result.state !== "ready") {
+      return result;
+    }
+
+    return {
+      state: "ready",
+      summary: enrichNotchExchangeSummary(result.summary)
+    };
+  }
+
+  async exchangeNotchForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      kind: YegerNotchExchangeKind;
+      expectedNotches: number;
+    }
+  ): Promise<YegerNotchExchangeResult> {
+    if (!this.notchExchanges) {
+      const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+      return character
+        ? { state: "locked", character: summarizeCharacter(character) }
+        : { state: "no-character" };
+    }
+
+    const result = await this.notchExchanges.exchangeForTelegramUser(telegramUserId, {
+      kind: input.kind,
+      expectedNotches: input.expectedNotches,
+      now: this.now()
+    });
+
+    if (result.state === "no-character") {
+      return result;
+    }
+
+    if (result.state === "locked") {
+      return {
+        state: "locked",
+        character: summarizeCharacter(result.character)
+      };
+    }
+
+    if (result.state === "not-enough") {
+      return {
+        state: "not-enough",
+        character: summarizeCharacter(result.character),
+        summary: enrichNotchExchangeSummary(result.summary)
+      };
+    }
+
+    if (result.state === "stale") {
+      return {
+        state: "stale",
+        character: summarizeCharacter(result.character),
+        expectedNotches: result.expectedNotches,
+        currentNotches: result.currentNotches,
+        summary: enrichNotchExchangeSummary(result.summary)
+      };
+    }
+
+    const itemGrants = enrichRewardItemGrants(result.itemGrants);
+    const achievementUnlocks = await trackRewardAchievementsSafely(this.achievements, {
+      characterId: result.character.id,
+      actorDisplayName: result.character.name,
+      sourceId: result.actionId,
+      sourceType: "daily-action",
+      occurredAt: this.now(),
+      itemGrants: result.itemGrants,
+      activityEvents: this.activityEvents
+    });
+
+    return {
+      state: "exchanged",
+      character: summarizeCharacter(result.character),
+      spentNotches: result.spentNotches,
+      itemGrants,
+      summary: enrichNotchExchangeSummary(result.summary),
+      achievementUnlocks
+    };
+  }
+
   private async getCurrentStage(telegramUserId: bigint): Promise<YegerQuestStage | null> {
     for (const stage of YEGER_UNQUIET_TRIAL_STAGES) {
       const completed = await this.dailyActions.findForTelegramUser(telegramUserId, {
@@ -1069,6 +1203,16 @@ export class YegerQuestService {
     );
 
     return withRangerSupplies(entries);
+  }
+
+  private async getNotchExchangeLookup(
+    telegramUserId: bigint
+  ): Promise<{ notchExchange?: YegerNotchExchangeSummary }> {
+    const result = await this.getNotchExchangeForTelegramUser(telegramUserId);
+
+    return result.state === "ready" && result.summary.options.length > 0
+      ? { notchExchange: result.summary }
+      : {};
   }
 
   private async countProgress(
@@ -1533,6 +1677,20 @@ function withRangerSupplies(entries: YegerRangerBandageSummary[] | YegerRangerBa
         }
       })
     )
+  };
+}
+
+function enrichNotchExchangeSummary(summary: YegerNotchExchangeSummaryRecord): YegerNotchExchangeSummary {
+  return {
+    availableNotches: summary.availableNotches,
+    options: summary.options.map((option) => {
+      const item = items.find((candidate) => candidate.id === option.outputItemId);
+
+      return {
+        ...option,
+        outputItemName: item?.name ?? "Невідома манатка"
+      };
+    })
   };
 }
 

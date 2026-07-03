@@ -196,6 +196,7 @@ export function createServices(
       repositories.soloCombatSessions,
       fight,
       repositories.cooldowns,
+      repositories.yegerNotchExchange,
       undefined,
       undefined,
       achievements,

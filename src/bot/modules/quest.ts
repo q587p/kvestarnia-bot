@@ -81,6 +81,7 @@ buildYegerBandagesKeyboard,
 buildYegerBandagePurchaseKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
+buildYegerNotchExchangeKeyboard,
 buildYegerTurnInKeyboard
 } from "../keyboards/yegerKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
@@ -123,6 +124,8 @@ import {
 presentYegerBandages,
 presentYegerBandageBuy,
 presentYegerHelp,
+presentYegerNotchExchange,
+presentYegerNotchExchangeResult,
 presentYegerNoCharacter,
 presentYegerQuest,
 presentYegerRangerBandage,
@@ -1036,6 +1039,44 @@ async function handleYegerCallback(
     return;
   }
 
+  if (callback.type === "notch-exchange-open") {
+    await safeAnswerCallbackQuery(ctx);
+    const result = await services.yeger.getNotchExchangeForTelegramUser(telegramUserId);
+
+    await markYegerCornerPresence(ctx, services.presence);
+    await safeEditMessageText(ctx, presentYegerNotchExchange(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerNotchExchangeKeyboard(result)
+    });
+    return;
+  }
+
+  if (callback.type === "notch-exchange") {
+    const result = await services.yeger.exchangeNotchForTelegramUser(telegramUserId, {
+      kind: callback.kind,
+      expectedNotches: callback.expectedNotches
+    });
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "exchanged"
+        ? { text: "Єгер обміняв риску." }
+        : { show_alert: result.state === "locked" || result.state === "not-enough" || result.state === "stale" }
+    );
+    await markYegerCornerPresence(ctx, services.presence);
+    const lookup = await services.yeger.getNotchExchangeForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentYegerNotchExchangeResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerNotchExchangeKeyboard(lookup)
+    });
+    const achievementText = presentAchievementUnlockNotification(
+      result.state === "exchanged" ? result.achievementUnlocks ?? [] : []
+    );
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
+    return;
+  }
+
   if (callback.type === "quest") {
     await safeAnswerCallbackQuery(ctx);
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
@@ -1318,10 +1359,16 @@ async function handleYegerCallback(
   const craftOptions = result.state === "completed" || result.state === "already-completed"
     ? await services.itemCraft.getCraftOptionsForTelegramUser(telegramUserId, RESPONSIBLE_PANIC_BANDAGE_ITEM_ID)
     : [];
+  const notchExchange = result.state === "completed" || result.state === "already-completed"
+    ? await services.yeger.getNotchExchangeForTelegramUser(telegramUserId)
+    : undefined;
+  const yegerTurnInKeyboardOptions = notchExchange
+    ? { craftOptions, notchExchange }
+    : { craftOptions };
 
   await safeEditMessageText(ctx, presentYegerTurnIn(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildYegerTurnInKeyboard(result, { craftOptions })
+    reply_markup: buildYegerTurnInKeyboard(result, yegerTurnInKeyboardOptions)
   });
   if (result.state === "completed" && result.levelChange) {
     await sendLevelUpCelebration(ctx, {

@@ -5,6 +5,8 @@ import type {
   YegerTrackingResult,
   YegerQuestTurnInResult,
   YegerBandageSupplyResult,
+  YegerNotchExchangeLookupResult,
+  YegerNotchExchangeResult,
   YegerRangerBandageResult,
   YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
@@ -161,6 +163,79 @@ export function presentYegerBandages(
   return lines.join("\n");
 }
 
+export function presentYegerNotchExchange(result: YegerNotchExchangeLookupResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "locked") {
+    return [
+      "🪵 Обмін рисок",
+      "",
+      "Єгер не міняє риски, доки друга дощечка не закрита.",
+      "Спершу треба довести «Неспокійні справи 2.0» до 17/17."
+    ].join("\n");
+  }
+
+  return [
+    "🪵 Обмін рисок",
+    "",
+    `У торбі: <b>${result.summary.availableNotches}</b> ${formatNotchUnit(result.summary.availableNotches)}.`,
+    result.summary.options.length > 0
+      ? "Єгер приймає риски назад із виглядом людини, яка завжди так і планувала."
+      : "Єгер дивиться на порожнє місце в торбі й нічого не обмінює з дивовижною принциповістю."
+  ].join("\n");
+}
+
+export function presentYegerNotchExchangeResult(result: YegerNotchExchangeResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "locked") {
+    return [
+      "🪵 Обмін рисок",
+      presentCharacterHeader(result.character),
+      "",
+      "Єгер відсуває риски назад.",
+      "«Спершу закрийте другу дощечку. Порядок теж має зуби»."
+    ].join("\n");
+  }
+
+  if (result.state === "stale") {
+    return [
+      "🪵 Обмін рисок",
+      presentCharacterHeader(result.character),
+      "",
+      `У старій кнопці було <b>${result.expectedNotches}</b>, а в торбі зараз <b>${result.currentNotches}</b> ${formatNotchUnit(result.currentNotches)}.`,
+      "Єгер не любить старі кнопки. Відкрийте обмін ще раз."
+    ].join("\n");
+  }
+
+  if (result.state === "not-enough") {
+    return [
+      "🪵 Обмін рисок",
+      presentCharacterHeader(result.character),
+      "",
+      `У торбі: <b>${result.summary.availableNotches}</b> ${formatNotchUnit(result.summary.availableNotches)}.`,
+      "На такий обмін рисок не вистачає. Єгер рахує мовчки, але дуже чутно."
+    ].join("\n");
+  }
+
+  return [
+    "🪵 Риску обміняно",
+    presentCharacterHeader(result.character),
+    "",
+    `Витрачено: <b>${result.spentNotches}</b> ${formatNotchUnit(result.spentNotches)}.`,
+    ...result.itemGrants.map((grant) =>
+      presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })
+    ),
+    `Залишилось: <b>${result.summary.availableNotches}</b> ${formatNotchUnit(result.summary.availableNotches)}.`,
+    "",
+    "Єгер сховав риску в журнал і видав медицину так, ніби це не торг, а сувора екологія дощечок."
+  ].join("\n");
+}
+
 export function presentYegerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Єгер не видає сліди порожнім чоботам.";
 }
@@ -288,6 +363,21 @@ function formatBandageUnit(quantity: number): string {
   }
 
   return "бинтів";
+}
+
+function formatNotchUnit(quantity: number): string {
+  const mod10 = quantity % 10;
+  const mod100 = quantity % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return "риска";
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return "риски";
+  }
+
+  return "рисок";
 }
 
 export function presentYegerRangerBandage(result: YegerRangerBandageResult): string {

@@ -31,6 +31,7 @@ import { PrismaShynokRepository } from "../db/repositories/prismaShynokRepositor
 import { PrismaSoloCombatSessionRepository } from "../db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaTavernGameRepository } from "../db/repositories/prismaTavernGameRepository";
 import { PrismaUserRepository } from "../db/repositories/prismaUserRepository";
+import { PrismaYegerNotchExchangeRepository } from "../db/repositories/prismaYegerNotchExchangeRepository";
 
 export function createRepositories(prisma: PrismaClient) {
   return {
@@ -65,7 +66,8 @@ export function createRepositories(prisma: PrismaClient) {
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
     shynok: new PrismaShynokRepository(prisma),
     soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma),
-    tavernGames: new PrismaTavernGameRepository(prisma)
+    tavernGames: new PrismaTavernGameRepository(prisma),
+    yegerNotchExchange: new PrismaYegerNotchExchangeRepository(prisma)
   };
 }
 

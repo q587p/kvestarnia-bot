@@ -2,6 +2,7 @@ import { err, ok, type Result } from "../../shared/result";
 import {
   YEGER_BANDAGE_PURCHASE_TARGETS,
   type YegerBandagePurchaseTarget,
+  type YegerNotchExchangeKind,
   type YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
@@ -18,6 +19,8 @@ export type YegerCallback =
   | { type: "buy-bandage-confirm"; token: string }
   | { type: "buy-bandage-cancel"; token: string }
   | { type: "free-bandage"; kind: YegerRangerSupplyKind }
+  | { type: "notch-exchange-open" }
+  | { type: "notch-exchange"; kind: YegerNotchExchangeKind; expectedNotches: number }
   | { type: "help" };
 
 export type YegerCallbackError =
@@ -78,6 +81,17 @@ export function makeYegerFreeBandageCallbackData(kind: YegerRangerSupplyKind = "
   return assertYegerCallbackData(`${PREFIX}:free:${formatFreeSupplyKind(kind)}`);
 }
 
+export function makeYegerNotchExchangeOpenCallbackData(): string {
+  return assertYegerCallbackData(`${PREFIX}:nx`);
+}
+
+export function makeYegerNotchExchangeCallbackData(
+  kind: YegerNotchExchangeKind,
+  expectedNotches: number
+): string {
+  return assertYegerCallbackData(`${PREFIX}:nx${formatNotchExchangeKind(kind)}:${Math.max(0, Math.floor(expectedNotches))}`);
+}
+
 export function parseYegerCallbackData(
   data: string | undefined
 ): Result<YegerCallback, YegerCallbackError> {
@@ -131,6 +145,19 @@ export function parseYegerCallbackData(
     const kind = parseFreeSupplyKind(questId);
 
     return kind ? ok({ type: "free-bandage", kind }) : err("invalid-prefix");
+  }
+
+  if (action === "nx") {
+    return questId ? err("invalid-prefix") : ok({ type: "notch-exchange-open" });
+  }
+
+  if (action === "nxd" || action === "nxk") {
+    const expectedNotches = parseNotchSnapshot(questId);
+    const kind = parseNotchExchangeKind(action);
+
+    return kind && expectedNotches !== null
+      ? ok({ type: "notch-exchange", kind, expectedNotches })
+      : err("invalid-prefix");
   }
 
   if (questId !== UNQUIET_TRIAL_ID) {
@@ -202,4 +229,34 @@ function parseFreeSupplyKind(value: string | undefined): YegerRangerSupplyKind |
     default:
       return null;
   }
+}
+
+function formatNotchExchangeKind(kind: YegerNotchExchangeKind): "d" | "k" {
+  switch (kind) {
+    case "dense-bandage":
+      return "d";
+    case "field-kit":
+      return "k";
+    default:
+      throw new Error("Unknown Yeger notch exchange kind.");
+  }
+}
+
+function parseNotchExchangeKind(action: string): YegerNotchExchangeKind | null {
+  switch (action) {
+    case "nxd":
+      return "dense-bandage";
+    case "nxk":
+      return "field-kit";
+    default:
+      return null;
+  }
+}
+
+function parseNotchSnapshot(value: string | undefined): number | null {
+  if (!value || !/^\d{1,3}$/.test(value)) {
+    return null;
+  }
+
+  return Math.max(0, Math.floor(Number(value)));
 }

@@ -5,6 +5,8 @@ import {
   presentYegerCorner,
   presentYegerHelp,
   presentYegerHuntOutside,
+  presentYegerNotchExchange,
+  presentYegerNotchExchangeResult,
   presentYegerQuest,
   presentYegerRangerBandage,
   presentYegerStart,
@@ -283,6 +285,58 @@ describe("Yeger presenter", () => {
     expect(text).toContain("На мить я подумав про гобітів");
     expect(text).toContain("Єгер:\n<blockquote>На мить я подумав про гобітів");
     expect(text).toContain("На краю стола лежить справа.");
+  });
+
+  it("renders Yeger notch exchange menu and results", () => {
+    const menu = presentYegerNotchExchange({
+      state: "ready",
+      summary: {
+        availableNotches: 2,
+        options: [
+          {
+            kind: "dense-bandage",
+            requiredNotches: 1,
+            outputItemId: "item.dense-bandage",
+            outputQuantity: 1,
+            outputItemName: "Щільний бинт"
+          },
+          {
+            kind: "field-kit",
+            requiredNotches: 2,
+            outputItemId: "item.field-kit",
+            outputQuantity: 1,
+            outputItemName: "Польова аптечка"
+          }
+        ]
+      }
+    });
+    const exchanged = presentYegerNotchExchangeResult({
+      state: "exchanged",
+      character,
+      spentNotches: 2,
+      itemGrants: [{ itemId: "item.field-kit", name: "Польова аптечка", quantity: 1 }],
+      summary: {
+        availableNotches: 0,
+        options: []
+      }
+    });
+    const stale = presentYegerNotchExchangeResult({
+      state: "stale",
+      character,
+      expectedNotches: 2,
+      currentNotches: 0,
+      summary: {
+        availableNotches: 0,
+        options: []
+      }
+    });
+
+    expect(menu).toContain("🪵 Обмін рисок");
+    expect(menu).toContain("У торбі: <b>2</b> риски.");
+    expect(exchanged).toContain("Витрачено: <b>2</b> риски.");
+    expect(exchanged).toContain("Здобуто: <i>Польова аптечка</i>");
+    expect(exchanged).toContain("Залишилось: <b>0</b> рисок.");
+    expect(stale).toContain("У старій кнопці було <b>2</b>, а в торбі зараз <b>0</b> рисок.");
   });
 
   it("uses title-aware corner reactions", () => {

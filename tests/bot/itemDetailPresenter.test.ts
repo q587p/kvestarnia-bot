@@ -120,6 +120,27 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("правила майбутнього спорядження");
   });
 
+  it("describes Yeger notches as exchangeable marks instead of trophies", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.yeger.first-notch",
+          name: "Єгерська риска на дощечці",
+          description: "Маленька риска, яка доводить: Єгер бачив вашу роботу.",
+          rarity: "uncommon",
+          slot: "cosmetic",
+          priceless: true
+        }
+      })
+    );
+
+    expect(text).toContain("Єгер міняє такі риски на медичний запас");
+    expect(text).toContain("після закритої другої дощечки");
+    expect(text).toContain("інвентарна дипломатія");
+    expect(text).not.toContain("смішним трофеєм");
+    expect(text).not.toContain("до якої полиці");
+  });
+
   it("shows combat use wording for usable consumables when a fight action is available", () => {
     const content: InventoryItemSummary["content"] = {
       id: "item.responsible-panic-bandage",

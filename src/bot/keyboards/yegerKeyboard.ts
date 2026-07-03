@@ -1,6 +1,10 @@
 import { InlineKeyboard } from "grammy";
 import type { ItemCraftOption } from "../../services/itemCraftService";
-import type { YegerQuestLookupResult, YegerQuestTurnInResult } from "../../services/yegerQuestService";
+import type {
+  YegerNotchExchangeLookupResult,
+  YegerQuestLookupResult,
+  YegerQuestTurnInResult
+} from "../../services/yegerQuestService";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeItemCraftPreviewCallbackData } from "../callbacks/itemCraftCallbackData";
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
@@ -12,6 +16,8 @@ import {
   makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
+  makeYegerNotchExchangeCallbackData,
+  makeYegerNotchExchangeOpenCallbackData,
   makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData,
@@ -86,6 +92,10 @@ export function buildYegerCornerKeyboard(
     keyboard.text("🩹 Бинти", makeYegerBandagesCallbackData()).row();
   }
 
+  if (result.state === "completed" && result.notchExchange && result.notchExchange.options.length > 0) {
+    keyboard.text("🪵 Обміняти риску", makeYegerNotchExchangeOpenCallbackData()).row();
+  }
+
   return keyboard
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
     .row()
@@ -121,6 +131,26 @@ export function buildYegerBandagesKeyboard(
     .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
 }
 
+export function buildYegerNotchExchangeKeyboard(result: YegerNotchExchangeLookupResult): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (result.state === "ready") {
+    for (const option of result.summary.options) {
+      keyboard
+        .text(
+          presentNotchExchangeButtonLabel(option),
+          makeYegerNotchExchangeCallbackData(option.kind, result.summary.availableNotches)
+        )
+        .row();
+    }
+  }
+
+  return keyboard
+    .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
+    .row()
+    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+}
+
 function isBaseYegerQuestCompleted(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
 ): boolean {
@@ -142,7 +172,7 @@ export function buildYegerBandagePurchaseKeyboard(
 
 export function buildYegerTurnInKeyboard(
   result: Exclude<YegerQuestTurnInResult, { state: "no-character" }>,
-  options: { craftOptions?: ItemCraftOption[] } = {}
+  options: { craftOptions?: ItemCraftOption[]; notchExchange?: YegerNotchExchangeLookupResult } = {}
 ): InlineKeyboard {
   if (result.state === "not-started") {
     return new InlineKeyboard()
@@ -159,6 +189,9 @@ export function buildYegerTurnInKeyboard(
 
   if (result.state === "completed" || result.state === "already-completed") {
     addRewardItemButton(keyboard, result.reward);
+    if (options.notchExchange?.state === "ready" && options.notchExchange.summary.options.length > 0) {
+      keyboard.text("🪵 Обміняти риску", makeYegerNotchExchangeOpenCallbackData()).row();
+    }
     addCraftButtons(keyboard, options.craftOptions ?? []);
   }
 
@@ -218,4 +251,15 @@ function addCraftButtons(
   }
 
   return keyboard;
+}
+
+function presentNotchExchangeButtonLabel(
+  option: Extract<YegerNotchExchangeLookupResult, { state: "ready" }>["summary"]["options"][number]
+): string {
+  switch (option.kind) {
+    case "dense-bandage":
+      return "🧵 Риску на щільний бинт";
+    case "field-kit":
+      return "🧰 2 риски на аптечку";
+  }
 }

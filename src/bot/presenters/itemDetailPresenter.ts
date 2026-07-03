@@ -2,6 +2,7 @@ import type { ItemContent } from "../../content/schema";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import { isEquippableItem } from "../../services/equipmentService";
 import type { ItemUseAvailability } from "../../services/itemUseService";
+import { YEGER_FIRST_NOTCH_ITEM_ID } from "../../services/itemGrant";
 import type {
   InventoryItemDetailResult,
   InventoryItemSummary
@@ -98,6 +99,10 @@ function presentEquipmentLine(
 ): string {
   if (item.slot === "consumable") {
     return "Екіпірування: <i>не вдягається. Це витратна манатка: її застосовують, а не приміряють.</i>";
+  }
+
+  if (item.id === YEGER_FIRST_NOTCH_ITEM_ID) {
+    return "Екіпірування: <i>не вдягається. Єгер міняє такі риски на медичний запас після закритої другої дощечки.</i>";
   }
 
   if (!isEquippableItem(item)) {
@@ -229,6 +234,10 @@ function presentItemFlavor(item: ItemContent): string {
 
   if (item.slot === "consumable") {
     return "<i>Корчмар зважує манатку в руці й вирішує, чи не занадто впевнено вона виглядає перед витратою.</i>";
+  }
+
+  if (item.id === YEGER_FIRST_NOTCH_ITEM_ID) {
+    return "<i>Корчмар не кладе риску на полицю. Він підсуває її ближче до Єгеря й удає, що це інвентарна дипломатія.</i>";
   }
 
   return "<i>Корчмар крутить манатку в руках і ще думає, до якої полиці її не підпускати.</i>";

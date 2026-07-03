@@ -8,6 +8,7 @@ import {
   buildYegerCornerKeyboard,
   buildYegerHuntKeyboard,
   buildYegerKeyboard,
+  buildYegerNotchExchangeKeyboard,
   buildYegerTurnInKeyboard
 } from "../../src/bot/keyboards/yegerKeyboard";
 import {
@@ -15,6 +16,8 @@ import {
   makeYegerBuyBandageCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
+  makeYegerNotchExchangeCallbackData,
+  makeYegerNotchExchangeOpenCallbackData,
   makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData,
@@ -77,6 +80,99 @@ describe("Yeger keyboard", () => {
     expect(flatButtons(keyboard).map((button) => button.callback_data)).toContain(
       makePlaceCallbackData("barrel")
     );
+  });
+
+  it("opens Yeger notch exchange from the closed second board when notches can be spent", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "completed",
+      character,
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 56,
+        gold: 170,
+        itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+      },
+      notchExchange: {
+        availableNotches: 2,
+        options: [
+          {
+            kind: "dense-bandage",
+            requiredNotches: 1,
+            outputItemId: "item.dense-bandage",
+            outputQuantity: 1,
+            outputItemName: "Щільний бинт"
+          },
+          {
+            kind: "field-kit",
+            requiredNotches: 2,
+            outputItemId: "item.field-kit",
+            outputQuantity: 1,
+            outputItemName: "Польова аптечка"
+          }
+        ]
+      }
+    });
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🪵 Обміняти риску",
+      callback_data: makeYegerNotchExchangeOpenCallbackData()
+    });
+  });
+
+  it("shows only affordable Yeger notch exchange options", () => {
+    const oneNotch = buildYegerNotchExchangeKeyboard({
+      state: "ready",
+      summary: {
+        availableNotches: 1,
+        options: [{
+          kind: "dense-bandage",
+          requiredNotches: 1,
+          outputItemId: "item.dense-bandage",
+          outputQuantity: 1,
+          outputItemName: "Щільний бинт"
+        }]
+      }
+    });
+    const twoNotches = buildYegerNotchExchangeKeyboard({
+      state: "ready",
+      summary: {
+        availableNotches: 2,
+        options: [
+          {
+            kind: "dense-bandage",
+            requiredNotches: 1,
+            outputItemId: "item.dense-bandage",
+            outputQuantity: 1,
+            outputItemName: "Щільний бинт"
+          },
+          {
+            kind: "field-kit",
+            requiredNotches: 2,
+            outputItemId: "item.field-kit",
+            outputQuantity: 1,
+            outputItemName: "Польова аптечка"
+          }
+        ]
+      }
+    });
+
+    expect(flatButtons(oneNotch)).toContainEqual({
+      text: "🧵 Риску на щільний бинт",
+      callback_data: makeYegerNotchExchangeCallbackData("dense-bandage", 1)
+    });
+    expect(flatButtons(oneNotch).map((button) => button.callback_data)).not.toContain(
+      makeYegerNotchExchangeCallbackData("field-kit", 1)
+    );
+    expect(flatButtons(twoNotches)).toEqual(expect.arrayContaining([
+      {
+        text: "🧵 Риску на щільний бинт",
+        callback_data: makeYegerNotchExchangeCallbackData("dense-bandage", 2)
+      },
+      {
+        text: "🧰 2 риски на аптечку",
+        callback_data: makeYegerNotchExchangeCallbackData("field-kit", 2)
+      }
+    ]));
   });
 
   it("keeps paid Yeger bandages inside the bandages submenu", () => {
@@ -341,6 +437,42 @@ describe("Yeger keyboard", () => {
         callback_data: makeItemCraftPreviewCallbackData("kit")
       }
     ]));
+  });
+
+  it("offers notch exchange after the second Yeger board turn-in when notches remain", () => {
+    const keyboard = buildYegerTurnInKeyboard(
+      {
+        state: "completed",
+        character,
+        progress: { wins: 17, target: 17, stageId: "second" },
+        reward: {
+          xp: 56,
+          gold: 170,
+          itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+        },
+        levelChange: null
+      },
+      {
+        notchExchange: {
+          state: "ready",
+          summary: {
+            availableNotches: 2,
+            options: [{
+              kind: "field-kit",
+              requiredNotches: 2,
+              outputItemId: "item.field-kit",
+              outputQuantity: 1,
+              outputItemName: "Польова аптечка"
+            }]
+          }
+        }
+      }
+    );
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🪵 Обміняти риску",
+      callback_data: makeYegerNotchExchangeOpenCallbackData()
+    });
   });
 
   it("sends active Yeger quests outside from the Yeger corner", () => {

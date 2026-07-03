@@ -31,6 +31,7 @@ import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRe
 import { PrismaShynokRepository } from "../../src/db/repositories/prismaShynokRepository";
 import { PrismaSoloCombatSessionRepository } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaUserRepository } from "../../src/db/repositories/prismaUserRepository";
+import { PrismaYegerNotchExchangeRepository } from "../../src/db/repositories/prismaYegerNotchExchangeRepository";
 import { AchievementService } from "../../src/services/achievementService";
 import { AdventureService } from "../../src/services/adventureService";
 import { CellarErrandService } from "../../src/services/cellarErrandService";
@@ -90,6 +91,7 @@ describe("application factory wiring", () => {
     expect(repositories.roundPurchases).toBeInstanceOf(PrismaKorchmaRoundPurchaseRepository);
     expect(repositories.shynok).toBeInstanceOf(PrismaShynokRepository);
     expect(repositories.soloCombatSessions).toBeInstanceOf(PrismaSoloCombatSessionRepository);
+    expect(repositories.yegerNotchExchange).toBeInstanceOf(PrismaYegerNotchExchangeRepository);
   });
 
   it("creates the expected application service surface", () => {
@@ -208,6 +210,7 @@ describe("application factory wiring", () => {
         repositories.soloCombatSessions,
         fight,
         repositories.cooldowns,
+        repositories.yegerNotchExchange,
         undefined,
         undefined,
         achievements,
