@@ -318,6 +318,16 @@ describe("main menu and scene keyboards", () => {
       ["📰 Дошка корчми", "🐭 Льох"],
       ["🚪 Надвір", "🪜 Спуск до Низу"]
     ]);
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 2,
+            cellar: { state: "ready", character }
+          }
+        })
+      )
+    ).toContain("🐭 Льох 📜");
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
       "🥊 Потренуватися",
       "⚡ Миттєва дуель",
@@ -2514,8 +2524,8 @@ describe("main menu and scene keyboards", () => {
         fullHubKeyboard
       )
     ).toEqual([
-      "🪧 Обрати пригоду 📜",
-      "⚔️ До сутички 📜",
+      "Обрати пригоду",
+      "До сутички",
       "🏹 До Єгеря 📜",
       "🧹 У льох 📜",
       "📦 Архів",
@@ -2523,6 +2533,8 @@ describe("main menu and scene keyboards", () => {
       "🍺 До зали"
     ]);
     expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
+    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму");
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toContain("📋 Стіл зі справами");
 
     const level13HubKeyboard = buildQuestHubKeyboard({
       adventure: { state: "level-retired", character, maxLevel: 2 },

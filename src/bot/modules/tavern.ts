@@ -60,6 +60,7 @@ sendTavern,
 sendTavernBarrel
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
 import {
 buildCellarGrownupKeyboard,
 buildCellarMethodHelpKeyboard,
@@ -844,6 +845,7 @@ async function handlePlaceCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
 
   if (action === "current") {
     await sendCurrentLocation(ctx, services);
@@ -856,7 +858,9 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendTavern(ctx, services.tavern, services.presence, "reply");
+    await sendTavern(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -864,7 +868,8 @@ async function handlePlaceCallback(
   if (action === "front") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_FRONT);
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
-      playerHintService: services.playerHints
+      playerHintService: services.playerHints,
+      ...(questMarkers ? { questMarkers } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -876,7 +881,9 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -933,7 +940,10 @@ async function handlePlaceCallback(
       "reply",
       services.cellarGrownup,
       services.fight,
-      services.tavernGames
+      services.tavernGames,
+      {
+        ...(questMarkers ? { questMarkers } : {})
+      }
     );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;

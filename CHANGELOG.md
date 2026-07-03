@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated `📖 Перекази` class entries for Priest and Rogue to mention the new noncombat behavior.
 - Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
 - Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
+- Kept quest-table action buttons visually plain for direct starter quests while preserving icons and available-task markers on Korchma location buttons such as `🐭 Льох 📜`.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.

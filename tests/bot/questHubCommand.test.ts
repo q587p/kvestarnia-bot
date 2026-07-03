@@ -75,7 +75,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду 📜",
+      "Обрати пригоду",
       "🪜 До Низу",
       "🧹 У льох 📜",
       "📦 Архів",
@@ -83,7 +83,7 @@ describe("quest hub command", () => {
       "🍺 До зали"
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
-      { text: "🪧 Обрати пригоду 📜", callback_data: makeQuestCallbackData("adventure") },
+      { text: "Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
       { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") },
       { text: "🧹 У льох 📜", callback_data: makeQuestCallbackData("cellar") }
     ]));
@@ -157,8 +157,8 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🌯 До підозрілої шаурми 📜",
-      "⚔️ До сутички 📜",
+      "До підозрілої шаурми",
+      "До сутички",
       "📦 Архів",
       "🍺 До зали"
     ]);
@@ -193,8 +193,8 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🌯 До підозрілої шаурми 📜",
-      "⚔️ До сутички 📜",
+      "До підозрілої шаурми",
+      "До сутички",
       "🧹 У льох 📜",
       "📦 Архів",
       "🍺 До зали"
@@ -396,7 +396,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду 📜",
+      "Обрати пригоду",
       "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
@@ -459,7 +459,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду 📜",
+      "Обрати пригоду",
       "🪜 До Низу",
       "🏹 До Єгеря 📜",
       "📦 Архів",
@@ -862,7 +862,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду 📜",
+      "Обрати пригоду",
       "🪜 До Низу",
       "🧹 У льох 📜",
       "📦 Архів",
@@ -1084,7 +1084,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
       "🍻 До шинку 📜",
-      "🪧 Обрати пригоду 📜",
+      "Обрати пригоду",
       "🧹 У льох 📜",
       "📦 Архів",
       "📖 Бестіарій",
