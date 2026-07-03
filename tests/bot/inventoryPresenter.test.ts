@@ -148,7 +148,7 @@ describe("inventory presenter", () => {
     };
     const text = presentInventory(result, 0, "one-use");
 
-    expect(text).toContain("🧻 <b>Разові манатки</b>");
+    expect(text).toContain("1️⃣ <b>Разові манатки</b>");
     expect(text).toContain("Показано манатки, які використовуються один раз");
     expect(text).toContain("Знайдено разових манаток: <b>1</b>.");
     expect(text).toContain("<b>Бинт відповідальної паніки</b>");
@@ -176,7 +176,7 @@ describe("inventory presenter", () => {
     };
     const text = presentInventory(result, 0, "one-use");
 
-    expect(text).toContain("🧻 <b>Разові манатки</b>");
+    expect(text).toContain("1️⃣ <b>Разові манатки</b>");
     expect(text).toContain("У торбі поки немає разових манаток.");
   });
 });

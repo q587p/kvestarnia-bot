@@ -1320,7 +1320,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🛡️ Спорядження", "🧻 Разові", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника"]);
+    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -1367,7 +1367,7 @@ describe("main menu and scene keyboards", () => {
           1
         )
       )
-    ).toEqual(["🛡️ Спорядження", "🧻 Разові", "♻️ До Дружньої Скрині", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
+    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard(

@@ -7,6 +7,7 @@ import {
 import {
   isInventoryEquipmentSlotFilter,
   isOneUseInventoryFilter,
+  ONE_USE_INVENTORY_FILTER_ICON,
   type InventoryFilter
 } from "../inventoryFilter";
 import { presentItemEffect } from "./itemEffectPresenter";
@@ -140,7 +141,7 @@ function presentInventoryFilterHeading(filter: Exclude<InventoryFilter, null>): 
     return `${presentSlotFilterIcon(filter)} <b>${presentSlotFilterTitle(filter)}</b>`;
   }
 
-  return "🧻 <b>Разові манатки</b>";
+  return `${ONE_USE_INVENTORY_FILTER_ICON} <b>Разові манатки</b>`;
 }
 
 function presentInventoryFilterDescription(filter: Exclude<InventoryFilter, null>): string {

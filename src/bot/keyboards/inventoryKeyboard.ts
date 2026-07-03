@@ -25,6 +25,7 @@ import type { ItemCraftOption } from "../../services/itemCraftService";
 import { isEquippableItem } from "../../services/equipmentService";
 import {
   ONE_USE_INVENTORY_FILTER,
+  ONE_USE_INVENTORY_FILTER_ICON,
   isInventoryEquipmentSlotFilter,
   isOneUseInventoryFilter,
   type InventoryFilter
@@ -52,7 +53,9 @@ export function buildInventoryKeyboard(
   if (filter) {
     keyboard.text("🎒 Усі манатки", makeInventoryCallbackData()).row();
   } else {
-    keyboard.text("🧻 Разові", makeInventoryCallbackData(0, ONE_USE_INVENTORY_FILTER)).row();
+    keyboard
+      .text(`${ONE_USE_INVENTORY_FILTER_ICON} Разові`, makeInventoryCallbackData(0, ONE_USE_INVENTORY_FILTER))
+      .row();
     keyboard.text("♻️ До Дружньої Скрині", makeMantokChestOpenCallbackData()).row();
   }
 
