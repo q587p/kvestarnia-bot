@@ -16,14 +16,18 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult, pa
   const actorRemortCount = result.character.remortCount ?? 0;
 
   if (result.mode === "priest") {
+    if (canHeal(result.character)) {
+      keyboard
+        .text("🩹 Полікувати себе", makePriestHealCallbackData({
+          targetTelegramUserId: null,
+          actorRemortCount,
+          targetRemortCount: actorRemortCount,
+          page
+        }))
+        .row();
+    }
+
     keyboard
-      .text("🩹 Полікувати себе", makePriestHealCallbackData({
-        targetTelegramUserId: null,
-        actorRemortCount,
-        targetRemortCount: actorRemortCount,
-        page
-      }))
-      .row()
       .text("✨ Благословити себе", makePriestBlessCallbackData({
         targetTelegramUserId: null,
         actorRemortCount,
@@ -68,4 +72,8 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult, pa
 
 function formatName(name: string): string {
   return name.length > 24 ? `${name.slice(0, 23)}…` : name;
+}
+
+function canHeal(character: Extract<ClassNoncombatOpenResult, { state: "ready" }>["character"]): boolean {
+  return character.hpCurrent < character.hpMax;
 }
