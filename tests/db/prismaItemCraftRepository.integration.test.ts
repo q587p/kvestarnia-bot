@@ -94,6 +94,31 @@ describe("PrismaItemCraftRepository integration", () => {
     await expectItemQuantity(FIELD_KIT_ITEM_ID, 1);
   });
 
+  it("does not save ordinary bandages for non-ranger classes", async () => {
+    await seedSecondBoardCompletion();
+    await seedBandages(13);
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { classId: "class.warrior" }
+    });
+
+    await expect(repository.craftForTelegramUser(telegramUserId, {
+      recipe: kitRecipe,
+      itemContents: items,
+      now: now(),
+      craftSavingsRolls: { chanceRoll: 0, quantityRoll: 0.999 }
+    })).resolves.toMatchObject({
+      state: "crafted",
+      spentSourceQuantity: 13,
+      savedSourceQuantity: 0,
+      remainingSourceQuantity: 0,
+      outputQuantity: 1
+    });
+
+    await expectItemQuantity(RESPONSIBLE_PANIC_BANDAGE_ITEM_ID, 0);
+    await expectItemQuantity(FIELD_KIT_ITEM_ID, 1);
+  });
+
   it("keeps callbacks closed before unlock, during combat and with insufficient bandages", async () => {
     await seedBandages(13);
     await expect(repository.previewForTelegramUser(telegramUserId, {

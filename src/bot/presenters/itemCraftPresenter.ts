@@ -11,7 +11,9 @@ export function presentItemCraftPreview(result: ItemCraftPreviewRepositoryResult
         "",
         `Потрібно: <b>${result.preview.recipe.sourceQuantity}</b> × ${result.preview.sourceItem.name}.`,
         `У торбі: <b>${result.preview.availableQuantity}</b>.`,
-        "Рівень і удача можуть зекономити частину звичайних бинтів під час вузлування.",
+        result.preview.characterClassId === "class.ranger"
+          ? "Єгерська вправність може зекономити частину звичайних бинтів під час вузлування."
+          : "Для цього класу рецепт витрачає рівно стільки бинтів, скільки написано.",
         "",
         "Корчмар суворо дивиться на вузли й вдає, що це ремесло."
       ].join("\n");
@@ -36,7 +38,9 @@ export function presentItemCraftResult(result: ItemCraftConfirmRepositoryResult)
     case "crafted": {
       const savingsLine = result.savedSourceQuantity > 0
         ? `Зекономлено: <b>${result.savedSourceQuantity}</b> × ${result.sourceItem.name}.`
-        : "Цього разу вузли були чесні й нічого не зекономили.";
+        : result.character.classId === "class.ranger"
+          ? "Цього разу вузли були чесні й нічого не зекономили."
+          : "Рецепт витратив рівно стільки бинтів, скільки було написано.";
       return [
         `🧰 <b>${result.outputItem.name}: готово.</b>`,
         "",

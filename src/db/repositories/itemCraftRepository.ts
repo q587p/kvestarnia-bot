@@ -7,6 +7,7 @@ export interface ItemCraftPreviewRecord {
   sourceItem: ItemContent;
   outputItem: ItemContent;
   availableQuantity: number;
+  characterClassId: string;
 }
 
 export type ItemCraftPreviewRepositoryResult =

@@ -62,7 +62,7 @@ export function getCraftRecipesForSourceItem(itemId: string): readonly ItemCraft
 
 export function rollItemCraftBandageSavings(
   recipe: ItemCraftRecipe,
-  character: { level: number; stats: { luck: number } },
+  character: { classId?: string; level: number; stats: { luck: number } },
   rolls: ItemCraftSavingsRolls | undefined
 ): ItemCraftSavingsResult {
   if (!rolls) {
@@ -91,7 +91,11 @@ export function rollItemCraftBandageSavings(
   };
 }
 
-function getItemCraftSavingChance(character: { level: number; stats: { luck: number } }): number {
+function getItemCraftSavingChance(character: { classId?: string; level: number; stats: { luck: number } }): number {
+  if (character.classId !== "class.ranger") {
+    return 0;
+  }
+
   const level = Math.max(1, Math.floor(character.level));
   const luck = Math.max(0, Math.floor(character.stats.luck));
 
@@ -100,8 +104,12 @@ function getItemCraftSavingChance(character: { level: number; stats: { luck: num
 
 function getItemCraftMaxSavedSourceQuantity(
   recipe: ItemCraftRecipe,
-  character: { level: number; stats: { luck: number } }
+  character: { classId?: string; level: number; stats: { luck: number } }
 ): number {
+  if (character.classId !== "class.ranger") {
+    return 0;
+  }
+
   const level = Math.max(1, Math.floor(character.level));
   const luck = Math.max(0, Math.floor(character.stats.luck));
 

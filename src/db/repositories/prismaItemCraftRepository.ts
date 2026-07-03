@@ -210,7 +210,8 @@ async function getCraftContext(
       recipe,
       sourceItem,
       outputItem,
-      availableQuantity: stack?.quantity ?? 0
+      availableQuantity: stack?.quantity ?? 0,
+      characterClassId: character.classId
     }
   };
 }
