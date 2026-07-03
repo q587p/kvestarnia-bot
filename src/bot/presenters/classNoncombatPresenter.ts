@@ -32,7 +32,9 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         presentCooldownLine("🩹 Лікування", result.priestHealCooldownAvailableAt),
         presentCooldownLine("✨ Благословення", result.priestBlessCooldownAvailableAt),
         "",
-        "Оберіть себе або когось активного поруч:"
+        result.targets.length > 0
+          ? "Оберіть себе або когось активного поруч:"
+          : "Поруч нікого активного немає, але себе можна підтримати без черги."
       ]
     : [
         "🗡️ <b>Тиха кишеня</b>",
@@ -47,10 +49,6 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
   if (result.targets.length === 0 && result.mode === "rogue") {
     lines.push("", "Активних цілей поруч немає. Кишені теж мають графік роботи.");
   }
-  if (result.targets.length === 0 && result.mode === "priest") {
-    lines.push("", "Поруч нікого активного немає, але себе можна підтримати без черги.");
-  }
-
   return lines.filter(Boolean).join("\n");
 }
 
@@ -84,9 +82,9 @@ export function presentPriestBlessResult(result: PriestBlessResult): string {
     targetSelf
       ? "Жрець благословив себе. Корчма це записала як самодогляд із кадилом."
       : `${presentCharacterDisplayName(result.actor)} благословив ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
-    `Стан діє ще: ${formatRemaining(result.blessing.expiresAt)}.`,
-    "Бонус поки видимий і не складається в стос.",
-    `Мана витрачена: <b>${result.action.manaCost}</b>.`
+    `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`,
+    "Стан видно в персонажі поруч із бафами й не складається в стос.",
+    `🌌 Мана витрачена: <b>${result.action.manaCost}</b>.`
   ].join("\n");
 }
 
@@ -131,7 +129,7 @@ export function presentPriestBlessTargetNotification(result: Extract<PriestBless
     "✨ <b>Вас благословили</b>",
     "",
     `${presentCharacterDisplayName(result.actor)} благословив вас. Корчма зробила вигляд, що це планувала.`,
-    `Стан діє ще: ${formatRemaining(result.blessing.expiresAt)}.`
+    `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`
   ].join("\n");
 }
 

@@ -109,6 +109,11 @@ export interface ClassNoncombatRepository {
     input: { activeSince: Date; page: number; pageSize: number; now: Date }
   ): Promise<NoncombatActionSnapshot | null>;
 
+  getActivePriestBlessingForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<PriestBlessingRecord | null>;
+
   completePriestHeal(
     actorTelegramUserId: bigint,
     input: {

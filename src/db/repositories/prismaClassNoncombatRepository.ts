@@ -78,6 +78,25 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     };
   }
 
+  async getActivePriestBlessingForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<PriestBlessingRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacter(tx, telegramUserId);
+      if (!character) {
+        return null;
+      }
+
+      await expireBlessings(tx, character.id, now);
+
+      return mapBlessing(await tx.noncombatPriestBlessing.findFirst({
+        where: { targetCharacterId: character.id, status: "active", expiresAt: { gt: now } },
+        orderBy: { startedAt: "desc" }
+      }));
+    });
+  }
+
   async completePriestHeal(
     actorTelegramUserId: bigint,
     input: Parameters<ClassNoncombatRepository["completePriestHeal"]>[1]

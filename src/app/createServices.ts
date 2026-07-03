@@ -140,7 +140,8 @@ export function createServices(
       repositories.remorts,
       repositories.shynok,
       undefined,
-      achievements
+      achievements,
+      repositories.classNoncombat
     ),
     hunt: new HuntService(
       repositories.characters,

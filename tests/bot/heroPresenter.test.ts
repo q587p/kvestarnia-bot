@@ -145,6 +145,43 @@ describe("hero presenter", () => {
     );
   });
 
+  it("shows the active Priest blessing near other timed statuses", () => {
+    const text = presentHero(summary, {
+      activePriestBlessing: {
+        actorName: "Мандрівник",
+        targetName: "Мандрівник",
+        expiresAt: new Date("2026-06-23T10:13:00.000Z")
+      }
+    });
+
+    expect(text).toContain(
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n✨ Стан: <b>Жрецьке благословення</b> ще <b>13 хв</b> — видиме, не складається в стос.\n\nСили 9"
+    );
+  });
+
+  it("shows Shynok and Priest timed statuses together", () => {
+    const text = presentHero(summary, {
+      activeDrink: {
+        key: "drink.fine-beer",
+        name: "Якісне пиво",
+        emoji: "🍻",
+        phase: "timed",
+        startedAt: new Date("2026-06-23T10:00:00.000Z"),
+        expiresAt: new Date("2026-06-23T10:42:00.000Z"),
+        recoveryMultiplierBp: 14200
+      },
+      activePriestBlessing: {
+        actorName: "Мандрівник",
+        targetName: "Мандрівник",
+        expiresAt: new Date("2026-06-23T10:13:00.000Z")
+      }
+    });
+
+    expect(text).toContain(
+      "🍻 Баф: <b>Якісне пиво</b> ще 42 хв — відновлення швидше на 42%.\n✨ Стан: <b>Жрецьке благословення</b> ще <b>13 хв</b>"
+    );
+  });
+
   it("shows queued pepper vodka as a pending monster combat buff", () => {
     const text = presentHero(summary, {
       activeDrink: {

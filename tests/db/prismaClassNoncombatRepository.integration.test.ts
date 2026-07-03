@@ -90,6 +90,42 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect(hall?.targets.map((target) => target.telegramUserId).sort()).toEqual([402n, 403n]);
   });
 
+  it("stores active Priest blessing for hero display and spends mana", async () => {
+    await seedCharacter({
+      telegramUserId: 701n,
+      userId: "user-priest",
+      characterId: "priest",
+      classId: "class.priest",
+      level: 3,
+      manaCurrent: 20
+    });
+
+    const result = await repository.completePriestBlessing(701n, priestBlessInput({
+      targetTelegramUserId: null,
+      expiresAt: new Date("2026-07-03T09:13:00.000Z")
+    }));
+    const active = await repository.getActivePriestBlessingForTelegramUser(701n, now);
+
+    expect(result).toMatchObject({
+      state: "completed",
+      actor: { manaCurrent: 13 },
+      target: { manaCurrent: 13 },
+      blessing: {
+        actorName: "priest",
+        targetName: "priest",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z")
+      }
+    });
+    expect(active).toMatchObject({
+      actorName: "priest",
+      targetName: "priest",
+      expiresAt: new Date("2026-07-03T09:13:00.000Z")
+    });
+    await expect(prisma.character.findUnique({ where: { id: "priest" } })).resolves.toMatchObject({
+      manaCurrent: 13
+    });
+  });
+
   it("replays Rogue same-day duplicate even after live location gates drift", async () => {
     await seedCharacter({ telegramUserId: 501n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
     await seedCharacter({ telegramUserId: 502n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
@@ -186,6 +222,23 @@ describe("PrismaClassNoncombatRepository integration", () => {
     ]);
   });
 });
+
+function priestBlessInput(overrides: {
+  targetTelegramUserId?: bigint | null;
+  expiresAt: Date;
+}) {
+  return {
+    targetTelegramUserId: overrides.targetTelegramUserId ?? null,
+    expectedActorRemortCount: 0,
+    expectedTargetRemortCount: 0,
+    activeSince: new Date("2026-07-03T08:55:00.000Z"),
+    now,
+    expiresAt: overrides.expiresAt,
+    cooldownAvailableAt,
+    manaCost: 7,
+    statSnapshot: { test: true }
+  };
+}
 
 function rogueInput(overrides: {
   targetTelegramUserId?: bigint;

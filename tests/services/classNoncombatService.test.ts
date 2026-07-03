@@ -61,7 +61,7 @@ describe("ClassNoncombatService", () => {
     expect(achievements.events).toEqual([]);
   });
 
-  it("creates direct Priest blessing with a visible 93-minute status and achievement hook", async () => {
+  it("creates direct Priest blessing with a visible 13-minute status and achievement hook", async () => {
     const repository = new FakeClassNoncombatRepository();
     const achievements = new FakeAchievementService();
     const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0]), achievements.service);
@@ -75,7 +75,7 @@ describe("ClassNoncombatService", () => {
     expect(result.state).toBe("completed");
     expect(repository.lastBlessInput).toMatchObject({
       manaCost: 7,
-      expiresAt: new Date("2026-07-03T10:33:00.000Z"),
+      expiresAt: new Date("2026-07-03T09:13:00.000Z"),
       cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z")
     });
     expect(achievements.events.map((event) => event.type)).toEqual(["priest.blessing.completed"]);
@@ -211,6 +211,10 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       priestBlessCooldownAvailableAt: null,
       roguePickpocketCooldownAvailableAt: null
     });
+  }
+
+  getActivePriestBlessingForTelegramUser() {
+    return Promise.resolve(null);
   }
 
   completePriestHeal(

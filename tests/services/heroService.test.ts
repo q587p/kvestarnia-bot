@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type {
+  ClassNoncombatRepository,
+  PriestBlessingRecord
+} from "../../src/db/repositories/classNoncombatRepository";
+import type {
   CharacterRecord,
   CharacterRepository,
   CreateCharacterInput,
@@ -158,6 +162,37 @@ describe("HeroService", () => {
         phase: "queued",
         outgoingDamageMultiplierBp: 11300,
         incomingDamageMultiplierBp: 11300
+      }
+    });
+  });
+
+  it("returns the active Priest blessing for hero presentation", async () => {
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter()),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      new FakeClassNoncombatRepository({
+        id: "blessing-1",
+        actorName: "Мандрівник",
+        targetName: "Мандрівник",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: null,
+        bonusAmount: 0
+      })
+    );
+
+    const result = await service.findByTelegramUserId(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "existing-character",
+      activePriestBlessing: {
+        actorName: "Мандрівник",
+        targetName: "Мандрівник",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z")
       }
     });
   });
@@ -323,5 +358,13 @@ class FakeShynokRepository {
 
   getRecoveryDrinkForTelegramUser(): Promise<ShynokDrinkStateRecord | null> {
     return Promise.resolve(this.recoveryDrink);
+  }
+}
+
+class FakeClassNoncombatRepository implements Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser"> {
+  constructor(private readonly blessing: PriestBlessingRecord | null) {}
+
+  getActivePriestBlessingForTelegramUser(): Promise<PriestBlessingRecord | null> {
+    return Promise.resolve(this.blessing);
   }
 }

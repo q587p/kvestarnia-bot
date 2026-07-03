@@ -1,4 +1,8 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type {
+  ClassNoncombatRepository,
+  PriestBlessingRecord
+} from "../db/repositories/classNoncombatRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type { CharacterItemRecord, InventoryRepository } from "../db/repositories/inventoryRepository";
 import type { RemortRepository } from "../db/repositories/remortRepository";
@@ -35,6 +39,7 @@ export type HeroLookupResult =
       character: CharacterSummary;
       inventoryGoldValue: number;
       activeDrink: HeroActiveDrink | null;
+      activePriestBlessing: HeroActivePriestBlessing | null;
       activeCosmeticTitle: string | null;
       restoreToFullItemId: string | null;
       recoveryNotice?: ResourceRecoveryNotice;
@@ -53,6 +58,12 @@ export interface HeroActiveDrink {
   incomingDamageMultiplierBp?: number;
 }
 
+export interface HeroActivePriestBlessing {
+  actorName: string;
+  targetName: string;
+  expiresAt: Date;
+}
+
 export class HeroService {
   private readonly shynok:
     | Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
@@ -66,7 +77,8 @@ export class HeroService {
     private readonly remorts?: Pick<RemortRepository, "countByTelegramUserId">,
     shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | Clock,
     clock: Clock = systemClock,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly classNoncombat?: Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser">
   ) {
     if (typeof shynokOrClock === "function") {
       this.clock = shynokOrClock;
@@ -85,14 +97,15 @@ export class HeroService {
     }
 
     const now = this.clock();
-    const [inventoryRows, equipmentSnapshot, remortCount, activeDrink, recoveryDrink] = await Promise.all([
+    const [inventoryRows, equipmentSnapshot, remortCount, activeDrink, recoveryDrink, activePriestBlessing] = await Promise.all([
       this.inventory.listByTelegramUserId(telegramUserId),
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
       this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0),
       this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
       this.shynok?.getRecoveryDrinkForTelegramUser?.(telegramUserId) ??
         this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ??
-        Promise.resolve(null)
+        Promise.resolve(null),
+      this.classNoncombat?.getActivePriestBlessingForTelegramUser(telegramUserId, now) ?? Promise.resolve(null)
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
@@ -116,6 +129,7 @@ export class HeroService {
       character: resourceAware.character,
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
+      activePriestBlessing: presentHeroActivePriestBlessing(activePriestBlessing),
       activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
       ...(resourceAware.recoveryNotice
@@ -268,6 +282,16 @@ function resolveRestoreToFullItemId(
   }
 
   return null;
+}
+
+function presentHeroActivePriestBlessing(state: PriestBlessingRecord | null): HeroActivePriestBlessing | null {
+  return state
+    ? {
+        actorName: state.actorName,
+        targetName: state.targetName,
+        expiresAt: state.expiresAt
+      }
+    : null;
 }
 
 function presentHeroActiveDrink(state: ShynokDrinkStateRecord | null): HeroActiveDrink | null {

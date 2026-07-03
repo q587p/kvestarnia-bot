@@ -4,7 +4,7 @@ export const PRIEST_DIRECT_BLESSING_TECHNIQUE_ID = "technique.class.priest.direc
 export const ROGUE_PICKPOCKET_TECHNIQUE_ID = "technique.class.rogue.pickpocket";
 export const CLASS_NONCOMBAT_RULES_VERSION = "class-noncombat-priest-rogue-v1";
 export const PRIEST_DIRECT_AID_COOLDOWN_MINUTES = 93;
-export const PRIEST_BLESSING_DURATION_MINUTES = 93;
+export const PRIEST_BLESSING_DURATION_MINUTES = 13;
 export const ROGUE_PICKPOCKET_COOLDOWN_MINUTES = 93;
 export const ROGUE_PICKPOCKET_MAX_STOLEN_GOLD = 13;
 
