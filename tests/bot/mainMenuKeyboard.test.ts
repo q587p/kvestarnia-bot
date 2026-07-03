@@ -543,6 +543,16 @@ describe("main menu and scene keyboards", () => {
       "v1:tavern:ranger",
       "v1:place:hall"
     ]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed", {
+      questMarkers: {
+        characterLevel: 4,
+        yeger: {
+          state: "offered",
+          character,
+          progress: { wins: 0, target: 5 }
+        }
+      }
+    }))).toContain("🧥 Єгер ⚠️");
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
       "🍺 Просте всім",
       "🍻 Якісне всім",
@@ -557,6 +567,19 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("audit-break"))).toEqual([
       "🧥 Єгер",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("audit-break", {
+      questMarkers: {
+        characterLevel: 4,
+        yeger: {
+          state: "offered",
+          character,
+          progress: { wins: 0, target: 5 }
+        }
+      }
+    }))).toEqual([
+      "🧥 Єгер ⚠️",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([

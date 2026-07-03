@@ -365,7 +365,8 @@ export function buildKorchmaRemortMilestoneBoardKeyboard(): InlineKeyboard {
 }
 
 export function buildTavernResultKeyboard(
-  state: TavernResultKeyboardState
+  state: TavernResultKeyboardState,
+  options: { questMarkers?: QuestMarkerInput | null } = {}
 ): InlineKeyboard {
   if (state === "pending" || state === "pending-started") {
     return new InlineKeyboard()
@@ -381,17 +382,29 @@ export function buildTavernResultKeyboard(
       .text("🍺 Просте всім", makeShynokBarrelRoundPreviewCallbackData("simple"))
       .text("🍻 Якісне всім", makeShynokBarrelRoundPreviewCallbackData("fine"))
       .row()
-      .text("🧥 Єгер", makeTavernCallbackData("ranger"))
+      .text(
+        decorateButtonLabel(
+          "🧥 Єгер",
+          resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.ranger-corner")
+        ),
+        makeTavernCallbackData("ranger")
+      )
       .text("⬅️ До зали", makePlaceCallbackData("hall"));
   }
 
   if (state === "audit-break") {
     return new InlineKeyboard()
-      .text("🧥 Єгер", makeTavernCallbackData("ranger"))
+      .text(
+        decorateButtonLabel(
+          "🧥 Єгер",
+          resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.ranger-corner")
+        ),
+        makeTavernCallbackData("ranger")
+      )
       .text("⬅️ До зали", makePlaceCallbackData("hall"));
   }
 
-  return buildTavernKeyboard();
+  return buildTavernKeyboard(options);
 }
 
 export function buildBackToTavernRaidKeyboard(): InlineKeyboard {

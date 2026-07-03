@@ -922,7 +922,8 @@ async function handlePlaceCallback(
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
       botUsername: options.botUsername,
       partyBoss: services.partyBoss,
-      partySessions: services.partySessions
+      partySessions: services.partySessions,
+      ...(questMarkers ? { questMarkers } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1289,10 +1290,14 @@ async function handleTavernCallback(
     return;
   }
 
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentTavernRaidResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildTavernResultKeyboard(result.state)
+    reply_markup: buildTavernResultKeyboard(result.state, {
+      ...(questMarkers ? { questMarkers } : {})
+    })
   });
 
   if (result.state === "pending-started") {

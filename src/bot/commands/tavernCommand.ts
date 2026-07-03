@@ -124,6 +124,7 @@ type TavernCommandKeyboard =
   | { state: "memorial"; remortNumbers?: readonly number[] }
   | "remort-milestones"
   | "barrel-result"
+  | { state: "barrel-result"; questMarkers?: QuestMarkerInput | null }
   | "barrel-pending"
   | "barrel-participants";
 
@@ -133,6 +134,7 @@ export interface TavernCommandOptions {
   partySessions?: PartySessionService | undefined;
   openBigBarrelRecruiting?: boolean | undefined;
   onlyBigBarrelRecruiting?: boolean | undefined;
+  questMarkers?: QuestMarkerInput | null | undefined;
 }
 
 const HTML_MESSAGE_OPTIONS = {
@@ -686,13 +688,19 @@ export async function sendTavernBarrel(
 
   if (result.state === "already-completed") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-    await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), "barrel-result");
+    await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), {
+      state: "barrel-result",
+      ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+    });
     return true;
   }
 
   if (result.state === "audit-break") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-    await sendText(ctx, mode, presentTavernRaidAuditBreak(result), "barrel-result");
+    await sendText(ctx, mode, presentTavernRaidAuditBreak(result), {
+      state: "barrel-result",
+      ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+    });
     return true;
   }
 
@@ -963,10 +971,15 @@ async function sendText(
                   )
                 : keyboard === "remort-milestones"
                   ? buildKorchmaRemortMilestoneBoardKeyboard()
-                : keyboard === "barrel-result"
-                  ? buildTavernResultKeyboard("already-completed")
-                  : keyboard === "barrel-pending"
-                    ? buildTavernResultKeyboard("pending")
+            : keyboard === "barrel-result"
+              ? buildTavernResultKeyboard("already-completed")
+            : isBarrelResultKeyboard(keyboard)
+              ? buildTavernResultKeyboard(
+                  "already-completed",
+                  keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+                )
+            : keyboard === "barrel-pending"
+              ? buildTavernResultKeyboard("pending")
                     : buildTavernKeyboard()
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
@@ -991,6 +1004,12 @@ function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<Tav
 
 function isYardKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "yard" }> {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "yard";
+}
+
+function isBarrelResultKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is Extract<TavernCommandKeyboard, { state: "barrel-result" }> {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "barrel-result";
 }
 
 function isMemorialKeyboard(
