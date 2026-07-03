@@ -114,7 +114,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.barrel.raid.first` | enabled | visible | `barrel.raid.claimed >= 1` | Бочка видала перший акт | уперше отримати результат Бочки й не питати, хто там веде облік. |
 | `achievement.barrel.raid.thirteen` | enabled | visible | `barrel.raid.claimed >= 13` | Бочка вже вітається | отримати 13 результатів Бочки й не сперечатися з пінним архівом. |
 | `achievement.barrel.raid.first-loss` | enabled | visible | `barrel.raid.lost >= 1` | Бочка внесла правки | уперше програти Старшому Братові Бочки й отримати від Корчмаря позначку «пінна розвідка». |
-| `achievement.barrel.raid.bandage-used` | enabled | visible | `barrel.raid.bandage-used >= 1` | Бочка дозволила медицину | уперше використати Бинт відповідальної паніки проти Старшого Брата Бочки й не отримати письмової заборони. |
+| `achievement.barrel.raid.bandage-used` | enabled | visible | `barrel.raid.bandage-used >= 1` | Бочка дозволила медицину | уперше використати медичну манатку проти Старшого Брата Бочки й не отримати письмової заборони. |
 | `achievement.korchma.round.first` | enabled | visible | `korchma.round.purchased >= 1` | Перший кухоль за компанію | уперше проставити пиво й лишити на столі соціяльний слід. |
 | `achievement.korchma.round.thirteen` | enabled | visible | `korchma.round.purchased >= 13` | Тринадцять кухлів дипломатії | проставити пиво 13 разів і стати окремим пунктом корчемної ввічливости. |
 | `achievement.tavern.game.first` | enabled | visible | `tavern.game.played >= 1` | Перший стіл витримав | уперше завершити гру за столом у Шинку й не отримати нічого, крім запису та погляду Корчмаря. |

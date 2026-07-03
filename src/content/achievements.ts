@@ -1205,9 +1205,9 @@ export const achievements = [
     id: "achievement.barrel.raid.bandage-used",
     category: "weird",
     title: "Бочка дозволила медицину",
-    description: "уперше використати Бинт відповідальної паніки проти Старшого Брата Бочки й не отримати письмової заборони.",
+    description: "уперше використати медичну манатку проти Старшого Брата Бочки й не отримати письмової заборони.",
     hidden: false,
-    lockedDescription: "уперше використати бинт у рейді проти Старшого Брата Бочки.",
+    lockedDescription: "уперше використати медичну манатку в рейді проти Старшого Брата Бочки.",
     sortOrder: 126.7,
     status: "enabled",
     trigger: { type: "barrel.raid.bandage-used", threshold: 1 }

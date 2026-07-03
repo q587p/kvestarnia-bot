@@ -5,7 +5,9 @@ import {
   BIG_BARREL_BROTHER_RULES_VERSION,
   buildBigBarrelLossXp,
   buildResult,
+  calculatePartyBossCombatItemHealing,
   createPartyBossState,
+  getPartyBossCombatItemAvailability,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
   isMeaningfulBigBarrelParticipant,
@@ -50,8 +52,6 @@ const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
-const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
-
 class PartyBossItemUseRollback extends Error {
   constructor(readonly reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]) {
     super(reason);
@@ -373,7 +373,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "stale", session: mapSession(session) };
       }
 
-      if (actor.resources.hp >= actor.resources.hpMax) {
+      const itemAvailability = getPartyBossCombatItemAvailability(actor, item.id);
+      if (!itemAvailability.available) {
+        return { state: "item-unavailable", reason: itemAvailability.reason, session: mapSession(session) };
+      }
+
+      if (calculatePartyBossCombatItemHealing(actor.resources, item.effect) <= 0) {
         return { state: "item-unavailable", reason: "full-hp", session: mapSession(session) };
       }
 
@@ -473,14 +478,23 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       return {
         state: created ? "queued" : "duplicate",
         session: mapSession(current),
-        ...(created && item.id === BANDAGE_ITEM_ID
+        ...(created
           ? {
-              achievementEvents: [{
-                type: "barrel.raid.bandage-used",
-                characterId: character.id,
-                sourceId: created.id,
-                occurredAt: input.now
-              }]
+              achievementEvents: [
+                {
+                  type: "item.used",
+                  characterId: character.id,
+                  itemId: item.id,
+                  sourceId: created.id,
+                  occurredAt: input.now
+                },
+                {
+                  type: "barrel.raid.bandage-used",
+                  characterId: character.id,
+                  sourceId: created.id,
+                  occurredAt: input.now
+                }
+              ]
             }
           : {})
       };
@@ -1374,19 +1388,30 @@ function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | nu
     return null;
   }
 
-  const effect = item.effect as { kind?: unknown; amount?: unknown };
-  if (effect.kind !== "heal-hp" || typeof effect.amount !== "number") {
-    return null;
+  const effect = item.effect as { kind?: unknown; amount?: unknown; percent?: unknown };
+  if (effect.kind === "heal-hp" && typeof effect.amount === "number") {
+    return {
+      id: item.id,
+      name: item.name,
+      effect: {
+        kind: "heal-hp",
+        amount: effect.amount
+      }
+    };
   }
 
-  return {
-    id: item.id,
-    name: item.name,
-    effect: {
-      kind: "heal-hp",
-      amount: effect.amount
-    }
-  };
+  if (effect.kind === "heal-hp-to-min-percent" && typeof effect.percent === "number") {
+    return {
+      id: item.id,
+      name: item.name,
+      effect: {
+        kind: "heal-hp-to-min-percent",
+        percent: effect.percent
+      }
+    };
+  }
+
+  return null;
 }
 
 function enrichBigBarrelResult(
@@ -1405,7 +1430,7 @@ function enrichBigBarrelResult(
       return {
         ...participant,
         ...(reward ? { reward } : {}),
-        ...(attemptXp ? { attemptXp } : {})
+        ...(attemptXp !== undefined ? { attemptXp } : {})
       };
     })
   };

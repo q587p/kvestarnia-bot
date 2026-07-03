@@ -9,7 +9,6 @@ import type {
 } from "../db/repositories/partyBossRepository";
 import { PARTY_BOSS_TURN_MS } from "../domain/partyBoss/partyBoss";
 import { findCombatUsableItemByKey } from "./combatItemUse";
-import { BANDAGE_ITEM_ID } from "./itemUseService";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
@@ -99,15 +98,6 @@ export class PartyBossService {
         ...(session ? { session } : {})
       };
     }
-    if (combatItem.item.id !== BANDAGE_ITEM_ID || combatItem.effect.kind !== "heal-hp") {
-      const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
-      return {
-        state: "item-unavailable",
-        reason: "not-usable",
-        ...(session ? { session } : {})
-      };
-    }
-
     const result = await this.sessions.submitItemForTelegramUser(
       telegramUserId,
       partyInviteToken,
@@ -198,12 +188,20 @@ export class PartyBossService {
     }
 
     for (const event of result.achievementEvents) {
-      await this.achievements.trackEventSafely({
-        type: event.type,
-        characterId: event.characterId,
-        occurredAt: event.occurredAt,
-        sourceId: event.sourceId
-      });
+      await this.achievements.trackEventSafely(event.type === "item.used"
+        ? {
+            type: event.type,
+            characterId: event.characterId,
+            itemId: event.itemId,
+            occurredAt: event.occurredAt,
+            sourceId: event.sourceId
+          }
+        : {
+            type: event.type,
+            characterId: event.characterId,
+            occurredAt: event.occurredAt,
+            sourceId: event.sourceId
+          });
     }
   }
 

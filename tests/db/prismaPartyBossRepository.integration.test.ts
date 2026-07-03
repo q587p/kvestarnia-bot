@@ -160,7 +160,6 @@ describe("PrismaPartyBossRepository integration", () => {
     if (!("session" in started)) {
       throw new Error(`Expected started session, got ${started.state}`);
     }
-
     await forceBossToOneHp(prisma, started.session.id, started.session.state);
     const result = await bossRepository.submitItemForTelegramUser(
       1151n,
@@ -205,6 +204,153 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(reward?.gold).toBeGreaterThan(0);
     expect(reward?.itemGrants[0]?.name).toBeTruthy();
     expect(reward?.itemGrants[0]?.quantity).toBeGreaterThan(0);
+  });
+
+  it("consumes a field kit party-boss item action and heals frozen raid HP to its threshold", async () => {
+    await seedCharacter(prisma, "big-field-kit-user", 1152n, "Аптечна Лідерка", {
+      hpCurrent: 10,
+      hpMax: 100,
+      level: 8,
+      strength: 20,
+      dexterity: 20
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "big-field-kit-user-character",
+        itemId: "item.field-kit",
+        quantity: 1
+      }
+    });
+    await partyRepository.createForTelegramUser(1152n, {
+      ...partyInput("party-token-big-field-kit"),
+      periodId: "2026-06-30T10:43",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1152n, {
+      partyInviteToken: "party-token-big-field-kit",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    const startedParticipant = started.session.state.participants.find(
+      (entry) => entry.characterId === "big-field-kit-user-character"
+    );
+    const expectedHpAfter = Math.ceil((startedParticipant?.resources.hpMax ?? 1) * 0.93);
+    const expectedHealing = expectedHpAfter - (startedParticipant?.resources.hp ?? 0);
+
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
+    const result = await bossRepository.submitItemForTelegramUser(
+      1152n,
+      "party-token-big-field-kit",
+      1,
+      {
+        id: "item.field-kit",
+        name: "Польова аптечка",
+        effect: {
+          kind: "heal-hp-to-min-percent",
+          percent: 93
+        }
+      },
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(result);
+    const participant = latest.state.participants.find(
+      (entry) => entry.characterId === "big-field-kit-user-character"
+    );
+
+    expect(result.state).toBe("resolved");
+    expect(latest.state.roundLog.at(-1)?.actions[0]).toMatchObject({
+      action: "item",
+      outcome: "item-used",
+      itemName: "Польова аптечка",
+      healing: expectedHealing
+    });
+    expect(participant?.resources.hp).toBe(expectedHpAfter);
+    expect(participant?.combatItems?.uses?.["item.field-kit"]).toEqual({
+      itemId: "item.field-kit",
+      count: 1
+    });
+    expect(await prisma.characterItem.count({
+      where: {
+        characterId: "big-field-kit-user-character",
+        itemId: "item.field-kit"
+      }
+    })).toBe(0);
+    expect(result.achievementEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "item.used",
+        characterId: "big-field-kit-user-character",
+        itemId: "item.field-kit",
+        occurredAt: resolveInput().now
+      }),
+      expect.objectContaining({
+        type: "barrel.raid.bandage-used",
+        characterId: "big-field-kit-user-character",
+        occurredAt: resolveInput().now
+      })
+    ]));
+  });
+
+  it("does not consume a party-boss field kit when raid HP is already above its threshold", async () => {
+    await seedCharacter(prisma, "big-field-kit-healthy-user", 1153n, "Майже Здорова", {
+      hpCurrent: 130,
+      hpMax: 100,
+      level: 8,
+      strength: 20,
+      dexterity: 20
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "big-field-kit-healthy-user-character",
+        itemId: "item.field-kit",
+        quantity: 1
+      }
+    });
+    await partyRepository.createForTelegramUser(1153n, {
+      ...partyInput("party-token-big-field-kit-healthy"),
+      periodId: "2026-06-30T10:44",
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1153n, {
+      partyInviteToken: "party-token-big-field-kit-healthy",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const result = await bossRepository.submitItemForTelegramUser(
+      1153n,
+      "party-token-big-field-kit-healthy",
+      1,
+      {
+        id: "item.field-kit",
+        name: "Польова аптечка",
+        effect: {
+          kind: "heal-hp-to-min-percent",
+          percent: 93
+        }
+      },
+      resolveInput()
+    );
+
+    expect(result.state).toBe("item-unavailable");
+    if (result.state === "item-unavailable") {
+      expect(result.reason).toBe("full-hp");
+    }
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "big-field-kit-healthy-user-character",
+          itemId: "item.field-kit"
+        }
+      },
+      select: { quantity: true }
+    })).resolves.toEqual({ quantity: 1 });
   });
 
   it("releases leases and live party keys when timeout resolution knocks out all participants", async () => {

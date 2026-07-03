@@ -3,7 +3,6 @@ import { items } from "../../content";
 import { getItemUseEffect } from "../../domain/itemUse";
 import { getMunchkinLocationAt } from "../../domain/levelBarter/munchkinSchedule";
 import { getCombatUsableItem } from "../../services/combatItemUse";
-import { BANDAGE_ITEM_ID } from "../../services/itemUseService";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
 import {
@@ -217,10 +216,6 @@ async function getCombatUseStateForItem(
   if (fight.state !== "persistent-active" || fight.session.state?.status !== "active") {
     const partyBoss = await services.partyBoss?.getActiveForTelegramUser(telegramUserId);
     if (partyBoss?.status === "active") {
-      if (item.id !== BANDAGE_ITEM_ID) {
-        return { action: null, combatLocked: true };
-      }
-
       const viewer = partyBoss.state.participants.find((participant) =>
         partyBoss.participants.some((snapshot) =>
           snapshot.telegramUserId === telegramUserId &&

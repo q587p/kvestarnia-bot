@@ -205,7 +205,7 @@ describe("content tables", () => {
     });
     expect(denseBandage).toMatchObject({
       slot: "consumable",
-      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
       useEffect: {
         kind: "heal-hp",
         amount: 42
@@ -213,7 +213,7 @@ describe("content tables", () => {
     });
     expect(fieldKit).toMatchObject({
       slot: "consumable",
-      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
       useEffect: {
         kind: "heal-hp-to-min-percent",
         percent: 93

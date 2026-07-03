@@ -19,7 +19,7 @@ Manual Telegram QA status for the implementation pass: not run.
 8. In solo combat, use `Щільний бинт` once, try it again immediately, then take own turns until the cooldown clears; verify the matching rewardless use achievement can appear once.
 9. In solo combat, use `Польова аптечка` once, injure the hero again if convenient, then verify a second successful use in the same battle is blocked and the matching rewardless use achievement can appear once.
 10. Start a different fight and verify dense cooldown / field-kit once-per-battle state did not leak.
-11. Verify party-boss / Big Barrel still offers and accepts only the ordinary bandage self-heal path, and that first ordinary-bandage use in the raid can unlock its rewardless achievement once.
+11. In Big Barrel, use an ordinary bandage, `Щільний бинт` and `Польова аптечка` from item-detail combat-use buttons; verify each heals frozen raid HP, no-op threshold/full-HP attempts do not consume, dense cooldown and field-kit once-per-battle state stay scoped to the raid, and first raid medical use can unlock its rewardless achievement once.
 12. With `class.ranger`, after first-board completion verify the free class supply grants `5` ordinary bandages on the familiar `93`-minute cooldown; after second-board completion verify the dense-bandage supply appears on its own `93`-minute cooldown and the field-kit supply appears on a one-day cooldown.
 
 ## 0.2.20 — Latest Events Feed MVP smoke

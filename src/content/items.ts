@@ -193,7 +193,7 @@ export const items = [
     rarity: "uncommon",
     slot: "consumable",
     goldValue: 56,
-    tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+    tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
     useEffect: {
       kind: "heal-hp",
       amount: 42
@@ -206,7 +206,7 @@ export const items = [
     rarity: "uncommon",
     slot: "consumable",
     goldValue: 91,
-    tags: ["consumable", "one-use", "trade-blocked", "duel-blocked", "raid-blocked"],
+    tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
     useEffect: {
       kind: "heal-hp-to-min-percent",
       percent: 93

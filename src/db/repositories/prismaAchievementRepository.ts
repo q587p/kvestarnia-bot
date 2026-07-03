@@ -523,21 +523,26 @@ export class PrismaAchievementRepository implements AchievementRepository {
     const equipmentObservedAt = maxDate(equipment.map((row) => row.updatedAt));
     const soloCombatItemUseDatesByItem = getSoloCombatItemUseDatesByItem(combatSessions);
     const orderItemUseDatesByItem = getOrderItemUseDatesByItem(completedItemUseOrders);
+    const partyBossItemUseDatesByItem = getPartyBossItemUseDatesByItem(completedPartyBossItemActions);
     const itemUseDates = [
       ...completedItemUseOrders.map((row) => row.completedAt ?? row.updatedAt),
-      ...Object.values(soloCombatItemUseDatesByItem).flat()
+      ...Object.values(soloCombatItemUseDatesByItem).flat(),
+      ...Object.values(partyBossItemUseDatesByItem).flat()
     ].sort(compareDates);
     const bandageUseDates = [
       ...(orderItemUseDatesByItem[BANDAGE_ITEM_ID] ?? []),
-      ...(soloCombatItemUseDatesByItem[BANDAGE_ITEM_ID] ?? [])
+      ...(soloCombatItemUseDatesByItem[BANDAGE_ITEM_ID] ?? []),
+      ...(partyBossItemUseDatesByItem[BANDAGE_ITEM_ID] ?? [])
     ].sort(compareDates);
     const denseBandageUseDates = [
       ...(orderItemUseDatesByItem[DENSE_BANDAGE_ITEM_ID] ?? []),
-      ...(soloCombatItemUseDatesByItem[DENSE_BANDAGE_ITEM_ID] ?? [])
+      ...(soloCombatItemUseDatesByItem[DENSE_BANDAGE_ITEM_ID] ?? []),
+      ...(partyBossItemUseDatesByItem[DENSE_BANDAGE_ITEM_ID] ?? [])
     ].sort(compareDates);
     const fieldKitUseDates = [
       ...(orderItemUseDatesByItem[FIELD_KIT_ITEM_ID] ?? []),
-      ...(soloCombatItemUseDatesByItem[FIELD_KIT_ITEM_ID] ?? [])
+      ...(soloCombatItemUseDatesByItem[FIELD_KIT_ITEM_ID] ?? []),
+      ...(partyBossItemUseDatesByItem[FIELD_KIT_ITEM_ID] ?? [])
     ].sort(compareDates);
     const completedPassageSearchDates = resolvedPassageSearches.map((row) => row.updatedAt);
     const selectedDailyActionDates = groupDailyActionDatesByKey(selectedDailyActions);
@@ -611,9 +616,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "barrel.raid.lost": lostBigBarrelRaids
         .filter((row) => isBigBarrelLossForCharacter(row.stateJson, characterId))
         .map((row) => row.completedAt ?? row.updatedAt),
-      "barrel.raid.bandage-used": completedPartyBossItemActions
-        .filter((row) => getPartyBossActionItemId(row.resultJson) === BANDAGE_ITEM_ID)
-        .map((row) => row.submittedAt),
+      "barrel.raid.bandage-used": completedPartyBossItemActions.map((row) => row.submittedAt),
       "korchma.round.purchased": korchmaRounds.map((row) => row.createdAt),
       "tavern.game.played": completedTavernGameParticipations.map((row) =>
         row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt
@@ -976,6 +979,23 @@ function getPartyBossActionItemId(resultJson: Prisma.JsonValue | null): string |
   }
 
   return typeof resultJson.item.id === "string" ? resultJson.item.id : null;
+}
+
+function getPartyBossItemUseDatesByItem(
+  rows: Array<{ resultJson: Prisma.JsonValue | null; submittedAt: Date }>
+): Record<string, Date[]> {
+  const dates: Record<string, Date[]> = {};
+
+  for (const row of rows) {
+    const itemId = getPartyBossActionItemId(row.resultJson);
+    if (!itemId) {
+      continue;
+    }
+
+    dates[itemId] = [...(dates[itemId] ?? []), row.submittedAt];
+  }
+
+  return dates;
 }
 
 function isBigBarrelLossForCharacter(value: Prisma.JsonValue, characterId: string): boolean {
