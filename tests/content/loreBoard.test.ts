@@ -135,6 +135,30 @@ describe("lore board content", () => {
     expect(shynok?.body).toContain("тавлеї чи кості");
   });
 
+  it("keeps class lore aligned with combat and side class surfaces", () => {
+    expect(classLoreBody("class-warrior")).toContain("🪓 Силовий замах");
+    expect(classLoreBody("class-mage")).toContain("🔥 Гаряче закляття");
+    expect(classLoreBody("class-bard")).toContain("🎶 Небезпечний куплет");
+    expect(classLoreBody("class-rogue")).toContain("🌘 Тіньовий розтин");
+    expect(classLoreBody("class-priest")).toContain("✨ Суворе благословення");
+    expect(classLoreBody("class-varenyk-mancer")).toContain("🥟 Кипляча начинка");
+    expect(classLoreBody("class-bureaucramancer")).toContain("📄 Форма 13-Б");
+    expect(classLoreBody("class-ranger")).toContain("🏹 Рикошетний постріл");
+    expect(classLoreBody("class-kharakternyk")).toContain("👁 Степовий косий погляд");
+
+    for (const entryId of ["class-warrior", "class-bard", "class-rogue", "class-priest", "class-ranger"]) {
+      expect(classLoreBody(entryId), entryId).toContain("\n\n");
+    }
+
+    expect(classLoreBody("class-warrior")).toContain("по зброї в кожній руці");
+    expect(classLoreBody("class-bard")).toContain("може виступити");
+    expect(classLoreBody("class-rogue")).toContain("Тихою кишенею");
+    expect(classLoreBody("class-priest")).toContain("полікувати маною без бинтів");
+    expect(classLoreBody("class-ranger")).toContain("єгерський куток");
+    expect(loreEntries.filter((entry) => entry.categoryId === "classes").map((entry) => entry.body).join("\n"))
+      .not.toContain("З 3 рівня");
+  });
+
   it("detects broken lore records", () => {
     expect(validateLoreBoardContent({
       categories: loreCategories,
@@ -211,4 +235,10 @@ function canonicalRefIds(categoryId: string, type: "race" | "class" | "location"
   }
 
   return new Set(ids);
+}
+
+function classLoreBody(entryId: string): string {
+  const entry = loreEntries.find((candidate) => candidate.id === entryId);
+  expect(entry, entryId).toBeDefined();
+  return entry?.body ?? "";
 }
