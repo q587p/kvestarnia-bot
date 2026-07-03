@@ -433,5 +433,9 @@ export function buildKorchmaRoundResultKeyboard(
 }
 
 export function formatTavernGamesButtonLabel(tableCount = 0): string {
-  return `🎲 Ігри за столом (${Math.max(0, Math.trunc(tableCount))})`;
+  const safeTableCount = Math.max(0, Math.trunc(tableCount));
+
+  return safeTableCount > 0
+    ? `🎲 Ігри за столом (${safeTableCount})`
+    : "🎲 Ігри за столом";
 }

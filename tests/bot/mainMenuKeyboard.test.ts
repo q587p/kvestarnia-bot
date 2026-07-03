@@ -377,7 +377,11 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:so",
       "v1:place:hall"
     ]);
-    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ tavernGames: true }))).toContain("🎲 Ігри за столом (0)");
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ tavernGames: true }))).toContain("🎲 Ігри за столом");
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({
+      tavernGames: true,
+      tavernGameTableCount: -1
+    }))).toContain("🎲 Ігри за столом");
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({
       tavernGames: true,
       tavernGameTableCount: 2

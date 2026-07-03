@@ -29,7 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Marked currently equipped items in inventory keyboards with a left-side `✅` icon in both general and slot-filtered views.
 - Lowercased equipment slot names after the equipped-status dash in item detail cards, for example `вдягнено — основна рука`.
 - Added available-task markers to Korchma entry buttons and a first-entry hint explaining how the marker leads to current affairs.
-- Displayed active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`.
+- Displayed positive active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`, while omitting the count when none are active.
 - Changed generated adventure method complication headlines from `⚠️` to `💥` and separated injury HP lines with visible heart icons.
 - Removed the duplicate cellar movement notice when entering the cellar quest from the quest table.
 - Removed the generated combo-title prefix from the starter shawarma scene while keeping its race/class flavor beat.
