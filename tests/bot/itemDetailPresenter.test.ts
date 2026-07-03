@@ -144,6 +144,32 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("Використання: <b>можна застосувати поза боєм</b>.");
   });
 
+  it("does not describe responsible panic bandages as outside-combat-only", () => {
+    const content: InventoryItemSummary["content"] = {
+      id: "item.responsible-panic-bandage",
+      name: "Бинт відповідальної паніки",
+      description: "Намотаний так, ніби хтось уже вибачився перед майбутнім синцем.",
+      rarity: "common",
+      slot: "consumable",
+      goldValue: 7,
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
+      useEffect: {
+        kind: "heal-hp",
+        amount: 7
+      }
+    };
+    const text = presentOwnedItemDetail(
+      itemSummary({ content }),
+      {
+        itemUse: { state: "usable", item: content }
+      }
+    );
+
+    expect(text).toContain("Використання: <b>можна застосувати для лікування</b>.");
+    expect(text).toContain("Попередній перегляд покаже поточне лікування перед витратою.");
+    expect(text).not.toContain("можна застосувати поза боєм");
+  });
+
   it("shows when an item is already equipped", () => {
     const text = presentOwnedItemDetail(
       itemSummary({
