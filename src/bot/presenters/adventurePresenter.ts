@@ -340,8 +340,9 @@ function presentHpLossLines(
   const currentHpMax = character?.hpMax ?? hpLoss.max;
 
   return [
-    `Втрачено здоров’я: ${hpLoss.lost}`,
-    `Здоров’я: ${currentHp}/${currentHpMax}`
+    "",
+    `💔 Втрачено здоров’я: ${hpLoss.lost}`,
+    `❤️‍🩹 Здоров’я: ${currentHp}/${currentHpMax}`
   ];
 }
 

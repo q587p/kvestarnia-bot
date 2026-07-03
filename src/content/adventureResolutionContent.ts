@@ -1763,7 +1763,7 @@ function buildOutcomeText(input: {
       body: [input.sceneTitle, "", input.mixed]
     },
     complication: {
-      headline: isLocalFailure ? "❌ Справу не закрито" : "⚠️ Метод зачепив не той нерв",
+      headline: isLocalFailure ? "❌ Справу не закрито" : "💥 Метод зачепив не той нерв",
       body: [input.sceneTitle, "", input.complication]
     }
   };

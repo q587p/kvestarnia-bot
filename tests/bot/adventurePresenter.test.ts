@@ -334,6 +334,20 @@ describe("adventure presenter", () => {
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });
 
+  it("uses a distinct non-warning icon for generated method complications", () => {
+    const scene = buildAdventureResolutionScene({
+      problemId: "stew",
+      title: "Казанок репетирує оперу",
+      character
+    });
+    const method = scene.methods.find(
+      (candidate) => candidate.outcomeText.complication.headline !== "❌ Справу не закрито"
+    );
+
+    expect(method?.outcomeText.complication.headline).toBe("💥 Метод зачепив не той нерв");
+    expect(method?.outcomeText.complication.headline).not.toContain("⚠️");
+  });
+
   it("shows complication-to-fight copy without granting reward", () => {
     const text = presentAdventureResult(completed(true));
 
@@ -393,8 +407,7 @@ describe("adventure presenter", () => {
     };
     const text = presentAdventureResult(result);
 
-    expect(text).toContain("Втрачено здоров’я: 3");
-    expect(text).toContain("Здоров’я: 17/28");
+    expect(text).toContain("без заперечень.\n\n💔 Втрачено здоров’я: 3\n❤️‍🩹 Здоров’я: 17/28");
   });
 
   it("uses the returned character summary for the current HP line after injury", () => {
@@ -414,8 +427,8 @@ describe("adventure presenter", () => {
     };
     const text = presentAdventureResult(result);
 
-    expect(text).toContain("Втрачено здоров’я: 3");
-    expect(text).toContain("Здоров’я: 17/32");
+    expect(text).toContain("💔 Втрачено здоров’я: 3");
+    expect(text).toContain("❤️‍🩹 Здоров’я: 17/32");
     expect(text).not.toContain("Здоров’я: 17/28");
   });
 
