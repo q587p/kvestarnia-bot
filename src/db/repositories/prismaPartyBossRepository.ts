@@ -42,6 +42,7 @@ import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { isMedicalCombatItemId } from "../../services/combatItemUse";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -484,7 +485,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           sourceId: created.id,
           occurredAt: input.now
         });
-        if (session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION) {
+        if (
+          session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION &&
+          isMedicalCombatItemId(item.id)
+        ) {
           achievementEvents.push({
             type: "barrel.raid.bandage-used",
             characterId: character.id,

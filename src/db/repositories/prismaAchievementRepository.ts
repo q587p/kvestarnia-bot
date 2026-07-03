@@ -10,6 +10,7 @@ import type {
   UnlockAchievementInput,
   UnlockAchievementResult
 } from "./achievementRepository";
+import { isMedicalCombatItemId } from "../../services/combatItemUse";
 
 const PROBLEM_QUEST_REWARD_KEYS = [
   "quest.thirteen-small-problems",
@@ -42,6 +43,8 @@ export const ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS = [
 ] as const;
 
 export function getPartyBossItemActionAchievementWhere(characterId: string): Prisma.PartyBossActionWhereInput {
+  // When future raid item support expands beyond medical items, update both
+  // live event emission and this query/resultJson medical-item filter together.
   return {
     actorCharacterId: characterId,
     actionKey: "item",
@@ -620,7 +623,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "barrel.raid.lost": lostBigBarrelRaids
         .filter((row) => isBigBarrelLossForCharacter(row.stateJson, characterId))
         .map((row) => row.completedAt ?? row.updatedAt),
-      "barrel.raid.bandage-used": completedPartyBossItemActions.map((row) => row.submittedAt),
+      "barrel.raid.bandage-used": getBigBarrelMedicalPartyBossItemUseDates(completedPartyBossItemActions),
       "korchma.round.purchased": korchmaRounds.map((row) => row.createdAt),
       "tavern.game.played": completedTavernGameParticipations.map((row) =>
         row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt
@@ -1000,6 +1003,18 @@ function getPartyBossItemUseDatesByItem(
   }
 
   return dates;
+}
+
+export function getBigBarrelMedicalPartyBossItemUseDates(
+  rows: Array<{ resultJson: Prisma.JsonValue | null; submittedAt: Date }>
+): Date[] {
+  return rows
+    .filter((row) => {
+      const itemId = getPartyBossActionItemId(row.resultJson);
+      return itemId ? isMedicalCombatItemId(itemId) : false;
+    })
+    .map((row) => row.submittedAt)
+    .sort(compareDates);
 }
 
 function isBigBarrelLossForCharacter(value: Prisma.JsonValue, characterId: string): boolean {
