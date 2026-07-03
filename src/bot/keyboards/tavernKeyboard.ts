@@ -25,6 +25,11 @@ import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppe
 import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import {
+  decorateButtonLabel,
+  resolveQuestMarkerForTarget,
+  type QuestMarkerInput
+} from "./questButtonMarkers";
 
 export type TavernResultKeyboardState =
   | "completed"
@@ -33,11 +38,17 @@ export type TavernResultKeyboardState =
   | "pending-started"
   | "audit-break";
 
-export function buildTavernKeyboard(): InlineKeyboard {
+export function buildTavernKeyboard(options: { questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   return new InlineKeyboard()
     .text("🍺 У рейд на бочку", makeTavernCallbackData("raid"))
     .row()
-    .text("🧥 Єгер", makeTavernCallbackData("ranger"))
+    .text(
+      decorateButtonLabel(
+        "🧥 Єгер",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.ranger-corner")
+      ),
+      makeTavernCallbackData("ranger")
+    )
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
@@ -47,6 +58,7 @@ export function buildKorchmaFrontKeyboard(
     munchkinLocation?: MunchkinLocation;
     dailyYard?: boolean;
     characterLevel?: number;
+    questMarkers?: QuestMarkerInput | null;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
@@ -65,7 +77,13 @@ export function buildKorchmaFrontKeyboard(
 
   if (options.dailyYard) {
     startFrontActionRow();
-    keyboard.text("🪣 У задвірок", makePlaceCallbackData("yard"));
+    keyboard.text(
+      decorateButtonLabel(
+        "🪣 У задвірок",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.yard")
+      ),
+      makePlaceCallbackData("yard")
+    );
   }
 
   const showMunchkin =
@@ -95,9 +113,15 @@ export function buildKorchmaFrontKeyboard(
   return keyboard;
 }
 
-export function buildKorchmaYardKeyboard(): InlineKeyboard {
+export function buildKorchmaYardKeyboard(options: { questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   return new InlineKeyboard()
-    .text("🧾 До обходу", makePlaceCallbackData("quest-table"))
+    .text(
+      decorateButtonLabel(
+        "🧾 До обходу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.quest-table")
+      ),
+      makePlaceCallbackData("quest-table")
+    )
     .row()
     .text("⬅️ До дверей", makePlaceCallbackData("front"));
 }
@@ -106,7 +130,7 @@ export function buildEnterKorchmaKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("🚪 Зайти в корчму", makePlaceCallbackData("hall"));
 }
 
-export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {
+export function buildKorchmaHallKeyboard(options: { characterLevel?: number; questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const showFightingCorner = options.characterLevel === undefined || options.characterLevel >= 3;
   const showNyz = options.characterLevel === undefined || options.characterLevel >= 3;
@@ -119,15 +143,33 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
     keyboard.text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"));
   }
 
-  keyboard.text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
+  keyboard.text(
+    decorateButtonLabel(
+      "📋 Стіл зі справами",
+      resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.quest-table")
+    ),
+    makePlaceCallbackData("quest-table")
+  )
     .row()
     .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
-    .text("🍻 Шинок", makePlaceCallbackData("bar"))
+    .text(
+      decorateButtonLabel(
+        "🍻 Шинок",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.bar")
+      ),
+      makePlaceCallbackData("bar")
+    )
     .row();
 
   keyboard
     .text("📰 Дошка корчми", makePlaceCallbackData("news-corner"))
-    .text("🐭 Льох", makePlaceCallbackData("cellar"))
+    .text(
+      decorateButtonLabel(
+        "🐭 Льох",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.cellar")
+      ),
+      makePlaceCallbackData("cellar")
+    )
     .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));
 
@@ -157,6 +199,7 @@ export function buildKorchmaBarKeyboard(
     problemQuestAction?: "turn-in" | "take" | "next";
     bardPerformance?: boolean;
     tavernGames?: boolean;
+    questMarkers?: QuestMarkerInput | null;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
@@ -177,19 +220,43 @@ export function buildKorchmaBarKeyboard(
   }
 
   if (options.problemQuestAction === "turn-in") {
-    keyboard.text("📋 Здати справу", makeQuestCallbackData("problem")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "📋 Здати справу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.problem")
+      ),
+      makeQuestCallbackData("problem")
+    ).row();
   }
 
   if (options.problemQuestAction === "take") {
-    keyboard.text("📋 Взяти справу", makeQuestCallbackData("problem-next")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "📋 Взяти справу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.problem")
+      ),
+      makeQuestCallbackData("problem-next")
+    ).row();
   }
 
   if (options.problemQuestAction === "next") {
-    keyboard.text("📋 Взяти наступну справу", makeQuestCallbackData("problem-next")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "📋 Взяти наступну справу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.problem")
+      ),
+      makeQuestCallbackData("problem-next")
+    ).row();
   }
 
   if (options.includeBottleTurnIn) {
-    keyboard.text("🍾 Здати пляшку", makeCellarCallbackData("grownup-turn-in")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "🍾 Здати пляшку",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.cellar-grownup")
+      ),
+      makeCellarCallbackData("grownup-turn-in")
+    ).row();
   }
 
   return keyboard
