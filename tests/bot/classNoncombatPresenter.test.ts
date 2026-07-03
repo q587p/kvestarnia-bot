@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   presentClassNoncombatOpen,
-  presentPriestBlessResult
+  presentPriestBlessResult,
+  presentPriestHealResult
 } from "../../src/bot/presenters/classNoncombatPresenter";
 import type {
   ClassNoncombatOpenResult,
-  PriestBlessResult
+  PriestBlessResult,
+  PriestHealResult
 } from "../../src/services/classNoncombatService";
 
 describe("class noncombat presenter", () => {
@@ -110,5 +112,39 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("Стан видно в персонажі поруч із бафами");
     expect(text).toContain("🌌 Мана витрачена: <b>7</b>.");
     expect(text).not.toContain("Бонус поки");
+  });
+
+  it("formats Priest healing resource lines with visible icons", () => {
+    const text = presentPriestHealResult({
+      state: "completed",
+      action: {
+        id: "aid-1",
+        actorCharacterId: "character-1",
+        targetCharacterId: "character-1",
+        actorTelegramUserId: 1001n,
+        targetTelegramUserId: 1001n,
+        actorName: "Жрець",
+        targetName: "Жрець",
+        actionKind: "heal",
+        healAmount: 4,
+        manaCost: 10,
+        cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+        completedAt: new Date("2026-07-03T09:00:00.000Z")
+      },
+      actor: {
+        id: "character-1",
+        name: "Жрець"
+      },
+      target: {
+        id: "character-1",
+        name: "Жрець",
+        hpCurrent: 20,
+        hpMax: 32
+      },
+      created: true
+    } as unknown as PriestHealResult);
+
+    expect(text).toContain("❤️ HP: <b>+4</b> · тепер <b>20/32</b>.");
+    expect(text).toContain("🌌 Мана витрачена: <b>10</b>.");
   });
 });

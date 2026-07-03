@@ -64,8 +64,8 @@ export function presentPriestHealResult(result: PriestHealResult): string {
     targetSelf
       ? "Жрець приклав ману до себе. Мана трохи обурилась, але виконала обов’язок."
       : `${presentCharacterDisplayName(result.actor)} полікував ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
-    `HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`,
-    `Мана витрачена: <b>${result.action.manaCost}</b>.`,
+    `❤️ HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`,
+    `🌌 Мана витрачена: <b>${result.action.manaCost}</b>.`,
     `Відпочинок техніки: ${formatRemaining(result.action.cooldownAvailableAt)}.`
   ].join("\n");
 }
@@ -120,7 +120,7 @@ export function presentPriestHealTargetNotification(result: Extract<PriestHealRe
     "🩹 <b>Вас полікували</b>",
     "",
     `${presentCharacterDisplayName(result.actor)} полікував вас без бинтів, зате з маною.`,
-    `HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`
+    `❤️ HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`
   ].join("\n");
 }
 
