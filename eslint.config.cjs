@@ -11,7 +11,7 @@ module.exports = tseslint.config(
     files: ["src/**/*.ts", "tests/**/*.ts", "scripts/backfill-activity-events.ts", "scripts/poll-activity-events.ts"],
     languageOptions: {
       parserOptions: {
-        project: ["./tsconfig.json", "./tsconfig.test.json", "./tsconfig.scripts.json"],
+        project: ["./tsconfig.eslint.json"],
         tsconfigRootDir: __dirname
       }
     },

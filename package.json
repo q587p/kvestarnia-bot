@@ -6,17 +6,19 @@
   "main": "dist/bot.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/bot.ts",
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && npm run build:ts",
+    "build:ts": "tsc",
     "start": "node dist/bot.js",
     "test": "npm run test:ci",
     "test:unit": "vitest run --config vitest.unit.config.cjs",
     "test:integration": "vitest run --config vitest.integration.config.cjs",
     "test:ci": "npm run test:unit && npm run test:integration",
     "test:changed": "vitest run --changed",
-    "typecheck": "prisma generate && tsc --noEmit",
+    "typecheck": "prisma generate && npm run typecheck:ts",
+    "typecheck:ts": "tsc --noEmit",
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
-    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "lint:scripts": "eslint \"scripts/backfill-activity-events.ts\" \"scripts/poll-activity-events.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --cache --cache-location .cache/eslint/main --cache-strategy content --concurrency 4",
+    "lint:scripts": "eslint \"scripts/backfill-activity-events.ts\" \"scripts/poll-activity-events.ts\" --cache --cache-location .cache/eslint/scripts --cache-strategy content",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "node scripts/prisma-migrate-dev.cjs",
@@ -32,7 +34,7 @@
     "maintenance:backfill-activity-events": "node -r ts-node/register/transpile-only scripts/backfill-activity-events.ts",
     "maintenance:poll-activity-events": "node -r ts-node/register/transpile-only scripts/poll-activity-events.ts",
     "maintenance:repair-character-resources": "ts-node scripts/repair-character-resources.ts",
-    "check": "npm run lint && npm run lint:scripts && npm run typecheck && npm run typecheck:scripts && npm run build && npm run test:ci"
+    "check": "npm run db:generate && npm run lint && npm run lint:scripts && npm run typecheck:scripts && npm run build:ts && npm run test:ci"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

@@ -156,19 +156,24 @@ npm run db:studio
 npm run check
 ```
 
-Це запускає lint, typecheck, build і tests одним ланцюжком.
+Це запускає lint, scripts typecheck, build і tests одним ланцюжком. `check` генерує Prisma Client один раз на початку, а standalone `npm run build` і `npm run typecheck` усе ще запускають `prisma generate` самі.
+
+ESLint uses a content cache under `.cache/eslint/`; it is safe to delete `.cache/` when you need a cold local check.
 
 Для docs-only зміни достатньо перевірити Markdown вручну. Якщо Codex або локальне середовище не запускали `npm run check`, у PR треба прямо написати: `Not run — docs-only change`.
 
 ## Scripts
 
 - `npm run dev` — локальний bot polling через `ts-node-dev`; без `BOT_TOKEN` стартує тільки healthcheck server.
-- `npm run build` — `prisma generate && tsc`.
+- `npm run build` — `prisma generate && npm run build:ts`.
+- `npm run build:ts` — TypeScript build without Prisma generate; used inside `npm run check`.
 - `npm start` — запуск `dist/bot.js`.
 - `npm test` — Vitest suite без Telegram network calls.
-- `npm run typecheck` — strict TypeScript.
-- `npm run lint` — ESLint для `src` і `tests`.
-- `npm run check` — lint, typecheck, build і tests.
+- `npm run typecheck` — strict TypeScript with Prisma generate.
+- `npm run typecheck:ts` — strict TypeScript without Prisma generate.
+- `npm run lint` — ESLint для `src` і `tests`, with local cache under `.cache/eslint/`.
+- `npm run lint:scripts` — ESLint for maintenance scripts, with local cache under `.cache/eslint/`.
+- `npm run check` — PR-ready gate: Prisma generate, lint, scripts typecheck, build and tests.
 - `npm run db:generate` — Prisma Client.
 - `npm run db:validate` — перевірка Prisma schema.
 - `npm run db:migrate` — локальні міграції Prisma.
