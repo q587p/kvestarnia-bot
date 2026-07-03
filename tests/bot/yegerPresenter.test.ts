@@ -183,12 +183,13 @@ describe("Yeger presenter", () => {
         xp: 80,
         gold: 120,
         itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 1 }]
-      }
+      },
+      rangerBandage: { kind: "bandage", state: "available" }
     });
 
     expect(text).toContain("🩹 Бинти Єгеря");
     expect(text).toContain("Платні пачки лежать окремо");
-    expect(text).toContain("Для єгерів тут є ще один професійний бинт.");
+    expect(text).toContain("Єгері можуть забрати 5 звичайних бинтів безкоштовно.");
     expect(text).not.toContain("Нагорода:");
     expect(text).not.toContain("Здобуто:");
   });
@@ -207,6 +208,7 @@ describe("Yeger presenter", () => {
         itemGrants: []
       },
       rangerBandage: {
+        kind: "bandage",
         state: "available"
       }
     });
@@ -223,16 +225,17 @@ describe("Yeger presenter", () => {
         itemGrants: []
       },
       rangerBandage: {
+        kind: "bandage",
         state: "on-cooldown",
         nextAvailableAt: new Date("2026-06-15T11:38:00.000Z"),
         now: new Date("2026-06-15T10:05:00.000Z")
       }
     });
 
-    expect(available).toContain("Для єгерів тут є ще один професійний бинт.");
-    expect(cooldown).toContain("Професійний бинт для єгерів зараз перевʼязує власну важливість.");
-    expect(cooldown).toContain("Повернеться пізніше.");
-    expect(cooldown).not.toContain("Він безкоштовний");
+    expect(available).toContain("Єгері можуть забрати 5 звичайних бинтів безкоштовно.");
+    expect(cooldown).toContain("Безкоштовні бинти зараз перевʼязує власну важливість.");
+    expect(cooldown).toContain("Повернеться приблизно за 93 хв.");
+    expect(cooldown).not.toContain("5 звичайних бинтів безкоштовно");
     expect(cooldown).not.toBe(available);
   });
 
@@ -423,6 +426,7 @@ describe("Yeger presenter", () => {
       }),
       presentYegerRangerBandage({
         state: "claimed",
+        kind: "bandage",
         character,
         itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }],
         nextAvailableAt: tracking.availableAt,
@@ -430,6 +434,7 @@ describe("Yeger presenter", () => {
       }),
       presentYegerRangerBandage({
         state: "on-cooldown",
+        kind: "bandage",
         character,
         nextAvailableAt: tracking.availableAt,
         now: tracking.now

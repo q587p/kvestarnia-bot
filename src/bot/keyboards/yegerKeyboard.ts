@@ -98,8 +98,16 @@ export function buildYegerBandagesKeyboard(
     keyboard.text("🩹 5 бинтів", makeYegerBuyBandageCallbackData(5)).row();
     keyboard.text("🩹 17 бинтів", makeYegerBuyBandageCallbackData(17));
     keyboard.text("🩹 93 бинти", makeYegerBuyBandageCallbackData(93)).row();
-    if (result.character.classId === "class.ranger" && result.rangerBandage?.state !== "on-cooldown") {
-      keyboard.text("🧰 Єгерський бинт", makeYegerFreeBandageCallbackData()).row();
+    if (result.character.classId === "class.ranger") {
+      if (result.rangerBandage?.state === "available") {
+        keyboard.text("🧰 5 єгерських бинтів", makeYegerFreeBandageCallbackData("bandage")).row();
+      }
+      if (result.rangerDenseBandage?.state === "available") {
+        keyboard.text("🧵 Єгерський щільний", makeYegerFreeBandageCallbackData("dense-bandage")).row();
+      }
+      if (result.rangerFieldKit?.state === "available") {
+        keyboard.text("🧰 Єгерська аптечка", makeYegerFreeBandageCallbackData("field-kit")).row();
+      }
     }
   }
 

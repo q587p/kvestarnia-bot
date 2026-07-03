@@ -1,5 +1,5 @@
 import type { ItemContent } from "../../content/schema";
-import type { ItemCraftRecipe } from "../../domain/itemCraft";
+import type { ItemCraftRecipe, ItemCraftSavingsRolls } from "../../domain/itemCraft";
 import type { CharacterRecord } from "./characterRepository";
 
 export interface ItemCraftPreviewRecord {
@@ -27,6 +27,8 @@ export type ItemCraftConfirmRepositoryResult =
       recipe: ItemCraftRecipe;
       sourceItem: ItemContent;
       outputItem: ItemContent;
+      spentSourceQuantity: number;
+      savedSourceQuantity: number;
       remainingSourceQuantity: number;
       outputQuantity: number;
     };
@@ -46,6 +48,7 @@ export interface ItemCraftRepository {
       recipe: ItemCraftRecipe;
       itemContents: readonly ItemContent[];
       now: Date;
+      craftSavingsRolls?: ItemCraftSavingsRolls;
     }
   ): Promise<ItemCraftConfirmRepositoryResult>;
 }

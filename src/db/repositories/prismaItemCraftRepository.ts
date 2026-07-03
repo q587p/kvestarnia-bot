@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { ItemContent } from "../../content/schema";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
-import type { ItemCraftRecipe } from "../../domain/itemCraft";
+import { rollItemCraftBandageSavings, type ItemCraftRecipe } from "../../domain/itemCraft";
 import {
   YEGER_UNQUIET_TRIAL_BUCKET,
   YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY
@@ -61,6 +61,7 @@ export class PrismaItemCraftRepository implements ItemCraftRepository {
       recipe: ItemCraftRecipe;
       itemContents: readonly ItemContent[];
       now: Date;
+      craftSavingsRolls?: { chanceRoll: number; quantityRoll: number };
     }
   ): Promise<ItemCraftConfirmRepositoryResult> {
     return this.prisma.$transaction(async (tx) => {
@@ -75,6 +76,14 @@ export class PrismaItemCraftRepository implements ItemCraftRepository {
         return { state: "not-enough", preview };
       }
 
+      const characterSummary = summarizeCharacter({
+        ...character,
+        currentLocationId: character.user.lastSeenLocationId
+      }, {
+        remortCount: getIncludedRemortCount(character)
+      });
+      const characterRecord = toCharacterRecord(character);
+      const savings = rollItemCraftBandageSavings(input.recipe, characterSummary, input.craftSavingsRolls);
       const decremented = await tx.characterItem.updateMany({
         where: {
           characterId: character.id,
@@ -82,7 +91,7 @@ export class PrismaItemCraftRepository implements ItemCraftRepository {
           quantity: { gte: input.recipe.sourceQuantity }
         },
         data: {
-          quantity: { decrement: input.recipe.sourceQuantity },
+          quantity: { decrement: savings.spentSourceQuantity },
           updatedAt: input.now
         }
       });
@@ -130,10 +139,12 @@ export class PrismaItemCraftRepository implements ItemCraftRepository {
 
       return {
         state: "crafted",
-        character: toCharacterRecord(character),
+        character: characterRecord,
         recipe: input.recipe,
         sourceItem: preview.sourceItem,
         outputItem: preview.outputItem,
+        spentSourceQuantity: savings.spentSourceQuantity,
+        savedSourceQuantity: savings.savedSourceQuantity,
         remainingSourceQuantity: remaining?.quantity ?? 0,
         outputQuantity: output.quantity
       };

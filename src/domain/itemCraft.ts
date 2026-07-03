@@ -15,6 +15,18 @@ export interface ItemCraftRecipe {
   buttonLabel: string;
 }
 
+export interface ItemCraftSavingsRolls {
+  chanceRoll: number;
+  quantityRoll: number;
+}
+
+export interface ItemCraftSavingsResult {
+  spentSourceQuantity: number;
+  savedSourceQuantity: number;
+  savingChance: number;
+  maxSavedSourceQuantity: number;
+}
+
 export const ITEM_CRAFT_RECIPES: readonly ItemCraftRecipe[] = [
   {
     id: "dense-bandage",
@@ -46,4 +58,56 @@ export function findItemCraftRecipeById(id: string): ItemCraftRecipe | null {
 
 export function getCraftRecipesForSourceItem(itemId: string): readonly ItemCraftRecipe[] {
   return ITEM_CRAFT_RECIPES.filter((recipe) => recipe.sourceItemId === itemId);
+}
+
+export function rollItemCraftBandageSavings(
+  recipe: ItemCraftRecipe,
+  character: { level: number; stats: { luck: number } },
+  rolls: ItemCraftSavingsRolls | undefined
+): ItemCraftSavingsResult {
+  if (!rolls) {
+    return {
+      spentSourceQuantity: recipe.sourceQuantity,
+      savedSourceQuantity: 0,
+      savingChance: getItemCraftSavingChance(character),
+      maxSavedSourceQuantity: getItemCraftMaxSavedSourceQuantity(recipe, character)
+    };
+  }
+
+  const savingChance = getItemCraftSavingChance(character);
+  const maxSavedSourceQuantity = getItemCraftMaxSavedSourceQuantity(recipe, character);
+  const savedSourceQuantity = rolls.chanceRoll < savingChance
+    ? Math.min(
+        recipe.sourceQuantity - 1,
+        1 + Math.floor(clampRoll(rolls.quantityRoll) * maxSavedSourceQuantity)
+      )
+    : 0;
+
+  return {
+    spentSourceQuantity: recipe.sourceQuantity - savedSourceQuantity,
+    savedSourceQuantity,
+    savingChance,
+    maxSavedSourceQuantity
+  };
+}
+
+function getItemCraftSavingChance(character: { level: number; stats: { luck: number } }): number {
+  const level = Math.max(1, Math.floor(character.level));
+  const luck = Math.max(0, Math.floor(character.stats.luck));
+
+  return Math.min(0.58, 0.13 + level * 0.012 + luck * 0.025);
+}
+
+function getItemCraftMaxSavedSourceQuantity(
+  recipe: ItemCraftRecipe,
+  character: { level: number; stats: { luck: number } }
+): number {
+  const level = Math.max(1, Math.floor(character.level));
+  const luck = Math.max(0, Math.floor(character.stats.luck));
+
+  return Math.min(5, recipe.sourceQuantity - 1, Math.max(1, Math.floor((level + luck) / 5)));
+}
+
+function clampRoll(value: number): number {
+  return Math.min(0.999_999, Math.max(0, value));
 }

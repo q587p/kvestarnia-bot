@@ -86,7 +86,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.bandage.dense-used` | enabled | visible | `item.used item.dense-bandage >= 1` | Вузол тримався до кінця | уперше використати Щільний бинт у бою й дати рані коротку службову відпустку. |
 | `achievement.bandage.field-kit-crafted` | enabled | visible | `item.crafted item.field-kit >= 1` | Аптечка визнала поле | уперше створити Польову аптечку й переконати бинти працювати командою. |
 | `achievement.bandage.field-kit-used` | enabled | visible | `item.used item.field-kit >= 1` | Польова медицина без поля | уперше використати Польову аптечку в бою й не питати, де тут медична комісія. |
-| `achievement.yeger.free-bandage.first` | enabled | visible | `yeger.free-bandage.claimed >= 1` | Єгер дав бинт і не моргнув | уперше отримати безкоштовний бинт як єгер. |
+| `achievement.yeger.free-bandage.first` | enabled | visible | `yeger.free-bandage.claimed >= 1` | Єгер дав бинт і не моргнув | уперше отримати безкоштовний медичний запас як єгер. |
 | `achievement.equipment.first-equipped` | enabled | visible | `equipment.item_equipped` | На мені це виглядає службово | вдягнути першу манатку й почути, як гачок нервово погодився. |
 | `achievement.equipment.three-equipped` | enabled | visible | `equipment.item_equipped >= 3` | Образ уже має інвентарний номер | вдягнути 3 манатки й виглядати як службова перевірка пригод. |
 | `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |

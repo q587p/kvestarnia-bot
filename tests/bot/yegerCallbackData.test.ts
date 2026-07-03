@@ -4,6 +4,7 @@ import {
   makeYegerBuyBandageCallbackData,
   makeYegerCancelBandagePurchaseCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
+  makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
   makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
@@ -61,6 +62,18 @@ describe("Yeger callback data", () => {
       ok: true,
       value: { type: "buy-bandage-preview", targetQuantity: 1 }
     });
+    expect(parseYegerCallbackData(makeYegerFreeBandageCallbackData())).toEqual({
+      ok: true,
+      value: { type: "free-bandage", kind: "bandage" }
+    });
+    expect(parseYegerCallbackData(makeYegerFreeBandageCallbackData("dense-bandage"))).toEqual({
+      ok: true,
+      value: { type: "free-bandage", kind: "dense-bandage" }
+    });
+    expect(parseYegerCallbackData(makeYegerFreeBandageCallbackData("field-kit"))).toEqual({
+      ok: true,
+      value: { type: "free-bandage", kind: "field-kit" }
+    });
   });
 
   it("parses opaque bandage purchase confirm and cancel tokens", () => {
@@ -90,6 +103,9 @@ describe("Yeger callback data", () => {
       makeYegerBuyBandageCallbackData(5),
       makeYegerBuyBandageCallbackData(17),
       makeYegerBuyBandageCallbackData(93),
+      makeYegerFreeBandageCallbackData(),
+      makeYegerFreeBandageCallbackData("dense-bandage"),
+      makeYegerFreeBandageCallbackData("field-kit"),
       makeYegerConfirmBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000"),
       makeYegerCancelBandagePurchaseCallbackData("123e4567-e89b-42d3-a456-426614174000")
     ]) {

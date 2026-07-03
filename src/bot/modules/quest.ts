@@ -1129,11 +1129,11 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "free-bandage") {
-    const result = await services.yeger.claimRangerBandageForTelegramUser(telegramUserId);
+    const result = await services.yeger.claimRangerSupplyForTelegramUser(telegramUserId, callback.kind);
     await safeAnswerCallbackQuery(
       ctx,
       result.state === "claimed"
-        ? { text: "Єгер видав бинт." }
+        ? { text: "Єгер видав запас." }
         : { show_alert: result.state === "class-locked" || result.state === "on-cooldown" || result.state === "locked" }
     );
     await markYegerCornerPresence(ctx, services.presence);

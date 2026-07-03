@@ -11,6 +11,7 @@ export function presentItemCraftPreview(result: ItemCraftPreviewRepositoryResult
         "",
         `Потрібно: <b>${result.preview.recipe.sourceQuantity}</b> × ${result.preview.sourceItem.name}.`,
         `У торбі: <b>${result.preview.availableQuantity}</b>.`,
+        "Рівень і удача можуть зекономити частину звичайних бинтів під час вузлування.",
         "",
         "Корчмар суворо дивиться на вузли й вдає, що це ремесло."
       ].join("\n");
@@ -32,13 +33,18 @@ export function presentItemCraftPreview(result: ItemCraftPreviewRepositoryResult
 
 export function presentItemCraftResult(result: ItemCraftConfirmRepositoryResult): string {
   switch (result.state) {
-    case "crafted":
+    case "crafted": {
+      const savingsLine = result.savedSourceQuantity > 0
+        ? `Зекономлено: <b>${result.savedSourceQuantity}</b> × ${result.sourceItem.name}.`
+        : "Цього разу вузли були чесні й нічого не зекономили.";
       return [
-        `🧰 <b>${result.outputItem.name} готова.</b>`,
+        `🧰 <b>${result.outputItem.name}: готово.</b>`,
         "",
-        `Витрачено: <b>${result.recipe.sourceQuantity}</b> × ${result.sourceItem.name}.`,
+        `Витрачено: <b>${result.spentSourceQuantity}</b> × ${result.sourceItem.name}.`,
+        savingsLine,
         `Залишилось звичайних бинтів: <b>${result.remainingSourceQuantity}</b>.`
       ].join("\n");
+    }
     case "not-enough":
       return presentItemCraftPreview(result);
     case "combat-locked":

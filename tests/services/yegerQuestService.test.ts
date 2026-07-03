@@ -34,6 +34,8 @@ import {
   YEGER_BANDAGE_PRICE,
   YEGER_RANGER_BANDAGE_PRICE,
   YEGER_RANGER_FREE_BANDAGE_KEY,
+  YEGER_RANGER_FREE_DENSE_BANDAGE_KEY,
+  YEGER_RANGER_FREE_FIELD_KIT_KEY,
   YEGER_TRACKING_COOLDOWN_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
@@ -182,7 +184,13 @@ describe("YegerQuestService", () => {
     expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
       type: "item.received",
       characterId: "character-42",
-      itemIds: [expect.stringContaining("responsible-panic-bandage")]
+      itemIds: [
+        "item.responsible-panic-bandage",
+        "item.responsible-panic-bandage",
+        "item.responsible-panic-bandage",
+        "item.responsible-panic-bandage",
+        "item.responsible-panic-bandage"
+      ]
     }));
     expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
       type: "yeger.free-bandage.claimed",
@@ -676,6 +684,10 @@ describe("YegerQuestService", () => {
       .resolves.toMatchObject({ state: "locked", requiredWins: 5 });
     await expect(service.claimRangerBandageForTelegramUser(telegramUserId))
       .resolves.toMatchObject({ state: "locked", requiredWins: 5 });
+    await expect(service.claimRangerDenseBandageForTelegramUser(telegramUserId))
+      .resolves.toMatchObject({ state: "locked", requiredWins: 17 });
+    await expect(service.claimRangerFieldKitForTelegramUser(telegramUserId))
+      .resolves.toMatchObject({ state: "locked", requiredWins: 17 });
 
     expect(world.actions).toEqual([]);
     expect(world.cooldowns).toEqual([]);
@@ -953,7 +965,7 @@ describe("YegerQuestService", () => {
     expect(world.itemGrants).toEqual([]);
   });
 
-  it("gives rangers one free bandage on a 93-minute cooldown", async () => {
+  it("gives rangers five free ordinary bandages on a 93-minute cooldown after the first board", async () => {
     const world = new FakeWorld();
     world.addCharacter({ classId: "class.ranger" });
     completeBaseYegerQuest(world);
@@ -963,7 +975,8 @@ describe("YegerQuestService", () => {
 
     expect(first).toMatchObject({
       state: "claimed",
-      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+      kind: "bandage",
+      itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }]
     });
     expect(second).toMatchObject({
       state: "on-cooldown",
@@ -971,12 +984,57 @@ describe("YegerQuestService", () => {
     });
     await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
       rangerBandage: {
+        kind: "bandage",
         state: "on-cooldown",
         nextAvailableAt: new Date("2026-06-15T11:38:00.000Z")
       }
     });
     expect(world.cooldowns.find((cooldown) => cooldown.key === YEGER_RANGER_FREE_BANDAGE_KEY)?.availableAt)
       .toEqual(new Date("2026-06-15T11:38:00.000Z"));
+  });
+
+  it("unlocks dense bandage and field-kit ranger supplies after the second board", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ classId: "class.ranger" });
+    completeSecondYegerQuest(world);
+
+    await expect(world.service().getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      rangerBandage: { kind: "bandage", state: "available" },
+      rangerDenseBandage: { kind: "dense-bandage", state: "available" },
+      rangerFieldKit: { kind: "field-kit", state: "available" }
+    });
+
+    const dense = await world.service().claimRangerDenseBandageForTelegramUser(telegramUserId);
+    const kit = await world.service().claimRangerFieldKitForTelegramUser(telegramUserId);
+    const denseReplay = await world.service().claimRangerDenseBandageForTelegramUser(telegramUserId);
+    const kitReplay = await world.service().claimRangerFieldKitForTelegramUser(telegramUserId);
+
+    expect(dense).toMatchObject({
+      state: "claimed",
+      kind: "dense-bandage",
+      itemGrants: [{ itemId: "item.dense-bandage", quantity: 1 }],
+      nextAvailableAt: new Date("2026-06-15T11:38:00.000Z")
+    });
+    expect(kit).toMatchObject({
+      state: "claimed",
+      kind: "field-kit",
+      itemGrants: [{ itemId: "item.field-kit", quantity: 1 }],
+      nextAvailableAt: new Date("2026-06-16T10:05:00.000Z")
+    });
+    expect(denseReplay).toMatchObject({
+      state: "on-cooldown",
+      kind: "dense-bandage",
+      nextAvailableAt: new Date("2026-06-15T11:38:00.000Z")
+    });
+    expect(kitReplay).toMatchObject({
+      state: "on-cooldown",
+      kind: "field-kit",
+      nextAvailableAt: new Date("2026-06-16T10:05:00.000Z")
+    });
+    expect(world.cooldowns.find((cooldown) => cooldown.key === YEGER_RANGER_FREE_DENSE_BANDAGE_KEY)?.availableAt)
+      .toEqual(new Date("2026-06-15T11:38:00.000Z"));
+    expect(world.cooldowns.find((cooldown) => cooldown.key === YEGER_RANGER_FREE_FIELD_KIT_KEY)?.availableAt)
+      .toEqual(new Date("2026-06-16T10:05:00.000Z"));
   });
 });
 
@@ -1350,5 +1408,13 @@ function completeBaseYegerQuest(world: FakeWorld): void {
   world.addAction(YEGER_UNQUIET_TRIAL_COMPLETED_KEY, startedAt, {
     rewardXp: 42,
     rewardGold: YEGER_UNQUIET_TRIAL_REWARD.gold
+  });
+}
+
+function completeSecondYegerQuest(world: FakeWorld): void {
+  completeBaseYegerQuest(world);
+  world.addAction(YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY, startedAt, {
+    rewardXp: 93,
+    rewardGold: YEGER_UNQUIET_TRIAL_SECOND_REWARD.gold
   });
 }

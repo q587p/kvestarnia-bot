@@ -10,7 +10,8 @@ Manual Telegram QA status for the implementation pass: not run.
 
 1. Before completing the second Yeger `Неспокійні справи 2.0` board, open an ordinary `Бинт відповідальної паніки` item card with enough bandages and verify no advanced craft buttons appear.
 2. After the second Yeger board completion, open the ordinary bandage card outside combat with `7`, `8`, `12`, `13` and `14` ordinary bandages; verify `Щільний бинт` appears at `8+` and `Польова аптечка` appears at `13+`.
-3. Craft each item and verify ordinary bandage counts decrease by the recipe cost, exactly one crafted item appears and the matching rewardless craft achievement can appear once.
+3. Craft each item and verify ordinary bandage counts decrease by the recipe cost or by a smaller successful savings spend, exactly one crafted item appears and the matching rewardless craft achievement can appear once.
+3a. With a higher-level/lucky character, repeat several crafts and verify a successful savings roll can preserve `1-5` ordinary bandages without allowing the craft below the up-front `8` / `13` ordinary-bandage requirement.
 4. Replay an old craft button after the count is no longer sufficient and verify no extra item is granted.
 5. Try craft preview/confirm during an active solo fight and verify it is denied without inventory mutation.
 6. Use `Щільний бинт` outside combat at full HP, low HP and near max HP; verify no-op uses do not consume.
@@ -19,6 +20,7 @@ Manual Telegram QA status for the implementation pass: not run.
 9. In solo combat, use `Польова аптечка` once, injure the hero again if convenient, then verify a second successful use in the same battle is blocked and the matching rewardless use achievement can appear once.
 10. Start a different fight and verify dense cooldown / field-kit once-per-battle state did not leak.
 11. Verify party-boss / Big Barrel still offers and accepts only the ordinary bandage self-heal path, and that first ordinary-bandage use in the raid can unlock its rewardless achievement once.
+12. With `class.ranger`, after first-board completion verify the free class supply grants `5` ordinary bandages on the familiar `93`-minute cooldown; after second-board completion verify the dense-bandage supply appears on its own `93`-minute cooldown and the field-kit supply appears on a one-day cooldown.
 
 ## 0.2.20 — Latest Events Feed MVP smoke
 
@@ -43,7 +45,7 @@ Manual Telegram QA status for the implementation pass: not run.
 3. In-progress first `5`-target board: verify supplies stay hidden and direct old buttons stay locked.
 4. Turn-in-ready but not turned in: verify supplies stay locked until the first board completion row is recorded.
 5. After completing and turning in the first board: verify `🩹 Бинти` appears in the Yeger corner.
-6. After first-board completion: buy `1`, `5`, `17` or `93` basic bandages as affordable, verify Ranger discount/free button behavior, then replay stale buttons and verify canonical replay/no double spend.
+6. After first-board completion: buy `1`, `5`, `17` or `93` basic bandages as affordable, verify Ranger discount/free `5`-bandage button behavior, then replay stale buttons and verify canonical replay/no double spend.
 7. Before completing the second `17`-target board: verify no advanced `Щільний бинт` / `Польова аптечка` route is exposed by this release.
 8. Open several early and high-level Bestiary monster records; verify possible trophies are concrete manatky names and exact odds are not shown.
 9. Win a few ordinary fights if convenient and verify existing item drop/result presentation still behaves normally.
@@ -331,7 +333,7 @@ Use two accounts in Shynok and another shared location with local dev commands e
 7. While a bandage use preview is pending, try gift/sale/chest/barter of the same `itemId`: the stack should be reserved.
 8. Remort with a pending use order: remort should cancel the use reservation without consuming the bandage.
 9. At the Єгер surface, open paid bandage purchase, verify exact price/current gold, confirm once, replay confirm, cancel a fresh preview, intentionally buy again with a new token, and repeat with insufficient gold; if the wallet can still afford a smaller bundle, the stale-free fallback should offer the maximum affordable count and only spend gold after confirming that new token.
-10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the wait and confirm a fresh claim can be tested without changing production rules.
+10. With `class.ranger`, verify the lower buy price and the periodic free class-supply claim (`5` ordinary bandages after the first board; improved supplies only after the second board); repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the ordinary wait and confirm a fresh claim can be tested without changing production rules.
 11. For Yeger trail QA, use `/dev_reset_yeger_trail` after taking a trail to make `🔎 Перевірити слід` available immediately without weakening production timers.
 12. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.
 

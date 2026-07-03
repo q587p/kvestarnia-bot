@@ -14,12 +14,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Added ordinary-bandage item-card craft actions for dense bandages at 8 ordinary bandages and field kits at 13 ordinary bandages, hidden while locked, in combat or below the required stack count.
 - Added backend craft preview/confirm callbacks that recheck character ownership, second-board completion, active combat absence and current ordinary-bandage quantity before mutating inventory.
 - Added solo-combat use support for the crafted items: dense bandages heal up to 42 HP and set a five-own-turn battle cooldown after successful use; field kits raise HP to at least 93% of max HP and can succeed once per battle.
+- Added improved Ranger/Yeger class supplies: after the first Yeger board, the free 93-minute claim grants 5 ordinary bandages; after the second board, Rangers can also claim 1 dense bandage every 93 minutes and 1 field kit every 24 hours.
 - Added rewardless achievements for first dense-bandage craft/use, first field-kit craft/use and first ordinary-bandage use in the Big Barrel raid.
 
 ### Changed
 - General item-use copy now refers to medical manatky instead of assuming every usable consumable is the ordinary bandage.
 - Restore-to-full shortcuts remain fixed-heal only and ordinary-bandage-only in repeat-use UI.
 - Party-boss / Big Barrel item use remains limited to the existing ordinary-bandage self-heal exception; broader raid item support is still deferred.
+- Successful dense-bandage and field-kit crafting can save 1-5 ordinary bandages based on the character's level and luck, while still requiring the full recipe stack before the craft starts.
 
 ### Safety
 - Successful crafting atomically decrements the ordinary bandage stack and grants exactly one crafted item without adding a Prisma migration.
@@ -28,7 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The new achievement records grant no XP, gold, items, titles, stats, combat power or paid advantage.
 
 ### Unchanged
-- Ordinary bandage healing, Yeger first-board bandage supply, shops, Social Games, Latest Events, Lore Board, Big Barrel combat design, titles, rewards, raids, trading and broad crafting are unchanged.
+- Ordinary bandage healing, paid Yeger bandage purchases, shops, Social Games, Latest Events, Lore Board, Big Barrel combat design, titles, rewards, raids, trading and broad crafting are unchanged.
 
 ## [0.2.21] - 12026-07-03 - Tavern Social Games
 

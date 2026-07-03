@@ -1,7 +1,8 @@
 import { err, ok, type Result } from "../../shared/result";
 import {
   YEGER_BANDAGE_PURCHASE_TARGETS,
-  type YegerBandagePurchaseTarget
+  type YegerBandagePurchaseTarget,
+  type YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
@@ -16,7 +17,7 @@ export type YegerCallback =
   | { type: "buy-bandage-preview"; targetQuantity: YegerBandagePurchaseTarget }
   | { type: "buy-bandage-confirm"; token: string }
   | { type: "buy-bandage-cancel"; token: string }
-  | { type: "free-bandage" }
+  | { type: "free-bandage"; kind: YegerRangerSupplyKind }
   | { type: "help" };
 
 export type YegerCallbackError =
@@ -73,8 +74,8 @@ export function makeYegerCancelBandagePurchaseCallbackData(token: string): strin
   return assertYegerCallbackData(`${PREFIX}:bx:${token}`);
 }
 
-export function makeYegerFreeBandageCallbackData(): string {
-  return assertYegerCallbackData(`${PREFIX}:free:bdg`);
+export function makeYegerFreeBandageCallbackData(kind: YegerRangerSupplyKind = "bandage"): string {
+  return assertYegerCallbackData(`${PREFIX}:free:${formatFreeSupplyKind(kind)}`);
 }
 
 export function parseYegerCallbackData(
@@ -127,7 +128,9 @@ export function parseYegerCallbackData(
   }
 
   if (action === "free") {
-    return questId === "bdg" ? ok({ type: "free-bandage" }) : err("invalid-prefix");
+    const kind = parseFreeSupplyKind(questId);
+
+    return kind ? ok({ type: "free-bandage", kind }) : err("invalid-prefix");
   }
 
   if (questId !== UNQUIET_TRIAL_ID) {
@@ -175,4 +178,28 @@ function parseBandagePurchaseTarget(value: string | undefined): YegerBandagePurc
   return YEGER_BANDAGE_PURCHASE_TARGETS.includes(numeric as YegerBandagePurchaseTarget)
     ? numeric as YegerBandagePurchaseTarget
     : null;
+}
+
+function formatFreeSupplyKind(kind: YegerRangerSupplyKind): string {
+  switch (kind) {
+    case "bandage":
+      return "bdg";
+    case "dense-bandage":
+      return "dns";
+    case "field-kit":
+      return "kit";
+  }
+}
+
+function parseFreeSupplyKind(value: string | undefined): YegerRangerSupplyKind | null {
+  switch (value) {
+    case "bdg":
+      return "bandage";
+    case "dns":
+      return "dense-bandage";
+    case "kit":
+      return "field-kit";
+    default:
+      return null;
+  }
 }

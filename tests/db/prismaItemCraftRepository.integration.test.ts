@@ -73,6 +73,27 @@ describe("PrismaItemCraftRepository integration", () => {
     await expectItemQuantity(DENSE_BANDAGE_ITEM_ID, 1);
   });
 
+  it("can save ordinary bandages during crafting based on the supplied craft roll", async () => {
+    await seedSecondBoardCompletion();
+    await seedBandages(13);
+
+    await expect(repository.craftForTelegramUser(telegramUserId, {
+      recipe: kitRecipe,
+      itemContents: items,
+      now: now(),
+      craftSavingsRolls: { chanceRoll: 0, quantityRoll: 0.999 }
+    })).resolves.toMatchObject({
+      state: "crafted",
+      spentSourceQuantity: 11,
+      savedSourceQuantity: 2,
+      remainingSourceQuantity: 2,
+      outputQuantity: 1
+    });
+
+    await expectItemQuantity(RESPONSIBLE_PANIC_BANDAGE_ITEM_ID, 2);
+    await expectItemQuantity(FIELD_KIT_ITEM_ID, 1);
+  });
+
   it("keeps callbacks closed before unlock, during combat and with insufficient bandages", async () => {
     await seedBandages(13);
     await expect(repository.previewForTelegramUser(telegramUserId, {

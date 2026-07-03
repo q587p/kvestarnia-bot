@@ -5,7 +5,8 @@ import type {
   YegerTrackingResult,
   YegerQuestTurnInResult,
   YegerBandageSupplyResult,
-  YegerRangerBandageResult
+  YegerRangerBandageResult,
+  YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -150,12 +151,15 @@ export function presentYegerBandages(
   ];
 
   if (result.character.classId === "class.ranger") {
-    lines.push(
-      "",
-      result.rangerBandage?.state === "on-cooldown"
-        ? "Професійний бинт для єгерів зараз перевʼязує власну важливість. Повернеться пізніше."
-        : "Для єгерів тут є ще один професійний бинт. Він безкоштовний, але дивиться суворо."
-    );
+    const supplyLines = [
+      presentRangerSupplyMenuLine(result.rangerBandage),
+      presentRangerSupplyMenuLine(result.rangerDenseBandage),
+      presentRangerSupplyMenuLine(result.rangerFieldKit)
+    ].filter((line): line is string => Boolean(line));
+
+    if (supplyLines.length > 0) {
+      lines.push("", ...supplyLines);
+    }
   }
 
   return lines.join("\n");
@@ -301,7 +305,7 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
 
   if (result.state === "class-locked") {
     return [
-      "🧰 Єгерський бинт",
+      presentRangerSupplyTitle(result.kind),
       presentCharacterHeader(result.character),
       "",
       "Єгер ховає безкоштовну пачку під карту.",
@@ -311,23 +315,66 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
 
   if (result.state === "on-cooldown") {
     return [
-      "🧰 Єгерський бинт",
+      presentRangerSupplyTitle(result.kind),
       presentCharacterHeader(result.character),
       "",
-      `Безкоштовний бинт буде знову ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+      `${presentRangerSupplySubject(result.kind)} буде знову ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
       "Єгер каже, що запас теж має сліди."
     ].join("\n");
   }
 
   return [
-    "🧰 Єгерський бинт",
+    presentRangerSupplyTitle(result.kind),
     presentCharacterHeader(result.character),
     "",
     `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
-    `Наступний безкоштовний бинт ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+    `Наступний запас ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
     "",
     "Єгер кивнув так, ніби це не доброта, а техніка виживання."
   ].join("\n");
+}
+
+function presentRangerSupplyMenuLine(
+  supply: Exclude<YegerQuestLookupResult, { state: "no-character" }>["rangerBandage"]
+): string | null {
+  if (!supply) {
+    return null;
+  }
+
+  if (supply.state === "on-cooldown") {
+    return `${presentRangerSupplySubject(supply.kind)} зараз перевʼязує власну важливість. Повернеться ${formatTrackingWait(supply.nextAvailableAt, supply.now)}.`;
+  }
+
+  switch (supply.kind) {
+    case "bandage":
+      return "Єгері можуть забрати 5 звичайних бинтів безкоштовно. Вони дивляться суворо й рахують до 93.";
+    case "dense-bandage":
+      return "Після другої дошки для єгерів лежить щільний бинт: один запас на знайомий слідовий відлік.";
+    case "field-kit":
+      return "Після другої дошки єгер може забрати польову аптечку раз на добу. Аптечка робить вигляд, що це не розкіш.";
+  }
+}
+
+function presentRangerSupplyTitle(kind: YegerRangerSupplyKind): string {
+  switch (kind) {
+    case "bandage":
+      return "🧰 Єгерські бинти";
+    case "dense-bandage":
+      return "🧵 Єгерський щільний бинт";
+    case "field-kit":
+      return "🧰 Єгерська аптечка";
+  }
+}
+
+function presentRangerSupplySubject(kind: YegerRangerSupplyKind): string {
+  switch (kind) {
+    case "bandage":
+      return "Безкоштовні бинти";
+    case "dense-bandage":
+      return "Щільний бинт";
+    case "field-kit":
+      return "Польова аптечка";
+  }
 }
 
 function presentYegerBandageLocked(result: { character: CharacterSummary; requiredWins: number }): string {

@@ -153,7 +153,7 @@ describe("Yeger keyboard", () => {
         className: "Єгер"
       },
       progress: { wins: 0, target: 17, stageId: "second" },
-      rangerBandage: { state: "available" }
+      rangerBandage: { kind: "bandage", state: "available" }
     });
     const bandages = buildYegerBandagesKeyboard({
       state: "offered",
@@ -163,7 +163,7 @@ describe("Yeger keyboard", () => {
         className: "Єгер"
       },
       progress: { wins: 0, target: 17, stageId: "second" },
-      rangerBandage: { state: "available" }
+      rangerBandage: { kind: "bandage", state: "available" }
     });
 
     expect(flatButtons(keyboard)).toContainEqual({
@@ -175,9 +175,40 @@ describe("Yeger keyboard", () => {
       callback_data: makeYegerBandagesCallbackData()
     });
     expect(flatButtons(bandages)).toContainEqual({
-      text: "🧰 Єгерський бинт",
+      text: "🧰 5 єгерських бинтів",
       callback_data: makeYegerFreeBandageCallbackData()
     });
+  });
+
+  it("shows improved ranger supplies after the second Yeger board is completed", () => {
+    const bandages = buildYegerBandagesKeyboard({
+      state: "completed",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Єгер"
+      },
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward,
+      rangerBandage: { kind: "bandage", state: "available" },
+      rangerDenseBandage: { kind: "dense-bandage", state: "available" },
+      rangerFieldKit: { kind: "field-kit", state: "available" }
+    });
+
+    expect(flatButtons(bandages)).toEqual(expect.arrayContaining([
+      {
+        text: "🧰 5 єгерських бинтів",
+        callback_data: makeYegerFreeBandageCallbackData("bandage")
+      },
+      {
+        text: "🧵 Єгерський щільний",
+        callback_data: makeYegerFreeBandageCallbackData("dense-bandage")
+      },
+      {
+        text: "🧰 Єгерська аптечка",
+        callback_data: makeYegerFreeBandageCallbackData("field-kit")
+      }
+    ]));
   });
 
   it("hides the free ranger bandage button while it is on cooldown", () => {
@@ -191,6 +222,7 @@ describe("Yeger keyboard", () => {
       progress: { wins: 5, target: 5 },
       reward,
       rangerBandage: {
+        kind: "bandage",
         state: "on-cooldown",
         nextAvailableAt: new Date("2026-06-15T11:38:00.000Z"),
         now: new Date("2026-06-15T10:05:00.000Z")

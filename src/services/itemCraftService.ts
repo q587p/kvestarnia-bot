@@ -4,6 +4,7 @@ import {
   getCraftRecipesForSourceItem,
   type ItemCraftRecipe
 } from "../domain/itemCraft";
+import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import type {
   ItemCraftConfirmRepositoryResult,
   ItemCraftPreviewRepositoryResult,
@@ -25,7 +26,8 @@ export class ItemCraftService {
   constructor(
     private readonly repository: ItemCraftRepository,
     private readonly now: () => Date = () => new Date(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
 
   async getCraftOptionsForTelegramUser(
@@ -70,7 +72,11 @@ export class ItemCraftService {
       ? await this.repository.craftForTelegramUser(telegramUserId, {
           recipe,
           itemContents: items,
-          now
+          now,
+          craftSavingsRolls: {
+            chanceRoll: this.rng.nextFloat(),
+            quantityRoll: this.rng.nextFloat()
+          }
         })
       : { state: "locked" };
 

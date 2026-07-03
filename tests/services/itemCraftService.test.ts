@@ -12,6 +12,7 @@ import {
 } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
 import { ItemCraftService } from "../../src/services/itemCraftService";
+import { FakeRandomSource } from "../../src/shared/random";
 
 describe("ItemCraftService", () => {
   it("tracks a successful craft for immediate achievement notifications", async () => {
@@ -23,6 +24,8 @@ describe("ItemCraftService", () => {
       recipe,
       sourceItem: items.find((item) => item.id === RESPONSIBLE_PANIC_BANDAGE_ITEM_ID)!,
       outputItem: items.find((item) => item.id === DENSE_BANDAGE_ITEM_ID)!,
+      spentSourceQuantity: 8,
+      savedSourceQuantity: 0,
       remainingSourceQuantity: 0,
       outputQuantity: 1
     });
@@ -37,7 +40,8 @@ describe("ItemCraftService", () => {
     const service = new ItemCraftService(
       repository,
       () => craftedAt,
-      { trackEventSafely } as unknown as AchievementService
+      { trackEventSafely } as unknown as AchievementService,
+      new FakeRandomSource([0.99, 0])
     );
 
     const result = await service.craftForTelegramUser(42n, recipe.code);
