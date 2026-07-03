@@ -188,7 +188,11 @@ export async function handlePartySessionCallback(
       callback.turn,
       callback.action
     );
-    await safeAnswerCallbackQuery(ctx, result.state === "duplicate" ? { text: "Дію вже записано." } : undefined);
+    await safeAnswerCallbackQuery(ctx, result.state === "updated"
+      ? { text: "Вибір оновлено." }
+      : result.state === "duplicate"
+        ? { text: "Дію вже записано." }
+        : undefined);
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
       : null;
@@ -227,9 +231,11 @@ export async function handlePartySessionCallback(
       callback.turn,
       callback.itemKey
     );
-    await safeAnswerCallbackQuery(ctx, result.state === "duplicate"
-      ? { text: "Дію вже записано." }
-      : result.state === "item-unavailable"
+    await safeAnswerCallbackQuery(ctx, result.state === "updated"
+      ? { text: "Вибір оновлено." }
+      : result.state === "duplicate"
+        ? { text: "Дію вже записано." }
+        : result.state === "item-unavailable"
         ? { text: "Манатка не спрацювала." }
         : undefined);
     const viewerCharacterId = "session" in result

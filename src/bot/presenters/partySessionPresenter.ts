@@ -337,7 +337,14 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
   if (result.state === "duplicate") {
     return presentPartyBoss(result.session, {
       viewerCharacterId,
-      notice: "Вашу дію для цього ходу вже прийнято. Друга кнопка не додає другого ліктя."
+      notice: "Цей вибір уже записано. Корчмар не ставить другу печатку на той самий лікоть."
+    });
+  }
+
+  if (result.state === "updated") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Вибір оновлено. У хід піде остання записана дія."
     });
   }
 

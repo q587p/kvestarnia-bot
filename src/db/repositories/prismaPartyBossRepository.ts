@@ -59,6 +59,15 @@ class PartyBossItemUseRollback extends Error {
   }
 }
 
+type QueuedPartyBossActionState = Extract<PartyBossActionResult["state"], "queued" | "updated" | "duplicate">;
+type QueuedPartyBossActionInput = {
+  id: string;
+  characterId: string;
+  action: PartyBossActionKey;
+  origin: "manual";
+  item?: PartyBossCombatItemInput;
+};
+
 const partyCharacterInclude = {
   user: {
     select: {
@@ -299,19 +308,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "stale", session: mapSession(session) };
       }
 
-      const created = await tx.partyBossAction.create({
-        data: {
-          sessionId: session.id,
-          actorCharacterId: character.id,
-          turn,
-          actionKey: action,
-          submittedAt: input.now
-        }
-      }).catch((error: unknown) => {
-        if (isUniqueConflict(error)) {
-          return null;
-        }
-        throw error;
+      const queuedState = await writePartyBossActionChoice(tx, {
+        sessionId: session.id,
+        actorCharacterId: character.id,
+        turn,
+        action,
+        submittedAt: input.now
       });
 
       const current = await tx.partyBossSession.findUnique({
@@ -323,14 +325,14 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "not-found" };
       }
 
-      return { state: created ? "queued" : "duplicate", session: mapSession(current) };
+      return { state: queuedState, session: mapSession(current) };
     });
 
     if (!("session" in inserted)) {
       return inserted;
     }
 
-    if (inserted.state === "queued" || inserted.state === "duplicate") {
+    if (inserted.state === "queued" || inserted.state === "updated" || inserted.state === "duplicate") {
       const resolved = await this.resolveIfReady(inserted.session.id, "all-actions", input);
       return resolved ? { state: "resolved", ...resolved } : inserted;
     }
@@ -424,48 +426,14 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "item-unavailable", reason: "reserved", session: mapSession(session) };
       }
 
-      const created = await tx.partyBossAction.create({
-        data: {
-          sessionId: session.id,
-          actorCharacterId: character.id,
-          turn,
-          actionKey: "item",
-          submittedAt: input.now,
-          resultJson: {
-            kind: "combat-item",
-            item
-          } as unknown as Prisma.InputJsonValue
-        }
-      }).catch((error: unknown) => {
-        if (isUniqueConflict(error)) {
-          return null;
-        }
-        throw error;
+      const queuedState = await writePartyBossActionChoice(tx, {
+        sessionId: session.id,
+        actorCharacterId: character.id,
+        turn,
+        action: "item",
+        submittedAt: input.now,
+        item
       });
-
-      if (created) {
-        const consumed = await tx.characterItem.updateMany({
-          where: {
-            characterId: character.id,
-            itemId: item.id,
-            quantity: { gte: 1 }
-          },
-          data: {
-            quantity: { decrement: 1 }
-          }
-        });
-
-        if (consumed.count !== 1) {
-          throw new PartyBossItemUseRollback("not-owned");
-        }
-
-        await tx.characterItem.deleteMany({
-          where: {
-            characterId: character.id,
-            quantity: { lte: 0 }
-          }
-        });
-      }
 
       const current = await tx.partyBossSession.findUnique({
         where: { id: session.id },
@@ -476,32 +444,9 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "not-found" };
       }
 
-      const achievementEvents: PartyBossAchievementEventRecord[] = [];
-      if (created) {
-        achievementEvents.push({
-          type: "item.used",
-          characterId: character.id,
-          itemId: item.id,
-          sourceId: created.id,
-          occurredAt: input.now
-        });
-        if (
-          session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION &&
-          isMedicalCombatItemId(item.id)
-        ) {
-          achievementEvents.push({
-            type: "barrel.raid.bandage-used",
-            characterId: character.id,
-            sourceId: created.id,
-            occurredAt: input.now
-          });
-        }
-      }
-
       return {
-        state: created ? "queued" : "duplicate",
-        session: mapSession(current),
-        ...(achievementEvents.length > 0 ? { achievementEvents } : {})
+        state: queuedState,
+        session: mapSession(current)
       };
     }).catch(async (error: unknown): Promise<PartyBossActionResult> => {
       if (!(error instanceof PartyBossItemUseRollback)) {
@@ -520,16 +465,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       return inserted;
     }
 
-    if (inserted.state === "queued" || inserted.state === "duplicate") {
+    if (inserted.state === "queued" || inserted.state === "updated" || inserted.state === "duplicate") {
       const resolved = await this.resolveIfReady(inserted.session.id, "all-actions", input);
       return resolved
         ? {
             state: "resolved",
-            ...resolved,
-            achievementEvents: [
-              ...(inserted.achievementEvents ?? []),
-              ...(resolved.achievementEvents ?? [])
-            ]
+            ...resolved
           }
         : inserted;
     }
@@ -717,20 +658,27 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
+      const actionInputs: QueuedPartyBossActionInput[] = actions.map((entry) => {
+        const item = parseActionItem(entry.resultJson);
+
+        return {
+          id: entry.id,
+          characterId: entry.actorCharacterId,
+          action: parseActionKey(entry.actionKey),
+          origin: "manual" as const,
+          ...(item ? { item } : {})
+        };
+      });
       const resolved = resolvePartyBossRound({
         state,
         now: input.now,
         seed: session.id,
-        actions: actions.map((entry) => {
-          const item = parseActionItem(entry.resultJson);
-
-          return {
-            characterId: entry.actorCharacterId,
-            action: parseActionKey(entry.actionKey),
-            origin: "manual" as const,
-            ...(item ? { item } : {})
-          };
-        })
+        actions: actionInputs.map((entry) => ({
+          characterId: entry.characterId,
+          action: entry.action,
+          origin: entry.origin,
+          ...(entry.item ? { item: entry.item } : {})
+        }))
       });
       const nextVersion = session.version + 1;
       const status = resolved.state.status;
@@ -757,6 +705,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
+      for (const action of actionInputs) {
+        if (action.action === "item" && action.item) {
+          await consumePartyBossCombatItem(tx, action.characterId, action.item.id);
+        }
+      }
+
       for (const action of actions) {
         const summary = resolved.round.actions.find((entry) => entry.characterId === action.actorCharacterId);
         if (summary) {
@@ -767,9 +721,16 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         }
       }
 
-      let achievementEvents: PartyBossAchievementEventRecord[] = [];
+      let achievementEvents: PartyBossAchievementEventRecord[] = actionInputs.flatMap((action) =>
+        action.action === "item" && action.item
+          ? buildPartyBossItemActionAchievementEvents(session, action, action.item, input.now)
+          : []
+      );
       if (status !== "active") {
-        achievementEvents = await settleTerminalPartyBoss(tx, session, resolved.state, input.now);
+        achievementEvents = [
+          ...achievementEvents,
+          ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now)
+        ];
         await releasePartyBossLocks(tx, session.partySessionId);
       }
 
@@ -1417,6 +1378,157 @@ function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | nu
   }
 
   return null;
+}
+
+async function writePartyBossActionChoice(
+  tx: TxClient,
+  input: {
+    sessionId: string;
+    actorCharacterId: string;
+    turn: number;
+    action: PartyBossActionKey;
+    submittedAt: Date;
+    item?: PartyBossCombatItemInput;
+  }
+): Promise<QueuedPartyBossActionState> {
+  const resultJson = input.item
+    ? {
+        kind: "combat-item",
+        item: input.item
+      } as unknown as Prisma.InputJsonValue
+    : null;
+
+  const existing = await tx.partyBossAction.findFirst({
+    where: {
+      sessionId: input.sessionId,
+      actorCharacterId: input.actorCharacterId,
+      turn: input.turn
+    }
+  });
+
+  if (existing) {
+    if (isSamePartyBossActionChoice(existing.actionKey, existing.resultJson, input.action, input.item)) {
+      return "duplicate";
+    }
+
+    await tx.partyBossAction.update({
+      where: { id: existing.id },
+      data: {
+        actionKey: input.action,
+        resultJson: resultJson ?? Prisma.JsonNull,
+        submittedAt: input.submittedAt
+      }
+    });
+
+    return "updated";
+  }
+
+  await tx.partyBossAction.create({
+    data: {
+      sessionId: input.sessionId,
+      actorCharacterId: input.actorCharacterId,
+      turn: input.turn,
+      actionKey: input.action,
+      submittedAt: input.submittedAt,
+      ...(resultJson ? { resultJson } : {})
+    }
+  }).catch(async (error: unknown) => {
+    if (!isUniqueConflict(error)) {
+      throw error;
+    }
+
+    await tx.partyBossAction.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        actorCharacterId: input.actorCharacterId,
+        turn: input.turn
+      },
+      data: {
+        actionKey: input.action,
+        resultJson: resultJson ?? Prisma.JsonNull,
+        submittedAt: input.submittedAt
+      }
+    });
+  });
+
+  return "queued";
+}
+
+function isSamePartyBossActionChoice(
+  existingActionKey: string,
+  existingResultJson: Prisma.JsonValue | null,
+  nextAction: PartyBossActionKey,
+  nextItem?: PartyBossCombatItemInput
+): boolean {
+  if (parseActionKey(existingActionKey) !== nextAction) {
+    return false;
+  }
+
+  const existingItem = parseActionItem(existingResultJson);
+  if (!nextItem) {
+    return !existingItem;
+  }
+
+  return existingItem?.id === nextItem.id &&
+    existingItem.name === nextItem.name &&
+    JSON.stringify(existingItem.effect) === JSON.stringify(nextItem.effect);
+}
+
+async function consumePartyBossCombatItem(
+  tx: TxClient,
+  characterId: string,
+  itemId: string
+): Promise<void> {
+  const consumed = await tx.characterItem.updateMany({
+    where: {
+      characterId,
+      itemId,
+      quantity: { gte: 1 }
+    },
+    data: {
+      quantity: { decrement: 1 }
+    }
+  });
+
+  if (consumed.count !== 1) {
+    throw new PartyBossItemUseRollback("not-owned");
+  }
+
+  await tx.characterItem.deleteMany({
+    where: {
+      characterId,
+      quantity: { lte: 0 }
+    }
+  });
+}
+
+function buildPartyBossItemActionAchievementEvents(
+  session: PartyBossRow,
+  action: QueuedPartyBossActionInput,
+  item: PartyBossCombatItemInput,
+  occurredAt: Date
+): PartyBossAchievementEventRecord[] {
+  const events: PartyBossAchievementEventRecord[] = [{
+    type: "item.used",
+    characterId: action.characterId,
+    itemId: item.id,
+    sourceId: action.id,
+    occurredAt
+  }];
+
+  if (
+    session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION &&
+    isMedicalCombatItemId(item.id)
+  ) {
+    events.push({
+      type: "barrel.raid.bandage-used",
+      characterId: action.characterId,
+      sourceId: action.id,
+      occurredAt
+    });
+  }
+
+  return events;
 }
 
 function enrichBigBarrelResult(

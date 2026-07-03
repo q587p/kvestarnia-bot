@@ -70,7 +70,7 @@ export type PartyBossActionResult =
       session?: PartyBossSessionRecord;
     }
   | {
-      state: "not-participant" | "stale" | "queued" | "duplicate" | "resolved" | "terminal";
+      state: "not-participant" | "stale" | "queued" | "updated" | "duplicate" | "resolved" | "terminal";
       session: PartyBossSessionRecord;
       achievementEvents?: PartyBossAchievementEventRecord[];
     };

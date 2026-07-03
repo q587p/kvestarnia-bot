@@ -11,8 +11,9 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Big Barrel Brother battle journal pages now replay each round's stored ability cooldown snapshot instead of showing the final/current cooldown state on older entries.
+- Big Barrel Brother queued turn choices now let the latest selected action or combat item replace the earlier button before the round resolves, and overwritten combat items are not spent.
 
-## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
+## [0.2.24] - 12026-07-04 - Mantok Balance Audit and Rebalance Pass
 
 ### Changed
 - Rebalanced generated Loot Expansion v1 equipment effects so source package base stats and `+N` enhancement tiers produce visible stat differences instead of many higher-price variants repeating the same `+0` power.
