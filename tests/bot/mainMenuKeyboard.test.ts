@@ -33,6 +33,7 @@ import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
   buildInventoryKeyboard,
+  buildItemCraftResultKeyboard,
   buildItemDetailKeyboard,
   buildItemUseResultKeyboard
 } from "../../src/bot/keyboards/inventoryKeyboard";
@@ -1937,6 +1938,23 @@ describe("main menu and scene keyboards", () => {
       "v1:use:full:item.responsible-panic-bandage",
       "v1:item:inventory",
       "v1:equip:view"
+    ]);
+  });
+
+  it("adds another craft button only when enough source items remain", () => {
+    expect(flatInlineButtonTexts(buildItemCraftResultKeyboard())).toEqual([
+      "🔎 До бинта",
+      "⬅️ До манаток"
+    ]);
+    expect(flatInlineButtonTexts(buildItemCraftResultKeyboard({ repeatRecipeCode: "dense" }))).toEqual([
+      "✅ Створити ще",
+      "🔎 До бинта",
+      "⬅️ До манаток"
+    ]);
+    expect(flatInlineButtonCallbacks(buildItemCraftResultKeyboard({ repeatRecipeCode: "dense" }))).toEqual([
+      "v1:craft:ok:dense",
+      "v1:item:detail:item.responsible-panic-bandage",
+      "v1:item:inventory"
     ]);
   });
 

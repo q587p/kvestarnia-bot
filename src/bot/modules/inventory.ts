@@ -421,7 +421,11 @@ async function handleItemCraftCallback(
   );
   await safeEditMessageText(ctx, presentItemCraftResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemCraftResultKeyboard()
+    reply_markup: buildItemCraftResultKeyboard(
+      result.state === "crafted" && result.remainingSourceQuantity >= result.recipe.sourceQuantity
+        ? { repeatRecipeCode: result.recipe.code }
+        : undefined
+    )
   });
   const achievementText = presentAchievementUnlockNotification(
     result.state === "crafted" ? result.achievementUnlocks ?? [] : []

@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Restore-to-full shortcuts remain fixed-heal only and ordinary-bandage-only in repeat-use UI.
 - Party-boss / Big Barrel item use now accepts the same combat-usable medical manatky as solo combat, including dense-bandage cooldowns and field-kit once-per-battle limits.
 - Successful dense-bandage and field-kit crafting can save 1-5 ordinary bandages for Ranger/Yeger characters based on level and luck, while still requiring the full recipe stack before the craft starts; other classes spend the fixed recipe cost.
+- Successful craft result cards now offer `Створити ще` when the remaining ordinary bandage stack can pay the same recipe again.
 - The `⭐ Важливе` latest-events filter now leaves rare manatky to `🎒 Манатки` and keeps only epic manatky as important item drops.
 - Yeger quest cards now stay separate from the `Єгерський куток` atmosphere card, return to the Yeger corner, and leave ordinary Yeger exits pointing back to the Barrel instead of the Korchma hall.
 - Full-HP medical item no-op cards now say treatment is not needed and offer a direct return to the source bandage/kit item detail for crafting or review.

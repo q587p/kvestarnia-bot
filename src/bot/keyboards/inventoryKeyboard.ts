@@ -226,8 +226,14 @@ export function buildItemCraftPreviewKeyboard(recipeCode: ItemCraftOption["recip
     .text("⬅️ До манаток", makeInventoryCallbackData());
 }
 
-export function buildItemCraftResultKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildItemCraftResultKeyboard(options: { repeatRecipeCode?: ItemCraftOption["recipe"]["code"] } = {}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (options.repeatRecipeCode) {
+    keyboard.text("✅ Створити ще", makeItemCraftConfirmCallbackData(options.repeatRecipeCode)).row();
+  }
+
+  return keyboard
     .text("🔎 До бинта", makeItemDetailCallbackData("item.responsible-panic-bandage"))
     .row()
     .text("⬅️ До манаток", makeInventoryCallbackData());
