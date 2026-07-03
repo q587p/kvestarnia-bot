@@ -29,6 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Inventory list cards now keep the message body compact by removing per-item descriptions, while item buttons show stack quantity in parentheses when more than one unit is owned.
 - The `⭐ Важливе` latest-events filter now leaves rare manatky to `🎒 Манатки` and keeps only epic manatky as important item drops.
 - Yeger quest cards now stay separate from the `Єгерський куток` atmosphere card, return to the Yeger corner, and leave ordinary Yeger exits pointing back to the Barrel instead of the Korchma hall.
+- Yeger corner entry no longer sends a separate movement notice before the Yeger card, and completed second-board turn-in cards can offer dense-bandage and field-kit craft shortcuts when the ordinary-bandage stack is sufficient.
 - Full-HP medical item no-op cards now say treatment is not needed and offer a direct return to the source bandage/kit item detail for crafting or review.
 
 ### Safety

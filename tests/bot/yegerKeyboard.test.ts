@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeItemCraftPreviewCallbackData } from "../../src/bot/callbacks/itemCraftCallbackData";
 import { makeItemDetailCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import {
@@ -21,6 +22,7 @@ import {
   makeYegerTurnInCallbackData
 } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 
 describe("Yeger keyboard", () => {
   it("opens active quest details from the base Yeger corner", () => {
@@ -307,6 +309,38 @@ describe("Yeger keyboard", () => {
       text: "🔎 Єгерська риска на дощечці",
       callback_data: makeItemDetailCallbackData("item.yeger.first-notch")
     });
+  });
+
+  it("offers unlocked bandage crafts after the second Yeger board turn-in when source bandages cover them", () => {
+    const denseRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "dense")!;
+    const kitRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "kit")!;
+    const keyboard = buildYegerTurnInKeyboard(
+      {
+        state: "completed",
+        character,
+        progress: { wins: 17, target: 17, stageId: "second" },
+        reward: {
+          xp: 56,
+          gold: 170,
+          itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+        },
+        levelChange: null
+      },
+      {
+        craftOptions: [denseRecipe, kitRecipe].map((recipe) => ({ recipe }))
+      }
+    );
+
+    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+      {
+        text: denseRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("dense")
+      },
+      {
+        text: kitRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("kit")
+      }
+    ]));
   });
 
   it("sends active Yeger quests outside from the Yeger corner", () => {

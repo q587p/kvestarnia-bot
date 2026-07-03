@@ -17,6 +17,7 @@ PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
 PRESENCE_LOCATION_KORCHMA_YARD
 } from "../../services/presenceService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
+import { RESPONSIBLE_PANIC_BANDAGE_ITEM_ID } from "../../domain/itemCraft";
 import type { BotServices } from "../botServices";
 import { parseAdventureCallbackData,type AdventureCallback } from "../callbacks/adventureCallbackData";
 import { parseHuntCallbackData,type HuntCallback } from "../callbacks/huntCallbackData";
@@ -1314,9 +1315,13 @@ async function handleYegerCallback(
     return;
   }
 
+  const craftOptions = result.state === "completed" || result.state === "already-completed"
+    ? await services.itemCraft.getCraftOptionsForTelegramUser(telegramUserId, RESPONSIBLE_PANIC_BANDAGE_ITEM_ID)
+    : [];
+
   await safeEditMessageText(ctx, presentYegerTurnIn(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildYegerTurnInKeyboard(result)
+    reply_markup: buildYegerTurnInKeyboard(result, { craftOptions })
   });
   if (result.state === "completed" && result.levelChange) {
     await sendLevelUpCelebration(ctx, {

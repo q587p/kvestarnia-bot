@@ -10,9 +10,10 @@ Manual Telegram QA status for the implementation pass: not run.
 
 Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage` and `/dev_add_field_kit` to seed the exact medical stacks needed for combat and Big Barrel checks when `DEV_GRANT_COMMANDS_ENABLED=true`. Use `/dev_yeger_first_done` and `/dev_yeger_second_done` to fill the Yeger boards with real terminal wins, then turn them in through the normal Yeger buttons.
 
-1. Open `/hunt` / the Yeger corner, then open or take the current Yeger case; verify the corner intro appears only on the corner card, quest cards return to `Єгерський куток`, and ordinary Yeger exits return to `Бочка`.
+1. Open `/hunt` / the Yeger corner, then open or take the current Yeger case; verify the corner intro appears only on the corner card, no separate duplicate `Ви підійшли до єгерського кутка.` notice appears before the Yeger card or Yeger daily scene, quest cards return to `Єгерський куток`, and ordinary Yeger exits return to `Бочка`.
 1. Before completing the second Yeger `Неспокійні справи 2.0` board, open an ordinary `Бинт відповідальної паніки` item card with enough bandages and verify no advanced craft buttons appear.
 2. After the second Yeger board completion, open the ordinary bandage card outside combat with `7`, `8`, `12`, `13` and `14` ordinary bandages; verify `Щільний бинт` appears at `8+` and `Польова аптечка` appears at `13+`.
+2a. After turning in `Неспокійні справи 2.0`, verify the result card offers `Створити щільний бинт` and/or `Створити польову аптечку` only when the ordinary bandage stack can pay those recipes.
 3. Craft each item and verify ordinary bandage counts decrease by the recipe cost or by a smaller successful savings spend, exactly one crafted item appears and the matching rewardless craft achievement can appear once.
 3a. If the remaining ordinary bandage count still covers the same recipe, verify the result card offers `Створити ще`; if not, verify it only returns to the bandage or inventory.
 3b. With a higher-level/lucky `class.ranger`, repeat several crafts and verify a successful savings roll can preserve `1-5` ordinary bandages without allowing the craft below the up-front `8` / `13` ordinary-bandage requirement; with a non-ranger class, verify the same recipes spend the fixed cost.

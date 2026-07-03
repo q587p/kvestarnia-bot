@@ -1,6 +1,8 @@
 import { InlineKeyboard } from "grammy";
+import type { ItemCraftOption } from "../../services/itemCraftService";
 import type { YegerQuestLookupResult, YegerQuestTurnInResult } from "../../services/yegerQuestService";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
+import { makeItemCraftPreviewCallbackData } from "../callbacks/itemCraftCallbackData";
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import {
@@ -139,7 +141,8 @@ export function buildYegerBandagePurchaseKeyboard(
 }
 
 export function buildYegerTurnInKeyboard(
-  result: Exclude<YegerQuestTurnInResult, { state: "no-character" }>
+  result: Exclude<YegerQuestTurnInResult, { state: "no-character" }>,
+  options: { craftOptions?: ItemCraftOption[] } = {}
 ): InlineKeyboard {
   if (result.state === "not-started") {
     return new InlineKeyboard()
@@ -156,6 +159,7 @@ export function buildYegerTurnInKeyboard(
 
   if (result.state === "completed" || result.state === "already-completed") {
     addRewardItemButton(keyboard, result.reward);
+    addCraftButtons(keyboard, options.craftOptions ?? []);
   }
 
   return keyboard
@@ -203,4 +207,15 @@ function addRewardItemButton(
   }
 
   return keyboard.text(`🔎 ${item.name}`, makeItemDetailCallbackData(item.itemId)).row();
+}
+
+function addCraftButtons(
+  keyboard: InlineKeyboard,
+  craftOptions: ItemCraftOption[]
+): InlineKeyboard {
+  for (const option of craftOptions) {
+    keyboard.text(option.recipe.buttonLabel, makeItemCraftPreviewCallbackData(option.recipe.code)).row();
+  }
+
+  return keyboard;
 }
