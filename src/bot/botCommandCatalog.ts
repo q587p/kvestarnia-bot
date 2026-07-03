@@ -350,6 +350,20 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_yeger_first_done",
+    icon: "5️⃣",
+    description: "довести першу дошку Єгеря до 5/5 локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_yeger_second_done",
+    icon: "7️⃣",
+    description: "довести другу дошку Єгеря до 17/17 локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_bard_performance",
     icon: "🎶",
     description: "скинути бардівський виступ локально",

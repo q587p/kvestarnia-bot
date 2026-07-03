@@ -219,6 +219,8 @@ describe("presence routing", () => {
     ["dev_add_field_kit", {}],
     ["dev_reset_yeger_bandage", {}],
     ["dev_reset_yeger_bandage_day", {}],
+    ["dev_yeger_first_done", {}],
+    ["dev_yeger_second_done", {}],
     ["dev_reset_bard_performance", {}],
     ["dev_help", {}]
   ])("routes command /%s", (command, expected) => {

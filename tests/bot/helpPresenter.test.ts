@@ -77,6 +77,8 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🩺 /dev_add_field_kit");
     expect(resetOnly).not.toContain("🧷 /dev_reset_yeger_bandage");
     expect(resetOnly).not.toContain("/dev_reset_yeger_bandage_day");
+    expect(resetOnly).not.toContain("/dev_yeger_first_done");
+    expect(resetOnly).not.toContain("/dev_yeger_second_done");
     expect(resetOnly).not.toContain("/dev_reset_bard_performance");
 
     expect(grantsEnabled).not.toContain("/dev_help");
@@ -93,6 +95,8 @@ describe("help presenter", () => {
     expect(grantsEnabled).not.toContain("/dev_add_field_kit");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage_day");
+    expect(grantsEnabled).not.toContain("/dev_yeger_first_done");
+    expect(grantsEnabled).not.toContain("/dev_yeger_second_done");
     expect(grantsEnabled).not.toContain("/dev_reset_bard_performance");
     expect(partyEnabled).not.toContain("/dev_party");
     expect(partyEnabled).not.toContain("/dev_help");
@@ -126,6 +130,8 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🩺 /dev_add_field_kit");
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
     expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
+    expect(grantsEnabled).toContain("5️⃣ /dev_yeger_first_done");
+    expect(grantsEnabled).toContain("7️⃣ /dev_yeger_second_done");
     expect(grantsEnabled).toContain("🎶 /dev_reset_bard_performance");
     expect(partyEnabled).toContain("🪢 /dev_party — зібрати тимчасову ватагу локально");
     expect(partyEnabled).not.toContain("/dev_help");

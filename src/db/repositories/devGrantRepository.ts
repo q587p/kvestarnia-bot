@@ -30,6 +30,25 @@ export type DevGrantDailyActionResetResult = {
   deleted: number;
 };
 
+export type DevGrantYegerQuestStage = "first" | "second";
+
+export type DevGrantYegerQuestProgressResult =
+  | {
+      state: "ready";
+      character: CharacterRecord;
+      stage: DevGrantYegerQuestStage;
+      addedWins: number;
+      wins: number;
+      target: number;
+      started: boolean;
+    }
+  | {
+      state: "blocked";
+      character: CharacterRecord;
+      stage: DevGrantYegerQuestStage;
+      reason: "first-board-not-completed";
+    };
+
 export interface DevGrantRepository {
   addLevelForTelegramUser(
     telegramUserId: bigint,
@@ -76,4 +95,10 @@ export interface DevGrantRepository {
     telegramUserId: bigint,
     keys: readonly string[]
   ): Promise<DevGrantDailyActionResetResult | null>;
+
+  completeYegerQuestProgressForTelegramUser(
+    telegramUserId: bigint,
+    stage: DevGrantYegerQuestStage,
+    now: Date
+  ): Promise<DevGrantYegerQuestProgressResult | null>;
 }

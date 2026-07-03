@@ -1,6 +1,6 @@
 import { items } from "../content";
 import type { CharacterRecord } from "../db/repositories/characterRepository";
-import type { DevGrantRepository } from "../db/repositories/devGrantRepository";
+import type { DevGrantRepository, DevGrantYegerQuestStage } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
@@ -40,6 +40,23 @@ export type DevGrantResult =
       kind: "yeger-bandage-day";
       character: CharacterRecord;
       deleted: number;
+    }
+  | {
+      state: "updated";
+      kind: "yeger-quest-progress";
+      character: CharacterRecord;
+      stage: DevGrantYegerQuestStage;
+      addedWins: number;
+      wins: number;
+      target: number;
+      started: boolean;
+    }
+  | {
+      state: "blocked";
+      kind: "yeger-quest-progress";
+      character: CharacterRecord;
+      stage: DevGrantYegerQuestStage;
+      reason: "first-board-not-completed";
     };
 
 export type DevGrantItemsResult =
@@ -314,6 +331,54 @@ export class DevGrantService {
           deleted: result.deleted
         }
       : { state: "no-character" };
+  }
+
+  async completeFirstYegerQuestProgress(telegramUserId: bigint): Promise<DevGrantResult> {
+    return this.completeYegerQuestProgress(telegramUserId, "first");
+  }
+
+  async completeSecondYegerQuestProgress(telegramUserId: bigint): Promise<DevGrantResult> {
+    return this.completeYegerQuestProgress(telegramUserId, "second");
+  }
+
+  private async completeYegerQuestProgress(
+    telegramUserId: bigint,
+    stage: DevGrantYegerQuestStage
+  ): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.completeYegerQuestProgressForTelegramUser(
+      telegramUserId,
+      stage,
+      new Date()
+    );
+
+    if (!result) {
+      return { state: "no-character" };
+    }
+
+    if (result.state === "blocked") {
+      return {
+        state: "blocked",
+        kind: "yeger-quest-progress",
+        character: result.character,
+        stage: result.stage,
+        reason: result.reason
+      };
+    }
+
+    return {
+      state: "updated",
+      kind: "yeger-quest-progress",
+      character: result.character,
+      stage: result.stage,
+      addedWins: result.addedWins,
+      wins: result.wins,
+      target: result.target,
+      started: result.started
+    };
   }
 
   private pickRandomItemGrants(amount: number): ItemGrant[] {

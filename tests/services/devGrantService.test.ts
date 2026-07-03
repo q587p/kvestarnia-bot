@@ -6,7 +6,9 @@ import type {
   DevGrantDailyActionResetResult,
   DevGrantItemResult,
   DevGrantProgressResult,
-  DevGrantRepository
+  DevGrantRepository,
+  type DevGrantYegerQuestProgressResult,
+  type DevGrantYegerQuestStage
 } from "../../src/db/repositories/devGrantRepository";
 import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository";
 import { items } from "../../src/content";
@@ -329,11 +331,40 @@ describe("DevGrantService", () => {
     );
   });
 
+  it("completes Yeger quest progress for local turn-in QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.completeFirstYegerQuestProgress(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "yeger-quest-progress",
+      stage: "first",
+      addedWins: 5,
+      wins: 5,
+      target: 5,
+      started: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    await expect(service.completeSecondYegerQuestProgress(42n)).resolves.toMatchObject({
+      state: "blocked",
+      kind: "yeger-quest-progress",
+      stage: "second",
+      reason: "first-board-not-completed"
+    });
+    expect(repository.calls).toEqual([
+      "yeger-progress:42:first",
+      "yeger-progress:42:second"
+    ]);
+  });
+
   it("does not reset the Yeger paid bandage day when dev grants are disabled", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", false, new FakeRandomSource([0]));
 
     await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.completeFirstYegerQuestProgress(42n)).resolves.toEqual({ state: "disabled" });
     expect(repository.calls).toEqual([]);
   });
 
@@ -531,6 +562,36 @@ class FakeDevGrantRepository implements DevGrantRepository {
     return Promise.resolve({
       character: this.character,
       deleted: keys.length
+    });
+  }
+
+  completeYegerQuestProgressForTelegramUser(
+    telegramUserId: bigint,
+    stage: DevGrantYegerQuestStage
+  ): Promise<DevGrantYegerQuestProgressResult | null> {
+    this.calls.push(`yeger-progress:${telegramUserId.toString()}:${stage}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    if (stage === "second") {
+      return Promise.resolve({
+        state: "blocked",
+        character: this.character,
+        stage,
+        reason: "first-board-not-completed"
+      });
+    }
+
+    return Promise.resolve({
+      state: "ready",
+      character: this.character,
+      stage,
+      addedWins: 5,
+      wins: 5,
+      target: 5,
+      started: true
     });
   }
 }

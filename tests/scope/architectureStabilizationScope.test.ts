@@ -70,6 +70,8 @@ const expectedCommandAliasInventory = [
   "dev_reset_yeger_trail",
   "dev_restore_mana",
   "dev_two_enemies",
+  "dev_yeger_first_done",
+  "dev_yeger_second_done",
   "duel",
   "equip",
   "equipment",

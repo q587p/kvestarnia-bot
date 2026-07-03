@@ -90,7 +90,7 @@ NODE_ENV=development
 DEV_GRANT_COMMANDS_ENABLED=true
 ```
 
-Вони працюють лише коли `NODE_ENV` не `production` **і** `DEV_GRANT_COMMANDS_ENABLED=true` / `1` / `yes` / `on`. Не вмикай `DEV_GRANT_COMMANDS_ENABLED` на hosted production: ці команди напряму змінюють рівень, XP, HP, ману, золото й манатки.
+Вони працюють лише коли `NODE_ENV` не `production` **і** `DEV_GRANT_COMMANDS_ENABLED=true` / `1` / `yes` / `on`. Не вмикай `DEV_GRANT_COMMANDS_ENABLED` на hosted production: ці команди напряму змінюють рівень, XP, HP, ману, золото, манатки й локальний quest-progress.
 
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
@@ -106,6 +106,8 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_add_field_kit [число]` — додає польові аптечки; без числа додає одну аптечку.
 - `/dev_reset_yeger_bandage` — скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — завершує поточне очікування Єгерського сліду для поточного персонажа.
+- `/dev_yeger_first_done` — доводить першу Єгерську дошку `Неспокійні справи` до `5/5` реальними terminal win rows; нагороду й досягнення треба забрати звичайною кнопкою здачі.
+- `/dev_yeger_second_done` — доводить другу Єгерську дошку `Неспокійні справи 2.0` до `17/17` реальними terminal win rows після зданої першої дошки; нагороду й досягнення треба забрати звичайною кнопкою здачі.
 - `/dev_adventure_reset` — скидає й перетасовує поточний вибір пригоди для швидкого локального тесту.
 - `/dev_raid_stop` — достроково завершує активний pending-рейд на Бочку через звичайний reward path для швидкого локального тесту; якщо XP підняв рівень, показує звичайне окреме привітання.
 - `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout проходить звичайний party-boss victory path.

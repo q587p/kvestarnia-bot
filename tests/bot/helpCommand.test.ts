@@ -53,6 +53,8 @@ describe("help command", () => {
     expect(replies[0]).toContain("/dev_add_dense_bandage");
     expect(replies[0]).toContain("/dev_add_field_kit");
     expect(replies[0]).toContain("/dev_reset_yeger_bandage");
+    expect(replies[0]).toContain("/dev_yeger_first_done");
+    expect(replies[0]).toContain("/dev_yeger_second_done");
   });
 
   it("hides party dev help when party runtime is enabled without dev helpers", async () => {

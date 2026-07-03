@@ -104,6 +104,14 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
   bot.command("dev_reset_yeger_trail", async (ctx) => {
     await handleDevResetYegerTrailCommand(ctx, devGrantService);
   });
+
+  bot.command("dev_yeger_first_done", async (ctx) => {
+    await handleDevCompleteYegerQuestCommand(ctx, devGrantService, "first");
+  });
+
+  bot.command("dev_yeger_second_done", async (ctx) => {
+    await handleDevCompleteYegerQuestCommand(ctx, devGrantService, "second");
+  });
 }
 
 async function handleDevGrantCommand(
@@ -254,6 +262,30 @@ async function handleDevResetYegerBandageDayCommand(
   }
 
   const result = await devGrantService.resetYegerBandageDay(telegramUserId);
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevCompleteYegerQuestCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService,
+  stage: "first" | "second"
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = stage === "second"
+    ? await devGrantService.completeSecondYegerQuestProgress(telegramUserId)
+    : await devGrantService.completeFirstYegerQuestProgress(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }

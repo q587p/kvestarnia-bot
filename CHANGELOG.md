@@ -18,6 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added rewardless achievements for first dense-bandage craft/use, first field-kit craft/use and first medical item use in the Big Barrel raid.
 - Added a `Разові` filter button to `Манатки`, reusing the inventory filter flow so one-use consumables can be listed without equipment or junk stacks.
 - Added local `/dev_add_dense_bandage [count]` and `/dev_add_field_kit [count]` helpers for faster dense-bandage and field-kit combat QA.
+- Added local `/dev_yeger_first_done` and `/dev_yeger_second_done` helpers that fill the first and second Yeger boards with real terminal Yeger wins, while leaving normal turn-in rewards and achievements on the existing Yeger flow.
 
 ### Changed
 - General item-use copy now refers to medical manatky instead of assuming every usable consumable is the ordinary bandage.
@@ -31,7 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Full-HP or above-threshold item uses are no-ops that do not consume items, set dense cooldowns or spend field-kit per-battle limits.
 - Direct stale pre-unlock, active-combat and insufficient-count craft callbacks fail closed without inventory mutation.
 - The new achievement records grant no XP, gold, items, titles, stats, combat power or paid advantage.
-- Dense-bandage and field-kit dev helpers remain non-production only and bypass active-combat locks like the existing local bandage helper.
+- Dense-bandage, field-kit and Yeger-board dev helpers remain non-production only and bypass active-combat locks like the existing local bandage helper.
 
 ### Unchanged
 - Ordinary bandage healing, paid Yeger bandage purchases, shops, Social Games, Lore Board, Big Barrel rewards, titles, raids, trading and broad crafting are unchanged.

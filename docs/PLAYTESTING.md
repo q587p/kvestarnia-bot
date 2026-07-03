@@ -8,7 +8,7 @@
 
 Manual Telegram QA status for the implementation pass: not run.
 
-Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage` and `/dev_add_field_kit` to seed the exact medical stacks needed for combat and Big Barrel checks when `DEV_GRANT_COMMANDS_ENABLED=true`.
+Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage` and `/dev_add_field_kit` to seed the exact medical stacks needed for combat and Big Barrel checks when `DEV_GRANT_COMMANDS_ENABLED=true`. Use `/dev_yeger_first_done` and `/dev_yeger_second_done` to fill the Yeger boards with real terminal wins, then turn them in through the normal Yeger buttons.
 
 1. Before completing the second Yeger `Неспокійні справи 2.0` board, open an ordinary `Бинт відповідальної паніки` item card with enough bandages and verify no advanced craft buttons appear.
 2. After the second Yeger board completion, open the ordinary bandage card outside combat with `7`, `8`, `12`, `13` and `14` ordinary bandages; verify `Щільний бинт` appears at `8+` and `Польова аптечка` appears at `13+`.
@@ -654,10 +654,12 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 15. Якщо активний інший старший бій уже є, бот повертає його без створення другого й не називає нецільового монстра неупокоєною ціллю.
 16. Виграй цільовий старший бій і повернись до `/hunt`.
 17. Очікування: прогрес росте тільки за перемоги після старту справи; lost/fled/expired і wrong-tag монстри не рахуються.
+17a. У локальному режимі можна викликати `/dev_yeger_first_done`: це має створити реальні terminal win rows до `5/5`, але не створити completed quest row і не видати reward до звичайної здачі.
 18. Після `5/5` натисни `🏹 Здати Єгерю`.
 19. Очікування: одноразова нагорода з рівнево обмеженим XP, `+120 золота`, `Єгерська риска на дощечці`; повторний callback не дублює винагороду.
 20. Після першої здачі знову відкрий `/hunt`.
 21. Очікування: Єгер пропонує наступну дощечку `Неспокійні справи 2.0` на `17` цілей із прогресом `0/17`, окремим стартом і без повторної риски з першої нагороди.
+21a. У локальному режимі після зданої першої дошки можна викликати `/dev_yeger_second_done`: це має створити реальні terminal win rows до `17/17`, після чого друга дошка здається звичайною кнопкою з нормальними reward/achievement hooks.
 22. Візьми другу дощечку, переможи одну правильну ціль, потім зроби реморт.
 23. Очікування: після реморту `/hunt` починає Єгерський ланцюжок заново з першої дощечки `0/5`, без перенесення старого `1/17`.
 24. Старі `v1:hunt:*` callback-и мають безпечно оновити Єгерську дошку, а не видати стару hourly reward.
@@ -779,6 +781,8 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_field_kit [число]` — у локальному режимі додає польові аптечки; без числа додає одну аптечку.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
+- `/dev_yeger_first_done` — у локальному режимі доводить першу Єгерську дошку до `5/5` реальними перемогами, лишаючи звичайну здачу квеста.
+- `/dev_yeger_second_done` — у локальному режимі доводить другу Єгерську дошку до `17/17` реальними перемогами після зданої першої дошки, лишаючи звичайну здачу квеста.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
