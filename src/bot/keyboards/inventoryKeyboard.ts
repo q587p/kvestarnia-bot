@@ -69,7 +69,10 @@ export function buildInventoryKeyboard(
   for (const item of getInventoryPageItems(result, safePage, filter)) {
     keyboard
       .row()
-      .text(`🔎 ${item.content.name}`, makeItemDetailCallbackData(item.itemId, safePage, filter));
+      .text(
+        `🔎 ${presentInventoryItemButtonLabel(item.content.name, item.quantity)}`,
+        makeItemDetailCallbackData(item.itemId, safePage, filter)
+      );
   }
 
   if (totalPages > 1) {
@@ -87,6 +90,10 @@ export function buildInventoryKeyboard(
   }
 
   return keyboard;
+}
+
+function presentInventoryItemButtonLabel(name: string, quantity: number): string {
+  return quantity > 1 ? `${name} (${quantity})` : name;
 }
 
 export function buildItemDetailKeyboard(

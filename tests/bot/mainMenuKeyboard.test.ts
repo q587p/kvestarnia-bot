@@ -1308,7 +1308,7 @@ describe("main menu and scene keyboards", () => {
             {
               id: "character-item-1",
               itemId: "item.wet-hero-ticket",
-              quantity: 1,
+              quantity: 2,
               content: {
                 id: "item.wet-hero-ticket",
                 name: "Квиток мокрого пригодника",
@@ -1321,7 +1321,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника"]);
+    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника (2)"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({

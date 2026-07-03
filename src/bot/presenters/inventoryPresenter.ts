@@ -11,7 +11,6 @@ import {
   type InventoryFilter
 } from "../inventoryFilter";
 import { presentItemEffect } from "./itemEffectPresenter";
-import { presentItemStackLine } from "./itemStackPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export const INVENTORY_PAGE_SIZE = 8;
@@ -42,7 +41,6 @@ export function presentInventory(
   const filteredItems = getFilteredInventoryItems(result, filter);
   const safePage = clampInventoryPage(result, page, filter);
   const totalPages = getInventoryTotalPages(result, filter);
-  const pageItems = getInventoryPageItems(result, safePage, filter);
 
   if (filter && filteredItems.length === 0) {
     return [
@@ -68,15 +66,7 @@ export function presentInventory(
     filter
       ? presentFilteredCountLine(filter, filteredItems.length)
       : `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
-    ...(totalPages > 1 ? ["", `Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : []),
-    "",
-    ...pageItems.flatMap((item) => [
-      presentItemStackLine({
-        name: `<b>${escapeHtml(item.content.name)}</b>`,
-        quantity: item.quantity
-      }),
-      `  <i>${escapeHtml(item.content.description)}</i>`
-    ])
+    ...(totalPages > 1 ? ["", `Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : [])
   ].join("\n");
 }
 
