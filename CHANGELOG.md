@@ -26,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Party-boss / Big Barrel item use now accepts the same combat-usable medical manatky as solo combat, including dense-bandage cooldowns and field-kit once-per-battle limits.
 - Successful dense-bandage and field-kit crafting can save 1-5 ordinary bandages based on the character's level and luck, while still requiring the full recipe stack before the craft starts.
 - The `⭐ Важливе` latest-events filter now leaves rare manatky to `🎒 Манатки` and keeps only epic manatky as important item drops.
+- Yeger quest cards now stay separate from the `Єгерський куток` atmosphere card, return to the Yeger corner, and leave ordinary Yeger exits pointing back to the Barrel instead of the Korchma hall.
 
 ### Safety
 - Successful crafting atomically decrements the ordinary bandage stack and grants exactly one crafted item without adding a Prisma migration.

@@ -14,8 +14,10 @@ import {
   makeYegerBuyBandageCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
+  makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
   makeYegerQuestCallbackData,
+  makeYegerStartCallbackData,
   makeYegerTurnInCallbackData
 } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -68,8 +70,11 @@ describe("Yeger keyboard", () => {
     expect(flatButtons(keyboard).map((button) => button.text)).toEqual([
       "🩹 Бинти",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🛢️ До Бочки"
     ]);
+    expect(flatButtons(keyboard).map((button) => button.callback_data)).toContain(
+      makePlaceCallbackData("barrel")
+    );
   });
 
   it("keeps paid Yeger bandages inside the bandages submenu", () => {
@@ -106,6 +111,10 @@ describe("Yeger keyboard", () => {
       ["🩹 1 бинт", "🩹 5 бинтів"],
       ["🩹 17 бинтів", "🩹 93 бинти"]
     ]);
+    expect(flatButtons(bandages)).toEqual(expect.arrayContaining([
+      { text: "⬅️ До єгерського кутка", callback_data: makeYegerOpenCallbackData() },
+      { text: "🛢️ До Бочки", callback_data: makePlaceCallbackData("barrel") }
+    ]));
   });
 
   it("can label an affordable paid-bandage confirmation quantity", () => {
@@ -116,6 +125,26 @@ describe("Yeger keyboard", () => {
       text: "✅ Купити 5",
       callback_data: makeYegerConfirmBandagePurchaseCallbackData(token)
     });
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "⬅️ До єгерського кутка",
+      callback_data: makeYegerOpenCallbackData()
+    });
+  });
+
+  it("returns from Yeger quest detail cards to the Yeger corner", () => {
+    const keyboard = buildYegerKeyboard({
+      state: "offered",
+      character,
+      progress: { wins: 0, target: 5 }
+    });
+
+    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+      { text: "🏹 Взяти справу", callback_data: makeYegerStartCallbackData() },
+      { text: "⬅️ До єгерського кутка", callback_data: makeYegerOpenCallbackData() }
+    ]));
+    expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
+      makePlaceCallbackData("hall")
+    );
   });
 
   it("keeps bandage supplies hidden before the base Yeger board is completed", () => {
@@ -297,6 +326,10 @@ describe("Yeger keyboard", () => {
       callback_data: makeYegerOutsideCallbackData()
     });
     expect(flatButtons(keyboard).map((button) => button.text)).toContain("📖 Кого шукати?");
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "⬅️ До єгерського кутка",
+      callback_data: makeYegerOpenCallbackData()
+    });
   });
 
   it("shows tracking state actions on the outdoor hunt surface", () => {

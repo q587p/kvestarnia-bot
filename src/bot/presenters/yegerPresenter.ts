@@ -29,9 +29,7 @@ export function presentYegerQuest(
 
   if (result.state === "offered") {
     return [
-      "🧥 Єгерський куток",
-      "",
-      ...presentYegerCornerIntro(result.character),
+      "🏹 Єгерська справа",
       "",
       "Доступна справа:",
       `<b>${presentYegerQuestTitle(result.progress)}</b>`,
@@ -56,9 +54,7 @@ export function presentYegerQuest(
   }
 
   const lines = [
-    "🧥 Єгерський куток",
-    "",
-    ...presentYegerCornerIntro(result.character),
+    `🏹 ${presentYegerQuestTitle(result.progress)}`,
     "",
     presentProgressLine(result.progress),
     "",

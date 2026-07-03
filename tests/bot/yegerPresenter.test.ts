@@ -29,10 +29,10 @@ describe("Yeger presenter", () => {
 
     expect(text).not.toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(text).not.toContain("Титул &lt;i&gt;підступу&lt;/i&gt;");
-    expect(text).toContain("🧥 Єгерський куток");
-    expect(text).toContain("У темному кутку сидить людисько-єгер у капюшоні");
-    expect(text).toContain("Єгер:\n<blockquote>");
-    expect(text).toContain("</blockquote>");
+    expect(text).toContain("🏹 Єгерська справа");
+    expect(text).not.toContain("🧥 Єгерський куток");
+    expect(text).not.toContain("У темному кутку сидить людисько-єгер у капюшоні");
+    expect(text).not.toContain("Єгер:\n<blockquote>");
     expect(text).toContain("Доступна справа:");
     expect(text).toContain("<b>Неспокійні справи</b>");
     expect(text).not.toContain("<b>Мандрівник</b>");
@@ -46,7 +46,8 @@ describe("Yeger presenter", () => {
     });
 
     expect(text).toContain("Прогрес: <b>5/5</b>.");
-    expect(text).toContain("🧥 Єгерський куток");
+    expect(text).toContain("🏹 Неспокійні справи");
+    expect(text).not.toContain("🧥 Єгерський куток");
     expect(text).toContain("Єгер має вираз обличчя");
   });
 
@@ -252,7 +253,7 @@ describe("Yeger presenter", () => {
   });
 
   it("uses biography-aware ranger corner reactions", () => {
-    const text = presentYegerQuest({
+    const text = presentYegerCorner({
       state: "offered",
       character: {
         ...character,
@@ -264,11 +265,11 @@ describe("Yeger presenter", () => {
 
     expect(text).toContain("На мить я подумав про гобітів");
     expect(text).toContain("Єгер:\n<blockquote>На мить я подумав про гобітів");
-    expect(text).toContain("Доступна справа:");
+    expect(text).toContain("На краю стола лежить справа.");
   });
 
   it("uses title-aware corner reactions", () => {
-    const text = presentYegerQuest({
+    const text = presentYegerCorner({
       state: "offered",
       character: {
         ...character,

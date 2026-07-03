@@ -28,7 +28,7 @@ export function buildYegerKeyboard(
       .row()
       .text("📖 Кого шукати?", makeYegerHelpCallbackData())
       .row()
-      .text("🍺 До зали", makePlaceCallbackData("hall"));
+      .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
   }
 
   if (result.state === "in-progress") {
@@ -37,7 +37,7 @@ export function buildYegerKeyboard(
       .row()
       .text("📖 Кого шукати?", makeYegerHelpCallbackData())
       .row()
-      .text("🍺 До зали", makePlaceCallbackData("hall"));
+      .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
   }
 
   if (result.state === "turn-in-ready") {
@@ -46,7 +46,7 @@ export function buildYegerKeyboard(
       .row()
       .text("📖 Кого шукати?", makeYegerHelpCallbackData())
       .row()
-      .text("🍺 До зали", makePlaceCallbackData("hall"));
+      .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
   }
 
   if (result.state === "completed") {
@@ -87,7 +87,7 @@ export function buildYegerCornerKeyboard(
   return keyboard
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
     .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
 }
 
 export function buildYegerBandagesKeyboard(
@@ -114,9 +114,9 @@ export function buildYegerBandagesKeyboard(
   }
 
   return keyboard
-    .text("⬅️ До Єгеря", makeYegerOpenCallbackData())
+    .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
 }
 
 function isBaseYegerQuestCompleted(
@@ -135,7 +135,7 @@ export function buildYegerBandagePurchaseKeyboard(
     .text(options.confirmLabel ?? "✅ Купити", makeYegerConfirmBandagePurchaseCallbackData(token))
     .text("✖️ Скасувати", makeYegerCancelBandagePurchaseCallbackData(token))
     .row()
-    .text("⬅️ До Єгеря", makeYegerOpenCallbackData());
+    .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
 }
 
 export function buildYegerTurnInKeyboard(
@@ -145,7 +145,7 @@ export function buildYegerTurnInKeyboard(
     return new InlineKeyboard()
       .text("🏹 Взяти справу", makeYegerStartCallbackData())
       .row()
-      .text("⬅️ До Єгеря", makeYegerOpenCallbackData());
+      .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
   }
 
   if (result.state === "not-ready") {
@@ -159,18 +159,18 @@ export function buildYegerTurnInKeyboard(
   }
 
   return keyboard
-    .text("⬅️ До Єгеря", makeYegerOpenCallbackData())
+    .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
 }
 
 export function buildYegerHelpKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("⬅️ До Єгеря", makeYegerOpenCallbackData())
+    .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
     .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
 }
 
 function inProgressKeyboard(
