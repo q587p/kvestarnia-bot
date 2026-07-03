@@ -10,6 +10,7 @@ import type {
   RemortSnapshot
 } from "../../src/db/repositories/remortRepository";
 import { buildRemortKeyboard } from "../../src/bot/keyboards/remortKeyboard";
+import type { AchievementService } from "../../src/services/achievementService";
 import { makeRemortItemSelectionKey, RemortService } from "../../src/services/remortService";
 
 const telegramUserId = 42n;
@@ -305,6 +306,46 @@ describe("RemortService", () => {
     }
   });
 
+  it("tracks remort and new identity achievements once after confirmed remort", async () => {
+    const repository = new FakeRemortRepository(snapshot({
+      level: 13,
+      remortCount: 1
+    }));
+    const achievements = new FakeAchievementService();
+    const service = new RemortService(repository, () => fixedNow, achievements as unknown as AchievementService);
+    const opened = await service.openForTelegramUser(telegramUserId);
+    expect(opened.state).toBe("ready");
+    if (opened.state !== "ready") {
+      return;
+    }
+
+    await service.selectPronoun(telegramUserId, opened.draft.token, "she");
+    await service.selectClass(telegramUserId, opened.draft.token, "mage");
+    await service.selectRace(telegramUserId, opened.draft.token, "elf");
+
+    const first = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
+    const replay = await service.confirmForTelegramUser(telegramUserId, opened.draft.token);
+
+    expect(first.state).toBe("completed");
+    expect(replay.state).toBe("replayed");
+    expect(achievements.events).toEqual([
+      {
+        type: "remort.completed",
+        characterId: "character-1",
+        occurredAt: fixedNow,
+        sourceId: "remort-1"
+      },
+      {
+        type: "character.created",
+        characterId: "character-1",
+        raceId: "race.elf",
+        classId: "class.mage",
+        occurredAt: fixedNow,
+        sourceId: "remort-1"
+      }
+    ]);
+  });
+
   it("preserves the current race and class when selecting a still-valid pronoun", async () => {
     const repository = new FakeRemortRepository(snapshot({ level: 13 }));
     const service = new RemortService(repository, () => fixedNow);
@@ -484,6 +525,15 @@ class FakeRemortRepository implements RemortRepository {
       ...this.snapshotValue,
       items
     };
+  }
+}
+
+class FakeAchievementService {
+  readonly events: unknown[] = [];
+
+  trackEventSafely(event: unknown): Promise<[]> {
+    this.events.push(event);
+    return Promise.resolve([]);
   }
 }
 

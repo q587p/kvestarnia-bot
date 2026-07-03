@@ -27,6 +27,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `offhand` and `twohand` item tags, target-slot equip callbacks and confirmation keyboards for replacing a conflicting hand while leaving the cleared manatka in the bag.
 - Added the `0.2.24` task doc with compact balance rationale, protected-flow checklist and deterministic combat probe summary.
 
+### Fixed
+- Remort confirmation now emits the live `remort.completed` achievement hook and the new race/class identity hook exactly once, so remorted characters receive current-life race/class achievements without waiting for manual `🔎 Перевірити` recalculation.
+
 ### Safety
 - Ordinary consumables and the `0.2.22` medical item behavior are unchanged.
 - Equipped/protected item safety for Mantok Chest, Shynok sale, gift/postal transfer, remort preservation and Munchkin barter remains unchanged.

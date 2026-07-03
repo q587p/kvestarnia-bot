@@ -94,7 +94,8 @@ describe("remort presenter", () => {
       manaBonus: 17,
       statBonus: { stat: "strength", bonus: 9 },
       preservedItems: [],
-      previousLevel: 13
+      previousLevel: 13,
+      achievementUnlocks: []
     } satisfies RemortConfirmResult);
 
     expect(text).toContain("Реморт: <b>3</b> · Памʼять минулих пригод лишилася з вами.");

@@ -168,7 +168,7 @@ export function createServices(
     }),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
-    remort: new RemortService(repositories.remorts),
+    remort: new RemortService(repositories.remorts, undefined, achievements),
     restart: new RestartService(repositories.characters),
     shynok: new ShynokService(
       repositories.shynok,

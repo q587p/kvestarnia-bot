@@ -19,6 +19,7 @@ import type {
   RemortBoard,
   RemortDraftRecord,
   RemortIdentityRecord,
+  RemortRecord,
   RemortRepository,
   RemortSnapshot
 } from "../db/repositories/remortRepository";
@@ -36,6 +37,7 @@ import {
   validateRemortIdentity
 } from "../domain/remort";
 import { systemClock, type Clock } from "../shared/time";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 
 export type RemortViewResult =
   | { state: "no-character" }
@@ -77,6 +79,7 @@ export type RemortConfirmResult =
       statBonus: RemortStatBonus | null;
       preservedItems: Array<{ itemId: string; name: string; quantity: number }>;
       previousLevel: number;
+      achievementUnlocks: AchievementUnlock[];
     };
 
 export interface RemortIdentityView {
@@ -102,7 +105,8 @@ export interface RemortEligibleItemView {
 export class RemortService {
   constructor(
     private readonly remorts: RemortRepository,
-    private readonly clock: Clock = systemClock
+    private readonly clock: Clock = systemClock,
+    private readonly achievements?: AchievementService
   ) {}
 
   async openForTelegramUser(telegramUserId: bigint): Promise<RemortViewResult> {
@@ -336,6 +340,9 @@ export class RemortService {
     });
 
     if (result.state === "completed" || result.state === "replayed") {
+      const achievementUnlocks = result.state === "completed"
+        ? await this.trackRemortAchievements(result.character.id, result.remort)
+        : [];
       const remortCount = await this.remorts.countByTelegramUserId(telegramUserId);
       return {
         state: result.state,
@@ -350,7 +357,8 @@ export class RemortService {
           ...item,
           name: itemName(item.itemId)
         })),
-        previousLevel: result.remort.previousLevel
+        previousLevel: result.remort.previousLevel,
+        achievementUnlocks
       };
     }
 
@@ -371,6 +379,32 @@ export class RemortService {
 
   listBoard(): Promise<RemortBoard> {
     return this.remorts.listBoard();
+  }
+
+  private async trackRemortAchievements(
+    characterId: string,
+    remort: RemortRecord
+  ): Promise<AchievementUnlock[]> {
+    if (!this.achievements) {
+      return [];
+    }
+
+    const remortUnlocks = await this.achievements.trackEventSafely({
+      type: "remort.completed",
+      characterId,
+      occurredAt: remort.createdAt,
+      sourceId: remort.id
+    });
+    const identityUnlocks = await this.achievements.trackEventSafely({
+      type: "character.created",
+      characterId,
+      raceId: remort.preservedPayload.identity.raceId,
+      classId: remort.preservedPayload.identity.classId,
+      occurredAt: remort.createdAt,
+      sourceId: remort.id
+    });
+
+    return [...remortUnlocks, ...identityUnlocks];
   }
 
   private async updateDraftIdentity(
