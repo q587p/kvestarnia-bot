@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - General item-use copy now refers to medical manatky instead of assuming every usable consumable is the ordinary bandage.
 - Restore-to-full shortcuts remain fixed-heal only and ordinary-bandage-only in repeat-use UI.
 - Party-boss / Big Barrel item use now accepts the same combat-usable medical manatky as solo combat, including dense-bandage cooldowns and field-kit once-per-battle limits.
+- Combat medical item blockers now show reason-specific Telegram alerts for full HP, cooldown, once-per-battle limits, missing items and reserved/stale actions, while active fight cards show dense-bandage cooldowns beside ability cooldowns.
 - Successful dense-bandage and field-kit crafting can save 1-5 ordinary bandages for Ranger/Yeger characters based on level and luck, while still requiring the full recipe stack before the craft starts; other classes spend the fixed recipe cost.
 - Successful craft result cards now offer `Створити ще` when the remaining ordinary bandage stack can pay the same recipe again.
 - Inventory list cards now keep the message body compact by removing per-item descriptions, while item buttons show stack quantity in parentheses when more than one unit is owned.

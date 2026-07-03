@@ -61,6 +61,7 @@ presentFightNoCharacter,
 presentFightResult,
 presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
+presentPersistentFightItemUnavailableNotice,
 presentPersistentFightJournal,
 presentPersistentFightPassagePreview,
 presentPersistentFightSnapshot,
@@ -567,7 +568,12 @@ async function handleFightCallback(
       });
     }
 
-    await safeAnswerCallbackQuery(ctx);
+    const itemUnavailableNotice = callback.type === "item"
+      ? presentPersistentFightItemUnavailableNotice(result)
+      : null;
+    await safeAnswerCallbackQuery(ctx, itemUnavailableNotice
+      ? { text: itemUnavailableNotice, show_alert: true }
+      : undefined);
     await safeEditMessageText(ctx, presentPersistentFightTurn(result), {
       ...HTML_MESSAGE_OPTIONS,
       ...(result.state === "not-found" || result.state === "needs-rest"

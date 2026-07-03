@@ -11,6 +11,7 @@ import {
   type CombatTurnLogEntry,
   type CombatTurnSummary
 } from "../../domain/combat";
+import { items } from "../../content";
 import type {
   FightLookupResult,
   FightResult,
@@ -373,6 +374,29 @@ export function presentPersistentFightTurn(
   });
 }
 
+export function presentPersistentFightItemUnavailableNotice(
+  result: Exclude<PersistentFightTurnResult, { state: "no-character" }>
+): string | null {
+  if (result.state !== "item-unavailable") {
+    return null;
+  }
+
+  switch (result.reason) {
+    case "item-limit-reached":
+      return "Манатка не спрацювала: польова аптечка працює лише раз на бій.";
+    case "item-on-cooldown":
+      return "Манатка не спрацювала: щільний бинт ще відсапується.";
+    case "full-hp":
+      return "Манатка не спрацювала: HP уже повні.";
+    case "not-owned":
+      return "Манатка не спрацювала: її вже немає в торбі.";
+    case "reserved":
+      return "Манатка не спрацювала: вона зайнята іншою дією.";
+    case "not-usable":
+      return "Манатка не спрацювала: у цьому бою її не застосувати.";
+  }
+}
+
 export function presentPersistentFightSnapshot(
   result: Extract<PersistentFightSnapshotResult, { state: "found" }>
 ): string {
@@ -733,6 +757,7 @@ function presentPersistentFightState(input: {
 
   if (state?.status === "active") {
     lines.push(...presentAbilityCooldowns(state.cooldowns));
+    lines.push(...presentCombatItemCooldowns(state.combatItems));
     lines.push(...presentUnavailableAbilityNotices(state, input.character));
   }
 
@@ -1439,6 +1464,18 @@ function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }):
   const skill = getCombatSkillDisplay(cooldown.id);
 
   return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+}
+
+function presentCombatItemCooldowns(
+  combatItems: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>["combatItems"]
+): string[] {
+  return Object.values(combatItems?.cooldowns ?? {})
+    .filter((cooldown) => cooldown.remainingTurns > 0)
+    .map((cooldown) => {
+      const itemName = items.find((item) => item.id === cooldown.itemId)?.name ?? "Манатка";
+
+      return `🫁 🩹 ${escapeHtml(itemName)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+    });
 }
 
 function presentAbilityCooldowns(

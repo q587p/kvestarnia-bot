@@ -21,6 +21,7 @@ import {
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
+  makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData
@@ -54,6 +55,7 @@ import {
 } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
+import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
@@ -1355,6 +1357,62 @@ describe("scene callback HTML options", () => {
       })
     );
     expect(movement).toBeUndefined();
+  });
+
+  it("answers combat field-kit repeat attempts with a concrete once-per-battle reason", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const calls = await captureApiCalls(
+      makeFightItemUseCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        itemKey: getCombatItemUseKey("item.field-kit")
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightItemTurn: () =>
+            Promise.resolve({
+              state: "item-unavailable" as const,
+              reason: "item-limit-reached" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Тестовий монстр.",
+                level: 2,
+                tags: ["beast"]
+              },
+              questProgress: null
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.deep.level1.straight",
+              locationName: "Прямий прохід",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const callbackAnswer = calls.find((call) => call.method === "answerCallbackQuery");
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(callbackAnswer?.payload).toMatchObject({
+      text: "Манатка не спрацювала: польова аптечка працює лише раз на бій.",
+      show_alert: true
+    });
+    expect(String(edit?.payload.text)).toContain("вже зробила свою справу в цьому бою");
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentRaidId: null,
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
   });
 
   it("does not send a duplicate Yeger corner movement notice for Yeger callbacks", async () => {

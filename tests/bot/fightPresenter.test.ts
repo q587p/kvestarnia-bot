@@ -956,6 +956,33 @@ describe("fight presenter", () => {
     expect(text).not.toContain("🫁 Вміння відсапується");
   });
 
+  it("shows dense bandage cooldown with active combat notices", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        combatItems: {
+          cooldowns: {
+            "item.dense-bandage": {
+              itemId: "item.dense-bandage",
+              remainingTurns: 3
+            }
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🫁 🩹 Щільний бинт відсапується: ще 3 ходи.");
+  });
+
   it("explains when a hidden class skill needs more mana after cooldown", () => {
     const text = presentPersistentFight({
       state: "persistent-active",
