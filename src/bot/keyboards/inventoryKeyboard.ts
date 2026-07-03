@@ -24,10 +24,15 @@ import type { EquipmentResult, EquipmentSlot } from "../../services/equipmentSer
 import type { ItemCraftOption } from "../../services/itemCraftService";
 import { isEquippableItem } from "../../services/equipmentService";
 import {
+  ONE_USE_INVENTORY_FILTER,
+  isInventoryEquipmentSlotFilter,
+  isOneUseInventoryFilter,
+  type InventoryFilter
+} from "../inventoryFilter";
+import {
   clampInventoryPage,
   getInventoryPageItems,
-  getInventoryTotalPages,
-  type InventorySlotFilter
+  getInventoryTotalPages
 } from "../presenters/inventoryPresenter";
 
 export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
@@ -35,7 +40,7 @@ export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
 export function buildInventoryKeyboard(
   result: InventoryResult,
   page = 0,
-  slotFilter: InventorySlotFilter = null
+  filter: InventoryFilter = null
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -44,9 +49,10 @@ export function buildInventoryKeyboard(
   }
 
   keyboard.text("🛡️ Спорядження", makeEquipmentCallbackData());
-  if (slotFilter) {
+  if (filter) {
     keyboard.text("🎒 Усі манатки", makeInventoryCallbackData()).row();
   } else {
+    keyboard.text("🧻 Разові", makeInventoryCallbackData(0, ONE_USE_INVENTORY_FILTER)).row();
     keyboard.text("♻️ До Дружньої Скрині", makeMantokChestOpenCallbackData()).row();
   }
 
@@ -54,26 +60,26 @@ export function buildInventoryKeyboard(
     return keyboard;
   }
 
-  const safePage = clampInventoryPage(result, page, slotFilter);
-  const totalPages = getInventoryTotalPages(result, slotFilter);
+  const safePage = clampInventoryPage(result, page, filter);
+  const totalPages = getInventoryTotalPages(result, filter);
 
-  for (const item of getInventoryPageItems(result, safePage, slotFilter)) {
+  for (const item of getInventoryPageItems(result, safePage, filter)) {
     keyboard
       .row()
-      .text(`🔎 ${item.content.name}`, makeItemDetailCallbackData(item.itemId, safePage, slotFilter));
+      .text(`🔎 ${item.content.name}`, makeItemDetailCallbackData(item.itemId, safePage, filter));
   }
 
   if (totalPages > 1) {
     keyboard.row();
 
     if (safePage > 0) {
-      keyboard.text("◀️ Назад", makeInventoryCallbackData(safePage - 1, slotFilter));
+      keyboard.text("◀️ Назад", makeInventoryCallbackData(safePage - 1, filter));
     }
 
-    keyboard.text(`${safePage + 1}/${totalPages}`, makeInventoryCallbackData(safePage, slotFilter));
+    keyboard.text(`${safePage + 1}/${totalPages}`, makeInventoryCallbackData(safePage, filter));
 
     if (safePage < totalPages - 1) {
-      keyboard.text("Далі ▶️", makeInventoryCallbackData(safePage + 1, slotFilter));
+      keyboard.text("Далі ▶️", makeInventoryCallbackData(safePage + 1, filter));
     }
   }
 
@@ -84,7 +90,7 @@ export function buildItemDetailKeyboard(
   result: InventoryItemDetailResult,
   equippedSlot: EquipmentSlot | null = null,
   page = 0,
-  slotFilter: InventorySlotFilter = null,
+  filter: InventoryFilter = null,
   options: {
     canUse?: boolean;
     combatUse?:
@@ -138,8 +144,8 @@ export function buildItemDetailKeyboard(
 
   return keyboard
     .text(
-      slotFilter ? "⬅️ До списку слота" : "⬅️ До манаток",
-      makeInventoryCallbackData(page, slotFilter)
+      presentInventoryBackButtonLabel(filter),
+      makeInventoryCallbackData(page, filter)
     )
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
@@ -170,6 +176,18 @@ export function buildItemUseResultKeyboard(
     .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
+}
+
+function presentInventoryBackButtonLabel(filter: InventoryFilter): string {
+  if (isInventoryEquipmentSlotFilter(filter)) {
+    return "⬅️ До списку слота";
+  }
+
+  if (isOneUseInventoryFilter(filter)) {
+    return "⬅️ До разових";
+  }
+
+  return "⬅️ До манаток";
 }
 
 export function buildItemCraftPreviewKeyboard(recipeCode: ItemCraftOption["recipe"]["code"]): InlineKeyboard {

@@ -136,6 +136,26 @@ describe("inventory presenter", () => {
     expect(text).not.toContain("<b>Тестова квитанція</b>");
   });
 
+  it("filters inventory by one-use manatky", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        item("item.responsible-panic-bandage", "Бинт відповідальної паніки", "junk", ["consumable", "one-use"]),
+        item("item.test-weapon", "Тестова пательня", "weapon"),
+        item("item.test-junk", "Тестова квитанція", "junk")
+      ]
+    };
+    const text = presentInventory(result, 0, "one-use");
+
+    expect(text).toContain("🧻 <b>Разові манатки</b>");
+    expect(text).toContain("Показано манатки, які використовуються один раз");
+    expect(text).toContain("Знайдено разових манаток: <b>1</b>.");
+    expect(text).toContain("<b>Бинт відповідальної паніки</b>");
+    expect(text).not.toContain("<b>Тестова пательня</b>");
+    expect(text).not.toContain("<b>Тестова квитанція</b>");
+  });
+
   it("explains when a filtered equipment slot has no items", () => {
     const result: InventoryResult = {
       state: "found",
@@ -147,9 +167,26 @@ describe("inventory presenter", () => {
     expect(text).toContain("💍 <b>Манатки-аксесуари</b>");
     expect(text).toContain("У торбі поки немає манаток для цього гачка.");
   });
+
+  it("explains when the one-use filter has no items", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [item("item.test-junk", "Тестова квитанція", "junk")]
+    };
+    const text = presentInventory(result, 0, "one-use");
+
+    expect(text).toContain("🧻 <b>Разові манатки</b>");
+    expect(text).toContain("У торбі поки немає разових манаток.");
+  });
 });
 
-function item(itemId: string, name: string, slot = "junk"): InventoryItemSummary {
+function item(
+  itemId: string,
+  name: string,
+  slot = "junk",
+  tags?: InventoryItemSummary["content"]["tags"]
+): InventoryItemSummary {
   return {
     id: `character-${itemId}`,
     itemId,
@@ -160,6 +197,7 @@ function item(itemId: string, name: string, slot = "junk"): InventoryItemSummary
       description: "Лежить і чекає, коли її перегорнуть.",
       rarity: "common",
       slot,
+      ...(tags ? { tags } : {}),
       priceless: true
     }
   };

@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added solo-combat and Big Barrel raid use support for the crafted items: dense bandages heal up to 42 HP and set a five-own-turn battle cooldown after successful use; field kits raise HP to at least 93% of max HP and can succeed once per battle.
 - Added improved Ranger/Yeger class supplies: after the first Yeger board, the free 93-minute claim grants 5 ordinary bandages; after the second board, Rangers can also claim 1 dense bandage every 93 minutes and 1 field kit every 24 hours.
 - Added rewardless achievements for first dense-bandage craft/use, first field-kit craft/use and first medical item use in the Big Barrel raid.
+- Added a `Разові` filter button to `Манатки`, reusing the inventory filter flow so one-use consumables can be listed without equipment or junk stacks.
 
 ### Changed
 - General item-use copy now refers to medical manatky instead of assuming every usable consumable is the ordinary bandage.

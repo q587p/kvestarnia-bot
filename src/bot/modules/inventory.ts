@@ -140,7 +140,7 @@ async function handleItemCallback(
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit", action.page, action.slot, services.equipment);
+    await sendInventory(ctx, services.inventory, "edit", action.page, action.filter, services.equipment);
     return;
   }
 
@@ -187,7 +187,7 @@ async function handleItemCallback(
     }),
     {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
+      reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.filter, {
         canUse,
         ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
         craftOptions

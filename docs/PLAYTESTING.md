@@ -16,6 +16,7 @@ Manual Telegram QA status for the implementation pass: not run.
 5. Try craft preview/confirm during an active solo fight and verify it is denied without inventory mutation.
 6. Use `Щільний бинт` outside combat at full HP, low HP and near max HP; verify no-op uses do not consume.
 7. Use `Польова аптечка` outside combat below, at and above its target threshold; verify no-op uses do not consume.
+7a. Open `Манатки`, press `Разові`, and verify ordinary/dense/field-kit consumables appear without equipment or junk stacks; open a detail card and verify back returns to the filtered list.
 8. In solo combat, use `Щільний бинт` once, try it again immediately, then take own turns until the cooldown clears; verify the matching rewardless use achievement can appear once.
 9. In solo combat, use `Польова аптечка` once, injure the hero again if convenient, then verify a second successful use in the same battle is blocked and the matching rewardless use achievement can appear once.
 10. Start a different fight and verify dense cooldown / field-kit once-per-battle state did not leak.
