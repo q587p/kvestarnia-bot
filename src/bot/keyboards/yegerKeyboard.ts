@@ -27,7 +27,6 @@ import {
 } from "../callbacks/yegerCallbackData";
 import { presentYegerQuestTitle } from "../presenters/yegerQuestTitle";
 import {
-  QuestMarker,
   decorateButtonLabel,
   resolveQuestMarkerForTarget
 } from "./questButtonMarkers";
@@ -37,10 +36,7 @@ export function buildYegerKeyboard(
 ): InlineKeyboard {
   if (result.state === "offered") {
     return baseYegerKeyboard()
-      .text(
-        decorateButtonLabel("🏹 Взяти справу", QuestMarker.CAN_ACCEPT),
-        makeYegerStartCallbackData()
-      )
+      .text("🏹 Взяти справу", makeYegerStartCallbackData())
       .row()
       .text("📖 Кого шукати?", makeYegerHelpCallbackData())
       .row()
@@ -198,10 +194,7 @@ export function buildYegerTurnInKeyboard(
 ): InlineKeyboard {
   if (result.state === "not-started") {
     return new InlineKeyboard()
-      .text(
-        decorateButtonLabel("🏹 Взяти справу", QuestMarker.CAN_ACCEPT),
-        makeYegerStartCallbackData()
-      )
+      .text("🏹 Взяти справу", makeYegerStartCallbackData())
       .row()
       .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
   }
