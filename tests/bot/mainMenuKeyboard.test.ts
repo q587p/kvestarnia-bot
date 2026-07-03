@@ -32,6 +32,7 @@ import { buildAdventureMethodOptions } from "../../src/services/adventureService
 import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
+  buildEquipItemResultKeyboard,
   buildInventoryKeyboard,
   buildItemCraftResultKeyboard,
   buildItemDetailKeyboard,
@@ -1577,7 +1578,94 @@ describe("main menu and scene keyboards", () => {
           "weapon"
         )
       )
-    ).toEqual(["v1:equip:item:item.pan-of-persuasion", "v1:item:inventory:s:w", "v1:equip:view"]);
+    ).toEqual(["v1:equip:item:item.pan-of-persuasion:s:w", "v1:item:inventory:s:w", "v1:equip:view"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          },
+          null,
+          0,
+          "offhand",
+          {
+            equipPreview: {
+              state: "can-equip",
+              item: {
+                itemId: "item.pan-of-persuasion",
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              },
+              slot: "offhand",
+              requirements: null,
+              currentItem: null
+            }
+          }
+        )
+      )
+    ).toEqual(["🧥 Екіпірувати в другу руку", "⬅️ До списку слота", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          },
+          null,
+          0,
+          "offhand",
+          {
+            equipPreview: {
+              state: "slot-not-allowed",
+              item: {
+                itemId: "item.pan-of-persuasion",
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              },
+              slot: "offhand",
+              reason: "offhand-restricted"
+            }
+          }
+        )
+      )
+    ).toEqual(["v1:item:inventory:s:o", "v1:equip:view"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -1753,6 +1841,70 @@ describe("main menu and scene keyboards", () => {
       )
     ).toEqual(["⬅️ До манаток", "🛡️ Спорядження"]);
     expect(
+      flatInlineButtonTexts(
+        buildEquipItemResultKeyboard({
+          state: "twohand-confirm-required",
+          slot: "weapon",
+          item: {
+            itemId: "item.test-twohand-broom",
+            content: {
+              id: "item.test-twohand-broom",
+              name: "Дворучна мітла протоколу",
+              description: "Мете так переконливо.",
+              rarity: "rare",
+              slot: "weapon",
+              tags: ["twohand"],
+              goldValue: 93
+            }
+          },
+          currentItem: null,
+          clearedHandItem: {
+            itemId: "item.stamp-of-minor-authority",
+            content: {
+              id: "item.stamp-of-minor-authority",
+              name: "Печатка дрібної переваги",
+              description: "Б'є не сильно.",
+              rarity: "uncommon",
+              slot: "weapon",
+              goldValue: 16
+            }
+          }
+        })
+      )
+    ).toEqual(["✅ Так, звільнити руку", "⬅️ До манаток", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildEquipItemResultKeyboard({
+          state: "twohand-confirm-required",
+          slot: "weapon",
+          item: {
+            itemId: "item.test-twohand-broom",
+            content: {
+              id: "item.test-twohand-broom",
+              name: "Дворучна мітла протоколу",
+              description: "Мете так переконливо.",
+              rarity: "rare",
+              slot: "weapon",
+              tags: ["twohand"],
+              goldValue: 93
+            }
+          },
+          currentItem: null,
+          clearedHandItem: {
+            itemId: "item.stamp-of-minor-authority",
+            content: {
+              id: "item.stamp-of-minor-authority",
+              name: "Печатка дрібної переваги",
+              description: "Б'є не сильно.",
+              rarity: "uncommon",
+              slot: "weapon",
+              goldValue: 16
+            }
+          }
+        })
+      )[0]
+    ).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:2h");
+    expect(
       flatInlineButtonCallbacks(
         buildItemDetailKeyboard(
           {
@@ -1829,13 +1981,13 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      ["🗡️ Показати зброю", "Зняти зброю"],
-      ["✋ Показати другу руку"],
       ["🎩 Показати голову"],
       ["🧥 Показати тулуб"],
       ["🥾 Показати ноги"],
       ["💍 Показати аксесуари", "Зняти аксесуар"],
       ["🧰 Показати інструменти"],
+      ["🗡️ Показати основну руку", "Зняти з основної руки"],
+      ["✋ Показати другу руку"],
       ["⬅️ До манаток"]
     ]);
     expect(
@@ -1879,15 +2031,15 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "v1:item:inventory:s:w",
-      "v1:equip:clear:weapon",
-      "v1:item:inventory:s:o",
       "v1:item:inventory:s:h",
       "v1:item:inventory:s:c",
       "v1:item:inventory:s:l",
       "v1:item:inventory:s:a",
       "v1:equip:clear:accessory",
       "v1:item:inventory:s:t",
+      "v1:item:inventory:s:w",
+      "v1:equip:clear:weapon",
+      "v1:item:inventory:s:o",
       "v1:item:inventory"
     ]);
   });

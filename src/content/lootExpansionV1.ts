@@ -889,6 +889,18 @@ function mapLootExpansionSlot(base: LootExpansionBaseItem): ItemContent["slot"] 
 }
 
 function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent["equipmentSlot"] | null {
+  if (base.category === "weapon") {
+    return "weapon";
+  }
+
+  if (base.category === "armor") {
+    return "chest";
+  }
+
+  if (base.category === "accessory") {
+    return "accessory";
+  }
+
   if (base.category === "tool") {
     return "tool";
   }
@@ -908,33 +920,37 @@ function mapLootExpansionEffect(
   const effect: Partial<ItemEffectContent> = {};
 
   if (slot === "weapon" && base.stats.damage > 0) {
-    effect.weaponDamage = clampInt(enhancement > 0 ? enhancement : 1, 1, 10);
-  }
-
-  if (slot === "armor" && base.stats.armor > 0) {
-    effect.armor = clampInt(enhancement > 0 ? Math.ceil(enhancement / 2) : 1, 1, 10);
-  }
-
-  if (base.stats.hp > 0) {
-    effect.hpMax = clampInt(Math.max(1, Math.ceil(base.stats.hp / 2) + (enhancement >= 3 ? 1 : 0)), 1, 20);
-  }
-
-  if (base.stats.mana > 0) {
-    effect.manaMax = clampInt(
-      Math.max(1, Math.ceil(base.stats.mana / 2) + (enhancement >= 3 ? 1 : 0)),
+    effect.weaponDamage = clampInt(
+      Math.max(1, Math.ceil(base.stats.damage / 2)) + enhancement,
       1,
-      20
+      10
     );
   }
 
+  if (slot === "armor" && base.stats.armor > 0) {
+    effect.armor = clampInt(
+      Math.max(1, Math.ceil(base.stats.armor / 2)) + Math.ceil(enhancement / 2),
+      1,
+      10
+    );
+  }
+
+  if (base.stats.hp > 0) {
+    effect.hpMax = clampInt(Math.max(1, Math.ceil(base.stats.hp / 2) + enhancement), 1, 20);
+  }
+
+  if (base.stats.mana > 0) {
+    effect.manaMax = clampInt(Math.max(1, Math.ceil(base.stats.mana / 2) + enhancement), 1, 20);
+  }
+
   if (base.stats.luck > 0) {
-    effect.luck = clampInt(Math.max(1, base.stats.luck + (enhancement >= 2 ? 1 : 0)), 1, 10);
+    effect.luck = clampInt(Math.max(1, base.stats.luck + enhancement), 1, 10);
   }
 
   if (base.stats.speed > 0 || base.stats.dodge_pct > 0) {
     effect.dexterity = clampInt(
       (effect.dexterity ?? 0) +
-        Math.max(1, Math.ceil((base.stats.speed + base.stats.dodge_pct) / 2) + enhancementStep(enhancement)),
+        Math.max(1, base.stats.speed + Math.ceil(base.stats.dodge_pct / 2) + enhancement),
       1,
       10
     );
@@ -943,13 +959,13 @@ function mapLootExpansionEffect(
   if (base.stats.social > 0) {
     effect.charisma = clampInt(
       (effect.charisma ?? 0) +
-        Math.max(1, Math.ceil(base.stats.social / 2) + enhancementStep(enhancement)),
+        Math.max(1, base.stats.social + enhancement),
       1,
       10
     );
   }
 
-  if (base.stats.crit_pct > 0 && slot === "accessory") {
+  if (base.stats.crit_pct > 0) {
     effect.luck = clampInt(
       (effect.luck ?? 0) + Math.max(1, Math.ceil(base.stats.crit_pct / 2)),
       1,
@@ -985,7 +1001,7 @@ function buildFallbackAccessoryEffect(
   enhancement: LootExpansionEnhancement
 ): Partial<ItemEffectContent> {
   const idsAndTags = [...base.effect_ids, ...base.tags].join(" ");
-  const bonus = 1 + enhancementStep(enhancement);
+  const bonus = 1 + enhancement;
 
   if (/boss|respawn|survival|shield|barrier|tank/.test(idsAndTags)) {
     return {

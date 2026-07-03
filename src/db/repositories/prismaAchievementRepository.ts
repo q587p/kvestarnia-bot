@@ -10,6 +10,9 @@ import type {
   UnlockAchievementInput,
   UnlockAchievementResult
 } from "./achievementRepository";
+import { normalizeEquipmentSlot } from "../../content/equipmentSlots";
+import { items } from "../../content/items";
+import type { ItemContent } from "../../content/schema";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
 
 const PROBLEM_QUEST_REWARD_KEYS = [
@@ -231,7 +234,6 @@ export class PrismaAchievementRepository implements AchievementRepository {
       selectedDailyActions,
       inventory,
       equipment,
-      equippedItemCount,
       completedChestRuns,
       completedLevelBarters,
       completedTrainingSessions,
@@ -336,12 +338,13 @@ export class PrismaAchievementRepository implements AchievementRepository {
       this.prisma.characterEquipment.findMany({
         where: { characterId },
         select: {
+          itemId: true,
+          slot: true,
           createdAt: true,
           updatedAt: true
         },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }]
       }),
-      this.prisma.characterEquipment.count({ where: { characterId } }),
       this.prisma.mantokChestRun.findMany({
         where: { characterId, status: "completed" },
         select: { completedAt: true, updatedAt: true },
@@ -528,6 +531,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       ])
     );
     const equipmentObservedAt = maxDate(equipment.map((row) => row.updatedAt));
+    const equippedCanonicalSlotCount = getEquippedCanonicalSlotCount(equipment);
     const soloCombatItemUseDatesByItem = getSoloCombatItemUseDatesByItem(combatSessions);
     const orderItemUseDatesByItem = getOrderItemUseDatesByItem(completedItemUseOrders);
     const partyBossItemUseDatesByItem = getPartyBossItemUseDatesByItem(completedPartyBossItemActions);
@@ -691,7 +695,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       inventoryItemRows: inventoryRows,
       firstInventoryItemReceivedAt: minDate(inventory.map((row) => row.createdAt)),
       inventoryObservedAt: maxDate(inventory.map((row) => row.updatedAt)),
-      equippedItemCount,
+      equippedItemCount: equippedCanonicalSlotCount,
       firstEquippedItemAt: equipment[0]?.createdAt ?? null,
       equipmentObservedAt,
       activeCosmeticTitleGrantId: character.activeCosmeticTitleGrantId,
@@ -802,6 +806,35 @@ export class PrismaAchievementRepository implements AchievementRepository {
 
     return toProgressRecord(row);
   }
+
+  async incrementProgress(input: {
+    characterId: string;
+    achievementId: string;
+    amount?: number;
+    target?: number;
+  }): Promise<CharacterAchievementProgressRecord> {
+    const amount = Math.max(0, Math.floor(input.amount ?? 1));
+    const row = await this.prisma.characterAchievementProgress.upsert({
+      where: {
+        characterId_achievementId: {
+          characterId: input.characterId,
+          achievementId: input.achievementId
+        }
+      },
+      create: {
+        characterId: input.characterId,
+        achievementId: input.achievementId,
+        current: amount,
+        target: input.target ?? null
+      },
+      update: {
+        current: { increment: amount },
+        ...(input.target !== undefined ? { target: input.target } : {})
+      }
+    });
+
+    return toProgressRecord(row);
+  }
 }
 
 async function findTitleGrant(
@@ -899,6 +932,28 @@ function maxDate(dates: readonly Date[]): Date | null {
 
 function compareDates(left: Date, right: Date): number {
   return left.getTime() - right.getTime();
+}
+
+export function getEquippedCanonicalSlotCount(
+  equipment: ReadonlyArray<{ slot: string; itemId: string }>
+): number {
+  const slots = new Set(equipment.flatMap((row) => {
+    const slot = normalizeEquipmentSlot(row.slot);
+
+    return slot ? [slot] : [];
+  }));
+  const hasTwohandMain = equipment.some((row) => {
+    const slot = normalizeEquipmentSlot(row.slot);
+    const item = (items as readonly ItemContent[]).find((candidate) => candidate.id === row.itemId);
+
+    return slot === "weapon" && item?.tags?.includes("twohand");
+  });
+
+  if (hasTwohandMain) {
+    slots.add("offhand");
+  }
+
+  return slots.size;
 }
 
 function getClaimedBarrelRaidDates(

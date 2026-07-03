@@ -90,6 +90,7 @@ export interface AchievementDefinition {
     raceId?: string;
     classId?: string;
     itemId?: string;
+    countMode?: "current" | "cumulative";
   };
   progressTarget?: number;
   cosmeticTitleGrantId?: string;
@@ -894,6 +895,32 @@ export const achievements = [
     trigger: { type: "equipment.item_equipped", threshold: 3 },
     progressTarget: 3,
     cosmeticTitleGrantId: "cosmetic-title.three-equipped-inspection"
+  },
+  {
+    id: "achievement.equipment.all-slots-equipped",
+    category: "gear",
+    title: "Усі гачки при справі",
+    description: "вдягнути манатки в усі підготовлені слоти й зробити вигляд, що це не шафа, а бойова концепція.",
+    hidden: false,
+    lockedDescription: "заповнити всі слоти спорядження.",
+    sortOrder: 83,
+    status: "enabled",
+    trigger: { type: "equipment.item_equipped", threshold: 7 },
+    progressTarget: 7,
+    cosmeticTitleGrantId: "cosmetic-title.all-hooks-on-duty"
+  },
+  {
+    id: "achievement.equipment.ninety-three-equipped-total",
+    category: "gear",
+    title: "Девʼяносто три примірки без протоколу",
+    description: "сумарно екіпірувати 93 манатки й довести, що гачки теж можуть вигоріти.",
+    hidden: true,
+    lockedDescription: HIDDEN_ACHIEVEMENT_LOCKED_DESCRIPTION,
+    sortOrder: 83.5,
+    status: "enabled",
+    trigger: { type: "equipment.item_equipped", threshold: 93, countMode: "cumulative" },
+    progressTarget: 93,
+    cosmeticTitleGrantId: "cosmetic-title.ninety-three-fittings"
   },
   {
     id: "achievement.item.twenty-three-owned",

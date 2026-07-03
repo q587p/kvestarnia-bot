@@ -48,7 +48,7 @@ export function presentHeroEquipmentEffectLines(summary: EquipmentEffectSummary)
   }
 
   if (summary.weaponDamage > 0) {
-    lines.push(`🗡️ Зброя: +${summary.weaponDamage} до удару`);
+    lines.push(`🗡️ Удар: +${summary.weaponDamage} до удару`);
   }
 
   if (summary.spellPower > 0) {

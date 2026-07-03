@@ -193,6 +193,35 @@ describe("content tables", () => {
     }
   });
 
+  it("keeps very cheap authored equipment at trophy-scale power", () => {
+    const effectKeys = [
+      "hpMax",
+      "manaMax",
+      "strength",
+      "dexterity",
+      "intelligence",
+      "charisma",
+      "luck",
+      "armor",
+      "resist",
+      "weaponDamage",
+      "spellPower"
+    ] as const;
+    const cheapAuthoredEquipment = items.filter((item) =>
+      !item.id.startsWith("item.loot-v1-") &&
+      ["weapon", "armor", "accessory"].includes(item.slot) &&
+      (item.goldValue ?? 999) <= 4
+    );
+
+    expect(cheapAuthoredEquipment.length).toBeGreaterThan(0);
+
+    for (const item of cheapAuthoredEquipment) {
+      const power = effectKeys.reduce((sum, key) => sum + (item.effect?.[key] ?? 0), 0);
+
+      expect(power, item.id).toBeLessThanOrEqual(2);
+    }
+  });
+
   it("rejects accidental power effects on unsupported item slots", () => {
     expect(() =>
       itemSchema.parse({

@@ -17,7 +17,7 @@ describe("equipment presenter", () => {
     const text = presentEquipment(emptyEquipment());
 
     expect(text).toContain("🧥 <b>Спорядження</b>");
-    expect(text).toContain("🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>");
+    expect(text).toContain("🗡️ <b>Основна рука</b>: <i>долоня чекає, що саме їй довірять.</i>");
     expect(text).toContain("✋ <b>Друга рука</b>");
     expect(text).toContain("🎩 <b>Голова</b>");
     expect(text).toContain("🧥 <b>Тулуб</b>");
@@ -26,10 +26,6 @@ describe("equipment presenter", () => {
     expect(text).toContain("🧰 <b>Інструмент</b>");
     expect(text).toContain(
       [
-        "🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>",
-        "",
-        "✋ <b>Друга рука</b>: <i>вільна рука поки чекає, що саме їй довірять.</i>",
-        "",
         "🎩 <b>Голова</b>: <i>полиця для шолома дивиться зверху.</i>",
         "",
         "🧥 <b>Тулуб</b>: Фартух піностійкого пригодника",
@@ -40,7 +36,11 @@ describe("equipment presenter", () => {
         "💍 <b>Аксесуар</b>: Корковий перстень серйозних справ",
         "Ефект: <i>+1 Вдачі</i>",
         "",
-        "🧰 <b>Інструмент</b>: <i>кишеня для корисного ще не підписана.</i>"
+        "🧰 <b>Інструмент</b>: <i>кишеня для корисного ще не підписана.</i>",
+        "",
+        "🗡️ <b>Основна рука</b>: <i>долоня чекає, що саме їй довірять.</i>",
+        "",
+        "✋ <b>Друга рука</b>: <i>вільна рука поки репетирує корисність.</i>"
       ].join("\n")
     );
     expect(text).toContain("Манатки нарешті штовхають циферки");
@@ -53,11 +53,57 @@ describe("equipment presenter", () => {
   it("shows equipped items in their persisted slots", () => {
     const text = presentEquipment(foundEquipment());
 
-    expect(text).toContain("🗡️ <b>Зброя</b>: Пательня переконання");
+    expect(text).toContain("🗡️ <b>Основна рука</b>: Пательня переконання");
     expect(text).toContain("Ефект: <i>+2 до удару</i>");
     expect(text).toContain("🧥 <b>Тулуб</b>: Фартух піностійкого пригодника");
     expect(text).toContain("💍 <b>Аксесуар</b>: Корковий перстень серйозних справ");
     expect(text).not.toContain("Пательня переконання — приклад");
+  });
+
+  it("shows the offhand as occupied by a twohand main-hand item", () => {
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        {
+          slot: "weapon",
+          item: {
+            itemId: "item.test-twohand-broom",
+            content: {
+              id: "item.test-twohand-broom",
+              name: "Дворучна мітла протоколу",
+              description: "Мете так переконливо, що друга рука теж мусить підписатися.",
+              rarity: "rare",
+              slot: "weapon",
+              tags: ["twohand"],
+              goldValue: 93
+            }
+          }
+        },
+        {
+          slot: "offhand",
+          occupiedByTwohand: true,
+          item: {
+            itemId: "item.test-twohand-broom",
+            content: {
+              id: "item.test-twohand-broom",
+              name: "Дворучна мітла протоколу",
+              description: "Мете так переконливо, що друга рука теж мусить підписатися.",
+              rarity: "rare",
+              slot: "weapon",
+              tags: ["twohand"],
+              goldValue: 93
+            }
+          }
+        },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null }
+      ]
+    });
+
+    expect(text).toContain("✋ <b>Друга рука</b>: Дворучна мітла протоколу <i>(дворучна)</i>");
   });
 
   it("escapes owned item names in slots", () => {
@@ -149,6 +195,63 @@ describe("equipment presenter", () => {
     expect(text).toContain("Ще не екіпірується: Жетон Боргоманта +2.");
     expect(text).toContain("Потрібно: клас: Бюрокромант.");
     expect(text).not.toContain("відповідний титул");
+  });
+
+  it("explains slot-denied equip callback results", () => {
+    const text = presentEquipItemResult({
+      state: "slot-not-allowed",
+      slot: "offhand",
+      reason: "twohand-conflict",
+      item: {
+        itemId: "item.stamp-of-minor-authority",
+        content: {
+          id: "item.stamp-of-minor-authority",
+          name: "Печатка дрібної переваги",
+          description: "Б'є не сильно.",
+          rarity: "uncommon",
+          slot: "weapon",
+          goldValue: 16
+        }
+      }
+    });
+
+    expect(text).toContain("Не екіпірується в слот «Друга рука»: Печатка дрібної переваги.");
+    expect(text).toContain("Ця манатка просить обидві руки.");
+  });
+
+  it("prompts before replacing a conflicting hand for twohand equipment", () => {
+    const text = presentEquipItemResult({
+      state: "twohand-confirm-required",
+      slot: "weapon",
+      item: {
+        itemId: "item.test-twohand-broom",
+        content: {
+          id: "item.test-twohand-broom",
+          name: "Дворучна мітла протоколу",
+          description: "Мете так переконливо, що друга рука теж мусить підписатися.",
+          rarity: "rare",
+          slot: "weapon",
+          tags: ["twohand"],
+          goldValue: 93
+        }
+      },
+      currentItem: null,
+      clearedHandItem: {
+        itemId: "item.stamp-of-minor-authority",
+        content: {
+          id: "item.stamp-of-minor-authority",
+          name: "Печатка дрібної переваги",
+          description: "Б'є не сильно.",
+          rarity: "uncommon",
+          slot: "weapon",
+          goldValue: 16
+        }
+      }
+    });
+
+    expect(text).toContain("Дворучна примірка: Дворучна мітла протоколу займе обидві руки.");
+    expect(text).toContain("Звільниться: Печатка дрібної переваги.");
+    expect(text).toContain("Підтвердити?");
   });
 });
 

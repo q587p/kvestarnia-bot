@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 125 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 127 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -89,6 +89,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.yeger.free-bandage.first` | enabled | visible | `yeger.free-bandage.claimed >= 1` | Єгер дав бинт і не моргнув | уперше отримати безкоштовний медичний запас як єгер. |
 | `achievement.equipment.first-equipped` | enabled | visible | `equipment.item_equipped` | На мені це виглядає службово | вдягнути першу манатку й почути, як гачок нервово погодився. |
 | `achievement.equipment.three-equipped` | enabled | visible | `equipment.item_equipped >= 3` | Образ уже має інвентарний номер | вдягнути 3 манатки й виглядати як службова перевірка пригод. |
+| `achievement.equipment.all-slots-equipped` | enabled | visible | `equipment.item_equipped current slots >= 7` | Усі гачки при справі | вдягнути манатки в усі підготовлені слоти й зробити вигляд, що це не шафа, а бойова концепція. |
+| `achievement.equipment.ninety-three-equipped-total` | enabled | hidden | `equipment.item_equipped cumulative >= 93` | Девʼяносто три примірки без протоколу | сумарно екіпірувати 93 манатки й довести, що гачки теж можуть вигоріти. |
 | `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |
 | `achievement.item.forty-two-owned` | enabled | visible | `item.received >= 42` | Сорок дві манатки відповіли | мати 42 манатки в торбі й не питати, на яке саме питання вони відповіли. |
 | `achievement.item.ninety-three-owned` | enabled | visible | `item.received >= 93` | Девʼяносто три докази торби | мати 93 манатки в торбі й виглядати як пересувний склад пригод. |

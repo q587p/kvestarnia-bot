@@ -131,7 +131,7 @@ describe("inventory presenter", () => {
       }
     });
 
-    expect(text).toContain("🗡️ <b>Манатки-зброя</b>");
+    expect(text).toContain("🗡️ <b>Манатки для основної руки</b>");
     expect(text).toContain("Показано лише те, що можна спробувати вдягнути в цей слот.");
     expect(text).toContain("Вдягнено: <b>Швабра Далекого Контакту +3</b>");
     expect(text).toContain("Ефект: <i>+2 Спритности · +3 до удару</i>");
@@ -139,6 +139,24 @@ describe("inventory presenter", () => {
     expect(text).not.toContain("<b>Тестова пательня</b>");
     expect(text).not.toContain("<b>Тестовий фартух</b>");
     expect(text).not.toContain("<b>Тестова квитанція</b>");
+  });
+
+  it("uses slot-compatible ids for offhand filters", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        item("item.test-weapon", "Тестова пательня", "weapon"),
+        item("item.test-offhand", "Тестова друга рука", "weapon", ["offhand"]),
+        item("item.test-junk", "Тестова квитанція", "junk")
+      ]
+    };
+    const text = presentInventory(result, 0, "offhand", {
+      slotCompatibleItemIds: new Set(["item.test-offhand"])
+    });
+
+    expect(text).toContain("✋ <b>Манатки для другої руки</b>");
+    expect(text).toContain("Знайдено підхожих манаток: <b>1</b>.");
   });
 
   it("filters inventory by one-use manatky", () => {

@@ -1862,7 +1862,12 @@ describe("scene callback HTML options", () => {
     const text = String(edit?.payload.text);
     const keyboard = JSON.stringify(edit?.payload.reply_markup);
 
-    expect(equipItemForTelegramUser).toHaveBeenCalledWith(42n, "item.pan-of-persuasion");
+    expect(equipItemForTelegramUser).toHaveBeenCalledWith(
+      42n,
+      "item.pan-of-persuasion",
+      null,
+      { confirmTwohand: false }
+    );
     expect(getEquipmentForTelegramUser).not.toHaveBeenCalled();
     expect(text).toContain("Екіпіровано: Пательня переконання.");
     expect(text).toContain("Попередня манатка зі слота");

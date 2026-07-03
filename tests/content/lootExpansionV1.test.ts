@@ -3,6 +3,7 @@ import { classes } from "../../src/content/classes";
 import { activeRaces } from "../../src/content/races";
 import {
   checkLootExpansionEquipRequirement,
+  buildLootExpansionVariant,
   findLootExpansionBaseItem,
   findLootExpansionVariantByItemId,
   getEnhancementWeight,
@@ -47,6 +48,26 @@ describe("loot expansion v1 content adapter", () => {
 
     for (const item of accessoryUtilityVariants) {
       expect(item.effect, `missing utility effect for ${item.id}`).toBeDefined();
+    }
+  });
+
+  it("declares canonical equipment slots for every generated equippable variant", () => {
+    const equippableItems = lootExpansionV1ItemContents.filter((item) =>
+      ["weapon", "armor", "accessory"].includes(item.slot)
+    );
+
+    for (const item of equippableItems) {
+      expect(item.equipmentSlot, `missing generated equipment slot for ${item.id}`).toBeDefined();
+
+      if (item.id.startsWith("item.loot-v1-t")) {
+        expect(item).toMatchObject({ slot: "accessory", equipmentSlot: "tool" });
+      } else if (item.id.startsWith("item.loot-v1-a")) {
+        expect(item.equipmentSlot).toBe("chest");
+      } else if (item.id.startsWith("item.loot-v1-w")) {
+        expect(item.equipmentSlot).toBe("weapon");
+      } else {
+        expect(item.equipmentSlot).toBe("accessory");
+      }
     }
   });
 
@@ -254,6 +275,63 @@ describe("loot expansion v1 content adapter", () => {
       item: {
         name: "Пательня Перемовин +5"
       }
+    });
+  });
+
+  it("scales generated equipment effects with enhancement inside each practical family", () => {
+    const effectKeys = [
+      "hpMax",
+      "manaMax",
+      "strength",
+      "dexterity",
+      "intelligence",
+      "charisma",
+      "luck",
+      "armor",
+      "resist",
+      "weaponDamage",
+      "spellPower"
+    ] as const;
+
+    for (const base of lootExpansionV1Data.items.filter((item) =>
+      ["weapon", "armor", "accessory", "tool"].includes(item.category)
+    )) {
+      for (let enhancement = 1; enhancement <= base.max_enhancement; enhancement += 1) {
+        const previous = buildLootExpansionVariant(
+          base,
+          (enhancement - 1) as 0 | 1 | 2 | 3 | 4 | 5
+        ).item;
+        const current = buildLootExpansionVariant(
+          base,
+          enhancement as 0 | 1 | 2 | 3 | 4 | 5
+        ).item;
+
+        expect(current.goldValue ?? 0, current.id).toBeGreaterThan(previous.goldValue ?? 0);
+        expect(
+          effectKeys.every((key) => (current.effect?.[key] ?? 0) >= (previous.effect?.[key] ?? 0)),
+          current.id
+        ).toBe(true);
+        expect(
+          effectKeys.some((key) => (current.effect?.[key] ?? 0) > (previous.effect?.[key] ?? 0)),
+          current.id
+        ).toBe(true);
+      }
+    }
+
+    expect(findLootExpansionVariantByItemId("item.loot-v1-w001")).toMatchObject({
+      item: { effect: { weaponDamage: 2 } }
+    });
+    expect(findLootExpansionVariantByItemId("item.loot-v1-w001-plus-1")).toMatchObject({
+      item: { effect: { weaponDamage: 3 } }
+    });
+    expect(findLootExpansionVariantByItemId("item.loot-v1-a001-plus-1")).toMatchObject({
+      item: { effect: { armor: 2, hpMax: 3 } }
+    });
+    expect(findLootExpansionVariantByItemId("item.loot-v1-x007")).toMatchObject({
+      item: { effect: { dexterity: 2 } }
+    });
+    expect(findLootExpansionVariantByItemId("item.loot-v1-t002-plus-1")).toMatchObject({
+      item: { effect: { armor: 1, manaMax: 2 } }
     });
   });
 });

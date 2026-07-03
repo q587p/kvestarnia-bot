@@ -32,7 +32,7 @@ export const monsterLootItemAdditions = [
     slot: "armor",
     goldValue: 2,
     effect: {
-      hpMax: 2,
+      hpMax: 1,
       armor: 1
     }
   },
@@ -158,7 +158,7 @@ export const monsterLootItemAdditions = [
     slot: "armor",
     goldValue: 4,
     effect: {
-      hpMax: 2,
+      hpMax: 1,
       armor: 1
     }
   },

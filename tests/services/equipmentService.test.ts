@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -7,6 +7,7 @@ import type {
 import type {
   CharacterEquipmentRecord,
   CharacterEquipmentSnapshot,
+  EquipForCharacterResult,
   EquipmentRepository,
   EquipmentSlot
 } from "../../src/db/repositories/equipmentRepository";
@@ -14,8 +15,14 @@ import type {
   CharacterItemRecord,
   InventoryRepository
 } from "../../src/db/repositories/inventoryRepository";
+import { items } from "../../src/content";
 import { normalizeEquipmentSlot } from "../../src/content/equipmentSlots";
-import { EquipmentService } from "../../src/services/equipmentService";
+import type { ItemContent } from "../../src/content/schema";
+import type { AchievementService } from "../../src/services/achievementService";
+import {
+  EquipmentService,
+  isItemCompatibleWithEquipmentSlot
+} from "../../src/services/equipmentService";
 
 const telegramUserId = 42n;
 const characterId = "character-42";
@@ -247,13 +254,374 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("lets warriors equip a second weapon into the offhand slot", async () => {
+    const service = createService({
+      snapshot: {
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" })]
+      },
+      inventoryRows: [
+        buildItem({ itemId: "item.pan-of-persuasion" }),
+        buildItem({
+          id: "character-item-2",
+          itemId: "item.stamp-of-minor-authority"
+        })
+      ],
+      character: buildCharacter({ classId: "class.warrior" })
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.stamp-of-minor-authority", "offhand")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "offhand",
+      item: {
+        itemId: "item.stamp-of-minor-authority"
+      },
+      replacedItem: null
+    });
+  });
+
+  it("blocks non-warriors from using ordinary weapons in the offhand slot", async () => {
+    const service = createService({
+      snapshot: {
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" })]
+      },
+      inventoryRows: [
+        buildItem({ itemId: "item.pan-of-persuasion" }),
+        buildItem({
+          id: "character-item-2",
+          itemId: "item.stamp-of-minor-authority"
+        })
+      ],
+      character: buildCharacter({ classId: "class.mage" })
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.stamp-of-minor-authority", "offhand")
+    ).resolves.toMatchObject({
+      state: "slot-not-allowed",
+      slot: "offhand",
+      reason: "offhand-restricted"
+    });
+  });
+
+  it("allows explicitly offhand-tagged items for any class", () => {
+    expect(isItemCompatibleWithEquipmentSlot({
+      id: "item.test-offhand-charm",
+      name: "Тестова друга рука",
+      description: "Проситься в другу руку і має про це папірець.",
+      rarity: "common",
+      slot: "weapon",
+      tags: ["offhand"],
+      goldValue: 13
+    }, "offhand", "class.mage")).toBe(true);
+  });
+
+  it("does not treat twohand-tagged items as offhand-compatible", () => {
+    expect(isItemCompatibleWithEquipmentSlot({
+      id: "item.test-twohand-stick",
+      name: "Тестова дворучна палиця",
+      description: "Просить обидві руки і ще одну довідку.",
+      rarity: "common",
+      slot: "weapon",
+      tags: ["twohand"],
+      goldValue: 13
+    }, "offhand", "class.warrior")).toBe(false);
+  });
+
+  it("does not let one owned copy occupy both hand slots", async () => {
+    const service = createService({
+      snapshot: {
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" })]
+      },
+      inventoryRows: [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })],
+      character: buildCharacter({ classId: "class.warrior" })
+    });
+
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.pan-of-persuasion", "offhand")
+    ).resolves.toMatchObject({
+      state: "slot-not-allowed",
+      slot: "offhand",
+      reason: "not-enough-copies"
+    });
+  });
+
+  it("prompts before equipping an offhand item over a twohand main-hand item", async () => {
+    const cleanup = addTemporaryItem({
+      id: "item.test-twohand-broom",
+      name: "Дворучна мітла протоколу",
+      description: "Мете так переконливо, що друга рука теж мусить підписатися.",
+      rarity: "rare",
+      slot: "weapon",
+      equipmentSlot: "weapon",
+      tags: ["twohand"],
+      goldValue: 93,
+      effect: {
+        weaponDamage: 3
+      }
+    });
+
+    try {
+      const equipment = new FakeEquipmentRepository({
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.test-twohand-broom" })]
+      });
+      const service = new EquipmentService(
+        equipment,
+        new FakeInventoryRepository([buildItem({ itemId: "item.stamp-of-minor-authority" })]),
+        new FakeCharacterRepository(buildCharacter({ classId: "class.warrior" }))
+      );
+
+      await expect(
+        service.previewItemEquipForTelegramUser(telegramUserId, "item.stamp-of-minor-authority", "offhand")
+      ).resolves.toMatchObject({
+        state: "twohand-confirm-required",
+        slot: "offhand",
+        clearedHandItem: {
+          itemId: "item.test-twohand-broom"
+        }
+      });
+      await expect(
+        service.getCompatibleItemIdsForSlotForTelegramUser(telegramUserId, "offhand")
+      ).resolves.toEqual(new Set(["item.stamp-of-minor-authority"]));
+
+      const result = await service.equipItemForTelegramUser(
+        telegramUserId,
+        "item.stamp-of-minor-authority",
+        "offhand",
+        { confirmTwohand: true }
+      );
+
+      expect(result).toMatchObject({
+        state: "equipped",
+        slot: "offhand",
+        clearedHandItem: {
+          itemId: "item.test-twohand-broom"
+        }
+      });
+      expect(equipment.rows).toHaveLength(1);
+      expect(equipment.rows[0]).toMatchObject({
+        slot: "offhand",
+        itemId: "item.stamp-of-minor-authority"
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("shows a twohand main-hand item as occupying both hand slots", async () => {
+    const cleanup = addTemporaryItem({
+      id: "item.test-twohand-spoon",
+      name: "Дворучна ложка ревізії",
+      description: "Її тримають двома руками, бо документи слизькі.",
+      rarity: "rare",
+      slot: "weapon",
+      equipmentSlot: "weapon",
+      tags: ["twohand"],
+      goldValue: 93,
+      effect: {
+        weaponDamage: 3
+      }
+    });
+
+    try {
+      const service = createService({
+        snapshot: {
+          characterId,
+          equipment: [buildEquipment({ slot: "weapon", itemId: "item.test-twohand-spoon" })]
+        },
+        inventoryRows: [],
+        character: buildCharacter({ classId: "class.warrior" })
+      });
+      const result = await service.getEquipmentForTelegramUser(telegramUserId);
+
+      expect(result.state).toBe("ready");
+      if (result.state !== "ready") {
+        return;
+      }
+      expect(result.slots.find((slot) => slot.slot === "weapon")).toMatchObject({
+        item: {
+          itemId: "item.test-twohand-spoon"
+        }
+      });
+      expect(result.slots.find((slot) => slot.slot === "offhand")).toMatchObject({
+        occupiedByTwohand: true,
+        item: {
+          itemId: "item.test-twohand-spoon"
+        }
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("unequips a twohand main-hand item when clearing its virtual offhand slot", async () => {
+    const cleanup = addTemporaryItem({
+      id: "item.test-twohand-bucket",
+      name: "Дворучне відро відповідальности",
+      description: "Його не несуть. Його погоджують.",
+      rarity: "rare",
+      slot: "weapon",
+      equipmentSlot: "weapon",
+      tags: ["twohand"],
+      goldValue: 93
+    });
+
+    try {
+      const equipment = new FakeEquipmentRepository({
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.test-twohand-bucket" })]
+      });
+      const service = new EquipmentService(equipment, new FakeInventoryRepository([]));
+
+      const result = await service.unequipSlotForTelegramUser(telegramUserId, "offhand");
+
+      expect(result).toMatchObject({
+        state: "unequipped",
+        slot: "offhand"
+      });
+      expect(result.state).toBe("unequipped");
+      if (result.state !== "unequipped") {
+        return;
+      }
+      expect(result.slots.find((slot) => slot.slot === "weapon")).toMatchObject({ item: null });
+      expect(result.slots.find((slot) => slot.slot === "offhand")).toMatchObject({ item: null });
+      expect(equipment.rows).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("prompts before equipping a twohand weapon over an occupied offhand slot", async () => {
+    const cleanup = addTemporaryItem({
+      id: "item.test-twohand-ladle",
+      name: "Дворучний ополоник аргументів",
+      description: "Після нього суп сам просить вибачення.",
+      rarity: "rare",
+      slot: "weapon",
+      equipmentSlot: "weapon",
+      tags: ["twohand"],
+      goldValue: 93,
+      effect: {
+        weaponDamage: 3
+      }
+    });
+
+    try {
+      const equipment = new FakeEquipmentRepository({
+        characterId,
+        equipment: [buildEquipment({ slot: "offhand", itemId: "item.stamp-of-minor-authority" })]
+      });
+      const service = new EquipmentService(
+        equipment,
+        new FakeInventoryRepository([buildItem({ itemId: "item.test-twohand-ladle" })]),
+        new FakeCharacterRepository(buildCharacter({ classId: "class.warrior" }))
+      );
+
+      await expect(
+        service.equipItemForTelegramUser(telegramUserId, "item.test-twohand-ladle")
+      ).resolves.toMatchObject({
+        state: "twohand-confirm-required",
+        slot: "weapon",
+        clearedHandItem: {
+          itemId: "item.stamp-of-minor-authority"
+        }
+      });
+
+      const result = await service.equipItemForTelegramUser(
+        telegramUserId,
+        "item.test-twohand-ladle",
+        "weapon",
+        { confirmTwohand: true }
+      );
+
+      expect(result).toMatchObject({
+        state: "equipped",
+        slot: "weapon",
+        clearedHandItem: {
+          itemId: "item.stamp-of-minor-authority"
+        }
+      });
+      expect(result.state).toBe("equipped");
+      if (result.state !== "equipped") {
+        return;
+      }
+      expect(result.slots.find((slot) => slot.slot === "offhand")).toMatchObject({
+        occupiedByTwohand: true,
+        item: {
+          itemId: "item.test-twohand-ladle"
+        }
+      });
+      expect(equipment.rows).toHaveLength(1);
+      expect(equipment.rows[0]).toMatchObject({
+        slot: "weapon",
+        itemId: "item.test-twohand-ladle"
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("filters compatible offhand item ids through class and copy-count rules", async () => {
+    const warriorService = createService({
+      snapshot: {
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" })]
+      },
+      inventoryRows: [
+        buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 }),
+        buildItem({
+          id: "character-item-2",
+          itemId: "item.stamp-of-minor-authority",
+          quantity: 1
+        })
+      ],
+      character: buildCharacter({ classId: "class.warrior" })
+    });
+    const mageService = createService({
+      snapshot: {
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" })]
+      },
+      inventoryRows: [
+        buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 }),
+        buildItem({
+          id: "character-item-2",
+          itemId: "item.stamp-of-minor-authority",
+          quantity: 1
+        })
+      ],
+      character: buildCharacter({ classId: "class.mage" })
+    });
+
+    await expect(
+      warriorService.getCompatibleItemIdsForSlotForTelegramUser(telegramUserId, "offhand")
+    ).resolves.toEqual(new Set(["item.stamp-of-minor-authority"]));
+    await expect(
+      mageService.getCompatibleItemIdsForSlotForTelegramUser(telegramUserId, "offhand")
+    ).resolves.toEqual(new Set());
+  });
+
   it("keeps repeated same-item equip callbacks on one stable slot row", async () => {
     const inventoryRows = [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })];
     const equipment = new FakeEquipmentRepository({
       characterId,
       equipment: []
     });
-    const service = new EquipmentService(equipment, new FakeInventoryRepository(inventoryRows));
+    const achievements = {
+      trackEventSafely: () => Promise.resolve([])
+    } as Pick<AchievementService, "trackEventSafely">;
+    const track = vi.spyOn(achievements, "trackEventSafely");
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository(inventoryRows),
+      undefined,
+      achievements as AchievementService
+    );
 
     const first = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
     const second = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
@@ -273,6 +641,41 @@ describe("EquipmentService", () => {
       slot: "weapon",
       itemId: "item.pan-of-persuasion"
     });
+    expect(track).toHaveBeenCalledTimes(1);
+  });
+
+  it("tracks one achievement event for concurrent duplicate same-item equip callbacks", async () => {
+    const inventoryRows = [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })];
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const achievements = {
+      trackEventSafely: () => Promise.resolve([])
+    } as Pick<AchievementService, "trackEventSafely">;
+    const track = vi.spyOn(achievements, "trackEventSafely");
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository(inventoryRows),
+      undefined,
+      achievements as AchievementService
+    );
+
+    const [first, second] = await Promise.all([
+      service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion"),
+      service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion")
+    ]);
+
+    expect(first).toMatchObject({
+      state: "equipped",
+      slot: "weapon"
+    });
+    expect(second).toMatchObject({
+      state: "equipped",
+      slot: "weapon"
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(track).toHaveBeenCalledTimes(1);
   });
 
   it("reads legacy armor equipment rows through the chest slot", async () => {
@@ -421,6 +824,18 @@ function buildItem(overrides: Partial<CharacterItemRecord>): CharacterItemRecord
   };
 }
 
+function addTemporaryItem(item: ItemContent): () => void {
+  (items as ItemContent[]).push(item);
+
+  return () => {
+    const index = items.findIndex((candidate) => candidate.id === item.id);
+
+    if (index >= 0) {
+      (items as ItemContent[]).splice(index, 1);
+    }
+  };
+}
+
 class FakeEquipmentRepository implements EquipmentRepository {
   rows: CharacterEquipmentRecord[];
 
@@ -457,6 +872,36 @@ class FakeEquipmentRepository implements EquipmentRepository {
       row
     ];
     return Promise.resolve(row);
+  }
+
+  equipForCharacterAtomically(input: {
+    characterId: string;
+    slot: EquipmentSlot;
+    itemId: string;
+    clearSlot?: EquipmentSlot;
+  }): Promise<EquipForCharacterResult> {
+    if (input.clearSlot) {
+      this.rows = this.rows.filter((row) => normalizeEquipmentSlot(row.slot) !== input.clearSlot);
+    }
+
+    const existing = this.rows.find((row) => normalizeEquipmentSlot(row.slot) === input.slot);
+    const changed = existing?.itemId !== input.itemId;
+    const row = {
+      ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot: input.slot })),
+      characterId: input.characterId,
+      slot: input.slot,
+      itemId: input.itemId
+    };
+
+    this.rows = [
+      ...this.rows.filter((candidate) => normalizeEquipmentSlot(candidate.slot) !== input.slot),
+      row
+    ];
+
+    return Promise.resolve({
+      record: row,
+      changed
+    });
   }
 
   unequipForCharacter(_characterId: string, slot: EquipmentSlot): Promise<boolean> {

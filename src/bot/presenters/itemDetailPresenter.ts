@@ -10,7 +10,10 @@ import type {
   InventoryItemDetailResult,
   InventoryItemSummary
 } from "../../services/inventoryService";
-import { presentEquipmentSlotLabel } from "./equipmentPresenter";
+import {
+  presentEquipmentSlotLabel,
+  presentSlotDeniedReason
+} from "./equipmentPresenter";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
 
@@ -133,6 +136,14 @@ function presentEquipmentLine(
 
   if (equipPreview?.state === "unsupported-slot") {
     return "Екіпірування: <i>зараз не можна екіпірувати. Для цієї манатки ще немає місця.</i>";
+  }
+
+  if (equipPreview?.state === "slot-not-allowed") {
+    return `Екіпірування: <i>у слот «${presentEquipmentSlotLabel(equipPreview.slot)}» зараз не можна: ${presentSlotDeniedReason(equipPreview.reason, equipPreview.slot)}.</i>`;
+  }
+
+  if (equipPreview?.state === "twohand-confirm-required") {
+    return `Екіпірування: <i>можна екіпірувати у слот «${presentEquipmentSlotLabel(equipPreview.slot)}», але спершу треба підтвердити звільнення руки: ${escapeHtml(equipPreview.clearedHandItem.content.name)} лишиться в торбі.</i>`;
   }
 
   const slot = equipPreview?.state === "can-equip"

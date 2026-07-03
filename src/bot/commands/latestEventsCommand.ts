@@ -1,4 +1,4 @@
-import type { Context } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { ActivityEventService, LatestEventFilter } from "../../services/activityEventService";
 import type { AchievementUnlock } from "../../services/achievementService";
 import { buildLatestEventsKeyboard } from "../keyboards/latestEventsKeyboard";
@@ -16,6 +16,18 @@ const HTML_MESSAGE_OPTIONS = {
 
 export interface LatestEventsAchievementTracker {
   trackLatestEventsOpenedByTelegramUserId(telegramUserId: bigint): Promise<AchievementUnlock[]>;
+}
+
+export function registerLatestEventsCommand(
+  bot: Bot,
+  activityEvents: ActivityEventService,
+  achievementTracker?: LatestEventsAchievementTracker
+): void {
+  bot.command("chronicles", async (ctx) => {
+    await sendLatestEvents(ctx, activityEvents, "reply", {
+      ...(achievementTracker ? { achievementTracker } : {})
+    });
+  });
 }
 
 export async function sendLatestEvents(

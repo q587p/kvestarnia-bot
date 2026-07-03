@@ -575,6 +575,12 @@ async function handleRemortCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildRemortResultKeyboard()
     });
+    if (result.state === "completed") {
+      const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
+      if (achievementText) {
+        await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      }
+    }
     return;
   }
 

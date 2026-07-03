@@ -17,7 +17,7 @@ export type ItemCallback =
   | { type: "inventory"; page: number; filter: InventoryFilter };
 export type EquipmentCallback =
   | { type: "view" }
-  | { type: "equip-item"; itemId: string }
+  | { type: "equip-item"; itemId: string; targetSlot: EquipmentSlot | null; confirmTwohand: boolean }
   | { type: "clear-slot"; slot: EquipmentSlot };
 
 export function makeItemDetailCallbackData(
@@ -113,8 +113,15 @@ export function makeEquipmentCallbackData(): string {
   return assertCallbackData(`${EQUIPMENT_PREFIX}:view`);
 }
 
-export function makeEquipItemCallbackData(itemId: string): string {
-  return assertCallbackData(`${EQUIPMENT_PREFIX}:item:${itemId}`);
+export function makeEquipItemCallbackData(
+  itemId: string,
+  targetSlot: EquipmentSlot | null = null,
+  options: { confirmTwohand?: boolean } = {}
+): string {
+  const targetSuffix = targetSlot ? `:s:${slotToCode(targetSlot)}` : "";
+  const confirmSuffix = options.confirmTwohand === true ? ":c:2h" : "";
+
+  return assertCallbackData(`${EQUIPMENT_PREFIX}:item:${itemId}${targetSuffix}${confirmSuffix}`);
 }
 
 export function makeUnequipSlotCallbackData(slot: EquipmentSlot): string {
@@ -141,14 +148,24 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
 
   const [version, scope, action, ...rest] = data.split(":");
 
-  if (version !== "v1" || scope !== "equip" || rest.length !== 1) {
+  if (version !== "v1" || scope !== "equip" || (rest.length !== 1 && rest.length !== 3 && rest.length !== 5)) {
     return { ok: false };
   }
 
   if (action === "item") {
     const itemId = rest[0];
+    const hasSlot = rest.length >= 3;
+    const targetSlot = hasSlot && rest[1] === "s"
+      ? codeToSlot(rest[2])
+      : null;
+    const confirmTwohand = rest.length === 5 && rest[3] === "c" && rest[4] === "2h";
 
-    if (!itemId || !contentIdSchema.safeParse(itemId).success) {
+    if (
+      !itemId ||
+      !contentIdSchema.safeParse(itemId).success ||
+      (hasSlot && !targetSlot) ||
+      (rest.length === 5 && !confirmTwohand)
+    ) {
       return { ok: false };
     }
 
@@ -156,12 +173,18 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
       ok: true,
       value: {
         type: "equip-item",
-        itemId
+        itemId,
+        targetSlot,
+        confirmTwohand
       }
     };
   }
 
   if (action === "clear") {
+    if (rest.length !== 1) {
+      return { ok: false };
+    }
+
     const slot = rest[0];
 
     if (!isEquipmentSlot(slot)) {

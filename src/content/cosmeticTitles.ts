@@ -48,6 +48,8 @@ export const cosmeticTitles = [
   { id: "cosmetic-title.first-yeger-free-bandage", label: "Єгерський свідок" },
   { id: "cosmetic-title.first-equipped-hook", label: "Гачковий носій" },
   { id: "cosmetic-title.three-equipped-inspection", label: "Інвентарний інспектор" },
+  { id: "cosmetic-title.all-hooks-on-duty", label: "Гачковий концептуаліст" },
+  { id: "cosmetic-title.ninety-three-fittings", label: "Примірочний фантом" },
   { id: "cosmetic-title.twenty-three-mantok-archive", label: "Манатковий архівар" },
   { id: "cosmetic-title.forty-two-mantok-answer", label: "Відповідальний торбар" },
   { id: "cosmetic-title.ninety-three-mantok-evidence", label: "Доказовий торбар" },

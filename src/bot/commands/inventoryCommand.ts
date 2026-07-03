@@ -25,7 +25,10 @@ export async function sendInventory(
   mode: SendMode,
   page = 0,
   filter: InventoryFilter = null,
-  equipmentService?: Pick<EquipmentService, "getEquipmentForTelegramUser">
+  equipmentService?: Pick<
+    EquipmentService,
+    "getEquipmentForTelegramUser" | "getCompatibleItemIdsForSlotForTelegramUser"
+  >
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -40,24 +43,30 @@ export async function sendInventory(
       ? equipmentService.getEquipmentForTelegramUser(telegramUserId)
       : Promise.resolve(null)
   ]);
+  const slotCompatibleItemIds =
+    isInventoryEquipmentSlotFilter(filter) &&
+    equipmentService
+      ? await equipmentService.getCompatibleItemIdsForSlotForTelegramUser(telegramUserId, filter)
+      : null;
   const currentSlotItem =
     isInventoryEquipmentSlotFilter(filter) && equipment?.state === "ready"
       ? (equipment.slots.find((slot) => slot.slot === filter)?.item ?? null)
       : null;
   const text = presentInventory(result, page, filter, {
-    currentSlotItem
+    currentSlotItem,
+    slotCompatibleItemIds
   });
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildInventoryKeyboard(result, page, filter)
+      reply_markup: buildInventoryKeyboard(result, page, filter, { slotCompatibleItemIds })
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildInventoryKeyboard(result, page, filter)
+    reply_markup: buildInventoryKeyboard(result, page, filter, { slotCompatibleItemIds })
   });
 }

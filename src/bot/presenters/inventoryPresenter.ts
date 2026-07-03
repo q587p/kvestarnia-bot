@@ -17,6 +17,7 @@ export const INVENTORY_PAGE_SIZE = 8;
 
 export interface InventoryPresenterOptions {
   currentSlotItem?: EquipmentItemSummary | null;
+  slotCompatibleItemIds?: ReadonlySet<string> | null;
 }
 
 export function presentInventory(
@@ -38,9 +39,9 @@ export function presentInventory(
     ].join("\n");
   }
 
-  const filteredItems = getFilteredInventoryItems(result, filter);
-  const safePage = clampInventoryPage(result, page, filter);
-  const totalPages = getInventoryTotalPages(result, filter);
+  const filteredItems = getFilteredInventoryItems(result, filter, options);
+  const safePage = clampInventoryPage(result, page, filter, options);
+  const totalPages = getInventoryTotalPages(result, filter, options);
 
   if (filter && filteredItems.length === 0) {
     return [
@@ -72,21 +73,23 @@ export function presentInventory(
 
 export function getInventoryTotalPages(
   result: InventoryResult,
-  filter: InventoryFilter = null
+  filter: InventoryFilter = null,
+  options: InventoryPresenterOptions = {}
 ): number {
   if (result.state !== "found") {
     return 1;
   }
 
-  return Math.max(1, Math.ceil(getFilteredInventoryItems(result, filter).length / INVENTORY_PAGE_SIZE));
+  return Math.max(1, Math.ceil(getFilteredInventoryItems(result, filter, options).length / INVENTORY_PAGE_SIZE));
 }
 
 export function clampInventoryPage(
   result: InventoryResult,
   page: number,
-  filter: InventoryFilter = null
+  filter: InventoryFilter = null,
+  options: InventoryPresenterOptions = {}
 ): number {
-  const totalPages = getInventoryTotalPages(result, filter);
+  const totalPages = getInventoryTotalPages(result, filter, options);
   const safePage = Math.max(0, Math.floor(Number.isFinite(page) ? page : 0));
 
   return Math.min(safePage, totalPages - 1);
@@ -95,27 +98,33 @@ export function clampInventoryPage(
 export function getInventoryPageItems(
   result: InventoryResult,
   page: number,
-  filter: InventoryFilter = null
+  filter: InventoryFilter = null,
+  options: InventoryPresenterOptions = {}
 ) {
   if (result.state !== "found") {
     return [];
   }
 
-  const safePage = clampInventoryPage(result, page, filter);
+  const safePage = clampInventoryPage(result, page, filter, options);
   const start = safePage * INVENTORY_PAGE_SIZE;
 
-  return getFilteredInventoryItems(result, filter).slice(start, start + INVENTORY_PAGE_SIZE);
+  return getFilteredInventoryItems(result, filter, options).slice(start, start + INVENTORY_PAGE_SIZE);
 }
 
 export function getFilteredInventoryItems(
   result: InventoryResult,
-  filter: InventoryFilter = null
+  filter: InventoryFilter = null,
+  options: InventoryPresenterOptions = {}
 ) {
   if (result.state !== "found" || !filter) {
     return result.state === "found" ? result.items : [];
   }
 
   if (isInventoryEquipmentSlotFilter(filter)) {
+    if (options.slotCompatibleItemIds) {
+      return result.items.filter((item) => options.slotCompatibleItemIds?.has(item.itemId));
+    }
+
     return result.items.filter((item) => mapItemToEquipmentSlot(item.content) === filter);
   }
 
@@ -160,7 +169,7 @@ function presentEmptyFilterLine(filter: Exclude<InventoryFilter, null>): string 
 
 function presentSlotFilterTitle(slot: EquipmentSlot): string {
   const titles: Record<EquipmentSlot, string> = {
-    weapon: "Манатки-зброя",
+    weapon: "Манатки для основної руки",
     offhand: "Манатки для другої руки",
     head: "Манатки-шоломи",
     chest: "Манатки для тулуба",

@@ -51,6 +51,7 @@ buildMantokChestOverviewKeyboard,
 buildMantokChestPreviewKeyboard,
 buildMantokChestResultKeyboard
 } from "../keyboards/mantokChestKeyboard";
+import { isInventoryEquipmentSlotFilter } from "../inventoryFilter";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
@@ -157,9 +158,11 @@ async function handleItemCallback(
 
   const result = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
   const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
+  const targetSlot = isInventoryEquipmentSlotFilter(action.filter) ? action.filter : null;
   const equipPreview = await services.equipment.previewItemEquipForTelegramUser(
     telegramUserId,
-    action.itemId
+    action.itemId,
+    targetSlot
   );
   const equippedSlot =
     equipment.state === "ready"
@@ -190,7 +193,8 @@ async function handleItemCallback(
       reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.filter, {
         canUse,
         ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
-        craftOptions
+        craftOptions,
+        equipPreview
       })
     }
   );
@@ -513,7 +517,9 @@ async function handleEquipmentCallback(
   if (action.type === "equip-item") {
     const result = await services.equipment.equipItemForTelegramUser(
       telegramUserId,
-      action.itemId
+      action.itemId,
+      action.targetSlot,
+      { confirmTwohand: action.confirmTwohand }
     );
 
     await safeAnswerCallbackQuery(ctx);
@@ -521,7 +527,7 @@ async function handleEquipmentCallback(
     if (result.state === "equipped") {
       await safeEditMessageText(ctx, presentEquipItemResult(result), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildEquipItemResultKeyboard()
+        reply_markup: buildEquipItemResultKeyboard(result)
       });
       const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
       if (achievementText) {
@@ -532,7 +538,7 @@ async function handleEquipmentCallback(
 
     await safeEditMessageText(ctx, presentEquipItemResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildEquipItemResultKeyboard()
+      reply_markup: buildEquipItemResultKeyboard(result)
     });
     return;
   }

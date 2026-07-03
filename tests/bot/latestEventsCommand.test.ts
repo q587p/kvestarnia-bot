@@ -1,6 +1,9 @@
 import type { Context } from "grammy";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sendLatestEvents } from "../../src/bot/commands/latestEventsCommand";
+import {
+  registerLatestEventsCommand,
+  sendLatestEvents
+} from "../../src/bot/commands/latestEventsCommand";
 import {
   clearMessageFreshnessTracking,
   rememberLatestMessageForChat
@@ -25,6 +28,25 @@ describe("latest events command", () => {
     expect(feedReply.mock.calls[0]?.[0]).toContain("Хроніки Квестарні");
     expect(feedReply.mock.calls[1]?.[0]).toContain("Нова ачівка");
     expect(feedReply.mock.calls.some(([text]) => String(text).includes("упустив перо в суп"))).toBe(false);
+  });
+
+  it("routes /chronicles to the latest events feed", async () => {
+    const handlers = new Map<string, CommandHandler>();
+    const achievementTracker = makeAchievementTracker();
+    registerLatestEventsCommand(makeCommandBot(handlers), makeActivityEvents(), achievementTracker);
+    const handler = handlers.get("chronicles");
+    const ctx = makeContext();
+    const reply = vi.fn().mockResolvedValue({});
+    ctx.reply = reply;
+
+    await handler?.(ctx);
+
+    expect(handler).toBeDefined();
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply.mock.calls[0]?.[0]).toContain("Хроніки Квестарні");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain('"parse_mode":"HTML"');
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🎒 Манатки");
+    expect(achievementTracker.trackLatestEventsOpenedByTelegramUserId).toHaveBeenCalledWith(42n);
   });
 
   it("does not replace an edited feed with an error card when the achievement notice reply fails", async () => {
@@ -71,6 +93,18 @@ describe("latest events command", () => {
     expect(reply.mock.calls.some(([text]) => String(text).includes("упустив перо в суп"))).toBe(false);
   });
 });
+
+type CommandHandler = (ctx: Context) => Promise<void>;
+
+function makeCommandBot(handlers: Map<string, CommandHandler>): Parameters<typeof registerLatestEventsCommand>[0] {
+  return {
+    command(command: string | string[], handler: CommandHandler) {
+      for (const key of Array.isArray(command) ? command : [command]) {
+        handlers.set(key, handler);
+      }
+    }
+  } as unknown as Parameters<typeof registerLatestEventsCommand>[0];
+}
 
 function makeContext(overrides: Partial<Context> = {}): Context {
   return {

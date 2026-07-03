@@ -128,4 +128,10 @@ export interface AchievementRepository {
     current: number;
     target?: number;
   }): Promise<CharacterAchievementProgressRecord>;
+  incrementProgress(input: {
+    characterId: string;
+    achievementId: string;
+    amount?: number;
+    target?: number;
+  }): Promise<CharacterAchievementProgressRecord>;
 }

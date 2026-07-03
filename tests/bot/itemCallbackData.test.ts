@@ -126,7 +126,9 @@ describe("item and equipment callback data", () => {
       ok: true,
       value: {
         type: "equip-item",
-        itemId: "item.pan-of-persuasion"
+        itemId: "item.pan-of-persuasion",
+        targetSlot: null,
+        confirmTwohand: false
       }
     });
     expect(parseEquipmentCallbackData(clear)).toEqual({
@@ -145,6 +147,39 @@ describe("item and equipment callback data", () => {
     });
   });
 
+  it("parses target-slot equip callbacks", () => {
+    const equipOffhand = makeEquipItemCallbackData("item.pan-of-persuasion", "offhand");
+
+    expect(Buffer.byteLength(equipOffhand, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(equipOffhand).toBe("v1:equip:item:item.pan-of-persuasion:s:o");
+    expect(parseEquipmentCallbackData(equipOffhand)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.pan-of-persuasion",
+        targetSlot: "offhand",
+        confirmTwohand: false
+      }
+    });
+  });
+
+  it("parses twohand confirmation equip callbacks", () => {
+    const confirmTwohand = makeEquipItemCallbackData("item.test-twohand-broom", "weapon", {
+      confirmTwohand: true
+    });
+
+    expect(confirmTwohand).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:2h");
+    expect(parseEquipmentCallbackData(confirmTwohand)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.test-twohand-broom",
+        targetSlot: "weapon",
+        confirmTwohand: true
+      }
+    });
+  });
+
   it("rejects invalid item and equipment callbacks", () => {
     expect(parseItemCallbackData("v1:item:detail:<b>oops</b>").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:extra").ok).toBe(false);
@@ -157,7 +192,10 @@ describe("item and equipment callback data", () => {
     expect(parseItemCallbackData("v1:equip:view").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:wear:item.pan-of-persuasion").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:item:<b>oops</b>").ok).toBe(false);
+    expect(parseEquipmentCallbackData("v1:equip:item:item.pan-of-persuasion:s:boots").ok).toBe(false);
+    expect(parseEquipmentCallbackData("v1:equip:item:item.pan-of-persuasion:s:w:c:nope").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:clear:boots").ok).toBe(false);
+    expect(parseEquipmentCallbackData("v1:equip:clear:weapon:s:o").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:item:inventory").ok).toBe(false);
   });
 
