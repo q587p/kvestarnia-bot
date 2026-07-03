@@ -175,7 +175,7 @@ function presentSlotFilterTitle(slot: EquipmentSlot): string {
 function presentSlotFilterIcon(slot: EquipmentSlot): string {
   const icons: Record<EquipmentSlot, string> = {
     weapon: "🗡️",
-    offhand: "🛡️",
+    offhand: "✋",
     head: "🎩",
     chest: "🧥",
     legs: "🥾",

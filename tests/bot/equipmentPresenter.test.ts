@@ -18,7 +18,7 @@ describe("equipment presenter", () => {
 
     expect(text).toContain("🧥 <b>Спорядження</b>");
     expect(text).toContain("🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>");
-    expect(text).toContain("🛡️ <b>Друга рука</b>");
+    expect(text).toContain("✋ <b>Друга рука</b>");
     expect(text).toContain("🎩 <b>Голова</b>");
     expect(text).toContain("🧥 <b>Тулуб</b>");
     expect(text).toContain("🥾 <b>Ноги</b>");
@@ -28,7 +28,7 @@ describe("equipment presenter", () => {
       [
         "🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>",
         "",
-        "🛡️ <b>Друга рука</b>: <i>гачок для щита поки тренує терпіння.</i>",
+        "✋ <b>Друга рука</b>: <i>вільна рука поки чекає, що саме їй довірять.</i>",
         "",
         "🎩 <b>Голова</b>: <i>полиця для шолома дивиться зверху.</i>",
         "",

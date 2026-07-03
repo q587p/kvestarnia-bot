@@ -262,7 +262,7 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
 
   if (result.state === "ready") {
     keyboard.text("🗡️ Показати зброю", makeInventoryCallbackData(0, "weapon")).row();
-    keyboard.text("🛡️ Показати другу руку", makeInventoryCallbackData(0, "offhand")).row();
+    keyboard.text("✋ Показати другу руку", makeInventoryCallbackData(0, "offhand")).row();
     keyboard.text("🎩 Показати голову", makeInventoryCallbackData(0, "head")).row();
     keyboard.text("🧥 Показати тулуб", makeInventoryCallbackData(0, "chest")).row();
     keyboard.text("🥾 Показати ноги", makeInventoryCallbackData(0, "legs")).row();

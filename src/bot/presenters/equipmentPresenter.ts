@@ -27,7 +27,7 @@ type EquipRequirementDetails = Extract<
 
 const equipmentSlots: readonly SlotView[] = [
   { id: "weapon", icon: "🗡️", label: "Зброя", emptyText: "стійка чекає важкий аргумент." },
-  { id: "offhand", icon: "🛡️", label: "Друга рука", emptyText: "гачок для щита поки тренує терпіння." },
+  { id: "offhand", icon: "✋", label: "Друга рука", emptyText: "вільна рука поки чекає, що саме їй довірять." },
   { id: "head", icon: "🎩", label: "Голова", emptyText: "полиця для шолома дивиться зверху." },
   { id: "chest", icon: "🧥", label: "Тулуб", emptyText: "манекен мерзне професійно." },
   { id: "legs", icon: "🥾", label: "Ноги", emptyText: "поножі ще не знайшли своїх колін." },
