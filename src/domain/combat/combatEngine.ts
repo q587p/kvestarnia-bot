@@ -1,4 +1,5 @@
 import type { RandomSource } from "../../shared/random";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../itemCraft";
 import {
   BASIC_DEFEND_ABILITY_ID,
   getCombatClassAbilityProfile,
@@ -32,6 +33,7 @@ import {
 import {
   clampResource,
   cloneCombatCooldowns,
+  cloneCombatItemState,
   clonePlayerAbilityFumblesState,
   cloneCombatState,
   cloneCombatTurnSummary,
@@ -89,6 +91,10 @@ export type CombatItemEffectInput =
   | {
       kind: "heal-hp";
       amount: number;
+    }
+  | {
+      kind: "heal-hp-to-min-percent";
+      percent: number;
     };
 
 export type ResolveCombatTurnResult =
@@ -112,7 +118,7 @@ export type ResolveCombatItemTurnResult =
     }
   | {
       ok: false;
-      reason: "inactive" | "full-hp";
+      reason: "inactive" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
       state: CombatState;
       summary: CombatTurnSummary;
     };
@@ -442,7 +448,28 @@ export function resolveCombatItemTurn(input: ResolveCombatItemTurnInput): Resolv
     };
   }
 
-  if (input.item.effect.kind === "heal-hp" && input.state.hero.hp >= input.state.hero.hpMax) {
+  const availability = getCombatItemAvailability(input.state, input.item.id);
+  if (!availability.available) {
+    const summary = buildSummary({
+      action: "item",
+      heroOutcome: "item-used",
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false,
+      item: input.item,
+      heroHealing: 0
+    });
+
+    return {
+      ok: false,
+      reason: availability.reason,
+      state: cloneCombatState(input.state),
+      summary
+    };
+  }
+
+  if (resolveCombatItemHealing(input.state, input.item) <= 0) {
     const summary = buildSummary({
       action: "item",
       heroOutcome: "item-used",
@@ -475,8 +502,10 @@ function resolveSingleEnemyCombatItemTurn(
 ): ResolveCombatItemTurnResult {
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
+  tickCombatItemCooldowns(nextState);
   const heroHealing = resolveCombatItemHealing(nextState, item);
   nextState.hero.hp = Math.min(nextState.hero.hpMax, nextState.hero.hp + heroHealing);
+  recordCombatItemUse(nextState, item.id);
 
   const heroEffect = applyHeroActivationMonsterEffects(nextState);
   const heroEffectDamage = heroEffect.damage;
@@ -512,6 +541,7 @@ function resolveSingleEnemyCombatItemTurn(
     critical: false,
     item,
     heroHealing,
+    heroHpAfter: nextState.hero.hp,
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
     ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
@@ -535,8 +565,10 @@ function resolveMultiEnemyCombatItemTurn(
 ): ResolveCombatItemTurnResult {
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
+  tickCombatItemCooldowns(nextState);
   const heroHealing = resolveCombatItemHealing(nextState, item);
   nextState.hero.hp = Math.min(nextState.hero.hpMax, nextState.hero.hp + heroHealing);
+  recordCombatItemUse(nextState, item.id);
 
   const activationPhase = resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
   const { enemyPhase, heroEffectDamage } = activationPhase;
@@ -554,6 +586,7 @@ function resolveMultiEnemyCombatItemTurn(
     critical: false,
     item,
     heroHealing,
+    heroHpAfter: nextState.hero.hp,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
     ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
   });
@@ -574,7 +607,60 @@ function resolveCombatItemHealing(
   switch (item.effect.kind) {
     case "heal-hp":
       return Math.min(Math.max(0, item.effect.amount), Math.max(0, state.hero.hpMax - state.hero.hp));
+    case "heal-hp-to-min-percent": {
+      const percent = Math.max(1, Math.min(100, Math.floor(item.effect.percent)));
+      const targetHp = Math.min(state.hero.hpMax, Math.ceil(state.hero.hpMax * percent / 100));
+      return Math.max(0, targetHp - state.hero.hp);
+    }
   }
+}
+
+function getCombatItemAvailability(
+  state: CombatState,
+  itemId: string
+): { available: true } | { available: false; reason: "item-on-cooldown" | "item-limit-reached" } {
+  if (itemId === DENSE_BANDAGE_ITEM_ID) {
+    const cooldown = state.combatItems?.cooldowns?.[itemId]?.remainingTurns ?? 0;
+    return cooldown > 0
+      ? { available: false, reason: "item-on-cooldown" }
+      : { available: true };
+  }
+
+  if (itemId === FIELD_KIT_ITEM_ID) {
+    const uses = state.combatItems?.uses?.[itemId]?.count ?? 0;
+    return uses > 0
+      ? { available: false, reason: "item-limit-reached" }
+      : { available: true };
+  }
+
+  return { available: true };
+}
+
+function recordCombatItemUse(state: CombatState, itemId: string): void {
+  if (itemId !== DENSE_BANDAGE_ITEM_ID && itemId !== FIELD_KIT_ITEM_ID) {
+    return;
+  }
+
+  state.combatItems = cloneCombatItemState(state.combatItems ?? {});
+
+  if (itemId === DENSE_BANDAGE_ITEM_ID) {
+    state.combatItems.cooldowns = {
+      ...(state.combatItems.cooldowns ?? {}),
+      [itemId]: {
+        itemId,
+        remainingTurns: 5
+      }
+    };
+    return;
+  }
+
+  state.combatItems.uses = {
+    ...(state.combatItems.uses ?? {}),
+    [itemId]: {
+      itemId,
+      count: (state.combatItems.uses?.[itemId]?.count ?? 0) + 1
+    }
+  };
 }
 
 function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
@@ -584,6 +670,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
 
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
+  tickCombatItemCooldowns(nextState);
 
   const heroEffect = applyHeroActivationMonsterEffects(nextState);
   const heroEffectDamage = heroEffect.damage;
@@ -644,6 +731,7 @@ function resolveHeroAttack(
   }
 
   const nextState = cloneCombatState(input.state);
+  tickCombatItemCooldowns(nextState);
   const action = skill ? skill.action : input.action === "defend" ? "defend" : "attack";
   const monsterHpBeforeHeroAction = nextState.monster.hp;
   const defenderStats = applyMonsterRuntimeHeroAttackModifiers(
@@ -833,6 +921,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   let heroEffectDamage = 0;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   tickSkillCooldown(nextState);
+  tickCombatItemCooldowns(nextState);
 
   if (fled) {
     nextState.status = "fled";
@@ -896,6 +985,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
 function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
+  tickCombatItemCooldowns(nextState);
 
   const activationPhase = resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
   const { enemyPhase, heroEffectDamage } = activationPhase;
@@ -930,6 +1020,7 @@ function resolveMultiEnemyHeroAttack(
   skill?: CombatPlayerAbilityProfile
 ): ResolveCombatTurnResult {
   const nextState = cloneCombatState(input.state);
+  tickCombatItemCooldowns(nextState);
   syncPrimaryCombatEnemy(nextState);
   const action = skill ? skill.action : input.action === "defend" ? "defend" : "attack";
   const primary = getPrimaryCombatEnemy(nextState);
@@ -1121,6 +1212,7 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
     input.rng
   );
   tickSkillCooldown(nextState);
+  tickCombatItemCooldowns(nextState);
 
   let enemyPhase: ReturnType<typeof resolveLivingEnemyPhase> = {
     monsterDamage: 0,
@@ -1604,6 +1696,36 @@ function tickSkillCooldown(state: CombatState): void {
   delete state.guard;
 }
 
+function tickCombatItemCooldowns(state: CombatState): void {
+  const current = state.combatItems?.cooldowns;
+  if (!current) {
+    return;
+  }
+
+  const cooldowns = Object.fromEntries(
+    Object.entries(current)
+      .map(([itemId, cooldown]) => [
+        itemId,
+        {
+          itemId: cooldown.itemId,
+          remainingTurns: Math.max(0, Math.floor(cooldown.remainingTurns) - 1)
+        }
+      ] as const)
+      .filter(([, cooldown]) => cooldown.remainingTurns > 0)
+  );
+
+  const uses = state.combatItems?.uses;
+  if (Object.keys(cooldowns).length > 0 || uses) {
+    state.combatItems = {
+      ...(Object.keys(cooldowns).length > 0 ? { cooldowns } : {}),
+      ...(uses ? { uses: { ...uses } } : {})
+    };
+    return;
+  }
+
+  delete state.combatItems;
+}
+
 function setStateCooldowns(
   state: { cooldowns?: CombatState["cooldowns"] },
   cooldowns: CombatState["cooldowns"] | undefined
@@ -1732,6 +1854,7 @@ function buildSummary(input: {
   critical: boolean;
   item?: ResolveCombatItemTurnInput["item"];
   heroHealing?: number;
+  heroHpAfter?: number;
   skill?: CombatSkillProfile;
   monsterSkill?: CombatSkillProfile;
   enemyResults?: CombatEnemyAbilityResult[];
@@ -1779,6 +1902,7 @@ function buildSummary(input: {
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
     ...(input.item ? { itemId: input.item.id, itemName: input.item.name } : {}),
     ...(input.heroHealing ? { heroHealing: input.heroHealing } : {}),
+    ...(input.heroHpAfter !== undefined ? { heroHpAfter: input.heroHpAfter } : {}),
     ...(input.enemyResults && input.enemyResults.length > 0 ? { enemyResults: input.enemyResults } : {}),
     ...(input.allyResults && input.allyResults.length > 0 ? { allyResults: input.allyResults } : {}),
     ...(input.fumble ? { fumble: input.fumble } : {}),

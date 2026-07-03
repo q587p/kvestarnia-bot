@@ -11,11 +11,11 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 120 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 125 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
-Immediate unlock hooks currently run from successful action boundaries that already emit achievement events: character creation, opening the achievement list, opening the latest-events feed, level/item/equipment events, combat reward paths, problem-chain turn-in and local dev level/item grants. These can notify the player at action time when a definition is newly earned.
+Immediate unlock hooks currently run from successful action boundaries that already emit achievement events: character creation, opening the achievement list, opening the latest-events feed, level/item/equipment events, item crafting and use, combat reward paths, problem-chain turn-in and local dev level/item grants. These can notify the player at action time when a definition is newly earned.
 
 Manual recalculation through `🔎 Перевірити` remains the broader idempotent backfill path for durable ledger rows and older characters: current identity, identities selected during stored remorts, remort, starter/cellar/Yeger/adventure daily rows, training/Doppleganger, duels, Barrel, Shynok beer rounds, daily Korchma rounds, tavern table games, gifts, sales, drinks, passage search, hunt contracts, special stored fight outcomes and similar rows proven from persisted state. These rows may appear only after the manual check unless the current runtime flow also emits a direct event. The very first pre-remort identity can only be recovered if it is still the current identity or a future durable snapshot exists; old rows before that snapshot are not guessed.
 
@@ -82,7 +82,11 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.bandage.first-used` | enabled | visible | `item.used item.responsible-panic-bandage >= 1` | Паніка спрацювала за призначенням | уперше використати Бинт відповідальної паніки й не сперечатися з медициною. |
 | `achievement.bandage.four-used` | enabled | visible | `item.used item.responsible-panic-bandage >= 4` | Чотири вузли самозбереження | використати 4 Бинти відповідальної паніки й виглядати майже професійно. |
 | `achievement.bandage.ninety-three-used` | enabled | visible | `item.used item.responsible-panic-bandage >= 93` | Девʼяносто три рази не сьогодні | використати 93 Бинти відповідальної паніки й змусити біль заповнити форму. |
-| `achievement.yeger.free-bandage.first` | enabled | visible | `yeger.free-bandage.claimed >= 1` | Єгер дав бинт і не моргнув | уперше отримати безкоштовний бинт як єгер. |
+| `achievement.bandage.dense-crafted` | enabled | visible | `item.crafted item.dense-bandage >= 1` | Бинт набрався серйозности | уперше створити Щільний бинт і не назвати це ремеслом із паніки. |
+| `achievement.bandage.dense-used` | enabled | visible | `item.used item.dense-bandage >= 1` | Вузол тримався до кінця | уперше використати Щільний бинт у бою й дати рані коротку службову відпустку. |
+| `achievement.bandage.field-kit-crafted` | enabled | visible | `item.crafted item.field-kit >= 1` | Аптечка визнала поле | уперше створити Польову аптечку й переконати бинти працювати командою. |
+| `achievement.bandage.field-kit-used` | enabled | visible | `item.used item.field-kit >= 1` | Польова медицина без поля | уперше використати Польову аптечку в бою й не питати, де тут медична комісія. |
+| `achievement.yeger.free-bandage.first` | enabled | visible | `yeger.free-bandage.claimed >= 1` | Єгер дав бинт і не моргнув | уперше отримати безкоштовний медичний запас як єгер. |
 | `achievement.equipment.first-equipped` | enabled | visible | `equipment.item_equipped` | На мені це виглядає службово | вдягнути першу манатку й почути, як гачок нервово погодився. |
 | `achievement.equipment.three-equipped` | enabled | visible | `equipment.item_equipped >= 3` | Образ уже має інвентарний номер | вдягнути 3 манатки й виглядати як службова перевірка пригод. |
 | `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |
@@ -110,6 +114,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.barrel.raid.first` | enabled | visible | `barrel.raid.claimed >= 1` | Бочка видала перший акт | уперше отримати результат Бочки й не питати, хто там веде облік. |
 | `achievement.barrel.raid.thirteen` | enabled | visible | `barrel.raid.claimed >= 13` | Бочка вже вітається | отримати 13 результатів Бочки й не сперечатися з пінним архівом. |
 | `achievement.barrel.raid.first-loss` | enabled | visible | `barrel.raid.lost >= 1` | Бочка внесла правки | уперше програти Старшому Братові Бочки й отримати від Корчмаря позначку «пінна розвідка». |
+| `achievement.barrel.raid.bandage-used` | enabled | visible | `barrel.raid.bandage-used >= 1` | Бочка дозволила медицину | уперше використати медичну манатку проти Старшого Брата Бочки й не отримати письмової заборони. |
 | `achievement.korchma.round.first` | enabled | visible | `korchma.round.purchased >= 1` | Перший кухоль за компанію | уперше проставити пиво й лишити на столі соціяльний слід. |
 | `achievement.korchma.round.thirteen` | enabled | visible | `korchma.round.purchased >= 13` | Тринадцять кухлів дипломатії | проставити пиво 13 разів і стати окремим пунктом корчемної ввічливости. |
 | `achievement.tavern.game.first` | enabled | visible | `tavern.game.played >= 1` | Перший стіл витримав | уперше завершити гру за столом у Шинку й не отримати нічого, крім запису та погляду Корчмаря. |

@@ -46,6 +46,7 @@ sendTavernBarrel
 import { playerFromContext } from "../context";
 import { parseFightCallbackData } from "../callbacks/fightCallbackData";
 import { parseOnboardingCallbackData } from "../callbacks/onboardingCallbackData";
+import { parseYegerCallbackData, type YegerCallback } from "../callbacks/yegerCallbackData";
 import {
 buildMainMenuKeyboard,
 getMainMenuLocationButtonPresenceId,
@@ -209,10 +210,13 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
       return;
     }
     const fightCallback = parseFightCallbackData(ctx.callbackQuery.data);
-    const suppressMovementNotice = fightCallback.ok &&
-      (fightCallback.value.type === "passage" ||
-        fightCallback.value.type === "turn" ||
-        fightCallback.value.type === "item");
+    const yegerCallback = parseYegerCallbackData(ctx.callbackQuery.data);
+    const suppressMovementNotice =
+      (fightCallback.ok &&
+        (fightCallback.value.type === "passage" ||
+          fightCallback.value.type === "turn" ||
+          fightCallback.value.type === "item")) ||
+      (yegerCallback.ok && suppressYegerCornerMovementNotice(yegerCallback.value.type));
 
     const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
 
@@ -378,6 +382,10 @@ function isKorchmaDeepLowerLocationId(locationId: string | null | undefined): bo
   );
 }
 
+function suppressYegerCornerMovementNotice(type: YegerCallback["type"]): boolean {
+  return type !== "outside" && type !== "track";
+}
+
 export async function sendCurrentLocation(
   ctx: Context,
   services: BotServices,
@@ -407,14 +415,20 @@ export async function sendCurrentLocation(
   const locationId = normalizePresenceLocationId(requestedLocationId ?? place.locationId);
   const previousLocationId = normalizePresenceLocationId(place.locationId);
 
-  if (requestedLocationId && locationId !== previousLocationId) {
+  if (
+    requestedLocationId &&
+    locationId !== previousLocationId &&
+    locationId !== PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
+  ) {
     await refreshMainMenuLocationKeyboard(ctx, locationId, {
       previousLocationId
     });
   }
 
   if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, locationId, services)) {
-    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    if (locationId !== PRESENCE_LOCATION_KORCHMA_RANGER_CORNER) {
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    }
     return;
   }
 

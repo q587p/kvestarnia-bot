@@ -7,6 +7,7 @@ import type {
 import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import type { AchievementService } from "../../src/services/achievementService";
+import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 import { PartyBossService } from "../../src/services/partyBossService";
 
 describe("PartyBossService achievements", () => {
@@ -28,6 +29,19 @@ describe("PartyBossService achievements", () => {
           characterId: "character-joiner",
           sourceId: "boss-session-1",
           occurredAt
+        },
+        {
+          type: "barrel.raid.bandage-used",
+          characterId: "character-healer",
+          sourceId: "boss-action-1",
+          occurredAt
+        },
+        {
+          type: "item.used",
+          characterId: "character-field-kit",
+          itemId: "item.field-kit",
+          sourceId: "boss-action-2",
+          occurredAt
         }
       ]
     };
@@ -43,7 +57,7 @@ describe("PartyBossService achievements", () => {
 
     await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
 
-    expect(trackEventSafely).toHaveBeenCalledTimes(2);
+    expect(trackEventSafely).toHaveBeenCalledTimes(4);
     expect(trackEventSafely).toHaveBeenNthCalledWith(1, {
       type: "barrel.raid.claimed",
       characterId: "character-leader",
@@ -56,6 +70,53 @@ describe("PartyBossService achievements", () => {
       occurredAt,
       sourceId: "boss-session-1"
     });
+    expect(trackEventSafely).toHaveBeenNthCalledWith(3, {
+      type: "barrel.raid.bandage-used",
+      characterId: "character-healer",
+      occurredAt,
+      sourceId: "boss-action-1"
+    });
+    expect(trackEventSafely).toHaveBeenNthCalledWith(4, {
+      type: "item.used",
+      characterId: "character-field-kit",
+      itemId: "item.field-kit",
+      occurredAt,
+      sourceId: "boss-action-2"
+    });
+  });
+
+  it("passes field kits through the party-boss combat item path", async () => {
+    const occurredAt = new Date("2026-07-01T19:00:00.000Z");
+    const result: PartyBossActionResult = {
+      state: "queued",
+      session: makeSession("active")
+    };
+    const submitItemForTelegramUser =
+      vi.fn<PartyBossRepository["submitItemForTelegramUser"]>().mockResolvedValue(result);
+    const repository = {
+      submitItemForTelegramUser
+    } as unknown as PartyBossRepository;
+    const service = new PartyBossService(repository, { enabled: true }, () => occurredAt);
+
+    await service.submitItemForTelegramUser(123n, "token-1", 1, getCombatItemUseKey("item.field-kit"));
+
+    expect(submitItemForTelegramUser).toHaveBeenCalledWith(
+      123n,
+      "token-1",
+      1,
+      {
+        id: "item.field-kit",
+        name: "Польова аптечка",
+        effect: {
+          kind: "heal-hp-to-min-percent",
+          percent: 93
+        }
+      },
+      {
+        now: occurredAt,
+        nextTurnExpiresAt: new Date("2026-07-01T19:00:23.000Z")
+      }
+    );
   });
 
   it("does not track achievements for replay results without fresh settlement events", async () => {

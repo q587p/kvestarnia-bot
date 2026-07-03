@@ -229,7 +229,12 @@ describe("presence middleware", () => {
   it.each([
     ["/dev_heal 7", "heal"],
     ["/dev_restore_mana 4", "restoreMana"],
-    ["/dev_add_bandage 5", "addBandages"]
+    ["/dev_add_bandage 5", "addBandages"],
+    ["/dev_add_dense_bandage 2", "addDenseBandages"],
+    ["/dev_add_field_kit 3", "addFieldKits"],
+    ["/dev_add_yeger_line 4", "addYegerLines"],
+    ["/dev_yeger_first_done", "completeFirstYegerQuestProgress"],
+    ["/dev_yeger_second_done", "completeSecondYegerQuestProgress"]
   ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
     const presence = new CapturingPresenceService();
     const calls: string[] = [];
@@ -267,6 +272,74 @@ describe("presence middleware", () => {
               name: "Бинт відповідальної паніки",
               quantity: 5
             }]
+          });
+        },
+        addDenseBandages: () => {
+          calls.push("addDenseBandages");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "items" as const,
+            amount: 2,
+            character: characterRecord(),
+            itemGrants: [{
+              itemId: "item.dense-bandage",
+              name: "Щільний бинт",
+              quantity: 2
+            }]
+          });
+        },
+        addFieldKits: () => {
+          calls.push("addFieldKits");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "items" as const,
+            amount: 3,
+            character: characterRecord(),
+            itemGrants: [{
+              itemId: "item.field-kit",
+              name: "Польова аптечка",
+              quantity: 3
+            }]
+          });
+        },
+        addYegerLines: () => {
+          calls.push("addYegerLines");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "items" as const,
+            amount: 4,
+            character: characterRecord(),
+            itemGrants: [{
+              itemId: "item.yeger.first-notch",
+              name: "Єгерська риска на дощечці",
+              quantity: 4
+            }]
+          });
+        },
+        completeFirstYegerQuestProgress: () => {
+          calls.push("completeFirstYegerQuestProgress");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "yeger-quest-progress" as const,
+            stage: "first" as const,
+            addedWins: 5,
+            wins: 5,
+            target: 5,
+            started: true,
+            character: characterRecord()
+          });
+        },
+        completeSecondYegerQuestProgress: () => {
+          calls.push("completeSecondYegerQuestProgress");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "yeger-quest-progress" as const,
+            stage: "second" as const,
+            addedWins: 17,
+            wins: 17,
+            target: 17,
+            started: true,
+            character: characterRecord()
           });
         }
       } as unknown as BotServices["devGrant"]

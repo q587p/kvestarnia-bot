@@ -21,6 +21,7 @@ import {
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
+  makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData
@@ -47,8 +48,15 @@ import {
   makeShynokRoundConfirmCallbackData
 } from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
-import { makeYegerTrackCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
+import {
+  makeYegerBandagesCallbackData,
+  makeYegerOpenCallbackData,
+  makeYegerTrackCallbackData,
+  makeYegerTurnInCallbackData
+} from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
+import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
@@ -1352,6 +1360,114 @@ describe("scene callback HTML options", () => {
     expect(movement).toBeUndefined();
   });
 
+  it("answers combat field-kit repeat attempts with a concrete once-per-battle reason", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+    const calls = await captureApiCalls(
+      makeFightItemUseCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        itemKey: getCombatItemUseKey("item.field-kit")
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightItemTurn: () =>
+            Promise.resolve({
+              state: "item-unavailable" as const,
+              reason: "item-limit-reached" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Тестовий монстр.",
+                level: 2,
+                tags: ["beast"]
+              },
+              questProgress: null
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: "location.korchma.deep.level1.straight",
+              locationName: "Прямий прохід",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+    const callbackAnswer = calls.find((call) => call.method === "answerCallbackQuery");
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(callbackAnswer?.payload).toMatchObject({
+      text: "Манатка не спрацювала: польова аптечка працює лише раз на бій.",
+      show_alert: true
+    });
+    expect(String(edit?.payload.text)).toContain("вже зробила свою справу в цьому бою");
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: "location.korchma.deep.level1.straight",
+        currentRaidId: null,
+        currentAdventureId: "adventure.solo-fight"
+      })
+    );
+  });
+
+  it("does not send a duplicate Yeger corner movement notice for Yeger callbacks", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const getCurrentPlaceForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({
+        state: "ready" as const,
+        locationId: "location.korchma.hall",
+        locationName: "Зала корчми",
+        insideKorchma: true
+      })
+      .mockResolvedValue({
+        state: "ready" as const,
+        locationId: "location.korchma.ranger_corner",
+        locationName: "Єгерський куток",
+        insideKorchma: true
+      });
+    const calls = await captureApiCalls(
+      makeYegerOpenCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              progress: { wins: 17, target: 17, stageId: "second" as const },
+              reward: {
+                xp: 170,
+                gold: 170,
+                itemGrants: []
+              }
+            })
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser,
+          getRaidParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getAdventureParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const movement = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ви підійшли до єгерського кутка.")
+    );
+
+    expect(String(edit?.payload.text)).toContain("Єгерський куток");
+    expect(movement).toBeUndefined();
+  });
+
   it("refreshes the location keyboard after a non-passage fight callback changes place", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
@@ -1582,6 +1698,83 @@ describe("scene callback HTML options", () => {
     expect(String(progress?.payload.text)).toContain("<i>Неспокійні справи</i>: <b>5/5</b>. — Єгер чекає дощечку.");
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🍻 До шинку");
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🏹 До Єгеря");
+  });
+
+  it("offers craft shortcuts after the completed second Yeger turn-in when craft options are available", async () => {
+    const getCraftOptionsForTelegramUser = vi.fn(() =>
+      Promise.resolve(ITEM_CRAFT_RECIPES.map((recipe) => ({ recipe })))
+    );
+    const calls = await captureApiCalls(
+      makeYegerTurnInCallbackData(),
+      servicesWith({
+        itemCraft: {
+          getCraftOptionsForTelegramUser
+        },
+        yeger: {
+          turnInForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              progress: { wins: 17, target: 17, stageId: "second" as const },
+              reward: {
+                xp: 56,
+                gold: 170,
+                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+              },
+              levelChange: null,
+              achievementUnlocks: []
+            }),
+          getNotchExchangeForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              character,
+              summary: {
+                availableNotches: 0,
+                options: []
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(getCraftOptionsForTelegramUser).toHaveBeenCalledWith(42n, "item.responsible-panic-bandage");
+    expect(keyboard).toContain("v1:craft:p:dense");
+    expect(keyboard).toContain("v1:craft:p:kit");
+  });
+
+  it("offers craft shortcuts from the Yeger bandages submenu when craft options are available", async () => {
+    const getCraftOptionsForTelegramUser = vi.fn(() =>
+      Promise.resolve(ITEM_CRAFT_RECIPES.map((recipe) => ({ recipe })))
+    );
+    const calls = await captureApiCalls(
+      makeYegerBandagesCallbackData(),
+      servicesWith({
+        itemCraft: {
+          getCraftOptionsForTelegramUser
+        },
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              progress: { wins: 17, target: 17, stageId: "second" as const },
+              reward: {
+                xp: 56,
+                gold: 170,
+                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Р„РіРµСЂСЊРєР° СЂРёСЃРєР° РЅР° РґРѕС‰РµС‡С†С–", quantity: 2 }]
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(getCraftOptionsForTelegramUser).toHaveBeenCalledWith(42n, "item.responsible-panic-bandage");
+    expect(keyboard).toContain("v1:craft:p:dense");
+    expect(keyboard).toContain("v1:craft:p:kit");
   });
 
   it("edits equip requirement denials as message text instead of popup text", async () => {
@@ -2582,7 +2775,6 @@ describe("scene callback HTML options", () => {
         String(call.payload.text).includes("Ви підійшли до єгерського кутка.")
     );
     const keyboard = JSON.stringify(scene?.payload.reply_markup);
-    const movementKeyboard = JSON.stringify(movementNotice?.payload.reply_markup);
 
     expect(openScene).toHaveBeenCalledWith(42n, {
       dayToken: "20260628",
@@ -2596,9 +2788,7 @@ describe("scene callback HTML options", () => {
         currentAdventureId: null
       })
     );
-    expect(movementNotice).toBeDefined();
-    expect(movementKeyboard).toContain("🏹 Єгерський куток");
-    expect(movementKeyboard).not.toContain("🪜 Низ");
+    expect(movementNotice).toBeUndefined();
     expect(scene).toBeDefined();
     expect(keyboard).toContain("v1:dkr:a:20260628:0:fold-north:0");
   });

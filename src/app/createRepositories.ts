@@ -13,6 +13,7 @@ import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChal
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRepository";
+import { PrismaItemCraftRepository } from "../db/repositories/prismaItemCraftRepository";
 import { PrismaItemUseRepository } from "../db/repositories/prismaItemUseRepository";
 import { PrismaItemTransferRepository } from "../db/repositories/prismaItemTransferRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "../db/repositories/prismaKorchmaRoundPurchaseRepository";
@@ -30,6 +31,7 @@ import { PrismaShynokRepository } from "../db/repositories/prismaShynokRepositor
 import { PrismaSoloCombatSessionRepository } from "../db/repositories/prismaSoloCombatSessionRepository";
 import { PrismaTavernGameRepository } from "../db/repositories/prismaTavernGameRepository";
 import { PrismaUserRepository } from "../db/repositories/prismaUserRepository";
+import { PrismaYegerNotchExchangeRepository } from "../db/repositories/prismaYegerNotchExchangeRepository";
 
 export function createRepositories(prisma: PrismaClient) {
   return {
@@ -48,6 +50,7 @@ export function createRepositories(prisma: PrismaClient) {
     equipment: new PrismaEquipmentRepository(prisma),
     huntContracts: new PrismaHuntContractRepository(prisma),
     inventory: new PrismaInventoryRepository(prisma),
+    itemCraft: new PrismaItemCraftRepository(prisma),
     itemUse: new PrismaItemUseRepository(prisma),
     itemTransfers: new PrismaItemTransferRepository(prisma),
     levelBarter: new PrismaLevelBarterRepository(prisma),
@@ -63,7 +66,8 @@ export function createRepositories(prisma: PrismaClient) {
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
     shynok: new PrismaShynokRepository(prisma),
     soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma),
-    tavernGames: new PrismaTavernGameRepository(prisma)
+    tavernGames: new PrismaTavernGameRepository(prisma),
+    yegerNotchExchange: new PrismaYegerNotchExchangeRepository(prisma)
   };
 }
 

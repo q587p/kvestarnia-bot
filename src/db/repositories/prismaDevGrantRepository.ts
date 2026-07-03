@@ -1,5 +1,6 @@
 import type { Character, Prisma, PrismaClient } from "@prisma/client";
 import { items } from "../../content";
+import { monsters } from "../../content/monsters";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CombatState } from "../../domain/combat";
 import type { PartyBossState } from "../../domain/partyBoss/partyBoss";
@@ -12,9 +13,23 @@ import type {
   DevGrantDailyActionResetResult,
   DevGrantItemResult,
   DevGrantProgressResult,
-  DevGrantRepository
+  DevGrantRepository,
+  DevGrantYegerQuestProgressResult,
+  DevGrantYegerQuestStage
 } from "./devGrantRepository";
 import type { ItemGrant } from "./dailyActionRepository";
+import {
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
+  YEGER_UNQUIET_TRIAL_STARTED_KEY
+} from "../../services/dailyActionKeys";
+import {
+  isYegerUnquietTarget,
+  YEGER_UNQUIET_TRIAL_BUCKET,
+  YEGER_UNQUIET_TRIAL_SECOND_TARGET,
+  YEGER_UNQUIET_TRIAL_TARGET
+} from "../../services/yegerQuestService";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { parseCombatState } from "./prismaSoloCombatSessionRepository";
@@ -335,6 +350,232 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
       };
     });
   }
+
+  async completeYegerQuestProgressForTelegramUser(
+    telegramUserId: bigint,
+    stage: DevGrantYegerQuestStage,
+    now: Date
+  ): Promise<DevGrantYegerQuestProgressResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const config = getDevYegerQuestStageConfig(stage);
+      const completed = await tx.dailyAction.findFirst({
+        where: {
+          characterId: character.id,
+          key: config.completedKey,
+          localDate: YEGER_UNQUIET_TRIAL_BUCKET
+        }
+      });
+
+      if (completed) {
+        return {
+          state: "ready",
+          character: toCharacterRecord(character),
+          stage,
+          addedWins: 0,
+          wins: config.target,
+          target: config.target,
+          started: false
+        };
+      }
+
+      if (stage === "second") {
+        const firstCompleted = await tx.dailyAction.findFirst({
+          where: {
+            characterId: character.id,
+            key: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+            localDate: YEGER_UNQUIET_TRIAL_BUCKET
+          }
+        });
+
+        if (!firstCompleted) {
+          return {
+            state: "blocked",
+            character: toCharacterRecord(character),
+            stage,
+            reason: "first-board-not-completed"
+          };
+        }
+      }
+
+      const started = await ensureYegerQuestStarted(tx, character.id, config.startedKey, now);
+      const currentWins = await countDevYegerWinsSince(tx, character.id, started.createdAt);
+      const addedWins = Math.max(0, config.target - currentWins);
+      const monster = getDevYegerMonster();
+
+      for (let index = 0; index < addedWins; index += 1) {
+        const completedAt = new Date(Math.max(now.getTime(), started.createdAt.getTime()) + index + 1);
+        await tx.soloCombatSession.create({
+          data: {
+            characterId: character.id,
+            monsterId: monster.id,
+            status: "won",
+            turn: 1,
+            stateJson: buildDevYegerWinState(monster, character, completedAt) as unknown as Prisma.InputJsonValue,
+            expiresAt: completedAt,
+            createdAt: completedAt
+          }
+        });
+      }
+
+      return {
+        state: "ready",
+        character: toCharacterRecord(character),
+        stage,
+        addedWins,
+        wins: Math.min(config.target, currentWins + addedWins),
+        target: config.target,
+        started: !started.existed
+      };
+    });
+  }
+}
+
+function getDevYegerQuestStageConfig(stage: DevGrantYegerQuestStage): {
+  startedKey: string;
+  completedKey: string;
+  target: number;
+} {
+  return stage === "second"
+    ? {
+        startedKey: YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
+        completedKey: YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
+        target: YEGER_UNQUIET_TRIAL_SECOND_TARGET
+      }
+    : {
+        startedKey: YEGER_UNQUIET_TRIAL_STARTED_KEY,
+        completedKey: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+        target: YEGER_UNQUIET_TRIAL_TARGET
+      };
+}
+
+async function ensureYegerQuestStarted(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  key: string,
+  now: Date
+): Promise<{ createdAt: Date; existed: boolean }> {
+  const existing = await tx.dailyAction.findFirst({
+    where: {
+      characterId,
+      key,
+      localDate: YEGER_UNQUIET_TRIAL_BUCKET
+    }
+  });
+
+  if (existing) {
+    return { createdAt: existing.createdAt, existed: true };
+  }
+
+  const created = await tx.dailyAction.create({
+    data: {
+      characterId,
+      key,
+      localDate: YEGER_UNQUIET_TRIAL_BUCKET,
+      rewardXp: 0,
+      rewardGold: 0,
+      resultJson: {
+        kind: "dev-yeger-quest-start",
+        stageKey: key
+      },
+      createdAt: now
+    }
+  });
+
+  return { createdAt: created.createdAt, existed: false };
+}
+
+async function countDevYegerWinsSince(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  since: Date
+): Promise<number> {
+  const rows = await tx.soloCombatSession.findMany({
+    where: {
+      OR: [{ updatedAt: { gte: since } }, { createdAt: { gte: since } }],
+      characterId
+    },
+    select: {
+      monsterId: true,
+      status: true,
+      stateJson: true,
+      createdAt: true
+    }
+  });
+
+  return rows.filter((row) => {
+    if (row.status !== "won") {
+      return false;
+    }
+
+    const monster = monsters.find((candidate) => candidate.id === row.monsterId);
+    if (!monster || !isYegerUnquietTarget(monster)) {
+      return false;
+    }
+
+    const state = parseCombatState(row.stateJson);
+    const completedAt = parseDevYegerCompletedAt(state?.completedAt) ?? row.createdAt;
+    if (completedAt < since) {
+      return false;
+    }
+
+    return !state?.settlement || state.settlement.status === "completed";
+  }).length;
+}
+
+function getDevYegerMonster(): (typeof monsters)[number] {
+  const monster = monsters.find((candidate) => isYegerUnquietTarget(candidate));
+
+  if (!monster) {
+    throw new Error("No Yeger unquiet monster is configured.");
+  }
+
+  return monster;
+}
+
+function buildDevYegerWinState(
+  monster: (typeof monsters)[number],
+  character: Character,
+  completedAt: Date
+): CombatState {
+  const hpMax = Math.max(1, Math.floor(character.hpMax));
+  const manaMax = Math.max(0, Math.floor(character.manaMax));
+  const monsterHpMax = Math.max(1, monster.level * 5);
+
+  return {
+    source: "yeger",
+    completedAt: completedAt.toISOString(),
+    turn: 1,
+    status: "won",
+    hero: {
+      hp: Math.max(1, Math.min(hpMax, Math.floor(character.hpCurrent))),
+      hpMax,
+      mana: Math.max(0, Math.min(manaMax, Math.floor(character.manaCurrent))),
+      manaMax
+    },
+    monster: {
+      id: monster.id,
+      name: monster.name,
+      level: monster.level,
+      hp: 0,
+      hpMax: monsterHpMax
+    }
+  };
+}
+
+function parseDevYegerCompletedAt(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 async function healActiveCombatForCharacter(

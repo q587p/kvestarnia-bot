@@ -350,7 +350,7 @@ export type PersistentFightTurnResult =
     }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -363,6 +363,7 @@ export type PersistentFightTurnResult =
       monster: MonsterContent;
       questProgress: ThirteenSmallProblemsProgress;
       fightReward: PersistentFightReward | null;
+      achievementUnlocks?: AchievementUnlock[];
     }
   | {
       state: "terminal";
@@ -2610,6 +2611,17 @@ export class FightService {
         };
       }
 
+      if (resolved.reason === "item-on-cooldown" || resolved.reason === "item-limit-reached") {
+        return {
+          state: "item-unavailable",
+          reason: resolved.reason,
+          character: characterSummary,
+          session: currentSession,
+          monster,
+          questProgress
+        };
+      }
+
       return {
         state: "terminal",
         character: characterSummary,
@@ -2705,6 +2717,14 @@ export class FightService {
         : null;
 
     const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const achievementUnlocks =
+      (await this.achievements?.trackEventSafely({
+        type: "item.used",
+        characterId: currentSession.characterId,
+        itemId: combatItem.item.id,
+        occurredAt: this.clock(),
+        sourceId: `${updated.id}:turn:${input.turn}:item:${combatItem.item.id}`
+      })) ?? [];
 
     return {
       state: "updated",
@@ -2712,7 +2732,8 @@ export class FightService {
       session: updated,
       monster,
       questProgress: refreshedQuestProgress,
-      fightReward
+      fightReward,
+      achievementUnlocks
     };
   }
 

@@ -284,7 +284,7 @@ async function backfillRareItems(
         {
           eventType: "item.rare_received",
           category: "manatky",
-          severity: isLegendaryItemRarity(item.rarity) ? "legendary" : "high",
+          severity: isLegendaryItemRarity(item.rarity) ? "legendary" : "normal",
           actorCharacterId: row.characterId,
           actorDisplayName: row.characterName,
           subjectKind: "item",

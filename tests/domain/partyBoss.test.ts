@@ -131,6 +131,105 @@ describe("party boss reducer", () => {
     expect(result.state.participants[0]?.contribution.submittedActions).toBe(1);
   });
 
+  it("applies crafted raid item healing rules and records their battle limits", () => {
+    const denseState = createPartyBossState({
+      partySessionId: "party-dense-item",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 100, hpCurrent: 10, dexterity: 20 })
+      ]
+    });
+
+    const denseResult = resolvePartyBossRound({
+      state: {
+        ...denseState,
+        boss: {
+          ...denseState.boss,
+          hp: 0,
+          hpMax: 100,
+          attack: 0,
+          dexterity: 0
+        }
+      },
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-dense-item",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item",
+          origin: "manual",
+          item: {
+            id: "item.dense-bandage",
+            name: "Щільний бинт",
+            effect: {
+              kind: "heal-hp",
+              amount: 42
+            }
+          }
+        }
+      ]
+    });
+
+    expect(denseResult.round.actions[0]).toMatchObject({
+      itemId: "item.dense-bandage",
+      healing: 42
+    });
+    expect(denseResult.state.participants[0]?.resources.hp).toBe(52);
+    expect(denseResult.state.participants[0]?.combatItems?.cooldowns?.["item.dense-bandage"]).toEqual({
+      itemId: "item.dense-bandage",
+      remainingTurns: 5
+    });
+
+    const fieldKitState = createPartyBossState({
+      partySessionId: "party-field-kit",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 100, hpCurrent: 10, dexterity: 20 })
+      ]
+    });
+
+    const fieldKitResult = resolvePartyBossRound({
+      state: {
+        ...fieldKitState,
+        boss: {
+          ...fieldKitState.boss,
+          hp: 0,
+          hpMax: 100,
+          attack: 0,
+          dexterity: 0
+        }
+      },
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-field-kit",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item",
+          origin: "manual",
+          item: {
+            id: "item.field-kit",
+            name: "Польова аптечка",
+            effect: {
+              kind: "heal-hp-to-min-percent",
+              percent: 93
+            }
+          }
+        }
+      ]
+    });
+
+    expect(fieldKitResult.round.actions[0]).toMatchObject({
+      itemId: "item.field-kit",
+      healing: 83,
+      hpAfter: 93
+    });
+    expect(fieldKitResult.state.participants[0]?.resources.hp).toBe(93);
+    expect(fieldKitResult.state.participants[0]?.combatItems?.uses?.["item.field-kit"]).toEqual({
+      itemId: "item.field-kit",
+      count: 1
+    });
+  });
+
   it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {
     let state = createPartyBossState({
       partySessionId: "big-focus",

@@ -2,6 +2,7 @@ import type { ItemContent } from "../../content/schema";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import { isEquippableItem } from "../../services/equipmentService";
 import type { ItemUseAvailability } from "../../services/itemUseService";
+import { YEGER_FIRST_NOTCH_ITEM_ID } from "../../services/itemGrant";
 import type {
   InventoryItemDetailResult,
   InventoryItemSummary
@@ -70,12 +71,12 @@ function presentItemUseLine(
   if (combatUseAvailable) {
     return [
       "Використання: <b>можна застосувати в бою або поза боєм</b>.",
-      "У бою бинт витрачає хід і лікує одразу. Поза боєм попередній перегляд покаже лікування перед витратою."
+      "У бою манатка витрачає хід і лікує одразу. Поза боєм попередній перегляд покаже лікування перед витратою."
     ];
   }
 
   return [
-    "Використання: <b>можна застосувати поза боєм</b>.",
+    "Використання: <b>можна застосувати для лікування</b>.",
     "Попередній перегляд покаже поточне лікування перед витратою."
   ];
 }
@@ -96,6 +97,14 @@ function presentEquipmentLine(
   equippedSlot: EquipmentSlot | null,
   equipPreview: ItemEquipPreviewResult | null
 ): string {
+  if (item.slot === "consumable") {
+    return "Екіпірування: <i>не вдягається. Це витратна манатка: її застосовують, а не приміряють.</i>";
+  }
+
+  if (item.id === YEGER_FIRST_NOTCH_ITEM_ID) {
+    return "Екіпірування: <i>не вдягається. Єгер міняє такі риски на медичний запас після закритої другої дощечки.</i>";
+  }
+
   if (!isEquippableItem(item)) {
     return "Екіпірування: <i>не вдягається. Корчма визнала це смішним трофеєм.</i>";
   }
@@ -221,6 +230,14 @@ function presentItemFlavor(item: ItemContent): string {
 
   if (item.slot === "junk") {
     return "<i>Корчмар записав це в журнал як «важливо, але не чіпати голими руками».</i>";
+  }
+
+  if (item.slot === "consumable") {
+    return "<i>Корчмар зважує манатку в руці й вирішує, чи не занадто впевнено вона виглядає перед витратою.</i>";
+  }
+
+  if (item.id === YEGER_FIRST_NOTCH_ITEM_ID) {
+    return "<i>Корчмар не кладе риску на полицю. Він підсуває її ближче до Єгеря й удає, що це інвентарна дипломатія.</i>";
   }
 
   return "<i>Корчмар крутить манатку в руках і ще думає, до якої полиці її не підпускати.</i>";

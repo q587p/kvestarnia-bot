@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildQuestHubKeyboard } from "../../src/bot/keyboards/questHubKeyboard";
 import type { QuestHubKeyboardInput } from "../../src/bot/keyboards/questHubKeyboard";
+import { makeYegerTurnInCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 
 describe("quest hub keyboard", () => {
   it("does not offer the fighting corner shortcut from the active quest hub", () => {
@@ -95,6 +96,28 @@ describe("quest hub keyboard", () => {
 
     expect(json).toContain("🧾 Здати обхід");
     expect(json).toContain("v1:dkr:c:20260628:7");
+  });
+
+  it("routes ready Yeger boards straight to turn-in from the quest table", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        yeger: {
+          state: "turn-in-ready",
+          character: character(),
+          progress: {
+            completed: false,
+            wins: 5,
+            target: 5,
+            rewardClaimed: false
+          }
+        }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🏹 Здати Єгерю");
+    expect(json).toContain(makeYegerTurnInCallbackData());
+    expect(json).not.toContain("v1:tavern:ranger");
   });
 
   it("offers an untaken daily Korchma round without an existing offer token", () => {

@@ -127,6 +127,14 @@ describe("lore board content", () => {
     expect(groupedEntryIds).toEqual(new Set(placeEntryIds));
   });
 
+  it("keeps Shynok lore aligned with current social game surfaces", () => {
+    const shynok = loreEntries.find((entry) => entry.id === "place-bar");
+
+    expect(shynok?.body).toContain("Бард може виступити");
+    expect(shynok?.body).toContain("пригостити всіх пивом");
+    expect(shynok?.body).toContain("тавлеї чи кості");
+  });
+
   it("detects broken lore records", () => {
     expect(validateLoreBoardContent({
       categories: loreCategories,

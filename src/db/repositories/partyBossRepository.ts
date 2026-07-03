@@ -33,12 +33,20 @@ export interface PartyBossSessionRecord {
   participants: PartyBossParticipantSnapshot[];
 }
 
-export interface PartyBossAchievementEventRecord {
-  type: "barrel.raid.claimed" | "barrel.raid.lost";
-  characterId: string;
-  sourceId: string;
-  occurredAt: Date;
-}
+export type PartyBossAchievementEventRecord =
+  | {
+      type: "barrel.raid.claimed" | "barrel.raid.lost" | "barrel.raid.bandage-used";
+      characterId: string;
+      sourceId: string;
+      occurredAt: Date;
+    }
+  | {
+      type: "item.used";
+      characterId: string;
+      itemId: string;
+      sourceId: string;
+      occurredAt: Date;
+    };
 
 export type PartyBossStartResult =
   | { state: "disabled" }
@@ -58,7 +66,7 @@ export type PartyBossActionResult =
   | { state: "not-found" }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
       session?: PartyBossSessionRecord;
     }
   | {

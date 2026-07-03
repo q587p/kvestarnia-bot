@@ -33,6 +33,7 @@ import { buildHuntBoardKeyboard } from "../../src/bot/keyboards/huntKeyboard";
 import {
   buildEquipmentKeyboard,
   buildInventoryKeyboard,
+  buildItemCraftResultKeyboard,
   buildItemDetailKeyboard,
   buildItemUseResultKeyboard
 } from "../../src/bot/keyboards/inventoryKeyboard";
@@ -1307,7 +1308,7 @@ describe("main menu and scene keyboards", () => {
             {
               id: "character-item-1",
               itemId: "item.wet-hero-ticket",
-              quantity: 1,
+              quantity: 2,
               content: {
                 id: "item.wet-hero-ticket",
                 name: "Квиток мокрого пригодника",
@@ -1320,7 +1321,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🛡️ Спорядження", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника"]);
+    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника (2)"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -1343,7 +1344,7 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["v1:equip:view", "v1:chest:open", "v1:item:detail:item.wet-hero-ticket"]);
+    ).toEqual(["v1:equip:view", "v1:item:inventory:f:u", "v1:chest:open", "v1:item:detail:item.wet-hero-ticket"]);
     expect(
       flatInlineButtonTexts(
         buildInventoryKeyboard(
@@ -1367,7 +1368,7 @@ describe("main menu and scene keyboards", () => {
           1
         )
       )
-    ).toEqual(["🛡️ Спорядження", "♻️ До Дружньої Скрині", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
+    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard(
@@ -1393,6 +1394,7 @@ describe("main menu and scene keyboards", () => {
       )
     ).toEqual([
       "v1:equip:view",
+      "v1:item:inventory:f:u",
       "v1:chest:open",
       "v1:item:detail:item.test-9:1",
       "v1:item:inventory",
@@ -1598,6 +1600,58 @@ describe("main menu and scene keyboards", () => {
           },
           null,
           0,
+          "one-use"
+        )
+      )
+    ).toEqual(["⬅️ До разових", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonCallbacks(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 1,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 3
+              }
+            }
+          },
+          null,
+          0,
+          "one-use"
+        )
+      )
+    ).toEqual(["v1:item:inventory:f:u", "v1:equip:view"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 1,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 3
+              }
+            }
+          },
+          null,
+          0,
           null,
           {
             canUse: true,
@@ -1611,6 +1665,66 @@ describe("main menu and scene keyboards", () => {
         )
       )
     ).toEqual(["⚔️ Використати у бою", "⬅️ До манаток", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-bandage",
+              itemId: "item.responsible-panic-bandage",
+              quantity: 13,
+              content: {
+                id: "item.responsible-panic-bandage",
+                name: "Бинт відповідальної паніки",
+                description: "Для відповідальної паніки.",
+                rarity: "common",
+                slot: "consumable",
+                tags: ["consumable", "one-use"],
+                useEffect: { kind: "heal-hp", amount: 7 },
+                goldValue: 7
+              }
+            }
+          },
+          null,
+          0,
+          null,
+          {
+            canUse: true,
+            craftOptions: [
+              {
+                recipe: {
+                  id: "dense-bandage",
+                  code: "dense",
+                  sourceItemId: "item.responsible-panic-bandage",
+                  outputItemId: "item.dense-bandage",
+                  sourceQuantity: 8,
+                  outputQuantity: 1,
+                  buttonLabel: "🧵 Створити щільний бинт"
+                }
+              },
+              {
+                recipe: {
+                  id: "field-kit",
+                  code: "kit",
+                  sourceItemId: "item.responsible-panic-bandage",
+                  outputItemId: "item.field-kit",
+                  sourceQuantity: 13,
+                  outputQuantity: 1,
+                  buttonLabel: "🧰 Створити польову аптечку"
+                }
+              }
+            ]
+          }
+        )
+      )
+    ).toEqual([
+      "🧵 Створити щільний бинт",
+      "🧰 Створити польову аптечку",
+      "🩹 Використати",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -1783,6 +1897,27 @@ describe("main menu and scene keyboards", () => {
       "🛡️ Спорядження"
     ]);
     expect(
+      flatInlineButtonTexts(buildItemUseResultKeyboard({ detailItemId: "item.responsible-panic-bandage" }))
+    ).toEqual([
+      "🔎 До бинта",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
+      flatInlineButtonCallbacks(buildItemUseResultKeyboard({ detailItemId: "item.responsible-panic-bandage" }))
+    ).toEqual([
+      "v1:item:detail:item.responsible-panic-bandage",
+      "v1:item:inventory",
+      "v1:equip:view"
+    ]);
+    expect(
+      flatInlineButtonTexts(buildItemUseResultKeyboard({ detailItemId: "item.field-kit" }))
+    ).toEqual([
+      "🔎 До аптечки",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(
       flatInlineButtonTexts(buildItemUseResultKeyboard({
         repeatItemId: "item.responsible-panic-bandage",
         restoreToFullItemId: "item.responsible-panic-bandage"
@@ -1804,6 +1939,26 @@ describe("main menu and scene keyboards", () => {
       "v1:item:inventory",
       "v1:equip:view"
     ]);
+  });
+
+  it("adds another craft button only when enough source items remain", () => {
+    expect(flatInlineButtonTexts(buildItemCraftResultKeyboard())).toEqual([
+      "🔎 До бинта",
+      "⬅️ До манаток"
+    ]);
+    expect(flatInlineButtonTexts(buildItemCraftResultKeyboard({ repeatRecipeCode: "dense" }))).toEqual([
+      "✅ Створити ще",
+      "🔎 До бинта",
+      "⬅️ До манаток"
+    ]);
+    expect(flatInlineButtonCallbacks(buildItemCraftResultKeyboard({ repeatRecipeCode: "dense" }))).toEqual([
+      "v1:craft:ok:dense",
+      "v1:item:detail:item.responsible-panic-bandage",
+      "v1:item:inventory"
+    ]);
+    expect(flatInlineButtonCallbacks(buildItemCraftResultKeyboard({ repeatRecipeCode: "kit" }))[0]).toBe(
+      "v1:craft:ok:kit"
+    );
   });
 
   it("offers manual Mantok Chest selection and compact item-index callbacks", () => {

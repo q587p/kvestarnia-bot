@@ -16,7 +16,7 @@ describe("itemUsePresenter", () => {
   it("does not promise a combat item button when the active fight does not support one", () => {
     const text = presentItemUsePreview({ state: "combat-locked" });
 
-    expect(text).toContain("Під час цього бою бинт не можна використати з торби.");
+    expect(text).toContain("Під час цього бою манатку не можна використати з торби.");
     expect(text).not.toContain("кнопка піде в поточний хід");
   });
 
@@ -35,6 +35,36 @@ describe("itemUsePresenter", () => {
 
     expect(presentItemUseConfirm(result)).toContain("HP уже повні: <b>41/41</b>.");
     expect(presentItemUseConfirm(result)).not.toContain("10/41");
+  });
+
+  it("does not name a full-HP preview as a waiting manatka", () => {
+    const text = presentItemUsePreview({
+      state: "full-hp",
+      character: makeCharacter(),
+      item: {
+        id: "item.responsible-panic-bandage",
+        name: "Бинт відповідальної паніки",
+        description: "Намотаний так, ніби хтось уже вибачився перед майбутнім синцем.",
+        rarity: "common",
+        slot: "consumable",
+        goldValue: 7,
+        tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
+        useEffect: {
+          kind: "heal-hp",
+          amount: 7
+        }
+      },
+      preview: {
+        rulesVersion: ITEM_USE_RULES_VERSION,
+        hpBefore: 48,
+        hpMax: 48,
+        healAmount: 0,
+        hpAfter: 48
+      }
+    });
+
+    expect(text).toContain("🩹 Лікування не потрібне");
+    expect(text).not.toContain("Манатка чекає");
   });
 
   it("renders restore-to-full quantity and final HP", () => {

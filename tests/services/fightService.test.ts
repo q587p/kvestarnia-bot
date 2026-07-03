@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   ActivityEventPage,
   ActivityEventRecord,
@@ -57,6 +57,7 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import { FakeRandomSource } from "../../src/shared/random";
 import { MIMIC_SHAWARMA_ADVENTURE_KEY } from "../../src/services/adventureService";
 import { ActivityEventService } from "../../src/services/activityEventService";
+import type { AchievementService } from "../../src/services/achievementService";
 import { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import {
   buildCenterBaselinePersistentFightWinXp,
@@ -2039,12 +2040,21 @@ describe("FightService", () => {
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.combatItemStacks.set("item.responsible-panic-bandage", 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.bandage.first-used",
+        title: "Паніка спрацювала за призначенням",
+        cosmeticTitleGrantId: null,
+        unlockedAt: fixedClock()
+      }
+    ]);
     const service = new FightService({
       characters,
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService
     });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
@@ -2063,6 +2073,21 @@ describe("FightService", () => {
     expect(sessions.consumedCombatItems).toEqual(["item.responsible-panic-bandage"]);
     expect(sessions.combatItemStacks.get("item.responsible-panic-bandage")).toBe(0);
     if (result.state === "updated") {
+      expect(result.achievementUnlocks).toEqual([
+        {
+          id: "achievement.bandage.first-used",
+          title: "Паніка спрацювала за призначенням",
+          cosmeticTitleGrantId: null,
+          unlockedAt: fixedClock()
+        }
+      ]);
+      expect(trackEventSafely).toHaveBeenCalledWith({
+        type: "item.used",
+        characterId: "character-42",
+        itemId: "item.responsible-panic-bandage",
+        occurredAt: fixedClock(),
+        sourceId: `${result.session.id}:turn:1:item:item.responsible-panic-bandage`
+      });
       expect(result.session.state?.turn).toBe(2);
       expect(result.session.state?.lastTurn).toMatchObject({
         action: "item",
@@ -2071,6 +2096,138 @@ describe("FightService", () => {
         heroHealing: 7
       });
       expect(result.session.state?.turnLog?.at(-1)?.summary.action).toBe("item");
+    }
+  });
+
+  it("uses a dense bandage in a persistent monster fight and tracks its achievement", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.combatItemStacks.set("item.dense-bandage", 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.bandage.dense-used",
+        title: "Вузол тримався до кінця",
+        cosmeticTitleGrantId: null,
+        unlockedAt: fixedClock()
+      }
+    ]);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 10);
+
+    const result = await service.resolvePersistentFightItemTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey("item.dense-bandage")
+    });
+
+    expect(result.state).toBe("updated");
+    expect(sessions.consumedCombatItems).toEqual(["item.dense-bandage"]);
+    expect(sessions.combatItemStacks.get("item.dense-bandage")).toBe(0);
+    if (result.state === "updated") {
+      expect(result.achievementUnlocks).toEqual([
+        {
+          id: "achievement.bandage.dense-used",
+          title: "Вузол тримався до кінця",
+          cosmeticTitleGrantId: null,
+          unlockedAt: fixedClock()
+        }
+      ]);
+      expect(trackEventSafely).toHaveBeenCalledWith({
+        type: "item.used",
+        characterId: "character-42",
+        itemId: "item.dense-bandage",
+        occurredAt: fixedClock(),
+        sourceId: `${result.session.id}:turn:1:item:item.dense-bandage`
+      });
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "item",
+        heroOutcome: "item-used",
+        itemId: "item.dense-bandage"
+      });
+      expect(result.session.state?.combatItems?.cooldowns?.["item.dense-bandage"]).toMatchObject({
+        itemId: "item.dense-bandage",
+        remainingTurns: 5
+      });
+    }
+  });
+
+  it("uses a field kit in a persistent monster fight and tracks its achievement", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.combatItemStacks.set("item.field-kit", 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.bandage.field-kit-used",
+        title: "Польова медицина без поля",
+        cosmeticTitleGrantId: null,
+        unlockedAt: fixedClock()
+      }
+    ]);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 1);
+
+    const result = await service.resolvePersistentFightItemTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey("item.field-kit")
+    });
+
+    expect(result.state).toBe("updated");
+    expect(sessions.consumedCombatItems).toEqual(["item.field-kit"]);
+    expect(sessions.combatItemStacks.get("item.field-kit")).toBe(0);
+    if (result.state === "updated") {
+      expect(result.achievementUnlocks).toEqual([
+        {
+          id: "achievement.bandage.field-kit-used",
+          title: "Польова медицина без поля",
+          cosmeticTitleGrantId: null,
+          unlockedAt: fixedClock()
+        }
+      ]);
+      expect(trackEventSafely).toHaveBeenCalledWith({
+        type: "item.used",
+        characterId: "character-42",
+        itemId: "item.field-kit",
+        occurredAt: fixedClock(),
+        sourceId: `${result.session.id}:turn:1:item:item.field-kit`
+      });
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "item",
+        heroOutcome: "item-used",
+        itemId: "item.field-kit"
+      });
+      expect(result.session.state?.combatItems?.uses?.["item.field-kit"]).toEqual({
+        itemId: "item.field-kit",
+        count: 1
+      });
     }
   });
 

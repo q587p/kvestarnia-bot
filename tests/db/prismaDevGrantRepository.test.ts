@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PrismaDevGrantRepository } from "../../src/db/repositories/prismaDevGrantRepository";
+import {
+  YEGER_UNQUIET_TRIAL_BUCKET,
+  YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+  YEGER_UNQUIET_TRIAL_STARTED_KEY
+} from "../../src/services/yegerQuestService";
 
 const telegramUserId = 42n;
 const fixedNow = new Date("2026-06-17T10:00:00.000Z");
@@ -179,6 +184,52 @@ describe("PrismaDevGrantRepository", () => {
       hpMax: 24
     });
   });
+
+  it("creates real Yeger win rows for local turn-in QA without completing the quest", async () => {
+    const prisma = new FakeDevGrantPrisma({
+      level: 5,
+      hpCurrent: 20,
+      hpMax: 20
+    });
+    const repository = new PrismaDevGrantRepository(prisma.client);
+
+    const result = await repository.completeYegerQuestProgressForTelegramUser(telegramUserId, "first", fixedNow);
+
+    expect(result).toMatchObject({
+      state: "ready",
+      stage: "first",
+      addedWins: 5,
+      wins: 5,
+      target: 5,
+      started: true
+    });
+    expect(prisma.dailyActions).toEqual([
+      expect.objectContaining({
+        key: YEGER_UNQUIET_TRIAL_STARTED_KEY,
+        localDate: YEGER_UNQUIET_TRIAL_BUCKET,
+        rewardXp: 0,
+        rewardGold: 0
+      })
+    ]);
+    expect(prisma.dailyActions.some((action) => action.key === YEGER_UNQUIET_TRIAL_COMPLETED_KEY)).toBe(false);
+    expect(prisma.soloCombatSessions).toHaveLength(5);
+    expect(prisma.soloCombatSessions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          characterId: "character-1",
+          monsterId: "monster.stamp-doorkeeper-skeleton",
+          status: "won"
+        })
+      ])
+    );
+    expect(prisma.soloCombatSessions[0]?.stateJson).toMatchObject({
+      source: "yeger",
+      status: "won",
+      monster: {
+        id: "monster.stamp-doorkeeper-skeleton"
+      }
+    });
+  });
 });
 
 class FakeDevGrantPrisma {
@@ -186,6 +237,8 @@ class FakeDevGrantPrisma {
   lastSoloCombatUpdateInput: FakeSessionUpdateInput | null = null;
   lastPartyBossUpdateInput: FakeSessionUpdateInput | null = null;
   lastDuelCombatUpdateInput: FakeSessionUpdateInput | null = null;
+  readonly dailyActions: FakeDailyAction[] = [];
+  readonly soloCombatSessions: FakeSoloCombatSession[] = [];
   private readonly character: FakeCharacter;
   private readonly activeCombat: FakeActiveCombat | null;
 
@@ -220,6 +273,30 @@ class FakeDevGrantPrisma {
     characterEquipment: {
       findMany: () => Promise.resolve([])
     },
+    dailyAction: {
+      findFirst: ({ where }: FakeDailyActionFindFirstInput): Promise<FakeDailyAction | null> =>
+        Promise.resolve(this.dailyActions.find((action) =>
+          action.characterId === where.characterId &&
+          action.key === where.key &&
+          action.localDate === where.localDate
+        ) ?? null),
+      create: ({ data }: FakeDailyActionCreateInput): Promise<FakeDailyAction> => {
+        const action = {
+          id: `action-${this.dailyActions.length + 1}`,
+          characterId: data.characterId,
+          key: data.key,
+          localDate: data.localDate,
+          rewardXp: data.rewardXp,
+          rewardGold: data.rewardGold,
+          spentGold: 0,
+          resultJson: data.resultJson ?? null,
+          createdAt: data.createdAt ?? fixedNow
+        };
+        this.dailyActions.push(action);
+
+        return Promise.resolve(action);
+      }
+    },
     characterRemort: {
       count: () => Promise.resolve(0)
     },
@@ -236,6 +313,30 @@ class FakeDevGrantPrisma {
         )
     },
     soloCombatSession: {
+      findMany: ({ where }: FakeSoloCombatFindManyInput): Promise<FakeSoloCombatSession[]> =>
+        Promise.resolve(this.soloCombatSessions.filter((session) =>
+          session.characterId === where.characterId &&
+          (
+            session.updatedAt >= where.OR[0].updatedAt.gte ||
+            session.createdAt >= where.OR[1].createdAt.gte
+          )
+        )),
+      create: ({ data }: FakeSoloCombatCreateInput): Promise<FakeSoloCombatSession> => {
+        const session = {
+          id: `solo-${this.soloCombatSessions.length + 1}`,
+          characterId: data.characterId,
+          monsterId: data.monsterId,
+          stateJson: data.stateJson,
+          status: data.status,
+          turn: data.turn,
+          expiresAt: data.expiresAt,
+          createdAt: data.createdAt ?? fixedNow,
+          updatedAt: data.createdAt ?? fixedNow
+        };
+        this.soloCombatSessions.push(session);
+
+        return Promise.resolve(session);
+      },
       findUnique: ({ where }: { where: { id: string } }): Promise<FakeSession | null> =>
         Promise.resolve(
           this.activeCombat?.kind === "solo-combat" && where.id === this.activeCombat.referenceId
@@ -312,6 +413,10 @@ interface FakeTransactionClient {
   characterEquipment: {
     findMany(): Promise<Array<{ itemId: string }>>;
   };
+  dailyAction: {
+    findFirst(input: FakeDailyActionFindFirstInput): Promise<FakeDailyAction | null>;
+    create(input: FakeDailyActionCreateInput): Promise<FakeDailyAction>;
+  };
   characterRemort: {
     count(): Promise<number>;
   };
@@ -319,6 +424,8 @@ interface FakeTransactionClient {
     findUnique(input: { where: { characterId: string } }): Promise<FakeActiveCombatLease | null>;
   };
   soloCombatSession: {
+    findMany(input: FakeSoloCombatFindManyInput): Promise<FakeSoloCombatSession[]>;
+    create(input: FakeSoloCombatCreateInput): Promise<FakeSoloCombatSession>;
     findUnique(input: { where: { id: string } }): Promise<FakeSession | null>;
     update(input: FakeSessionUpdateInput): Promise<FakeSession>;
   };
@@ -378,6 +485,70 @@ interface FakeSessionUpdateInput {
   data: {
     version?: number;
     stateJson: unknown;
+  };
+}
+
+interface FakeDailyAction {
+  id: string;
+  characterId: string;
+  key: string;
+  localDate: string;
+  rewardXp: number;
+  rewardGold: number;
+  spentGold: number;
+  resultJson: unknown;
+  createdAt: Date;
+}
+
+interface FakeDailyActionFindFirstInput {
+  where: {
+    characterId: string;
+    key: string;
+    localDate: string;
+  };
+}
+
+interface FakeDailyActionCreateInput {
+  data: {
+    characterId: string;
+    key: string;
+    localDate: string;
+    rewardXp: number;
+    rewardGold: number;
+    resultJson?: unknown;
+    createdAt?: Date;
+  };
+}
+
+interface FakeSoloCombatSession {
+  id: string;
+  characterId: string;
+  monsterId: string;
+  stateJson: unknown;
+  status: string;
+  turn: number;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface FakeSoloCombatFindManyInput {
+  where: {
+    OR: [{ updatedAt: { gte: Date } }, { createdAt: { gte: Date } }];
+    characterId: string;
+  };
+  select: unknown;
+}
+
+interface FakeSoloCombatCreateInput {
+  data: {
+    characterId: string;
+    monsterId: string;
+    status: string;
+    turn: number;
+    stateJson: unknown;
+    expiresAt: Date;
+    createdAt?: Date;
   };
 }
 

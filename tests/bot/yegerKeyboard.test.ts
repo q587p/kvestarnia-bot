@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeItemCraftPreviewCallbackData } from "../../src/bot/callbacks/itemCraftCallbackData";
 import { makeItemDetailCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import {
@@ -7,6 +8,7 @@ import {
   buildYegerCornerKeyboard,
   buildYegerHuntKeyboard,
   buildYegerKeyboard,
+  buildYegerNotchExchangeKeyboard,
   buildYegerTurnInKeyboard
 } from "../../src/bot/keyboards/yegerKeyboard";
 import {
@@ -14,10 +16,16 @@ import {
   makeYegerBuyBandageCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFreeBandageCallbackData,
+  makeYegerNotchExchangeCallbackData,
+  makeYegerNotchExchangeOpenCallbackData,
+  makeYegerOpenCallbackData,
   makeYegerOutsideCallbackData,
-  makeYegerQuestCallbackData
+  makeYegerQuestCallbackData,
+  makeYegerStartCallbackData,
+  makeYegerTurnInCallbackData
 } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 
 describe("Yeger keyboard", () => {
   it("opens active quest details from the base Yeger corner", () => {
@@ -31,6 +39,22 @@ describe("Yeger keyboard", () => {
       text: "🏹 Неспокійні справи",
       callback_data: makeYegerQuestCallbackData()
     });
+  });
+
+  it("turns in ready boards directly from the base Yeger corner", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "turn-in-ready",
+      character,
+      progress: { wins: 5, target: 5 }
+    });
+
+    expect(flatButtons(keyboard)[0]).toEqual({
+      text: "🏹 Здати Єгерю",
+      callback_data: makeYegerTurnInCallbackData()
+    });
+    expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
+      makeYegerQuestCallbackData()
+    );
   });
 
   it("hides the quest detail button after the board is closed", () => {
@@ -51,8 +75,104 @@ describe("Yeger keyboard", () => {
     expect(flatButtons(keyboard).map((button) => button.text)).toEqual([
       "🩹 Бинти",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🛢️ До Бочки"
     ]);
+    expect(flatButtons(keyboard).map((button) => button.callback_data)).toContain(
+      makePlaceCallbackData("barrel")
+    );
+  });
+
+  it("opens Yeger notch exchange from the closed second board when notches can be spent", () => {
+    const keyboard = buildYegerCornerKeyboard({
+      state: "completed",
+      character,
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward: {
+        xp: 56,
+        gold: 170,
+        itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+      },
+      notchExchange: {
+        availableNotches: 2,
+        options: [
+          {
+            kind: "dense-bandage",
+            requiredNotches: 1,
+            outputItemId: "item.dense-bandage",
+            outputQuantity: 1,
+            outputItemName: "Щільний бинт"
+          },
+          {
+            kind: "field-kit",
+            requiredNotches: 2,
+            outputItemId: "item.field-kit",
+            outputQuantity: 1,
+            outputItemName: "Польова аптечка"
+          }
+        ]
+      }
+    });
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🪵 Обміняти риску",
+      callback_data: makeYegerNotchExchangeOpenCallbackData()
+    });
+  });
+
+  it("shows only affordable Yeger notch exchange options", () => {
+    const oneNotch = buildYegerNotchExchangeKeyboard({
+      state: "ready",
+      summary: {
+        availableNotches: 1,
+        options: [{
+          kind: "dense-bandage",
+          requiredNotches: 1,
+          outputItemId: "item.dense-bandage",
+          outputQuantity: 1,
+          outputItemName: "Щільний бинт"
+        }]
+      }
+    });
+    const twoNotches = buildYegerNotchExchangeKeyboard({
+      state: "ready",
+      summary: {
+        availableNotches: 2,
+        options: [
+          {
+            kind: "dense-bandage",
+            requiredNotches: 1,
+            outputItemId: "item.dense-bandage",
+            outputQuantity: 1,
+            outputItemName: "Щільний бинт"
+          },
+          {
+            kind: "field-kit",
+            requiredNotches: 2,
+            outputItemId: "item.field-kit",
+            outputQuantity: 1,
+            outputItemName: "Польова аптечка"
+          }
+        ]
+      }
+    });
+
+    expect(flatButtons(oneNotch)).toContainEqual({
+      text: "🧵 Риску на щільний бинт",
+      callback_data: makeYegerNotchExchangeCallbackData("dense-bandage", 1)
+    });
+    expect(flatButtons(oneNotch).map((button) => button.callback_data)).not.toContain(
+      makeYegerNotchExchangeCallbackData("field-kit", 1)
+    );
+    expect(flatButtons(twoNotches)).toEqual(expect.arrayContaining([
+      {
+        text: "🧵 Риску на щільний бинт",
+        callback_data: makeYegerNotchExchangeCallbackData("dense-bandage", 2)
+      },
+      {
+        text: "🧰 2 риски на аптечку",
+        callback_data: makeYegerNotchExchangeCallbackData("field-kit", 2)
+      }
+    ]));
   });
 
   it("keeps paid Yeger bandages inside the bandages submenu", () => {
@@ -89,6 +209,37 @@ describe("Yeger keyboard", () => {
       ["🩹 1 бинт", "🩹 5 бинтів"],
       ["🩹 17 бинтів", "🩹 93 бинти"]
     ]);
+    expect(flatButtons(bandages)).toEqual(expect.arrayContaining([
+      { text: "⬅️ До єгерського кутка", callback_data: makeYegerOpenCallbackData() },
+      { text: "🛢️ До Бочки", callback_data: makePlaceCallbackData("barrel") }
+    ]));
+  });
+
+  it("offers unlocked bandage crafts from the Yeger bandages submenu", () => {
+    const denseRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "dense")!;
+    const kitRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "kit")!;
+    const bandages = buildYegerBandagesKeyboard(
+      {
+        state: "completed",
+        character,
+        progress: { wins: 17, target: 17, stageId: "second" },
+        reward
+      },
+      {
+        craftOptions: [denseRecipe, kitRecipe].map((recipe) => ({ recipe }))
+      }
+    );
+
+    expect(flatButtons(bandages)).toEqual(expect.arrayContaining([
+      {
+        text: denseRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("dense")
+      },
+      {
+        text: kitRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("kit")
+      }
+    ]));
   });
 
   it("can label an affordable paid-bandage confirmation quantity", () => {
@@ -99,6 +250,26 @@ describe("Yeger keyboard", () => {
       text: "✅ Купити 5",
       callback_data: makeYegerConfirmBandagePurchaseCallbackData(token)
     });
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "⬅️ До єгерського кутка",
+      callback_data: makeYegerOpenCallbackData()
+    });
+  });
+
+  it("returns from Yeger quest detail cards to the Yeger corner", () => {
+    const keyboard = buildYegerKeyboard({
+      state: "offered",
+      character,
+      progress: { wins: 0, target: 5 }
+    });
+
+    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+      { text: "🏹 Взяти справу", callback_data: makeYegerStartCallbackData() },
+      { text: "⬅️ До єгерського кутка", callback_data: makeYegerOpenCallbackData() }
+    ]));
+    expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
+      makePlaceCallbackData("hall")
+    );
   });
 
   it("keeps bandage supplies hidden before the base Yeger board is completed", () => {
@@ -153,7 +324,7 @@ describe("Yeger keyboard", () => {
         className: "Єгер"
       },
       progress: { wins: 0, target: 17, stageId: "second" },
-      rangerBandage: { state: "available" }
+      rangerBandage: { kind: "bandage", state: "available" }
     });
     const bandages = buildYegerBandagesKeyboard({
       state: "offered",
@@ -163,7 +334,7 @@ describe("Yeger keyboard", () => {
         className: "Єгер"
       },
       progress: { wins: 0, target: 17, stageId: "second" },
-      rangerBandage: { state: "available" }
+      rangerBandage: { kind: "bandage", state: "available" }
     });
 
     expect(flatButtons(keyboard)).toContainEqual({
@@ -175,9 +346,40 @@ describe("Yeger keyboard", () => {
       callback_data: makeYegerBandagesCallbackData()
     });
     expect(flatButtons(bandages)).toContainEqual({
-      text: "🧰 Єгерський бинт",
+      text: "🧰 5 єгерських бинтів",
       callback_data: makeYegerFreeBandageCallbackData()
     });
+  });
+
+  it("shows improved ranger supplies after the second Yeger board is completed", () => {
+    const bandages = buildYegerBandagesKeyboard({
+      state: "completed",
+      character: {
+        ...character,
+        classId: "class.ranger",
+        className: "Єгер"
+      },
+      progress: { wins: 17, target: 17, stageId: "second" },
+      reward,
+      rangerBandage: { kind: "bandage", state: "available" },
+      rangerDenseBandage: { kind: "dense-bandage", state: "available" },
+      rangerFieldKit: { kind: "field-kit", state: "available" }
+    });
+
+    expect(flatButtons(bandages)).toEqual(expect.arrayContaining([
+      {
+        text: "🧰 5 єгерських бинтів",
+        callback_data: makeYegerFreeBandageCallbackData("bandage")
+      },
+      {
+        text: "🧵 Єгерський щільний",
+        callback_data: makeYegerFreeBandageCallbackData("dense-bandage")
+      },
+      {
+        text: "🧰 Єгерська аптечка",
+        callback_data: makeYegerFreeBandageCallbackData("field-kit")
+      }
+    ]));
   });
 
   it("hides the free ranger bandage button while it is on cooldown", () => {
@@ -191,6 +393,7 @@ describe("Yeger keyboard", () => {
       progress: { wins: 5, target: 5 },
       reward,
       rangerBandage: {
+        kind: "bandage",
         state: "on-cooldown",
         nextAvailableAt: new Date("2026-06-15T11:38:00.000Z"),
         now: new Date("2026-06-15T10:05:00.000Z")
@@ -231,6 +434,74 @@ describe("Yeger keyboard", () => {
     });
   });
 
+  it("offers unlocked bandage crafts after the second Yeger board turn-in when source bandages cover them", () => {
+    const denseRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "dense")!;
+    const kitRecipe = ITEM_CRAFT_RECIPES.find((recipe) => recipe.code === "kit")!;
+    const keyboard = buildYegerTurnInKeyboard(
+      {
+        state: "completed",
+        character,
+        progress: { wins: 17, target: 17, stageId: "second" },
+        reward: {
+          xp: 56,
+          gold: 170,
+          itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+        },
+        levelChange: null
+      },
+      {
+        craftOptions: [denseRecipe, kitRecipe].map((recipe) => ({ recipe }))
+      }
+    );
+
+    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+      {
+        text: denseRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("dense")
+      },
+      {
+        text: kitRecipe.buttonLabel,
+        callback_data: makeItemCraftPreviewCallbackData("kit")
+      }
+    ]));
+  });
+
+  it("offers notch exchange after the second Yeger board turn-in when notches remain", () => {
+    const keyboard = buildYegerTurnInKeyboard(
+      {
+        state: "completed",
+        character,
+        progress: { wins: 17, target: 17, stageId: "second" },
+        reward: {
+          xp: 56,
+          gold: 170,
+          itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
+        },
+        levelChange: null
+      },
+      {
+        notchExchange: {
+          state: "ready",
+          summary: {
+            availableNotches: 2,
+            options: [{
+              kind: "field-kit",
+              requiredNotches: 2,
+              outputItemId: "item.field-kit",
+              outputQuantity: 1,
+              outputItemName: "Польова аптечка"
+            }]
+          }
+        }
+      }
+    );
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🪵 Обміняти риску",
+      callback_data: makeYegerNotchExchangeOpenCallbackData()
+    });
+  });
+
   it("sends active Yeger quests outside from the Yeger corner", () => {
     const keyboard = buildYegerKeyboard({
       state: "in-progress",
@@ -248,6 +519,10 @@ describe("Yeger keyboard", () => {
       callback_data: makeYegerOutsideCallbackData()
     });
     expect(flatButtons(keyboard).map((button) => button.text)).toContain("📖 Кого шукати?");
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "⬅️ До єгерського кутка",
+      callback_data: makeYegerOpenCallbackData()
+    });
   });
 
   it("shows tracking state actions on the outdoor hunt surface", () => {

@@ -24,6 +24,9 @@ type DevGrantCommand =
   | "dev_add_gold"
   | "dev_add_random_item"
   | "dev_add_bandage"
+  | "dev_add_dense_bandage"
+  | "dev_add_field_kit"
+  | "dev_add_yeger_line"
   | "dev_heal"
   | "dev_restore_mana";
 type DevGrantContext = Context & { match?: string };
@@ -73,6 +76,33 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
     );
   });
 
+  bot.command("dev_add_dense_bandage", async (ctx) => {
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_dense_bandage",
+      (telegramUserId, amount) => devGrantService.addDenseBandages(telegramUserId, amount)
+    );
+  });
+
+  bot.command("dev_add_field_kit", async (ctx) => {
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_field_kit",
+      (telegramUserId, amount) => devGrantService.addFieldKits(telegramUserId, amount)
+    );
+  });
+
+  bot.command("dev_add_yeger_line", async (ctx) => {
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_yeger_line",
+      (telegramUserId, amount) => devGrantService.addYegerLines(telegramUserId, amount)
+    );
+  });
+
   bot.command("dev_reset_yeger_bandage", async (ctx) => {
     await handleDevResetYegerBandageCommand(ctx, devGrantService);
   });
@@ -83,6 +113,14 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
 
   bot.command("dev_reset_yeger_trail", async (ctx) => {
     await handleDevResetYegerTrailCommand(ctx, devGrantService);
+  });
+
+  bot.command("dev_yeger_first_done", async (ctx) => {
+    await handleDevCompleteYegerQuestCommand(ctx, devGrantService, "first");
+  });
+
+  bot.command("dev_yeger_second_done", async (ctx) => {
+    await handleDevCompleteYegerQuestCommand(ctx, devGrantService, "second");
   });
 }
 
@@ -234,6 +272,30 @@ async function handleDevResetYegerBandageDayCommand(
   }
 
   const result = await devGrantService.resetYegerBandageDay(telegramUserId);
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevCompleteYegerQuestCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService,
+  stage: "first" | "second"
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = stage === "second"
+    ? await devGrantService.completeSecondYegerQuestProgress(telegramUserId)
+    : await devGrantService.completeFirstYegerQuestProgress(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }

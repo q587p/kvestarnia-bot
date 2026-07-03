@@ -10,6 +10,7 @@ import type {
   UnlockAchievementInput,
   UnlockAchievementResult
 } from "./achievementRepository";
+import { isMedicalCombatItemId } from "../../services/combatItemUse";
 
 const PROBLEM_QUEST_REWARD_KEYS = [
   "quest.thirteen-small-problems",
@@ -30,6 +31,8 @@ const LEVEL_MILESTONE_KEY_PATTERN = /^milestone\.(?:remort\.\d+\.)?level\.(\d+)$
 const TRAINING_DOPPELGANGER_MONSTER_ID = "monster.training-doppelganger";
 const YEGER_RANGER_FREE_BANDAGE_KEY = "yeger.bandage.supply.ranger-free";
 const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
+const DENSE_BANDAGE_ITEM_ID = "item.dense-bandage";
+const FIELD_KIT_ITEM_ID = "item.field-kit";
 
 export const ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS = [
   MIMIC_SHAWARMA_ADVENTURE_KEY,
@@ -38,6 +41,18 @@ export const ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS = [
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY
 ] as const;
+
+export function getPartyBossItemActionAchievementWhere(characterId: string): Prisma.PartyBossActionWhereInput {
+  // When future raid item support expands beyond medical items, update both
+  // live event emission and this query/resultJson medical-item filter together.
+  return {
+    actorCharacterId: characterId,
+    actionKey: "item",
+    session: {
+      rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION
+    }
+  };
+}
 
 export class PrismaAchievementRepository implements AchievementRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -226,6 +241,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       claimedBarrelRaids,
       claimedBarrelRaidActions,
       lostBigBarrelRaids,
+      completedPartyBossItemActions,
       korchmaRounds,
       completedTavernGameParticipations,
       completedGiftsSent,
@@ -408,6 +424,11 @@ export class PrismaAchievementRepository implements AchievementRepository {
         select: { stateJson: true, completedAt: true, updatedAt: true },
         orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
       }),
+      this.prisma.partyBossAction.findMany({
+        where: getPartyBossItemActionAchievementWhere(characterId),
+        select: { resultJson: true, submittedAt: true },
+        orderBy: [{ submittedAt: "asc" }, { id: "asc" }]
+      }),
       this.prisma.korchmaRoundPurchase.findMany({
         where: { characterId },
         select: { createdAt: true },
@@ -507,10 +528,29 @@ export class PrismaAchievementRepository implements AchievementRepository {
       ])
     );
     const equipmentObservedAt = maxDate(equipment.map((row) => row.updatedAt));
-    const itemUseDates = completedItemUseOrders.map((row) => row.completedAt ?? row.updatedAt);
-    const bandageUseDates = completedItemUseOrders
-      .filter((row) => row.itemId === BANDAGE_ITEM_ID)
-      .map((row) => row.completedAt ?? row.updatedAt);
+    const soloCombatItemUseDatesByItem = getSoloCombatItemUseDatesByItem(combatSessions);
+    const orderItemUseDatesByItem = getOrderItemUseDatesByItem(completedItemUseOrders);
+    const partyBossItemUseDatesByItem = getPartyBossItemUseDatesByItem(completedPartyBossItemActions);
+    const itemUseDates = [
+      ...completedItemUseOrders.map((row) => row.completedAt ?? row.updatedAt),
+      ...Object.values(soloCombatItemUseDatesByItem).flat(),
+      ...Object.values(partyBossItemUseDatesByItem).flat()
+    ].sort(compareDates);
+    const bandageUseDates = [
+      ...(orderItemUseDatesByItem[BANDAGE_ITEM_ID] ?? []),
+      ...(soloCombatItemUseDatesByItem[BANDAGE_ITEM_ID] ?? []),
+      ...(partyBossItemUseDatesByItem[BANDAGE_ITEM_ID] ?? [])
+    ].sort(compareDates);
+    const denseBandageUseDates = [
+      ...(orderItemUseDatesByItem[DENSE_BANDAGE_ITEM_ID] ?? []),
+      ...(soloCombatItemUseDatesByItem[DENSE_BANDAGE_ITEM_ID] ?? []),
+      ...(partyBossItemUseDatesByItem[DENSE_BANDAGE_ITEM_ID] ?? [])
+    ].sort(compareDates);
+    const fieldKitUseDates = [
+      ...(orderItemUseDatesByItem[FIELD_KIT_ITEM_ID] ?? []),
+      ...(soloCombatItemUseDatesByItem[FIELD_KIT_ITEM_ID] ?? []),
+      ...(partyBossItemUseDatesByItem[FIELD_KIT_ITEM_ID] ?? [])
+    ].sort(compareDates);
     const completedPassageSearchDates = resolvedPassageSearches.map((row) => row.updatedAt);
     const selectedDailyActionDates = groupDailyActionDatesByKey(selectedDailyActions);
     const persistentCombatSessions = combatSessions.filter((row) => row.monsterId !== TRAINING_DOPPELGANGER_MONSTER_ID);
@@ -583,6 +623,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "barrel.raid.lost": lostBigBarrelRaids
         .filter((row) => isBigBarrelLossForCharacter(row.stateJson, characterId))
         .map((row) => row.completedAt ?? row.updatedAt),
+      "barrel.raid.bandage-used": getBigBarrelMedicalPartyBossItemUseDates(completedPartyBossItemActions),
       "korchma.round.purchased": korchmaRounds.map((row) => row.createdAt),
       "tavern.game.played": completedTavernGameParticipations.map((row) =>
         row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt
@@ -603,6 +644,8 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "yeger.free-bandage.claimed": yegerFreeBandages.map((row) => row.updatedAt),
       "item.used": itemUseDates,
       [`item.used:${BANDAGE_ITEM_ID}`]: bandageUseDates,
+      [`item.used:${DENSE_BANDAGE_ITEM_ID}`]: denseBandageUseDates,
+      [`item.used:${FIELD_KIT_ITEM_ID}`]: fieldKitUseDates,
       "shynok.drink.activated": [
         ...completedSelfDrinkOrders.map((row) => row.completedAt ?? row.updatedAt),
         ...acceptedRoundDrinks.map((row) => row.respondedAt ?? row.updatedAt)
@@ -880,6 +923,98 @@ function setEarliestDate(target: Map<string, Date>, key: string, date: Date): vo
   if (!previous || date < previous) {
     target.set(key, date);
   }
+}
+
+function getOrderItemUseDatesByItem(
+  rows: readonly { itemId: string; completedAt: Date | null; updatedAt: Date }[]
+): Record<string, Date[]> {
+  const dates: Record<string, Date[]> = {};
+
+  for (const row of rows) {
+    const bucket = dates[row.itemId] ?? [];
+    bucket.push(row.completedAt ?? row.updatedAt);
+    dates[row.itemId] = bucket;
+  }
+
+  for (const bucket of Object.values(dates)) {
+    bucket.sort(compareDates);
+  }
+
+  return dates;
+}
+
+function getSoloCombatItemUseDatesByItem(
+  rows: readonly { stateJson: Prisma.JsonValue; rewardClaimedAt: Date | null; updatedAt: Date }[]
+): Record<string, Date[]> {
+  const dates: Record<string, Date[]> = {};
+
+  for (const row of rows) {
+    for (const itemId of getSoloCombatItemIds(row.stateJson)) {
+      const bucket = dates[itemId] ?? [];
+      bucket.push(row.rewardClaimedAt ?? row.updatedAt);
+      dates[itemId] = bucket;
+    }
+  }
+
+  for (const bucket of Object.values(dates)) {
+    bucket.sort(compareDates);
+  }
+
+  return dates;
+}
+
+function getSoloCombatItemIds(stateJson: Prisma.JsonValue): string[] {
+  if (!isRecord(stateJson) || !Array.isArray(stateJson.turnLog)) {
+    return [];
+  }
+
+  return stateJson.turnLog.flatMap((entry) => {
+    if (!isRecord(entry) || !isRecord(entry.summary)) {
+      return [];
+    }
+
+    const { summary } = entry;
+    return summary.action === "item" && typeof summary.itemId === "string"
+      ? [summary.itemId]
+      : [];
+  });
+}
+
+function getPartyBossActionItemId(resultJson: Prisma.JsonValue | null): string | null {
+  if (!isRecord(resultJson) || resultJson.kind !== "combat-item" || !isRecord(resultJson.item)) {
+    return null;
+  }
+
+  return typeof resultJson.item.id === "string" ? resultJson.item.id : null;
+}
+
+function getPartyBossItemUseDatesByItem(
+  rows: Array<{ resultJson: Prisma.JsonValue | null; submittedAt: Date }>
+): Record<string, Date[]> {
+  const dates: Record<string, Date[]> = {};
+
+  for (const row of rows) {
+    const itemId = getPartyBossActionItemId(row.resultJson);
+    if (!itemId) {
+      continue;
+    }
+
+    dates[itemId] = [...(dates[itemId] ?? []), row.submittedAt];
+  }
+
+  return dates;
+}
+
+export function getBigBarrelMedicalPartyBossItemUseDates(
+  rows: Array<{ resultJson: Prisma.JsonValue | null; submittedAt: Date }>
+): Date[] {
+  return rows
+    .filter((row) => {
+      const itemId = getPartyBossActionItemId(row.resultJson);
+      return itemId ? isMedicalCombatItemId(itemId) : false;
+    })
+    .map((row) => row.submittedAt)
+    .sort(compareDates);
 }
 
 function isBigBarrelLossForCharacter(value: Prisma.JsonValue, characterId: string): boolean {

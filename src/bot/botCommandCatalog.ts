@@ -315,6 +315,27 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_add_dense_bandage",
+    icon: "🧵",
+    description: "додати щільні бинти локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_field_kit",
+    icon: "🩺",
+    description: "додати польові аптечки локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_yeger_line",
+    icon: "📏",
+    description: "додати єгерську риску локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_yeger_bandage",
     icon: "🧷",
     description: "скинути таймер бинта Єгеря локально",
@@ -332,6 +353,20 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "dev_reset_yeger_trail",
     icon: "👣",
     description: "завершити очікування сліду Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_yeger_first_done",
+    icon: "5️⃣",
+    description: "довести першу дошку Єгеря до 5/5 локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_yeger_second_done",
+    icon: "7️⃣",
+    description: "довести другу дошку Єгеря до 17/17 локально",
     includeInMenu: false,
     devOnly: "grant"
   },

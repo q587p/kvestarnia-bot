@@ -6,11 +6,13 @@ import {
 } from "../combat/combatEngine";
 import type {
   CombatActorStats,
+  CombatState,
   MonsterCombatStats,
   PlayerCombatActionType
 } from "../combat/combatState";
 import { isMeaningfulCombatParticipation } from "../combat/combatParticipation";
 import { SeededRandomSource } from "../../shared/random";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../itemCraft";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
 export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
@@ -32,6 +34,7 @@ export interface PartyBossParticipantState {
   status: PartyBossParticipantStatus;
   combatStats: CombatActorStats;
   resources: CombatActorResourceState;
+  combatItems?: CombatState["combatItems"];
   contribution: {
     submittedActions: number;
     timeoutActions: number;
@@ -64,10 +67,15 @@ export interface PartyBossRoundActionInput {
 export interface PartyBossCombatItemInput {
   id: string;
   name: string;
-  effect: {
-    kind: "heal-hp";
-    amount: number;
-  };
+  effect:
+    | {
+        kind: "heal-hp";
+        amount: number;
+      }
+    | {
+        kind: "heal-hp-to-min-percent";
+        percent: number;
+      };
 }
 
 export interface PartyBossRoundSummary {
@@ -100,6 +108,7 @@ export interface PartyBossParticipantActionSummary {
   itemId?: string;
   itemName?: string;
   healing?: number;
+  hpAfter?: number;
 }
 
 export interface PartyBossRetaliationSummary {
@@ -252,13 +261,13 @@ export function resolvePartyBossRound(input: {
     if (action === "item" && committed?.item) {
       const beforeHp = participant.resources.hp;
       const tickedResources = tickActorCooldowns(participant.resources);
-      const healing = committed.item.effect.kind === "heal-hp"
-        ? clamp(Math.floor(committed.item.effect.amount), 0, tickedResources.hpMax - tickedResources.hp)
-        : 0;
+      tickPartyBossCombatItemCooldowns(participant);
+      const healing = calculatePartyBossCombatItemHealing(tickedResources, committed.item.effect);
       participant.resources = {
         ...tickedResources,
         hp: Math.min(tickedResources.hpMax, tickedResources.hp + healing)
       };
+      recordPartyBossCombatItemUse(participant, committed.item.id);
 
       if (origin === "manual") {
         participant.contribution.submittedActions += 1;
@@ -277,7 +286,8 @@ export function resolvePartyBossRound(input: {
         manaSpent: 0,
         itemId: committed.item.id,
         itemName: committed.item.name,
-        healing: participant.resources.hp - beforeHp
+        healing: participant.resources.hp - beforeHp,
+        hpAfter: participant.resources.hp
       });
       continue;
     }
@@ -300,6 +310,7 @@ export function resolvePartyBossRound(input: {
     });
 
     participant.resources = result.actorState;
+    tickPartyBossCombatItemCooldowns(participant);
     next.boss.hp = Math.max(0, result.defenderState.hp);
     participant.contribution.damageDealt += result.summary.actorDamage;
     bossDamage += result.summary.actorDamage;
@@ -394,6 +405,42 @@ export function isBigBarrelEligible(level: number, remortCount = 0): boolean {
     : safeLevel >= 8;
 }
 
+export function calculatePartyBossCombatItemHealing(
+  resources: Pick<CombatActorResourceState, "hp" | "hpMax">,
+  effect: PartyBossCombatItemInput["effect"]
+): number {
+  switch (effect.kind) {
+    case "heal-hp":
+      return clamp(Math.floor(effect.amount), 0, Math.max(0, resources.hpMax - resources.hp));
+    case "heal-hp-to-min-percent": {
+      const percent = clamp(Math.floor(effect.percent), 1, 100);
+      const targetHp = Math.min(resources.hpMax, Math.ceil(resources.hpMax * percent / 100));
+      return Math.max(0, targetHp - resources.hp);
+    }
+  }
+}
+
+export function getPartyBossCombatItemAvailability(
+  participant: Pick<PartyBossParticipantState, "combatItems">,
+  itemId: string
+): { available: true } | { available: false; reason: "item-on-cooldown" | "item-limit-reached" } {
+  if (itemId === DENSE_BANDAGE_ITEM_ID) {
+    const cooldown = participant.combatItems?.cooldowns?.[itemId]?.remainingTurns ?? 0;
+    return cooldown > 0
+      ? { available: false, reason: "item-on-cooldown" }
+      : { available: true };
+  }
+
+  if (itemId === FIELD_KIT_ITEM_ID) {
+    const uses = participant.combatItems?.uses?.[itemId]?.count ?? 0;
+    return uses > 0
+      ? { available: false, reason: "item-limit-reached" }
+      : { available: true };
+  }
+
+  return { available: true };
+}
+
 export function buildBigBarrelLossXp(
   state: PartyBossState,
   participant: PartyBossState["participants"][number]
@@ -443,6 +490,7 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
           : {}),
         ...(participant.resources.guard ? { guard: { ...participant.resources.guard } } : {})
       },
+      ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {}),
       contribution: { ...participant.contribution }
     })),
     roundLog: state.roundLog.map((round) => ({
@@ -453,6 +501,90 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
         ? { participantsAfter: round.participantsAfter.map((participant) => ({ ...participant })) }
         : {})
     }))
+  };
+}
+
+function recordPartyBossCombatItemUse(participant: PartyBossParticipantState, itemId: string): void {
+  if (itemId !== DENSE_BANDAGE_ITEM_ID && itemId !== FIELD_KIT_ITEM_ID) {
+    return;
+  }
+
+  participant.combatItems = clonePartyBossCombatItemState(participant.combatItems ?? {});
+
+  if (itemId === DENSE_BANDAGE_ITEM_ID) {
+    participant.combatItems.cooldowns = {
+      ...(participant.combatItems.cooldowns ?? {}),
+      [itemId]: {
+        itemId,
+        remainingTurns: 5
+      }
+    };
+    return;
+  }
+
+  participant.combatItems.uses = {
+    ...(participant.combatItems.uses ?? {}),
+    [itemId]: {
+      itemId,
+      count: (participant.combatItems.uses?.[itemId]?.count ?? 0) + 1
+    }
+  };
+}
+
+function tickPartyBossCombatItemCooldowns(participant: PartyBossParticipantState): void {
+  const current = participant.combatItems?.cooldowns;
+  if (!current) {
+    return;
+  }
+
+  const cooldowns = Object.fromEntries(
+    Object.entries(current)
+      .map(([itemId, cooldown]) => [
+        itemId,
+        {
+          itemId: cooldown.itemId,
+          remainingTurns: Math.max(0, Math.floor(cooldown.remainingTurns) - 1)
+        }
+      ] as const)
+      .filter(([, cooldown]) => cooldown.remainingTurns > 0)
+  );
+  const uses = participant.combatItems?.uses;
+
+  if (Object.keys(cooldowns).length > 0 || uses) {
+    participant.combatItems = {
+      ...(Object.keys(cooldowns).length > 0 ? { cooldowns } : {}),
+      ...(uses ? { uses: { ...uses } } : {})
+    };
+    return;
+  }
+
+  delete participant.combatItems;
+}
+
+function clonePartyBossCombatItemState(
+  combatItems: NonNullable<PartyBossParticipantState["combatItems"]>
+): NonNullable<PartyBossParticipantState["combatItems"]> {
+  return {
+    ...(combatItems.cooldowns
+      ? {
+          cooldowns: Object.fromEntries(
+            Object.entries(combatItems.cooldowns).map(([itemId, cooldown]) => [
+              itemId,
+              { ...cooldown }
+            ])
+          )
+        }
+      : {}),
+    ...(combatItems.uses
+      ? {
+          uses: Object.fromEntries(
+            Object.entries(combatItems.uses).map(([itemId, use]) => [
+              itemId,
+              { ...use }
+            ])
+          )
+        }
+      : {})
   };
 }
 

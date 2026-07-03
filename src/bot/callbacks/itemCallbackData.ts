@@ -1,4 +1,10 @@
 import { contentIdSchema } from "../../content/schema";
+import {
+  ONE_USE_INVENTORY_FILTER,
+  isInventoryEquipmentSlotFilter,
+  isOneUseInventoryFilter,
+  type InventoryFilter
+} from "../inventoryFilter";
 import type { EquipmentSlot } from "../../services/equipmentService";
 import { equipmentSlots } from "../../services/equipmentService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
@@ -7,8 +13,8 @@ const ITEM_PREFIX = "v1:item";
 const EQUIPMENT_PREFIX = "v1:equip";
 
 export type ItemCallback =
-  | { type: "detail"; itemId: string; page: number; slot: EquipmentSlot | null }
-  | { type: "inventory"; page: number; slot: EquipmentSlot | null };
+  | { type: "detail"; itemId: string; page: number; filter: InventoryFilter }
+  | { type: "inventory"; page: number; filter: InventoryFilter };
 export type EquipmentCallback =
   | { type: "view" }
   | { type: "equip-item"; itemId: string }
@@ -17,21 +23,21 @@ export type EquipmentCallback =
 export function makeItemDetailCallbackData(
   itemId: string,
   page = 0,
-  slot: EquipmentSlot | null = null
+  filter: InventoryFilter = null
 ): string {
   const safePage = normalizePage(page);
-  const slotSuffix = slot ? `:s:${slotToCode(slot)}` : "";
+  const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
   const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
 
-  return assertCallbackData(`${ITEM_PREFIX}:detail:${itemId}${slotSuffix}${pageSuffix}`);
+  return assertCallbackData(`${ITEM_PREFIX}:detail:${itemId}${filterSuffix}${pageSuffix}`);
 }
 
-export function makeInventoryCallbackData(page = 0, slot: EquipmentSlot | null = null): string {
+export function makeInventoryCallbackData(page = 0, filter: InventoryFilter = null): string {
   const safePage = normalizePage(page);
-  const slotSuffix = slot ? `:s:${slotToCode(slot)}` : "";
+  const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
   const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
 
-  return assertCallbackData(`${ITEM_PREFIX}:inventory${slotSuffix}${pageSuffix}`);
+  return assertCallbackData(`${ITEM_PREFIX}:inventory${filterSuffix}${pageSuffix}`);
 }
 
 export function parseItemCallbackData(data: string | undefined): ParseItemCallbackResult {
@@ -49,7 +55,7 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       value: {
         type: "inventory",
         page: 0,
-        slot: null
+        filter: null
       }
     };
   }
@@ -72,7 +78,7 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       value: {
         type: "inventory",
         page: parsed.page,
-        slot: parsed.slot
+        filter: parsed.filter
       }
     };
   }
@@ -98,7 +104,7 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       type: "detail",
       itemId,
       page: parsed.page,
-      slot: parsed.slot
+      filter: parsed.filter
     }
   };
 }
@@ -181,35 +187,55 @@ function isEquipmentSlot(value: string | undefined): value is EquipmentSlot {
   return equipmentSlots.includes(value as EquipmentSlot);
 }
 
-function parseInventoryRest(rest: string[]): { page: number; slot: EquipmentSlot | null } | null {
+function parseInventoryRest(rest: string[]): { page: number; filter: InventoryFilter } | null {
   if (rest.length === 0) {
-    return { page: 0, slot: null };
+    return { page: 0, filter: null };
   }
 
   if (rest.length === 1) {
     const page = parsePage(rest[0]);
 
-    return page === null ? null : { page, slot: null };
+    return page === null ? null : { page, filter: null };
   }
 
   if (rest.length === 2 || rest.length === 3) {
-    if (rest[0] !== "s") {
-      return null;
-    }
+    const filter = callbackPartToFilter(rest[0], rest[1]);
 
-    const slot = codeToSlot(rest[1]);
-
-    if (!slot) {
+    if (!filter) {
       return null;
     }
 
     if (rest.length === 2) {
-      return { page: 0, slot };
+      return { page: 0, filter };
     }
 
     const page = parsePage(rest[2]);
 
-    return page === null ? null : { page, slot };
+    return page === null ? null : { page, filter };
+  }
+
+  return null;
+}
+
+function filterToCallbackPart(filter: Exclude<InventoryFilter, null>): string {
+  if (isInventoryEquipmentSlotFilter(filter)) {
+    return `s:${slotToCode(filter)}`;
+  }
+
+  if (isOneUseInventoryFilter(filter)) {
+    return "f:u";
+  }
+
+  throw new RangeError("Unsupported inventory filter.");
+}
+
+function callbackPartToFilter(kind: string | undefined, code: string | undefined): Exclude<InventoryFilter, null> | null {
+  if (kind === "s") {
+    return codeToSlot(code);
+  }
+
+  if (kind === "f" && code === "u") {
+    return ONE_USE_INVENTORY_FILTER;
   }
 
   return null;

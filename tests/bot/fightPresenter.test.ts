@@ -956,6 +956,65 @@ describe("fight presenter", () => {
     expect(text).not.toContain("🫁 Вміння відсапується");
   });
 
+  it("shows dense bandage cooldown with active combat notices", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        combatItems: {
+          cooldowns: {
+            "item.dense-bandage": {
+              itemId: "item.dense-bandage",
+              remainingTurns: 3
+            }
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🫁 🩹 Щільний бинт відсапується: ще 3 ходи.");
+  });
+
+  it("describes field kit combat healing as reaching the resulting HP", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        lastTurn: {
+          action: "item",
+          heroOutcome: "item-used",
+          heroDamage: 0,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false,
+          itemId: "item.field-kit",
+          itemName: "Польова аптечка",
+          heroHealing: 18,
+          heroHpAfter: 93
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("Ви використали <b>Польова аптечка</b>. HP підтягнулись до 93.");
+    expect(text).not.toContain("Польова аптечка</b>. HP підросли на 18.");
+  });
+
   it("explains when a hidden class skill needs more mana after cooldown", () => {
     const text = presentPersistentFight({
       state: "persistent-active",

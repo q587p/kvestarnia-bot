@@ -74,10 +74,16 @@ export const itemEffectSchema = z.object({
   message: "Item effect must contain at least one supported bonus."
 });
 
-export const itemUseEffectSchema = z.object({
-  kind: z.literal("heal-hp"),
-  amount: z.number().int().min(1).max(13)
-}).strict();
+export const itemUseEffectSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("heal-hp"),
+    amount: z.number().int().min(1).max(42)
+  }).strict(),
+  z.object({
+    kind: z.literal("heal-hp-to-min-percent"),
+    percent: z.number().int().min(1).max(100)
+  }).strict()
+]);
 
 export const itemSchema = z.object({
   id: contentIdSchema,

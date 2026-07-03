@@ -18,6 +18,7 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDailyKorchmaRoundOverviewCallbackData, makeDailyKorchmaRoundClaimCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
+import { makeYegerTurnInCallbackData } from "../callbacks/yegerCallbackData";
 
 export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
@@ -90,10 +91,14 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   if (
     input.yeger.state === "offered" ||
-    input.yeger.state === "in-progress" ||
-    input.yeger.state === "turn-in-ready"
+    input.yeger.state === "in-progress"
   ) {
     keyboard.text("🏹 До Єгеря", makeTavernCallbackData("ranger"));
+    keyboard.row();
+  }
+
+  if (input.yeger.state === "turn-in-ready") {
+    keyboard.text("🏹 Здати Єгерю", makeYegerTurnInCallbackData());
     keyboard.row();
   }
 

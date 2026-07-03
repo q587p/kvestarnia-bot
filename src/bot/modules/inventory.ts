@@ -12,6 +12,10 @@ type EquipmentCallback,
 type ItemCallback
 } from "../callbacks/itemCallbackData";
 import {
+parseItemCraftCallbackData,
+type ItemCraftCallback
+} from "../callbacks/itemCraftCallbackData";
+import {
 parseItemUseCallbackData,
 type ItemUseCallback
 } from "../callbacks/itemUseCallbackData";
@@ -29,6 +33,8 @@ import { playerFromContext } from "../context";
 import {
 buildEquipItemResultKeyboard,
 buildEquipmentKeyboard,
+buildItemCraftPreviewKeyboard,
+buildItemCraftResultKeyboard,
 buildItemDetailKeyboard,
 buildItemUsePreviewKeyboard,
 buildItemUseResultKeyboard
@@ -53,6 +59,10 @@ presentEquipment,
 presentUnequipSlotResult
 } from "../presenters/equipmentPresenter";
 import { presentItemDetail } from "../presenters/itemDetailPresenter";
+import {
+presentItemCraftPreview,
+presentItemCraftResult
+} from "../presenters/itemCraftPresenter";
 import {
 presentItemUseCancel,
 presentItemUseConfirm,
@@ -110,6 +120,10 @@ export function registerInventoryBotModule(
     await handleItemUseCallback(ctx, action, services);
   });
 
+  registerParsedCallbackRoute(bot, /^v1:craft:/, parseItemCraftCallbackData, async (ctx, action) => {
+    await handleItemCraftCallback(ctx, action, services);
+  });
+
   registerParsedCallbackRoute(bot, /^v1:chest:/, parseMantokChestCallbackData, async (ctx, action) => {
     await handleMantokChestCallback(ctx, action, services);
   });
@@ -126,7 +140,7 @@ async function handleItemCallback(
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit", action.page, action.slot, services.equipment);
+    await sendInventory(ctx, services.inventory, "edit", action.page, action.filter, services.equipment);
     return;
   }
 
@@ -158,6 +172,9 @@ async function handleItemCallback(
     ? await getCombatUseStateForItem(services, telegramUserId, result.item.content)
     : null;
   const canUse = itemUse?.state === "usable" && !(combatUse?.combatLocked && !combatUse.action);
+  const craftOptions = result.state === "found"
+    ? await services.itemCraft.getCraftOptionsForTelegramUser(telegramUserId, result.item.itemId)
+    : [];
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(
@@ -170,9 +187,10 @@ async function handleItemCallback(
     }),
     {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.slot, {
+      reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.filter, {
         canUse,
-        ...(combatUse?.action ? { combatUse: combatUse.action } : {})
+        ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
+        craftOptions
       })
     }
   );
@@ -268,7 +286,7 @@ async function handleItemUseCallback(
       reply_markup:
         result.state === "preview-created" || result.state === "preview-replayed"
           ? buildItemUsePreviewKeyboard(result.order.token)
-          : buildItemUseResultKeyboard()
+          : buildItemUseResultKeyboard(result.state === "full-hp" ? { detailItemId: action.itemId } : {})
     });
     return;
   }
@@ -313,7 +331,7 @@ async function handleItemUseCallback(
       reply_markup:
         result.state === "preview-created" || result.state === "preview-replayed"
           ? buildItemUsePreviewKeyboard(result.order.token)
-          : buildItemUseResultKeyboard()
+          : buildItemUseResultKeyboard(result.state === "full-hp" ? { detailItemId: action.itemId } : {})
     });
     return;
   }
@@ -327,7 +345,7 @@ async function handleItemUseCallback(
   await safeAnswerCallbackQuery(
     ctx,
     result.state === "used"
-      ? { text: "Бинт використано." }
+      ? { text: "Манатку використано." }
       : result.state === "replayed"
         ? { text: "Уже записано." }
         : {
@@ -341,9 +359,77 @@ async function handleItemUseCallback(
   );
   await safeEditMessageText(ctx, presentItemUseConfirm(result, { combatUseAvailable }), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUseResultKeyboard(repeat)
+    reply_markup: buildItemUseResultKeyboard(
+      result.state === "full-hp"
+        ? { detailItemId: result.order.itemId }
+        : repeat
+    )
   });
   const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks ?? []);
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
+}
+
+async function handleItemCraftCallback(
+  ctx: Context,
+  action: ItemCraftCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
+  if (action.type === "preview") {
+    const result = await services.itemCraft.previewForTelegramUser(telegramUserId, action.recipeCode);
+
+    await safeAnswerCallbackQuery(ctx, {
+      show_alert:
+        result.state === "locked" ||
+        result.state === "combat-locked" ||
+        result.state === "not-enough"
+    });
+    await safeEditMessageText(ctx, presentItemCraftPreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup:
+        result.state === "preview"
+          ? buildItemCraftPreviewKeyboard(action.recipeCode)
+          : buildItemCraftResultKeyboard()
+    });
+    return;
+  }
+
+  const result = await services.itemCraft.craftForTelegramUser(telegramUserId, action.recipeCode);
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "crafted"
+      ? { text: "Створено." }
+      : {
+          show_alert:
+            result.state === "locked" ||
+            result.state === "combat-locked" ||
+            result.state === "not-enough"
+        }
+  );
+  await safeEditMessageText(ctx, presentItemCraftResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildItemCraftResultKeyboard(
+      result.state === "crafted" && result.remainingSourceQuantity >= result.recipe.sourceQuantity
+        ? { repeatRecipeCode: result.recipe.code }
+        : undefined
+    )
+  });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "crafted" ? result.achievementUnlocks ?? [] : []
+  );
   if (achievementText) {
     await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
   }
@@ -390,13 +476,15 @@ async function getRepeatItemUseOptions(
   const item = items.find((candidate) => candidate.id === itemId);
   const effect = item ? getItemUseEffect(item) : null;
   const missingHp = Math.max(0, outcome.hpMax - outcome.hpAfter);
-  const neededQuantity = effect && effect.amount > 0
+  const neededQuantity = effect?.kind === "heal-hp" && effect.amount > 0
     ? Math.ceil(missingHp / Math.max(1, Math.floor(effect.amount)))
     : Number.POSITIVE_INFINITY;
 
   return {
     repeatItemId: itemId,
-    ...(stack.quantity >= neededQuantity ? { restoreToFullItemId: itemId } : {})
+    ...(itemId === "item.responsible-panic-bandage" && stack.quantity >= neededQuantity
+      ? { restoreToFullItemId: itemId }
+      : {})
   };
 }
 

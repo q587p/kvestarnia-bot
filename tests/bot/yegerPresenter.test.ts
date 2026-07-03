@@ -5,6 +5,8 @@ import {
   presentYegerCorner,
   presentYegerHelp,
   presentYegerHuntOutside,
+  presentYegerNotchExchange,
+  presentYegerNotchExchangeResult,
   presentYegerQuest,
   presentYegerRangerBandage,
   presentYegerStart,
@@ -29,10 +31,10 @@ describe("Yeger presenter", () => {
 
     expect(text).not.toContain("&lt;b&gt;Мандрівник&lt;/b&gt;");
     expect(text).not.toContain("Титул &lt;i&gt;підступу&lt;/i&gt;");
-    expect(text).toContain("🧥 Єгерський куток");
-    expect(text).toContain("У темному кутку сидить людисько-єгер у капюшоні");
-    expect(text).toContain("Єгер:\n<blockquote>");
-    expect(text).toContain("</blockquote>");
+    expect(text).toContain("🏹 Єгерська справа");
+    expect(text).not.toContain("🧥 Єгерський куток");
+    expect(text).not.toContain("У темному кутку сидить людисько-єгер у капюшоні");
+    expect(text).not.toContain("Єгер:\n<blockquote>");
     expect(text).toContain("Доступна справа:");
     expect(text).toContain("<b>Неспокійні справи</b>");
     expect(text).not.toContain("<b>Мандрівник</b>");
@@ -46,8 +48,23 @@ describe("Yeger presenter", () => {
     });
 
     expect(text).toContain("Прогрес: <b>5/5</b>.");
-    expect(text).toContain("🧥 Єгерський куток");
+    expect(text).toContain("🏹 Неспокійні справи");
+    expect(text).not.toContain("🧥 Єгерський куток");
     expect(text).toContain("Єгер має вираз обличчя");
+  });
+
+  it("renders second-board progress without repeating the Yeger corner intro", () => {
+    const text = presentYegerQuest({
+      state: "turn-in-ready",
+      character,
+      progress: { wins: 17, target: 17, stageId: "second" }
+    });
+
+    expect(text).toContain("🏹 Неспокійні справи 2.0");
+    expect(text).toContain("Прогрес: <b>17/17</b>.");
+    expect(text).not.toContain("🧥 Єгерський куток");
+    expect(text).not.toContain("У темному кутку сидить людисько-єгер у капюшоні");
+    expect(text).not.toContain("Єгер:\n<blockquote>");
   });
 
   it("renders completed reward as separate lines", () => {
@@ -126,6 +143,9 @@ describe("Yeger presenter", () => {
     });
 
     expect(text).toContain("<b>Неспокійні справи 2.0</b>");
+    expect(text).toContain("🏹 Єгерська справа");
+    expect(text).not.toContain("🧥 Єгерський куток");
+    expect(text).not.toContain("У темному кутку сидить людисько-єгер у капюшоні");
     expect(text).toContain("наступні 17 неупокоєних проблем");
     expect(text).toContain("щільних бинтів і польової аптечки");
     expect(text).not.toContain("<b>Неспокійні справи</b>\n\nПерша дощечка закрита");
@@ -183,12 +203,13 @@ describe("Yeger presenter", () => {
         xp: 80,
         gold: 120,
         itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 1 }]
-      }
+      },
+      rangerBandage: { kind: "bandage", state: "available" }
     });
 
     expect(text).toContain("🩹 Бинти Єгеря");
     expect(text).toContain("Платні пачки лежать окремо");
-    expect(text).toContain("Для єгерів тут є ще один професійний бинт.");
+    expect(text).toContain("Єгері можуть забрати 5 звичайних бинтів безкоштовно.");
     expect(text).not.toContain("Нагорода:");
     expect(text).not.toContain("Здобуто:");
   });
@@ -207,6 +228,7 @@ describe("Yeger presenter", () => {
         itemGrants: []
       },
       rangerBandage: {
+        kind: "bandage",
         state: "available"
       }
     });
@@ -223,16 +245,17 @@ describe("Yeger presenter", () => {
         itemGrants: []
       },
       rangerBandage: {
+        kind: "bandage",
         state: "on-cooldown",
         nextAvailableAt: new Date("2026-06-15T11:38:00.000Z"),
         now: new Date("2026-06-15T10:05:00.000Z")
       }
     });
 
-    expect(available).toContain("Для єгерів тут є ще один професійний бинт.");
-    expect(cooldown).toContain("Професійний бинт для єгерів зараз перевʼязує власну важливість.");
-    expect(cooldown).toContain("Повернеться пізніше.");
-    expect(cooldown).not.toContain("Він безкоштовний");
+    expect(available).toContain("Єгері можуть забрати 5 звичайних бинтів безкоштовно.");
+    expect(cooldown).toContain("Безкоштовні бинти зараз перевʼязує власну важливість.");
+    expect(cooldown).toContain("Повернеться приблизно за 93 хв.");
+    expect(cooldown).not.toContain("5 звичайних бинтів безкоштовно");
     expect(cooldown).not.toBe(available);
   });
 
@@ -249,7 +272,7 @@ describe("Yeger presenter", () => {
   });
 
   it("uses biography-aware ranger corner reactions", () => {
-    const text = presentYegerQuest({
+    const text = presentYegerCorner({
       state: "offered",
       character: {
         ...character,
@@ -261,11 +284,63 @@ describe("Yeger presenter", () => {
 
     expect(text).toContain("На мить я подумав про гобітів");
     expect(text).toContain("Єгер:\n<blockquote>На мить я подумав про гобітів");
-    expect(text).toContain("Доступна справа:");
+    expect(text).toContain("На краю стола лежить справа.");
+  });
+
+  it("renders Yeger notch exchange menu and results", () => {
+    const menu = presentYegerNotchExchange({
+      state: "ready",
+      summary: {
+        availableNotches: 2,
+        options: [
+          {
+            kind: "dense-bandage",
+            requiredNotches: 1,
+            outputItemId: "item.dense-bandage",
+            outputQuantity: 1,
+            outputItemName: "Щільний бинт"
+          },
+          {
+            kind: "field-kit",
+            requiredNotches: 2,
+            outputItemId: "item.field-kit",
+            outputQuantity: 1,
+            outputItemName: "Польова аптечка"
+          }
+        ]
+      }
+    });
+    const exchanged = presentYegerNotchExchangeResult({
+      state: "exchanged",
+      character,
+      spentNotches: 2,
+      itemGrants: [{ itemId: "item.field-kit", name: "Польова аптечка", quantity: 1 }],
+      summary: {
+        availableNotches: 0,
+        options: []
+      }
+    });
+    const stale = presentYegerNotchExchangeResult({
+      state: "stale",
+      character,
+      expectedNotches: 2,
+      currentNotches: 0,
+      summary: {
+        availableNotches: 0,
+        options: []
+      }
+    });
+
+    expect(menu).toContain("🪵 Обмін рисок");
+    expect(menu).toContain("У торбі: <b>2</b> риски.");
+    expect(exchanged).toContain("Витрачено: <b>2</b> риски.");
+    expect(exchanged).toContain("Здобуто: <i>Польова аптечка</i>");
+    expect(exchanged).toContain("Залишилось: <b>0</b> рисок.");
+    expect(stale).toContain("У старій кнопці було <b>2</b>, а в торбі зараз <b>0</b> рисок.");
   });
 
   it("uses title-aware corner reactions", () => {
-    const text = presentYegerQuest({
+    const text = presentYegerCorner({
       state: "offered",
       character: {
         ...character,
@@ -423,6 +498,7 @@ describe("Yeger presenter", () => {
       }),
       presentYegerRangerBandage({
         state: "claimed",
+        kind: "bandage",
         character,
         itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }],
         nextAvailableAt: tracking.availableAt,
@@ -430,6 +506,7 @@ describe("Yeger presenter", () => {
       }),
       presentYegerRangerBandage({
         state: "on-cooldown",
+        kind: "bandage",
         character,
         nextAvailableAt: tracking.availableAt,
         now: tracking.now

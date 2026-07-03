@@ -4,6 +4,32 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.22 — Dense Bandage and Field Kit smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage`, `/dev_add_field_kit` and `/dev_add_yeger_line` to seed the exact medical stacks and Yeger notches needed for combat, Big Barrel and exchange checks when `DEV_GRANT_COMMANDS_ENABLED=true`. Use `/dev_yeger_first_done` and `/dev_yeger_second_done` to fill the Yeger boards with real terminal wins, then turn them in through the normal Yeger buttons.
+
+1. Open `/hunt` / the Yeger corner, then open or take the current Yeger case; verify the corner intro appears only on the corner card, no separate duplicate `Ви підійшли до єгерського кутка.` notice appears before the Yeger card or Yeger daily scene, quest cards return to `Єгерський куток`, and ordinary Yeger exits return to `Бочка`.
+1. Before completing the second Yeger `Неспокійні справи 2.0` board, open an ordinary `Бинт відповідальної паніки` item card with enough bandages and verify no advanced craft buttons appear.
+2. After the second Yeger board completion, open the ordinary bandage card outside combat with `7`, `8`, `12`, `13` and `14` ordinary bandages; verify `Щільний бинт` appears at `8+` and `Польова аптечка` appears at `13+`.
+2a. After turning in `Неспокійні справи 2.0`, verify the result card offers `Створити щільний бинт` and/or `Створити польову аптечку` only when the ordinary bandage stack can pay those recipes.
+2b. After turning in `Неспокійні справи 2.0` with one or two `Єгерська риска на дощечці` items in the bag, verify the result card and Yeger corner offer `Обміняти риску` only when at least one exchange can be paid; exchange one notch for `Щільний бинт` and two notches for `Польова аптечка`, then replay an old exchange button and verify no extra notches are spent or items granted.
+3. Craft each item and verify ordinary bandage counts decrease by the recipe cost or by a smaller successful savings spend, exactly one crafted item appears and the matching rewardless craft achievement can appear once.
+3a. If the remaining ordinary bandage count still covers the same recipe, verify the result card offers `Створити ще`; if not, verify it only returns to the bandage or inventory.
+3b. With a higher-level/lucky `class.ranger`, repeat several crafts and verify a successful savings roll can preserve `1-5` ordinary bandages without allowing the craft below the up-front `8` / `13` ordinary-bandage requirement; with a non-ranger class, verify the same recipes spend the fixed cost.
+3c. At full HP, try a medical item from its detail card; verify the no-op card says treatment is not needed and offers `До бинта` / `До аптечки` back to the source item detail.
+4. Replay an old craft button after the count is no longer sufficient and verify no extra item is granted.
+5. Try craft preview/confirm during an active solo fight and verify it is denied without inventory mutation.
+6. Use `Щільний бинт` outside combat at full HP, low HP and near max HP; verify no-op uses do not consume.
+7. Use `Польова аптечка` outside combat below, at and above its target threshold; verify no-op uses do not consume.
+7a. Open `Манатки`, press `Разові`, and verify ordinary/dense/field-kit consumables appear without equipment or junk stacks; inventory message text stays compact without item descriptions, stack counts above one appear on item buttons in parentheses, consumable detail cards say they are applied rather than equipped without trophy/shelf wording, `Єгерська риска на дощечці` detail copy points to Yeger exchange instead of generic trophy/shelf copy, and detail-card back returns to the filtered list.
+8. In solo combat, use `Щільний бинт` once, verify its cooldown appears on the fight card, try it again immediately and confirm the separate alert explains the cooldown, then take own turns until the cooldown clears; verify the matching rewardless use achievement can appear once.
+9. In solo combat, use `Польова аптечка` once and verify the journal says which HP value it reached, then injure the hero again if convenient and verify a second successful use in the same battle is blocked with a separate once-per-battle alert and the matching rewardless use achievement can appear once.
+10. Start a different fight and verify dense cooldown / field-kit once-per-battle state did not leak.
+11. In Big Barrel, use an ordinary bandage, `Щільний бинт` and `Польова аптечка` from item-detail combat-use buttons; verify each heals frozen raid HP, field-kit journal copy says which HP value it reached, no-op threshold/full-HP attempts do not consume, dense cooldown and field-kit once-per-battle state stay scoped to the raid, and first raid medical use can unlock its rewardless achievement once.
+12. With `class.ranger`, after first-board completion verify the free class supply grants `5` ordinary bandages on the familiar `93`-minute cooldown; after second-board completion verify the dense-bandage supply appears on its own `93`-minute cooldown and the field-kit supply appears on a one-day cooldown.
+
 ## 0.2.20 — Latest Events Feed MVP smoke
 
 Manual Telegram QA status for the implementation pass: not run.
@@ -13,7 +39,7 @@ Manual Telegram QA status for the implementation pass: not run.
 3. Create a new disposable character; reopen the feed and verify one public new-adventurer row appears and duplicate onboarding replays do not add another row.
 4. Trigger or inspect a configured level milestone; verify one deduped level row appears and ordinary non-milestone rewards do not create noise.
 5. Finish one Big Barrel Brother victory; verify exactly one public victory row appears for the terminal boss session and losses/attempt XP create no row.
-6. Grant or win a rare/epic manatka if convenient; verify it appears, while common manatky do not.
+6. Grant or win a rare/epic manatka if convenient; verify it appears, while common manatky do not, and only epic manatky appear under `⭐ Важливе`.
 7. Win an underdog fight where the monster is at least 5 levels above the character; verify a row appears, while ordinary wins and losses do not.
 8. Try every feed filter and pagination button; verify old refresh/stale callbacks answer safely and callback payloads do not leak ids.
 9. Use long or HTML-like character/item names in a disposable path if convenient; verify feed rows escape and truncate names and the message stays mobile-sized.
@@ -27,7 +53,7 @@ Manual Telegram QA status for the implementation pass: not run.
 3. In-progress first `5`-target board: verify supplies stay hidden and direct old buttons stay locked.
 4. Turn-in-ready but not turned in: verify supplies stay locked until the first board completion row is recorded.
 5. After completing and turning in the first board: verify `🩹 Бинти` appears in the Yeger corner.
-6. After first-board completion: buy `1`, `5`, `17` or `93` basic bandages as affordable, verify Ranger discount/free button behavior, then replay stale buttons and verify canonical replay/no double spend.
+6. After first-board completion: buy `1`, `5`, `17` or `93` basic bandages as affordable, verify Ranger discount/free `5`-bandage button behavior, then replay stale buttons and verify canonical replay/no double spend.
 7. Before completing the second `17`-target board: verify no advanced `Щільний бинт` / `Польова аптечка` route is exposed by this release.
 8. Open several early and high-level Bestiary monster records; verify possible trophies are concrete manatky names and exact odds are not shown.
 9. Win a few ordinary fights if convenient and verify existing item drop/result presentation still behaves normally.
@@ -315,7 +341,7 @@ Use two accounts in Shynok and another shared location with local dev commands e
 7. While a bandage use preview is pending, try gift/sale/chest/barter of the same `itemId`: the stack should be reserved.
 8. Remort with a pending use order: remort should cancel the use reservation without consuming the bandage.
 9. At the Єгер surface, open paid bandage purchase, verify exact price/current gold, confirm once, replay confirm, cancel a fresh preview, intentionally buy again with a new token, and repeat with insufficient gold; if the wallet can still afford a smaller bundle, the stale-free fallback should offer the maximum affordable count and only spend gold after confirming that new token.
-10. With `class.ranger`, verify the lower buy price and the periodic free-bandage claim; repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the wait and confirm a fresh claim can be tested without changing production rules.
+10. With `class.ranger`, verify the lower buy price and the periodic free class-supply claim (`5` ordinary bandages after the first board; improved supplies only after the second board); repeated old free-claim callbacks should replay/cooldown safely. Locally, use `/dev_reset_yeger_bandage` to skip the ordinary wait and confirm a fresh claim can be tested without changing production rules.
 11. For Yeger trail QA, use `/dev_reset_yeger_trail` after taking a trail to make `🔎 Перевірити слід` available immediately without weakening production timers.
 12. Win a low-level monster fight whose authored loot list can include the bandage and verify any bandage grant goes through the existing reward replay path.
 
@@ -633,10 +659,12 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 15. Якщо активний інший старший бій уже є, бот повертає його без створення другого й не називає нецільового монстра неупокоєною ціллю.
 16. Виграй цільовий старший бій і повернись до `/hunt`.
 17. Очікування: прогрес росте тільки за перемоги після старту справи; lost/fled/expired і wrong-tag монстри не рахуються.
+17a. У локальному режимі можна викликати `/dev_yeger_first_done`: це має створити реальні terminal win rows до `5/5`, але не створити completed quest row і не видати reward до звичайної здачі.
 18. Після `5/5` натисни `🏹 Здати Єгерю`.
 19. Очікування: одноразова нагорода з рівнево обмеженим XP, `+120 золота`, `Єгерська риска на дощечці`; повторний callback не дублює винагороду.
 20. Після першої здачі знову відкрий `/hunt`.
 21. Очікування: Єгер пропонує наступну дощечку `Неспокійні справи 2.0` на `17` цілей із прогресом `0/17`, окремим стартом і без повторної риски з першої нагороди.
+21a. У локальному режимі після зданої першої дошки можна викликати `/dev_yeger_second_done`: це має створити реальні terminal win rows до `17/17`, після чого друга дошка здається звичайною кнопкою з нормальними reward/achievement hooks.
 22. Візьми другу дощечку, переможи одну правильну ціль, потім зроби реморт.
 23. Очікування: після реморту `/hunt` починає Єгерський ланцюжок заново з першої дощечки `0/5`, без перенесення старого `1/17`.
 24. Старі `v1:hunt:*` callback-и мають безпечно оновити Єгерську дошку, а не видати стару hourly reward.
@@ -754,8 +782,13 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
 - `/dev_heal [число]` — у локальному режимі лікує поточного персонажа, зокрема під час активного бою; без числа лікує до максимуму.
 - `/dev_add_bandage [число]` — у локальному режимі додає бинти відповідальної паніки; без числа додає один бинт.
+- `/dev_add_dense_bandage [число]` — у локальному режимі додає щільні бинти; без числа додає один щільний бинт.
+- `/dev_add_field_kit [число]` — у локальному режимі додає польові аптечки; без числа додає одну аптечку.
+- `/dev_add_yeger_line [число]` — у локальному режимі додає єгерські риски на дощечці; без числа додає одну риску.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
+- `/dev_yeger_first_done` — у локальному режимі доводить першу Єгерську дошку до `5/5` реальними перемогами, лишаючи звичайну здачу квеста.
+- `/dev_yeger_second_done` — у локальному режимі доводить другу Єгерську дошку до `17/17` реальними перемогами після зданої першої дошки, лишаючи звичайну здачу квеста.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.

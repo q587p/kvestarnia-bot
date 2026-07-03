@@ -11,6 +11,8 @@ import {
   type CombatTurnLogEntry,
   type CombatTurnSummary
 } from "../../domain/combat";
+import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
+import { items } from "../../content";
 import type {
   FightLookupResult,
   FightResult,
@@ -346,6 +348,10 @@ export function presentPersistentFightTurn(
           return "Ця манатка вже зайнята іншою дією. Корчма показує поточний стан без витрачання ходу.";
         case "full-hp":
           return "HP уже повні. Корчма не дозволила витрачати манатку для красивого жесту.";
+        case "item-on-cooldown":
+          return "Ця манатка ще відсапується після минулого застосування. Корчма показує поточний стан.";
+        case "item-limit-reached":
+          return "Ця манатка вже зробила свою справу в цьому бою. Корчма показує поточний стан.";
         case "not-usable":
           return "Цю манатку зараз не можна застосувати в бою. Корчма показує поточний стан.";
       }
@@ -367,6 +373,29 @@ export function presentPersistentFightTurn(
     ...(intro ? { statusNote: intro } : {}),
     suppressLastTurn: result.state === "item-unavailable" || result.state === "not-enough-mana"
   });
+}
+
+export function presentPersistentFightItemUnavailableNotice(
+  result: Exclude<PersistentFightTurnResult, { state: "no-character" }>
+): string | null {
+  if (result.state !== "item-unavailable") {
+    return null;
+  }
+
+  switch (result.reason) {
+    case "item-limit-reached":
+      return "Манатка не спрацювала: польова аптечка працює лише раз на бій.";
+    case "item-on-cooldown":
+      return "Манатка не спрацювала: щільний бинт ще відсапується.";
+    case "full-hp":
+      return "Манатка не спрацювала: HP уже повні.";
+    case "not-owned":
+      return "Манатка не спрацювала: її вже немає в торбі.";
+    case "reserved":
+      return "Манатка не спрацювала: вона зайнята іншою дією.";
+    case "not-usable":
+      return "Манатка не спрацювала: у цьому бою її не застосувати.";
+  }
 }
 
 export function presentPersistentFightSnapshot(
@@ -729,6 +758,7 @@ function presentPersistentFightState(input: {
 
   if (state?.status === "active") {
     lines.push(...presentAbilityCooldowns(state.cooldowns));
+    lines.push(...presentCombatItemCooldowns(state.combatItems));
     lines.push(...presentUnavailableAbilityNotices(state, input.character));
   }
 
@@ -917,6 +947,18 @@ function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | 
   }
 
   return null;
+}
+
+function presentItemUseHealingSummary(summary: CombatTurnSummary): string {
+  if (!summary.heroHealing) {
+    return "";
+  }
+
+  if (summary.itemId === FIELD_KIT_ITEM_ID && summary.heroHpAfter !== undefined) {
+    return ` HP підтягнулись до ${summary.heroHpAfter}.`;
+  }
+
+  return ` HP підросли на ${summary.heroHealing}.`;
 }
 
 function presentLostFightQuestLines(progress: ThirteenSmallProblemsProgress | null): string[] {
@@ -1129,9 +1171,7 @@ function presentTurnSummary(
 
   if (summary.heroOutcome === "item-used") {
     const itemName = escapeHtml(summary.itemName ?? "манатку");
-    const healing = summary.heroHealing
-      ? ` HP підросли на ${summary.heroHealing}.`
-      : "";
+    const healing = presentItemUseHealingSummary(summary);
 
     return withMonsterBark(summary, [
       ...heading,
@@ -1435,6 +1475,18 @@ function presentSkillCooldown(cooldown: { id: string; remainingTurns: number }):
   const skill = getCombatSkillDisplay(cooldown.id);
 
   return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+}
+
+function presentCombatItemCooldowns(
+  combatItems: NonNullable<Parameters<typeof presentPersistentFightState>[0]["session"]["state"]>["combatItems"]
+): string[] {
+  return Object.values(combatItems?.cooldowns ?? {})
+    .filter((cooldown) => cooldown.remainingTurns > 0)
+    .map((cooldown) => {
+      const itemName = items.find((item) => item.id === cooldown.itemId)?.name ?? "Манатка";
+
+      return `🫁 🩹 ${escapeHtml(itemName)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+    });
 }
 
 function presentAbilityCooldowns(

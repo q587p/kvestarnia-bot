@@ -187,6 +187,32 @@ export const items = [
     }
   },
   {
+    id: "item.dense-bandage",
+    name: "Щільний бинт",
+    description: "Вісім бинтів, які домовилися триматися разом навіть під поглядом єгеря.",
+    rarity: "uncommon",
+    slot: "consumable",
+    goldValue: 56,
+    tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
+    useEffect: {
+      kind: "heal-hp",
+      amount: 42
+    }
+  },
+  {
+    id: "item.field-kit",
+    name: "Польова аптечка",
+    description: "Корчмар назвав це «польовим» лише тому, що стіл уже був зайнятий. Підтягує HP до майже пристойного стану.",
+    rarity: "uncommon",
+    slot: "consumable",
+    goldValue: 91,
+    tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
+    useEffect: {
+      kind: "heal-hp-to-min-percent",
+      percent: 93
+    }
+  },
+  {
     id: "item.cellar.fancy-cheese",
     name: "Кльовий шмат сиру",
     description: "Дипломатичний аргумент із запахом, який важко оскаржити без ложки.",

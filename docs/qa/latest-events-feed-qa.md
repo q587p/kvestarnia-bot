@@ -114,8 +114,10 @@ Run targeted tests first. Run broader checks before opening a ready PR unless a 
 
 1. Grant or receive a common item.
 2. Expected: no public row.
-3. Grant or receive a configured rare/epic item.
-4. Expected: one public row with escaped item name.
+3. Grant or receive a configured rare item.
+4. Expected: one public manatky row with escaped item name, but no row in `⭐ Важливе`.
+5. Grant or receive a configured epic item.
+6. Expected: one public manatky row with escaped item name, and it remains visible in `⭐ Важливе`.
 
 ### Scenario 6 — underdog victory
 

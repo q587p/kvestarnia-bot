@@ -415,6 +415,33 @@ describe("AchievementService", () => {
     expect(repo.progressFor("achievement.equipment.three-equipped")?.current).toBe(3);
   });
 
+  it("unlocks bandage craft and use achievements from direct item events", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    const craftUnlocks = await service.trackEvent({
+      type: "item.crafted",
+      characterId: "character-1",
+      itemId: "item.dense-bandage",
+      occurredAt: new Date("2026-06-28T09:10:00.000Z"),
+      sourceId: "recipe.dense-bandage:item.dense-bandage"
+    });
+    const useUnlocks = await service.trackEvent({
+      type: "item.used",
+      characterId: "character-1",
+      itemId: "item.field-kit",
+      occurredAt: new Date("2026-06-28T09:11:00.000Z"),
+      sourceId: "session-1:turn:1:item:item.field-kit"
+    });
+
+    expect(craftUnlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.bandage.dense-crafted"
+    ]);
+    expect(useUnlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.bandage.field-kit-used"
+    ]);
+  });
+
   it("unlocks simple ledger-backed triggers immediately and snapshots their thresholds", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({
@@ -606,6 +633,8 @@ describe("AchievementService", () => {
           new Date("2026-06-28T10:12:00.000Z"),
           new Date("2026-06-28T10:13:00.000Z")
         ],
+        "item.used:item.dense-bandage": [new Date("2026-06-28T10:14:00.000Z")],
+        "item.used:item.field-kit": [new Date("2026-06-28T10:15:00.000Z")],
         "mantok.chest.completed": [new Date("2026-06-28T10:20:00.000Z")],
         "level.barter.completed": [new Date("2026-06-28T10:21:00.000Z")],
         "training.doppelganger.finished": [new Date("2026-06-28T10:22:00.000Z")],
@@ -620,6 +649,7 @@ describe("AchievementService", () => {
         "duel.turnbased.resolved": [new Date("2026-06-28T10:24:00.000Z")],
         "barrel.raid.claimed": [new Date("2026-06-28T10:25:00.000Z")],
         "barrel.raid.lost": [new Date("2026-06-28T10:25:30.000Z")],
+        "barrel.raid.bandage-used": [new Date("2026-06-28T10:25:45.000Z")],
         "korchma.round.purchased": [new Date("2026-06-28T10:26:00.000Z")],
         "item.gift.sent": [new Date("2026-06-28T10:27:00.000Z")],
         "item.gift.received": [new Date("2026-06-28T10:28:00.000Z")],
@@ -714,6 +744,8 @@ describe("AchievementService", () => {
       "achievement.bandage.ninety-three-owned",
       "achievement.bandage.first-used",
       "achievement.bandage.four-used",
+      "achievement.bandage.dense-used",
+      "achievement.bandage.field-kit-used",
       "achievement.yeger.free-bandage.first",
       "achievement.equipment.first-equipped",
       "achievement.equipment.three-equipped",
@@ -734,6 +766,7 @@ describe("AchievementService", () => {
       "achievement.social.duel-defend",
       "achievement.barrel.raid.first",
       "achievement.barrel.raid.first-loss",
+      "achievement.barrel.raid.bandage-used",
       "achievement.korchma.round.first",
       "achievement.item.gift.sent.first",
       "achievement.item.gift.received.first",

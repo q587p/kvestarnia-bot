@@ -21,7 +21,7 @@ describe("inventory presenter", () => {
     expect(text.length).toBeLessThan(180);
   });
 
-  it("shows item names, quantities, and descriptions", () => {
+  it("shows a compact inventory summary without item descriptions", () => {
     const result: InventoryResult = {
       state: "found",
       totalGoldValue: 6,
@@ -46,12 +46,17 @@ describe("inventory presenter", () => {
     expect(text).toContain("<b>Манатки</b>");
     expect(text).toContain("Стіл попросив надбавку.\n\nОціночна вартість столу");
     expect(text).toContain("Оціночна вартість столу: <b>6 золота</b>");
-    expect(text).toContain("<b>Квиток мокрого пригодника</b> ×2");
-    expect(text).toContain("<i>Трофей тавернової логістики.</i>");
-    expect(text.split("\n").length).toBeLessThanOrEqual(8);
+    expect(text).not.toContain("Квиток мокрого пригодника");
+    expect(text).not.toContain("Трофей тавернової логістики.");
+    expect(text.split("\n")).toEqual([
+      "🎒 <b>Манатки</b>",
+      "Пригодник розклав здобич на столі. Стіл попросив надбавку.",
+      "",
+      "Оціночна вартість столу: <b>6 золота</b>. Стіл уже поводиться як фінансовий радник."
+    ]);
   });
 
-  it("omits quantity for a single item", () => {
+  it("keeps single item names out of the inventory message body", () => {
     const text = presentInventory({
       state: "found",
       totalGoldValue: 0,
@@ -72,7 +77,7 @@ describe("inventory presenter", () => {
       ]
     });
 
-    expect(text).toContain("• <b>Квиток мокрого пригодника</b>");
+    expect(text).not.toContain("Квиток мокрого пригодника");
     expect(text).not.toContain("×1");
   });
 
@@ -91,11 +96,11 @@ describe("inventory presenter", () => {
       "Оціночна вартість столу: <b>0 золота</b>. Стіл уже поводиться як фінансовий радник.\n\nСторінка <b>1/2</b>"
     );
     expect(firstPage).toContain("Сторінка <b>1/2</b>");
-    expect(firstPage).toContain("<b>Манатка 1</b>");
-    expect(firstPage).toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE}</b>`);
+    expect(firstPage).not.toContain("<b>Манатка 1</b>");
+    expect(firstPage).not.toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE}</b>`);
     expect(firstPage).not.toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE + 1}</b>`);
     expect(secondPage).toContain("Сторінка <b>2/2</b>");
-    expect(secondPage).toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE + 1}</b>`);
+    expect(secondPage).not.toContain(`<b>Манатка ${INVENTORY_PAGE_SIZE + 1}</b>`);
     expect(secondPage).not.toContain("<b>Манатка 1</b>");
   });
 
@@ -131,8 +136,28 @@ describe("inventory presenter", () => {
     expect(text).toContain("Вдягнено: <b>Швабра Далекого Контакту +3</b>");
     expect(text).toContain("Ефект: <i>+2 Спритности · +3 до удару</i>");
     expect(text).toContain("Знайдено підхожих манаток: <b>1</b>.");
-    expect(text).toContain("<b>Тестова пательня</b>");
+    expect(text).not.toContain("<b>Тестова пательня</b>");
     expect(text).not.toContain("<b>Тестовий фартух</b>");
+    expect(text).not.toContain("<b>Тестова квитанція</b>");
+  });
+
+  it("filters inventory by one-use manatky", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        item("item.responsible-panic-bandage", "Бинт відповідальної паніки", "junk", ["consumable", "one-use"]),
+        item("item.test-weapon", "Тестова пательня", "weapon"),
+        item("item.test-junk", "Тестова квитанція", "junk")
+      ]
+    };
+    const text = presentInventory(result, 0, "one-use");
+
+    expect(text).toContain("1️⃣ <b>Разові манатки</b>");
+    expect(text).toContain("Показано манатки, які використовуються один раз");
+    expect(text).toContain("Знайдено разових манаток: <b>1</b>.");
+    expect(text).not.toContain("<b>Бинт відповідальної паніки</b>");
+    expect(text).not.toContain("<b>Тестова пательня</b>");
     expect(text).not.toContain("<b>Тестова квитанція</b>");
   });
 
@@ -147,9 +172,26 @@ describe("inventory presenter", () => {
     expect(text).toContain("💍 <b>Манатки-аксесуари</b>");
     expect(text).toContain("У торбі поки немає манаток для цього гачка.");
   });
+
+  it("explains when the one-use filter has no items", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [item("item.test-junk", "Тестова квитанція", "junk")]
+    };
+    const text = presentInventory(result, 0, "one-use");
+
+    expect(text).toContain("1️⃣ <b>Разові манатки</b>");
+    expect(text).toContain("У торбі поки немає разових манаток.");
+  });
 });
 
-function item(itemId: string, name: string, slot = "junk"): InventoryItemSummary {
+function item(
+  itemId: string,
+  name: string,
+  slot = "junk",
+  tags?: InventoryItemSummary["content"]["tags"]
+): InventoryItemSummary {
   return {
     id: `character-${itemId}`,
     itemId,
@@ -160,6 +202,7 @@ function item(itemId: string, name: string, slot = "junk"): InventoryItemSummary
       description: "Лежить і чекає, коли її перегорнуть.",
       rarity: "common",
       slot,
+      ...(tags ? { tags } : {}),
       priceless: true
     }
   };

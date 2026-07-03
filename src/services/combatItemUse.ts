@@ -1,11 +1,19 @@
 import type { ItemContent } from "../content/schema";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 import { blocksAccidentalItemUse, getItemUseEffect } from "../domain/itemUse";
+import { BANDAGE_ITEM_ID } from "./itemGrant";
 
 export interface CombatUsableItem {
   key: string;
   item: ItemContent;
   effect: NonNullable<ReturnType<typeof getItemUseEffect>>;
 }
+
+const MEDICAL_COMBAT_ITEM_IDS = new Set([
+  BANDAGE_ITEM_ID,
+  DENSE_BANDAGE_ITEM_ID,
+  FIELD_KIT_ITEM_ID
+]);
 
 export function getCombatUsableItem(item: ItemContent): CombatUsableItem | null {
   const effect = getItemUseEffect(item);
@@ -42,4 +50,8 @@ export function getCombatItemUseKey(itemId: string): string {
   }
 
   return hash.toString(36).padStart(6, "0").slice(-6);
+}
+
+export function isMedicalCombatItemId(itemId: string): boolean {
+  return MEDICAL_COMBAT_ITEM_IDS.has(itemId);
 }

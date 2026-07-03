@@ -90,7 +90,7 @@ NODE_ENV=development
 DEV_GRANT_COMMANDS_ENABLED=true
 ```
 
-Вони працюють лише коли `NODE_ENV` не `production` **і** `DEV_GRANT_COMMANDS_ENABLED=true` / `1` / `yes` / `on`. Не вмикай `DEV_GRANT_COMMANDS_ENABLED` на hosted production: ці команди напряму змінюють рівень, XP, HP, ману, золото й манатки.
+Вони працюють лише коли `NODE_ENV` не `production` **і** `DEV_GRANT_COMMANDS_ENABLED=true` / `1` / `yes` / `on`. Не вмикай `DEV_GRANT_COMMANDS_ENABLED` на hosted production: ці команди напряму змінюють рівень, XP, HP, ману, золото, манатки й локальний quest-progress.
 
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
@@ -102,8 +102,13 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_restore_mana [число]` — відновлює ману поточного персонажа до максимуму; з числом додає стільки мани, але не вище максимуму.
 - `/dev_add_random_item [число]` — додає випадкові манатки; без числа додає одну.
 - `/dev_add_bandage [число]` — додає бинти відповідальної паніки; без числа додає один бинт.
+- `/dev_add_dense_bandage [число]` — додає щільні бинти; без числа додає один щільний бинт.
+- `/dev_add_field_kit [число]` — додає польові аптечки; без числа додає одну аптечку.
+- `/dev_add_yeger_line [число]` — додає єгерські риски на дощечці; без числа додає одну риску.
 - `/dev_reset_yeger_bandage` — скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — завершує поточне очікування Єгерського сліду для поточного персонажа.
+- `/dev_yeger_first_done` — доводить першу Єгерську дошку `Неспокійні справи` до `5/5` реальними terminal win rows; нагороду й досягнення треба забрати звичайною кнопкою здачі.
+- `/dev_yeger_second_done` — доводить другу Єгерську дошку `Неспокійні справи 2.0` до `17/17` реальними terminal win rows після зданої першої дошки; нагороду й досягнення треба забрати звичайною кнопкою здачі.
 - `/dev_adventure_reset` — скидає й перетасовує поточний вибір пригоди для швидкого локального тесту.
 - `/dev_raid_stop` — достроково завершує активний pending-рейд на Бочку через звичайний reward path для швидкого локального тесту; якщо XP підняв рівень, показує звичайне окреме привітання.
 - `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout проходить звичайний party-boss victory path.
@@ -152,19 +157,24 @@ npm run db:studio
 npm run check
 ```
 
-Це запускає lint, typecheck, build і tests одним ланцюжком.
+Це запускає lint, scripts typecheck, build і tests одним ланцюжком. `check` генерує Prisma Client один раз на початку, а standalone `npm run build` і `npm run typecheck` усе ще запускають `prisma generate` самі.
+
+ESLint uses a content cache under `.cache/eslint/`; it is safe to delete `.cache/` when you need a cold local check.
 
 Для docs-only зміни достатньо перевірити Markdown вручну. Якщо Codex або локальне середовище не запускали `npm run check`, у PR треба прямо написати: `Not run — docs-only change`.
 
 ## Scripts
 
 - `npm run dev` — локальний bot polling через `ts-node-dev`; без `BOT_TOKEN` стартує тільки healthcheck server.
-- `npm run build` — `prisma generate && tsc`.
+- `npm run build` — `prisma generate && npm run build:ts`.
+- `npm run build:ts` — TypeScript build without Prisma generate; used inside `npm run check`.
 - `npm start` — запуск `dist/bot.js`.
 - `npm test` — Vitest suite без Telegram network calls.
-- `npm run typecheck` — strict TypeScript.
-- `npm run lint` — ESLint для `src` і `tests`.
-- `npm run check` — lint, typecheck, build і tests.
+- `npm run typecheck` — strict TypeScript with Prisma generate.
+- `npm run typecheck:ts` — strict TypeScript without Prisma generate.
+- `npm run lint` — ESLint для `src` і `tests`, with local cache under `.cache/eslint/`.
+- `npm run lint:scripts` — ESLint for maintenance scripts, with local cache under `.cache/eslint/`.
+- `npm run check` — PR-ready gate: Prisma generate, lint, scripts typecheck, build and tests.
 - `npm run db:generate` — Prisma Client.
 - `npm run db:validate` — перевірка Prisma schema.
 - `npm run db:migrate` — локальні міграції Prisma.

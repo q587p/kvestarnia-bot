@@ -5,7 +5,9 @@ import {
   BIG_BARREL_BROTHER_RULES_VERSION,
   buildBigBarrelLossXp,
   buildResult,
+  calculatePartyBossCombatItemHealing,
   createPartyBossState,
+  getPartyBossCombatItemAvailability,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
   isMeaningfulBigBarrelParticipant,
@@ -40,6 +42,7 @@ import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { isMedicalCombatItemId } from "../../services/combatItemUse";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -50,7 +53,6 @@ const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
-
 class PartyBossItemUseRollback extends Error {
   constructor(readonly reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]) {
     super(reason);
@@ -372,7 +374,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "stale", session: mapSession(session) };
       }
 
-      if (actor.resources.hp >= actor.resources.hpMax) {
+      const itemAvailability = getPartyBossCombatItemAvailability(actor, item.id);
+      if (!itemAvailability.available) {
+        return { state: "item-unavailable", reason: itemAvailability.reason, session: mapSession(session) };
+      }
+
+      if (calculatePartyBossCombatItemHealing(actor.resources, item.effect) <= 0) {
         return { state: "item-unavailable", reason: "full-hp", session: mapSession(session) };
       }
 
@@ -469,7 +476,33 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "not-found" };
       }
 
-      return { state: created ? "queued" : "duplicate", session: mapSession(current) };
+      const achievementEvents: PartyBossAchievementEventRecord[] = [];
+      if (created) {
+        achievementEvents.push({
+          type: "item.used",
+          characterId: character.id,
+          itemId: item.id,
+          sourceId: created.id,
+          occurredAt: input.now
+        });
+        if (
+          session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION &&
+          isMedicalCombatItemId(item.id)
+        ) {
+          achievementEvents.push({
+            type: "barrel.raid.bandage-used",
+            characterId: character.id,
+            sourceId: created.id,
+            occurredAt: input.now
+          });
+        }
+      }
+
+      return {
+        state: created ? "queued" : "duplicate",
+        session: mapSession(current),
+        ...(achievementEvents.length > 0 ? { achievementEvents } : {})
+      };
     }).catch(async (error: unknown): Promise<PartyBossActionResult> => {
       if (!(error instanceof PartyBossItemUseRollback)) {
         throw error;
@@ -489,7 +522,16 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
     if (inserted.state === "queued" || inserted.state === "duplicate") {
       const resolved = await this.resolveIfReady(inserted.session.id, "all-actions", input);
-      return resolved ? { state: "resolved", ...resolved } : inserted;
+      return resolved
+        ? {
+            state: "resolved",
+            ...resolved,
+            achievementEvents: [
+              ...(inserted.achievementEvents ?? []),
+              ...(resolved.achievementEvents ?? [])
+            ]
+          }
+        : inserted;
     }
 
     return inserted;
@@ -1351,19 +1393,30 @@ function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | nu
     return null;
   }
 
-  const effect = item.effect as { kind?: unknown; amount?: unknown };
-  if (effect.kind !== "heal-hp" || typeof effect.amount !== "number") {
-    return null;
+  const effect = item.effect as { kind?: unknown; amount?: unknown; percent?: unknown };
+  if (effect.kind === "heal-hp" && typeof effect.amount === "number") {
+    return {
+      id: item.id,
+      name: item.name,
+      effect: {
+        kind: "heal-hp",
+        amount: effect.amount
+      }
+    };
   }
 
-  return {
-    id: item.id,
-    name: item.name,
-    effect: {
-      kind: "heal-hp",
-      amount: effect.amount
-    }
-  };
+  if (effect.kind === "heal-hp-to-min-percent" && typeof effect.percent === "number") {
+    return {
+      id: item.id,
+      name: item.name,
+      effect: {
+        kind: "heal-hp-to-min-percent",
+        percent: effect.percent
+      }
+    };
+  }
+
+  return null;
 }
 
 function enrichBigBarrelResult(
@@ -1382,7 +1435,7 @@ function enrichBigBarrelResult(
       return {
         ...participant,
         ...(reward ? { reward } : {}),
-        ...(attemptXp ? { attemptXp } : {})
+        ...(attemptXp !== undefined ? { attemptXp } : {})
       };
     })
   };

@@ -6,13 +6,16 @@ import type {
   DevGrantDailyActionResetResult,
   DevGrantItemResult,
   DevGrantProgressResult,
-  DevGrantRepository
+  DevGrantRepository,
+  type DevGrantYegerQuestProgressResult,
+  type DevGrantYegerQuestStage
 } from "../../src/db/repositories/devGrantRepository";
 import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository";
 import { items } from "../../src/content";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
 import { DevGrantService } from "../../src/services/devGrantService";
-import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
+import { BANDAGE_ITEM_ID, YEGER_FIRST_NOTCH_ITEM_ID } from "../../src/services/itemGrant";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
 import {
   YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
@@ -245,6 +248,56 @@ describe("DevGrantService", () => {
     expect(repository.calls).toContain(`items:42:${BANDAGE_ITEM_ID}:5`);
   });
 
+  it("adds crafted medical items directly for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addDenseBandages(42n, 2)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 2,
+      itemGrants: [
+        {
+          itemId: DENSE_BANDAGE_ITEM_ID,
+          name: "Щільний бинт",
+          quantity: 2
+        }
+      ]
+    });
+    await expect(service.addFieldKits(42n, 3)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 3,
+      itemGrants: [
+        {
+          itemId: FIELD_KIT_ITEM_ID,
+          name: "Польова аптечка",
+          quantity: 3
+        }
+      ]
+    });
+    expect(repository.calls).toContain(`items:42:${DENSE_BANDAGE_ITEM_ID}:2`);
+    expect(repository.calls).toContain(`items:42:${FIELD_KIT_ITEM_ID}:3`);
+  });
+
+  it("adds Yeger notch lines directly for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addYegerLines(42n, 4)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 4,
+      itemGrants: [
+        {
+          itemId: YEGER_FIRST_NOTCH_ITEM_ID,
+          quantity: 4
+        }
+      ]
+    });
+    expect(repository.calls).toContain(`items:42:${YEGER_FIRST_NOTCH_ITEM_ID}:4`);
+  });
+
   it("resets the Yeger free bandage cooldown for the current character", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -296,11 +349,40 @@ describe("DevGrantService", () => {
     );
   });
 
+  it("completes Yeger quest progress for local turn-in QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.completeFirstYegerQuestProgress(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "yeger-quest-progress",
+      stage: "first",
+      addedWins: 5,
+      wins: 5,
+      target: 5,
+      started: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    await expect(service.completeSecondYegerQuestProgress(42n)).resolves.toMatchObject({
+      state: "blocked",
+      kind: "yeger-quest-progress",
+      stage: "second",
+      reason: "first-board-not-completed"
+    });
+    expect(repository.calls).toEqual([
+      "yeger-progress:42:first",
+      "yeger-progress:42:second"
+    ]);
+  });
+
   it("does not reset the Yeger paid bandage day when dev grants are disabled", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", false, new FakeRandomSource([0]));
 
     await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.completeFirstYegerQuestProgress(42n)).resolves.toEqual({ state: "disabled" });
     expect(repository.calls).toEqual([]);
   });
 
@@ -498,6 +580,36 @@ class FakeDevGrantRepository implements DevGrantRepository {
     return Promise.resolve({
       character: this.character,
       deleted: keys.length
+    });
+  }
+
+  completeYegerQuestProgressForTelegramUser(
+    telegramUserId: bigint,
+    stage: DevGrantYegerQuestStage
+  ): Promise<DevGrantYegerQuestProgressResult | null> {
+    this.calls.push(`yeger-progress:${telegramUserId.toString()}:${stage}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    if (stage === "second") {
+      return Promise.resolve({
+        state: "blocked",
+        character: this.character,
+        stage,
+        reason: "first-board-not-completed"
+      });
+    }
+
+    return Promise.resolve({
+      state: "ready",
+      character: this.character,
+      stage,
+      addedWins: 5,
+      wins: 5,
+      target: 5,
+      started: true
     });
   }
 }

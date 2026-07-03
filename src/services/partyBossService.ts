@@ -98,7 +98,6 @@ export class PartyBossService {
         ...(session ? { session } : {})
       };
     }
-
     const result = await this.sessions.submitItemForTelegramUser(
       telegramUserId,
       partyInviteToken,
@@ -189,12 +188,20 @@ export class PartyBossService {
     }
 
     for (const event of result.achievementEvents) {
-      await this.achievements.trackEventSafely({
-        type: event.type,
-        characterId: event.characterId,
-        occurredAt: event.occurredAt,
-        sourceId: event.sourceId
-      });
+      await this.achievements.trackEventSafely(event.type === "item.used"
+        ? {
+            type: event.type,
+            characterId: event.characterId,
+            itemId: event.itemId,
+            occurredAt: event.occurredAt,
+            sourceId: event.sourceId
+          }
+        : {
+            type: event.type,
+            characterId: event.characterId,
+            occurredAt: event.occurredAt,
+            sourceId: event.sourceId
+          });
     }
   }
 

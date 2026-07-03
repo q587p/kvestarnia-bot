@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { items } from "../../src/content";
 import { PrismaItemUseRepository } from "../../src/db/repositories/prismaItemUseRepository";
-import { createItemUseFingerprint } from "../../src/domain/itemUse";
+import { createItemUseFingerprint, ITEM_USE_RULES_VERSION } from "../../src/domain/itemUse";
 
 const telegramUserId = 42n;
 const characterId = "character-42";
@@ -459,7 +459,7 @@ describe("PrismaItemUseRepository integration", () => {
         status: "pending",
         reservationKey: null,
         previewJson: {
-          rulesVersion: "item-use-v1",
+          rulesVersion: ITEM_USE_RULES_VERSION,
           hpBefore: 0,
           hpMax: 47,
           healAmount: 7,
@@ -484,7 +484,7 @@ describe("PrismaItemUseRepository integration", () => {
         status: "pending",
         reservationKey: `use:${characterId}:${bandage.id}`,
         previewJson: {
-          rulesVersion: "item-use-v1",
+          rulesVersion: ITEM_USE_RULES_VERSION,
           hpBefore: 0,
           hpMax: 47,
           healAmount: 7,
@@ -538,7 +538,7 @@ describe("PrismaItemUseRepository integration", () => {
         status: "pending",
         reservationKey: null,
         previewJson: {
-          rulesVersion: "item-use-v1",
+          rulesVersion: ITEM_USE_RULES_VERSION,
           hpBefore: 10,
           hpMax: 41,
           healAmount: 7,
@@ -563,7 +563,7 @@ describe("PrismaItemUseRepository integration", () => {
         status: "pending",
         reservationKey: `use:${characterId}:${bandage.id}`,
         previewJson: {
-          rulesVersion: "item-use-v1",
+          rulesVersion: ITEM_USE_RULES_VERSION,
           hpBefore: 10,
           hpMax: 41,
           healAmount: 7,

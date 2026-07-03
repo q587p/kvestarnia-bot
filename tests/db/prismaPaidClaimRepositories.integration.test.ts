@@ -1419,6 +1419,7 @@ describe("paid Prisma claim repositories", () => {
         getOrStartPersistentFightForTelegramUser: () => Promise.resolve({ state: "no-character" })
       } as unknown as FightService,
       cooldowns,
+      undefined,
       () => currentNow
     );
   }

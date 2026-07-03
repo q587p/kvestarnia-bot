@@ -92,6 +92,25 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: день купівлі бинтів Єгеря і так чистий.";
   }
 
+  if (result.kind === "yeger-quest-progress") {
+    if (result.state === "blocked") {
+      return "🧪 Dev: друга Єгерська дощечка ще не може закритись. Спершу здай «Неспокійні справи».";
+    }
+
+    const questName = result.stage === "second" ? "Неспокійні справи 2.0" : "Неспокійні справи";
+    const addedLine = result.addedWins > 0
+      ? `Додано перемог: ${result.addedWins}.`
+      : "Бракуючих перемог уже не було.";
+
+    return [
+      `🧪 Dev: «${questName}» доведено до ${result.wins}/${result.target}.`,
+      "",
+      addedLine,
+      ...(result.started ? ["Квест також позначено як розпочатий."] : []),
+      "Тепер його можна здати звичайною кнопкою Єгеря."
+    ].join("\n");
+  }
+
   if (result.kind === "items") {
     const itemLines = result.itemGrants.map((grant) =>
       grant.quantity === 1 ? `• ${grant.name}` : `• ${grant.name} ×${grant.quantity}`

@@ -176,6 +176,16 @@ export interface CombatState {
       remainingTurns: number;
     };
   };
+  combatItems?: {
+    cooldowns?: Record<string, {
+      itemId: string;
+      remainingTurns: number;
+    }>;
+    uses?: Record<string, {
+      itemId: string;
+      count: number;
+    }>;
+  };
   guard?: CombatGuardState;
   context?: MonsterContextSnapshotV1;
   barks?: CombatBarkStateV1;
@@ -312,6 +322,7 @@ export interface CombatTurnSummary {
   itemId?: string;
   itemName?: string;
   heroHealing?: number;
+  heroHpAfter?: number;
   enemyResults?: CombatEnemyAbilityResult[];
   allyResults?: CombatAllyAbilityResult[];
   fumble?: CombatPlayerAbilityFumbleSummary;
@@ -459,6 +470,7 @@ export function cloneCombatState(state: CombatState): CombatState {
           cooldowns: cloneCombatCooldowns(state.cooldowns)
         }
       : {}),
+    ...(state.combatItems ? { combatItems: cloneCombatItemState(state.combatItems) } : {}),
     ...(state.guard ? { guard: { ...state.guard } } : {}),
     ...(state.context ? { context: cloneMonsterContextSnapshot(state.context) } : {}),
     ...(state.barks ? { barks: cloneCombatBarkState(state.barks) } : {}),
@@ -781,6 +793,33 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
       : {}),
     ...(summary.fumble ? { fumble: { ...summary.fumble } } : {}),
     ...(summary.debugTrace ? { debugTrace: { ...summary.debugTrace } } : {})
+  };
+}
+
+export function cloneCombatItemState(
+  combatItems: NonNullable<CombatState["combatItems"]>
+): NonNullable<CombatState["combatItems"]> {
+  return {
+    ...(combatItems.cooldowns
+      ? {
+          cooldowns: Object.fromEntries(
+            Object.entries(combatItems.cooldowns).map(([itemId, cooldown]) => [
+              itemId,
+              { ...cooldown }
+            ])
+          )
+        }
+      : {}),
+    ...(combatItems.uses
+      ? {
+          uses: Object.fromEntries(
+            Object.entries(combatItems.uses).map(([itemId, use]) => [
+              itemId,
+              { ...use }
+            ])
+          )
+        }
+      : {})
   };
 }
 

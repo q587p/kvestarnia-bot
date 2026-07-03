@@ -1,7 +1,11 @@
 import type { Bot, Context } from "grammy";
-import type { EquipmentService, EquipmentSlot } from "../../services/equipmentService";
+import type { EquipmentService } from "../../services/equipmentService";
 import type { InventoryService } from "../../services/inventoryService";
 import { playerFromContext } from "../context";
+import {
+  isInventoryEquipmentSlotFilter,
+  type InventoryFilter
+} from "../inventoryFilter";
 import { buildInventoryKeyboard } from "../keyboards/inventoryKeyboard";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
 import { presentInventory } from "../presenters/inventoryPresenter";
@@ -20,7 +24,7 @@ export async function sendInventory(
   inventoryService: InventoryService,
   mode: SendMode,
   page = 0,
-  slotFilter: EquipmentSlot | null = null,
+  filter: InventoryFilter = null,
   equipmentService?: Pick<EquipmentService, "getEquipmentForTelegramUser">
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -32,28 +36,28 @@ export async function sendInventory(
 
   const [result, equipment] = await Promise.all([
     inventoryService.listForTelegramUser(telegramUserId),
-    slotFilter && equipmentService
+    isInventoryEquipmentSlotFilter(filter) && equipmentService
       ? equipmentService.getEquipmentForTelegramUser(telegramUserId)
       : Promise.resolve(null)
   ]);
   const currentSlotItem =
-    slotFilter && equipment?.state === "ready"
-      ? (equipment.slots.find((slot) => slot.slot === slotFilter)?.item ?? null)
+    isInventoryEquipmentSlotFilter(filter) && equipment?.state === "ready"
+      ? (equipment.slots.find((slot) => slot.slot === filter)?.item ?? null)
       : null;
-  const text = presentInventory(result, page, slotFilter, {
+  const text = presentInventory(result, page, filter, {
     currentSlotItem
   });
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildInventoryKeyboard(result, page, slotFilter)
+      reply_markup: buildInventoryKeyboard(result, page, filter)
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildInventoryKeyboard(result, page, slotFilter)
+    reply_markup: buildInventoryKeyboard(result, page, filter)
   });
 }

@@ -257,7 +257,7 @@ function resolveRestoreToFullItemId(
 
     const item = items.find((candidate) => candidate.id === row.itemId);
     const effect = item ? getItemUseEffect(item) : null;
-    if (!effect || effect.amount <= 0) {
+    if (!effect || effect.kind !== "heal-hp" || effect.amount <= 0) {
       continue;
     }
 

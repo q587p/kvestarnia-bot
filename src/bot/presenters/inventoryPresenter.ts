@@ -4,12 +4,16 @@ import {
   type EquipmentItemSummary,
   type EquipmentSlot
 } from "../../services/equipmentService";
+import {
+  isInventoryEquipmentSlotFilter,
+  isOneUseInventoryFilter,
+  ONE_USE_INVENTORY_FILTER_ICON,
+  type InventoryFilter
+} from "../inventoryFilter";
 import { presentItemEffect } from "./itemEffectPresenter";
-import { presentItemStackLine } from "./itemStackPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export const INVENTORY_PAGE_SIZE = 8;
-export type InventorySlotFilter = EquipmentSlot | null;
 
 export interface InventoryPresenterOptions {
   currentSlotItem?: EquipmentItemSummary | null;
@@ -18,7 +22,7 @@ export interface InventoryPresenterOptions {
 export function presentInventory(
   result: InventoryResult,
   page = 0,
-  slotFilter: InventorySlotFilter = null,
+  filter: InventoryFilter = null,
   options: InventoryPresenterOptions = {}
 ): string {
   if (result.state === "no-character") {
@@ -34,65 +38,55 @@ export function presentInventory(
     ].join("\n");
   }
 
-  const filteredItems = getFilteredInventoryItems(result, slotFilter);
-  const safePage = clampInventoryPage(result, page, slotFilter);
-  const totalPages = getInventoryTotalPages(result, slotFilter);
-  const pageItems = getInventoryPageItems(result, safePage, slotFilter);
+  const filteredItems = getFilteredInventoryItems(result, filter);
+  const safePage = clampInventoryPage(result, page, filter);
+  const totalPages = getInventoryTotalPages(result, filter);
 
-  if (slotFilter && filteredItems.length === 0) {
+  if (filter && filteredItems.length === 0) {
     return [
-      `${presentSlotFilterIcon(slotFilter)} <b>${presentSlotFilterTitle(slotFilter)}</b>`,
+      presentInventoryFilterHeading(filter),
       "",
-      "Показано лише те, що можна спробувати вдягнути в цей слот.",
+      presentInventoryFilterDescription(filter),
       "",
-      ...presentCurrentSlotItem(options.currentSlotItem ?? null),
-      "",
-      "У торбі поки немає манаток для цього гачка.",
+      ...(isInventoryEquipmentSlotFilter(filter) ? [...presentCurrentSlotItem(options.currentSlotItem ?? null), ""] : []),
+      presentEmptyFilterLine(filter),
       "Корчмар каже: «Це не вирок. Це привід вибити щось дивніше»."
     ].join("\n");
   }
 
   return [
-    slotFilter
-      ? `${presentSlotFilterIcon(slotFilter)} <b>${presentSlotFilterTitle(slotFilter)}</b>`
+    filter
+      ? presentInventoryFilterHeading(filter)
       : "🎒 <b>Манатки</b>",
-    slotFilter
-      ? "Показано лише те, що можна спробувати вдягнути в цей слот."
+    filter
+      ? presentInventoryFilterDescription(filter)
       : "Пригодник розклав здобич на столі. Стіл попросив надбавку.",
     "",
-    ...(slotFilter ? [...presentCurrentSlotItem(options.currentSlotItem ?? null), ""] : []),
-    slotFilter
-      ? `Знайдено підхожих манаток: <b>${filteredItems.length}</b>. Правила екіпірування все одно перевірить Корчмар.`
+    ...(isInventoryEquipmentSlotFilter(filter) ? [...presentCurrentSlotItem(options.currentSlotItem ?? null), ""] : []),
+    filter
+      ? presentFilteredCountLine(filter, filteredItems.length)
       : `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
-    ...(totalPages > 1 ? ["", `Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : []),
-    "",
-    ...pageItems.flatMap((item) => [
-      presentItemStackLine({
-        name: `<b>${escapeHtml(item.content.name)}</b>`,
-        quantity: item.quantity
-      }),
-      `  <i>${escapeHtml(item.content.description)}</i>`
-    ])
+    ...(totalPages > 1 ? ["", `Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : [])
   ].join("\n");
 }
 
 export function getInventoryTotalPages(
   result: InventoryResult,
-  slotFilter: InventorySlotFilter = null
+  filter: InventoryFilter = null
 ): number {
   if (result.state !== "found") {
     return 1;
   }
 
-  return Math.max(1, Math.ceil(getFilteredInventoryItems(result, slotFilter).length / INVENTORY_PAGE_SIZE));
+  return Math.max(1, Math.ceil(getFilteredInventoryItems(result, filter).length / INVENTORY_PAGE_SIZE));
 }
 
 export function clampInventoryPage(
   result: InventoryResult,
   page: number,
-  slotFilter: InventorySlotFilter = null
+  filter: InventoryFilter = null
 ): number {
-  const totalPages = getInventoryTotalPages(result, slotFilter);
+  const totalPages = getInventoryTotalPages(result, filter);
   const safePage = Math.max(0, Math.floor(Number.isFinite(page) ? page : 0));
 
   return Math.min(safePage, totalPages - 1);
@@ -101,27 +95,67 @@ export function clampInventoryPage(
 export function getInventoryPageItems(
   result: InventoryResult,
   page: number,
-  slotFilter: InventorySlotFilter = null
+  filter: InventoryFilter = null
 ) {
   if (result.state !== "found") {
     return [];
   }
 
-  const safePage = clampInventoryPage(result, page, slotFilter);
+  const safePage = clampInventoryPage(result, page, filter);
   const start = safePage * INVENTORY_PAGE_SIZE;
 
-  return getFilteredInventoryItems(result, slotFilter).slice(start, start + INVENTORY_PAGE_SIZE);
+  return getFilteredInventoryItems(result, filter).slice(start, start + INVENTORY_PAGE_SIZE);
 }
 
 export function getFilteredInventoryItems(
   result: InventoryResult,
-  slotFilter: InventorySlotFilter = null
+  filter: InventoryFilter = null
 ) {
-  if (result.state !== "found" || !slotFilter) {
+  if (result.state !== "found" || !filter) {
     return result.state === "found" ? result.items : [];
   }
 
-  return result.items.filter((item) => mapItemToEquipmentSlot(item.content) === slotFilter);
+  if (isInventoryEquipmentSlotFilter(filter)) {
+    return result.items.filter((item) => mapItemToEquipmentSlot(item.content) === filter);
+  }
+
+  if (isOneUseInventoryFilter(filter)) {
+    return result.items.filter((item) => item.content.tags?.includes("one-use"));
+  }
+
+  return result.items;
+}
+
+function presentInventoryFilterHeading(filter: Exclude<InventoryFilter, null>): string {
+  if (isInventoryEquipmentSlotFilter(filter)) {
+    return `${presentSlotFilterIcon(filter)} <b>${presentSlotFilterTitle(filter)}</b>`;
+  }
+
+  return `${ONE_USE_INVENTORY_FILTER_ICON} <b>Разові манатки</b>`;
+}
+
+function presentInventoryFilterDescription(filter: Exclude<InventoryFilter, null>): string {
+  if (isInventoryEquipmentSlotFilter(filter)) {
+    return "Показано лише те, що можна спробувати вдягнути в цей слот.";
+  }
+
+  return "Показано манатки, які використовуються один раз і не сперечаються з наслідками.";
+}
+
+function presentFilteredCountLine(filter: Exclude<InventoryFilter, null>, count: number): string {
+  if (isInventoryEquipmentSlotFilter(filter)) {
+    return `Знайдено підхожих манаток: <b>${count}</b>. Правила екіпірування все одно перевірить Корчмар.`;
+  }
+
+  return `Знайдено разових манаток: <b>${count}</b>. Корчмар радить не відкривати всі одразу зубами.`;
+}
+
+function presentEmptyFilterLine(filter: Exclude<InventoryFilter, null>): string {
+  if (isInventoryEquipmentSlotFilter(filter)) {
+    return "У торбі поки немає манаток для цього гачка.";
+  }
+
+  return "У торбі поки немає разових манаток.";
 }
 
 function presentSlotFilterTitle(slot: EquipmentSlot): string {

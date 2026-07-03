@@ -5,7 +5,10 @@ import type {
   YegerTrackingResult,
   YegerQuestTurnInResult,
   YegerBandageSupplyResult,
-  YegerRangerBandageResult
+  YegerNotchExchangeLookupResult,
+  YegerNotchExchangeResult,
+  YegerRangerBandageResult,
+  YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -28,9 +31,7 @@ export function presentYegerQuest(
 
   if (result.state === "offered") {
     return [
-      "🧥 Єгерський куток",
-      "",
-      ...presentYegerCornerIntro(result.character),
+      "🏹 Єгерська справа",
       "",
       "Доступна справа:",
       `<b>${presentYegerQuestTitle(result.progress)}</b>`,
@@ -55,9 +56,7 @@ export function presentYegerQuest(
   }
 
   const lines = [
-    "🧥 Єгерський куток",
-    "",
-    ...presentYegerCornerIntro(result.character),
+    `🏹 ${presentYegerQuestTitle(result.progress)}`,
     "",
     presentProgressLine(result.progress),
     "",
@@ -150,15 +149,91 @@ export function presentYegerBandages(
   ];
 
   if (result.character.classId === "class.ranger") {
-    lines.push(
-      "",
-      result.rangerBandage?.state === "on-cooldown"
-        ? "Професійний бинт для єгерів зараз перевʼязує власну важливість. Повернеться пізніше."
-        : "Для єгерів тут є ще один професійний бинт. Він безкоштовний, але дивиться суворо."
-    );
+    const supplyLines = [
+      presentRangerSupplyMenuLine(result.rangerBandage),
+      presentRangerSupplyMenuLine(result.rangerDenseBandage),
+      presentRangerSupplyMenuLine(result.rangerFieldKit)
+    ].filter((line): line is string => Boolean(line));
+
+    if (supplyLines.length > 0) {
+      lines.push("", ...supplyLines);
+    }
   }
 
   return lines.join("\n");
+}
+
+export function presentYegerNotchExchange(result: YegerNotchExchangeLookupResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "locked") {
+    return [
+      "🪵 Обмін рисок",
+      "",
+      "Єгер не міняє риски, доки друга дощечка не закрита.",
+      "Спершу треба довести «Неспокійні справи 2.0» до 17/17."
+    ].join("\n");
+  }
+
+  return [
+    "🪵 Обмін рисок",
+    "",
+    `У торбі: <b>${result.summary.availableNotches}</b> ${formatNotchUnit(result.summary.availableNotches)}.`,
+    result.summary.options.length > 0
+      ? "Єгер приймає риски назад із виглядом людини, яка завжди так і планувала."
+      : "Єгер дивиться на порожнє місце в торбі й нічого не обмінює з дивовижною принциповістю."
+  ].join("\n");
+}
+
+export function presentYegerNotchExchangeResult(result: YegerNotchExchangeResult): string {
+  if (result.state === "no-character") {
+    return presentYegerNoCharacter();
+  }
+
+  if (result.state === "locked") {
+    return [
+      "🪵 Обмін рисок",
+      presentCharacterHeader(result.character),
+      "",
+      "Єгер відсуває риски назад.",
+      "«Спершу закрийте другу дощечку. Порядок теж має зуби»."
+    ].join("\n");
+  }
+
+  if (result.state === "stale") {
+    return [
+      "🪵 Обмін рисок",
+      presentCharacterHeader(result.character),
+      "",
+      `У старій кнопці було <b>${result.expectedNotches}</b>, а в торбі зараз <b>${result.currentNotches}</b> ${formatNotchUnit(result.currentNotches)}.`,
+      "Єгер не любить старі кнопки. Відкрийте обмін ще раз."
+    ].join("\n");
+  }
+
+  if (result.state === "not-enough") {
+    return [
+      "🪵 Обмін рисок",
+      presentCharacterHeader(result.character),
+      "",
+      `У торбі: <b>${result.summary.availableNotches}</b> ${formatNotchUnit(result.summary.availableNotches)}.`,
+      "На такий обмін рисок не вистачає. Єгер рахує мовчки, але дуже чутно."
+    ].join("\n");
+  }
+
+  return [
+    "🪵 Риску обміняно",
+    presentCharacterHeader(result.character),
+    "",
+    `Витрачено: <b>${result.spentNotches}</b> ${formatNotchUnit(result.spentNotches)}.`,
+    ...result.itemGrants.map((grant) =>
+      presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })
+    ),
+    `Залишилось: <b>${result.summary.availableNotches}</b> ${formatNotchUnit(result.summary.availableNotches)}.`,
+    "",
+    "Єгер сховав риску в журнал і видав медицину так, ніби це не торг, а сувора екологія дощечок."
+  ].join("\n");
 }
 
 export function presentYegerNoCharacter(): string {
@@ -290,6 +365,21 @@ function formatBandageUnit(quantity: number): string {
   return "бинтів";
 }
 
+function formatNotchUnit(quantity: number): string {
+  const mod10 = quantity % 10;
+  const mod100 = quantity % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return "риска";
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return "риски";
+  }
+
+  return "рисок";
+}
+
 export function presentYegerRangerBandage(result: YegerRangerBandageResult): string {
   if (result.state === "no-character") {
     return presentYegerNoCharacter();
@@ -301,7 +391,7 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
 
   if (result.state === "class-locked") {
     return [
-      "🧰 Єгерський бинт",
+      presentRangerSupplyTitle(result.kind),
       presentCharacterHeader(result.character),
       "",
       "Єгер ховає безкоштовну пачку під карту.",
@@ -311,23 +401,66 @@ export function presentYegerRangerBandage(result: YegerRangerBandageResult): str
 
   if (result.state === "on-cooldown") {
     return [
-      "🧰 Єгерський бинт",
+      presentRangerSupplyTitle(result.kind),
       presentCharacterHeader(result.character),
       "",
-      `Безкоштовний бинт буде знову ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+      `${presentRangerSupplySubject(result.kind)} буде знову ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
       "Єгер каже, що запас теж має сліди."
     ].join("\n");
   }
 
   return [
-    "🧰 Єгерський бинт",
+    presentRangerSupplyTitle(result.kind),
     presentCharacterHeader(result.character),
     "",
     `${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
-    `Наступний безкоштовний бинт ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
+    `Наступний запас ${formatTrackingWait(result.nextAvailableAt, result.now)}.`,
     "",
     "Єгер кивнув так, ніби це не доброта, а техніка виживання."
   ].join("\n");
+}
+
+function presentRangerSupplyMenuLine(
+  supply: Exclude<YegerQuestLookupResult, { state: "no-character" }>["rangerBandage"]
+): string | null {
+  if (!supply) {
+    return null;
+  }
+
+  if (supply.state === "on-cooldown") {
+    return `${presentRangerSupplySubject(supply.kind)} зараз перевʼязує власну важливість. Повернеться ${formatTrackingWait(supply.nextAvailableAt, supply.now)}.`;
+  }
+
+  switch (supply.kind) {
+    case "bandage":
+      return "Єгері можуть забрати 5 звичайних бинтів безкоштовно. Вони дивляться суворо й рахують до 93.";
+    case "dense-bandage":
+      return "Після другої дошки для єгерів лежить щільний бинт: один запас на знайомий слідовий відлік.";
+    case "field-kit":
+      return "Після другої дошки єгер може забрати польову аптечку раз на добу. Аптечка робить вигляд, що це не розкіш.";
+  }
+}
+
+function presentRangerSupplyTitle(kind: YegerRangerSupplyKind): string {
+  switch (kind) {
+    case "bandage":
+      return "🧰 Єгерські бинти";
+    case "dense-bandage":
+      return "🧵 Єгерський щільний бинт";
+    case "field-kit":
+      return "🧰 Єгерська аптечка";
+  }
+}
+
+function presentRangerSupplySubject(kind: YegerRangerSupplyKind): string {
+  switch (kind) {
+    case "bandage":
+      return "Безкоштовні бинти";
+    case "dense-bandage":
+      return "Щільний бинт";
+    case "field-kit":
+      return "Польова аптечка";
+  }
 }
 
 function presentYegerBandageLocked(result: { character: CharacterSummary; requiredWins: number }): string {

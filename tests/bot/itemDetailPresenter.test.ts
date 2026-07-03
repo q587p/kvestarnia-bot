@@ -112,9 +112,33 @@ describe("item detail presenter", () => {
       })
     );
 
-    expect(text).toContain("Корчмар крутить манатку в руках");
-    expect(text).toContain("до якої полиці її не підпускати");
+    expect(text).toContain("Екіпірування: <i>не вдягається. Це витратна манатка: її застосовують, а не приміряють.</i>");
+    expect(text).toContain("Корчмар зважує манатку в руці");
+    expect(text).toContain("перед витратою");
+    expect(text).not.toContain("смішним трофеєм");
+    expect(text).not.toContain("до якої полиці");
     expect(text).not.toContain("правила майбутнього спорядження");
+  });
+
+  it("describes Yeger notches as exchangeable marks instead of trophies", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.yeger.first-notch",
+          name: "Єгерська риска на дощечці",
+          description: "Маленька риска, яка доводить: Єгер бачив вашу роботу.",
+          rarity: "uncommon",
+          slot: "cosmetic",
+          priceless: true
+        }
+      })
+    );
+
+    expect(text).toContain("Єгер міняє такі риски на медичний запас");
+    expect(text).toContain("після закритої другої дощечки");
+    expect(text).toContain("інвентарна дипломатія");
+    expect(text).not.toContain("смішним трофеєм");
+    expect(text).not.toContain("до якої полиці");
   });
 
   it("shows combat use wording for usable consumables when a fight action is available", () => {
@@ -140,8 +164,37 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("Використання: <b>можна застосувати в бою або поза боєм</b>.");
-    expect(text).toContain("У бою бинт витрачає хід і лікує одразу.");
+    expect(text).toContain("У бою манатка витрачає хід і лікує одразу.");
+    expect(text).toContain("Це витратна манатка: її застосовують, а не приміряють.");
+    expect(text).not.toContain("смішним трофеєм");
+    expect(text).not.toContain("до якої полиці");
     expect(text).not.toContain("Використання: <b>можна застосувати поза боєм</b>.");
+  });
+
+  it("does not describe responsible panic bandages as outside-combat-only", () => {
+    const content: InventoryItemSummary["content"] = {
+      id: "item.responsible-panic-bandage",
+      name: "Бинт відповідальної паніки",
+      description: "Намотаний так, ніби хтось уже вибачився перед майбутнім синцем.",
+      rarity: "common",
+      slot: "consumable",
+      goldValue: 7,
+      tags: ["consumable", "one-use", "trade-blocked", "duel-blocked"],
+      useEffect: {
+        kind: "heal-hp",
+        amount: 7
+      }
+    };
+    const text = presentOwnedItemDetail(
+      itemSummary({ content }),
+      {
+        itemUse: { state: "usable", item: content }
+      }
+    );
+
+    expect(text).toContain("Використання: <b>можна застосувати для лікування</b>.");
+    expect(text).toContain("Попередній перегляд покаже поточне лікування перед витратою.");
+    expect(text).not.toContain("можна застосувати поза боєм");
   });
 
   it("shows when an item is already equipped", () => {

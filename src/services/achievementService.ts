@@ -29,6 +29,7 @@ export type AchievementSimpleEventType = Exclude<
   | "combat.persistent.finished"
   | "problem.quest.completed"
   | "item.received"
+  | "item.crafted"
   | "item.used"
   | "equipment.item_equipped"
   | "future"
@@ -75,6 +76,13 @@ export type AchievementEvent =
       type: "item.received";
       characterId: string;
       itemIds: readonly string[];
+      occurredAt: Date;
+      sourceId?: string;
+    }
+  | {
+      type: "item.crafted";
+      characterId: string;
+      itemId: string;
       occurredAt: Date;
       sourceId?: string;
     }
@@ -494,6 +502,8 @@ function matchesEvent(definition: AchievementDefinition, event: AchievementEvent
       return definition.trigger.itemId
         ? event.itemIds.includes(definition.trigger.itemId)
         : event.itemIds.length > 0;
+    case "item.crafted":
+      return matchesOptionalValue(definition.trigger.itemId, event.itemId);
     case "item.used":
       return matchesOptionalValue(definition.trigger.itemId, event.itemId);
     default:
@@ -514,6 +524,7 @@ function getEventProgress(definition: AchievementDefinition, event: AchievementE
   if (
     definition.trigger.type === "achievement.list.opened" ||
     definition.trigger.type === "character.created" ||
+    definition.trigger.type === "item.crafted" ||
     definition.trigger.type === "item.used"
   ) {
     return 1;
@@ -615,6 +626,8 @@ function getRecalculationProgress(
       return definition.trigger.itemId
         ? snapshot.inventoryItemQuantities[definition.trigger.itemId] ?? 0
         : snapshot.inventoryItemQuantity;
+    case "item.crafted":
+      return getActivityDates(definition, snapshot).length;
     case "equipment.item_equipped":
       return snapshot.equippedItemCount;
     case "item.used":
@@ -645,6 +658,7 @@ function getRecalculationProgress(
     case "duel.turnbased.resolved":
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
+    case "barrel.raid.bandage-used":
     case "korchma.round.purchased":
     case "tavern.game.played":
     case "tavern.game.won":
@@ -718,6 +732,7 @@ function getRecalculationOccurredAt(
       return threshold <= 1
         ? snapshot.firstEquippedItemAt ?? fallback
         : snapshot.equipmentObservedAt ?? fallback;
+    case "item.crafted":
     case "item.used":
     case "cosmetic-title.selected":
       return fallback;
@@ -745,6 +760,7 @@ function getRecalculationOccurredAt(
     case "duel.turnbased.resolved":
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
+    case "barrel.raid.bandage-used":
     case "korchma.round.purchased":
     case "tavern.game.played":
     case "tavern.game.won":
@@ -775,6 +791,10 @@ function getActivityDates(
   definition: AchievementDefinition,
   snapshot: AchievementRecalculationSnapshot
 ): readonly Date[] {
+  if (definition.trigger.type === "item.crafted" && definition.trigger.itemId) {
+    return snapshot.activityDates[`item.crafted:${definition.trigger.itemId}`] ?? [];
+  }
+
   if (definition.trigger.type === "item.used" && definition.trigger.itemId) {
     return snapshot.activityDates[`item.used:${definition.trigger.itemId}`] ?? [];
   }
@@ -835,6 +855,7 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "duel.turnbased.resolved":
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
+    case "barrel.raid.bandage-used":
     case "korchma.round.purchased":
     case "tavern.game.played":
     case "tavern.game.won":
@@ -897,6 +918,8 @@ function eventPayload(event: AchievementEvent): Record<string, unknown> {
       return { stageId: event.stageId };
     case "item.received":
       return { itemIds: [...event.itemIds] };
+    case "item.crafted":
+      return { itemId: event.itemId };
     case "item.used":
       return { itemId: event.itemId };
     case "character.created":
