@@ -379,7 +379,7 @@ function buildShawarmaStartComboLines(): CharacterFlavorLine[] {
     placement: "quest.start",
     scene: "shawarma",
     selector: { combos: [{ raceId, classId }] },
-    text: `{title} біля шаурми.\n\n${shawarmaComboRaceBeat(raceId)} ${shawarmaComboClassBeat(classId)}`
+    text: `${shawarmaComboRaceBeat(raceId)} ${shawarmaComboClassBeat(classId)}`
   }));
 }
 

@@ -181,6 +181,21 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("шанс ускладнення");
   });
 
+  it("omits generated combo title prefix from the starter shawarma scene", () => {
+    const text = presentMimicShawarmaStart({
+      ...character,
+      raceId: "race.bisyny",
+      raceName: "Бісини",
+      classId: "class.priest",
+      className: "Жрець",
+      title: "Тлумач Підозрілих Благословень"
+    });
+
+    expect(text).toContain("Назва страви відчуває, що зараз її почнуть правити без попередження.");
+    expect(text).toContain("Моральна перевага підготовлена, освячена й трохи пахне часником.");
+    expect(text).not.toContain("Тлумач Підозрілих Благословень біля шаурми");
+  });
+
   it("renders starter shawarma method help separately", () => {
     const text = presentMimicShawarmaMethodHelp(character);
 

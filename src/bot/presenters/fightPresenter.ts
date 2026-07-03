@@ -230,12 +230,15 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
   }
 
   const lines = [
+    presentActionHeading(result.action),
+    "",
+    `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}`,
+    `🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
+    "",
     ...presentOutcome(result),
-    ...presentCharacterFlavor(result.character, "quest.outcome", "fight", result.action),
+    ...presentVictoryFlavor(result),
     "",
-    `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
-    "",
-    presentRewardAmount({ ...result.reward, label: "Нагорода" }),
+    presentRewardAmount({ ...result.reward, label: "Винагорода за бій" }),
     ...presentItemGrantBlock(result.reward.itemGrants)
   ];
 
@@ -676,30 +679,46 @@ function presentCharacterFlavor(
   return flavor ? ["", escapeHtml(flavor.text)] : [];
 }
 
+function presentActionHeading(action: "attack" | "receipt" | "flee"): string {
+  if (action === "attack") {
+    return "⚔️ <b>Бій</b>: ви вдарили Міміка-шаурму.";
+  }
+
+  if (action === "receipt") {
+    return "⚔️ <b>Бій</b>: ви показали чек.";
+  }
+
+  return "⚔️ <b>Бій</b>: ви відступили красиво.";
+}
+
 function presentOutcome(
   result: Exclude<FightResult, { state: "no-character" | "already-completed" | "level-retired" }>
 ): string[] {
   if (result.action === "attack") {
-    return [
-      "🗡️ Ви вдарили Міміка-шаурму.",
-      "",
-      `Він отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`
-    ];
+    return [`Мімік отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`];
   }
 
   if (result.action === "receipt") {
-    return [
-      "📋 Ви показали чек.",
-      "",
-      `Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`
-    ];
+    return [`Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`];
   }
 
-  return [
-    "🏃 Ви відступили красиво.",
-    "",
-    `${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`
-  ];
+  return [`${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`];
+}
+
+function presentVictoryFlavor(
+  result: Exclude<FightResult, { state: "no-character" | "already-completed" | "level-retired" }>
+): string[] {
+  if (result.combat.outcome === "flee") {
+    return [];
+  }
+
+  const flavor = selectCharacterFlavorLine(result.character, {
+    placement: "quest.outcome",
+    scene: "fight",
+    action: result.action
+  });
+
+  return ["", `🎉 Ви перемогли.${flavor ? ` ${escapeHtml(flavor.text)}` : ""}`];
 }
 
 function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: number }>): string[] {

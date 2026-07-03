@@ -159,17 +159,22 @@ describe("fight presenter", () => {
   it("shows combat preview and reward for a completed action", () => {
     const text = presentFightResult(completed("attack", 9, 3));
 
-    expect(text).toContain("Ви вдарили");
+    expect(text).toContain("⚔️ <b>Бій</b>: ви вдарили Міміка-шаурму.");
     expect(text).toContain("навіть лаваш зрозумів сюжет");
     expect(text).toContain("❤️ Ви: 19/22");
     expect(text).toContain("🌯 Мімік-шаурма: 5/14");
-    expect(text).toContain("Нагорода:\n<b>+9 XP\n+3 золота</b>");
+    expect(text).toContain("Винагорода за бій:\n<b>+9 XP\n+3 золота</b>");
     expect(text).toContain("Здобуто: <i>Підозрілий лавашний доказ</i>");
     expect(text).toContain(
       [
-        "❤️ Ви: 19/22   🌯 Мімік-шаурма: 5/14",
+        "❤️ Ви: 19/22",
+        "🌯 Мімік-шаурма: 5/14",
         "",
-        "Нагорода:",
+        "Мімік отримав 9 шкоди й задумався про карʼєру салату.",
+        "",
+        "🎉 Ви перемогли. Ваш удар був настільки прямий, що навіть лаваш зрозумів сюжет.",
+        "",
+        "Винагорода за бій:",
         "<b>+9 XP",
         "+3 золота</b>",
         "",
@@ -178,6 +183,63 @@ describe("fight presenter", () => {
     );
     expect(text).not.toContain("Наступний крок");
     expect(text).not.toContain("×1");
+  });
+
+  it("orders the receipt probe like a compact battle result", () => {
+    const baseResult = completed("receipt", 8, 5) as Extract<FightResult, { state: "completed" }>;
+    const text = presentFightResult({
+      ...baseResult,
+      character: {
+        ...character,
+        classId: "class.priest",
+        className: "Жрець"
+      },
+      combat: {
+        ...baseResult.combat,
+        playerHpPreview: 18,
+        playerHpMaxPreview: 20,
+        enemyHpPreview: 6,
+        enemyHpMaxPreview: 14,
+        playerDamage: 8
+      },
+      reward: {
+        ...baseResult.reward,
+        xp: 8,
+        gold: 5,
+        itemGrants: [
+          {
+            itemId: "item.small-advantage-stamp",
+            name: "Печатка дрібної переваги",
+            quantity: 1
+          },
+          {
+            itemId: "item.receipt-of-formal-suspicion",
+            name: "Чек формальної підозри",
+            quantity: 1
+          }
+        ]
+      }
+    });
+
+    expect(text).toContain(
+      [
+        "⚔️ <b>Бій</b>: ви показали чек.",
+        "",
+        "❤️ Ви: 18/20",
+        "🌯 Мімік-шаурма: 6/14",
+        "",
+        "Мімік отримав 8 шкоди від формальної ввічливості.",
+        "",
+        "🎉 Ви перемогли. Жрець після небезпечної бюрократії демонструє милосердя дозовано. Монстру дісталась навчальна порція.",
+        "",
+        "Винагорода за бій:",
+        "<b>+8 XP",
+        "+5 золота</b>",
+        "",
+        "Здобуто: <i>Печатка дрібної переваги</i>",
+        "Здобуто: <i>Чек формальної підозри</i>"
+      ].join("\n")
+    );
   });
 
   it("escapes character names in fight outcomes", () => {

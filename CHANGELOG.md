@@ -31,6 +31,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Displayed active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`.
 - Changed generated adventure method complication headlines from `⚠️` to `💥` and separated injury HP lines with visible heart icons.
 - Removed the duplicate cellar movement notice when entering the cellar quest from the quest table.
+- Removed the generated combo-title prefix from the starter shawarma scene while keeping its race/class flavor beat.
+- Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, damage, victory flavor, `Винагорода за бій`, then item grants.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
