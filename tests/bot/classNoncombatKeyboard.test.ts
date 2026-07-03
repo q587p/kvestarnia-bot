@@ -68,7 +68,6 @@ function priestOpenResult(
     targets: options.targets ?? [],
     targetPage: options.targetPage ?? 0,
     targetTotalPages: options.targetTotalPages ?? 1,
-    priestHealCooldownAvailableAt: null,
     priestBlessCooldownAvailableAt: null,
     roguePickpocketCooldownAvailableAt: null
   };

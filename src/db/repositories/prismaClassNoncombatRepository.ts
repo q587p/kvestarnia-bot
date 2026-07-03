@@ -35,7 +35,6 @@ type TxClient = Prisma.TransactionClient;
 
 const PRIEST_CLASS_ID = "class.priest";
 const ROGUE_CLASS_ID = "class.rogue";
-const PRIEST_HEAL_COOLDOWN_KEY = "noncombat.priest.direct-heal";
 const PRIEST_BLESS_COOLDOWN_KEY = "noncombat.priest.direct-blessing";
 const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
 
@@ -53,9 +52,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
     const actorRecord = toCharacterRecord(actor);
     const locationId = normalizePresenceLocationId(actor.user.lastSeenLocationId);
-    const [targets, healCooldown, blessCooldown, pickpocketCooldown] = await Promise.all([
+    const [targets, blessCooldown, pickpocketCooldown] = await Promise.all([
       listActiveTargets(this.prisma, actor.id, locationId, input.activeSince),
-      findCooldown(this.prisma, actor.id, PRIEST_HEAL_COOLDOWN_KEY),
       findCooldown(this.prisma, actor.id, PRIEST_BLESS_COOLDOWN_KEY),
       findCooldown(this.prisma, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY)
     ]);
@@ -71,9 +69,6 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       targetTotalPages: totalPages,
       locationId,
       locationName: getLocationName(locationId),
-      priestHealCooldownAvailableAt: healCooldown?.availableAt && healCooldown.availableAt > input.now
-        ? healCooldown.availableAt
-        : null,
       priestBlessCooldownAvailableAt: blessCooldown?.availableAt && blessCooldown.availableAt > input.now
         ? blessCooldown.availableAt
         : null,
@@ -128,17 +123,6 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           return { state: "blocked", reason: "insufficient-mana", actor: actorRecord, target: targetRecord };
         }
 
-        const cooldown = await claimCooldown(tx, actor.id, PRIEST_HEAL_COOLDOWN_KEY, input.now, input.cooldownAvailableAt);
-        if (cooldown.state === "cooldown") {
-          return {
-            state: "blocked",
-            reason: "cooldown",
-            actor: actorRecord,
-            target: targetRecord,
-            availableAt: cooldown.availableAt
-          };
-        }
-
         const hpAfter = Math.min(targetEffectiveHpMax, target.hpCurrent + input.healAmount);
         const spent = input.manaCost;
         const mutated = actor.id === target.id
@@ -185,14 +169,9 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
               manaBefore: actor.manaCurrent,
               manaAfter: actor.manaCurrent - spent
             }),
-            cooldownAvailableAt: input.cooldownAvailableAt,
+            cooldownAvailableAt: input.now,
             completedAt: input.now
           }
-        });
-        await setCooldownResult(tx, cooldown.id, {
-          actionId: action.id,
-          techniqueId: PRIEST_DIRECT_HEAL_TECHNIQUE_ID,
-          cooldownAvailableAt: input.cooldownAvailableAt.toISOString()
         });
 
         return {

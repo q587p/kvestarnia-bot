@@ -29,7 +29,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         "",
         `📍 ${escapeHtml(result.locationName)}`,
         `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>. Лікування бере ману, не бинти.`,
-        presentCooldownLine("⚕️ Лікування", result.priestHealCooldownAvailableAt),
+        "⚕️ Лікування: без відпочинку, доки вистачає мани.",
         presentCooldownLine("✨ Благословення", result.priestBlessCooldownAvailableAt),
         "",
         result.targets.length > 0
@@ -71,8 +71,7 @@ export function presentPriestHealResult(result: PriestHealResult): string {
       ? "Жрець приклав ману до себе. Мана трохи обурилась, але виконала обов’язок."
       : `${presentCharacterDisplayName(result.actor)} полікував ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
     `❤️ HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`,
-    `🌌 Мана витрачена: <b>${result.action.manaCost}</b>.`,
-    `Відпочинок техніки: ${formatRemaining(result.action.cooldownAvailableAt)}.`
+    `🌌 Мана витрачена: <b>${result.action.manaCost}</b>.`
   ].join("\n");
 }
 
@@ -250,8 +249,6 @@ function presentPriestHealBlockedTitle(
   switch (reason) {
     case "full-hp":
       return "Лікування не потрібне";
-    case "cooldown":
-      return "Лікування відсапується";
     case "insufficient-mana":
       return "Бракує мани для лікування";
     default:

@@ -33,11 +33,12 @@ describe("class noncombat presenter", () => {
       },
       targets: [],
       locationName: "Стіл зі справами",
-      priestHealCooldownAvailableAt: null,
       priestBlessCooldownAvailableAt: null
     } as unknown as ClassNoncombatOpenResult);
 
     expect(text).toContain("Поруч нікого активного немає, але себе можна підтримати без черги.");
+    expect(text).toContain("⚕️ Лікування: без відпочинку, доки вистачає мани.");
+    expect(text).not.toContain("⚕️ Лікування: готово.");
     expect(text).not.toContain("Оберіть себе або когось активного поруч:");
   });
 
@@ -64,7 +65,6 @@ describe("class noncombat presenter", () => {
         remortCount: 0
       }],
       locationName: "Стіл зі справами",
-      priestHealCooldownAvailableAt: null,
       priestBlessCooldownAvailableAt: null
     } as unknown as ClassNoncombatOpenResult);
 
@@ -147,6 +147,7 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("❤️ HP: <b>+4</b> · тепер <b>20/32</b>.");
     expect(text).toContain("🌌 Мана витрачена: <b>10</b>.");
     expect(text).toContain("⚕️ <b>Лікування спрацювало</b>");
+    expect(text).not.toContain("Відпочинок техніки");
     expect(text).not.toContain("🩹 <b>Лікування спрацювало</b>");
   });
 

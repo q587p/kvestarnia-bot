@@ -18,7 +18,7 @@ const actorTelegramUserId = 1001n;
 const targetTelegramUserId = 1002n;
 
 describe("ClassNoncombatService", () => {
-  it("plans Priest target healing from nearby target HP and spends a 93-minute cooldown only on completion", async () => {
+  it("plans Priest target healing from nearby target HP and spends only mana on completion", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: priest({ manaCurrent: 20, statsJson: { charisma: 9, intelligence: 9 } }),
       target: target({ hpCurrent: 3, hpMax: 20 })
@@ -36,9 +36,9 @@ describe("ClassNoncombatService", () => {
     expect(repository.lastHealInput).toMatchObject({
       healAmount: 10,
       manaCost: 10,
-      cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
       statSnapshot: { level: 3, charisma: 11, intelligence: 9 }
     });
+    expect(repository.lastHealInput).not.toHaveProperty("cooldownAvailableAt");
     expect(achievements.events).toEqual([
       { type: "priest.heal.completed", characterId: "actor", occurredAt: now, sourceId: "aid-heal" }
     ]);
@@ -234,7 +234,6 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       targetTotalPages: 1,
       locationId: "location.korchma.front",
       locationName: "Перед Корчмою",
-      priestHealCooldownAvailableAt: null,
       priestBlessCooldownAvailableAt: null,
       roguePickpocketCooldownAvailableAt: null
     });
@@ -251,7 +250,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     this.lastHealInput = input;
     return Promise.resolve(this.healResult ?? {
       state: "completed",
-      action: priestAid("aid-heal", "heal", input.healAmount, input.manaCost, input.cooldownAvailableAt),
+      action: priestAid("aid-heal", "heal", input.healAmount, input.manaCost, input.now),
       actor: this.actor,
       target: { ...this.target, hpCurrent: Math.min(input.targetEffectiveHpMax, this.target.hpCurrent + input.healAmount) },
       created: true

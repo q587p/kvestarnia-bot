@@ -312,7 +312,6 @@ function priestOpenResult(): ClassNoncombatOpenResult {
     }],
     targetPage: 0,
     targetTotalPages: 1,
-    priestHealCooldownAvailableAt: null,
     priestBlessCooldownAvailableAt: null,
     roguePickpocketCooldownAvailableAt: null
   };

@@ -20,7 +20,6 @@ export interface NoncombatActionSnapshot {
   targetTotalPages: number;
   locationId: string;
   locationName: string;
-  priestHealCooldownAvailableAt: Date | null;
   priestBlessCooldownAvailableAt: Date | null;
   roguePickpocketCooldownAvailableAt: Date | null;
 }
@@ -124,7 +123,6 @@ export interface ClassNoncombatRepository {
       expectedTargetRemortCount: number;
       activeSince: Date;
       now: Date;
-      cooldownAvailableAt: Date;
       healAmount: number;
       targetEffectiveHpMax: number;
       manaCost: number;

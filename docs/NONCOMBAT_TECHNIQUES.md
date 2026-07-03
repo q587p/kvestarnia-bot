@@ -87,13 +87,13 @@ Example: a Priest offers a blessing or heal to a nearby player.
 - resource mutation happens only after accept;
 - mana spend, heal and XP/result ledger are one replay-safe transition.
 
-`0.2.25` exception: Priest direct aid is not an offer flow. A level 3+ Priest can heal or bless self or an active same-location target directly outside combat. Mana/cooldown are spent only after a successful durable mutation, failed/full-HP/already-blessed/stale attempts do not mutate, and another target receives a private best-effort notification after the stored result exists.
+`0.2.25` exception: Priest direct aid is not an offer flow. A level 3+ Priest can heal or bless self or an active same-location target directly outside combat. Healing spends mana only and starts no cooldown; blessing spends mana and starts its cooldown only after a successful durable mutation. Failed/full-HP/already-blessed/stale attempts do not mutate, and another target receives a private best-effort notification after the stored result exists.
 
 Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + floor((charisma + intelligence) / 3) + floor(level / 2))`; mana cost is `max(7, ceil(heal * 0.75) + 2)`. Missing HP, full-HP checks and healing caps use the target's current effective HP maximum, including level-derived HP.
 
 Priest aid keyboards do not show healing buttons for full-HP targets. Healing rows use the `⚕️` marker, while actual bandage icons stay reserved for medical manatky and Yeger supplies.
 
-Blocked Priest result cards keep the Priest action keyboard attached for full-HP, cooldown and already-blessed no-op results. Their headings name the blocker directly instead of using one generic failed-action title.
+Blocked Priest result cards keep the Priest action keyboard attached for full-HP heal, blessing cooldown and already-blessed no-op results. Their headings name the blocker directly instead of using one generic failed-action title.
 
 ### Performance / Local Event
 
@@ -249,7 +249,8 @@ Status: shipped in `0.2.25` as direct Priest aid, not an offer flow.
 - level 3+ Priest;
 - self plus one active nearby target;
 - any current location covered by same-location presence;
-- 93-minute cooldown;
+- direct heal has no cooldown;
+- direct blessing has a 93-minute cooldown;
 - atomic mana cost and HP heal after durable validation;
 - no over-heal;
 - no target in active combat;
@@ -272,7 +273,7 @@ manaCost = max(
 
 Shipped behavior:
 
-- direct heal uses the formula above and sends a private target notification only after success;
+- direct heal uses the formula above, spends only mana and sends a private target notification only after success;
 - direct blessing creates one visible non-stacking `priest.blessing` status for 13 minutes;
 - blessing currently stores `bonusStat = null` and `bonusAmount = 0`; a real `+1 luck` or other effective-stat hook is deferred until a shared timed-status/stat architecture exists;
 - remort, location, activity, combat/raid/passage/party/duel blocking flows and duplicate callbacks fail closed.

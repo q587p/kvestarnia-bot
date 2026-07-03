@@ -11,7 +11,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added level 3+ Priest direct aid outside combat: `✨ Жрецька поміч` opens from `Хто поруч`, supports self/active same-location targets, and can heal with mana or create a direct blessing without an accept/decline offer flow.
-- Added the preserved Priest heal formula with no overheal and mana/cooldown spend only after a successful durable mutation.
+- Added the preserved Priest heal formula with no overheal, mana spend only after a successful durable mutation and no healing cooldown.
 - Added a visible non-stacking 13-minute Priest blessing status. The gameplay stat hook is intentionally deferred; stored blessing rows currently use `bonusStat = null` and `bonusAmount = 0`.
 - Added level 3+ Rogue `🗡️ Тиха кишеня` from `Хто поруч` for active same-location targets with target level protection, once-per-actor-target Kyiv-day replay, a 93-minute actor cooldown after every resolved attempt and stored deterministic outcomes.
 - Added Rogue outcomes for clean success, noticed success, empty/no opportunity, noticed failure and caught badly. Caught badly sets Rogue HP to `0` through the character resource row and does not create an extra caught cooldown.
@@ -39,9 +39,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `🌌` for mana spent.
+- Removed the noncombat Priest heal cooldown; direct healing is now limited by missing HP and mana, while direct blessing keeps the 93-minute actor cooldown.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
-- Kept Priest action buttons under blocked no-op heal, cooldown and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, cooldown and repeated blessing blockers.
+- Kept Priest action buttons under blocked no-op heal, blessing cooldown and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, cooldown and repeated blessing blockers.
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
 - Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.
 - Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
@@ -49,7 +50,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
-- Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start cooldown.
+- Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start blessing cooldown; successful healing never starts cooldown.
 - Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
 - Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
 - Standard actor achievement notifications are sent only for fresh completed Priest heal/bless or Rogue attempts; blocked/no-op states and duplicate Rogue replays do not notify again.
@@ -59,8 +60,9 @@ This project follows a simple pre-1.0 versioning policy:
 ### Tests
 - Added domain tests for Priest heal math and deterministic Rogue amount/outcome shaping.
 - Added callback parser tests for `v1:nc` open/action payloads and stale-click remort counters.
-- Added service tests for Priest heal/blessing planning, Rogue deterministic planning, duplicate replay and achievement hooks.
+- Added service tests for Priest heal/blessing planning, Priest heal no-cooldown behavior, Rogue deterministic planning, duplicate replay and achievement hooks.
 - Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
+- Added repository regression coverage proving Priest healing does not create a cooldown row.
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.
 - Added Prisma repository integration tests for exact normalized target listing, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
 - Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation and duplicate Rogue replay silence.

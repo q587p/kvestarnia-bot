@@ -39,7 +39,6 @@ export type ClassNoncombatOpenResult =
       targets: ClassNoncombatTarget[];
       targetPage: number;
       targetTotalPages: number;
-      priestHealCooldownAvailableAt: Date | null;
       priestBlessCooldownAvailableAt: Date | null;
       roguePickpocketCooldownAvailableAt: Date | null;
     }
@@ -116,7 +115,6 @@ export class ClassNoncombatService {
         canPriestAid: mode === "priest",
         canRoguePickpocket: mode === "rogue" && target.level >= CLASS_NONCOMBAT_MIN_LEVEL
       })),
-      priestHealCooldownAvailableAt: snapshot.priestHealCooldownAvailableAt,
       priestBlessCooldownAvailableAt: snapshot.priestBlessCooldownAvailableAt,
       roguePickpocketCooldownAvailableAt: snapshot.roguePickpocketCooldownAvailableAt
     };
@@ -153,7 +151,6 @@ export class ClassNoncombatService {
       ...input,
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       now,
-      cooldownAvailableAt: addMinutes(now, PRIEST_DIRECT_AID_COOLDOWN_MINUTES),
       healAmount: plan.heal,
       targetEffectiveHpMax: target?.hpMax ?? 1,
       manaCost: plan.manaCost,

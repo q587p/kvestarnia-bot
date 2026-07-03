@@ -187,6 +187,10 @@ describe("PrismaClassNoncombatRepository integration", () => {
       hpMax: 20,
       manaCurrent: 10
     });
+    await expect(prisma.characterCooldown.findMany({
+      where: { characterId: "priest" },
+      select: { key: true }
+    })).resolves.toEqual([]);
   });
 
   it("replays Rogue same-day duplicate even after live location gates drift", async () => {
@@ -315,7 +319,6 @@ function priestHealInput(overrides: {
     expectedTargetRemortCount: 0,
     activeSince: new Date("2026-07-03T08:55:00.000Z"),
     now,
-    cooldownAvailableAt,
     healAmount: overrides.healAmount,
     targetEffectiveHpMax: overrides.targetEffectiveHpMax,
     manaCost: overrides.manaCost,
