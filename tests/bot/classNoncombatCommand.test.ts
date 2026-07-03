@@ -112,6 +112,41 @@ describe("class noncombat command", () => {
     ]));
   });
 
+  it("keeps Priest action buttons under blessing cooldown results", async () => {
+    const { ctx, editMessageText, reply, sendMessage } = callbackContext();
+    const service = {
+      openForTelegramUser: vi.fn().mockResolvedValue(priestOpenResult()),
+      blessForTelegramUser: vi.fn().mockResolvedValue({
+        state: "blocked",
+        reason: "cooldown",
+        availableAt: new Date("2026-07-03T10:19:00.000Z"),
+        actor: character("Жрець", "class.priest"),
+        target: character("Жрець", "class.priest")
+      } satisfies PriestBlessResult)
+    };
+    const callback = parseClassNoncombatCallbackData(makePriestBlessCallbackData({
+      targetTelegramUserId: null,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      page: 0
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(ctx, callback.ok ? callback.value : neverCallback(), service as never);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(reply).not.toHaveBeenCalled();
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("Благословення відсапується");
+    expect(text).toContain("Техніка відсапується");
+    expect(options.parse_mode).toBe("HTML");
+    expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
+      "⚕️ Полікувати себе",
+      "✨ Благословити себе",
+      "🔄 Оновити"
+    ]));
+  });
+
   it("does not notify achievements or target again for Rogue duplicate replay", async () => {
     const { ctx, reply, sendMessage } = callbackContext();
     const service = {

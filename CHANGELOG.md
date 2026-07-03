@@ -41,7 +41,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `🌌` for mana spent.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
-- Kept Priest action buttons under blocked no-op heal and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list.
+- Kept Priest action buttons under blocked no-op heal, cooldown and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, cooldown and repeated blessing blockers.
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
 - Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.
 - Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
@@ -62,7 +62,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.
 - Added Prisma repository integration tests for exact normalized target listing, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
-- Added class noncombat command tests for actor achievement notifications and duplicate Rogue replay silence.
+- Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation and duplicate Rogue replay silence.
 - Added online/presence routing tests for the `Хто поруч` discovery surface and neutral `v1:nc` callback presence.
 
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass

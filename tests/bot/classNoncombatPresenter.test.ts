@@ -149,4 +149,38 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("⚕️ <b>Лікування спрацювало</b>");
     expect(text).not.toContain("🩹 <b>Лікування спрацювало</b>");
   });
+
+  it("uses reason-specific Priest blocked headings", () => {
+    const healText = presentPriestHealResult({
+      state: "blocked",
+      reason: "full-hp",
+      actor: {
+        id: "character-1",
+        name: "Жрець"
+      },
+      target: {
+        id: "character-1",
+        name: "Жрець"
+      }
+    } as unknown as PriestHealResult);
+    const blessText = presentPriestBlessResult({
+      state: "blocked",
+      reason: "cooldown",
+      availableAt: new Date("2026-07-03T10:19:00.000Z"),
+      actor: {
+        id: "character-1",
+        name: "Жрець"
+      },
+      target: {
+        id: "character-1",
+        name: "Жрець"
+      }
+    } as unknown as PriestBlessResult);
+
+    expect(healText).toContain("⚕️ <b>Лікування не потрібне</b>");
+    expect(healText).toContain("HP уже повне. Мана лишається на місці.");
+    expect(blessText).toContain("✨ <b>Благословення відсапується</b>");
+    expect(blessText).toContain("Техніка відсапується ще 79 хвилин.");
+    expect(blessText).not.toContain("Благословення не лягло");
+  });
 });

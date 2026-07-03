@@ -54,7 +54,13 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
 
 export function presentPriestHealResult(result: PriestHealResult): string {
   if (result.state === "blocked") {
-    return presentBlocked("⚕️", "Лікування не відбулося", result.reason, result.availableAt, result.blessing);
+    return presentBlocked(
+      "⚕️",
+      presentPriestHealBlockedTitle(result.reason),
+      result.reason,
+      result.availableAt,
+      result.blessing
+    );
   }
 
   const targetSelf = result.action.actorTelegramUserId === result.action.targetTelegramUserId;
@@ -72,7 +78,13 @@ export function presentPriestHealResult(result: PriestHealResult): string {
 
 export function presentPriestBlessResult(result: PriestBlessResult): string {
   if (result.state === "blocked") {
-    return presentBlocked("✨", "Благословення не лягло", result.reason, result.availableAt, result.blessing);
+    return presentBlocked(
+      "✨",
+      presentPriestBlessBlockedTitle(result.reason),
+      result.reason,
+      result.availableAt,
+      result.blessing
+    );
   }
 
   const targetSelf = result.action.actorTelegramUserId === result.action.targetTelegramUserId;
@@ -230,6 +242,36 @@ function presentBlocked(
   })();
 
   return [`${icon} <b>${title}</b>`, "", detail].join("\n");
+}
+
+function presentPriestHealBlockedTitle(
+  reason: Extract<PriestHealResult, { state: "blocked" }>["reason"]
+): string {
+  switch (reason) {
+    case "full-hp":
+      return "Лікування не потрібне";
+    case "cooldown":
+      return "Лікування відсапується";
+    case "insufficient-mana":
+      return "Бракує мани для лікування";
+    default:
+      return "Лікування не відбулося";
+  }
+}
+
+function presentPriestBlessBlockedTitle(
+  reason: Extract<PriestBlessResult, { state: "blocked" }>["reason"]
+): string {
+  switch (reason) {
+    case "already-blessed":
+      return "Благословення вже тримається";
+    case "cooldown":
+      return "Благословення відсапується";
+    case "insufficient-mana":
+      return "Бракує мани для благословення";
+    default:
+      return "Благословення не лягло";
+  }
 }
 
 function presentCooldownLine(label: string, availableAt: Date | null): string {

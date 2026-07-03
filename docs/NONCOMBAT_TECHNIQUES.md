@@ -93,6 +93,8 @@ Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + f
 
 Priest aid keyboards do not show healing buttons for full-HP targets. Healing rows use the `⚕️` marker, while actual bandage icons stay reserved for medical manatky and Yeger supplies.
 
+Blocked Priest result cards keep the Priest action keyboard attached for full-HP, cooldown and already-blessed no-op results. Their headings name the blocker directly instead of using one generic failed-action title.
+
 ### Performance / Local Event
 
 Example: a Bard performs for active nearby characters in the current location.
