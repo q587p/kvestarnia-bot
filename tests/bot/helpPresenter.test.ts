@@ -73,6 +73,8 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🔮 /dev_restore_mana");
     expect(resetOnly).not.toContain("🎲 /dev_add_random_item");
     expect(resetOnly).not.toContain("🧻 /dev_add_bandage");
+    expect(resetOnly).not.toContain("🧵 /dev_add_dense_bandage");
+    expect(resetOnly).not.toContain("🩺 /dev_add_field_kit");
     expect(resetOnly).not.toContain("🧷 /dev_reset_yeger_bandage");
     expect(resetOnly).not.toContain("/dev_reset_yeger_bandage_day");
     expect(resetOnly).not.toContain("/dev_reset_bard_performance");
@@ -87,6 +89,8 @@ describe("help presenter", () => {
     expect(grantsEnabled).not.toContain("/dev_restore_mana");
     expect(grantsEnabled).not.toContain("/dev_add_random_item");
     expect(grantsEnabled).not.toContain("/dev_add_bandage");
+    expect(grantsEnabled).not.toContain("/dev_add_dense_bandage");
+    expect(grantsEnabled).not.toContain("/dev_add_field_kit");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage_day");
     expect(grantsEnabled).not.toContain("/dev_reset_bard_performance");
@@ -118,6 +122,8 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🔢 /dev_add_xp");
     expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
     expect(grantsEnabled).toContain("🧻 /dev_add_bandage");
+    expect(grantsEnabled).toContain("🧵 /dev_add_dense_bandage");
+    expect(grantsEnabled).toContain("🩺 /dev_add_field_kit");
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
     expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
     expect(grantsEnabled).toContain("🎶 /dev_reset_bard_performance");

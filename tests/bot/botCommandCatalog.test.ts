@@ -70,6 +70,8 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_restore_mana")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_random_item")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_bandage")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_dense_bandage")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_field_kit")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage_day")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
@@ -148,6 +150,8 @@ describe("bot command catalog", () => {
       "dev_restore_mana",
       "dev_add_random_item",
       "dev_add_bandage",
+      "dev_add_dense_bandage",
+      "dev_add_field_kit",
       "dev_reset_yeger_bandage",
       "dev_reset_yeger_bandage_day",
       "dev_reset_bard_performance"

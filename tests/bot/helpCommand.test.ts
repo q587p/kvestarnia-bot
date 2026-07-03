@@ -50,6 +50,8 @@ describe("help command", () => {
     expect(replies[0]).toContain("/dev_reset_korchma_round");
     expect(replies[0]).toContain("/dev_add_xp");
     expect(replies[0]).toContain("/dev_add_bandage");
+    expect(replies[0]).toContain("/dev_add_dense_bandage");
+    expect(replies[0]).toContain("/dev_add_field_kit");
     expect(replies[0]).toContain("/dev_reset_yeger_bandage");
   });
 

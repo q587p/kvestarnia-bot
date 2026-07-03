@@ -8,6 +8,8 @@
 
 Manual Telegram QA status for the implementation pass: not run.
 
+Local setup helpers: use `/dev_add_bandage`, `/dev_add_dense_bandage` and `/dev_add_field_kit` to seed the exact medical stacks needed for combat and Big Barrel checks when `DEV_GRANT_COMMANDS_ENABLED=true`.
+
 1. Before completing the second Yeger `Неспокійні справи 2.0` board, open an ordinary `Бинт відповідальної паніки` item card with enough bandages and verify no advanced craft buttons appear.
 2. After the second Yeger board completion, open the ordinary bandage card outside combat with `7`, `8`, `12`, `13` and `14` ordinary bandages; verify `Щільний бинт` appears at `8+` and `Польова аптечка` appears at `13+`.
 3. Craft each item and verify ordinary bandage counts decrease by the recipe cost or by a smaller successful savings spend, exactly one crafted item appears and the matching rewardless craft achievement can appear once.
@@ -773,6 +775,8 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_level [число]` — у локальному режимі додає вказану кількість рівнів; без числа додає 1 рівень.
 - `/dev_heal [число]` — у локальному режимі лікує поточного персонажа, зокрема під час активного бою; без числа лікує до максимуму.
 - `/dev_add_bandage [число]` — у локальному режимі додає бинти відповідальної паніки; без числа додає один бинт.
+- `/dev_add_dense_bandage [число]` — у локальному режимі додає щільні бинти; без числа додає один щільний бинт.
+- `/dev_add_field_kit [число]` — у локальному режимі додає польові аптечки; без числа додає одну аптечку.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.

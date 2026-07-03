@@ -315,6 +315,20 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_add_dense_bandage",
+    icon: "🧵",
+    description: "додати щільні бинти локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_field_kit",
+    icon: "🩺",
+    description: "додати польові аптечки локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_yeger_bandage",
     icon: "🧷",
     description: "скинути таймер бинта Єгеря локально",

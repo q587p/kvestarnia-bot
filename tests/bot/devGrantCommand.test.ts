@@ -14,6 +14,10 @@ describe("dev grant commands", () => {
     const itemCalls = await captureMessageCalls("/dev_add_random_item", devGrant);
     const defaultBandageCalls = await captureMessageCalls("/dev_add_bandage", devGrant);
     const explicitBandageCalls = await captureMessageCalls("/dev_add_bandage 5", devGrant);
+    const defaultDenseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage", devGrant);
+    const explicitDenseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 2", devGrant);
+    const defaultFieldKitCalls = await captureMessageCalls("/dev_add_field_kit", devGrant);
+    const explicitFieldKitCalls = await captureMessageCalls("/dev_add_field_kit 3", devGrant);
     const fullHealCalls = await captureMessageCalls("/dev_heal", devGrant);
     const partialHealCalls = await captureMessageCalls("/dev_heal 7", devGrant);
     const fullManaCalls = await captureMessageCalls("/dev_restore_mana", devGrant);
@@ -28,6 +32,10 @@ describe("dev grant commands", () => {
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addBandages).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addBandages).toHaveBeenCalledWith(42n, 5);
+    expect(devGrant.addDenseBandages).toHaveBeenCalledWith(42n, 1);
+    expect(devGrant.addDenseBandages).toHaveBeenCalledWith(42n, 2);
+    expect(devGrant.addFieldKits).toHaveBeenCalledWith(42n, 1);
+    expect(devGrant.addFieldKits).toHaveBeenCalledWith(42n, 3);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, undefined);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, 7);
     expect(devGrant.restoreMana).toHaveBeenCalledWith(42n, undefined);
@@ -41,6 +49,10 @@ describe("dev grant commands", () => {
     expect(String(itemCalls.at(-1)?.payload.text)).toContain("додано 1 манатку");
     expect(String(defaultBandageCalls.at(-1)?.payload.text)).toContain("Бинт відповідальної паніки");
     expect(String(explicitBandageCalls.at(-1)?.payload.text)).toContain("Бинт відповідальної паніки ×5");
+    expect(String(defaultDenseBandageCalls.at(-1)?.payload.text)).toContain("Щільний бинт");
+    expect(String(explicitDenseBandageCalls.at(-1)?.payload.text)).toContain("Щільний бинт ×2");
+    expect(String(defaultFieldKitCalls.at(-1)?.payload.text)).toContain("Польова аптечка");
+    expect(String(explicitFieldKitCalls.at(-1)?.payload.text)).toContain("Польова аптечка ×3");
     expect(String(fullHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
     expect(String(partialHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
     expect(String(fullManaCalls.at(-1)?.payload.text)).toContain("Мана: 10/10");
@@ -55,12 +67,16 @@ describe("dev grant commands", () => {
     const levelCalls = await captureMessageCalls("/dev_add_level 0", devGrant);
     const calls = await captureMessageCalls("/dev_add_gold nope", devGrant);
     const bandageCalls = await captureMessageCalls("/dev_add_bandage 0", devGrant);
+    const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 0", devGrant);
+    const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 0", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 0", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 0", devGrant);
 
     expect(devGrant.addLevel).not.toHaveBeenCalled();
     expect(devGrant.addGold).not.toHaveBeenCalled();
     expect(devGrant.addBandages).not.toHaveBeenCalled();
+    expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
+    expect(devGrant.addFieldKits).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
     expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(String(levelCalls.at(-1)?.payload.text)).toContain(
@@ -71,6 +87,12 @@ describe("dev grant commands", () => {
     );
     expect(String(bandageCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_add_bandage [додатне ціле число]."
+    );
+    expect(String(denseBandageCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_add_dense_bandage [додатне ціле число]."
+    );
+    expect(String(fieldKitCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_add_field_kit [додатне ціле число]."
     );
     expect(String(healCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_heal [додатне ціле число HP]."
@@ -99,6 +121,8 @@ describe("dev grant commands", () => {
     const calls = await captureMessageCalls("/dev_add_xp 7", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 7", devGrant);
     const bandageCalls = await captureMessageCalls("/dev_add_bandage 5", devGrant);
+    const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 2", devGrant);
+    const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 3", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 4", devGrant);
     const yegerCalls = await captureMessageCalls("/dev_reset_yeger_bandage", devGrant);
     const yegerDayCalls = await captureMessageCalls("/dev_reset_yeger_bandage_day", devGrant);
@@ -107,6 +131,8 @@ describe("dev grant commands", () => {
     expect(devGrant.addXp).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
     expect(devGrant.addBandages).not.toHaveBeenCalled();
+    expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
+    expect(devGrant.addFieldKits).not.toHaveBeenCalled();
     expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(devGrant.resetYegerBandageCooldown).not.toHaveBeenCalled();
     expect(devGrant.resetYegerBandageDay).not.toHaveBeenCalled();
@@ -114,6 +140,8 @@ describe("dev grant commands", () => {
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(bandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(denseBandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(fieldKitCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(manaCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerDayCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -206,6 +234,12 @@ function fakeDevGrantService(input: {
   addBandages: ReturnType<
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
   >;
+  addDenseBandages: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
+  >;
+  addFieldKits: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
+  >;
   resetYegerBandageCooldown: ReturnType<
     typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
   >;
@@ -296,6 +330,32 @@ function fakeDevGrantService(input: {
         {
           itemId: "item.responsible-panic-bandage",
           name: "Бинт відповідальної паніки",
+          quantity: amount
+        }
+      ]
+    })),
+    addDenseBandages: vi.fn((_telegramUserId, amount) => Promise.resolve({
+      state: "updated",
+      kind: "items",
+      amount,
+      character,
+      itemGrants: [
+        {
+          itemId: "item.dense-bandage",
+          name: "Щільний бинт",
+          quantity: amount
+        }
+      ]
+    })),
+    addFieldKits: vi.fn((_telegramUserId, amount) => Promise.resolve({
+      state: "updated",
+      kind: "items",
+      amount,
+      character,
+      itemGrants: [
+        {
+          itemId: "item.field-kit",
+          name: "Польова аптечка",
           quantity: amount
         }
       ]

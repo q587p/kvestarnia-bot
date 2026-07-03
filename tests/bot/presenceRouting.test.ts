@@ -215,6 +215,8 @@ describe("presence routing", () => {
     ["dev_reset_korchma_round", {}],
     ["dev_reset_monster_rest", {}],
     ["dev_add_bandage", {}],
+    ["dev_add_dense_bandage", {}],
+    ["dev_add_field_kit", {}],
     ["dev_reset_yeger_bandage", {}],
     ["dev_reset_yeger_bandage_day", {}],
     ["dev_reset_bard_performance", {}],

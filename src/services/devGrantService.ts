@@ -2,6 +2,7 @@ import { items } from "../content";
 import type { CharacterRecord } from "../db/repositories/characterRepository";
 import type { DevGrantRepository } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { AchievementService, type AchievementUnlock } from "./achievementService";
@@ -195,13 +196,44 @@ export class DevGrantService {
   }
 
   async addBandages(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+    return this.addSpecificItems(telegramUserId, {
+      amount,
+      itemId: BANDAGE_ITEM_ID,
+      sourceKind: "dev.add_bandage"
+    });
+  }
+
+  async addDenseBandages(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+    return this.addSpecificItems(telegramUserId, {
+      amount,
+      itemId: DENSE_BANDAGE_ITEM_ID,
+      sourceKind: "dev.add_dense_bandage"
+    });
+  }
+
+  async addFieldKits(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+    return this.addSpecificItems(telegramUserId, {
+      amount,
+      itemId: FIELD_KIT_ITEM_ID,
+      sourceKind: "dev.add_field_kit"
+    });
+  }
+
+  private async addSpecificItems(
+    telegramUserId: bigint,
+    input: {
+      amount: number;
+      itemId: string;
+      sourceKind: string;
+    }
+  ): Promise<DevGrantItemsResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
 
     const result = await this.grants.addItemsForTelegramUser(telegramUserId, [{
-      itemId: BANDAGE_ITEM_ID,
-      quantity: amount
+      itemId: input.itemId,
+      quantity: input.amount
     }]);
 
     if (!result) {
@@ -211,12 +243,12 @@ export class DevGrantService {
     return {
       state: "updated",
       kind: "items",
-      amount,
+      amount: input.amount,
       character: result.character,
       itemGrants: enrichRewardItemGrants(result.itemGrants),
       achievementUnlocks: await this.trackGrantAchievements({
         characterId: result.character.id,
-        sourceKind: "dev.add_bandage",
+        sourceKind: input.sourceKind,
         itemGrants: result.itemGrants
       })
     };

@@ -10,6 +10,7 @@ import type {
 } from "../../src/db/repositories/devGrantRepository";
 import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository";
 import { items } from "../../src/content";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
 import { DevGrantService } from "../../src/services/devGrantService";
 import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
@@ -243,6 +244,38 @@ describe("DevGrantService", () => {
       ]
     });
     expect(repository.calls).toContain(`items:42:${BANDAGE_ITEM_ID}:5`);
+  });
+
+  it("adds crafted medical items directly for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addDenseBandages(42n, 2)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 2,
+      itemGrants: [
+        {
+          itemId: DENSE_BANDAGE_ITEM_ID,
+          name: "Щільний бинт",
+          quantity: 2
+        }
+      ]
+    });
+    await expect(service.addFieldKits(42n, 3)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 3,
+      itemGrants: [
+        {
+          itemId: FIELD_KIT_ITEM_ID,
+          name: "Польова аптечка",
+          quantity: 3
+        }
+      ]
+    });
+    expect(repository.calls).toContain(`items:42:${DENSE_BANDAGE_ITEM_ID}:2`);
+    expect(repository.calls).toContain(`items:42:${FIELD_KIT_ITEM_ID}:3`);
   });
 
   it("resets the Yeger free bandage cooldown for the current character", async () => {

@@ -229,7 +229,9 @@ describe("presence middleware", () => {
   it.each([
     ["/dev_heal 7", "heal"],
     ["/dev_restore_mana 4", "restoreMana"],
-    ["/dev_add_bandage 5", "addBandages"]
+    ["/dev_add_bandage 5", "addBandages"],
+    ["/dev_add_dense_bandage 2", "addDenseBandages"],
+    ["/dev_add_field_kit 3", "addFieldKits"]
   ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
     const presence = new CapturingPresenceService();
     const calls: string[] = [];
@@ -266,6 +268,34 @@ describe("presence middleware", () => {
               itemId: "item.responsible-panic-bandage",
               name: "Бинт відповідальної паніки",
               quantity: 5
+            }]
+          });
+        },
+        addDenseBandages: () => {
+          calls.push("addDenseBandages");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "items" as const,
+            amount: 2,
+            character: characterRecord(),
+            itemGrants: [{
+              itemId: "item.dense-bandage",
+              name: "Щільний бинт",
+              quantity: 2
+            }]
+          });
+        },
+        addFieldKits: () => {
+          calls.push("addFieldKits");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "items" as const,
+            amount: 3,
+            character: characterRecord(),
+            itemGrants: [{
+              itemId: "item.field-kit",
+              name: "Польова аптечка",
+              quantity: 3
             }]
           });
         }

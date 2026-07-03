@@ -145,6 +145,8 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "dev_heal" ||
     command === "dev_restore_mana" ||
     command === "dev_add_bandage" ||
+    command === "dev_add_dense_bandage" ||
+    command === "dev_add_field_kit" ||
     command === "dev_raid_win" ||
     command === "online" ||
     command === "look" ||
