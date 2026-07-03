@@ -112,8 +112,11 @@ describe("item detail presenter", () => {
       })
     );
 
-    expect(text).toContain("Корчмар крутить манатку в руках");
-    expect(text).toContain("до якої полиці її не підпускати");
+    expect(text).toContain("Екіпірування: <i>не вдягається. Це витратна манатка: її застосовують, а не приміряють.</i>");
+    expect(text).toContain("Корчмар зважує манатку в руці");
+    expect(text).toContain("перед витратою");
+    expect(text).not.toContain("смішним трофеєм");
+    expect(text).not.toContain("до якої полиці");
     expect(text).not.toContain("правила майбутнього спорядження");
   });
 
@@ -141,6 +144,9 @@ describe("item detail presenter", () => {
 
     expect(text).toContain("Використання: <b>можна застосувати в бою або поза боєм</b>.");
     expect(text).toContain("У бою манатка витрачає хід і лікує одразу.");
+    expect(text).toContain("Це витратна манатка: її застосовують, а не приміряють.");
+    expect(text).not.toContain("смішним трофеєм");
+    expect(text).not.toContain("до якої полиці");
     expect(text).not.toContain("Використання: <b>можна застосувати поза боєм</b>.");
   });
 

@@ -29,6 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Successful dense-bandage and field-kit crafting can save 1-5 ordinary bandages for Ranger/Yeger characters based on level and luck, while still requiring the full recipe stack before the craft starts; other classes spend the fixed recipe cost.
 - Successful craft result cards now offer `Створити ще` when the remaining ordinary bandage stack can pay the same recipe again.
 - Inventory list cards now keep the message body compact by removing per-item descriptions, while item buttons show stack quantity in parentheses when more than one unit is owned.
+- Consumable item detail cards now describe non-equipping as applying the manatka rather than trying it on, and use consumable-specific fallback flavor instead of trophy/shelf wording.
 - The `⭐ Важливе` latest-events filter now leaves rare manatky to `🎒 Манатки` and keeps only epic manatky as important item drops.
 - Yeger quest cards now stay separate from the `Єгерський куток` atmosphere card, return to the Yeger corner, and leave ordinary Yeger exits pointing back to the Barrel instead of the Korchma hall.
 - Yeger corner entry no longer sends a separate movement notice before the Yeger card, and completed second-board turn-in cards can offer dense-bandage and field-kit craft shortcuts when the ordinary-bandage stack is sufficient.

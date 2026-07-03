@@ -96,6 +96,10 @@ function presentEquipmentLine(
   equippedSlot: EquipmentSlot | null,
   equipPreview: ItemEquipPreviewResult | null
 ): string {
+  if (item.slot === "consumable") {
+    return "Екіпірування: <i>не вдягається. Це витратна манатка: її застосовують, а не приміряють.</i>";
+  }
+
   if (!isEquippableItem(item)) {
     return "Екіпірування: <i>не вдягається. Корчма визнала це смішним трофеєм.</i>";
   }
@@ -221,6 +225,10 @@ function presentItemFlavor(item: ItemContent): string {
 
   if (item.slot === "junk") {
     return "<i>Корчмар записав це в журнал як «важливо, але не чіпати голими руками».</i>";
+  }
+
+  if (item.slot === "consumable") {
+    return "<i>Корчмар зважує манатку в руці й вирішує, чи не занадто впевнено вона виглядає перед витратою.</i>";
   }
 
   return "<i>Корчмар крутить манатку в руках і ще думає, до якої полиці її не підпускати.</i>";
