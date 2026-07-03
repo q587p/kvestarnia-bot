@@ -51,6 +51,20 @@ describe("Yeger presenter", () => {
     expect(text).toContain("Єгер має вираз обличчя");
   });
 
+  it("renders second-board progress without repeating the Yeger corner intro", () => {
+    const text = presentYegerQuest({
+      state: "turn-in-ready",
+      character,
+      progress: { wins: 17, target: 17, stageId: "second" }
+    });
+
+    expect(text).toContain("🏹 Неспокійні справи 2.0");
+    expect(text).toContain("Прогрес: <b>17/17</b>.");
+    expect(text).not.toContain("🧥 Єгерський куток");
+    expect(text).not.toContain("У темному кутку сидить людисько-єгер у капюшоні");
+    expect(text).not.toContain("Єгер:\n<blockquote>");
+  });
+
   it("renders completed reward as separate lines", () => {
     const text = presentYegerTurnIn({
       state: "completed",
@@ -127,6 +141,9 @@ describe("Yeger presenter", () => {
     });
 
     expect(text).toContain("<b>Неспокійні справи 2.0</b>");
+    expect(text).toContain("🏹 Єгерська справа");
+    expect(text).not.toContain("🧥 Єгерський куток");
+    expect(text).not.toContain("У темному кутку сидить людисько-єгер у капюшоні");
     expect(text).toContain("наступні 17 неупокоєних проблем");
     expect(text).toContain("щільних бинтів і польової аптечки");
     expect(text).not.toContain("<b>Неспокійні справи</b>\n\nПерша дощечка закрита");
