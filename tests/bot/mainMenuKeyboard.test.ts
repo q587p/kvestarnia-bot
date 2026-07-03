@@ -100,7 +100,7 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.quest, mainMenuButtons.inventory],
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
-    expect(mainMenuButtons.quest).toBe("🗺️ Квести");
+    expect(mainMenuButtons.quest).toBe("Квести");
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
@@ -162,7 +162,7 @@ describe("main menu and scene keyboards", () => {
     expect(mainMenuLocationButtons.yard).not.toBe(mainMenuButtons.tavern);
   });
 
-  it("appends quest markers to reply buttons without breaking location routing", () => {
+  it("appends quest markers to location reply buttons without marking the quest menu button", () => {
     const keyboard = buildMainMenuKeyboard({
       locationId: "location.korchma.hall",
       questMarkers: {
@@ -177,7 +177,7 @@ describe("main menu and scene keyboards", () => {
 
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, `${mainMenuLocationButtons.hall} ✅`],
-      [`${mainMenuButtons.quest} ✅`, mainMenuButtons.inventory],
+      [mainMenuButtons.quest, mainMenuButtons.inventory],
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
     expect(getMainMenuLocationButtonPresenceId(`${mainMenuLocationButtons.hall} ✅`)).toBe(

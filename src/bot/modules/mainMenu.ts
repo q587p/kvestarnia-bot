@@ -101,7 +101,7 @@ export function registerMainMenuKeyboard(
     await sendCurrentLocation(ctx, services, options);
   });
 
-  bot.hears([...mainMenuQuestButtonTexts, "🗺️ Квест"], async (ctx) => {
+  bot.hears([...mainMenuQuestButtonTexts], async (ctx) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
     if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
       return;

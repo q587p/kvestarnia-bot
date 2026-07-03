@@ -40,6 +40,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
 - Kept Priest action buttons under blocked no-op heal and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list.
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
+- Rendered the persistent main-menu quest button as plain `Квести` without emoji or quest-marker suffix; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.

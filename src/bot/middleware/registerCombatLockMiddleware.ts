@@ -21,7 +21,7 @@ import {
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildTurnBasedDuelKeyboard } from "../keyboards/duelKeyboard";
 import { buildPartyBossKeyboard } from "../keyboards/partySessionKeyboard";
-import { isMainMenuLocationButtonText, mainMenuButtons } from "../keyboards/mainMenuKeyboard";
+import { isMainMenuLocationButtonText, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
 import { editPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import { presentFightStart, presentPersistentFight } from "../presenters/fightPresenter";
@@ -175,8 +175,7 @@ function isRestartOrRemortRoute(ctx: Context): boolean {
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     isMainMenuLocationButtonText(text) ||
-    text === mainMenuButtons.quest ||
-    text === "🗺️ Квест"
+    (text !== undefined && mainMenuQuestButtonTexts.includes(text))
   );
 }
 

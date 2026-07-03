@@ -23,7 +23,6 @@ import {
   QuestMarker,
   decorateButtonLabel,
   resolveQuestMarkerForPresenceLocation,
-  resolveQuestMarkerForTarget,
   stripQuestMarkerSuffix,
   type QuestMarkerInput
 } from "./questButtonMarkers";
@@ -31,7 +30,7 @@ import {
 export const mainMenuButtons = {
   hero: "👤 Персонаж",
   tavern: "🍺 Корчма",
-  quest: "🗺️ Квести",
+  quest: "Квести",
   inventory: "🎒 Манатки",
   participants: "👀 Хто поруч",
   help: "📖 Допомога",
@@ -84,7 +83,10 @@ export const mainMenuLocationButtonTexts: readonly string[] = [
   ...withQuestMarkerVariants([...new Set(Object.values(mainMenuLocationButtons))])
 ];
 
-export const mainMenuQuestButtonTexts: readonly string[] = withQuestMarkerVariants([mainMenuButtons.quest]);
+export const mainMenuQuestButtonTexts: readonly string[] = [
+  ...withQuestMarkerVariants([mainMenuButtons.quest, "🗺️ Квести"]),
+  "🗺️ Квест"
+];
 
 export interface MainMenuKeyboardOptions {
   locationId?: string | null;
@@ -98,16 +100,12 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     locationButton,
     resolveQuestMarkerForPresenceLocation(options.questMarkers ?? undefined, options.locationId)
   );
-  const questButton = decorateButtonLabel(
-    mainMenuButtons.quest,
-    resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "menu.quest")
-  );
 
   const keyboard = new Keyboard()
     .text(mainMenuButtons.hero)
     .text(markedLocationButton)
     .row()
-    .text(questButton)
+    .text(mainMenuButtons.quest)
     .text(mainMenuButtons.inventory)
     .row()
     .text(mainMenuButtons.participants)
