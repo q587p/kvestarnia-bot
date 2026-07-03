@@ -1410,6 +1410,53 @@ describe("main menu and scene keyboards", () => {
           {
             state: "found",
             totalGoldValue: 0,
+            items: [
+              {
+                id: "character-item-1",
+                itemId: "item.pan-of-persuasion",
+                quantity: 1,
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              },
+              {
+                id: "character-item-2",
+                itemId: "item.wet-hero-ticket",
+                quantity: 1,
+                content: {
+                  id: "item.wet-hero-ticket",
+                  name: "Квиток мокрого пригодника",
+                  description: "Трофей.",
+                  rarity: "common",
+                  slot: "junk",
+                  priceless: true
+                }
+              }
+            ]
+          },
+          0,
+          null,
+          { equippedItemIds: new Set(["item.pan-of-persuasion"]) }
+        )
+      )
+    ).toEqual([
+      "🛡️ Спорядження",
+      "1️⃣ Разові",
+      "♻️ До Дружньої Скрині",
+      "✅ Пательня переконання",
+      "🔎 Квиток мокрого пригодника"
+    ]);
+    expect(
+      flatInlineButtonTexts(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
             items: Array.from({ length: 9 }, (_, index) => ({
               id: `character-item-${index + 1}`,
               itemId: `item.test-${index + 1}`,

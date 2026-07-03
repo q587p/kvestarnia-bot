@@ -120,7 +120,7 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    await sendInventory(ctx, services.inventory, "reply");
+    await sendInventory(ctx, services.inventory, "reply", 0, null, services.equipment);
   });
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {

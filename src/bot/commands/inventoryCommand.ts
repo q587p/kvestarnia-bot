@@ -13,9 +13,16 @@ import { safeEditMessageText } from "../safeEditMessageText";
 
 type SendMode = "reply" | "edit";
 
-export function registerInventoryCommand(bot: Bot, inventoryService: InventoryService): void {
+export function registerInventoryCommand(
+  bot: Bot,
+  inventoryService: InventoryService,
+  equipmentService?: Pick<
+    EquipmentService,
+    "getEquipmentForTelegramUser" | "getCompatibleItemIdsForSlotForTelegramUser"
+  >
+): void {
   bot.command(["inventory", "items", "bag"], async (ctx) => {
-    await sendInventory(ctx, inventoryService, "reply");
+    await sendInventory(ctx, inventoryService, "reply", 0, null, equipmentService);
   });
 }
 
@@ -39,7 +46,7 @@ export async function sendInventory(
 
   const [result, equipment] = await Promise.all([
     inventoryService.listForTelegramUser(telegramUserId),
-    isInventoryEquipmentSlotFilter(filter) && equipmentService
+    equipmentService
       ? equipmentService.getEquipmentForTelegramUser(telegramUserId)
       : Promise.resolve(null)
   ]);
@@ -52,21 +59,27 @@ export async function sendInventory(
     isInventoryEquipmentSlotFilter(filter) && equipment?.state === "ready"
       ? (equipment.slots.find((slot) => slot.slot === filter)?.item ?? null)
       : null;
-  const text = presentInventory(result, page, filter, {
+  const equippedItemIds =
+    equipment?.state === "ready"
+      ? new Set(equipment.slots.flatMap((slot) => slot.item ? [slot.item.itemId] : []))
+      : null;
+  const inventoryOptions = {
     currentSlotItem,
+    equippedItemIds,
     slotCompatibleItemIds
-  });
+  };
+  const text = presentInventory(result, page, filter, inventoryOptions);
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildInventoryKeyboard(result, page, filter, { currentSlotItem, slotCompatibleItemIds })
+      reply_markup: buildInventoryKeyboard(result, page, filter, inventoryOptions)
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildInventoryKeyboard(result, page, filter, { currentSlotItem, slotCompatibleItemIds })
+    reply_markup: buildInventoryKeyboard(result, page, filter, inventoryOptions)
   });
 }

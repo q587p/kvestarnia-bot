@@ -74,7 +74,9 @@ export function buildInventoryKeyboard(
   const totalPages = getInventoryTotalPages(result, filter, options);
 
   for (const item of getInventoryPageItems(result, safePage, filter, options)) {
-    const itemIcon = options.currentSlotItem?.itemId === item.itemId ? "✅" : "🔎";
+    const isEquipped =
+      options.equippedItemIds?.has(item.itemId) || options.currentSlotItem?.itemId === item.itemId;
+    const itemIcon = isEquipped ? "✅" : "🔎";
 
     keyboard
       .row()

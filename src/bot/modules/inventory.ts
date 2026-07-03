@@ -106,7 +106,7 @@ export function registerInventoryBotModule(
     await guardActivePassageSearchCommand(ctx, services, next);
   });
 
-  registerInventoryCommand(bot, services.inventory);
+  registerInventoryCommand(bot, services.inventory, services.equipment);
   registerEquipmentCommand(bot, services.equipment);
 
   registerParsedCallbackRoute(bot, /^v1:equip:/, parseEquipmentCallbackData, async (ctx, action) => {
@@ -579,7 +579,7 @@ async function handleMantokChestCallback(
 
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit");
+    await sendInventory(ctx, services.inventory, "edit", 0, null, services.equipment);
     return;
   }
 

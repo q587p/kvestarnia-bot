@@ -26,7 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
 - Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
 - Kept direct starter quest-table buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми` and `⚔️ До сутички`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`.
-- Marked the currently equipped item in slot-filtered inventory keyboards with a left-side `✅` icon.
+- Marked currently equipped items in inventory keyboards with a left-side `✅` icon in both general and slot-filtered views.
 - Lowercased equipment slot names after the equipped-status dash in item detail cards, for example `вдягнено — основна рука`.
 - Added available-task markers to Korchma entry buttons and a first-entry hint explaining how the marker leads to current affairs.
 - Displayed active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`.

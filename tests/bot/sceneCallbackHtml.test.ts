@@ -3880,6 +3880,84 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
+  it.each([
+    ["inventory command", "/inventory", true],
+    ["inventory callback", "v1:item:inventory", false]
+  ])("marks equipped items in the general %s list", async (_name, input, asCommand) => {
+    const getEquipmentForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        character,
+        slots: [
+          {
+            slot: "weapon" as const,
+            item: {
+              itemId: "item.pan-of-persuasion",
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common" as const,
+                slot: "weapon" as const,
+                goldValue: 25
+              }
+            }
+          }
+        ]
+      })
+    );
+    const inventory = {
+      listForTelegramUser: () =>
+        Promise.resolve({
+          state: "found" as const,
+          totalGoldValue: 25,
+          items: [
+            {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common" as const,
+                slot: "weapon" as const,
+                goldValue: 25
+              }
+            },
+            {
+              id: "character-item-2",
+              itemId: "item.wet-hero-ticket",
+              quantity: 1,
+              content: {
+                id: "item.wet-hero-ticket",
+                name: "Квиток мокрого пригодника",
+                description: "Трофей.",
+                rarity: "common" as const,
+                slot: "junk" as const,
+                priceless: true
+              }
+            }
+          ]
+        })
+    };
+    const services = servicesWith({
+      inventory,
+      equipment: {
+        getEquipmentForTelegramUser
+      }
+    });
+    const calls = asCommand
+      ? await captureTextApiCalls(input, services, { asCommand })
+      : await captureApiCalls(input, services);
+    const message = calls.find((call) => call.method === (asCommand ? "sendMessage" : "editMessageText"));
+    const keyboard = JSON.stringify(message?.payload.reply_markup);
+
+    expect(getEquipmentForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(keyboard).toContain("✅ Пательня переконання");
+    expect(keyboard).toContain("🔎 Квиток мокрого пригодника");
+  });
+
   it("lets item detail callbacks through during an active persistent fight", async () => {
     let itemCalls = 0;
     const calls = await captureApiCalls(

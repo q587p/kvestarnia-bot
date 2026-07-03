@@ -108,7 +108,7 @@ async function handleMenuCallback(
   }
 
   if (action === "inventory") {
-    await sendInventory(ctx, services.inventory, "edit");
+    await sendInventory(ctx, services.inventory, "edit", 0, null, services.equipment);
     return;
   }
 
