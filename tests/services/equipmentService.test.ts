@@ -247,6 +247,34 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("keeps repeated same-item equip callbacks on one stable slot row", async () => {
+    const inventoryRows = [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })];
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const service = new EquipmentService(equipment, new FakeInventoryRepository(inventoryRows));
+
+    const first = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
+    const second = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
+
+    expect(first).toMatchObject({
+      state: "equipped",
+      slot: "weapon",
+      replacedItem: null
+    });
+    expect(second).toMatchObject({
+      state: "equipped",
+      slot: "weapon",
+      replacedItem: null
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(equipment.rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion"
+    });
+  });
+
   it("reads legacy armor equipment rows through the chest slot", async () => {
     const service = createService({
       snapshot: {

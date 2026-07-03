@@ -519,10 +519,9 @@ async function handleEquipmentCallback(
     await safeAnswerCallbackQuery(ctx);
 
     if (result.state === "equipped") {
-      const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
-      await safeEditMessageText(ctx, presentEquipment(equipment), {
+      await safeEditMessageText(ctx, presentEquipItemResult(result), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildEquipmentKeyboard(equipment)
+        reply_markup: buildEquipItemResultKeyboard()
       });
       const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
       if (achievementText) {
