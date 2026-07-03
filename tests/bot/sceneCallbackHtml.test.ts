@@ -1813,6 +1813,137 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Це правило манатки, не помилка героя.");
   });
 
+  it("shows replacement copy after successful equip callbacks", async () => {
+    const equipItemForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "equipped" as const,
+        slot: "weapon" as const,
+        item: {
+          itemId: "item.pan-of-persuasion",
+          content: {
+            id: "item.pan-of-persuasion",
+            name: "Пательня переконання",
+            description: "Важкий аргумент для легких суперечок.",
+            rarity: "common" as const,
+            slot: "weapon" as const,
+            equipmentSlot: "weapon" as const,
+            goldValue: 25,
+            effect: {
+              weaponDamage: 2
+            }
+          }
+        },
+        replacedItem: {
+          itemId: "item.old-pan",
+          content: {
+            id: "item.old-pan",
+            name: "Стара пательня",
+            description: "Вона бачила чергу ще до черги.",
+            rarity: "common" as const,
+            slot: "weapon" as const,
+            goldValue: 1
+          }
+        },
+        slots: [],
+        achievementUnlocks: []
+      })
+    );
+    const getEquipmentForTelegramUser = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const calls = await captureApiCalls(
+      makeEquipItemCallbackData("item.pan-of-persuasion"),
+      servicesWith({
+        equipment: {
+          equipItemForTelegramUser,
+          getEquipmentForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const text = String(edit?.payload.text);
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(equipItemForTelegramUser).toHaveBeenCalledWith(42n, "item.pan-of-persuasion");
+    expect(getEquipmentForTelegramUser).not.toHaveBeenCalled();
+    expect(text).toContain("Екіпіровано: Пательня переконання.");
+    expect(text).toContain("Попередня манатка зі слота");
+    expect(text).toContain("лишилася в торбі: Стара пательня.");
+    expect(keyboard).toContain("v1:item:inventory");
+    expect(keyboard).toContain("v1:equip:view");
+  });
+
+  it("keeps duplicate successful equip callbacks from duplicating achievement notices", async () => {
+    const firstUnlock = {
+      id: "achievement.equipment.first-equipped",
+      title: "Перший гачок",
+      cosmeticTitleGrantId: null,
+      unlockedAt: new Date("2026-07-03T10:00:00.000Z")
+    };
+    const equipItemForTelegramUser = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: "equipped" as const,
+        slot: "weapon" as const,
+        item: {
+          itemId: "item.pan-of-persuasion",
+          content: {
+            id: "item.pan-of-persuasion",
+            name: "Пательня переконання",
+            description: "Важкий аргумент для легких суперечок.",
+            rarity: "common" as const,
+            slot: "weapon" as const,
+            equipmentSlot: "weapon" as const,
+            goldValue: 25,
+            effect: {
+              weaponDamage: 2
+            }
+          }
+        },
+        replacedItem: null,
+        slots: [],
+        achievementUnlocks: [firstUnlock]
+      })
+      .mockResolvedValueOnce({
+        state: "equipped" as const,
+        slot: "weapon" as const,
+        item: {
+          itemId: "item.pan-of-persuasion",
+          content: {
+            id: "item.pan-of-persuasion",
+            name: "Пательня переконання",
+            description: "Важкий аргумент для легких суперечок.",
+            rarity: "common" as const,
+            slot: "weapon" as const,
+            equipmentSlot: "weapon" as const,
+            goldValue: 25,
+            effect: {
+              weaponDamage: 2
+            }
+          }
+        },
+        replacedItem: null,
+        slots: [],
+        achievementUnlocks: []
+      });
+    const callbackData = makeEquipItemCallbackData("item.pan-of-persuasion");
+    const calls = await captureRepeatedApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        equipment: {
+          equipItemForTelegramUser
+        }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const achievementMessages = calls.filter((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Перший гачок")
+    );
+
+    expect(equipItemForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(edits).toHaveLength(2);
+    expect(edits.every((edit) => String(edit.payload.text).includes("Екіпіровано: Пательня переконання."))).toBe(true);
+    expect(achievementMessages).toHaveLength(1);
+  });
+
   it("does not spend the Yeger trail cooldown while another fight is already active", async () => {
     const calls = await captureApiCalls(
       makeYegerTrackCallbackData(),

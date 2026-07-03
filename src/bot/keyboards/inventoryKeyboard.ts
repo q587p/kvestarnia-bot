@@ -261,27 +261,41 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
   }
 
   if (result.state === "ready") {
-    keyboard.text("🗡️ Показати зброю", makeInventoryCallbackData(0, "weapon")).row();
-    keyboard.text("🧥 Показати тулуб", makeInventoryCallbackData(0, "chest")).row();
-    keyboard.text("💍 Показати аксесуари", makeInventoryCallbackData(0, "accessory")).row();
+    const equippedSlots = new Set(result.slots.filter((slot) => slot.item).map((slot) => slot.slot));
 
-    for (const slot of result.slots) {
-      if (slot.item) {
-        keyboard.text(presentUnequipSlotButtonLabel(slot.slot), makeUnequipSlotCallbackData(slot.slot)).row();
+    for (const slot of equipmentSlotButtons) {
+      keyboard.text(slot.showLabel, makeInventoryCallbackData(0, slot.slot));
+
+      if (equippedSlots.has(slot.slot)) {
+        keyboard.text(presentUnequipSlotButtonLabel(slot.slot), makeUnequipSlotCallbackData(slot.slot));
       }
+
+      keyboard.row();
     }
   }
 
   return keyboard.text("⬅️ До манаток", makeInventoryCallbackData());
 }
 
+const equipmentSlotButtons: ReadonlyArray<{ slot: EquipmentSlot; showLabel: string }> = [
+  { slot: "weapon", showLabel: "🗡️ Показати зброю" },
+  { slot: "offhand", showLabel: "✋ Показати другу руку" },
+  { slot: "head", showLabel: "🎩 Показати голову" },
+  { slot: "chest", showLabel: "🧥 Показати тулуб" },
+  { slot: "legs", showLabel: "🥾 Показати ноги" },
+  { slot: "accessory", showLabel: "💍 Показати аксесуари" },
+  { slot: "tool", showLabel: "🧰 Показати інструменти" }
+];
+
 function presentUnequipSlotButtonLabel(slot: EquipmentSlot): string {
   const labels: Record<EquipmentSlot, string> = {
     weapon: "Зняти зброю",
+    offhand: "Зняти другу руку",
     head: "Зняти шолом",
     chest: "Зняти обладунок",
     legs: "Зняти поножі",
-    accessory: "Зняти аксесуар"
+    accessory: "Зняти аксесуар",
+    tool: "Зняти інструмент"
   };
 
   return labels[slot];

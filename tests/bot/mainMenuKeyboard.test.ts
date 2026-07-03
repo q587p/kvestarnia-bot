@@ -1789,7 +1789,7 @@ describe("main menu and scene keyboards", () => {
     ).toBe("v1:fight:item:123e4567-e89b-42d3-a456-426614174321:2:item.responsible-panic-bandage");
     expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
-      flatInlineButtonTexts(
+      inlineButtonRows(
         buildEquipmentKeyboard({
           state: "ready",
           slots: [
@@ -1807,6 +1807,7 @@ describe("main menu and scene keyboards", () => {
                 }
               }
             },
+            { slot: "offhand", item: null },
             { slot: "head", item: null },
             { slot: "chest", item: null },
             { slot: "legs", item: null },
@@ -1828,12 +1829,14 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toEqual([
-      "🗡️ Показати зброю",
-      "🧥 Показати тулуб",
-      "💍 Показати аксесуари",
-      "Зняти зброю",
-      "Зняти аксесуар",
-      "⬅️ До манаток"
+      ["🗡️ Показати зброю", "Зняти зброю"],
+      ["✋ Показати другу руку"],
+      ["🎩 Показати голову"],
+      ["🧥 Показати тулуб"],
+      ["🥾 Показати ноги"],
+      ["💍 Показати аксесуари", "Зняти аксесуар"],
+      ["🧰 Показати інструменти"],
+      ["⬅️ До манаток"]
     ]);
     expect(
       flatInlineButtonCallbacks(
@@ -1870,16 +1873,21 @@ describe("main menu and scene keyboards", () => {
                   goldValue: 6
                 }
               }
-            }
+            },
+            { slot: "tool", item: null }
           ]
         })
       )
     ).toEqual([
       "v1:item:inventory:s:w",
-      "v1:item:inventory:s:c",
-      "v1:item:inventory:s:a",
       "v1:equip:clear:weapon",
+      "v1:item:inventory:s:o",
+      "v1:item:inventory:s:h",
+      "v1:item:inventory:s:c",
+      "v1:item:inventory:s:l",
+      "v1:item:inventory:s:a",
       "v1:equip:clear:accessory",
+      "v1:item:inventory:s:t",
       "v1:item:inventory"
     ]);
   });

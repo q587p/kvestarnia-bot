@@ -4,6 +4,18 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.23 — Mantok Equipment Slot Foundation smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Open `🎒 Манатки`, then each equipment slot filter: weapon, offhand, head, chest, legs, accessory and tool. Verify the list stays compact, the title matches the selected slot and back buttons return to the same filtered view.
+2. Open `/equipment`, `/gear` or `/equip`; verify all seven slots appear: `Зброя`, `Друга рука`, `Голова`, `Тулуб`, `Ноги`, `Аксесуар`, `Інструмент`, occupied slots show `Показати ...` and `Зняти ...` on one row, and the empty `Друга рука` copy/icon does not imply a shield-only slot.
+3. Open starter weapon, head, chest and accessory manatka detail cards; verify each equip line names the correct target slot.
+4. Equip a manatka into an occupied slot and verify the result card says the previous manatka stayed in the bag.
+5. If local data can seed a generated tool-category manatka, verify it appears under the tool filter and equips into `Інструмент`.
+6. On a legacy character or seeded row with old `armor` equipment, verify the item appears in `Тулуб`, can be unequipped and is not duplicated.
+7. Try Mantok Chest, postal/gift transfer, Shynok sale or another protected-item path with an equipped item; verify equipped/protected stacks remain blocked as before.
+
 ## 0.2.22 — Dense Bandage and Field Kit smoke
 
 Manual Telegram QA status for the implementation pass: not run.
@@ -100,7 +112,7 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 10. Add an under-level, remorted level-2, or already-completed participant through an old/deep-link route; verify start blocks with a generic raid-office line and creates no boss session or `party-boss` lease.
 11. In a two-person raid, let the non-leader deal the most damage in round 1; verify ordinary boss hits first go to the leader, then switch to the previous round's top damage contributor, while turn 4 hits all living participants.
 12. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice. Verify `📜 Журнал` is not available while the battle is active.
-12a. Wound a participant who owns `Бинт відповідальної паніки`, then use `🩹 Бинт` from the raid card or `⚔️ Використати у бою` from the item detail; verify one bandage is consumed, the frozen raid HP row updates, and stale/duplicate item buttons do not heal twice.
+12a. Wound a participant who owns `Бинт відповідальної паніки`, then use `🎒 1 разові манатки` from the raid card or `⚔️ Використати у бою` from the item detail; verify one bandage is consumed, the frozen raid HP row updates, and stale/duplicate item buttons do not heal twice.
 13. With dev helpers disabled, replay or forge a `boss-timeout` callback before the deadline; verify the turn stays on the same number and no timeout action row is added.
 14. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
 15. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.

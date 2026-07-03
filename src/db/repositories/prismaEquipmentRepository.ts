@@ -5,6 +5,10 @@ import type {
   EquipmentRepository,
   EquipmentSlot
 } from "./equipmentRepository";
+import {
+  getEquipmentSlotStorageKeys,
+  normalizeEquipmentSlot
+} from "../../content/equipmentSlots";
 
 export class PrismaEquipmentRepository implements EquipmentRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -32,7 +36,11 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
 
     return {
       characterId: character.id,
-      equipment: character.equipment.map(toRecord)
+      equipment: character.equipment.flatMap((row) => {
+        const record = toRecord(row);
+
+        return record ? [record] : [];
+      })
     };
   }
 
@@ -41,31 +49,54 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
     slot: EquipmentSlot,
     itemId: string
   ): Promise<CharacterEquipmentRecord> {
-    const row = await this.prisma.characterEquipment.upsert({
-      where: {
-        characterId_slot: {
-          characterId,
-          slot
-        }
-      },
-      create: {
-        characterId,
-        slot,
-        itemId
-      },
-      update: {
-        itemId
+    const row = await this.prisma.$transaction(async (tx) => {
+      const storageKeys = getEquipmentSlotStorageKeys(slot);
+      const legacyKeys = storageKeys.filter((key) => key !== slot);
+
+      if (legacyKeys.length > 0) {
+        await tx.characterEquipment.deleteMany({
+          where: {
+            characterId,
+            slot: {
+              in: legacyKeys
+            }
+          }
+        });
       }
+
+      return tx.characterEquipment.upsert({
+        where: {
+          characterId_slot: {
+            characterId,
+            slot
+          }
+        },
+        create: {
+          characterId,
+          slot,
+          itemId
+        },
+        update: {
+          itemId
+        }
+      });
     });
 
-    return toRecord(row);
+    const record = toRecord(row);
+    if (!record) {
+      throw new Error(`Unsupported equipment slot returned after equip: ${row.slot}`);
+    }
+
+    return record;
   }
 
   async unequipForCharacter(characterId: string, slot: EquipmentSlot): Promise<boolean> {
     const deleted = await this.prisma.characterEquipment.deleteMany({
       where: {
         characterId,
-        slot
+        slot: {
+          in: [...getEquipmentSlotStorageKeys(slot)]
+        }
       }
     });
 
@@ -80,11 +111,17 @@ function toRecord(row: {
   itemId: string;
   createdAt: Date;
   updatedAt: Date;
-}): CharacterEquipmentRecord {
+}): CharacterEquipmentRecord | null {
+  const slot = normalizeEquipmentSlot(row.slot);
+
+  if (!slot) {
+    return null;
+  }
+
   return {
     id: row.id,
     characterId: row.characterId,
-    slot: row.slot as EquipmentSlot,
+    slot,
     itemId: row.itemId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt

@@ -7,6 +7,33 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.23] - 12026-07-03 - Mantok Equipment Slot Foundation
+
+### Added
+- Added the canonical manatka equipment slot foundation: `weapon`, `offhand`, `head`, `chest`, `legs`, `accessory` and `tool`.
+- Added explicit equipment-slot content metadata and validation so equippable items can target a precise slot while junk, consumables and other non-equipment manatky cannot declare one.
+- Added inventory and equipment UI coverage for the expanded slot set, including offhand and tool filters.
+- Added item-detail preview copy that names the target equipment slot and, when applicable, the manatka that will be replaced.
+- Added equip-result copy confirming that replaced manatky stay in the bag.
+- Added generated Loot Expansion v1 tool-category gear support for the new `tool` equipment slot.
+
+### Changed
+- Starter and core equipment now declare explicit slot metadata while keeping existing ids, effects, values and descriptions.
+- Stored legacy `armor` equipment rows now read through the canonical `chest` slot, and new chest equips clean up the old key before writing the canonical slot.
+- `/equipment` now shows all seven foundation slots with compact empty-state copy.
+- Occupied equipment slots now place their `Показати ...` and `Зняти ...` buttons on the same keyboard row for a shorter equipment menu.
+- Offhand slot copy and filter icon now stay neutral instead of implying the second hand is only for shields.
+- Equipment callback slot codes now cover every canonical slot while preserving safe parsing for supported slot filters.
+- The Big Barrel raid quick-use button now says `🎒 1 разові манатки` instead of implying that only the ordinary bandage can use that combat item route.
+
+### Safety
+- No Prisma migration, item id rewrite, reward-table rebalance, shop change, transfer-rule change or remort-rule change is included in this slice.
+- Existing equipped/protected item behavior remains item-id based; transfer, sale, Mantok Chest and remort safety paths continue to block equipped stacks as before.
+- The new slot model grants no XP, gold, items, titles, achievements, combat power or paid advantage by itself.
+
+### Unchanged
+- Item stats, rarity, gold values, drop odds, shops, crafting, gifting/postal delivery, Shynok sales, Mantok Chest, Munchkin barter, combat formulas and global equipment balance remain unchanged.
+
 ## [0.2.22] - 12026-07-03 - Dense Bandage and Field Kit
 
 ### Added

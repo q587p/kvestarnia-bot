@@ -161,10 +161,12 @@ function presentEmptyFilterLine(filter: Exclude<InventoryFilter, null>): string 
 function presentSlotFilterTitle(slot: EquipmentSlot): string {
   const titles: Record<EquipmentSlot, string> = {
     weapon: "Манатки-зброя",
+    offhand: "Манатки для другої руки",
     head: "Манатки-шоломи",
     chest: "Манатки для тулуба",
     legs: "Манатки-поножі",
-    accessory: "Манатки-аксесуари"
+    accessory: "Манатки-аксесуари",
+    tool: "Манатки-інструменти"
   };
 
   return titles[slot];
@@ -173,10 +175,12 @@ function presentSlotFilterTitle(slot: EquipmentSlot): string {
 function presentSlotFilterIcon(slot: EquipmentSlot): string {
   const icons: Record<EquipmentSlot, string> = {
     weapon: "🗡️",
+    offhand: "✋",
     head: "🎩",
     chest: "🧥",
     legs: "🥾",
-    accessory: "💍"
+    accessory: "💍",
+    tool: "🧰"
   };
 
   return icons[slot];

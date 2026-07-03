@@ -14,6 +14,7 @@ import type {
   CharacterItemRecord,
   InventoryRepository
 } from "../../src/db/repositories/inventoryRepository";
+import { normalizeEquipmentSlot } from "../../src/content/equipmentSlots";
 import { EquipmentService } from "../../src/services/equipmentService";
 
 const telegramUserId = 42n;
@@ -27,10 +28,12 @@ describe("EquipmentService", () => {
       state: "ready",
       slots: [
         { slot: "weapon", item: null },
+        { slot: "offhand", item: null },
         { slot: "head", item: null },
         { slot: "chest", item: null },
         { slot: "legs", item: null },
-        { slot: "accessory", item: null }
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null }
       ]
     });
   });
@@ -67,6 +70,19 @@ describe("EquipmentService", () => {
     ).resolves.toMatchObject({
       state: "equipped",
       slot: "chest"
+    });
+  });
+
+  it("uses explicit equipment slot metadata when present", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.pot-helmet-of-early-access" })]
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.pot-helmet-of-early-access")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "head"
     });
   });
 
@@ -195,14 +211,113 @@ describe("EquipmentService", () => {
     });
     const service = new EquipmentService(equipment, new FakeInventoryRepository(inventoryRows));
 
-    await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
+    const result = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
 
     expect(equipment.rows).toHaveLength(1);
     expect(equipment.rows[0]).toMatchObject({
       slot: "weapon",
       itemId: "item.pan-of-persuasion"
     });
+    expect(result).toMatchObject({
+      state: "equipped",
+      replacedItem: {
+        itemId: "item.old-pan"
+      }
+    });
     expect(inventoryRows.find((row) => row.itemId === "item.pan-of-persuasion")?.quantity).toBe(2);
+  });
+
+  it("previews deterministic same-slot replacement", async () => {
+    const service = createService({
+      snapshot: {
+        characterId,
+        equipment: [buildEquipment({ slot: "weapon", itemId: "item.pan-of-persuasion" })]
+      },
+      inventoryRows: [buildItem({ itemId: "item.stamp-of-minor-authority" })]
+    });
+
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.stamp-of-minor-authority")
+    ).resolves.toMatchObject({
+      state: "can-equip",
+      slot: "weapon",
+      currentItem: {
+        itemId: "item.pan-of-persuasion"
+      }
+    });
+  });
+
+  it("keeps repeated same-item equip callbacks on one stable slot row", async () => {
+    const inventoryRows = [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })];
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const service = new EquipmentService(equipment, new FakeInventoryRepository(inventoryRows));
+
+    const first = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
+    const second = await service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion");
+
+    expect(first).toMatchObject({
+      state: "equipped",
+      slot: "weapon",
+      replacedItem: null
+    });
+    expect(second).toMatchObject({
+      state: "equipped",
+      slot: "weapon",
+      replacedItem: null
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(equipment.rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion"
+    });
+  });
+
+  it("reads legacy armor equipment rows through the chest slot", async () => {
+    const service = createService({
+      snapshot: {
+        characterId,
+        equipment: [
+          buildEquipment({
+            slot: "armor" as EquipmentSlot,
+            itemId: "item.apron-of-foam-resistance"
+          })
+        ]
+      },
+      inventoryRows: []
+    });
+
+    const result = await service.getEquipmentForTelegramUser(telegramUserId);
+
+    expect(result.state).toBe("ready");
+    if (result.state !== "ready") {
+      return;
+    }
+    expect(result.slots.find((slot) => slot.slot === "chest")).toMatchObject({
+      item: {
+        itemId: "item.apron-of-foam-resistance"
+      }
+    });
+  });
+
+  it("removes legacy armor rows from the immediate chest unequip response", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [buildEquipment({ slot: "armor" as EquipmentSlot, itemId: "item.apron-of-foam-resistance" })]
+    });
+    const service = new EquipmentService(equipment, new FakeInventoryRepository([]));
+
+    const result = await service.unequipSlotForTelegramUser(telegramUserId, "chest");
+
+    expect(result.state).toBe("unequipped");
+    if (result.state !== "unequipped") {
+      return;
+    }
+    expect(result.slots.find((slot) => slot.slot === "chest")).toMatchObject({
+      item: null
+    });
   });
 
   it("unequips an occupied slot and treats an empty slot kindly", async () => {
@@ -329,7 +444,7 @@ class FakeEquipmentRepository implements EquipmentRepository {
     slot: EquipmentSlot,
     itemId: string
   ): Promise<CharacterEquipmentRecord> {
-    const existing = this.rows.find((row) => row.slot === slot);
+    const existing = this.rows.find((row) => normalizeEquipmentSlot(row.slot) === slot);
     const row = {
       ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot })),
       characterId: nextCharacterId,
@@ -337,13 +452,16 @@ class FakeEquipmentRepository implements EquipmentRepository {
       itemId
     };
 
-    this.rows = [...this.rows.filter((candidate) => candidate.slot !== slot), row];
+    this.rows = [
+      ...this.rows.filter((candidate) => normalizeEquipmentSlot(candidate.slot) !== slot),
+      row
+    ];
     return Promise.resolve(row);
   }
 
   unequipForCharacter(_characterId: string, slot: EquipmentSlot): Promise<boolean> {
     const before = this.rows.length;
-    this.rows = this.rows.filter((row) => row.slot !== slot);
+    this.rows = this.rows.filter((row) => normalizeEquipmentSlot(row.slot) !== slot);
     return Promise.resolve(this.rows.length !== before);
   }
 }

@@ -14,6 +14,7 @@ import type {
   EquipmentSlot
 } from "../db/repositories/equipmentRepository";
 import { equipmentSlots } from "../db/repositories/equipmentRepository";
+import { normalizeEquipmentSlot } from "../content/equipmentSlots";
 import type {
   CharacterItemRecord,
   InventoryRepository
@@ -38,6 +39,7 @@ export type ItemEquipPreviewResult =
       requirements: LootExpansionEquipRequirementDetails | null;
       item: EquipmentItemSummary;
       slot: EquipmentSlot;
+      currentItem: EquipmentItemSummary | null;
     }
   | { state: "unsupported-slot" }
   | {
@@ -45,6 +47,7 @@ export type ItemEquipPreviewResult =
       item: EquipmentItemSummary;
       slot: EquipmentSlot;
       requirements: LootExpansionEquipRequirementDetails | null;
+      currentItem: EquipmentItemSummary | null;
     };
 
 export type EquipItemResult =
@@ -62,6 +65,7 @@ export type EquipItemResult =
       state: "equipped";
       slot: EquipmentSlot;
       item: EquipmentItemSummary;
+      replacedItem: EquipmentItemSummary | null;
       slots: EquipmentSlotSummary[];
       achievementUnlocks: AchievementUnlock[];
     };
@@ -141,6 +145,7 @@ export class EquipmentService {
       itemId,
       content
     };
+    const currentItem = findCurrentItemForSlot(snapshot.equipment, slot);
 
     if (isLootExpansionItemId(itemId)) {
       const requirements = getLootExpansionEquipRequirementDetails(itemId);
@@ -159,7 +164,8 @@ export class EquipmentService {
           reasons: equipCheck.reasons,
           requirements,
           item,
-          slot
+          slot,
+          currentItem
         };
       }
 
@@ -167,7 +173,8 @@ export class EquipmentService {
         state: "can-equip",
         item,
         slot,
-        requirements
+        requirements,
+        currentItem
       };
     }
 
@@ -175,7 +182,8 @@ export class EquipmentService {
       state: "can-equip",
       item,
       slot,
-      requirements: null
+      requirements: null,
+      currentItem
     };
   }
 
@@ -237,6 +245,7 @@ export class EquipmentService {
       }
     }
 
+    const replacedItem = findCurrentItemForSlot(snapshot.equipment, slot);
     const equipped = await this.equipment.equipForCharacter(snapshot.characterId, slot, itemId);
     const achievementUnlocks =
       (await this.achievements?.trackEventSafely({
@@ -247,7 +256,7 @@ export class EquipmentService {
         sourceId: equipped.id
       })) ?? [];
     const nextRows = [
-      ...snapshot.equipment.filter((row) => row.slot !== slot),
+      ...snapshot.equipment.filter((row) => normalizeEquipmentSlot(row.slot) !== slot),
       equipped
     ];
 
@@ -258,6 +267,7 @@ export class EquipmentService {
         itemId,
         content
       },
+      replacedItem: replacedItem?.itemId === itemId ? null : replacedItem,
       slots: buildSlots(nextRows),
       achievementUnlocks
     };
@@ -273,7 +283,7 @@ export class EquipmentService {
       return { state: "no-character" };
     }
 
-    const current = snapshot.equipment.find((row) => row.slot === slot);
+    const current = snapshot.equipment.find((row) => normalizeEquipmentSlot(row.slot) === slot);
 
     if (!current) {
       return {
@@ -288,7 +298,7 @@ export class EquipmentService {
     return {
       state: "unequipped",
       slot,
-      slots: buildSlots(snapshot.equipment.filter((row) => row.slot !== slot))
+      slots: buildSlots(snapshot.equipment.filter((row) => normalizeEquipmentSlot(row.slot) !== slot))
     };
   }
 
@@ -321,6 +331,10 @@ export class EquipmentService {
 }
 
 export function mapItemToEquipmentSlot(item: ItemContent): EquipmentSlot | null {
+  if (item.equipmentSlot) {
+    return item.equipmentSlot;
+  }
+
   if (item.slot === "weapon") {
     return "weapon";
   }
@@ -350,7 +364,7 @@ export function getEquippedItemContents(rows: CharacterEquipmentRecord[]): ItemC
 
 function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
   return equipmentSlots.map((slot) => {
-    const row = rows.find((candidate) => candidate.slot === slot);
+    const row = findRowForSlot(rows, slot);
 
     if (!row) {
       return {
@@ -359,14 +373,7 @@ function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
       };
     }
 
-    const content = items.find((item) => item.id === row.itemId) ?? {
-      id: row.itemId,
-      name: "Невідома манатка",
-      description: "Вона висить на гачку, але документи ще десь ідуть.",
-      rarity: "common",
-      slot: "junk",
-      priceless: true
-    } satisfies ItemContent;
+    const content = findItemContentForEquipment(row.itemId);
 
     return {
       slot,
@@ -378,6 +385,51 @@ function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
   });
 }
 
+function findCurrentItemForSlot(
+  rows: CharacterEquipmentRecord[],
+  slot: EquipmentSlot
+): EquipmentItemSummary | null {
+  const row = findRowForSlot(rows, slot);
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    itemId: row.itemId,
+    content: findItemContentForEquipment(row.itemId)
+  };
+}
+
+function findRowForSlot(
+  rows: CharacterEquipmentRecord[],
+  slot: EquipmentSlot
+): CharacterEquipmentRecord | null {
+  const candidates = rows.filter((row) => normalizeEquipmentSlot(row.slot) === slot);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return [...candidates].sort((left, right) => {
+    const leftCanonical = left.slot === slot ? 0 : 1;
+    const rightCanonical = right.slot === slot ? 0 : 1;
+
+    return leftCanonical - rightCanonical || right.updatedAt.getTime() - left.updatedAt.getTime();
+  })[0] ?? null;
+}
+
 function findKnownItem(row: CharacterItemRecord): ItemContent | null {
   return items.find((item) => item.id === row.itemId) ?? null;
+}
+
+function findItemContentForEquipment(itemId: string): ItemContent {
+  return items.find((item) => item.id === itemId) ?? {
+    id: itemId,
+    name: "Невідома манатка",
+    description: "Вона висить на гачку, але документи ще десь ідуть.",
+    rarity: "common",
+    slot: "junk",
+    priceless: true
+  };
 }

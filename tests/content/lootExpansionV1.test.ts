@@ -35,11 +35,13 @@ describe("loot expansion v1 content adapter", () => {
     }
   });
 
-  it("turns generated utility gear into equippable accessories with effects", () => {
+  it("turns generated utility gear into tool-slot accessories with effects", () => {
     const utilityVariants = lootExpansionV1ItemContents.filter((item) =>
       item.id.startsWith("item.loot-v1-t")
     );
-    const accessoryUtilityVariants = utilityVariants.filter((item) => item.slot === "accessory");
+    const accessoryUtilityVariants = utilityVariants.filter((item) =>
+      item.slot === "accessory" && item.equipmentSlot === "tool"
+    );
 
     expect(accessoryUtilityVariants.length).toBe(utilityVariants.length);
 

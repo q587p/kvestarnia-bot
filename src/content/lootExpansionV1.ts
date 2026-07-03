@@ -831,6 +831,7 @@ function buildItemContent(
   priceCoins: number
 ): ItemContent {
   const slot = mapLootExpansionSlot(base);
+  const equipmentSlot = mapLootExpansionEquipmentSlot(base);
   const effect = mapLootExpansionEffect(base, enhancement, slot);
 
   return {
@@ -839,6 +840,7 @@ function buildItemContent(
     description: buildDescription(base, enhancement, minLevel),
     rarity: mapLootExpansionRarity(base.rarity),
     slot,
+    ...(equipmentSlot ? { equipmentSlot } : {}),
     goldValue: priceCoins,
     ...(effect ? { effect } : {})
   };
@@ -884,6 +886,14 @@ function mapLootExpansionSlot(base: LootExpansionBaseItem): ItemContent["slot"] 
   }
 
   return "junk";
+}
+
+function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent["equipmentSlot"] | null {
+  if (base.category === "tool") {
+    return "tool";
+  }
+
+  return null;
 }
 
 function mapLootExpansionEffect(

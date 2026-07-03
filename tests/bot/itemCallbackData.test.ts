@@ -83,6 +83,22 @@ describe("item and equipment callback data", () => {
         filter: "chest"
       }
     });
+    expect(parseItemCallbackData(makeInventoryCallbackData(0, "offhand"))).toEqual({
+      ok: true,
+      value: {
+        type: "inventory",
+        page: 0,
+        filter: "offhand"
+      }
+    });
+    expect(parseItemCallbackData(makeInventoryCallbackData(0, "tool"))).toEqual({
+      ok: true,
+      value: {
+        type: "inventory",
+        page: 0,
+        filter: "tool"
+      }
+    });
     expect(parseItemCallbackData(makeInventoryCallbackData(2, "one-use"))).toEqual({
       ok: true,
       value: {
@@ -102,6 +118,7 @@ describe("item and equipment callback data", () => {
   it("parses valid equip and unequip callbacks", () => {
     const equip = makeEquipItemCallbackData("item.pan-of-persuasion");
     const clear = makeUnequipSlotCallbackData("weapon");
+    const clearTool = makeUnequipSlotCallbackData("tool");
 
     expect(Buffer.byteLength(equip, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(clear, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
@@ -117,6 +134,13 @@ describe("item and equipment callback data", () => {
       value: {
         type: "clear-slot",
         slot: "weapon"
+      }
+    });
+    expect(parseEquipmentCallbackData(clearTool)).toEqual({
+      ok: true,
+      value: {
+        type: "clear-slot",
+        slot: "tool"
       }
     });
   });
