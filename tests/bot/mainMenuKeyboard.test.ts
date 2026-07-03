@@ -2613,7 +2613,7 @@ describe("main menu and scene keyboards", () => {
         fullHubKeyboard
       )
     ).toEqual([
-      "Обрати пригоду",
+      "🪧 Обрати пригоду",
       "⚔️ До сутички",
       "🏹 До Єгеря ⚠️",
       "🧹 У льох ⚠️",

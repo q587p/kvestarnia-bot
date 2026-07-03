@@ -68,7 +68,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 
   if (canOpenAdventure(input)) {
     keyboard.text(
-      input.adventure.state === "level-locked" ? "🌯 До підозрілої шаурми" : "Обрати пригоду",
+      input.adventure.state === "level-locked" ? "🌯 До підозрілої шаурми" : "🪧 Обрати пригоду",
       makeQuestCallbackData("adventure")
     );
     hasAction = true;
