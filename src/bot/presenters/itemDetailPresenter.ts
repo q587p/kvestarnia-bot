@@ -116,7 +116,7 @@ function presentEquipmentLine(
   }
 
   if (equippedSlot) {
-    return `Екіпірування: <b>вдягнено — ${presentEquipmentSlotLabel(equippedSlot)}</b>.`;
+    return `Екіпірування: <b>вдягнено — ${presentEquipmentSlotLabelInline(equippedSlot)}</b>.`;
   }
 
   if (equipPreview?.state === "requirements-not-met") {
@@ -161,6 +161,12 @@ function presentEquipmentLine(
   }
 
   return "Екіпірування: <i>можна екіпірувати. Спорядження вже звільняє місце.</i>";
+}
+
+function presentEquipmentSlotLabelInline(slot: EquipmentSlot): string {
+  const label = presentEquipmentSlotLabel(slot);
+
+  return label.charAt(0).toLocaleLowerCase("uk-UA") + label.slice(1);
 }
 
 function presentHtmlRequirementReasons(

@@ -33,6 +33,9 @@ describe("cellar presenter", () => {
     expect(text).toContain("🐭 Льохова справа");
     expect(text).not.toContain("<blockquote>");
     expect(text).not.toContain("Корчмар показує на люк");
+    expect(text).toContain("<i>Замовник:</i> миша з табличкою");
+    expect(text).toContain("<i>Проблема:</i> льохова автономія");
+    expect(text).toContain("<i>Ціль:</i> домовитися з норою");
     expect(text).toContain("<i>Можливі способи:</i>");
     expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
     expect(text).not.toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
@@ -40,7 +43,8 @@ describe("cellar presenter", () => {
     expect(text).not.toContain("Винагорода скромніша. Коштує 1 золото.");
     expect(text).not.toMatch(/Шанси \d|Підпис методу|race\+class/u);
     expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(24);
+    expect(text.indexOf("<i>Ціль:</i>")).toBeLessThan(text.indexOf("<i>Можливі способи:</i>"));
+    expect(text.split("\n").length).toBeLessThanOrEqual(28);
   });
 
   it("renders cellar method help separately", () => {

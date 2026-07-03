@@ -27,12 +27,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
 - Kept direct starter quest-table buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми` and `⚔️ До сутички`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`.
 - Marked the currently equipped item in slot-filtered inventory keyboards with a left-side `✅` icon.
+- Lowercased equipment slot names after the equipped-status dash in item detail cards, for example `вдягнено — основна рука`.
 - Added available-task markers to Korchma entry buttons and a first-entry hint explaining how the marker leads to current affairs.
 - Displayed active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`.
 - Changed generated adventure method complication headlines from `⚠️` to `💥` and separated injury HP lines with visible heart icons.
 - Removed the duplicate cellar movement notice when entering the cellar quest from the quest table.
 - Removed the generated combo-title prefix from the starter shawarma scene while keeping its race/class flavor beat.
 - Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, damage, victory flavor, `Винагорода за бій`, then item grants.
+- Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
