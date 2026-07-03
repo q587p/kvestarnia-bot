@@ -475,28 +475,29 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "not-found" };
       }
 
+      const achievementEvents: PartyBossAchievementEventRecord[] = [];
+      if (created) {
+        achievementEvents.push({
+          type: "item.used",
+          characterId: character.id,
+          itemId: item.id,
+          sourceId: created.id,
+          occurredAt: input.now
+        });
+        if (session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION) {
+          achievementEvents.push({
+            type: "barrel.raid.bandage-used",
+            characterId: character.id,
+            sourceId: created.id,
+            occurredAt: input.now
+          });
+        }
+      }
+
       return {
         state: created ? "queued" : "duplicate",
         session: mapSession(current),
-        ...(created
-          ? {
-              achievementEvents: [
-                {
-                  type: "item.used",
-                  characterId: character.id,
-                  itemId: item.id,
-                  sourceId: created.id,
-                  occurredAt: input.now
-                },
-                {
-                  type: "barrel.raid.bandage-used",
-                  characterId: character.id,
-                  sourceId: created.id,
-                  occurredAt: input.now
-                }
-              ]
-            }
-          : {})
+        ...(achievementEvents.length > 0 ? { achievementEvents } : {})
       };
     }).catch(async (error: unknown): Promise<PartyBossActionResult> => {
       if (!(error instanceof PartyBossItemUseRollback)) {

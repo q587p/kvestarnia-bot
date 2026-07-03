@@ -206,7 +206,7 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(reward?.itemGrants[0]?.quantity).toBeGreaterThan(0);
   });
 
-  it("consumes a field kit party-boss item action and heals frozen raid HP to its threshold", async () => {
+  it("consumes a Big Barrel field kit action and emits item and raid achievement events", async () => {
     await seedCharacter(prisma, "big-field-kit-user", 1152n, "Аптечна Лідерка", {
       hpCurrent: 10,
       hpMax: 100,
@@ -293,6 +293,87 @@ describe("PrismaPartyBossRepository integration", () => {
         occurredAt: resolveInput().now
       })
     ]));
+  });
+
+  it("emits only item.used for non-Big medical item actions and suppresses duplicate or stale item events", async () => {
+    await seedCharacter(prisma, "proof-bandage-user", 1161n, "Бинтова Проба", {
+      hpCurrent: 10,
+      hpMax: 40,
+      strength: 20,
+      dexterity: 20
+    });
+    await seedCharacter(prisma, "proof-bandage-joiner", 1162n, "Свідок Бинта", {
+      hpCurrent: 40,
+      hpMax: 40,
+      strength: 20,
+      dexterity: 20
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "proof-bandage-user-character",
+        itemId: "item.responsible-panic-bandage",
+        quantity: 2
+      }
+    });
+    await partyRepository.createForTelegramUser(1161n, partyInput("party-token-proof-bandage"));
+    await partyRepository.joinByTokenForTelegramUser(1162n, "party-token-proof-bandage", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1161n, {
+      partyInviteToken: "party-token-proof-bandage",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const item = {
+      id: "item.responsible-panic-bandage",
+      name: "Бинт відповідальної паніки",
+      effect: {
+        kind: "heal-hp" as const,
+        amount: 7
+      }
+    };
+    const queued = await bossRepository.submitItemForTelegramUser(
+      1161n,
+      "party-token-proof-bandage",
+      1,
+      item,
+      resolveInput()
+    );
+
+    expect(queued.state).toBe("queued");
+    expect(expectPartyBossSession(queued).rulesVersion).toBe("party-boss-proof-v1");
+    expect(queued.achievementEvents).toEqual([
+      expect.objectContaining({
+        type: "item.used",
+        characterId: "proof-bandage-user-character",
+        itemId: "item.responsible-panic-bandage",
+        occurredAt: resolveInput().now
+      })
+    ]);
+    expect(queued.achievementEvents).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "barrel.raid.bandage-used" })
+    ]));
+
+    const duplicate = await bossRepository.submitItemForTelegramUser(
+      1161n,
+      "party-token-proof-bandage",
+      1,
+      item,
+      resolveInput()
+    );
+    const stale = await bossRepository.submitItemForTelegramUser(
+      1161n,
+      "party-token-proof-bandage",
+      0,
+      item,
+      resolveInput()
+    );
+
+    expect(duplicate.state).toBe("duplicate");
+    expect(duplicate.achievementEvents).toBeUndefined();
+    expect(stale.state).toBe("stale");
+    expect(stale.achievementEvents).toBeUndefined();
   });
 
   it("does not consume a party-boss field kit when raid HP is already above its threshold", async () => {

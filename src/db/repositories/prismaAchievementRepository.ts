@@ -41,6 +41,16 @@ export const ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS = [
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY
 ] as const;
 
+export function getPartyBossItemActionAchievementWhere(characterId: string): Prisma.PartyBossActionWhereInput {
+  return {
+    actorCharacterId: characterId,
+    actionKey: "item",
+    session: {
+      rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION
+    }
+  };
+}
+
 export class PrismaAchievementRepository implements AchievementRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -412,13 +422,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
         orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
       }),
       this.prisma.partyBossAction.findMany({
-        where: {
-          actorCharacterId: characterId,
-          actionKey: "item",
-          session: {
-            rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION
-          }
-        },
+        where: getPartyBossItemActionAchievementWhere(characterId),
         select: { resultJson: true, submittedAt: true },
         orderBy: [{ submittedAt: "asc" }, { id: "asc" }]
       }),
