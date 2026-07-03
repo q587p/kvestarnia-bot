@@ -542,7 +542,7 @@ function presentPartyBossJournalNotices(
 ): string[] {
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
   const notices = [
-    ...presentJournalCooldownLines(session.state.participants),
+    ...presentJournalCooldownLines(round, session.state.participants),
     ...(nextFocus ? [nextFocus] : []),
     ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
   ];
@@ -551,13 +551,24 @@ function presentPartyBossJournalNotices(
 }
 
 function presentJournalCooldownLines(
+  round: PartyBossSessionRecord["state"]["roundLog"][number],
   participants: PartyBossSessionRecord["state"]["participants"]
 ): string[] {
-  return participants.flatMap((participant) =>
-    presentPartyBossCooldownLines(participant).map((line) =>
+  const resourcesByCharacterId = new Map(round.participantsAfter?.map((participant) => [
+    participant.characterId,
+    participant
+  ]) ?? []);
+
+  return participants.flatMap((participant) => {
+    const resourceSnapshot = resourcesByCharacterId.get(participant.characterId);
+    const cooldowns = resourceSnapshot
+      ? resourceSnapshot.cooldowns
+      : participant.resources.cooldowns;
+
+    return presentCooldownLines(cooldowns).map((line) =>
       `${escapeHtml(participant.name)}: ${line}`
-    )
-  );
+    );
+  });
 }
 
 function presentParticipantResourceRows(
@@ -1014,7 +1025,13 @@ function presentPartyBossCooldownLines(
     return [];
   }
 
-  return getCooldownEntries(viewer.resources.cooldowns).map((cooldown) => {
+  return presentCooldownLines(viewer.resources.cooldowns);
+}
+
+function presentCooldownLines(
+  cooldowns: PartyBossSessionRecord["state"]["participants"][number]["resources"]["cooldowns"]
+): string[] {
+  return getCooldownEntries(cooldowns).map((cooldown) => {
     const skill = getCombatSkillDisplay(cooldown.id);
 
     return `🫁 ${skill.icon} <i>${escapeHtml(skill.name)}</i> відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;

@@ -4,11 +4,12 @@ import {
   type ActorCombatActionSummary,
   type CombatActorResourceState
 } from "../combat/combatEngine";
-import type {
-  CombatActorStats,
-  CombatState,
-  MonsterCombatStats,
-  PlayerCombatActionType
+import {
+  cloneCombatCooldowns,
+  type CombatActorStats,
+  type CombatState,
+  type MonsterCombatStats,
+  type PlayerCombatActionType
 } from "../combat/combatState";
 import { isMeaningfulCombatParticipation } from "../combat/combatParticipation";
 import { SeededRandomSource } from "../../shared/random";
@@ -95,6 +96,7 @@ export interface PartyBossParticipantResourceSummary {
   hpMax: number;
   mana: number;
   manaMax: number;
+  cooldowns?: CombatActorResourceState["cooldowns"];
 }
 
 export interface PartyBossParticipantActionSummary {
@@ -352,7 +354,8 @@ export function resolvePartyBossRound(input: {
       hp: participant.resources.hp,
       hpMax: participant.resources.hpMax,
       mana: participant.resources.mana,
-      manaMax: participant.resources.manaMax
+      manaMax: participant.resources.manaMax,
+      ...(participant.resources.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.resources.cooldowns) } : {})
     })),
     statusAfter
   };
@@ -498,7 +501,12 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
       actions: round.actions.map((action) => ({ ...action })),
       bossRetaliations: round.bossRetaliations.map((retaliation) => ({ ...retaliation })),
       ...(round.participantsAfter
-        ? { participantsAfter: round.participantsAfter.map((participant) => ({ ...participant })) }
+        ? {
+            participantsAfter: round.participantsAfter.map((participant) => ({
+              ...participant,
+              ...(participant.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.cooldowns) } : {})
+            }))
+          }
         : {})
     }))
   };

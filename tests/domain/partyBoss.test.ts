@@ -42,6 +42,52 @@ describe("party boss reducer", () => {
     expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.timeoutActions).toBe(1);
   });
 
+  it("stores participant cooldown snapshots after each resolved round", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-cooldown-snapshot",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша"),
+        participant("character-2", "Друга")
+      ]
+    });
+    const abilityId = "ability.race.practical-improvisation";
+    state.participants[0]!.resources.cooldowns = {
+      abilities: {
+        [abilityId]: {
+          id: abilityId,
+          remainingTurns: 3
+        }
+      }
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "cooldown-snapshot",
+      actions: [
+        { characterId: "character-1", action: "defend", origin: "manual" },
+        { characterId: "character-2", action: "defend", origin: "manual" }
+      ]
+    });
+
+    const snapshot = result.round.participantsAfter?.find((entry) => entry.characterId === "character-1");
+    const live = result.state.participants.find((entry) => entry.characterId === "character-1");
+
+    expect(snapshot?.cooldowns?.abilities?.[abilityId]).toEqual({
+      id: abilityId,
+      remainingTurns: 2
+    });
+    expect(live?.resources.cooldowns?.abilities?.[abilityId]).toEqual({
+      id: abilityId,
+      remainingTurns: 2
+    });
+
+    live!.resources.cooldowns!.abilities![abilityId]!.remainingTurns = 9;
+
+    expect(snapshot?.cooldowns?.abilities?.[abilityId]?.remainingTurns).toBe(2);
+  });
+
   it("keeps already submitted same-round actions when an earlier actor drops the boss", () => {
     const state = createPartyBossState({
       partySessionId: "party-simultaneous-finish",

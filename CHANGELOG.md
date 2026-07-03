@@ -7,6 +7,11 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## Unreleased
+
+### Fixed
+- Big Barrel Brother battle journal pages now replay each round's stored ability cooldown snapshot instead of showing the final/current cooldown state on older entries.
+
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
 
 ### Changed
