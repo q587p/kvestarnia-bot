@@ -349,6 +349,20 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toContain("🐭 Льох ⚠️");
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 4,
+            yeger: {
+              state: "offered",
+              character,
+              progress: { wins: 0, target: 5 }
+            }
+          }
+        })
+      )
+    ).toContain("🛢️ Бочка ⚠️");
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard())).toEqual([
       "🥊 Потренуватися",
       "⚡ Миттєва дуель",

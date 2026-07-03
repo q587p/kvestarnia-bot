@@ -62,6 +62,28 @@ describe("quest button markers", () => {
     ).toBe(QuestMarker.CAN_TURN_IN);
   });
 
+  it("marks the barrel only when the Yeger quest is offered there", () => {
+    expect(
+      resolveQuestMarkerForTarget(
+        {
+          characterLevel: 4,
+          yeger: { state: "offered", character: character(), progress: { wins: 0, target: 5 } }
+        },
+        "location.korchma.barrel"
+      )
+    ).toBe(QuestMarker.CAN_ACCEPT);
+
+    expect(
+      resolveQuestMarkerForTarget(
+        {
+          characterLevel: 4,
+          yeger: { state: "turn-in-ready", character: character(), progress: { wins: 5, target: 5 } }
+        },
+        "location.korchma.barrel"
+      )
+    ).toBe(QuestMarker.NONE);
+  });
+
   it("does not mark unavailable or locked quests as acceptable", () => {
     expect(
       resolveQuestMarkerForTarget(

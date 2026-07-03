@@ -168,7 +168,13 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
     makePlaceCallbackData("quest-table")
   )
     .row()
-    .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
+    .text(
+      decorateButtonLabel(
+        "🛢️ Бочка",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.barrel")
+      ),
+      makePlaceCallbackData("barrel")
+    )
     .text(
       decorateButtonLabel(
         "🍻 Шинок",

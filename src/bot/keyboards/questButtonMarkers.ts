@@ -12,6 +12,7 @@ import {
 } from "../../domain/progression/activityGates";
 import {
   PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -34,6 +35,7 @@ export type QuestMarkerTarget =
   | "location.korchma.yard"
   | "location.korchma.quest-table"
   | "location.korchma.bar"
+  | "location.korchma.barrel"
   | "location.korchma.cellar"
   | "location.korchma.ranger-corner"
   | "quest.adventure"
@@ -121,6 +123,8 @@ export function resolveQuestMarkerForTarget(
         resolveQuestMarkerForTarget(input, "quest.problem"),
         input.cellarGrownup?.state === "bottle-obtained" ? QuestMarker.CAN_TURN_IN : QuestMarker.NONE
       ]);
+    case "location.korchma.barrel":
+      return input.yeger?.state === "offered" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
     case "location.korchma.cellar":
       return mergeQuestMarkers([
         resolveQuestMarkerForTarget(input, "quest.cellar"),
@@ -136,6 +140,7 @@ export function resolveQuestMarkerForTarget(
       return mergeQuestMarkers([
         resolveQuestMarkerForTarget(input, "location.korchma.quest-table"),
         resolveQuestMarkerForTarget(input, "location.korchma.bar"),
+        resolveQuestMarkerForTarget(input, "location.korchma.barrel"),
         resolveQuestMarkerForTarget(input, "location.korchma.cellar"),
         resolveQuestMarkerForTarget(input, "location.korchma.ranger-corner")
       ]);
@@ -161,6 +166,8 @@ export function resolveQuestMarkerForPresenceLocation(
       return resolveQuestMarkerForTarget(input, "location.korchma.quest-table");
     case PRESENCE_LOCATION_KORCHMA_BAR:
       return resolveQuestMarkerForTarget(input, "location.korchma.bar");
+    case PRESENCE_LOCATION_KORCHMA_BARREL:
+      return resolveQuestMarkerForTarget(input, "location.korchma.barrel");
     case PRESENCE_LOCATION_KORCHMA_CELLAR:
       return resolveQuestMarkerForTarget(input, "location.korchma.cellar");
     case PRESENCE_LOCATION_KORCHMA_RANGER_CORNER:
