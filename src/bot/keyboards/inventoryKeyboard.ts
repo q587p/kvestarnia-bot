@@ -262,8 +262,12 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
 
   if (result.state === "ready") {
     keyboard.text("🗡️ Показати зброю", makeInventoryCallbackData(0, "weapon")).row();
+    keyboard.text("🛡️ Показати другу руку", makeInventoryCallbackData(0, "offhand")).row();
+    keyboard.text("🎩 Показати голову", makeInventoryCallbackData(0, "head")).row();
     keyboard.text("🧥 Показати тулуб", makeInventoryCallbackData(0, "chest")).row();
+    keyboard.text("🥾 Показати ноги", makeInventoryCallbackData(0, "legs")).row();
     keyboard.text("💍 Показати аксесуари", makeInventoryCallbackData(0, "accessory")).row();
+    keyboard.text("🧰 Показати інструменти", makeInventoryCallbackData(0, "tool")).row();
 
     for (const slot of result.slots) {
       if (slot.item) {
@@ -278,10 +282,12 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
 function presentUnequipSlotButtonLabel(slot: EquipmentSlot): string {
   const labels: Record<EquipmentSlot, string> = {
     weapon: "Зняти зброю",
+    offhand: "Зняти другу руку",
     head: "Зняти шолом",
     chest: "Зняти обладунок",
     legs: "Зняти поножі",
-    accessory: "Зняти аксесуар"
+    accessory: "Зняти аксесуар",
+    tool: "Зняти інструмент"
   };
 
   return labels[slot];

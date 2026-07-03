@@ -1,12 +1,10 @@
-export type EquipmentSlot = "weapon" | "head" | "chest" | "legs" | "accessory";
+import {
+  equipmentSlots,
+  type EquipmentSlot
+} from "../../content/equipmentSlots";
 
-export const equipmentSlots: readonly EquipmentSlot[] = [
-  "weapon",
-  "head",
-  "chest",
-  "legs",
-  "accessory"
-];
+export type { EquipmentSlot };
+export { equipmentSlots };
 
 export interface CharacterEquipmentRecord {
   id: string;

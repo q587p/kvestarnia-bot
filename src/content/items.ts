@@ -10,6 +10,7 @@ export const items = [
     description: "Важкий аргумент для легких суперечок.",
     rarity: "common",
     slot: "weapon",
+    equipmentSlot: "weapon",
     goldValue: 25,
     effect: {
       weaponDamage: 2
@@ -21,6 +22,7 @@ export const items = [
     description: "Дзвенить як обладунок і натякає, що бонуси ще в дорозі.",
     rarity: "common",
     slot: "armor",
+    equipmentSlot: "head",
     goldValue: 18,
     effect: {
       armor: 1
@@ -32,6 +34,7 @@ export const items = [
     description: "Б'є не сильно, зате залишає слід «розглянуто» там, де монстр просив «не треба».",
     rarity: "uncommon",
     slot: "weapon",
+    equipmentSlot: "weapon",
     goldValue: 16,
     effect: {
       weaponDamage: 1,
@@ -44,6 +47,7 @@ export const items = [
     description: "Пережив бочку, підлогу й погляд корчмаря. Тепер вимагає окремого гачка.",
     rarity: "common",
     slot: "armor",
+    equipmentSlot: "chest",
     goldValue: 14,
     effect: {
       armor: 1,
@@ -80,6 +84,7 @@ export const items = [
     description: "Миша сказала, що це печатка. Корок не заперечив, бо зайнятий кар'єрою.",
     rarity: "common",
     slot: "accessory",
+    equipmentSlot: "accessory",
     goldValue: 6,
     effect: {
       luck: 1

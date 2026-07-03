@@ -1,6 +1,9 @@
 import type { ItemContent } from "../../content/schema";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
-import { isEquippableItem } from "../../services/equipmentService";
+import {
+  isEquippableItem,
+  mapItemToEquipmentSlot
+} from "../../services/equipmentService";
 import type { ItemUseAvailability } from "../../services/itemUseService";
 import { YEGER_FIRST_NOTCH_ITEM_ID } from "../../services/itemGrant";
 import type {
@@ -130,6 +133,20 @@ function presentEquipmentLine(
 
   if (equipPreview?.state === "unsupported-slot") {
     return "Екіпірування: <i>зараз не можна екіпірувати. Для цієї манатки ще немає місця.</i>";
+  }
+
+  const slot = equipPreview?.state === "can-equip"
+    ? equipPreview.slot
+    : mapItemToEquipmentSlot(item);
+  const currentItem = equipPreview?.state === "can-equip" ? equipPreview.currentItem : null;
+  const slotLabel = slot ? presentEquipmentSlotLabel(slot) : null;
+
+  if (slotLabel && currentItem) {
+    return `Екіпірування: <i>можна екіпірувати у слот «${slotLabel}». Замінить: ${escapeHtml(currentItem.content.name)}.</i>`;
+  }
+
+  if (slotLabel) {
+    return `Екіпірування: <i>можна екіпірувати у слот «${slotLabel}». Спорядження вже звільняє місце.</i>`;
   }
 
   return "Екіпірування: <i>можна екіпірувати. Спорядження вже звільняє місце.</i>";

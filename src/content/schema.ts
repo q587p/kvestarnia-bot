@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { equipmentSlots } from "./equipmentSlots";
 
 export const contentIdSchema = z.string().regex(/^[a-z]+(\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/);
 
@@ -44,6 +45,8 @@ export const monsterSchema = z.object({
 });
 
 export const itemRaritySchema = z.enum(["common", "uncommon", "rare", "epic"]);
+
+export const equipmentSlotSchema = z.enum(equipmentSlots);
 
 export const itemTagSchema = z.enum([
   "consumable",
@@ -91,6 +94,7 @@ export const itemSchema = z.object({
   description: z.string().min(1),
   rarity: itemRaritySchema,
   slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"]),
+  equipmentSlot: equipmentSlotSchema.optional(),
   goldValue: z.number().int().min(0).optional(),
   priceless: z.boolean().optional(),
   effect: itemEffectSchema.optional(),
@@ -101,6 +105,7 @@ export const itemSchema = z.object({
   const isPriceless = item.priceless === true;
   const tags = item.tags ?? [];
   const uniqueTags = new Set(tags);
+  const isEquippableCategory = ["weapon", "armor", "accessory"].includes(item.slot);
 
   if (hasGoldValue && isPriceless) {
     ctx.addIssue({
@@ -116,10 +121,17 @@ export const itemSchema = z.object({
     });
   }
 
-  if (item.effect && !["weapon", "armor", "accessory"].includes(item.slot)) {
+  if (item.effect && !isEquippableCategory) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Only equippable items can have item effects."
+    });
+  }
+
+  if (item.equipmentSlot && !isEquippableCategory) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Only equippable items can declare an equipment slot."
     });
   }
 
@@ -173,6 +185,7 @@ export type ClassContent = z.infer<typeof classSchema>;
 export type Pronoun = z.infer<typeof pronounSchema>;
 export type MonsterContent = z.infer<typeof monsterSchema>;
 export type ItemEffectContent = z.infer<typeof itemEffectSchema>;
+export type EquipmentSlotContent = z.infer<typeof equipmentSlotSchema>;
 export type ItemTagContent = z.infer<typeof itemTagSchema>;
 export type ItemUseEffectContent = z.infer<typeof itemUseEffectSchema>;
 export type ItemContent = z.infer<typeof itemSchema>;

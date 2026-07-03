@@ -244,10 +244,12 @@ function callbackPartToFilter(kind: string | undefined, code: string | undefined
 function slotToCode(slot: EquipmentSlot): string {
   const codes: Record<EquipmentSlot, string> = {
     weapon: "w",
+    offhand: "o",
     head: "h",
     chest: "c",
     legs: "l",
-    accessory: "a"
+    accessory: "a",
+    tool: "t"
   };
 
   return codes[slot];
@@ -256,10 +258,12 @@ function slotToCode(slot: EquipmentSlot): string {
 function codeToSlot(code: string | undefined): EquipmentSlot | null {
   const slotsByCode: Record<string, EquipmentSlot> = {
     w: "weapon",
+    o: "offhand",
     h: "head",
     c: "chest",
     l: "legs",
-    a: "accessory"
+    a: "accessory",
+    t: "tool"
   };
 
   return code ? (slotsByCode[code] ?? null) : null;

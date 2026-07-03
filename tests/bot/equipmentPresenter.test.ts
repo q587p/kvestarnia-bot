@@ -18,21 +18,31 @@ describe("equipment presenter", () => {
 
     expect(text).toContain("🧥 <b>Спорядження</b>");
     expect(text).toContain("🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>");
+    expect(text).toContain("🛡️ <b>Друга рука</b>");
+    expect(text).toContain("🎩 <b>Голова</b>");
     expect(text).toContain("🧥 <b>Тулуб</b>");
+    expect(text).toContain("🥾 <b>Ноги</b>");
     expect(text).toContain("💍 <b>Аксесуар</b>");
+    expect(text).toContain("🧰 <b>Інструмент</b>");
     expect(text).toContain(
       [
         "🗡️ <b>Зброя</b>: <i>стійка чекає важкий аргумент.</i>",
         "",
+        "🛡️ <b>Друга рука</b>: <i>гачок для щита поки тренує терпіння.</i>",
+        "",
+        "🎩 <b>Голова</b>: <i>полиця для шолома дивиться зверху.</i>",
+        "",
         "🧥 <b>Тулуб</b>: Фартух піностійкого пригодника",
         "Ефект: <i>+2 HP · +1 до захисту</i>",
         "",
+        "🥾 <b>Ноги</b>: <i>поножі ще не знайшли своїх колін.</i>",
+        "",
         "💍 <b>Аксесуар</b>: Корковий перстень серйозних справ",
-        "Ефект: <i>+1 Вдачі</i>"
+        "Ефект: <i>+1 Вдачі</i>",
+        "",
+        "🧰 <b>Інструмент</b>: <i>кишеня для корисного ще не підписана.</i>"
       ].join("\n")
     );
-    expect(text).not.toContain("🎩 <b>Голова</b>");
-    expect(text).not.toContain("🥾 <b>Ноги</b>");
     expect(text).toContain("Манатки нарешті штовхають циферки");
     expect(text).toContain(
       "Корчма вже запамʼятовує, що висить на пригоднику.\n\n<i>Манатки нарешті штовхають циферки."
@@ -65,13 +75,15 @@ describe("equipment presenter", () => {
             goldValue: 13
           }
         } },
+        { slot: "offhand", item: null },
         { slot: "head", item: null },
         { slot: "chest", item: null },
         { slot: "legs", item: null },
         {
           slot: "accessory",
           item: null
-        }
+        },
+        { slot: "tool", item: null }
       ]
     });
 
@@ -145,6 +157,7 @@ function emptyEquipment(): EquipmentResult {
     state: "ready",
     slots: [
       { slot: "weapon", item: null },
+      { slot: "offhand", item: null },
       { slot: "head", item: null },
       {
         slot: "chest",
@@ -181,7 +194,8 @@ function emptyEquipment(): EquipmentResult {
             }
           }
         }
-      }
+      },
+      { slot: "tool", item: null }
     ]
   };
 }
@@ -207,6 +221,7 @@ function foundEquipment(): EquipmentResult {
           }
         }
       },
+      { slot: "offhand", item: null },
       { slot: "head", item: null },
       {
         slot: "chest",
@@ -243,7 +258,8 @@ function foundEquipment(): EquipmentResult {
             }
           }
         }
-      }
+      },
+      { slot: "tool", item: null }
     ]
   };
 }

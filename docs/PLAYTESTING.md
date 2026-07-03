@@ -4,6 +4,18 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.23 — Mantok Equipment Slot Foundation smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Open `🎒 Манатки`, then each equipment slot filter: weapon, offhand, head, chest, legs, accessory and tool. Verify the list stays compact, the title matches the selected slot and back buttons return to the same filtered view.
+2. Open `/equipment`, `/gear` or `/equip`; verify all seven slots appear: `Зброя`, `Друга рука`, `Голова`, `Тулуб`, `Ноги`, `Аксесуар`, `Інструмент`.
+3. Open starter weapon, head, chest and accessory manatka detail cards; verify each equip line names the correct target slot.
+4. Equip a manatka into an occupied slot and verify the result card says the previous manatka stayed in the bag.
+5. If local data can seed a generated tool-category manatka, verify it appears under the tool filter and equips into `Інструмент`.
+6. On a legacy character or seeded row with old `armor` equipment, verify the item appears in `Тулуб`, can be unequipped and is not duplicated.
+7. Try Mantok Chest, postal/gift transfer, Shynok sale or another protected-item path with an equipped item; verify equipped/protected stacks remain blocked as before.
+
 ## 0.2.22 — Dense Bandage and Field Kit smoke
 
 Manual Telegram QA status for the implementation pass: not run.

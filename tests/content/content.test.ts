@@ -143,6 +143,25 @@ describe("content tables", () => {
     });
   });
 
+  it("declares canonical equipment slots for starter equipment", () => {
+    expect(items.find((item) => item.id === "item.pan-of-persuasion")).toMatchObject({
+      slot: "weapon",
+      equipmentSlot: "weapon"
+    });
+    expect(items.find((item) => item.id === "item.pot-helmet-of-early-access")).toMatchObject({
+      slot: "armor",
+      equipmentSlot: "head"
+    });
+    expect(items.find((item) => item.id === "item.apron-of-foam-resistance")).toMatchObject({
+      slot: "armor",
+      equipmentSlot: "chest"
+    });
+    expect(items.find((item) => item.id === "item.cork-ring-of-serious-business")).toMatchObject({
+      slot: "accessory",
+      equipmentSlot: "accessory"
+    });
+  });
+
   it("keeps junk, cosmetics, and the thirteen-problems badge free of power effects", () => {
     for (const item of items.filter((candidate) =>
       ["junk", "cosmetic", "consumable"].includes(candidate.slot)
@@ -186,6 +205,20 @@ describe("content tables", () => {
         effect: {
           weaponDamage: 1
         }
+      })
+    ).toThrow();
+  });
+
+  it("rejects equipment slot metadata on unsupported item slots", () => {
+    expect(() =>
+      itemSchema.parse({
+        id: "item.test-junk-slot",
+        name: "Сміття з гачком",
+        description: "Дуже хоче зайняти слот, але не сьогодні.",
+        rarity: "common",
+        slot: "junk",
+        equipmentSlot: "tool",
+        goldValue: 1
       })
     ).toThrow();
   });

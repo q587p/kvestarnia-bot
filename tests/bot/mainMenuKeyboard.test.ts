@@ -1807,6 +1807,7 @@ describe("main menu and scene keyboards", () => {
                 }
               }
             },
+            { slot: "offhand", item: null },
             { slot: "head", item: null },
             { slot: "chest", item: null },
             { slot: "legs", item: null },
@@ -1829,8 +1830,12 @@ describe("main menu and scene keyboards", () => {
       )
     ).toEqual([
       "🗡️ Показати зброю",
+      "🛡️ Показати другу руку",
+      "🎩 Показати голову",
       "🧥 Показати тулуб",
+      "🥾 Показати ноги",
       "💍 Показати аксесуари",
+      "🧰 Показати інструменти",
       "Зняти зброю",
       "Зняти аксесуар",
       "⬅️ До манаток"
@@ -1870,14 +1875,19 @@ describe("main menu and scene keyboards", () => {
                   goldValue: 6
                 }
               }
-            }
+            },
+            { slot: "tool", item: null }
           ]
         })
       )
     ).toEqual([
       "v1:item:inventory:s:w",
+      "v1:item:inventory:s:o",
+      "v1:item:inventory:s:h",
       "v1:item:inventory:s:c",
+      "v1:item:inventory:s:l",
       "v1:item:inventory:s:a",
+      "v1:item:inventory:s:t",
       "v1:equip:clear:weapon",
       "v1:equip:clear:accessory",
       "v1:item:inventory"
