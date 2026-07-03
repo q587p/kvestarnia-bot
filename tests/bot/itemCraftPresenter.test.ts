@@ -55,6 +55,25 @@ describe("item craft presenter", () => {
     expect(text).toContain("Рецепт витратив рівно стільки бинтів");
     expect(text).not.toContain("Цього разу вузли були чесні");
   });
+
+  it("keeps field-kit result savings copy ranger-only", () => {
+    const text = presentItemCraftResult({
+      state: "crafted",
+      character: character("class.priest"),
+      recipe: fieldKitRecipe,
+      sourceItem,
+      outputItem: items.find((item) => item.id === fieldKitRecipe.outputItemId)!,
+      spentSourceQuantity: fieldKitRecipe.sourceQuantity,
+      savedSourceQuantity: 0,
+      remainingSourceQuantity: 90,
+      outputQuantity: 1
+    });
+
+    expect(text).toContain("Польова аптечка: готово");
+    expect(text).toContain("Рецепт витратив рівно стільки бинтів");
+    expect(text).not.toContain("Цього разу вузли були чесні");
+    expect(text).not.toContain("зеконом");
+  });
 });
 
 function previewResult(

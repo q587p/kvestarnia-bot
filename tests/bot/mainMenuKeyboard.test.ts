@@ -1956,6 +1956,9 @@ describe("main menu and scene keyboards", () => {
       "v1:item:detail:item.responsible-panic-bandage",
       "v1:item:inventory"
     ]);
+    expect(flatInlineButtonCallbacks(buildItemCraftResultKeyboard({ repeatRecipeCode: "kit" }))[0]).toBe(
+      "v1:craft:ok:kit"
+    );
   });
 
   it("offers manual Mantok Chest selection and compact item-index callbacks", () => {
