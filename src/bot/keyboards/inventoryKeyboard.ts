@@ -74,10 +74,12 @@ export function buildInventoryKeyboard(
   const totalPages = getInventoryTotalPages(result, filter, options);
 
   for (const item of getInventoryPageItems(result, safePage, filter, options)) {
+    const itemIcon = options.currentSlotItem?.itemId === item.itemId ? "✅" : "🔎";
+
     keyboard
       .row()
       .text(
-        `🔎 ${presentInventoryItemButtonLabel(item.content.name, item.quantity)}`,
+        `${itemIcon} ${presentInventoryItemButtonLabel(item.content.name, item.quantity)}`,
         makeItemDetailCallbackData(item.itemId, safePage, filter)
       );
   }

@@ -1470,10 +1470,23 @@ describe("main menu and scene keyboards", () => {
             ]
           },
           0,
-          "weapon"
+          "weapon",
+          {
+            currentSlotItem: {
+              itemId: "item.pan-of-persuasion",
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          }
         )
       )
-    ).toEqual(["🛡️ Спорядження", "🎒 Усі манатки", "🔎 Пательня переконання"]);
+    ).toEqual(["🛡️ Спорядження", "🎒 Усі манатки", "✅ Пательня переконання"]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard(

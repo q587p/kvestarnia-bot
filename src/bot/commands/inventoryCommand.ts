@@ -60,13 +60,13 @@ export async function sendInventory(
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildInventoryKeyboard(result, page, filter, { slotCompatibleItemIds })
+      reply_markup: buildInventoryKeyboard(result, page, filter, { currentSlotItem, slotCompatibleItemIds })
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildInventoryKeyboard(result, page, filter, { slotCompatibleItemIds })
+    reply_markup: buildInventoryKeyboard(result, page, filter, { currentSlotItem, slotCompatibleItemIds })
   });
 }
