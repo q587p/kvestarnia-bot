@@ -126,7 +126,7 @@ describe("loadConfig", () => {
     expect(config.tavernGameTavleiEnabled).toBe(false);
     expect(config.tavernGameKostiEnabled).toBe(false);
     expect(config.tavernGameMaxStake).toBe(93);
-    expect(config.tavernGameCreateCooldownSec).toBe(60);
+    expect(config.tavernGameCreateCooldownSec).toBe(93);
   });
 
   it("can enable deploy notifications explicitly", () => {
