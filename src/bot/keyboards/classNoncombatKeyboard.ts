@@ -70,15 +70,20 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       makeCallbackData: (targetPage) => makeClassNoncombatOpenCallbackData(result.mode, targetPage)
     });
   } else {
-    for (const target of result.targets.filter((candidate) => candidate.canRoguePickpocket)) {
-      keyboard
-        .text(`🗡️ ${formatName(target.name)}`, makeRoguePickpocketCallbackData({
+    for (const target of result.targets.filter((candidate) => candidate.level >= 3)) {
+      if (target.canRoguePickpocket) {
+        keyboard.text(`🗡️ ${formatName(target.name)}`, makeRoguePickpocketCallbackData({
           targetTelegramUserId: target.telegramUserId,
           actorRemortCount,
           targetRemortCount: target.remortCount,
           page: currentPage
-        }))
-        .row();
+        }));
+      } else if (target.rogueAttemptedToday) {
+        keyboard.text(`🗓️ ${formatName(target.name)} завтра`, makeClassNoncombatOpenCallbackData(result.mode, currentPage));
+      } else if (result.roguePickpocketCooldownAvailableAt) {
+        keyboard.text(`🕯️ ${formatName(target.name)} пізніше`, makeClassNoncombatOpenCallbackData(result.mode, currentPage));
+      }
+      keyboard.row();
     }
 
     addPaginationControls(keyboard, {

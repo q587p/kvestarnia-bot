@@ -20,6 +20,12 @@ export interface PriestHealPlan {
   manaCost: number;
 }
 
+export interface PriestBlessingPlan {
+  bonusAmount: number;
+  manaCost: number;
+  levelDiff: number;
+}
+
 export interface RoguePickpocketPlan {
   outcome: RoguePickpocketOutcome;
   baseGold: number;
@@ -45,6 +51,28 @@ export function buildPriestHealPlan(input: {
   return {
     heal,
     manaCost: Math.max(7, Math.ceil(heal * 0.75) + 2)
+  };
+}
+
+export function buildPriestBlessingPlan(input: {
+  priestLevel: number;
+  priestIntelligence: number;
+  targetLevel: number;
+}): PriestBlessingPlan {
+  const priestLevel = Math.max(1, Math.floor(input.priestLevel));
+  const targetLevel = Math.max(1, Math.floor(input.targetLevel));
+  const intelligence = Math.max(0, Math.floor(input.priestIntelligence));
+  const levelDiff = clamp(priestLevel - targetLevel, -13, 13);
+  const bonusAmount = clamp(
+    1 + Math.floor(Math.max(0, intelligence - 8) / 3) + Math.floor(levelDiff / 4),
+    1,
+    5
+  );
+
+  return {
+    bonusAmount,
+    manaCost: 5 + bonusAmount * 2,
+    levelDiff
   };
 }
 

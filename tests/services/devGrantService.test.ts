@@ -350,7 +350,7 @@ describe("DevGrantService", () => {
       }
     });
     expect(repository.calls.some((call) =>
-      call.includes("cooldowns:42:") &&
+      call.includes("priest-blessing-reset:42:") &&
       call.includes("technique.class.priest.blessing") &&
       call.includes("social.priest.blessing")
     )).toBe(true);
@@ -594,6 +594,28 @@ class FakeDevGrantRepository implements DevGrantRepository {
       `cooldowns:${telegramUserId.toString()}:${[
         ...(input.keys ?? []),
         ...(input.keyPrefixes ?? [])
+      ].join(",")}`
+    );
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      character: this.character,
+      cleared: true
+    });
+  }
+
+  resetPriestBlessingForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { now: Date }
+  ): Promise<DevGrantCooldownResult | null> {
+    this.calls.push(
+      `priest-blessing-reset:${telegramUserId.toString()}:${[
+        ...(input.keys ?? []),
+        ...(input.keyPrefixes ?? []),
+        input.now.toISOString()
       ].join(",")}`
     );
 

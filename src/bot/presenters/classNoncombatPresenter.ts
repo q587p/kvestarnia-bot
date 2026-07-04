@@ -49,7 +49,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         `📍 ${escapeHtml(result.locationName)}`,
         `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>. Лікування бере ману, не бинти.`,
         "⚕️ Лікування: без відпочинку, доки вистачає мани.",
-        presentCooldownLine("✨ Благословення", result.priestBlessCooldownAvailableAt, "очікування"),
+        "✨ Благословення: без загального відпочинку; повтор тієї самої цілі має паузу.",
         "",
         result.targets.length > 0
           ? "Оберіть себе або когось активного поруч:"
@@ -60,13 +60,31 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         "",
         `📍 ${escapeHtml(result.locationName)}`,
         "Ризик малий не буває: можна нічого не знайти, засвітитись або дуже невдало зустріти чужий лікоть.",
-        presentCooldownLine("🕯️ Спроба", result.roguePickpocketCooldownAvailableAt),
+        presentRogueOtherTargetsLine(result.roguePickpocketCooldownAvailableAt),
         "",
         "Оберіть активну ціль поруч:"
       ];
 
-  if (!result.actorBlocked && result.targets.length === 0 && result.mode === "rogue") {
-    lines.push("", "Активних цілей поруч немає. Кишені теж мають графік роботи.");
+  if (!result.actorBlocked && result.mode === "priest") {
+    const waitLines = presentPriestBlessWaitLines(result);
+    if (waitLines.length > 0) {
+      lines.push("", ...waitLines);
+    }
+  }
+
+  if (!result.actorBlocked && result.mode === "rogue") {
+    const attemptedLines = presentRogueAttemptedLines(result);
+    if (attemptedLines.length > 0) {
+      lines.push("", ...attemptedLines);
+    }
+    if (result.targets.filter((target) => target.canRoguePickpocket).length === 0 && result.targets.length === 0) {
+      lines.push("", "Активних цілей поруч немає. Кишені теж мають графік роботи.");
+    } else if (
+      result.targets.filter((target) => target.canRoguePickpocket).length === 0 &&
+      !result.roguePickpocketCooldownAvailableAt
+    ) {
+      lines.push("", "Нових кишень поруч немає. Старі записи Корчма вже сховала до завтра.");
+    }
   }
   return lines.filter(Boolean).join("\n");
 }
@@ -267,8 +285,12 @@ function presentBlocked(
         return availableAt
           ? `Техніка відсапується ще ${formatRemaining(availableAt)}.`
           : "Техніка ще відсапується.";
+      case "target-cooldown":
+        return availableAt
+          ? `Цю саму ціль можна благословити знову через ${formatRemaining(availableAt)}. Інших — доки вистачає мани.`
+          : "Ця ціль ще пам’ятає попереднє благословення. Інших можна підтримати маною.";
       case "pair-daily-used":
-        return "Ця пара вже мала сьогоднішню кишенькову історію.";
+        return "Цього пригодника сьогодні вже пробували. Наступна така спроба — завтра; іншу ціль можна після відпочинку пальців.";
       default:
         return "Протокол відмовився робити вигляд, що це працює.";
     }
@@ -318,6 +340,8 @@ function presentPriestBlessBlockedTitle(
       return "Благословення вже тримається";
     case "cooldown":
       return "Благословення відсапується";
+    case "target-cooldown":
+      return "Ціль ще пам’ятає благословення";
     case "insufficient-mana":
       return "Бракує мани для благословення";
     default:
@@ -325,8 +349,39 @@ function presentPriestBlessBlockedTitle(
   }
 }
 
-function presentCooldownLine(label: string, availableAt: Date | null, cooldownName = "cooldown"): string {
-  return availableAt ? `${label}: ${cooldownName} ще ${formatRemaining(availableAt)}.` : `${label}: готово.`;
+function presentPriestBlessWaitLines(
+  result: Extract<ClassNoncombatOpenResult, { state: "ready" }>
+): string[] {
+  const lines: string[] = [];
+  if (result.priestSelfBlessAvailableAt) {
+    lines.push(`✨ Ви: повтор через ${formatRemaining(result.priestSelfBlessAvailableAt)}.`);
+  }
+
+  for (const target of result.targets.filter((candidate) => candidate.priestBlessAvailableAt)) {
+    lines.push(`✨ ${escapeHtml(target.name)}: повтор через ${formatRemaining(target.priestBlessAvailableAt!)}.`);
+  }
+
+  return lines;
+}
+
+function presentRogueAttemptedLines(
+  result: Extract<ClassNoncombatOpenResult, { state: "ready" }>
+): string[] {
+  const attempted = result.targets.filter((target) => target.rogueAttemptedToday);
+  if (attempted.length === 0) {
+    return [];
+  }
+
+  return [
+    "Сьогодні вже були:",
+    ...attempted.map((target) => `🗓️ ${escapeHtml(target.name)} — цю кишеню знову тільки завтра.`)
+  ];
+}
+
+function presentRogueOtherTargetsLine(availableAt: Date | null): string {
+  return availableAt
+    ? `🕯️ Інші цілі: пальці відсапуються ще ${formatRemaining(availableAt)}.`
+    : "🕯️ Інші цілі: готово.";
 }
 
 function formatRemaining(availableAt: Date, now = new Date()): string {

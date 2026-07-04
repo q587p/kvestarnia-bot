@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPriestBlessingPlan,
   buildPriestHealPlan,
   buildRoguePickpocketPlan
 } from "../../src/domain/noncombat/classNoncombatTechniques";
@@ -25,6 +26,34 @@ describe("class noncombat techniques", () => {
       heal: 4,
       manaCost: 7
     });
+  });
+
+  it("scales Priest blessing bonus from intelligence and target level difference", () => {
+    expect(buildPriestBlessingPlan({
+      priestLevel: 3,
+      priestIntelligence: 8,
+      targetLevel: 3
+    })).toEqual({
+      bonusAmount: 1,
+      manaCost: 7,
+      levelDiff: 0
+    });
+
+    expect(buildPriestBlessingPlan({
+      priestLevel: 13,
+      priestIntelligence: 20,
+      targetLevel: 3
+    })).toEqual({
+      bonusAmount: 5,
+      manaCost: 15,
+      levelDiff: 10
+    });
+
+    expect(buildPriestBlessingPlan({
+      priestLevel: 3,
+      priestIntelligence: 20,
+      targetLevel: 13
+    }).bonusAmount).toBe(2);
   });
 
   it("caps Rogue pickpocket gold by luck, level difference, target balance, and MVP max", () => {

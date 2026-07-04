@@ -114,7 +114,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect(snapshot?.targets).toHaveLength(1);
   });
 
-  it("hides same-day Rogue attempted targets from filtered target snapshots", async () => {
+  it("marks same-day Rogue attempted targets in target snapshots", async () => {
     await seedCharacter({ telegramUserId: 901n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
     await seedCharacter({ telegramUserId: 902n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
     await seedCharacter({ telegramUserId: 903n, userId: "user-bystander", characterId: "bystander", level: 5, gold: 8 });
@@ -127,11 +127,17 @@ describe("PrismaClassNoncombatRepository integration", () => {
 
     const filtered = await repository.getSnapshotForTelegramUser(901n, {
       ...snapshotInput(),
-      excludeRogueAttemptedLocalDate: "2026-07-03"
+      rogueAttemptedLocalDate: "2026-07-03"
     });
     const unfiltered = await repository.getSnapshotForTelegramUser(901n, snapshotInput());
 
-    expect(filtered?.targets.map((target) => target.telegramUserId)).toEqual([903n]);
+    expect(filtered?.targets.map((target) => ({
+      telegramUserId: target.telegramUserId,
+      rogueAttemptedToday: target.rogueAttemptedToday
+    })).sort((a, b) => Number(a.telegramUserId - b.telegramUserId))).toEqual([
+      { telegramUserId: 902n, rogueAttemptedToday: true },
+      { telegramUserId: 903n, rogueAttemptedToday: false }
+    ]);
     expect(unfiltered?.targets.map((target) => target.telegramUserId).sort()).toEqual([902n, 903n]);
   });
 
@@ -175,6 +181,52 @@ describe("PrismaClassNoncombatRepository integration", () => {
       manaCurrent: 13,
       manaRegenAt: now
     });
+    await expect(prisma.characterCooldown.findMany({
+      where: { characterId: "priest" },
+      select: { key: true }
+    })).resolves.toEqual([]);
+  });
+
+  it("blocks only the same Priest blessing target until the pair wait ends", async () => {
+    await seedCharacter({
+      telegramUserId: 721n,
+      userId: "user-priest",
+      characterId: "priest",
+      classId: "class.priest",
+      level: 3,
+      manaCurrent: 20
+    });
+    await seedCharacter({ telegramUserId: 722n, userId: "user-target", characterId: "target", level: 3 });
+    await seedCharacter({ telegramUserId: 723n, userId: "user-other", characterId: "other", level: 3 });
+
+    const first = await repository.completePriestBlessing(721n, priestBlessInput({
+      targetTelegramUserId: 722n,
+      expiresAt: new Date("2026-07-03T09:13:00.000Z")
+    }));
+    await prisma.noncombatPriestBlessing.updateMany({
+      where: { targetCharacterId: "target" },
+      data: { status: "expired", activeGuard: null, endedAt: new Date("2026-07-03T09:14:00.000Z") }
+    });
+    const sameTarget = await repository.completePriestBlessing(721n, priestBlessInput({
+      targetTelegramUserId: 722n,
+      expiresAt: new Date("2026-07-03T09:13:00.000Z")
+    }));
+    const otherTarget = await repository.completePriestBlessing(721n, priestBlessInput({
+      targetTelegramUserId: 723n,
+      expiresAt: new Date("2026-07-03T09:13:00.000Z")
+    }));
+
+    expect(first).toMatchObject({ state: "completed" });
+    expect(sameTarget).toMatchObject({
+      state: "blocked",
+      reason: "target-cooldown",
+      availableAt: cooldownAvailableAt
+    });
+    expect(otherTarget).toMatchObject({ state: "completed" });
+    await expect(prisma.characterCooldown.findMany({
+      where: { characterId: "priest" },
+      select: { key: true }
+    })).resolves.toEqual([]);
   });
 
   it("heals Priest targets up to the effective HP max instead of the stored base max", async () => {
@@ -332,6 +384,7 @@ function priestBlessInput(overrides: {
     expiresAt: overrides.expiresAt,
     cooldownAvailableAt,
     manaCost: 7,
+    bonusAmount: 1,
     statSnapshot: { test: true }
   };
 }

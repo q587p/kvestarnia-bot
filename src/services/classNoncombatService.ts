@@ -9,6 +9,7 @@ import type {
 } from "../db/repositories/classNoncombatRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
+  buildPriestBlessingPlan,
   buildPriestHealPlan,
   buildRoguePickpocketPlan,
   CLASS_NONCOMBAT_MIN_LEVEL,
@@ -41,6 +42,7 @@ export type ClassNoncombatOpenResult =
       targetPage: number;
       targetTotalPages: number;
       priestBlessCooldownAvailableAt: Date | null;
+      priestSelfBlessAvailableAt: Date | null;
       roguePickpocketCooldownAvailableAt: Date | null;
     }
   | { state: "not-eligible"; character: CharacterSummary; requiredLevel: number };
@@ -90,7 +92,7 @@ export class ClassNoncombatService {
       page,
       pageSize: 5,
       now,
-      ...(mode === "rogue" ? { excludeRogueAttemptedLocalDate: toKorchmaLocalDate(now) } : {})
+      ...(mode === "rogue" ? { rogueAttemptedLocalDate: toKorchmaLocalDate(now) } : {})
     });
     if (!snapshot) {
       return { state: "no-character" };
@@ -116,9 +118,14 @@ export class ClassNoncombatService {
       targets: snapshot.targets.map((target) => ({
         ...target,
         canPriestAid: mode === "priest",
-        canRoguePickpocket: mode === "rogue" && target.level >= CLASS_NONCOMBAT_MIN_LEVEL
+        canRoguePickpocket:
+          mode === "rogue" &&
+          target.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
+          !target.rogueAttemptedToday &&
+          !snapshot.roguePickpocketCooldownAvailableAt
       })),
       priestBlessCooldownAvailableAt: snapshot.priestBlessCooldownAvailableAt,
+      priestSelfBlessAvailableAt: snapshot.priestSelfBlessAvailableAt,
       roguePickpocketCooldownAvailableAt: snapshot.roguePickpocketCooldownAvailableAt
     };
   }
@@ -196,14 +203,34 @@ export class ClassNoncombatService {
       now
     });
     const actor = snapshot ? summarizeWithKnownItems(snapshot.character) : null;
+    const target = input.targetTelegramUserId === null
+      ? actor
+      : snapshot?.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId) ?? null;
+    const plan = actor && target
+      ? buildPriestBlessingPlan({
+          priestLevel: actor.level,
+          priestIntelligence: actor.stats.intelligence,
+          targetLevel: target.level
+        })
+      : buildPriestBlessingPlan({ priestLevel: 1, priestIntelligence: 0, targetLevel: 1 });
     const result = await this.repository.completePriestBlessing(actorTelegramUserId, {
       ...input,
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       now,
       expiresAt: addMinutes(now, PRIEST_BLESSING_DURATION_MINUTES),
       cooldownAvailableAt: addMinutes(now, PRIEST_DIRECT_AID_COOLDOWN_MINUTES),
-      manaCost: 7,
-      statSnapshot: actor ? { level: actor.level, charisma: actor.stats.charisma, intelligence: actor.stats.intelligence } : {}
+      manaCost: plan.manaCost,
+      bonusAmount: plan.bonusAmount,
+      statSnapshot: actor
+        ? {
+            level: actor.level,
+            charisma: actor.stats.charisma,
+            intelligence: actor.stats.intelligence,
+            targetLevel: target?.level ?? 1,
+            levelDiff: plan.levelDiff,
+            blessingBonus: plan.bonusAmount
+          }
+        : {}
     });
 
     if (result.state === "blocked") {

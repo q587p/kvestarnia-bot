@@ -74,7 +74,7 @@ describe("class noncombat presenter", () => {
     expect(text).not.toContain("Поруч нікого активного немає");
   });
 
-  it("labels Priest blessing cooldown as waiting, not blessing duration", () => {
+  it("shows Priest blessing as mana-gated and lists per-target repeat waits", () => {
     const text = presentClassNoncombatOpen({
       state: "ready",
       mode: "priest",
@@ -87,11 +87,13 @@ describe("class noncombat presenter", () => {
       },
       targets: [],
       locationName: "Дошка корчми",
-      priestBlessCooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z")
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: new Date("2026-07-03T10:33:00.000Z")
     } as unknown as ClassNoncombatOpenResult);
 
-    expect(text).toContain("✨ Благословення: очікування ще 93 хвилини.");
-    expect(text).not.toContain("✨ Благословення: ще 93 хвилини.");
+    expect(text).toContain("✨ Благословення: без загального відпочинку; повтор тієї самої цілі має паузу.");
+    expect(text).toContain("✨ Ви: повтор через 93 хвилини.");
+    expect(text).not.toContain("✨ Благословення: очікування ще 93 хвилини.");
   });
 
   it("shows busy Priest aid as unavailable instead of ready", () => {
@@ -149,7 +151,7 @@ describe("class noncombat presenter", () => {
         targetName: "Жрець",
         actionKind: "blessing",
         healAmount: 0,
-        manaCost: 7,
+        manaCost: 15,
         cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
         completedAt: new Date("2026-07-03T09:00:00.000Z")
       },
@@ -159,7 +161,7 @@ describe("class noncombat presenter", () => {
         targetName: "Жрець",
         expiresAt: new Date("2026-07-03T09:13:00.000Z"),
         bonusStat: "luck",
-        bonusAmount: 1
+        bonusAmount: 5
       },
       actor: {
         id: "character-1",
@@ -173,8 +175,8 @@ describe("class noncombat presenter", () => {
     } as unknown as PriestBlessResult);
 
     expect(text).toContain("Стан діє ще: <b>13 хвилин</b>.");
-    expect(text).toContain("Бонус: <b>+1 Вдачі</b>. Видно в персонажі поруч із бафами.");
-    expect(text).toContain("🌌 Мана витрачена: <b>7</b>.");
+    expect(text).toContain("Бонус: <b>+5 Вдачі</b>. Видно в персонажі поруч із бафами.");
+    expect(text).toContain("🌌 Мана витрачена: <b>15</b>.");
     expect(text).not.toContain("Бонус поки");
     expect(text).not.toContain("не складається в стос");
   });
@@ -284,7 +286,7 @@ describe("class noncombat presenter", () => {
     } as unknown as PriestHealResult);
     const blessText = presentPriestBlessResult({
       state: "blocked",
-      reason: "cooldown",
+      reason: "target-cooldown",
       availableAt: new Date("2026-07-03T10:19:00.000Z"),
       actor: {
         id: "character-1",
@@ -298,8 +300,39 @@ describe("class noncombat presenter", () => {
 
     expect(healText).toContain("⚕️ <b>Лікування не потрібне</b>");
     expect(healText).toContain("HP уже повне. Мана лишається на місці.");
-    expect(blessText).toContain("✨ <b>Благословення відсапується</b>");
-    expect(blessText).toContain("Техніка відсапується ще 79 хвилин.");
+    expect(blessText).toContain("✨ <b>Ціль ще пам’ятає благословення</b>");
+    expect(blessText).toContain("Цю саму ціль можна благословити знову через 79 хвилин.");
     expect(blessText).not.toContain("Благословення не лягло");
+  });
+
+  it("shows Rogue same-day targets and other-target cooldown separately", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "rogue",
+      character: {
+        id: "rogue-1",
+        name: "Злодій",
+        classId: "class.rogue"
+      },
+      targets: [{
+        telegramUserId: 1002n,
+        characterId: "target-1",
+        name: "Сусід",
+        classId: "class.warrior",
+        level: 3,
+        hpCurrent: 10,
+        hpMax: 20,
+        gold: 3,
+        remortCount: 0,
+        rogueAttemptedToday: true,
+        canRoguePickpocket: false
+      }],
+      locationName: "Дошка корчми",
+      roguePickpocketCooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z")
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).toContain("🕯️ Інші цілі: пальці відсапуються ще 93 хвилини.");
+    expect(text).toContain("Сьогодні вже були:");
+    expect(text).toContain("🗓️ Сусід — цю кишеню знову тільки завтра.");
   });
 });

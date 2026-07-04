@@ -369,10 +369,16 @@ export class DevGrantService {
       return { state: "disabled" };
     }
 
-    const result = await this.grants.clearCooldownsForTelegramUser(telegramUserId, {
-      keys: PRIEST_BLESSING_COOLDOWN_KEYS,
-      keyPrefixes: PRIEST_BLESSING_COOLDOWN_PREFIXES
-    });
+    const result = this.grants.resetPriestBlessingForTelegramUser
+      ? await this.grants.resetPriestBlessingForTelegramUser(telegramUserId, {
+          keys: PRIEST_BLESSING_COOLDOWN_KEYS,
+          keyPrefixes: PRIEST_BLESSING_COOLDOWN_PREFIXES,
+          now: new Date()
+        })
+      : await this.grants.clearCooldownsForTelegramUser(telegramUserId, {
+          keys: PRIEST_BLESSING_COOLDOWN_KEYS,
+          keyPrefixes: PRIEST_BLESSING_COOLDOWN_PREFIXES
+        });
 
     return result
       ? {

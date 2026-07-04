@@ -35,7 +35,6 @@ type TxClient = Prisma.TransactionClient;
 
 const PRIEST_CLASS_ID = "class.priest";
 const ROGUE_CLASS_ID = "class.rogue";
-const PRIEST_BLESS_COOLDOWN_KEY = "noncombat.priest.direct-blessing";
 const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
 
 export class PrismaClassNoncombatRepository implements ClassNoncombatRepository {
@@ -52,18 +51,25 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
     const actorRecord = toCharacterRecord(actor);
     const locationId = normalizePresenceLocationId(actor.user.lastSeenLocationId);
-    const [rawTargets, attemptedRogueTargetIds, blessCooldown, pickpocketCooldown] = await Promise.all([
+    const [rawTargets, attemptedRogueTargetIds, pickpocketCooldown] = await Promise.all([
       listActiveTargets(this.prisma, actor.id, locationId, input.activeSince),
-      input.excludeRogueAttemptedLocalDate
-        ? listRogueAttemptedTargetIds(this.prisma, actor.id, input.excludeRogueAttemptedLocalDate)
+      input.rogueAttemptedLocalDate
+        ? listRogueAttemptedTargetIds(this.prisma, actor.id, input.rogueAttemptedLocalDate)
         : Promise.resolve([]),
-      findCooldown(this.prisma, actor.id, PRIEST_BLESS_COOLDOWN_KEY),
       findCooldown(this.prisma, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY)
     ]);
     const attemptedRogueTargetIdSet = new Set(attemptedRogueTargetIds);
-    const targets = attemptedRogueTargetIdSet.size > 0
-      ? rawTargets.filter((target) => !attemptedRogueTargetIdSet.has(target.characterId))
-      : rawTargets;
+    const blessAvailableAtByTargetId = await listPriestBlessAvailableAtByTargetId(
+      this.prisma,
+      actor.id,
+      [actor.id, ...rawTargets.map((target) => target.characterId)],
+      input.now
+    );
+    const targets = rawTargets.map((target) => ({
+      ...target,
+      priestBlessAvailableAt: blessAvailableAtByTargetId.get(target.characterId) ?? null,
+      rogueAttemptedToday: attemptedRogueTargetIdSet.has(target.characterId)
+    }));
     const safePageSize = Math.max(1, Math.min(50, Math.trunc(input.pageSize)));
     const totalPages = Math.max(1, Math.ceil(targets.length / safePageSize));
     const safePage = clampPage(input.page, totalPages);
@@ -77,9 +83,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       targetTotalPages: totalPages,
       locationId,
       locationName: getLocationName(locationId),
-      priestBlessCooldownAvailableAt: blessCooldown?.availableAt && blessCooldown.availableAt > input.now
-        ? blessCooldown.availableAt
-        : null,
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: blessAvailableAtByTargetId.get(actor.id) ?? null,
       roguePickpocketCooldownAvailableAt: pickpocketCooldown?.availableAt && pickpocketCooldown.availableAt > input.now
         ? pickpocketCooldown.availableAt
         : null
@@ -240,14 +245,19 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           };
         }
 
-        const cooldown = await claimCooldown(tx, actor.id, PRIEST_BLESS_COOLDOWN_KEY, input.now, input.cooldownAvailableAt);
-        if (cooldown.state === "cooldown") {
+        const pairCooldownAvailableAt = await findPriestBlessPairCooldownAvailableAt(
+          tx,
+          actor.id,
+          target.id,
+          input.now
+        );
+        if (pairCooldownAvailableAt) {
           return {
             state: "blocked",
-            reason: "cooldown",
+            reason: "target-cooldown",
             actor: actorRecord,
             target: targetRecord,
-            availableAt: cooldown.availableAt
+            availableAt: pairCooldownAvailableAt
           };
         }
 
@@ -278,12 +288,12 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             status: "active",
             activeGuard: target.id,
             bonusStat: "luck",
-            bonusAmount: 1,
+            bonusAmount: input.bonusAmount,
             resultJson: toJson({
               statSnapshot: input.statSnapshot,
               manaBefore: actor.manaCurrent,
               manaAfter: actor.manaCurrent - input.manaCost,
-              activeStatBonus: { stat: "luck", amount: 1 }
+              activeStatBonus: { stat: "luck", amount: input.bonusAmount }
             }),
             startedAt: input.now,
             expiresAt: input.expiresAt
@@ -310,17 +320,11 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             resultJson: toJson({
               blessingId: blessing.id,
               statSnapshot: input.statSnapshot,
-              activeStatBonus: { stat: "luck", amount: 1 }
+              activeStatBonus: { stat: "luck", amount: input.bonusAmount }
             }),
             cooldownAvailableAt: input.cooldownAvailableAt,
             completedAt: input.now
           }
-        });
-        await setCooldownResult(tx, cooldown.id, {
-          actionId: action.id,
-          blessingId: blessing.id,
-          techniqueId: PRIEST_DIRECT_BLESSING_TECHNIQUE_ID,
-          cooldownAvailableAt: input.cooldownAvailableAt.toISOString()
         });
 
         return {
@@ -750,7 +754,9 @@ async function listActiveTargets(
           hpCurrent: user.character.hpCurrent,
           hpMax: getEffectiveHpMax(user.character),
           gold: user.character.gold,
-          remortCount: getIncludedRemortCount(user.character)
+          remortCount: getIncludedRemortCount(user.character),
+          priestBlessAvailableAt: null,
+          rogueAttemptedToday: false
         }]
       : []
   );
@@ -767,6 +773,79 @@ async function listRogueAttemptedTargetIds(
   });
 
   return attempts.map((attempt) => attempt.targetCharacterId);
+}
+
+async function listPriestBlessAvailableAtByTargetId(
+  client: PrismaClient,
+  actorCharacterId: string,
+  targetCharacterIds: string[],
+  now: Date
+): Promise<Map<string, Date>> {
+  const uniqueTargetIds = [...new Set(targetCharacterIds)];
+  if (uniqueTargetIds.length === 0) {
+    return new Map();
+  }
+
+  const [pairCooldowns, activeBlessings] = await Promise.all([
+    client.noncombatPriestAidAction.findMany({
+      where: {
+        actorCharacterId,
+        targetCharacterId: { in: uniqueTargetIds },
+        actionKind: "blessing",
+        status: "completed",
+        cooldownAvailableAt: { gt: now }
+      },
+      select: { targetCharacterId: true, cooldownAvailableAt: true },
+      orderBy: { cooldownAvailableAt: "desc" }
+    }),
+    client.noncombatPriestBlessing.findMany({
+      where: {
+        targetCharacterId: { in: uniqueTargetIds },
+        status: "active",
+        expiresAt: { gt: now }
+      },
+      select: { targetCharacterId: true, expiresAt: true },
+      orderBy: { expiresAt: "desc" }
+    })
+  ]);
+  const availableAtByTargetId = new Map<string, Date>();
+
+  for (const row of activeBlessings) {
+    setMaxDate(availableAtByTargetId, row.targetCharacterId, row.expiresAt);
+  }
+  for (const row of pairCooldowns) {
+    setMaxDate(availableAtByTargetId, row.targetCharacterId, row.cooldownAvailableAt);
+  }
+
+  return availableAtByTargetId;
+}
+
+async function findPriestBlessPairCooldownAvailableAt(
+  client: TxClient,
+  actorCharacterId: string,
+  targetCharacterId: string,
+  now: Date
+): Promise<Date | null> {
+  const action = await client.noncombatPriestAidAction.findFirst({
+    where: {
+      actorCharacterId,
+      targetCharacterId,
+      actionKind: "blessing",
+      status: "completed",
+      cooldownAvailableAt: { gt: now }
+    },
+    select: { cooldownAvailableAt: true },
+    orderBy: { cooldownAvailableAt: "desc" }
+  });
+
+  return action?.cooldownAvailableAt ?? null;
+}
+
+function setMaxDate(map: Map<string, Date>, key: string, value: Date): void {
+  const current = map.get(key);
+  if (!current || value > current) {
+    map.set(key, value);
+  }
 }
 
 function getPresenceLocationQueryIds(locationId: string): string[] {

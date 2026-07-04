@@ -308,12 +308,15 @@ function priestOpenResult(): ClassNoncombatOpenResult {
       hpMax: 20,
       gold: 13,
       remortCount: 0,
+      priestBlessAvailableAt: null,
+      rogueAttemptedToday: false,
       canPriestAid: true,
       canRoguePickpocket: false
     }],
     targetPage: 0,
     targetTotalPages: 1,
     priestBlessCooldownAvailableAt: null,
+    priestSelfBlessAvailableAt: null,
     roguePickpocketCooldownAvailableAt: null
   };
 }

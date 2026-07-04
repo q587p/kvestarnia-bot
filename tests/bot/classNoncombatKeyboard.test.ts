@@ -62,6 +62,63 @@ describe("class noncombat keyboard", () => {
     ]));
     expect(buttonTexts(keyboard)).not.toContain("🩹 Поранений Сусід");
   });
+
+  it("shows same-day Rogue targets as tomorrow rows instead of pickpocket actions", () => {
+    const keyboard = buildClassNoncombatKeyboard({
+      state: "ready",
+      mode: "rogue",
+      character: character({ classId: "class.rogue" }),
+      actorBlocked: false,
+      locationName: "Дошка корчми",
+      targets: [
+        target({
+          name: "Сьогоднішній Сусід",
+          canPriestAid: false,
+          canRoguePickpocket: false,
+          rogueAttemptedToday: true
+        }),
+        target({
+          name: "Новий Сусід",
+          canPriestAid: false,
+          canRoguePickpocket: true
+        })
+      ],
+      targetPage: 0,
+      targetTotalPages: 1,
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: null,
+      roguePickpocketCooldownAvailableAt: null
+    });
+
+    expect(buttonTexts(keyboard)).toContain("🗓️ Сьогоднішній Сусід завтра");
+    expect(buttonTexts(keyboard)).toContain("🗡️ Новий Сусід");
+    expect(buttonTexts(keyboard)).not.toContain("🗡️ Сьогоднішній Сусід");
+  });
+
+  it("shows other Rogue targets as later rows while the actor cooldown is active", () => {
+    const keyboard = buildClassNoncombatKeyboard({
+      state: "ready",
+      mode: "rogue",
+      character: character({ classId: "class.rogue" }),
+      actorBlocked: false,
+      locationName: "Дошка корчми",
+      targets: [
+        target({
+          name: "Новий Сусід",
+          canPriestAid: false,
+          canRoguePickpocket: false
+        })
+      ],
+      targetPage: 0,
+      targetTotalPages: 1,
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: null,
+      roguePickpocketCooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z")
+    });
+
+    expect(buttonTexts(keyboard)).toContain("🕯️ Новий Сусід пізніше");
+    expect(buttonTexts(keyboard)).not.toContain("🗡️ Новий Сусід");
+  });
 });
 
 function priestOpenResult(
@@ -83,6 +140,7 @@ function priestOpenResult(
     targetPage: options.targetPage ?? 0,
     targetTotalPages: options.targetTotalPages ?? 1,
     priestBlessCooldownAvailableAt: null,
+    priestSelfBlessAvailableAt: null,
     roguePickpocketCooldownAvailableAt: null
   };
 }
@@ -100,6 +158,8 @@ function target(
     hpMax: 20,
     gold: 13,
     remortCount: 0,
+    priestBlessAvailableAt: null,
+    rogueAttemptedToday: false,
     canPriestAid: true,
     canRoguePickpocket: false,
     ...overrides

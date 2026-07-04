@@ -11,6 +11,8 @@ export interface NoncombatTargetRecord {
   hpMax: number;
   gold: number;
   remortCount: number;
+  priestBlessAvailableAt: Date | null;
+  rogueAttemptedToday: boolean;
 }
 
 export interface NoncombatActionSnapshot {
@@ -22,6 +24,7 @@ export interface NoncombatActionSnapshot {
   locationId: string;
   locationName: string;
   priestBlessCooldownAvailableAt: Date | null;
+  priestSelfBlessAvailableAt: Date | null;
   roguePickpocketCooldownAvailableAt: Date | null;
 }
 
@@ -83,6 +86,7 @@ export type NoncombatGateReason =
   | "insufficient-mana"
   | "already-blessed"
   | "cooldown"
+  | "target-cooldown"
   | "pair-daily-used"
   | "stale";
 
@@ -108,7 +112,7 @@ export type RoguePickpocketRepositoryResult =
 export interface ClassNoncombatRepository {
   getSnapshotForTelegramUser(
     telegramUserId: bigint,
-    input: { activeSince: Date; page: number; pageSize: number; now: Date; excludeRogueAttemptedLocalDate?: string }
+    input: { activeSince: Date; page: number; pageSize: number; now: Date; rogueAttemptedLocalDate?: string }
   ): Promise<NoncombatActionSnapshot | null>;
 
   getActivePriestBlessingForTelegramUser(
@@ -144,6 +148,7 @@ export interface ClassNoncombatRepository {
       expiresAt: Date;
       cooldownAvailableAt: Date;
       manaCost: number;
+      bonusAmount: number;
       statSnapshot: unknown;
     }
   ): Promise<PriestBlessRepositoryResult>;

@@ -300,6 +300,61 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
     });
   }
 
+  async resetPriestBlessingForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { now: Date }
+  ): Promise<DevGrantCooldownResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const cooldownKeyWhere = buildCooldownKeyWhere(input);
+      const legacyCooldowns = await tx.characterCooldown.deleteMany({
+        where: {
+          characterId: character.id,
+          ...(cooldownKeyWhere ? { OR: cooldownKeyWhere } : { key: "__no_dev_cooldown_match__" })
+        }
+      });
+      const pairWaits = await tx.noncombatPriestAidAction.updateMany({
+        where: {
+          actorCharacterId: character.id,
+          actionKind: "blessing",
+          cooldownAvailableAt: {
+            gt: input.now
+          }
+        },
+        data: {
+          cooldownAvailableAt: input.now,
+          updatedAt: input.now
+        }
+      });
+      const activeBlessings = await tx.noncombatPriestBlessing.updateMany({
+        where: {
+          actorCharacterId: character.id,
+          status: "active",
+          expiresAt: {
+            gt: input.now
+          }
+        },
+        data: {
+          status: "expired",
+          activeGuard: null,
+          expiresAt: input.now,
+          endedAt: input.now,
+          updatedAt: input.now
+        }
+      });
+
+      return {
+        character: toCharacterRecord(character),
+        cleared: legacyCooldowns.count + pairWaits.count + activeBlessings.count > 0
+      };
+    });
+  }
+
   async finishCooldownForTelegramUser(
     telegramUserId: bigint,
     key: string,

@@ -86,8 +86,11 @@ describe("ClassNoncombatService", () => {
     expect(achievements.events).toEqual([]);
   });
 
-  it("creates direct Priest blessing with a visible 13-minute status and achievement hook", async () => {
-    const repository = new FakeClassNoncombatRepository();
+  it("creates direct Priest blessing with a scaled bonus and achievement hook", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: priest({ level: 13, statsJson: { intelligence: 20 } }),
+      target: target({ level: 3 })
+    });
     const achievements = new FakeAchievementService();
     const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0]), achievements.service);
 
@@ -99,9 +102,17 @@ describe("ClassNoncombatService", () => {
 
     expect(result.state).toBe("completed");
     expect(repository.lastBlessInput).toMatchObject({
-      manaCost: 7,
+      manaCost: 15,
+      bonusAmount: 5,
       expiresAt: new Date("2026-07-03T09:13:00.000Z"),
-      cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z")
+      cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+      statSnapshot: {
+        level: 13,
+        intelligence: 22,
+        targetLevel: 3,
+        levelDiff: 10,
+        blessingBonus: 5
+      }
     });
     expect(achievements.events.map((event) => event.type)).toEqual(["priest.blessing.completed"]);
   });
@@ -165,7 +176,7 @@ describe("ClassNoncombatService", () => {
     expect(achievements.events).toEqual([]);
   });
 
-  it("requests same-day attempted target filtering when opening the Rogue list", async () => {
+  it("requests same-day attempted target markers when opening the Rogue list", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue()
     });
@@ -175,7 +186,7 @@ describe("ClassNoncombatService", () => {
 
     expect(result).toMatchObject({ state: "ready", mode: "rogue" });
     expect(repository.lastSnapshotInput).toMatchObject({
-      excludeRogueAttemptedLocalDate: "2026-07-03"
+      rogueAttemptedLocalDate: "2026-07-03"
     });
   });
 
@@ -262,13 +273,16 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
         hpCurrent: this.target.hpCurrent,
         hpMax: this.target.hpMax,
         gold: this.target.gold,
-        remortCount: this.target.remortCount ?? 0
+        remortCount: this.target.remortCount ?? 0,
+        priestBlessAvailableAt: null,
+        rogueAttemptedToday: false
       }],
       targetPage: 0,
       targetTotalPages: 1,
       locationId: "location.korchma.front",
       locationName: "Перед Корчмою",
       priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: null,
       roguePickpocketCooldownAvailableAt: null
     });
   }
@@ -309,7 +323,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
         targetName: this.target.name,
         expiresAt: input.expiresAt,
         bonusStat: "luck",
-        bonusAmount: 1
+        bonusAmount: input.bonusAmount
       },
       actor: this.actor,
       target: this.target,

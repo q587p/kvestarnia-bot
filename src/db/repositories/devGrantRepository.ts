@@ -95,6 +95,11 @@ export interface DevGrantRepository {
     input: DevGrantCooldownMatchInput
   ): Promise<DevGrantCooldownResult | null>;
 
+  resetPriestBlessingForTelegramUser?(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { now: Date }
+  ): Promise<DevGrantCooldownResult | null>;
+
   finishCooldownForTelegramUser(
     telegramUserId: bigint,
     key: string,
