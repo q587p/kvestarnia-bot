@@ -1169,13 +1169,17 @@ function presentTurnSummary(
   const heading = options.includeHeading === false ? [] : ["Остання дія"];
   const monsterResponse = presentMonsterResponse(summary);
   const enemyResponses = presentEnemyResponses(summary);
+  const enemyPressureSkips = presentEnemyPressureSkips(summary);
   const heroEffectResponse = presentHeroEffectDamage(summary);
 
   if (summary.heroOutcome === "not-enough-mana") {
     return withMonsterBark(summary, [
       ...heading,
       "Мани не стало навіть на драматичний жест.",
-      enemyResponses || monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість.",
+        enemyPressureSkips
+      )
     ]);
   }
 
@@ -1183,7 +1187,10 @@ function presentTurnSummary(
     return withMonsterBark(summary, [
       ...heading,
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
-      enemyResponses || monsterResponse || "Монстр промахнувся й теж назвав це планом."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр промахнувся й теж назвав це планом.",
+        enemyPressureSkips
+      )
     ]);
   }
 
@@ -1192,7 +1199,10 @@ function presentTurnSummary(
       ...heading,
       "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
       heroEffectResponse,
-      enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",
+        enemyPressureSkips
+      ),
       summary.heroCounterDamage
         ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
         : ""
@@ -1207,7 +1217,10 @@ function presentTurnSummary(
       ...heading,
       `Ви використали <b>${itemName}</b>.${healing}`,
       heroEffectResponse,
-      enemyResponses || monsterResponse || "Монстр відреагував паузою, яка майже виглядала професійно."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр відреагував паузою, яка майже виглядала професійно.",
+        enemyPressureSkips
+      )
     ].filter(Boolean));
   }
 
@@ -1229,7 +1242,10 @@ function presentTurnSummary(
       ...heading,
       "Ви не встигли обрати дію.",
       heroEffectResponse,
-      enemyResponses || monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута.",
+        enemyPressureSkips
+      )
     ].filter(Boolean));
   }
 
@@ -1241,11 +1257,14 @@ function presentTurnSummary(
         : "Відступ";
   const hit = presentHeroActionResult(summary, action);
   const response =
-    enemyResponses ||
-    monsterResponse ||
-    (summary.monsterOutcome === "miss"
-      ? "Монстр промахнувся й зробив вигляд, що так і планував."
-      : "");
+    withEnemyPressureSkips(
+      enemyResponses ||
+      monsterResponse ||
+      (summary.monsterOutcome === "miss"
+        ? "Монстр промахнувся й зробив вигляд, що так і планував."
+        : ""),
+      enemyPressureSkips
+    );
 
   return withMonsterBark(summary, [
     ...heading,
@@ -1389,6 +1408,24 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
         : `${name} відповідає на ваш хід, але шкоди цього разу не додає.`;
     })
     .join("\n");
+}
+
+function presentEnemyPressureSkips(summary: CombatTurnSummary): string {
+  if (!summary.enemyPressureSkips || summary.enemyPressureSkips.length === 0) {
+    return "";
+  }
+
+  return summary.enemyPressureSkips
+    .map((entry, index) => {
+      const name = escapeHtml(getShortMonsterName(entry.monsterName, `Монстр ${index + 2}`));
+
+      return `${name} займає позицію і поки не б’є: підмога тисне через хід.`;
+    })
+    .join("\n");
+}
+
+function withEnemyPressureSkips(response: string, skips: string): string {
+  return [response, skips].filter(Boolean).join("\n");
 }
 
 function presentMonsterResponse(summary: CombatTurnSummary): string {

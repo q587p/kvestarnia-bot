@@ -1702,6 +1702,107 @@ describe("fight presenter", () => {
     expect(text).toContain("Зграя промахується");
   });
 
+  it("renders backup enemy pressure pauses in multi-enemy journals", () => {
+    const session = persistentSession({
+      turn: 2,
+      monster: {
+        id: "monster.borshch",
+        name: "Борщовий ревізор",
+        level: 3,
+        hp: 14,
+        hpMax: 18
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.borshch",
+          name: "Борщовий ревізор",
+          level: 3,
+          hp: 14,
+          hpMax: 18
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.gargoyle",
+          name: "Ґарґулья з мокрим протоколом",
+          level: 4,
+          hp: 26,
+          hpMax: 30
+        }
+      ],
+      turnLog: [
+        {
+          turn: 1,
+          hero: { hp: 22, mana: 12 },
+          monster: { hp: 14 },
+          enemies: [
+            { enemyId: "enemy:1", hp: 14 },
+            { enemyId: "enemy:2", hp: 26 }
+          ],
+          summary: {
+            action: "skill",
+            heroOutcome: "hit",
+            heroDamage: 8,
+            monsterDamage: 6,
+            manaSpent: 2,
+            critical: false,
+            skillId: "skill.dry-tide",
+            enemyResults: [
+              {
+                enemyId: "enemy:1",
+                monsterId: "monster.borshch",
+                monsterName: "Борщовий ревізор",
+                damage: 4,
+                outcome: "hit"
+              },
+              {
+                enemyId: "enemy:2",
+                monsterId: "monster.gargoyle",
+                monsterName: "Ґарґулья з мокрим протоколом",
+                damage: 4,
+                outcome: "hit"
+              }
+            ],
+            enemyActions: [
+              {
+                enemyId: "enemy:1",
+                monsterId: "monster.borshch",
+                monsterName: "Борщовий ревізор",
+                monsterOutcome: "hit",
+                monsterDamage: 6,
+                monsterAction: "attack"
+              }
+            ],
+            enemyPressureSkips: [
+              {
+                enemyId: "enemy:2",
+                monsterId: "monster.gargoyle",
+                monsterName: "Ґарґулья з мокрим протоколом"
+              }
+            ]
+          }
+        }
+      ]
+    });
+    const text = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session,
+      monster: {
+        id: "monster.borshch",
+        name: "Борщовий ревізор",
+        description: "Тестовий ревізор.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4),
+      fightReward: null
+    }, 0);
+
+    expect(text).toContain("Монстр атакував у відповідь на ваш хід і завдав 6 шкоди.");
+    expect(text).toContain("Ґарґулья займає позицію і поки не б’є: підмога тисне через хід.");
+  });
+
   it("adds the terminal last turn to the journal when it is missing from stored turns", () => {
     const session = persistentSession({
       status: "won",

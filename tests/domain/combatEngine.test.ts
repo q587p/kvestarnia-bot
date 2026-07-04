@@ -666,6 +666,11 @@ describe("combat domain engine", () => {
     });
 
     expect(first.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1"]);
+    expect(first.summary.enemyPressureSkips).toEqual([{
+      enemyId: "enemy:2",
+      monsterId: backup.monsterId,
+      monsterName: backup.name
+    }]);
 
     const second = resolveCombatTurn({
       state: first.state,
@@ -677,6 +682,7 @@ describe("combat domain engine", () => {
     });
 
     expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1", "enemy:2"]);
+    expect(second.summary.enemyPressureSkips).toBeUndefined();
     const backupAction = second.summary.enemyActions?.find((entry) => entry.enemyId === "enemy:2");
     expect(backupAction?.monsterDamage).toBeLessThan(backup.attack);
   });
