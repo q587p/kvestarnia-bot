@@ -64,6 +64,10 @@ export interface RoguePickpocketAttemptRecord {
   outcome: RoguePickpocketOutcome;
   stolenGold: number;
   actorHpAfter: number | null;
+  retaliationToken: string | null;
+  retaliationAvailableUntil: Date | null;
+  retaliationUsedAt: Date | null;
+  retaliationDuelInviteToken: string | null;
   cooldownAvailableAt: Date;
   completedAt: Date;
 }
@@ -109,6 +113,18 @@ export type PriestBlessRepositoryResult =
 export type RoguePickpocketRepositoryResult =
   | { state: "completed"; attempt: RoguePickpocketAttemptRecord; actor: CharacterRecord; target: CharacterRecord; created: boolean }
   | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord; availableAt?: Date };
+
+export type RogueRetaliationClaimReason =
+  | "not-found"
+  | "not-target"
+  | "invalid-attempt"
+  | "expired"
+  | "used"
+  | "actor-not-rogue";
+
+export type RogueRetaliationClaimResult =
+  | { state: "ready"; attempt: RoguePickpocketAttemptRecord; actor: CharacterRecord; target: CharacterRecord }
+  | { state: "blocked"; reason: RogueRetaliationClaimReason; attempt?: RoguePickpocketAttemptRecord };
 
 export interface ClassNoncombatRepository {
   getSnapshotForTelegramUser(
@@ -171,7 +187,19 @@ export interface ClassNoncombatRepository {
       cooldownAvailableAt: Date;
       outcome: RoguePickpocketOutcome;
       stolenGold: number;
+      retaliationToken: string | null;
+      retaliationAvailableUntil: Date | null;
       statSnapshot: unknown;
     }
   ): Promise<RoguePickpocketRepositoryResult>;
+
+  claimRogueRetaliation(
+    targetTelegramUserId: bigint,
+    input: { retaliationToken: string; now: Date }
+  ): Promise<RogueRetaliationClaimResult>;
+
+  recordRogueRetaliationDuel(
+    retaliationToken: string,
+    input: { duelInviteToken: string; now: Date }
+  ): Promise<void>;
 }

@@ -189,6 +189,10 @@ describe("DuelChallengeService", () => {
     });
 
     expect(accepted).toMatchObject({ state: "resolved" });
+    if (accepted.state !== "resolved") {
+      throw new Error(`Expected resolved quick duel, got ${accepted.state}`);
+    }
+    expect(accepted.result).not.toHaveProperty("xpRewards");
     expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("resolved");
   });
 

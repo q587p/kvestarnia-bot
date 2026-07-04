@@ -77,22 +77,28 @@ describe("class noncombat callback data", () => {
     });
   });
 
-  it("encodes Rogue retaliation duel callbacks with victim and Rogue ids", () => {
+  it("encodes Rogue retaliation duel callbacks with an opaque attempt token", () => {
     expect(parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
-      victimTelegramUserId: 1002n,
-      rogueTelegramUserId: 1001n
+      retaliationToken: "abc123xy"
     }))).toEqual({
       ok: true,
       value: {
         type: "rogue-retaliation-duel",
-        victimTelegramUserId: 1002n,
-        rogueTelegramUserId: 1001n
+        retaliationToken: "abc123xy"
       }
     });
 
-    expect(parseClassNoncombatCallbackData("v1:nc:rd:!:rt")).toEqual({
+    expect(parseClassNoncombatCallbackData("v1:nc:rd:short")).toEqual({
       ok: false,
       error: "invalid-target"
+    });
+    expect(parseClassNoncombatCallbackData(`v1:nc:rd:${"a".repeat(60)}`)).toEqual({
+      ok: false,
+      error: "too-long"
+    });
+    expect(parseClassNoncombatCallbackData("v1:nc:rd:abc123xy:extra")).toEqual({
+      ok: false,
+      error: "invalid-prefix"
     });
   });
 });

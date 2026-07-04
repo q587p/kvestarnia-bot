@@ -5,7 +5,8 @@ import {
 } from "../callbacks/classNoncombatCallbackData";
 import type {
   ClassNoncombatService,
-  RoguePickpocketResult
+  RoguePickpocketResult,
+  RogueRetaliationResult
 } from "../../services/classNoncombatService";
 import type {
   DuelAcceptResult,
@@ -47,7 +48,7 @@ export async function handleClassNoncombatCallback(
   }
 
   if (callback.type === "rogue-retaliation-duel") {
-    await handleRogueRetaliationDuel(ctx, telegramUserId, callback, duelService);
+    await handleRogueRetaliationDuel(ctx, telegramUserId, callback, service, duelService);
     return;
   }
 
@@ -145,23 +146,30 @@ async function handleRogueRetaliationDuel(
   ctx: Context,
   telegramUserId: bigint,
   callback: Extract<ClassNoncombatCallback, { type: "rogue-retaliation-duel" }>,
+  service: ClassNoncombatService,
   duelService?: DuelChallengeService
 ): Promise<void> {
-  if (telegramUserId !== callback.victimTelegramUserId) {
-    await safeAnswerCallbackQuery(ctx, { text: "Це не ваша кишеня подала скаргу.", show_alert: true });
+  if (!duelService) {
+    await safeAnswerCallbackQuery(ctx, { text: "Бійцівський куток зараз не відповідає.", show_alert: true });
     return;
   }
 
-  if (!duelService) {
-    await safeAnswerCallbackQuery(ctx, { text: "Бійцівський куток зараз не відповідає.", show_alert: true });
+  const claim = await service.claimRogueRetaliationForTelegramUser(telegramUserId, callback.retaliationToken);
+  if (claim.state === "blocked") {
+    if (claim.reason === "not-target") {
+      await safeAnswerCallbackQuery(ctx, { text: "Це не ваша кишеня подала скаргу.", show_alert: true });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, { text: presentRogueRetaliationBlockedAnswer(claim) });
+    await safeEditMessageText(ctx, presentRogueRetaliationBlocked(claim), HTML_MESSAGE_OPTIONS);
     return;
   }
 
   await safeAnswerCallbackQuery(ctx, { text: "Корчмар ставить відплату в дуельний протокол." });
 
   const created = await duelService.createTargetedChallengeForTelegramUser(
-    callback.victimTelegramUserId,
-    callback.rogueTelegramUserId,
+    claim.attempt.targetTelegramUserId,
+    claim.attempt.actorTelegramUserId,
     {
       ignoreResourceWarning: true,
       mode: "quick"
@@ -173,8 +181,10 @@ async function handleRogueRetaliationDuel(
     return;
   }
 
+  await service.recordRogueRetaliationDuel(callback.retaliationToken, created.challenge.inviteToken);
+
   const accepted = await duelService.acceptForTelegramUser(
-    callback.rogueTelegramUserId,
+    claim.attempt.actorTelegramUserId,
     created.challenge.inviteToken,
     {
       confirmed: true,
@@ -194,7 +204,7 @@ async function handleRogueRetaliationDuel(
   if (accepted.state === "resolved") {
     await notifyTarget(
       ctx,
-      callback.rogueTelegramUserId,
+      claim.attempt.actorTelegramUserId,
       text,
       buildDuelResultKeyboard(accepted.challenge.inviteToken)
     );
@@ -232,7 +242,8 @@ function buildRogueRetaliationKeyboard(
   if (
     !result.created ||
     result.attempt.outcome !== "noticed-success" ||
-    result.attempt.stolenGold <= 0
+    result.attempt.stolenGold <= 0 ||
+    !result.attempt.retaliationToken
   ) {
     return undefined;
   }
@@ -240,8 +251,7 @@ function buildRogueRetaliationKeyboard(
   return new InlineKeyboard().text(
     "⚡ Відплатити дуеллю",
     makeRogueRetaliationDuelCallbackData({
-      victimTelegramUserId: result.attempt.targetTelegramUserId,
-      rogueTelegramUserId: result.attempt.actorTelegramUserId
+      retaliationToken: result.attempt.retaliationToken
     })
   );
 }
@@ -292,4 +302,50 @@ function presentRogueRetaliationCreateBlocked(
   }
 
   return "Відплата не склалася: Корчма не знайшла чистого рядка в дуельному протоколі.";
+}
+
+function presentRogueRetaliationBlockedAnswer(
+  result: Extract<RogueRetaliationResult, { state: "blocked" }>
+): string {
+  if (result.reason === "used") {
+    return "Цю відплату вже вписано.";
+  }
+  if (result.reason === "expired") {
+    return "Ця відплата вже видихлась.";
+  }
+  return "Корчма не прийняла цю скаргу.";
+}
+
+function presentRogueRetaliationBlocked(
+  result: Extract<RogueRetaliationResult, { state: "blocked" }>
+): string {
+  if (result.reason === "used") {
+    return [
+      "⚡ <b>Відплату вже вписано</b>",
+      "",
+      "Ця скарга вже стала дуельним протоколом. Другий раз Корчма не підпалює той самий рядок."
+    ].join("\n");
+  }
+
+  if (result.reason === "expired") {
+    return [
+      "⏳ <b>Відплата видихлась</b>",
+      "",
+      "Скарга мала короткий термін дії. Корчмар уже прибрав її з краю стола."
+    ].join("\n");
+  }
+
+  if (result.reason === "invalid-attempt" || result.reason === "actor-not-rogue") {
+    return [
+      "⚡ <b>Відплата не має підпису</b>",
+      "",
+      "Корчма перечитала протокол: ця кишеня не дає права на дуельну відплату."
+    ].join("\n");
+  }
+
+  return [
+    "⚡ <b>Відплата загубила квитанцію</b>",
+    "",
+    "Ця кнопка вже не схожа на справжню скаргу Корчми."
+  ].join("\n");
 }

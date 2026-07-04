@@ -659,6 +659,10 @@ model NoncombatRoguePickpocketAttempt {
   outcome             String
   stolenGold          Int       @default(0) @map("stolen_gold")
   actorHpAfter        Int?      @map("actor_hp_after")
+  retaliationToken           String?   @unique @map("retaliation_token")
+  retaliationAvailableUntil  DateTime? @map("retaliation_available_until")
+  retaliationUsedAt          DateTime? @map("retaliation_used_at")
+  retaliationDuelInviteToken String?   @map("retaliation_duel_invite_token")
   statSnapshotJson    Json      @map("stat_snapshot_json")
   resultJson          Json?     @map("result_json")
   cooldownAvailableAt DateTime  @map("cooldown_available_at")

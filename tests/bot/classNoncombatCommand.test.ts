@@ -9,10 +9,12 @@ import {
 } from "../../src/bot/callbacks/classNoncombatCallbackData";
 import { handleClassNoncombatCallback } from "../../src/bot/commands/classNoncombatCommand";
 import type {
+  ClassNoncombatService,
   ClassNoncombatOpenResult,
   PriestBlessResult,
   PriestHealResult,
-  RoguePickpocketResult
+  RoguePickpocketResult,
+  RogueRetaliationResult
 } from "../../src/services/classNoncombatService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
@@ -212,6 +214,19 @@ describe("class noncombat command", () => {
 
   it("starts and auto-accepts a quick duel when the pickpocket target retaliates", async () => {
     const { ctx, editMessageText } = callbackContext({ telegramUserId: targetTelegramUserId });
+    const claimRogueRetaliationForTelegramUser = vi.fn<(target: bigint, token: string) => Promise<RogueRetaliationResult>>()
+      .mockResolvedValue({
+        state: "ready",
+        attempt: roguePickpocketAttempt(),
+        actor: character("Злодій", "class.rogue"),
+        target: character("Ціль", "class.warrior")
+      });
+    const recordRogueRetaliationDuel = vi.fn<(token: string, inviteToken: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const service = {
+      claimRogueRetaliationForTelegramUser,
+      recordRogueRetaliationDuel
+    } satisfies Pick<ClassNoncombatService, "claimRogueRetaliationForTelegramUser" | "recordRogueRetaliationDuel">;
     const createTargetedChallengeForTelegramUser = vi.fn().mockResolvedValue({
       state: "pending",
       challenge: {
@@ -222,22 +237,23 @@ describe("class noncombat command", () => {
       state: "not-found"
     });
     const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
-      victimTelegramUserId: targetTelegramUserId,
-      rogueTelegramUserId: actorTelegramUserId
+      retaliationToken: "abc123xy"
     }));
 
     expect(callback.ok).toBe(true);
     await handleClassNoncombatCallback(
       ctx,
       callback.ok ? callback.value : neverCallback(),
-      {} as never,
+      service as never,
       { createTargetedChallengeForTelegramUser, acceptForTelegramUser } as never
     );
 
+    expect(claimRogueRetaliationForTelegramUser).toHaveBeenCalledWith(targetTelegramUserId, "abc123xy");
     expect(createTargetedChallengeForTelegramUser).toHaveBeenCalledWith(targetTelegramUserId, actorTelegramUserId, {
       ignoreResourceWarning: true,
       mode: "quick"
     });
+    expect(recordRogueRetaliationDuel).toHaveBeenCalledWith("abc123xy", "retaliate-token");
     expect(acceptForTelegramUser).toHaveBeenCalledWith(actorTelegramUserId, "retaliate-token", {
       confirmed: true,
       ignoreResourceWarning: true,
@@ -251,18 +267,26 @@ describe("class noncombat command", () => {
 
   it("does not let another Telegram user trigger pickpocket retaliation", async () => {
     const { ctx, answerCallbackQuery } = callbackContext({ telegramUserId: 9999n });
+    const claimRogueRetaliationForTelegramUser = vi.fn<(target: bigint, token: string) => Promise<RogueRetaliationResult>>()
+      .mockResolvedValue({
+        state: "blocked",
+        reason: "not-target",
+        attempt: roguePickpocketAttempt()
+      });
+    const service = {
+      claimRogueRetaliationForTelegramUser
+    } satisfies Pick<ClassNoncombatService, "claimRogueRetaliationForTelegramUser">;
     const createTargetedChallengeForTelegramUser = vi.fn();
     const acceptForTelegramUser = vi.fn();
     const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
-      victimTelegramUserId: targetTelegramUserId,
-      rogueTelegramUserId: actorTelegramUserId
+      retaliationToken: "abc123xy"
     }));
 
     expect(callback.ok).toBe(true);
     await handleClassNoncombatCallback(
       ctx,
       callback.ok ? callback.value : neverCallback(),
-      {} as never,
+      service as never,
       { createTargetedChallengeForTelegramUser, acceptForTelegramUser } as never
     );
 
@@ -272,6 +296,70 @@ describe("class noncombat command", () => {
     });
     expect(createTargetedChallengeForTelegramUser).not.toHaveBeenCalled();
     expect(acceptForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("does not create another retaliation duel from a replayed used callback", async () => {
+    const { ctx, editMessageText } = callbackContext({ telegramUserId: targetTelegramUserId });
+    const claimRogueRetaliationForTelegramUser = vi.fn<(target: bigint, token: string) => Promise<RogueRetaliationResult>>()
+      .mockResolvedValue({
+        state: "blocked",
+        reason: "used",
+        attempt: roguePickpocketAttempt()
+      });
+    const service = {
+      claimRogueRetaliationForTelegramUser
+    } satisfies Pick<ClassNoncombatService, "claimRogueRetaliationForTelegramUser">;
+    const createTargetedChallengeForTelegramUser = vi.fn();
+    const acceptForTelegramUser = vi.fn();
+    const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      retaliationToken: "abc123xy"
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(
+      ctx,
+      callback.ok ? callback.value : neverCallback(),
+      service as never,
+      { createTargetedChallengeForTelegramUser, acceptForTelegramUser } as never
+    );
+
+    expect(createTargetedChallengeForTelegramUser).not.toHaveBeenCalled();
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("Відплату вже вписано");
+    expect(options.parse_mode).toBe("HTML");
+  });
+
+  it("does not create a retaliation duel from an expired callback", async () => {
+    const { ctx, editMessageText } = callbackContext({ telegramUserId: targetTelegramUserId });
+    const claimRogueRetaliationForTelegramUser = vi.fn<(target: bigint, token: string) => Promise<RogueRetaliationResult>>()
+      .mockResolvedValue({
+        state: "blocked",
+        reason: "expired",
+        attempt: roguePickpocketAttempt()
+      });
+    const service = {
+      claimRogueRetaliationForTelegramUser
+    } satisfies Pick<ClassNoncombatService, "claimRogueRetaliationForTelegramUser">;
+    const createTargetedChallengeForTelegramUser = vi.fn();
+    const acceptForTelegramUser = vi.fn();
+    const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      retaliationToken: "abc123xy"
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(
+      ctx,
+      callback.ok ? callback.value : neverCallback(),
+      service as never,
+      { createTargetedChallengeForTelegramUser, acceptForTelegramUser } as never
+    );
+
+    expect(createTargetedChallengeForTelegramUser).not.toHaveBeenCalled();
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("Відплата видихлась");
+    expect(options.parse_mode).toBe("HTML");
   });
 });
 
@@ -347,23 +435,33 @@ function priestHealResult(): PriestHealResult {
   };
 }
 
+type CompletedRoguePickpocketResult = Extract<RoguePickpocketResult, { state: "completed" }>;
+
+function roguePickpocketAttempt(): CompletedRoguePickpocketResult["attempt"] {
+  return {
+    id: "pickpocket-1",
+    actorCharacterId: "actor",
+    targetCharacterId: "target",
+    actorTelegramUserId,
+    targetTelegramUserId,
+    actorName: "Злодій",
+    targetName: "Ціль",
+    outcome: "noticed-success",
+    stolenGold: 3,
+    actorHpAfter: null,
+    retaliationToken: "abc123xy",
+    retaliationAvailableUntil: new Date("2026-07-03T09:13:00.000Z"),
+    retaliationUsedAt: null,
+    retaliationDuelInviteToken: null,
+    cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+    completedAt: now
+  };
+}
+
 function roguePickpocketResult(options: { created: boolean }): RoguePickpocketResult {
   return {
     state: "completed",
-    attempt: {
-      id: "pickpocket-1",
-      actorCharacterId: "actor",
-      targetCharacterId: "target",
-      actorTelegramUserId,
-      targetTelegramUserId,
-      actorName: "Злодій",
-      targetName: "Ціль",
-      outcome: "noticed-success",
-      stolenGold: 3,
-      actorHpAfter: null,
-      cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
-      completedAt: now
-    },
+    attempt: roguePickpocketAttempt(),
     actor: character("Злодій", "class.rogue"),
     target: character("Ціль", "class.warrior", { gold: 10 }),
     created: options.created,

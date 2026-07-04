@@ -4,7 +4,8 @@ import type {
   NoncombatTargetRecord,
   PriestAidRecord,
   PriestBlessingRecord,
-  RoguePickpocketAttemptRecord
+  RoguePickpocketAttemptRecord,
+  RogueRetaliationClaimResult
 } from "../db/repositories/classNoncombatRepository";
 import type { CharacterRecord } from "../db/repositories/characterRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
@@ -75,6 +76,11 @@ export type RoguePickpocketResult =
       unlocks: AchievementUnlock[];
     }
   | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterSummary; target?: CharacterSummary; availableAt?: Date };
+
+export type RogueRetaliationResult = RogueRetaliationClaimResult;
+
+const ROGUE_RETALIATION_WINDOW_MINUTES = 13;
+const ROGUE_RETALIATION_TOKEN_LENGTH = 16;
 
 export class ClassNoncombatService {
   constructor(
@@ -316,6 +322,12 @@ export class ClassNoncombatService {
       cooldownAvailableAt: addMinutes(now, ROGUE_PICKPOCKET_COOLDOWN_MINUTES),
       outcome: plan.outcome,
       stolenGold: plan.stolenGold,
+      retaliationToken: plan.outcome === "noticed-success" && plan.stolenGold > 0
+        ? createRetaliationToken(this.rng)
+        : null,
+      retaliationAvailableUntil: plan.outcome === "noticed-success" && plan.stolenGold > 0
+        ? addMinutes(now, ROGUE_RETALIATION_WINDOW_MINUTES)
+        : null,
       statSnapshot: {
         ...buildRogueStatSnapshot(actor),
         targetLevel: target?.summary.level ?? 1,
@@ -365,6 +377,26 @@ export class ClassNoncombatService {
       created: result.created,
       unlocks
     };
+  }
+
+  claimRogueRetaliationForTelegramUser(
+    targetTelegramUserId: bigint,
+    retaliationToken: string
+  ): Promise<RogueRetaliationResult> {
+    return this.repository.claimRogueRetaliation(targetTelegramUserId, {
+      retaliationToken,
+      now: this.clock()
+    });
+  }
+
+  recordRogueRetaliationDuel(
+    retaliationToken: string,
+    duelInviteToken: string
+  ): Promise<void> {
+    return this.repository.recordRogueRetaliationDuel(retaliationToken, {
+      duelInviteToken,
+      now: this.clock()
+    });
   }
 
   private async summarizeForPlanning(
@@ -472,4 +504,12 @@ function buildRogueStatSnapshot(actor: EffectiveClassNoncombatCharacter | null) 
 
 function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60_000);
+}
+
+function createRetaliationToken(rng: RandomSource): string {
+  let token = "";
+  for (let index = 0; index < ROGUE_RETALIATION_TOKEN_LENGTH; index += 1) {
+    token += rng.nextInt(0, 35).toString(36);
+  }
+  return token;
 }

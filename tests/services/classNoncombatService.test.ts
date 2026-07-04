@@ -7,7 +7,8 @@ import type {
   PriestBlessRepositoryResult,
   PriestHealRepositoryResult,
   RoguePickpocketAttemptRecord,
-  RoguePickpocketRepositoryResult
+  RoguePickpocketRepositoryResult,
+  RogueRetaliationClaimResult
 } from "../../src/db/repositories/classNoncombatRepository";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type {
@@ -248,6 +249,27 @@ describe("ClassNoncombatService", () => {
     ]);
   });
 
+  it("adds a short retaliation token only to noticed successful Rogue theft plans", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: rogue({ level: 3, statsJson: { dexterity: 10, luck: 8 } }),
+      target: target({ level: 3, gold: 50 })
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0.8, 0.5]));
+
+    await service.pickpocketForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0
+    });
+
+    expect(repository.lastPickpocketInput).toMatchObject({
+      outcome: "noticed-success",
+      stolenGold: 6,
+      retaliationToken: "iiiiiiiiiiiiiiii",
+      retaliationAvailableUntil: new Date("2026-07-03T09:13:00.000Z")
+    });
+  });
+
   it("plans Rogue pickpocket with equipped manatky and active Priest blessing stats", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue({ level: 3, statsJson: { dexterity: 7, luck: 5 } }),
@@ -375,6 +397,8 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   lastHealInput: Parameters<ClassNoncombatRepository["completePriestHeal"]>[1] | null = null;
   lastBlessInput: Parameters<ClassNoncombatRepository["completePriestBlessing"]>[1] | null = null;
   lastPickpocketInput: Parameters<ClassNoncombatRepository["completeRoguePickpocket"]>[1] | null = null;
+  lastClaimRetaliationInput: Parameters<ClassNoncombatRepository["claimRogueRetaliation"]>[1] | null = null;
+  lastRetaliationDuelInput: Parameters<ClassNoncombatRepository["recordRogueRetaliationDuel"]>[1] | null = null;
 
   private readonly actor: CharacterRecord;
   private readonly target: CharacterRecord;
@@ -496,6 +520,30 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       created: true
     });
   }
+
+  claimRogueRetaliation(
+    _targetTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["claimRogueRetaliation"]>[1]
+  ): Promise<RogueRetaliationClaimResult> {
+    this.lastClaimRetaliationInput = input;
+    return Promise.resolve({
+      state: "ready",
+      attempt: pickpocketAttempt({
+        retaliationToken: input.retaliationToken,
+        retaliationUsedAt: input.now
+      }),
+      actor: this.actor,
+      target: this.target
+    });
+  }
+
+  recordRogueRetaliationDuel(
+    _retaliationToken: string,
+    input: Parameters<ClassNoncombatRepository["recordRogueRetaliationDuel"]>[1]
+  ): Promise<void> {
+    this.lastRetaliationDuelInput = input;
+    return Promise.resolve();
+  }
 }
 
 class FakeAchievementService {
@@ -593,6 +641,10 @@ function pickpocketAttempt(overrides: Partial<RoguePickpocketAttemptRecord> = {}
     outcome: "clean-success" as const,
     stolenGold: 1,
     actorHpAfter: null,
+    retaliationToken: null,
+    retaliationAvailableUntil: null,
+    retaliationUsedAt: null,
+    retaliationDuelInviteToken: null,
     cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
     completedAt: now,
     ...overrides

@@ -28,7 +28,8 @@ import type {
   PriestBlessingRecord,
   PriestHealRepositoryResult,
   RoguePickpocketAttemptRecord,
-  RoguePickpocketRepositoryResult
+  RoguePickpocketRepositoryResult,
+  RogueRetaliationClaimResult
 } from "./classNoncombatRepository";
 
 type TxClient = Prisma.TransactionClient;
@@ -423,6 +424,12 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         if (input.stolenGold > 0 && stolenGold <= 0) {
           outcome = "empty";
         }
+        const retaliationToken = outcome === "noticed-success" && stolenGold > 0
+          ? input.retaliationToken
+          : null;
+        const retaliationAvailableUntil = retaliationToken
+          ? input.retaliationAvailableUntil
+          : null;
 
         if (stolenGold > 0) {
           const debit = await tx.character.updateMany({
@@ -466,11 +473,16 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             outcome,
             stolenGold,
             actorHpAfter,
+            retaliationToken: outcome === "noticed-success" && stolenGold > 0 ? retaliationToken : null,
+            retaliationAvailableUntil: outcome === "noticed-success" && stolenGold > 0 ? retaliationAvailableUntil : null,
             statSnapshotJson: toJson(input.statSnapshot),
             resultJson: toJson({
               outcome,
               stolenGold,
               actorHpAfter,
+              retaliationAvailableUntil: outcome === "noticed-success" && stolenGold > 0
+                ? retaliationAvailableUntil?.toISOString()
+                : null,
               statSnapshot: input.statSnapshot
             }),
             cooldownAvailableAt: input.cooldownAvailableAt,
@@ -528,6 +540,91 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           created: false
         }
       : null;
+  }
+
+  async claimRogueRetaliation(
+    targetTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["claimRogueRetaliation"]>[1]
+  ): Promise<RogueRetaliationClaimResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const attempt = await tx.noncombatRoguePickpocketAttempt.findUnique({
+        where: { retaliationToken: input.retaliationToken },
+        include: {
+          actor: { include: characterInclude },
+          target: { include: characterInclude }
+        }
+      });
+
+      if (!attempt) {
+        return { state: "blocked", reason: "not-found" };
+      }
+
+      const mappedAttempt = mapRogueAttempt(attempt);
+      if (attempt.targetTelegramUserId !== targetTelegramUserId) {
+        return { state: "blocked", reason: "not-target", attempt: mappedAttempt };
+      }
+      if (attempt.retaliationUsedAt) {
+        return { state: "blocked", reason: "used", attempt: mappedAttempt };
+      }
+      if (!attempt.retaliationAvailableUntil || attempt.retaliationAvailableUntil <= input.now) {
+        return { state: "blocked", reason: "expired", attempt: mappedAttempt };
+      }
+      if (attempt.outcome !== "noticed-success" || attempt.stolenGold <= 0) {
+        return { state: "blocked", reason: "invalid-attempt", attempt: mappedAttempt };
+      }
+      if (attempt.actor.classId !== ROGUE_CLASS_ID) {
+        return { state: "blocked", reason: "actor-not-rogue", attempt: mappedAttempt };
+      }
+
+      const claimed = await tx.noncombatRoguePickpocketAttempt.updateMany({
+        where: {
+          id: attempt.id,
+          retaliationUsedAt: null,
+          retaliationAvailableUntil: { gt: input.now },
+          outcome: "noticed-success",
+          stolenGold: { gt: 0 }
+        },
+        data: {
+          retaliationUsedAt: input.now
+        }
+      });
+      if (claimed.count !== 1) {
+        const refreshed = await tx.noncombatRoguePickpocketAttempt.findUnique({
+          where: { id: attempt.id }
+        });
+        return {
+          state: "blocked",
+          reason: refreshed?.retaliationUsedAt ? "used" : "expired",
+          attempt: refreshed ? mapRogueAttempt(refreshed) : mappedAttempt
+        };
+      }
+
+      return {
+        state: "ready",
+        attempt: {
+          ...mappedAttempt,
+          retaliationUsedAt: input.now
+        },
+        actor: toCharacterRecord(attempt.actor),
+        target: toCharacterRecord(attempt.target)
+      };
+    });
+  }
+
+  async recordRogueRetaliationDuel(
+    retaliationToken: string,
+    input: Parameters<ClassNoncombatRepository["recordRogueRetaliationDuel"]>[1]
+  ): Promise<void> {
+    await this.prisma.noncombatRoguePickpocketAttempt.updateMany({
+      where: {
+        retaliationToken,
+        retaliationUsedAt: { not: null }
+      },
+      data: {
+        retaliationDuelInviteToken: input.duelInviteToken,
+        updatedAt: input.now
+      }
+    });
   }
 }
 
@@ -1050,6 +1147,10 @@ function mapRogueAttempt(row: {
   outcome: string;
   stolenGold: number;
   actorHpAfter: number | null;
+  retaliationToken: string | null;
+  retaliationAvailableUntil: Date | null;
+  retaliationUsedAt: Date | null;
+  retaliationDuelInviteToken: string | null;
   cooldownAvailableAt: Date;
   completedAt: Date;
 }): RoguePickpocketAttemptRecord {
@@ -1069,6 +1170,10 @@ function mapRogueAttempt(row: {
       : "empty",
     stolenGold: row.stolenGold,
     actorHpAfter: row.actorHpAfter,
+    retaliationToken: row.retaliationToken,
+    retaliationAvailableUntil: row.retaliationAvailableUntil,
+    retaliationUsedAt: row.retaliationUsedAt,
+    retaliationDuelInviteToken: row.retaliationDuelInviteToken,
     cooldownAvailableAt: row.cooldownAvailableAt,
     completedAt: row.completedAt
   };

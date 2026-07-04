@@ -26,8 +26,7 @@ export type ClassNoncombatCallback =
     }
   | {
       type: "rogue-retaliation-duel";
-      victimTelegramUserId: bigint;
-      rogueTelegramUserId: bigint;
+      retaliationToken: string;
     };
 
 export type ClassNoncombatCallbackError =
@@ -42,6 +41,7 @@ export type ClassNoncombatCallbackError =
 const PREFIX = "v1:nc";
 const targetPattern = /^[0-9a-z]{1,13}$/;
 const numberPattern = /^[0-9a-z]{1,4}$/;
+const retaliationTokenPattern = /^[0-9a-z]{8,24}$/;
 
 export function makeClassNoncombatOpenCallbackData(mode: "priest" | "rogue", page = 0): string {
   return `${PREFIX}:o:${mode === "priest" ? "p" : "r"}:${page.toString(36)}`;
@@ -75,10 +75,9 @@ export function makeRoguePickpocketCallbackData(input: {
 }
 
 export function makeRogueRetaliationDuelCallbackData(input: {
-  victimTelegramUserId: bigint;
-  rogueTelegramUserId: bigint;
+  retaliationToken: string;
 }): string {
-  return `${PREFIX}:rd:${input.victimTelegramUserId.toString(36)}:${input.rogueTelegramUserId.toString(36)}`;
+  return `${PREFIX}:rd:${input.retaliationToken}`;
 }
 
 export function parseClassNoncombatCallbackData(
@@ -112,17 +111,16 @@ export function parseClassNoncombatCallbackData(
   }
 
   if (action === "rd") {
-    if (!first || !targetPattern.test(first) || !second || !targetPattern.test(second)) {
+    if (!first || !retaliationTokenPattern.test(first)) {
       return err("invalid-target");
     }
-    if (third !== undefined || fourth !== undefined) {
+    if (second !== undefined || third !== undefined || fourth !== undefined) {
       return err("invalid-prefix");
     }
 
     return ok({
       type: "rogue-retaliation-duel",
-      victimTelegramUserId: parseBase36BigInt(first),
-      rogueTelegramUserId: parseBase36BigInt(second)
+      retaliationToken: first
     });
   }
 

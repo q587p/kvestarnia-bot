@@ -71,6 +71,153 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(prisma.noncombatRoguePickpocketAttempt.count()).resolves.toBe(1);
   });
 
+  it("claims noticed-success Rogue retaliation once and records the quick-duel invite", async () => {
+    await seedCharacter({ telegramUserId: 101n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
+    await seedCharacter({ telegramUserId: 102n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
+
+    const first = await repository.completeRoguePickpocket(101n, rogueInput({
+      outcome: "noticed-success",
+      stolenGold: 5,
+      retaliationToken: "claimtoken1"
+    }));
+    const replay = await repository.completeRoguePickpocket(101n, rogueInput({
+      outcome: "caught-badly",
+      stolenGold: 13,
+      retaliationToken: "ignoredtoken"
+    }));
+
+    expect(first).toMatchObject({
+      state: "completed",
+      created: true,
+      attempt: {
+        outcome: "noticed-success",
+        stolenGold: 5,
+        retaliationToken: "claimtoken1",
+        retaliationUsedAt: null
+      }
+    });
+    expect(replay).toMatchObject({
+      state: "completed",
+      created: false,
+      attempt: { retaliationToken: "claimtoken1" }
+    });
+
+    const claimed = await repository.claimRogueRetaliation(102n, {
+      retaliationToken: "claimtoken1",
+      now
+    });
+    expect(claimed).toMatchObject({
+      state: "ready",
+      attempt: { actorTelegramUserId: 101n, targetTelegramUserId: 102n, retaliationUsedAt: now }
+    });
+
+    await repository.recordRogueRetaliationDuel("claimtoken1", {
+      duelInviteToken: "duel-token",
+      now
+    });
+    await expect(prisma.noncombatRoguePickpocketAttempt.findUnique({
+      where: { retaliationToken: "claimtoken1" },
+      select: { retaliationDuelInviteToken: true }
+    })).resolves.toEqual({ retaliationDuelInviteToken: "duel-token" });
+
+    await expect(repository.claimRogueRetaliation(102n, {
+      retaliationToken: "claimtoken1",
+      now
+    })).resolves.toMatchObject({ state: "blocked", reason: "used" });
+  });
+
+  it("blocks Rogue retaliation for the wrong target and expired windows", async () => {
+    await seedCharacter({ telegramUserId: 111n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
+    await seedCharacter({ telegramUserId: 112n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
+
+    await repository.completeRoguePickpocket(111n, rogueInput({
+      targetTelegramUserId: 112n,
+      outcome: "noticed-success",
+      stolenGold: 5,
+      retaliationToken: "wrongtarget1"
+    }));
+    await expect(repository.claimRogueRetaliation(999n, {
+      retaliationToken: "wrongtarget1",
+      now
+    })).resolves.toMatchObject({ state: "blocked", reason: "not-target" });
+
+    await seedCharacter({ telegramUserId: 113n, userId: "user-expired-rogue", characterId: "expired-rogue", classId: "class.rogue", level: 5, gold: 1 });
+    await seedCharacter({ telegramUserId: 114n, userId: "user-expired-target", characterId: "expired-target", level: 5, gold: 8 });
+    await seedRawRogueAttempt({
+      actorCharacterId: "expired-rogue",
+      targetCharacterId: "expired-target",
+      actorTelegramUserId: 113n,
+      targetTelegramUserId: 114n,
+      token: "expiredtok",
+      outcome: "noticed-success",
+      stolenGold: 5,
+      retaliationAvailableUntil: new Date("2026-07-03T08:59:59.000Z")
+    });
+    await expect(repository.claimRogueRetaliation(114n, {
+      retaliationToken: "expiredtok",
+      now
+    })).resolves.toMatchObject({ state: "blocked", reason: "expired" });
+  });
+
+  it("requires noticed-success, stolen gold and a Rogue actor for retaliation claims", async () => {
+    const cases = [
+      { id: "clean", actorTelegramUserId: 121n, targetTelegramUserId: 122n, outcome: "clean-success", stolenGold: 5 },
+      { id: "empty", actorTelegramUserId: 123n, targetTelegramUserId: 124n, outcome: "empty", stolenGold: 0 },
+      { id: "failure", actorTelegramUserId: 125n, targetTelegramUserId: 126n, outcome: "noticed-failure", stolenGold: 0 },
+      { id: "caught", actorTelegramUserId: 127n, targetTelegramUserId: 128n, outcome: "caught-badly", stolenGold: 0 },
+      { id: "zero", actorTelegramUserId: 129n, targetTelegramUserId: 130n, outcome: "noticed-success", stolenGold: 0 }
+    ] as const;
+
+    for (const entry of cases) {
+      await seedCharacter({
+        telegramUserId: entry.actorTelegramUserId,
+        userId: `user-${entry.id}-rogue`,
+        characterId: `${entry.id}-rogue`,
+        classId: "class.rogue",
+        level: 5,
+        gold: 1
+      });
+      await seedCharacter({
+        telegramUserId: entry.targetTelegramUserId,
+        userId: `user-${entry.id}-target`,
+        characterId: `${entry.id}-target`,
+        level: 5,
+        gold: 8
+      });
+      await seedRawRogueAttempt({
+        actorCharacterId: `${entry.id}-rogue`,
+        targetCharacterId: `${entry.id}-target`,
+        actorTelegramUserId: entry.actorTelegramUserId,
+        targetTelegramUserId: entry.targetTelegramUserId,
+        token: `${entry.id}token`,
+        outcome: entry.outcome,
+        stolenGold: entry.stolenGold
+      });
+
+      await expect(repository.claimRogueRetaliation(entry.targetTelegramUserId, {
+        retaliationToken: `${entry.id}token`,
+        now
+      })).resolves.toMatchObject({ state: "blocked", reason: "invalid-attempt" });
+    }
+
+    await seedCharacter({ telegramUserId: 131n, userId: "user-warrior", characterId: "warrior", classId: "class.warrior", level: 5, gold: 1 });
+    await seedCharacter({ telegramUserId: 132n, userId: "user-warrior-target", characterId: "warrior-target", level: 5, gold: 8 });
+    await seedRawRogueAttempt({
+      actorCharacterId: "warrior",
+      targetCharacterId: "warrior-target",
+      actorTelegramUserId: 131n,
+      targetTelegramUserId: 132n,
+      token: "warriortoken",
+      outcome: "noticed-success",
+      stolenGold: 5
+    });
+
+    await expect(repository.claimRogueRetaliation(132n, {
+      retaliationToken: "warriortoken",
+      now
+    })).resolves.toMatchObject({ state: "blocked", reason: "actor-not-rogue" });
+  });
+
   it("lists only exact normalized same-location noncombat targets", async () => {
     await seedCharacter({ telegramUserId: 401n, userId: "user-priest", characterId: "priest", classId: "class.priest", level: 3, locationId: "location.korchma.front" });
     await seedCharacter({ telegramUserId: 402n, userId: "user-hall", characterId: "hall-target", level: 3, locationId: "location.korchma.hall" });
@@ -427,21 +574,67 @@ function priestHealInput(overrides: {
 
 function rogueInput(overrides: {
   targetTelegramUserId?: bigint;
+  localDate?: string;
   outcome: "clean-success" | "noticed-success" | "empty" | "noticed-failure" | "caught-badly";
   stolenGold: number;
+  retaliationToken?: string | null;
+  retaliationAvailableUntil?: Date | null;
 }) {
+  const retaliationEligible = overrides.outcome === "noticed-success" && overrides.stolenGold > 0;
   return {
     targetTelegramUserId: overrides.targetTelegramUserId ?? 102n,
     expectedActorRemortCount: 0,
     expectedTargetRemortCount: 0,
     activeSince: new Date("2026-07-03T08:55:00.000Z"),
     now,
-    localDate: "2026-07-03",
+    localDate: overrides.localDate ?? "2026-07-03",
     cooldownAvailableAt,
     outcome: overrides.outcome,
     stolenGold: overrides.stolenGold,
+    retaliationToken: overrides.retaliationToken ?? (retaliationEligible ? "retaliation-token" : null),
+    retaliationAvailableUntil: overrides.retaliationAvailableUntil ?? (retaliationEligible
+      ? new Date("2026-07-03T09:13:00.000Z")
+      : null),
     statSnapshot: { test: true }
   };
+}
+
+async function seedRawRogueAttempt(input: {
+  actorCharacterId: string;
+  targetCharacterId: string;
+  actorTelegramUserId: bigint;
+  targetTelegramUserId: bigint;
+  token: string;
+  outcome: "clean-success" | "noticed-success" | "empty" | "noticed-failure" | "caught-badly";
+  stolenGold: number;
+  retaliationAvailableUntil?: Date;
+}): Promise<void> {
+  await prismaGlobal().noncombatRoguePickpocketAttempt.create({
+    data: {
+      actorCharacterId: input.actorCharacterId,
+      targetCharacterId: input.targetCharacterId,
+      actorTelegramUserId: input.actorTelegramUserId,
+      targetTelegramUserId: input.targetTelegramUserId,
+      actorName: input.actorCharacterId,
+      targetName: input.targetCharacterId,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      techniqueId: "technique.class.rogue.pickpocket",
+      rulesVersion: "class-noncombat-priest-rogue-v1",
+      locationId: "location.korchma.front",
+      localDate: `2026-07-${input.token}`,
+      status: "completed",
+      outcome: input.outcome,
+      stolenGold: input.stolenGold,
+      actorHpAfter: null,
+      retaliationToken: input.token,
+      retaliationAvailableUntil: input.retaliationAvailableUntil ?? new Date("2026-07-03T09:13:00.000Z"),
+      statSnapshotJson: { test: true },
+      resultJson: { test: true },
+      cooldownAvailableAt,
+      completedAt: now
+    }
+  });
 }
 
 function snapshotInput() {
@@ -640,6 +833,10 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       outcome TEXT NOT NULL,
       stolen_gold INTEGER NOT NULL DEFAULT 0,
       actor_hp_after INTEGER,
+      retaliation_token TEXT,
+      retaliation_available_until DATETIME,
+      retaliation_used_at DATETIME,
+      retaliation_duel_invite_token TEXT,
       stat_snapshot_json JSONB NOT NULL,
       result_json JSONB,
       cooldown_available_at DATETIME NOT NULL,
@@ -650,7 +847,9 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`,
     `CREATE UNIQUE INDEX noncombat_priest_blessings_active_guard_key ON noncombat_priest_blessings(active_guard)`,
     `CREATE UNIQUE INDEX noncombat_rogue_pickpocket_attempts_actor_character_id_target_character_id_local_date_key
-      ON noncombat_rogue_pickpocket_attempts(actor_character_id, target_character_id, local_date)`
+      ON noncombat_rogue_pickpocket_attempts(actor_character_id, target_character_id, local_date)`,
+    `CREATE UNIQUE INDEX noncombat_rogue_pickpocket_attempts_retaliation_token_key
+      ON noncombat_rogue_pickpocket_attempts(retaliation_token)`
   ];
 
   for (const statement of statements) {
