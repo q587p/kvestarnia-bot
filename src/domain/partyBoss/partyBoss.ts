@@ -506,7 +506,8 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
         ? {
             participantsAfter: round.participantsAfter.map((participant) => ({
               ...participant,
-              ...(participant.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.cooldowns) } : {})
+              ...(participant.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.cooldowns) } : {}),
+              ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {})
             }))
           }
         : {})
