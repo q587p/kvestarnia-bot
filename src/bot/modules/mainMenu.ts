@@ -562,7 +562,8 @@ async function sendCurrentPresenceLocation(
   if (locationId === PRESENCE_LOCATION_KORCHMA_CELLAR) {
     await sendCellarErrandRouted(ctx, services.cellarErrand, services.presence, "reply", {
       tavernRaid: services.tavern,
-      ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
+      ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {}),
+      ...(questMarkers ? { questMarkers } : {})
     });
     return;
   }
@@ -571,7 +572,8 @@ async function sendCurrentPresenceLocation(
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
       botUsername: options.botUsername,
       partyBoss: services.partyBoss,
-      partySessions: services.partySessions
+      partySessions: services.partySessions,
+      ...(questMarkers ? { questMarkers } : {})
     });
     return;
   }

@@ -10,6 +10,7 @@ import type { CellarErrandLookupResult, CellarErrandService } from "../../servic
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import { buildCellarGrownupKeyboard, buildCellarResultKeyboard } from "../keyboards/cellarKeyboard";
+import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
 import {
   presentCellarGrownupQuest,
   presentCellarCooldown,
@@ -29,6 +30,7 @@ type CellarRouteOptions = {
   tavernRaid?: TavernRaidService;
   grownupQuest?: CellarGrownupQuestService;
   afterIntro?: () => Promise<void>;
+  questMarkers?: QuestMarkerInput | null;
 };
 
 export function registerCellarCommand(
@@ -98,7 +100,7 @@ export async function sendCellarErrand(
   cellarErrandService: CellarErrandService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options?: Pick<CellarRouteOptions, "grownupQuest" | "afterIntro">
+  options?: Pick<CellarRouteOptions, "grownupQuest" | "afterIntro" | "questMarkers">
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -140,7 +142,8 @@ export async function sendCellarErrand(
       await markCellarPresence(ctx, presenceService);
       await sendText(ctx, mode, presentCellarGrownupQuest(grownup), {
         state: grownup.state,
-        includeKeptBottle: grownup.state === "completed" && grownup.ending === "keep"
+        includeKeptBottle: grownup.state === "completed" && grownup.ending === "keep",
+        ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
       });
       return;
     }
@@ -154,7 +157,8 @@ export async function sendCellarErrand(
   if (result.state === "on-cooldown") {
     await sendText(ctx, mode, presentCellarCooldown(result), {
       state: "on-cooldown",
-      character: result.character
+      character: result.character,
+      ...(options?.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
     });
     return;
   }
@@ -166,13 +170,14 @@ async function sendCellarReady(
   ctx: Context,
   mode: "reply" | "edit",
   result: Extract<CellarErrandLookupResult, { state: "ready" }>,
-  options?: Pick<CellarRouteOptions, "afterIntro">
+  options?: Pick<CellarRouteOptions, "afterIntro" | "questMarkers">
 ): Promise<void> {
   await sendText(ctx, mode, presentCellarIntro(result));
   await options?.afterIntro?.();
   await sendText(ctx, "reply", presentCellarStart(result), {
     state: "ready",
-    character: result.character
+    character: result.character,
+    ...(options?.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
   });
 }
 
@@ -205,8 +210,9 @@ async function sendText(
         state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
         includeKeptBottle?: boolean;
         hideRoleplay?: boolean;
+        questMarkers?: QuestMarkerInput | null;
       }
-    | { state: "ready" | "on-cooldown"; character: CharacterSummary } = false
+    | { state: "ready" | "on-cooldown"; character: CharacterSummary; questMarkers?: QuestMarkerInput | null } = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -217,9 +223,14 @@ async function sendText(
             : isGrownupKeyboard(keyboard)
               ? buildCellarGrownupKeyboard(keyboard.state, {
                   includeKeptBottle: Boolean(keyboard.includeKeptBottle),
-                  hideRoleplay: Boolean(keyboard.hideRoleplay)
+                  hideRoleplay: Boolean(keyboard.hideRoleplay),
+                  ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers })
                 })
-            : buildCellarResultKeyboard(keyboard.state, keyboard.character)
+            : buildCellarResultKeyboard(
+                keyboard.state,
+                keyboard.character,
+                keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+              )
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 
@@ -235,14 +246,17 @@ function isGrownupKeyboard(
   keyboard:
     | "enter-korchma"
     | {
-        state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
-        includeKeptBottle?: boolean;
-      }
-    | { state: "ready" | "on-cooldown"; character: CharacterSummary }
+      state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
+      includeKeptBottle?: boolean;
+      hideRoleplay?: boolean;
+      questMarkers?: QuestMarkerInput | null;
+    }
+    | { state: "ready" | "on-cooldown"; character: CharacterSummary; questMarkers?: QuestMarkerInput | null }
 ): keyboard is {
   state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
   includeKeptBottle?: boolean;
   hideRoleplay?: boolean;
+  questMarkers?: QuestMarkerInput | null;
 } {
   return typeof keyboard !== "string" && !("character" in keyboard);
 }

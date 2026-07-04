@@ -124,6 +124,7 @@ type TavernCommandKeyboard =
   | "arrivals"
   | { state: "memorial"; remortNumbers?: readonly number[] }
   | "remort-milestones"
+  | { state: "barrel"; questMarkers?: QuestMarkerInput | null }
   | "barrel-result"
   | { state: "barrel-result"; questMarkers?: QuestMarkerInput | null }
   | "barrel-pending"
@@ -743,7 +744,10 @@ export async function sendTavernBarrel(
       }
 
       await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-      await sendText(ctx, mode, presentTavern(result.character), true);
+      await sendText(ctx, mode, presentTavern(result.character), {
+        state: "barrel",
+        ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+      });
       return true;
     }
 
@@ -784,7 +788,10 @@ export async function sendTavernBarrel(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-  await sendText(ctx, mode, presentTavern(result.character), true);
+  await sendText(ctx, mode, presentTavern(result.character), {
+    state: "barrel",
+    ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+  });
   return true;
 }
 
@@ -982,6 +989,10 @@ async function sendText(
                   ? buildKorchmaRemortMilestoneBoardKeyboard()
             : keyboard === "barrel-result"
               ? buildTavernResultKeyboard("already-completed")
+            : isBarrelKeyboard(keyboard)
+              ? buildTavernKeyboard(
+                  keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+                )
             : isBarrelResultKeyboard(keyboard)
               ? buildTavernResultKeyboard(
                   "already-completed",
@@ -1019,6 +1030,10 @@ function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<Tav
 
 function isYardKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "yard" }> {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "yard";
+}
+
+function isBarrelKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "barrel" }> {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "barrel";
 }
 
 function isBarrelResultKeyboard(

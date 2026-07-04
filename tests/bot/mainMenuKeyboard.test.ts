@@ -1038,6 +1038,20 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonCallbacks(buildCellarParticipantsKeyboard())).toEqual(["v1:quest:cellar"]);
   });
 
+  it("marks cellar hall return when another hall quest is available", () => {
+    const questMarkers = {
+      adventure: { state: "ready", character }
+    } as const;
+
+    expect(flatInlineButtonTexts(buildCellarKeyboard(undefined, { questMarkers }))).toContain("⬅️ До зали ⚠️");
+    expect(flatInlineButtonTexts(buildCellarResultKeyboard("completed", undefined, { questMarkers }))).toEqual([
+      "⬅️ До зали ⚠️"
+    ]);
+    expect(flatInlineButtonTexts(buildCellarGrownupKeyboard("bottle-obtained", { questMarkers }))).toContain(
+      "⬅️ До зали ⚠️"
+    );
+  });
+
   it("keeps character-aware cellar labels on the same callback actions", () => {
     const domovyk = { ...character, raceId: "race.domovyk", classId: "class.rogue" };
 
