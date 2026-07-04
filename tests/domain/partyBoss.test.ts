@@ -276,6 +276,57 @@ describe("party boss reducer", () => {
     });
   });
 
+  it("keeps party boss combat item cooldown snapshots attached to their original rounds", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-dense-item-snapshot",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 100, hpCurrent: 10, dexterity: 20 })
+      ]
+    });
+
+    const first = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-dense-item-snapshot",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item",
+          origin: "manual",
+          item: {
+            id: "item.dense-bandage",
+            name: "Щільний бинт",
+            effect: {
+              kind: "heal-hp",
+              amount: 42
+            }
+          }
+        }
+      ]
+    });
+    const second = resolvePartyBossRound({
+      state: first.state,
+      now: new Date("2026-06-30T10:00:46.000Z"),
+      seed: "party-dense-item-snapshot",
+      actions: [
+        { characterId: "character-1", action: "defend", origin: "manual" }
+      ]
+    });
+
+    const firstRoundSnapshot = second.state.roundLog[0]?.participantsAfter?.[0]?.combatItems?.cooldowns?.["item.dense-bandage"];
+    const secondRoundSnapshot = second.state.roundLog[1]?.participantsAfter?.[0]?.combatItems?.cooldowns?.["item.dense-bandage"];
+
+    expect(firstRoundSnapshot).toEqual({
+      itemId: "item.dense-bandage",
+      remainingTurns: 5
+    });
+    expect(secondRoundSnapshot).toEqual({
+      itemId: "item.dense-bandage",
+      remainingTurns: 4
+    });
+  });
+
   it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {
     let state = createPartyBossState({
       partySessionId: "big-focus",

@@ -298,6 +298,91 @@ describe("party session presenter", () => {
     expect(text).toContain("Голова застосовує 🩹 <b>Щільний бинт</b>. HP відновлено на 23.");
   });
 
+  it("uses per-round item cooldown snapshots in Big Barrel journal pages", () => {
+    const leader = participant("leader", "Голова");
+    leader.combatItems = {
+      cooldowns: {
+        "item.dense-bandage": {
+          itemId: "item.dense-bandage",
+          remainingTurns: 4
+        }
+      }
+    };
+    const session = makeBigBossSession({
+      turn: 3,
+      participants: [leader, participant("striker", "Шкодійка")],
+      roundLog: [
+        {
+          turn: 1,
+          actions: [
+            {
+              characterId: "leader",
+              action: "defend",
+              origin: "timeout",
+              outcome: "defended",
+              damage: 0,
+              manaSpent: 0
+            }
+          ],
+          bossDamage: 0,
+          bossHpAfter: 100,
+          bossRetaliations: [{ characterId: "leader", damage: 17, hpAfter: 43 }],
+          participantsAfter: [
+            { characterId: "leader", status: "active", hp: 43, hpMax: 60, mana: 20, manaMax: 20 },
+            { characterId: "striker", status: "active", hp: 60, hpMax: 60, mana: 20, manaMax: 20 }
+          ],
+          statusAfter: "active"
+        },
+        {
+          turn: 2,
+          actions: [
+            {
+              characterId: "leader",
+              action: "item",
+              origin: "manual",
+              outcome: "item-used",
+              damage: 0,
+              manaSpent: 0,
+              itemId: "item.dense-bandage",
+              itemName: "Щільний бинт",
+              healing: 23,
+              hpAfter: 60
+            }
+          ],
+          bossDamage: 0,
+          bossHpAfter: 100,
+          bossRetaliations: [{ characterId: "leader", damage: 17, hpAfter: 43 }],
+          participantsAfter: [
+            {
+              characterId: "leader",
+              status: "active",
+              hp: 43,
+              hpMax: 60,
+              mana: 20,
+              manaMax: 20,
+              combatItems: {
+                cooldowns: {
+                  "item.dense-bandage": {
+                    itemId: "item.dense-bandage",
+                    remainingTurns: 5
+                  }
+                }
+              }
+            },
+            { characterId: "striker", status: "active", hp: 60, hpMax: 60, mana: 20, manaMax: 20 }
+          ],
+          statusAfter: "active"
+        }
+      ]
+    });
+
+    const firstPage = presentPartyBossJournal(session, 0);
+    const secondPage = presentPartyBossJournal(session, 1);
+
+    expect(firstPage).not.toContain("Щільний бинт відсапується");
+    expect(secondPage).toContain("Голова: 🫁 🩹 Щільний бинт відсапується: ще 5 ходів.");
+  });
+
   it("uses participant names instead of viewer shorthand on completed Big Barrel Brother cards", () => {
     const leader = participant("leader", "Голова");
     leader.resources = {
