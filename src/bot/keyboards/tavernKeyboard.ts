@@ -50,7 +50,7 @@ export function buildTavernKeyboard(options: { questMarkers?: QuestMarkerInput |
       ),
       makeTavernCallbackData("ranger")
     )
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaFrontKeyboard(
@@ -284,7 +284,7 @@ export function buildKorchmaBarKeyboard(
   }
 
   return keyboard
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
@@ -302,8 +302,10 @@ export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
+export function buildBackToKorchmaHallKeyboard(
+  options: { questMarkers?: QuestMarkerInput | null } = {}
+): InlineKeyboard {
+  return new InlineKeyboard().text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaDeepKeyboard(
@@ -389,7 +391,7 @@ export function buildTavernResultKeyboard(
         ),
         makeTavernCallbackData("ranger")
       )
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
   }
 
   if (state === "audit-break") {
@@ -401,7 +403,7 @@ export function buildTavernResultKeyboard(
         ),
         makeTavernCallbackData("ranger")
       )
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
   }
 
   return buildTavernKeyboard(options);
@@ -457,4 +459,11 @@ export function formatTavernGamesButtonLabel(tableCount = 0): string {
   return safeTableCount > 0
     ? `🎲 Ігри за столом (${safeTableCount})`
     : "🎲 Ігри за столом";
+}
+
+function buildBackToHallLabel(questMarkers: QuestMarkerInput | null | undefined): string {
+  return decorateButtonLabel(
+    "⬅️ До зали",
+    resolveQuestMarkerForTarget(questMarkers ?? undefined, "location.korchma.hall")
+  );
 }

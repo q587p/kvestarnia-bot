@@ -559,6 +559,16 @@ describe("main menu and scene keyboards", () => {
         }
       }
     }))).toContain("🧥 Єгер ⚠️");
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed", {
+      questMarkers: {
+        characterLevel: 4,
+        yeger: {
+          state: "offered",
+          character,
+          progress: { wins: 0, target: 5 }
+        }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("already-completed"))).toEqual([
       "🍺 Просте всім",
       "🍻 Якісне всім",
@@ -586,7 +596,7 @@ describe("main menu and scene keyboards", () => {
       }
     }))).toEqual([
       "🧥 Єгер ⚠️",
-      "⬅️ До зали"
+      "⬅️ До зали ⚠️"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
       "🔄 Перевірити бочку",
@@ -600,6 +610,29 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonTexts(buildTavernParticipantsKeyboard())).toEqual(["⬅️ Назад"]);
     expect(flatInlineButtonCallbacks(buildTavernParticipantsKeyboard())).toEqual(["v1:place:barrel"]);
+  });
+
+  it("marks hall return buttons when another Korchma location has an available quest", () => {
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({
+      questMarkers: {
+        characterLevel: 2,
+        cellar: {
+          state: "ready",
+          character
+        }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
+
+    expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed", {
+      questMarkers: {
+        characterLevel: 4,
+        yeger: {
+          state: "offered",
+          character,
+          progress: { wins: 0, target: 5 }
+        }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
   });
 
   it("uses icons for destructive confirmation keyboards", () => {
