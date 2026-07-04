@@ -97,8 +97,8 @@ describe("quest hub keyboard", () => {
 
     expect(json).toContain("🧾 Здати обхід");
     expect(json).toContain("v1:dkr:c:20260628:7");
-    expect(json).not.toContain("🍺 До зали");
-    expect(json).not.toContain("v1:place:hall");
+    expect(json).toContain("🍺 До зали");
+    expect(json).toContain("v1:place:hall");
   });
 
   it("routes ready Yeger boards straight to turn-in from the quest table", () => {
@@ -138,8 +138,8 @@ describe("quest hub keyboard", () => {
 
     expect(json).toContain("🧾 Корчмарський обхід");
     expect(json).toContain("v1:dkr:o:20260628");
-    expect(json).not.toContain("🍺 До зали");
-    expect(json).not.toContain("v1:place:hall");
+    expect(json).toContain("🍺 До зали");
+    expect(json).toContain("v1:place:hall");
   });
 
   it("keeps the back-to-hall route from other Korchma locations", () => {
