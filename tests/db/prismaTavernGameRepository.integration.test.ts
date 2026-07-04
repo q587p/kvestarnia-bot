@@ -4,7 +4,14 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaTavernGameRepository } from "../../src/db/repositories/prismaTavernGameRepository";
-import { evaluateQuickHand, startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
+import {
+  evaluateQuickHand,
+  isDicePokerState,
+  resolveQuickPlayerHand,
+  startDicePokerTable,
+  startQuickDicePoker,
+  startScorecardDicePoker
+} from "../../src/domain/dicePoker";
 
 describe("PrismaTavernGameRepository integration", () => {
   let dir: string;
@@ -233,6 +240,79 @@ describe("PrismaTavernGameRepository integration", () => {
       where: { session: { token } },
       select: { payoutGold: true, refundedGold: true, activeStakeKey: true }
     })).resolves.toEqual([{ payoutGold: 3, refundedGold: 0, activeStakeKey: null }]);
+  });
+
+  it("settles a social quick dice poker table for two real participants once", async () => {
+    const token = "12345678-1234-4234-9234-000000000591";
+    await seedCharacter({ telegramUserId: 591n, characterId: "character-social-quick-a", name: "Перший", gold: 10 });
+    await seedCharacter({ telegramUserId: 592n, characterId: "character-social-quick-b", name: "Другий", gold: 10 });
+    const table = startDicePokerTable("quick");
+
+    const created = await repository.createDicePokerForTelegramUser(591n, {
+      mode: "quick",
+      token,
+      seed: "social-quick",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 13 * 60_000),
+      joinExpiresAt: new Date(now().getTime() + 13 * 60_000),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: 0,
+      now: now(),
+      state: table,
+      participantState: startQuickDicePoker("social-quick:participant:a")
+    });
+    const joined = await repository.joinByTokenForTelegramUser(592n, token, joinInput());
+
+    expect(created.state).toBe("created");
+    expect(joined.state).toBe("joined");
+    expect(joined.state === "joined" ? joined.session.status : null).toBe("ready");
+    await expect(characterGold("character-social-quick-a")).resolves.toBe(7);
+    await expect(characterGold("character-social-quick-b")).resolves.toBe(7);
+
+    const ready = await repository.peekByToken(token);
+    const first = ready?.participants.find((participant) => participant.characterId === "character-social-quick-a");
+    const second = ready?.participants.find((participant) => participant.characterId === "character-social-quick-b");
+    if (!first || !second || !isDicePokerState(first.decision) || !isDicePokerState(second.decision)) {
+      throw new Error("Expected social quick participant states.");
+    }
+
+    const firstSaved = await repository.saveDicePokerParticipantStateForTelegramUser(
+      591n,
+      token,
+      resolveQuickPlayerHand(first.decision, "social-quick:a", "a"),
+      now()
+    );
+    const secondSaved = await repository.saveDicePokerParticipantStateForTelegramUser(
+      592n,
+      token,
+      resolveQuickPlayerHand(second.decision, "social-quick:b", "b"),
+      now()
+    );
+    const replay = await repository.saveDicePokerParticipantStateForTelegramUser(
+      592n,
+      token,
+      resolveQuickPlayerHand(second.decision, "social-quick:b", "b"),
+      now()
+    );
+
+    expect(firstSaved.state).toBe("saved");
+    expect(secondSaved.state).toBe("completed");
+    expect(replay.state).toBe("closed");
+    const completed = await prisma.tavernGameSession.findUniqueOrThrow({
+      where: { token },
+      select: { status: true, resultJson: true }
+    });
+    expect(completed.status).toBe("completed");
+    expect(completed.resultJson).toMatchObject({
+      kind: "dice_poker_table",
+      mode: "quick",
+      phase: "terminal"
+    });
+    const goldA = await characterGold("character-social-quick-a");
+    const goldB = await characterGold("character-social-quick-b");
+    expect((goldA ?? 0) + (goldB ?? 0)).toBe(20);
   });
 
   it("keeps scorecard dice poker alive beyond quick ttl and refunds after scorecard deadline", async () => {

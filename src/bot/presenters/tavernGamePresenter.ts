@@ -3,6 +3,7 @@ import {
   DICE_POKER_SCORE_CATEGORIES,
   evaluateQuickHand,
   isDicePokerState,
+  isDicePokerTableState,
   previewScorecardScores,
   totalScorecard,
   type DicePokerQuickHand,
@@ -84,7 +85,7 @@ export function presentDicePokerStakeMenu(mode: "quick" | "scorecard", maxStake:
       ? "Коротка дуель: один кидок, один перекид, далі сильніша комбінація бере партію."
       : "Таблична партія на 13 ходів: кидаєте кості, перекидаєте до двох разів і вписуєте рахунок у клітинки.",
     "",
-    "Оберіть ставку для цього столу.",
+    "Оберіть ставку. «Стіл» відкриє партію для інших гравців; «Допельґанґер» лишиться запасним суперником.",
     `Межа ставки зараз: <b>${maxStake} зол.</b>`
   ].join("\n");
 }
@@ -93,11 +94,11 @@ export function presentDicePokerRules(): string {
   return [
     "❔ Правила костяного покеру",
     "",
-    "⚡ Швидкі кості: у тебе й Допельґанґера по 5 костей. Обери, які перекинути один раз, або лиши все як є. Далі перемагає сильніша комбінація.",
+    "⚡ Швидкі кості: дуель двох гравців. У кожного 5 костей і один перекид; далі перемагає сильніша комбінація.",
     "",
     "Сила рук: Покер, Каре, Фул-хаус, Великий стріт, Малий стріт, Трійка, Дві пари, Пара, Старша кістка.",
     "",
-    "📜 Табличні кості: 13 ходів. У кожному ході є перший кидок і до двох перекидів. Після цього треба вписати результат в одну вільну клітинку.",
+    "📜 Табличні кості: стіл на 2–8 гравців. У кожного 13 ходів; у ході є перший кидок і до двох перекидів, потім результат іде у вільну клітинку.",
     "",
     "Нічиї, скасування й протерміновані партії не забирають манатки й не дублюють винагороду."
   ].join("\n");
@@ -147,7 +148,13 @@ export function presentTavernGameActionResult(result: {
   }
   const dicePoker = result.dicePoker ?? getSessionDicePoker(result.session);
   if (dicePoker && ["created", "saved", "completed", "active-session"].includes(result.state)) {
+    if (result.session && isDicePokerTableState(result.session.result)) {
+      return presentDicePokerTableState(result.session, dicePoker, result.state);
+    }
     return presentDicePokerState(result.session, dicePoker, result.state);
+  }
+  if (result.session && isDicePokerTableState(result.session.result) && ["created", "joined", "replayed", "active-session"].includes(result.state)) {
+    return presentDicePokerTableSession(result.session);
   }
 
   switch (result.state) {
@@ -215,6 +222,9 @@ export function presentTavernGameSession(session: TavernGameSessionRecord): stri
   if (dicePoker) {
     return presentDicePokerState(session, dicePoker, "active-session");
   }
+  if (isDicePokerTableState(session.result)) {
+    return presentDicePokerTableSession(session);
+  }
 
   const lines = [
     `${gameLabel(session.gameKey)} · ставка <b>${session.stakeGold} зол.</b>`,
@@ -280,8 +290,10 @@ function presentTavernGameResolution(resolution: TavernGameResolution): string {
 }
 
 function presentOpenTableLine(session: TavernGameSessionRecord): string {
-  const cap = session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
-  return `• ${gameLabel(session.gameKey)} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  const cap = table?.playerCap ?? (session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP);
+  const label = table ? dicePokerTableTitle(table.mode) : gameLabel(session.gameKey);
+  return `• ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
 }
 
 function presentDicePokerState(
@@ -350,6 +362,116 @@ function presentDicePokerState(
     resultState === "saved" ? "Обери перекид або клітинку для запису." : "Обери кості для перекиду або клітинку для запису.",
     stakeLine
   ].filter(Boolean).join("\n");
+}
+
+function presentDicePokerTableSession(session: TavernGameSessionRecord): string {
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  if (!table) {
+    return presentTavernGameSession(session);
+  }
+
+  const lines = [
+    dicePokerTableTitle(table.mode),
+    "",
+    `За столом: ${session.participants.map((participant) => escapeHtml(participant.displayName)).join(", ")}`,
+    `Місця: ${session.participants.length}/${table.playerCap}`,
+    `Ставка: <b>${session.stakeGold} зол.</b> · банк: <b>${session.potGold} зол.</b>`
+  ];
+
+  if (table.phase === "waiting") {
+    lines.push(
+      "",
+      table.mode === "quick"
+        ? "Чекаємо другого гравця. Як тільки він сяде, дуель почнеться."
+        : "Чекаємо гравців. Почати можна від двох учасників; максимум — вісім."
+    );
+  } else if (table.phase === "playing") {
+    lines.push("", "Партія йде. Кожен гравець робить свій хід на своїй картці.");
+  } else {
+    lines.push("", ...presentDicePokerTableResults(session, table.outcomes ?? {}, table.totals));
+  }
+
+  return lines.join("\n");
+}
+
+function presentDicePokerTableState(
+  session: TavernGameSessionRecord,
+  state: DicePokerState,
+  resultState: string
+): string {
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  if (!table) {
+    return presentDicePokerState(session, state, resultState);
+  }
+  if (table.phase === "waiting") {
+    return presentDicePokerTableSession(session);
+  }
+
+  if (table.phase === "terminal") {
+    return [
+      dicePokerTableTitle(table.mode),
+      "",
+      ...presentDicePokerTableResults(session, table.outcomes ?? {}, table.totals)
+    ].join("\n");
+  }
+
+  if (state.phase === "terminal") {
+    return [
+      dicePokerTableTitle(table.mode),
+      "",
+      table.mode === "quick"
+        ? `Твої кості: ${state.mode === "quick" ? state.playerDice.join(" ") : ""} — ${state.mode === "quick" ? quickHandLabel(state.playerHand) : "записано"}.`
+        : "Твій лист записано.",
+      "",
+      "Чекаємо, доки решта гравців завершить свій хід.",
+      "",
+      `За столом: ${session.participants.length}/${table.playerCap}`,
+      `Банк: <b>${session.potGold} зол.</b>`
+    ].join("\n");
+  }
+
+  if (state.mode === "quick") {
+    return [
+      "⚡ Швидкі кості",
+      "",
+      `Твої кості: ${state.playerDice.join(" ")} — ${quickHandLabel(evaluateQuickHand(state.playerDice))}.`,
+      `Вибрано для перекиду: ${presentSelectedDice(state.playerDice, state.selectedMask)}.`,
+      "",
+      "Обери кості для одного перекиду або лиши кидок як є.",
+      "",
+      `За столом: ${session.participants.length}/${table.playerCap}`,
+      `Ставка: <b>${session.stakeGold} зол.</b> · банк: <b>${session.potGold} зол.</b>`
+    ].join("\n");
+  }
+
+  return [
+    presentDicePokerState(session, state, resultState),
+    "",
+    `За столом: ${session.participants.length}/${table.playerCap}`,
+    `Банк: <b>${session.potGold} зол.</b>`
+  ].join("\n");
+}
+
+function presentDicePokerTableResults(
+  session: TavernGameSessionRecord,
+  outcomes: Record<string, string>,
+  totals?: Record<string, number>
+): string[] {
+  return session.participants.map((participant) => {
+    const outcome = outcomes[participant.characterId] ?? "draw";
+    const score = totals?.[participant.characterId];
+    const result = outcome === "win" ? "🏆 перемога" : outcome === "loss" ? "💀 поразка" : "🤝 нічия";
+    const money = participant.payoutGold > 0
+      ? ` · виплата ${participant.payoutGold} зол.`
+      : participant.refundedGold > 0
+        ? ` · повернено ${participant.refundedGold} зол.`
+        : "";
+    return `${escapeHtml(participant.displayName)}${score !== undefined ? ` · ${score} очк.` : ""}: ${result}${money}`;
+  });
+}
+
+function dicePokerTableTitle(mode: "quick" | "scorecard"): string {
+  return mode === "quick" ? "⚡ Швидкі кості" : "📜 Табличні кості";
 }
 
 function presentQuickOutcomeLine(state: Extract<DicePokerState, { mode: "quick"; phase: "terminal" }>): string {

@@ -52,6 +52,7 @@ export type ShynokCallback =
   | { type: "game-create"; gameKey: TavernGameKey; stakeGold: number }
   | { type: "game-dice-poker-mode"; mode: DicePokerMode }
   | { type: "game-dice-poker-create"; mode: DicePokerMode; stakeGold: number }
+  | { type: "game-dice-poker-doppelganger-create"; mode: DicePokerMode; stakeGold: number }
   | { type: "game-dice-poker-rules"; token?: string }
   | { type: "game-dice-poker-view"; token: string }
   | { type: "game-dice-poker-toggle"; token: string; index: number }
@@ -170,6 +171,10 @@ export function makeShynokGameCreateCallbackData(gameKey: TavernGameKey, stakeGo
 
 export function makeShynokDicePokerCreateCallbackData(mode: DicePokerMode, stakeGold: number): string {
   return assertData(`${PREFIX}:${mode === "quick" ? "gqc" : "gsc"}:${stakeGold}`);
+}
+
+export function makeShynokDicePokerDoppelgangerCreateCallbackData(mode: DicePokerMode, stakeGold: number): string {
+  return assertData(`${PREFIX}:${mode === "quick" ? "gqn" : "gsn"}:${stakeGold}`);
 }
 
 export function makeShynokDicePokerModeCallbackData(mode: DicePokerMode): string {
@@ -350,6 +355,16 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
       value: {
         type: "game-dice-poker-create",
         mode: action === "gqc" ? "quick" : "scorecard",
+        stakeGold: Number(first)
+      }
+    };
+  }
+  if ((action === "gqn" || action === "gsn") && isSafeStake(first) && second === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-doppelganger-create",
+        mode: action === "gqn" ? "quick" : "scorecard",
         stakeGold: Number(first)
       }
     };

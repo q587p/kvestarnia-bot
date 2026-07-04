@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.26] - 12026-07-04 - Dice Poker Rework
+## [0.2.26] - 12026-07-05 - Dice Poker Rework
 
 ### Added
 - Added `src/domain/dicePoker.ts` with pure five-dice poker hand evaluation, tie-break tuples, deterministic fair d6 rolling, NPC reroll heuristic and scorecard scoring.
@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `📜 Табличні кості`: solo 13-turn scorecard mode with up to three rolls per turn, selected-dice rerolls, 13 once-only boxes, preview scores for unused boxes, simplified full-house/poker rules and the upper-section `63+` bonus.
 - Added compact `❔ Правила` copy for both dice-poker modes and compact callback payloads for create/toggle/reroll/score/cancel actions.
 - Added local `/dev_reset_tavern_games` with the dice icon to reset the table-creation cooldown for QA; player-facing command icon uniqueness still excludes dev-only commands.
+- Added real social Dice Poker tables on the existing tavern-game session storage: `⚡ Швидкі кості` opens a two-player duel table, `📜 Табличні кості` opens a 2–8 player scorecard table, and `🪞 Допельґанґер` remains an explicit fallback opponent.
 
 ### Changed
 - Replaced the old cryptic Kosti style/sign rule menu with `🎲 Кості й покер`, showing quick/scorecard mode choice first and stake choice only after a mode is selected.
@@ -26,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Count completed Dice Poker outcomes in the tavern-games leaderboard from stored dice-poker session results.
 - Dice Poker rules cards can return to the current active Dice Poker session when opened from that session.
 - Quick result cards use spaced combat-like win/loss/draw markers and print the exact stake payout/loss/refund amount.
+- Social Dice Poker stores per-participant dice/scorecard state in participant decisions, settles a shared pot once all active players finish, refunds tied tables safely and records all participant outcomes for the leaderboard.
 
 ### Fixed
 - Old incompatible active Kosti tables are hidden from the open-table hub and old decision/resolve callbacks fail closed through the existing safe refund/stale path with friendly Ukrainian copy.
@@ -35,7 +37,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Deferred
 - Turn-based duel tournaments, tournament day/week/month reward claims and broader casino/economy changes remain deferred to `0.2.27+` or later.
-- True player-vs-player Dice Poker tables, scorecard groups, table/invite visibility and fuller social-game invites remain a release blocker for this PR after QA feedback; the current fallback/NPC implementation must not be treated as the final social slice.
+- Dedicated deep-link invite buttons for Dice Poker/Tavlei remain a follow-up polish item; open social tables are visible through the existing tavern games hub and join callbacks in this release.
 
 ## [0.2.25] - 12026-07-04 - Class Noncombat Priest and Rogue Techniques
 

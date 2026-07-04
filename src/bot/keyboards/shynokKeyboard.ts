@@ -23,6 +23,7 @@ import {
 } from "../../domain/tavernGames";
 import {
   previewScorecardScores,
+  isDicePokerTableState,
   type DicePokerScoreCategory,
   type DicePokerState
 } from "../../domain/dicePoker";
@@ -40,6 +41,7 @@ import {
   makeShynokDrinksCallbackData,
   makeShynokDicePokerCancelCallbackData,
   makeShynokDicePokerCreateCallbackData,
+  makeShynokDicePokerDoppelgangerCreateCallbackData,
   makeShynokDicePokerModeCallbackData,
   makeShynokDicePokerRollCallbackData,
   makeShynokDicePokerRulesCallbackData,
@@ -134,7 +136,7 @@ export function buildShynokGameHubKeyboard(
   for (const table of result.openTables.slice(0, 8)) {
     keyboard
       .text(
-        formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold),
+        formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold, table.result),
         makeShynokGameJoinCallbackData(table.token)
       )
       .row();
@@ -169,7 +171,10 @@ export function buildShynokDicePokerStakeKeyboard(mode: "quick" | "scorecard", m
   const keyboard = new InlineKeyboard();
 
   for (const stake of listTavernGameStakeOptions(maxStake)) {
-    keyboard.text(`💰 ${stake}`, makeShynokDicePokerCreateCallbackData(mode, stake)).row();
+    keyboard
+      .text(`👥 Стіл · ${stake}`, makeShynokDicePokerCreateCallbackData(mode, stake))
+      .text(`🪞 Допельґанґер · ${stake}`, makeShynokDicePokerDoppelgangerCreateCallbackData(mode, stake))
+      .row();
   }
 
   return keyboard
@@ -197,6 +202,7 @@ export function buildShynokGameSessionKeyboard(result: {
     status: string;
     creatorCharacterId: string;
     participants: Array<{ characterId: string; status: string; telegramUserId?: bigint }>;
+    result?: unknown;
   };
 }, options: { viewerTelegramUserId?: bigint; questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   if (!result.session) {
@@ -208,9 +214,10 @@ export function buildShynokGameSessionKeyboard(result: {
     participant.telegramUserId === options.viewerTelegramUserId
   );
   const viewerIsCreator = viewer?.characterId === result.session.creatorCharacterId;
+  const table = isDicePokerTableState(result.session.result) ? result.session.result : null;
   if (
     result.state !== "not-cancellable" &&
-    result.session.gameKey === "tavlei" &&
+    (result.session.gameKey === "tavlei" || table?.phase === "waiting") &&
     result.session.status === "open" &&
     result.session.participants.length < 2 &&
     viewerIsCreator
@@ -221,9 +228,10 @@ export function buildShynokGameSessionKeyboard(result: {
     result.session.gameKey === "kosti" &&
     (result.session.status === "open" || result.session.status === "ready") &&
     result.session.participants.length >= 2 &&
+    table?.phase !== "playing" &&
     viewerIsCreator
   ) {
-    keyboard.text("🎲 Кинути зараз", makeShynokGameResolveCallbackData(result.session.token)).row();
+    keyboard.text("▶️ Почати партію", makeShynokGameResolveCallbackData(result.session.token)).row();
   }
 
   return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
@@ -280,8 +288,13 @@ export function buildShynokDrinkResultKeyboard(options: ShynokNavigationOptions 
   return buildBackToShynokKeyboard(options);
 }
 
-export function buildShynokDicePokerKeyboard(token: string, state: DicePokerState): InlineKeyboard {
+export function buildShynokDicePokerKeyboard(
+  token: string,
+  state: DicePokerState,
+  options: { allowCancel?: boolean } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const allowCancel = options.allowCancel ?? true;
 
   if (state.phase === "terminal") {
     return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
@@ -301,9 +314,11 @@ export function buildShynokDicePokerKeyboard(token: string, state: DicePokerStat
         makeShynokDicePokerRollCallbackData(token)
       )
       .row()
-      .text("❔ Правила", makeShynokDicePokerRulesCallbackData(token))
-      .text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token))
-      .row()
+      .text("❔ Правила", makeShynokDicePokerRulesCallbackData(token));
+    if (allowCancel) {
+      keyboard.text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token));
+    }
+    keyboard.row()
       .text("↩ До ігор", makeShynokGamesCallbackData());
 
     return keyboard;
@@ -332,10 +347,14 @@ export function buildShynokDicePokerKeyboard(token: string, state: DicePokerStat
     }
   });
 
-  return keyboard
+  keyboard
     .row()
-    .text("❔ Правила", makeShynokDicePokerRulesCallbackData(token))
-    .text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token))
+    .text("❔ Правила", makeShynokDicePokerRulesCallbackData(token));
+  if (allowCancel) {
+    keyboard.text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token));
+  }
+
+  return keyboard
     .row()
     .text("↩ До ігор", makeShynokGamesCallbackData());
 }
@@ -494,10 +513,16 @@ function buildBackToHallLabel(options: ShynokNavigationOptions = {}): string {
 export function formatShynokOpenTableButtonLabel(
   gameKey: TavernGameKey,
   participantCount: number,
-  stakeGold: number
+  stakeGold: number,
+  result?: unknown
 ): string {
-  const cap = gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
-  const label = gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
+  const table = isDicePokerTableState(result) ? result : null;
+  const cap = table?.playerCap ?? (gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP);
+  const label = table?.mode === "quick"
+    ? "⚡ Швидкі кості"
+    : table?.mode === "scorecard"
+      ? "📜 Табличні кості"
+      : gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
   return `${label} · ${participantCount}/${cap} · ${stakeGold} зол.`;
 }
 

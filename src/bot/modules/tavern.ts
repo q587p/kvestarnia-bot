@@ -162,7 +162,7 @@ presentTavernRoundResult
 import { presentBigBarrelApproachNotice } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
-import { isDicePokerState, type DicePokerState } from "../../domain/dicePoker";
+import { isDicePokerState, isDicePokerTableState, type DicePokerState } from "../../domain/dicePoker";
 
 import { barrelRaidCompletionScheduler } from "./barrelRaidCompletionScheduler";
 import { sendLevelUpCelebration } from "./levelUp";
@@ -395,6 +395,7 @@ async function handleShynokCallback(
   if (
     action.type === "game-create" ||
     action.type === "game-dice-poker-create" ||
+    action.type === "game-dice-poker-doppelganger-create" ||
     action.type === "game-dice-poker-view" ||
     action.type === "game-dice-poker-toggle" ||
     action.type === "game-dice-poker-roll" ||
@@ -424,6 +425,12 @@ async function handleShynokCallback(
         : await services.tavernGames.createForTelegramUser(telegramUserId, action.gameKey, action.stakeGold);
     } else if (action.type === "game-dice-poker-create") {
       result = await services.tavernGames.createDicePokerForTelegramUser(telegramUserId, action.mode, action.stakeGold);
+    } else if (action.type === "game-dice-poker-doppelganger-create") {
+      result = await services.tavernGames.createDicePokerWithDoppelgangerForTelegramUser(
+        telegramUserId,
+        action.mode,
+        action.stakeGold
+      );
     } else if (action.type === "game-dice-poker-view") {
       result = await services.tavernGames.viewDicePokerForTelegramUser(telegramUserId, action.token);
     } else if (action.type === "game-dice-poker-toggle") {
@@ -722,12 +729,15 @@ function buildTavernGameActionKeyboard(result: {
     }>;
   };
 }, telegramUserId: bigint, options: { questMarkers?: QuestMarkerInput | null } = {}) {
-  const dicePoker = result.dicePoker ?? (isDicePokerState(result.session?.result) ? result.session.result : null);
+  const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
+  const table = isDicePokerTableState(result.session?.result) ? result.session.result : null;
+  const dicePoker = table
+    ? (table.phase === "playing" && isDicePokerState(participant?.decision) ? participant.decision : null)
+    : result.dicePoker ?? (isDicePokerState(result.session?.result) ? result.session.result : null);
   if (result.session && dicePoker) {
-    return buildShynokDicePokerKeyboard(result.session.token, dicePoker);
+    return buildShynokDicePokerKeyboard(result.session.token, dicePoker, { allowCancel: !table });
   }
 
-  const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
   const canChoose = participant &&
     (participant.status === "joined" || participant.status === "decided") &&
     !participant.decision;
@@ -809,6 +819,7 @@ function shouldNotifyTavernGameParticipants(
     "joined",
     "decided",
     "resolved",
+    "completed",
     "cancelled",
     "failed-refund",
     "game-disabled-refunded"

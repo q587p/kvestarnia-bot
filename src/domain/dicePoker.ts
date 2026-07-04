@@ -2,6 +2,8 @@ export const DICE_POKER_RULES_VERSION = "dice-poker-v1";
 
 export const DICE_POKER_DICE_COUNT = 5;
 export const DICE_POKER_MAX_DRAW_ROUNDS = 3;
+export const DICE_POKER_QUICK_PLAYER_CAP = 2;
+export const DICE_POKER_SCORECARD_PLAYER_CAP = 8;
 
 export type DicePokerMode = "quick" | "scorecard";
 
@@ -94,14 +96,42 @@ export type DicePokerState =
   | DicePokerScorecardState
   | DicePokerScorecardTerminalState;
 
+export type DicePokerParticipantOutcome = "win" | "draw" | "loss";
+
+export interface DicePokerTableState {
+  kind: "dice_poker_table";
+  mode: DicePokerMode;
+  phase: "waiting" | "playing" | "terminal";
+  playerCap: number;
+  drawRound: number;
+  outcomes?: Record<string, DicePokerParticipantOutcome>;
+  totals?: Record<string, number>;
+}
+
+export type DicePokerStoredState = DicePokerState | DicePokerTableState;
+
+export function startDicePokerTable(mode: DicePokerMode): DicePokerTableState {
+  return {
+    kind: "dice_poker_table",
+    mode,
+    phase: "waiting",
+    playerCap: mode === "quick" ? DICE_POKER_QUICK_PLAYER_CAP : DICE_POKER_SCORECARD_PLAYER_CAP,
+    drawRound: 1
+  };
+}
+
 export function startQuickDicePoker(seed: string): DicePokerQuickRoundState {
+  return startQuickDicePokerRound(seed, 1);
+}
+
+export function startQuickDicePokerRound(seed: string, drawRound: number): DicePokerQuickRoundState {
   return {
     kind: "dice_poker",
     mode: "quick",
     phase: "quick-reroll",
-    drawRound: 1,
-    playerDice: rollDice(seed, "quick:player:1", DICE_POKER_DICE_COUNT),
-    opponentDice: rollDice(seed, "quick:opponent:1", DICE_POKER_DICE_COUNT),
+    drawRound,
+    playerDice: rollDice(seed, `quick:player:${drawRound}`, DICE_POKER_DICE_COUNT),
+    opponentDice: rollDice(seed, `quick:opponent:${drawRound}`, DICE_POKER_DICE_COUNT),
     selectedMask: 0
   };
 }
@@ -418,6 +448,43 @@ export function rollDice(seed: string, salt: string, count: number): number[] {
 
 export function isDicePokerState(value: unknown): value is DicePokerState {
   return isRecord(value) && value.kind === "dice_poker" && (value.mode === "quick" || value.mode === "scorecard");
+}
+
+export function resolveQuickPlayerHand(
+  state: DicePokerQuickRoundState,
+  seed: string,
+  rerollSalt: string,
+  rerollMask = state.selectedMask
+): DicePokerQuickTerminalState {
+  const playerDice = rerollByMask(
+    state.playerDice,
+    rerollMask,
+    seed,
+    `quick:player-reroll:${state.drawRound}:${rerollSalt}`
+  );
+  const playerHand = evaluateQuickHand(playerDice);
+
+  return {
+    kind: "dice_poker",
+    mode: "quick",
+    phase: "terminal",
+    outcome: "draw",
+    drawRound: state.drawRound,
+    playerDice,
+    opponentDice: [],
+    playerHand,
+    opponentHand: playerHand,
+    reason: "Кидок записано. Чекаємо інших гравців."
+  };
+}
+
+export function isDicePokerTableState(value: unknown): value is DicePokerTableState {
+  return isRecord(value) &&
+    value.kind === "dice_poker_table" &&
+    (value.mode === "quick" || value.mode === "scorecard") &&
+    (value.phase === "waiting" || value.phase === "playing" || value.phase === "terminal") &&
+    Number.isInteger(value.playerCap) &&
+    Number.isInteger(value.drawRound);
 }
 
 function rerollByMask(dice: readonly number[], mask: number, seed: string, salt: string): number[] {

@@ -8,6 +8,7 @@ import { DICE_POKER_SCORECARD_TTL_MS, TavernGameService } from "../../src/servic
 import {
   DICE_POKER_RULES_VERSION,
   DICE_POKER_SCORE_CATEGORIES,
+  DICE_POKER_SCORECARD_PLAYER_CAP,
   startQuickDicePoker,
   startScorecardDicePoker,
   type DicePokerScoreCategory,
@@ -143,17 +144,25 @@ describe("TavernGameService", () => {
       stakeGold: 13,
       maxStake: 23,
       cooldownMs: 42_000,
+      status: "open",
+      decisionExpiresAt: null,
       now
     });
     expect(repository.lastDicePokerCreateInput?.state).toMatchObject({
+      kind: "dice_poker_table",
+      mode: "quick",
+      phase: "waiting",
+      playerCap: 2
+    });
+    expect(repository.lastDicePokerCreateInput?.participantState).toMatchObject({
       kind: "dice_poker",
       mode: "quick",
       phase: "quick-reroll"
     });
-    expect(repository.lastDicePokerCreateInput?.expiresAt.toISOString()).toBe("2026-07-02T10:05:00.000Z");
+    expect(repository.lastDicePokerCreateInput?.joinExpiresAt?.toISOString()).toBe("2026-07-02T10:13:00.000Z");
   });
 
-  it("creates scorecard dice poker with a longer deadline", async () => {
+  it("creates scorecard dice poker as a social table with a longer action deadline constant", async () => {
     const repository = new FakeTavernGameRepository();
     const service = new TavernGameService(repository, config({
       tavernGamesEnabled: true,
@@ -162,7 +171,14 @@ describe("TavernGameService", () => {
 
     await service.createDicePokerForTelegramUser(42n, "scorecard", 13);
 
-    expect(repository.lastDicePokerCreateInput?.expiresAt.toISOString()).toBe("2026-07-02T11:33:00.000Z");
+    expect(repository.lastDicePokerCreateInput?.state).toMatchObject({
+      kind: "dice_poker_table",
+      mode: "scorecard",
+      phase: "waiting",
+      playerCap: DICE_POKER_SCORECARD_PLAYER_CAP
+    });
+    expect(repository.lastDicePokerCreateInput?.joinExpiresAt?.toISOString()).toBe("2026-07-02T10:13:00.000Z");
+    expect(repository.lastDicePokerCreateInput?.decisionExpiresAt).toBeNull();
     expect(DICE_POKER_SCORECARD_TTL_MS).toBe(93 * 60_000);
   });
 

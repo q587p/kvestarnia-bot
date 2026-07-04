@@ -47,7 +47,7 @@ describe("Shynok game keyboards", () => {
       session: kostiSession({ status: "completed" })
     }, { viewerTelegramUserId: 1001n });
 
-    expect(flatInlineButtonTexts(openKeyboard)).toEqual(["🎲 Кинути зараз", "↩ До ігор"]);
+    expect(flatInlineButtonTexts(openKeyboard)).toEqual(["▶️ Почати партію", "↩ До ігор"]);
     expect(flatInlineButtonTexts(completedKeyboard)).toEqual(["↩ До ігор"]);
   });
 
@@ -72,10 +72,14 @@ describe("Shynok game keyboards", () => {
       "↩ До ігор"
     ]);
     expect(flatInlineButtonTexts(buildShynokDicePokerStakeKeyboard("quick", 23))).toEqual([
-      "💰 1",
-      "💰 5",
-      "💰 13",
-      "💰 23",
+      "👥 Стіл · 1",
+      "🪞 Допельґанґер · 1",
+      "👥 Стіл · 5",
+      "🪞 Допельґанґер · 5",
+      "👥 Стіл · 13",
+      "🪞 Допельґанґер · 13",
+      "👥 Стіл · 23",
+      "🪞 Допельґанґер · 23",
       "❔ Правила",
       "↩ До костей"
     ]);

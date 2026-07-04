@@ -1,5 +1,5 @@
 import type { CharacterRecord } from "./characterRepository";
-import type { DicePokerMode, DicePokerState } from "../../domain/dicePoker";
+import type { DicePokerMode, DicePokerState, DicePokerStoredState } from "../../domain/dicePoker";
 import type { TavernGameDecision, TavernGameKey, TavernGameResolution } from "../../domain/tavernGames";
 
 export type TavernGameSessionStatus =
@@ -169,7 +169,11 @@ export interface TavernGameRepository {
       expiresAt: Date;
       cooldownMs: number;
       now: Date;
-      state: DicePokerState;
+      state: DicePokerStoredState;
+      participantState?: DicePokerState;
+      status?: "open" | "ready";
+      joinExpiresAt?: Date;
+      decisionExpiresAt?: Date | null;
     }
   ): Promise<TavernGameCreateResult>;
   joinByTokenForTelegramUser(
@@ -210,6 +214,13 @@ export interface TavernGameRepository {
     telegramUserId: bigint,
     token: string,
     now: Date
+  ): Promise<DicePokerActionResult>;
+  saveDicePokerParticipantStateForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    state: DicePokerState,
+    now: Date,
+    expiresAt?: Date
   ): Promise<DicePokerActionResult>;
   resetCreateCooldownForTelegramUser(
     telegramUserId: bigint,

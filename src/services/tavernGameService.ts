@@ -5,15 +5,19 @@ import type { AchievementService, AchievementUnlock } from "./achievementService
 import {
   DICE_POKER_RULES_VERSION,
   isDicePokerState,
+  isDicePokerTableState,
   resolveQuickDicePokerRound,
+  resolveQuickPlayerHand,
   rerollScorecardDice,
   scoreScorecardCategory,
+  startDicePokerTable,
   startQuickDicePoker,
   startScorecardDicePoker,
   toggleDieSelection,
   type DicePokerMode,
   type DicePokerScoreCategory,
-  type DicePokerState
+  type DicePokerState,
+  type DicePokerTableState
 } from "../domain/dicePoker";
 import {
   isKostiSign,
@@ -221,6 +225,45 @@ export class TavernGameService {
 
     const now = this.now();
     const seed = `dice-poker:${mode}:${randomUUID()}`;
+    const tableState = startDicePokerTable(mode);
+    const result = await this.repository.createDicePokerForTelegramUser(telegramUserId, {
+      mode,
+      token: randomUUID(),
+      seed,
+      stakeGold: Math.trunc(stakeGold),
+      maxStake: this.config.tavernGameMaxStake,
+      expiresAt: new Date(now.getTime() + TAVERN_GAME_JOIN_TTL_MS),
+      joinExpiresAt: new Date(now.getTime() + TAVERN_GAME_JOIN_TTL_MS),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
+      now,
+      state: tableState,
+      participantState: createDicePokerParticipantState(tableState, seed, `${telegramUserId}`)
+    });
+
+    if (result.state === "active-session" && result.session.gameKey === "kosti") {
+      const stale = await this.refundOldKostiTable(result.session.token, now);
+      if (stale) {
+        return stale;
+      }
+    }
+
+    return result.state === "cooldown" ? { ...result, now } : result;
+  }
+
+  async createDicePokerWithDoppelgangerForTelegramUser(
+    telegramUserId: bigint,
+    mode: DicePokerMode,
+    stakeGold: number
+  ): Promise<DicePokerServiceResult> {
+    const gate = this.requireGame("kosti");
+    if (gate) {
+      return gate;
+    }
+
+    const now = this.now();
+    const seed = `dice-poker:doppelganger:${mode}:${randomUUID()}`;
     const result = await this.repository.createDicePokerForTelegramUser(telegramUserId, {
       mode,
       token: randomUUID(),
@@ -320,6 +363,27 @@ export class TavernGameService {
     if (!current) {
       return { state: "not-found" };
     }
+    if (isDicePokerTableState(current.result) && current.result.phase !== "playing") {
+      return { state: "stale", session: current };
+    }
+    const tablePlayer = getDicePokerParticipantState(current, telegramUserId);
+    if (tablePlayer) {
+      if (tablePlayer.phase === "terminal") {
+        return { state: "closed", session: current };
+      }
+      const state = {
+        ...tablePlayer,
+        selectedMask: toggleDieSelection(tablePlayer.selectedMask, index)
+      } as DicePokerState;
+      const now = this.now();
+      return this.repository.saveDicePokerParticipantStateForTelegramUser(
+        telegramUserId,
+        token,
+        state,
+        now,
+        getDicePokerRefreshExpiresAt(now, state)
+      );
+    }
     if (!isDicePokerState(current.result)) {
       return { state: "stale", session: current };
     }
@@ -384,6 +448,18 @@ export class TavernGameService {
     if (!current) {
       return { state: "not-found" };
     }
+    if (isDicePokerTableState(current.result) && current.result.phase !== "playing") {
+      return { state: "stale", session: current };
+    }
+    const tablePlayer = getDicePokerParticipantState(current, telegramUserId);
+    if (tablePlayer) {
+      if (tablePlayer.phase === "terminal") {
+        return { state: "closed", session: current };
+      }
+      return tablePlayer.mode === "quick"
+        ? this.resolveQuickDicePokerTableForTelegramUser(telegramUserId, token, current, tablePlayer)
+        : this.rerollScorecardDiceTableForTelegramUser(telegramUserId, token, current, tablePlayer);
+    }
     if (!isDicePokerState(current.result)) {
       return { state: "stale", session: current };
     }
@@ -403,6 +479,18 @@ export class TavernGameService {
     const current = await this.getDicePokerStateForAction(token);
     if (!current) {
       return { state: "not-found" };
+    }
+    if (isDicePokerTableState(current.result) && current.result.phase !== "playing") {
+      return { state: "stale", session: current };
+    }
+    const tablePlayer = getDicePokerParticipantState(current, telegramUserId);
+    if (tablePlayer) {
+      if (tablePlayer.phase === "terminal") {
+        return { state: "closed", session: current };
+      }
+      return tablePlayer.mode === "scorecard"
+        ? this.rerollScorecardDiceTableForTelegramUser(telegramUserId, token, current, tablePlayer)
+        : { state: "stale", session: current };
     }
     if (!isDicePokerState(current.result) || current.result.mode !== "scorecard" || current.result.phase !== "scorecard-roll") {
       return { state: "stale", session: current };
@@ -425,6 +513,47 @@ export class TavernGameService {
     );
   }
 
+  private async resolveQuickDicePokerTableForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    session: TavernGameSessionRecord,
+    state: Extract<DicePokerState, { mode: "quick"; phase: "quick-reroll" }>
+  ): Promise<DicePokerServiceResult> {
+    const next = resolveQuickPlayerHand(state, session.seed, `${telegramUserId}`);
+    const result = await this.repository.saveDicePokerParticipantStateForTelegramUser(
+      telegramUserId,
+      token,
+      next,
+      this.now()
+    );
+    return this.withDicePokerAchievements(result, this.now(), "draw");
+  }
+
+  private async rerollScorecardDiceTableForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    session: TavernGameSessionRecord,
+    state: Extract<DicePokerState, { mode: "scorecard"; phase: "scorecard-roll" }>
+  ): Promise<DicePokerServiceResult> {
+    if (state.roll >= 3 || state.selectedMask === 0) {
+      return {
+        state: "saved",
+        session,
+        dicePoker: state
+      };
+    }
+
+    const next = rerollScorecardDice(state, `${token}:${telegramUserId}`);
+    const now = this.now();
+    return this.repository.saveDicePokerParticipantStateForTelegramUser(
+      telegramUserId,
+      token,
+      next,
+      now,
+      getDicePokerRefreshExpiresAt(now, next)
+    );
+  }
+
   async scoreScorecardCategoryForTelegramUser(
     telegramUserId: bigint,
     token: string,
@@ -433,6 +562,32 @@ export class TavernGameService {
     const current = await this.getDicePokerStateForAction(token);
     if (!current) {
       return { state: "not-found" };
+    }
+    if (isDicePokerTableState(current.result) && current.result.phase !== "playing") {
+      return { state: "stale", session: current };
+    }
+    const tablePlayer = getDicePokerParticipantState(current, telegramUserId);
+    if (tablePlayer) {
+      if (tablePlayer.phase === "terminal") {
+        return { state: "closed", session: current };
+      }
+      if (tablePlayer.mode !== "scorecard" || tablePlayer.phase !== "scorecard-roll") {
+        return { state: "stale", session: current };
+      }
+      if (tablePlayer.scores[category] !== undefined) {
+        return { state: "saved", session: current, dicePoker: tablePlayer };
+      }
+
+      const next = scoreScorecardCategory(tablePlayer, category, `${current.seed}:${telegramUserId}`);
+      const now = this.now();
+      const result = await this.repository.saveDicePokerParticipantStateForTelegramUser(
+        telegramUserId,
+        token,
+        next,
+        now,
+        getDicePokerRefreshExpiresAt(now, next)
+      );
+      return this.withDicePokerAchievements(result, now, "draw");
     }
     if (!isDicePokerState(current.result) || current.result.mode !== "scorecard" || current.result.phase !== "scorecard-roll") {
       return { state: "stale", session: current };
@@ -483,6 +638,18 @@ export class TavernGameService {
     const current = await this.getDicePokerStateForAction(token);
     if (!current) {
       return { state: "not-found" };
+    }
+    const tablePlayer = getDicePokerParticipantState(current, telegramUserId);
+    if (tablePlayer) {
+      return current.status === "completed"
+        ? { state: "closed", session: current }
+        : { state: "saved", session: current, dicePoker: tablePlayer };
+    }
+    if (isDicePokerTableState(current.result)) {
+      const participant = current.participants.find((row) =>
+        row.telegramUserId === telegramUserId && (row.status === "joined" || row.status === "decided")
+      );
+      return participant ? { state: "stale", session: current } : { state: "not-participant", session: current };
     }
     if (!isDicePokerState(current.result)) {
       return { state: "stale", session: current };
@@ -588,38 +755,40 @@ export class TavernGameService {
       return result;
     }
 
-    const participant = result.session.participants[0];
-    if (!participant) {
+    const outcomes = getStoredOutcomes(result.session);
+    if (!outcomes) {
       return result;
     }
 
-    const unlocks: AchievementUnlock[] = [];
-    unlocks.push(...await this.achievements.trackEventSafely({
-      type: "tavern.game.played",
-      characterId: participant.characterId,
-      occurredAt: now,
-      sourceId: result.session.id
-    }));
-    unlocks.push(...await this.achievements.trackEventSafely({
-      type: outcome === "win"
-        ? "tavern.game.won"
-        : outcome === "draw"
-          ? "tavern.game.drawn"
-          : "tavern.game.lost",
-      characterId: participant.characterId,
-      occurredAt: now,
-      sourceId: result.session.id
-    }));
+    const notifications: TavernGameAchievementNotification[] = [];
+    for (const participant of result.session.participants) {
+      const storedOutcome = outcomes.get(participant.characterId) ?? outcome;
+      const unlocks: AchievementUnlock[] = [];
+      unlocks.push(...await this.achievements.trackEventSafely({
+        type: "tavern.game.played",
+        characterId: participant.characterId,
+        occurredAt: now,
+        sourceId: result.session.id
+      }));
+      unlocks.push(...await this.achievements.trackEventSafely({
+        type: storedOutcome === "win"
+          ? "tavern.game.won"
+          : storedOutcome === "draw"
+            ? "tavern.game.drawn"
+            : "tavern.game.lost",
+        characterId: participant.characterId,
+        occurredAt: now,
+        sourceId: result.session.id
+      }));
+      if (unlocks.length > 0) {
+        notifications.push({
+          telegramUserId: participant.telegramUserId,
+          unlocks
+        });
+      }
+    }
 
-    return unlocks.length > 0
-      ? {
-          ...result,
-          achievementNotifications: [{
-            telegramUserId: participant.telegramUserId,
-            unlocks
-          }]
-        }
-      : result;
+    return notifications.length > 0 ? { ...result, achievementNotifications: notifications } : result;
   }
 
   private requireGame(gameKey: TavernGameKey): TavernGameFeatureResult | null {
@@ -809,10 +978,21 @@ function getStoredOutcomes(record: TavernGameSessionRecord): Map<string, "win" |
   const dicePokerOutcome = parseStoredDicePokerOutcome(record.result);
   const participant = record.participants.length === 1 ? record.participants[0] : null;
   if (!dicePokerOutcome || !participant) {
-    return null;
+    return parseStoredDicePokerTableOutcomes(record.result);
   }
 
   return new Map([[participant.characterId, dicePokerOutcome]]);
+}
+
+function parseStoredDicePokerTableOutcomes(input: unknown): Map<string, "win" | "draw" | "loss"> | null {
+  if (!isDicePokerTableState(input) || input.phase !== "terminal" || !input.outcomes) {
+    return null;
+  }
+
+  const entries = Object.entries(input.outcomes).filter((entry): entry is [string, "win" | "draw" | "loss"] =>
+    entry[1] === "win" || entry[1] === "draw" || entry[1] === "loss"
+  );
+  return entries.length > 0 ? new Map(entries) : null;
 }
 
 function parseStoredDicePokerOutcome(input: unknown): "win" | "draw" | "loss" | null {
@@ -835,4 +1015,29 @@ function getDicePokerExpiresAt(now: Date, mode: DicePokerMode): Date {
 
 function getDicePokerRefreshExpiresAt(now: Date, state: DicePokerState): Date | undefined {
   return state.mode === "scorecard" ? getDicePokerExpiresAt(now, "scorecard") : undefined;
+}
+
+function getDicePokerParticipantState(
+  session: TavernGameSessionRecord,
+  telegramUserId: bigint
+): DicePokerState | null {
+  if (!isDicePokerTableState(session.result)) {
+    return null;
+  }
+
+  const participant = session.participants.find((row) =>
+    row.telegramUserId === telegramUserId && (row.status === "joined" || row.status === "decided")
+  );
+  return participant && isDicePokerState(participant.decision) ? participant.decision : null;
+}
+
+function createDicePokerParticipantState(
+  table: DicePokerTableState,
+  seed: string,
+  participantSalt: string
+): DicePokerState {
+  const participantSeed = `${seed}:participant:${participantSalt}:round:${table.drawRound}`;
+  return table.mode === "quick"
+    ? startQuickDicePoker(participantSeed)
+    : startScorecardDicePoker(participantSeed);
 }

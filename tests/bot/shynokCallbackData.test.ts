@@ -5,6 +5,7 @@ import {
   makeShynokBardPerformanceTipCallbackData,
   makeShynokDicePokerCancelCallbackData,
   makeShynokDicePokerCreateCallbackData,
+  makeShynokDicePokerDoppelgangerCreateCallbackData,
   makeShynokDicePokerModeCallbackData,
   makeShynokDicePokerRollCallbackData,
   makeShynokDicePokerRulesCallbackData,
@@ -147,6 +148,10 @@ describe("shynokCallbackData", () => {
     expect(parseShynokCallbackData(makeShynokDicePokerCreateCallbackData("scorecard", 23))).toEqual({
       ok: true,
       value: { type: "game-dice-poker-create", mode: "scorecard", stakeGold: 23 }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerDoppelgangerCreateCallbackData("quick", 13))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-doppelganger-create", mode: "quick", stakeGold: 13 }
     });
     expect(parseShynokCallbackData(makeShynokDicePokerRulesCallbackData())).toEqual({
       ok: true,
