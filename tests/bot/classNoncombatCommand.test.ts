@@ -245,7 +245,7 @@ function priestHealResult(): PriestHealResult {
       targetName: "Ціль",
       actionKind: "heal",
       healAmount: 5,
-      manaCost: 7,
+      manaCost: 5,
       cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
       completedAt: now
     },

@@ -46,6 +46,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Active Priest blessing now appears as a visible `Вдача` bonus in the hero card stats and no longer uses technical stacking copy in player-facing text.
 - Priest aid open cards now label the same-target blessing wait clearly, so it does not read like the active blessing duration.
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `💫` for mana spent.
+- Scaled Priest direct-heal mana spending to actual HP restored, capped at 13, and scaled Priest blessing spending from 8 to 23 by the granted `+1..+5` luck bonus.
 - Removed the noncombat Priest heal cooldown and actor-wide Priest blessing cooldown; direct healing is limited by missing HP and mana, while direct blessing is limited by mana and a 93-minute repeat wait only for the same actor-target pair.
 - Removed the two-enemy Nyz threat backup HP shortcut: every threat monster now keeps its own full level-derived HP, and victory rewards/loot use the original encounter enemy level even after the primary enemy dies and the boosted backup becomes the active mirror.
 - Fixed multi-enemy combat effect expiry so hero-targeted monster effects tick down after any hero action, including `defend` and combat-item turns, and the turn log no longer repeats expired accuracy-penalty notices.

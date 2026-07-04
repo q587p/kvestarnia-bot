@@ -151,7 +151,7 @@ describe("class noncombat presenter", () => {
         targetName: "Жрець",
         actionKind: "blessing",
         healAmount: 0,
-        manaCost: 15,
+        manaCost: 23,
         cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
         completedAt: new Date("2026-07-03T09:00:00.000Z")
       },
@@ -176,7 +176,7 @@ describe("class noncombat presenter", () => {
 
     expect(text).toContain("Стан діє ще: <b>13 хвилин</b>.");
     expect(text).toContain("Бонус: <b>+5 Вдачі</b>. Видно в персонажі поруч із бафами.");
-    expect(text).toContain("💫 Мани витрачено: <b>15</b>.");
+    expect(text).toContain("💫 Мани витрачено: <b>23</b>.");
     expect(text).not.toContain("Бонус поки");
     expect(text).not.toContain("не складається в стос");
   });
@@ -194,7 +194,7 @@ describe("class noncombat presenter", () => {
         targetName: "Жрець",
         actionKind: "heal",
         healAmount: 4,
-        manaCost: 10,
+        manaCost: 4,
         cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
         completedAt: new Date("2026-07-03T09:00:00.000Z")
       },
@@ -212,7 +212,7 @@ describe("class noncombat presenter", () => {
     } as unknown as PriestHealResult);
 
     expect(text).toContain("❤️ HP: <b>+4</b> · тепер <b>20/32</b>.");
-    expect(text).toContain("💫 Мани витрачено: <b>10</b>.");
+    expect(text).toContain("💫 Мани витрачено: <b>4</b>.");
     expect(text).toContain("⚕️ <b>Лікування спрацювало</b>");
     expect(text).not.toContain("Відпочинок техніки");
     expect(text).not.toContain("🩹 <b>Лікування спрацювало</b>");

@@ -7,6 +7,7 @@ export const PRIEST_DIRECT_AID_COOLDOWN_MINUTES = 93;
 export const PRIEST_BLESSING_DURATION_MINUTES = 13;
 export const ROGUE_PICKPOCKET_COOLDOWN_MINUTES = 93;
 export const ROGUE_PICKPOCKET_MAX_STOLEN_GOLD = 13;
+const PRIEST_BLESSING_MANA_COST_BY_BONUS = [8, 12, 16, 20, 23] as const;
 
 export type RoguePickpocketOutcome =
   | "clean-success"
@@ -50,7 +51,7 @@ export function buildPriestHealPlan(input: {
 
   return {
     heal,
-    manaCost: Math.max(7, Math.ceil(heal * 0.75) + 2)
+    manaCost: clamp(heal, 0, 13)
   };
 }
 
@@ -71,7 +72,7 @@ export function buildPriestBlessingPlan(input: {
 
   return {
     bonusAmount,
-    manaCost: 5 + bonusAmount * 2,
+    manaCost: PRIEST_BLESSING_MANA_COST_BY_BONUS[bonusAmount - 1] ?? PRIEST_BLESSING_MANA_COST_BY_BONUS[4],
     levelDiff
   };
 }

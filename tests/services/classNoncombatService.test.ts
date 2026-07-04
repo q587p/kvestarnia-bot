@@ -102,7 +102,7 @@ describe("ClassNoncombatService", () => {
 
     expect(result.state).toBe("completed");
     expect(repository.lastBlessInput).toMatchObject({
-      manaCost: 15,
+      manaCost: 23,
       bonusAmount: 5,
       expiresAt: new Date("2026-07-03T09:13:00.000Z"),
       cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),

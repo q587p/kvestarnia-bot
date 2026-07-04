@@ -177,8 +177,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
 
     expect(result).toMatchObject({
       state: "completed",
-      actor: { manaCurrent: 13 },
-      target: { manaCurrent: 13 },
+      actor: { manaCurrent: 12 },
+      target: { manaCurrent: 12 },
       blessing: {
         actorName: "priest",
         targetName: "priest",
@@ -195,7 +195,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
       bonusAmount: 1
     });
     await expect(prisma.character.findUnique({ where: { id: "priest" } })).resolves.toMatchObject({
-      manaCurrent: 13,
+      manaCurrent: 12,
       manaRegenAt: now
     });
     await expect(prisma.characterCooldown.findMany({
@@ -400,7 +400,7 @@ function priestBlessInput(overrides: {
     now,
     expiresAt: overrides.expiresAt,
     cooldownAvailableAt,
-    manaCost: 7,
+    manaCost: 8,
     bonusAmount: 1,
     statSnapshot: { test: true }
   };

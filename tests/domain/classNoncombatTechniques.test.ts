@@ -6,15 +6,15 @@ import {
 } from "../../src/domain/noncombat/classNoncombatTechniques";
 
 describe("class noncombat techniques", () => {
-  it("uses the preserved Priest heal formula and mana cost", () => {
+  it("uses the preserved Priest heal formula with mana cost capped by actual healing", () => {
     expect(buildPriestHealPlan({
       missingHp: 99,
-      charisma: 10,
-      intelligence: 8,
-      level: 5
+      charisma: 30,
+      intelligence: 30,
+      level: 13
     })).toEqual({
-      heal: 11,
-      manaCost: 11
+      heal: 29,
+      manaCost: 13
     });
 
     expect(buildPriestHealPlan({
@@ -24,7 +24,17 @@ describe("class noncombat techniques", () => {
       level: 5
     })).toEqual({
       heal: 4,
-      manaCost: 7
+      manaCost: 4
+    });
+
+    expect(buildPriestHealPlan({
+      missingHp: 1,
+      charisma: 10,
+      intelligence: 8,
+      level: 5
+    })).toEqual({
+      heal: 1,
+      manaCost: 1
     });
   });
 
@@ -35,7 +45,7 @@ describe("class noncombat techniques", () => {
       targetLevel: 3
     })).toEqual({
       bonusAmount: 1,
-      manaCost: 7,
+      manaCost: 8,
       levelDiff: 0
     });
 
@@ -45,8 +55,17 @@ describe("class noncombat techniques", () => {
       targetLevel: 3
     })).toEqual({
       bonusAmount: 5,
-      manaCost: 15,
+      manaCost: 23,
       levelDiff: 10
+    });
+
+    expect(buildPriestBlessingPlan({
+      priestLevel: 7,
+      priestIntelligence: 14,
+      targetLevel: 7
+    })).toMatchObject({
+      bonusAmount: 3,
+      manaCost: 16
     });
 
     expect(buildPriestBlessingPlan({

@@ -89,7 +89,7 @@ Example: a Priest offers a blessing or heal to a nearby player.
 
 `0.2.25` exception: Priest direct aid is not an offer flow. A level 3+ Priest can heal or bless self or an active same-location target directly outside combat. Healing spends mana only and starts no cooldown; blessing spends mana and starts a 93-minute repeat wait only for the same actor-target pair after a successful durable mutation. Failed/full-HP/already-blessed/stale attempts do not mutate, and another target receives a private best-effort notification after the stored result exists.
 
-Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + floor((charisma + intelligence) / 3) + floor(level / 2))`; mana cost is `max(7, ceil(heal * 0.75) + 2)`. Missing HP, full-HP checks and healing caps use the target's current effective HP maximum, including level-derived HP.
+Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + floor((charisma + intelligence) / 3) + floor(level / 2))`; mana cost follows actual HP restored and is capped at `13`. Missing HP, full-HP checks and healing caps use the target's current effective HP maximum, including level-derived HP.
 
 Priest aid keyboards do not show healing buttons for full-HP targets. Healing rows use the `⚕️` marker, while actual bandage icons stay reserved for medical manatky and Yeger supplies.
 
@@ -265,17 +265,14 @@ heal = min(
   3 + floor((CHA + INT) / 3) + floor(level / 2)
 )
 
-manaCost = max(
-  7,
-  ceil(heal * 0.75) + 2
-)
+manaCost = min(heal, 13)
 ```
 
 Shipped behavior:
 
-- direct heal uses the formula above, spends only mana and sends a private target notification only after success;
+- direct heal uses the formula above, spends mana equal to actual HP restored capped at 13 and sends a private target notification only after success;
 - direct blessing creates one visible `priest.blessing` status for 13 minutes;
-- blessing stores `bonusStat = "luck"` and a `bonusAmount` from `+1..+5` based on Priest intelligence plus actor/target level difference; the hero card shows the resulting `Вдача` bonus while the status is active;
+- blessing stores `bonusStat = "luck"` and a `bonusAmount` from `+1..+5` based on Priest intelligence plus actor/target level difference; mana cost scales as `8/12/16/20/23` for `+1..+5`; the hero card shows the resulting `Вдача` bonus while the status is active;
 - remort, location, activity, combat/raid/passage/party/duel blocking flows and duplicate callbacks fail closed.
 
 ### Race And Signature Techniques
