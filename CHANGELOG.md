@@ -42,7 +42,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Removed the generated combo-title prefix from the starter shawarma scene while keeping its race/class flavor beat.
 - Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, hero damage, Mimic counterattack damage, victory flavor, `Винагорода за бій`, then item grants.
 - Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
-- Shortened starter shawarma, starter cellar and regular Adventure method-choice cards so the message body stops duplicating method labels and the character prompt; action labels stay in buttons and method help.
+- Shortened starter shawarma, starter cellar, regular Adventure method-choice cards and Daily Korchma Round scene cards so the message body stops duplicating method/action labels and the character prompt; action labels stay in buttons and method/help surfaces.
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
 - Active Priest blessing now appears as a visible `Вдача` bonus in the hero card stats and no longer uses technical stacking copy in player-facing text.
 - Priest blessing result cards now separate status and mana beats with blank lines, bold both visible participant names, and include the blessing Priest's active cosmetic title in target notifications.
@@ -88,6 +88,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added callback parser tests for `v1:nc` open/action payloads and stale-click remort counters.
 - Added service tests for Priest heal/blessing planning, Priest heal no-cooldown behavior, scaled Priest blessing bonus, Rogue deterministic planning, duplicate replay and achievement hooks.
 - Added service/hero coverage proving equipped manatky and active non-expired Priest blessing bonuses affect Priest/Rogue noncombat planning, target effective HP max uses the same source as the heal plan and expired blessings do not affect hero stats.
+- Added presenter coverage that Daily Korchma Round scene cards keep local action labels out of the message body while help mode still shows action details.
 - Added DevGrant coverage proving `/dev_reset_quiet_pocket` sends the current `noncombat.rogue.pickpocket` cooldown key, `/dev_reset_rogue` clears same-day Rogue target rows, and disabled dev grants still do not route.
 - Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
 - Added repository regression coverage proving Priest healing does not create a cooldown row and Priest blessing waits are scoped to the same actor-target pair.
