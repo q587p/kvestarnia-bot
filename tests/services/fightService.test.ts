@@ -45,6 +45,7 @@ import type { ShynokRepository } from "../../src/db/repositories/shynokRepositor
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { monsters } from "../../src/content/monsters";
 import {
+  deriveMonsterCombatStats,
   markCombatSettlementCompleted,
   markCombatSettlementForfeitedByRemort,
   normalizeCombatEnemies,
@@ -2604,6 +2605,84 @@ describe("FightService", () => {
     expect(dailyActions.records.filter((record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY)).toHaveLength(1);
   });
 
+  it("uses the original encounter enemy level for two-enemy victory rewards after primary death", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 4, xp: 45 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const baseSession = makeTerminalSession(
+      "won",
+      "session-two-enemy-primary-reward-level",
+      `character-${telegramUserId.toString()}`,
+      "monster.deadline-spider"
+    );
+    const wonSession = sessions.addSession({
+      ...baseSession,
+      state: {
+        ...baseSession.state!,
+        monster: {
+          id: "monster.complaint-lantern",
+          hp: 0,
+          hpMax: 70,
+          level: 16,
+          debugTrace: {
+            interventionKind: "none",
+            interventionSourceKey: "prypichnyk",
+            baseMonsterLevel: 4,
+            effectiveMonsterLevel: 16
+          }
+        },
+        enemies: [
+          {
+            enemyId: "enemy:2",
+            id: "monster.complaint-lantern",
+            hp: 0,
+            hpMax: 70,
+            level: 16,
+            debugTrace: {
+              interventionKind: "none",
+              interventionSourceKey: "prypichnyk",
+              baseMonsterLevel: 4,
+              effectiveMonsterLevel: 16
+            }
+          },
+          {
+            enemyId: "enemy:1",
+            id: "monster.deadline-spider",
+            hp: 0,
+            hpMax: 18,
+            level: 2,
+            debugTrace: {
+              interventionKind: "none",
+              interventionSourceKey: "prypichnyk",
+              baseMonsterLevel: 2,
+              effectiveMonsterLevel: 2
+            }
+          }
+        ]
+      }
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.99, 0])
+    });
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    if (recovered.state !== "terminal") {
+      throw new Error("Expected terminal reward recovery.");
+    }
+    expect(recovered.fightReward?.reward.xp).toBe(7);
+  });
+
   it("claims a persistent fight reward when the final monster response drops the hero to zero", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -3858,6 +3937,15 @@ describe("FightService", () => {
 
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
+      if (!secondEnemy || !baseSecondEnemy) {
+        throw new Error("Expected a boosted second enemy.");
+      }
+      expect(secondEnemy.hpMax).toBe(
+        deriveMonsterCombatStats({
+          ...baseSecondEnemy,
+          level: secondEnemy.level ?? baseSecondEnemy.level
+        }).hpMax
+      );
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 2);
       expect(started.session.state?.threat?.pressure).toMatchObject({
         version: 1,
@@ -3906,6 +3994,15 @@ describe("FightService", () => {
       expect(enemies).toHaveLength(2);
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
+      if (!secondEnemy || !baseSecondEnemy) {
+        throw new Error("Expected a boosted second enemy.");
+      }
+      expect(secondEnemy.hpMax).toBe(
+        deriveMonsterCombatStats({
+          ...baseSecondEnemy,
+          level: secondEnemy.level ?? baseSecondEnemy.level
+        }).hpMax
+      );
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 4);
       expect(started.session.state?.threat?.pressure).toMatchObject({
         consecutiveWonEscalatedFights: 2,

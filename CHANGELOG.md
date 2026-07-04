@@ -43,6 +43,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Priest aid open cards now label the 93-minute blessing gate as `очікування`, so it does not read like the active blessing duration.
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `🌌` for mana spent.
 - Removed the noncombat Priest heal cooldown; direct healing is now limited by missing HP and mana, while direct blessing keeps the 93-minute actor cooldown.
+- Removed the two-enemy Nyz threat backup HP shortcut: every threat monster now keeps its own full level-derived HP, and victory rewards/loot use the original encounter enemy level even after the primary enemy dies and the boosted backup becomes the active mirror.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
 - Rogue pickpocket result cards now italicize the next-attempt wait, cooldown blockers name the finger-rest wait directly with bold remaining time, and fresh Rogue target lists hide targets already attempted by that Rogue on the current Kyiv day.
@@ -460,7 +461,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused two-enemy simulator coverage and persistent two-enemy reward replay coverage so threat fights keep one terminal settlement and one stored reward.
 
 ### Changed
-- Softened two-enemy threat pressure by applying a named backup-enemy HP guard, skipping backup actions on alternating pressure turns while both enemies live, and reducing backup response damage before it reaches the hero.
+- Softened two-enemy threat pressure by applying a named backup-enemy HP guard, skipping backup actions on alternating pressure turns while both enemies live, and reducing backup response damage before it reaches the hero. The HP guard was later superseded in `0.2.25`; backup enemies now keep full level-derived HP.
 - Tuned targeted 0.2.11 outliers without changing reward math: the zero-declaration tax dragon now uses controller/tiny-boss weighting, its two signature actions are standard-band, the siege iron varenyk loses the generic construct tag and its armored filling shield/counter loop is smaller, and Bisyny/Molfar Soul race guardrails are slightly stronger.
 - The simulator now counts all stored `enemyActions` instead of only the primary monster response, so shields, heals, telegraphs and skills from two-enemy runs show up in summaries.
 
