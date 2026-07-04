@@ -45,11 +45,13 @@ import type { ShynokRepository } from "../../src/db/repositories/shynokRepositor
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { monsters } from "../../src/content/monsters";
 import {
+  applyThreatBackupEnemyCombatStats,
   markCombatSettlementCompleted,
   markCombatSettlementForfeitedByRemort,
   normalizeCombatEnemies,
   type CombatState
 } from "../../src/domain/combat";
+import { deriveMonsterCombatStats } from "../../src/domain/combat/monsterCombatStats";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
 import { getItemDropChance } from "../../src/domain/loot";
@@ -3859,6 +3861,22 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 2);
+      if (!baseSecondEnemy || !secondEnemy?.level) {
+        throw new Error("Expected a boosted second enemy.");
+      }
+      const baseStats = applyThreatBackupEnemyCombatStats(deriveMonsterCombatStats(baseSecondEnemy));
+      const boostedStats = applyThreatBackupEnemyCombatStats(
+        deriveMonsterCombatStats({ ...baseSecondEnemy, level: secondEnemy.level })
+      );
+      expect(secondEnemy).toMatchObject({
+        hpMax: boostedStats.hpMax,
+        attack: boostedStats.attack,
+        armor: boostedStats.armor,
+        resist: boostedStats.resist,
+        dexterity: boostedStats.dexterity
+      });
+      expect(secondEnemy.hpMax).toBeGreaterThan(baseStats.hpMax);
+      expect(secondEnemy.attack).toBeGreaterThan(baseStats.attack);
       expect(started.session.state?.threat?.pressure).toMatchObject({
         version: 1,
         consecutiveWonEscalatedFights: 1,
@@ -4415,6 +4433,22 @@ describe("FightService", () => {
       expect(secondEnemy).toBeDefined();
       expect(baseSecondEnemy).toBeDefined();
       expect(secondEnemy?.level).toBe((baseSecondEnemy?.level ?? 0) + 2);
+      if (!baseSecondEnemy || !secondEnemy?.level) {
+        throw new Error("Expected a boosted passage second enemy.");
+      }
+      const baseStats = applyThreatBackupEnemyCombatStats(deriveMonsterCombatStats(baseSecondEnemy));
+      const boostedStats = applyThreatBackupEnemyCombatStats(
+        deriveMonsterCombatStats({ ...baseSecondEnemy, level: secondEnemy.level })
+      );
+      expect(secondEnemy).toMatchObject({
+        hpMax: boostedStats.hpMax,
+        attack: boostedStats.attack,
+        armor: boostedStats.armor,
+        resist: boostedStats.resist,
+        dexterity: boostedStats.dexterity
+      });
+      expect(secondEnemy.hpMax).toBeGreaterThan(baseStats.hpMax);
+      expect(secondEnemy.attack).toBeGreaterThan(baseStats.attack);
       expect(started.session.state?.threat?.pressure).toMatchObject({
         consecutiveWonEscalatedFights: 1,
         requestedSecondEnemyLevelBonus: 2,

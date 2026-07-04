@@ -866,7 +866,7 @@ function presentThreatPressureLine(
     return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> дійшов до межі ${pressure.levelCap}; зайві рівні Корчма вперла в стелю.`;
   }
 
-  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}.`;
+  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}; як підмога тримає коротшу планку здоровʼя.`;
 }
 
 function formatLevelPoints(value: number): string {

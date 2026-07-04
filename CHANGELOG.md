@@ -14,6 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother queued turn choices now let the latest selected action or combat item replace the earlier button before the round resolves, and overwritten combat items are not spent.
 - Big Barrel Brother active cards now open an owned one-use combat item menu instead of hard-wiring the ordinary bandage behind the renamed button.
 - Cosmetic title selection now paginates the `🏷️ Титули` keyboard instead of rendering every earned title button at once.
+- Two-enemy `Натиск Низу` intros now state that the boosted backup enemy keeps a shorter HP bar, and regression coverage proves the boosted level still feeds backup HP, attack and defenses.
 
 ## [0.2.24] - 12026-07-04 - Mantok Balance Audit and Rebalance Pass
 
