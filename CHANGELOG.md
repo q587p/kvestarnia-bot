@@ -30,7 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Kept starter quest-table and direct Yeger accept buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми`, `⚔️ До сутички` and `🏹 Взяти справу`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`, `🛢️ Бочка ⚠️` and barrel-result `🧥 Єгер ⚠️` routes for an offered Yeger quest.
 - Kept Korchma hall/location quest markers resilient when only the cellar errand currently has a character-bearing ready state, so `🐭 Льох ⚠️` still appears when the mouse is the next affair.
 - Swapped the pending Barrel fallback button icon from `🍺 Перевірити бочку` to `🔄 Перевірити бочку`, matching refresh-style action buttons.
-- Marked `🍺 До зали` / `⬅️ До зали` routes, including Shynok and Fighting Corner return buttons, when another Korchma location currently has an available quest route.
+- Marked `🍺 До зали` / `⬅️ До зали` routes, including Shynok and Fighting Corner return buttons, when another Korchma location currently has an available quest route, while hiding the quest-hub `🍺 До зали` self-return when the hub is already opened from `Стіл зі справами`.
 - Hid the grownup cellar `🐭 Домовитись із мишею` action from unaffordable cheese-seal result screens while the mouse roleplay cooldown is still active, and adjusted the Korchmar copy to explain the wait.
 - Restored the native `🪧 Обрати пригоду` action icon on quest-table adventure buttons and marked ready adventure-choice buttons with the available-task suffix.
 - Marked currently equipped items in inventory keyboards with a left-side `✅` icon in both general and slot-filtered views.

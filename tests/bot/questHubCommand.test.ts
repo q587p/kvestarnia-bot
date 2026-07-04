@@ -94,6 +94,34 @@ describe("quest hub command", () => {
     });
   });
 
+  it("does not offer a hall return when the quest hub is already opened from the quest table", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      insideKorchma: true
+    });
+
+    await sendQuestHub(makeContext(replies), servicesWith({ presence }), "reply");
+
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🪧 Обрати пригоду ⚠️",
+      "🪜 До Низу",
+      "🧹 У льох ⚠️",
+      "📦 Архів",
+      "📖 Бестіарій"
+    ]);
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+    });
+  });
+
   it("shows an untaken daily Korchma round without issuing it from the quest table view", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const getExistingForTelegramUser = vi.fn(() =>

@@ -19,6 +19,7 @@ import { presentYegerQuestTitle } from "./yegerQuestTitle";
 
 export interface QuestHubSnapshot {
   character: CharacterSummary;
+  currentLocationId?: string | null;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;

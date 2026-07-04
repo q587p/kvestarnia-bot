@@ -73,7 +73,7 @@ export async function sendQuestHub(
     return;
   }
 
-  const snapshot = await buildQuestHubSnapshot(telegramUserId, options);
+  const snapshot = await buildQuestHubSnapshot(telegramUserId, options, place.locationId);
 
   if (!snapshot) {
     await sendText(ctx, mode, presentQuestHubNoCharacter());
@@ -86,7 +86,8 @@ export async function sendQuestHub(
 
 async function buildQuestHubSnapshot(
   telegramUserId: bigint,
-  options: QuestHubCommandOptions
+  options: QuestHubCommandOptions,
+  currentLocationId: string | null = null
 ): Promise<QuestHubSnapshot | null> {
   const adventure = await options.adventure.getAdventureOfferForTelegramUser(telegramUserId);
 
@@ -128,6 +129,7 @@ async function buildQuestHubSnapshot(
 
   return {
     character,
+    currentLocationId,
     adventure,
     ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
     fight,
