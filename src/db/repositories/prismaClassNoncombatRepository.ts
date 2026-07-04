@@ -271,13 +271,13 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             locationId,
             status: "active",
             activeGuard: target.id,
-            bonusStat: null,
-            bonusAmount: 0,
+            bonusStat: "luck",
+            bonusAmount: 1,
             resultJson: toJson({
               statSnapshot: input.statSnapshot,
               manaBefore: actor.manaCurrent,
               manaAfter: actor.manaCurrent - input.manaCost,
-              gameplayStatHook: "deferred"
+              activeStatBonus: { stat: "luck", amount: 1 }
             }),
             startedAt: input.now,
             expiresAt: input.expiresAt
@@ -304,7 +304,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             resultJson: toJson({
               blessingId: blessing.id,
               statSnapshot: input.statSnapshot,
-              gameplayStatHook: "deferred"
+              activeStatBonus: { stat: "luck", amount: 1 }
             }),
             cooldownAvailableAt: input.cooldownAvailableAt,
             completedAt: input.now

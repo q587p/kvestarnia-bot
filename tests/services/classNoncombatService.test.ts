@@ -289,8 +289,8 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
         actorName: this.actor.name,
         targetName: this.target.name,
         expiresAt: input.expiresAt,
-        bonusStat: null,
-        bonusAmount: 0
+        bonusStat: "luck",
+        bonusAmount: 1
       },
       actor: this.actor,
       target: this.target,

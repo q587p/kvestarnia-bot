@@ -274,8 +274,8 @@ manaCost = max(
 Shipped behavior:
 
 - direct heal uses the formula above, spends only mana and sends a private target notification only after success;
-- direct blessing creates one visible non-stacking `priest.blessing` status for 13 minutes;
-- blessing currently stores `bonusStat = null` and `bonusAmount = 0`; a real `+1 luck` or other effective-stat hook is deferred until a shared timed-status/stat architecture exists;
+- direct blessing creates one visible `priest.blessing` status for 13 minutes;
+- blessing stores `bonusStat = "luck"` and `bonusAmount = 1`; the hero card shows the resulting `+1 Вдачі` while the status is active;
 - remort, location, activity, combat/raid/passage/party/duel blocking flows and duplicate callbacks fail closed.
 
 ### Race And Signature Techniques

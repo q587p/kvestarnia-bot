@@ -116,8 +116,8 @@ describe("class noncombat presenter", () => {
         actorName: "Жрець",
         targetName: "Жрець",
         expiresAt: new Date("2026-07-03T09:13:00.000Z"),
-        bonusStat: null,
-        bonusAmount: 0
+        bonusStat: "luck",
+        bonusAmount: 1
       },
       actor: {
         id: "character-1",
@@ -131,9 +131,10 @@ describe("class noncombat presenter", () => {
     } as unknown as PriestBlessResult);
 
     expect(text).toContain("Стан діє ще: <b>13 хвилин</b>.");
-    expect(text).toContain("Стан видно в персонажі поруч із бафами");
+    expect(text).toContain("Бонус: <b>+1 Вдачі</b>. Видно в персонажі поруч із бафами.");
     expect(text).toContain("🌌 Мана витрачена: <b>7</b>.");
     expect(text).not.toContain("Бонус поки");
+    expect(text).not.toContain("не складається в стос");
   });
 
   it("formats Priest healing resource lines with visible icons", () => {

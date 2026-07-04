@@ -12,7 +12,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added level 3+ Priest direct aid outside combat: `✨ Жрецька поміч` opens from `Хто поруч`, supports self/active same-location targets, and can heal with mana or create a direct blessing without an accept/decline offer flow.
 - Added the preserved Priest heal formula with no overheal, mana spend only after a successful durable mutation and no healing cooldown.
-- Added a visible non-stacking 13-minute Priest blessing status. The gameplay stat hook is intentionally deferred; stored blessing rows currently use `bonusStat = null` and `bonusAmount = 0`.
+- Added a visible 13-minute Priest blessing status that grants a small `+1 luck` bonus while active and stores that bonus on the blessing row.
 - Added level 3+ Rogue `🗡️ Тиха кишеня` from `Хто поруч` for active same-location targets with target level protection, once-per-actor-target Kyiv-day replay, a 93-minute actor cooldown after every resolved attempt and stored deterministic outcomes.
 - Added Rogue outcomes for clean success, noticed success, empty/no opportunity, noticed failure and caught badly. Caught badly sets Rogue HP to `0` through the character resource row and does not create an extra caught cooldown.
 - Added private best-effort target notifications after successful Priest heal/blessing and relevant Rogue pickpocket outcomes.
@@ -39,6 +39,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, damage, victory flavor, `Винагорода за бій`, then item grants.
 - Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
+- Active Priest blessing now appears as `+1 Вдачі` in the hero card stats and no longer uses technical stacking copy in player-facing text.
 - Priest aid open cards now label the 93-minute blessing gate as `очікування`, so it does not read like the active blessing duration.
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `🌌` for mana spent.
 - Removed the noncombat Priest heal cooldown; direct healing is now limited by missing HP and mana, while direct blessing keeps the 93-minute actor cooldown.

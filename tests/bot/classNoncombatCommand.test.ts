@@ -86,8 +86,8 @@ describe("class noncombat command", () => {
           actorName: "Жрець",
           targetName: "Жрець",
           expiresAt: new Date("2026-07-03T09:13:00.000Z"),
-          bonusStat: null,
-          bonusAmount: 0
+          bonusStat: "luck",
+          bonusAmount: 1
         }
       } satisfies PriestBlessResult)
     };

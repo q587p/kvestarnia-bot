@@ -94,7 +94,7 @@ export function presentPriestBlessResult(result: PriestBlessResult): string {
       ? "Жрець благословив себе. Корчма це записала як самодогляд із кадилом."
       : `${presentCharacterDisplayName(result.actor)} благословив ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
     `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`,
-    "Стан видно в персонажі поруч із бафами й не складається в стос.",
+    `Бонус: <b>+${normalizeBlessingBonus(result.blessing.bonusAmount)} ${presentBlessingStatLabel(result.blessing)}</b>. Видно в персонажі поруч із бафами.`,
     `🌌 Мана витрачена: <b>${result.action.manaCost}</b>.`
   ].join("\n");
 }
@@ -154,7 +154,8 @@ export function presentPriestBlessTargetNotification(result: Extract<PriestBless
     "✨ <b>Вас благословили</b>",
     "",
     `${presentCharacterDisplayName(result.actor)} благословив вас. Корчма зробила вигляд, що це планувала.`,
-    `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`
+    `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`,
+    `Бонус: <b>+${normalizeBlessingBonus(result.blessing.bonusAmount)} ${presentBlessingStatLabel(result.blessing)}</b>.`
   ].join("\n");
 }
 
@@ -255,6 +256,26 @@ function presentBlocked(
   })();
 
   return [`${icon} <b>${title}</b>`, "", detail].join("\n");
+}
+
+function presentBlessingStatLabel(blessing: PriestBlessingRecord): string {
+  switch (blessing.bonusStat) {
+    case "strength":
+      return "Сили";
+    case "dexterity":
+      return "Спритності";
+    case "intelligence":
+      return "Розуму";
+    case "charisma":
+      return "Харизми";
+    case "luck":
+    default:
+      return "Вдачі";
+  }
+}
+
+function normalizeBlessingBonus(value: number): number {
+  return value > 0 ? Math.floor(value) : 1;
 }
 
 function presentPriestHealBlockedTitle(

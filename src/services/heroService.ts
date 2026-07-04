@@ -9,6 +9,7 @@ import type { RemortRepository } from "../db/repositories/remortRepository";
 import type { ShynokDrinkStateRecord, ShynokRepository } from "../db/repositories/shynokRepository";
 import { items } from "../content";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
+import type { StatKey } from "../domain/characters/starterStats";
 import { getItemUseEffect } from "../domain/itemUse";
 import {
   buildDrinkEffect,
@@ -62,6 +63,8 @@ export interface HeroActivePriestBlessing {
   actorName: string;
   targetName: string;
   expiresAt: Date;
+  bonusStat: StatKey;
+  bonusAmount: number;
 }
 
 export class HeroService {
@@ -124,12 +127,15 @@ export class HeroService {
       ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
     });
 
+    const presentedPriestBlessing = presentHeroActivePriestBlessing(activePriestBlessing);
+    const characterSummary = applyPriestBlessingBonus(resourceAware.character, presentedPriestBlessing);
+
     return {
       state: "existing-character",
-      character: resourceAware.character,
+      character: characterSummary,
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
-      activePriestBlessing: presentHeroActivePriestBlessing(activePriestBlessing),
+      activePriestBlessing: presentedPriestBlessing,
       activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
       ...(resourceAware.recoveryNotice
@@ -289,9 +295,42 @@ function presentHeroActivePriestBlessing(state: PriestBlessingRecord | null): He
     ? {
         actorName: state.actorName,
         targetName: state.targetName,
-        expiresAt: state.expiresAt
+        expiresAt: state.expiresAt,
+        bonusStat: normalizePriestBlessingStat(state.bonusStat),
+        bonusAmount: normalizePriestBlessingAmount(state.bonusAmount)
       }
     : null;
+}
+
+function applyPriestBlessingBonus(
+  character: CharacterSummary,
+  blessing: HeroActivePriestBlessing | null
+): CharacterSummary {
+  if (!blessing || blessing.bonusAmount <= 0) {
+    return character;
+  }
+
+  return {
+    ...character,
+    stats: {
+      ...character.stats,
+      [blessing.bonusStat]: character.stats[blessing.bonusStat] + blessing.bonusAmount
+    }
+  };
+}
+
+function normalizePriestBlessingStat(value: string | null): StatKey {
+  return value === "strength" ||
+    value === "dexterity" ||
+    value === "intelligence" ||
+    value === "charisma" ||
+    value === "luck"
+    ? value
+    : "luck";
+}
+
+function normalizePriestBlessingAmount(value: number): number {
+  return value > 0 ? Math.floor(value) : 1;
 }
 
 function presentHeroActiveDrink(state: ShynokDrinkStateRecord | null): HeroActiveDrink | null {

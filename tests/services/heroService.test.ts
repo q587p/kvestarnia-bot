@@ -189,10 +189,17 @@ describe("HeroService", () => {
 
     expect(result).toMatchObject({
       state: "existing-character",
+      character: {
+        stats: {
+          luck: 8
+        }
+      },
       activePriestBlessing: {
         actorName: "Мандрівник",
         targetName: "Мандрівник",
-        expiresAt: new Date("2026-07-03T09:13:00.000Z")
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: "luck",
+        bonusAmount: 1
       }
     });
   });

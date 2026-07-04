@@ -128,7 +128,7 @@ function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null):
     return null;
   }
 
-  return `✨ Стан: <b>Жрецьке благословення</b> ще <b>${formatRemainingMinutes(blessing.expiresAt)}</b> — видиме, не складається в стос.`;
+  return `✨ Стан: <b>Жрецьке благословення</b> ще <b>${formatRemainingMinutes(blessing.expiresAt)}</b> — дає <b>+${blessing.bonusAmount} ${presentStatBonusLabel(blessing.bonusStat)}</b>.`;
 }
 
 function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
@@ -158,6 +158,21 @@ function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   }
 
   return effects;
+}
+
+function presentStatBonusLabel(stat: HeroActivePriestBlessing["bonusStat"]): string {
+  switch (stat) {
+    case "strength":
+      return "Сили";
+    case "dexterity":
+      return "Спритності";
+    case "intelligence":
+      return "Розуму";
+    case "charisma":
+      return "Харизми";
+    case "luck":
+      return "Вдачі";
+  }
 }
 
 function formatRecoveryBonusPercent(multiplierBp: number): number {

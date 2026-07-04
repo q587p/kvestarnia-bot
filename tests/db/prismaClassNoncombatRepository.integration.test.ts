@@ -159,13 +159,17 @@ describe("PrismaClassNoncombatRepository integration", () => {
       blessing: {
         actorName: "priest",
         targetName: "priest",
-        expiresAt: new Date("2026-07-03T09:13:00.000Z")
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: "luck",
+        bonusAmount: 1
       }
     });
     expect(active).toMatchObject({
       actorName: "priest",
       targetName: "priest",
-      expiresAt: new Date("2026-07-03T09:13:00.000Z")
+      expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+      bonusStat: "luck",
+      bonusAmount: 1
     });
     await expect(prisma.character.findUnique({ where: { id: "priest" } })).resolves.toMatchObject({
       manaCurrent: 13,
