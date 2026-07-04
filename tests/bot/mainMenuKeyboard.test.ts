@@ -589,7 +589,7 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("pending"))).toEqual([
-      "🍺 Перевірити бочку",
+      "🔄 Перевірити бочку",
       "🏅 Перевірити рейтинг",
       "📰 Перевірити новини"
     ]);

@@ -370,7 +370,7 @@ export function buildTavernResultKeyboard(
 ): InlineKeyboard {
   if (state === "pending" || state === "pending-started") {
     return new InlineKeyboard()
-      .text("🍺 Перевірити бочку", makeTavernCallbackData("raid"))
+      .text("🔄 Перевірити бочку", makeTavernCallbackData("raid"))
       .row()
       .text("🏅 Перевірити рейтинг", makeTavernCallbackData("raid-leaderboard"))
       .row()
