@@ -94,7 +94,7 @@ describe("quest hub command", () => {
     });
   });
 
-  it("does not offer a hall return when the quest hub is already opened from the quest table", async () => {
+  it("keeps a hall return when the quest hub is opened from the quest table", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -114,9 +114,10 @@ describe("quest hub command", () => {
       "🪜 До Низу",
       "🧹 У льох ⚠️",
       "📦 Архів",
-      "📖 Бестіарій"
+      "📖 Бестіарій",
+      "🍺 До зали ⚠️"
     ]);
-    expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("hall"));
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
     });

@@ -11,10 +11,6 @@ import {
   meetsActivityLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../../domain/progression/activityGates";
-import {
-  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-  normalizePresenceLocationId
-} from "../../services/presenceService";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -53,9 +49,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
       keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0)).row();
     }
 
-    if (shouldShowBackToHall(input)) {
-      keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
-    }
+    keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
 
     return keyboard;
   }
@@ -171,9 +165,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  if (shouldShowBackToHall(input)) {
-    keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
-  }
+  keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
 
   return keyboard;
 }
@@ -183,16 +175,6 @@ function buildBackToHallLabel(input: QuestHubKeyboardInput): string {
     "🍺 До зали",
     resolveQuestMarkerForTarget(input, "location.korchma.hall")
   );
-}
-
-function shouldShowBackToHall(input: QuestHubKeyboardInput): boolean {
-  if (!input.currentLocationId) {
-    return true;
-  }
-
-  const currentLocationId = normalizePresenceLocationId(input.currentLocationId);
-
-  return currentLocationId !== PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
 }
 
 function addQuestReferenceButtons(
