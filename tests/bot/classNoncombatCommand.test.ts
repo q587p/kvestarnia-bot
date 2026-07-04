@@ -296,6 +296,7 @@ function priestOpenResult(): ClassNoncombatOpenResult {
     state: "ready",
     mode: "priest",
     character: character("Жрець", "class.priest"),
+    actorBlocked: false,
     locationName: "Стіл зі справами",
     targets: [{
       telegramUserId: targetTelegramUserId,

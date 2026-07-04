@@ -56,7 +56,7 @@ export async function sendHero(
     });
 
     const heroKeyboard = buildHeroAchievementsKeyboard({
-      priestSelfHealCallbackData: getPriestSelfHealCallbackData(result.character),
+      priestSelfHealCallbackData: getPriestSelfHealCallbackData(result.character, result.classNoncombatBlocked),
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
         : null
@@ -77,8 +77,9 @@ export async function sendHero(
   await sendText(ctx, mode, presentHeroMissing(), false);
 }
 
-function getPriestSelfHealCallbackData(character: CharacterSummary): string | null {
+function getPriestSelfHealCallbackData(character: CharacterSummary, classNoncombatBlocked = false): string | null {
   if (
+    classNoncombatBlocked ||
     character.classId !== "class.priest" ||
     character.level < CLASS_NONCOMBAT_MIN_LEVEL ||
     character.hpCurrent >= character.hpMax ||

@@ -15,6 +15,7 @@ export interface NoncombatTargetRecord {
 
 export interface NoncombatActionSnapshot {
   character: CharacterRecord;
+  actorBlocked: boolean;
   targets: NoncombatTargetRecord[];
   targetPage: number;
   targetTotalPages: number;
@@ -114,6 +115,8 @@ export interface ClassNoncombatRepository {
     telegramUserId: bigint,
     now: Date
   ): Promise<PriestBlessingRecord | null>;
+
+  isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean>;
 
   completePriestHeal(
     actorTelegramUserId: bigint,

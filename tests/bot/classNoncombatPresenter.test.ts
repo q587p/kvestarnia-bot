@@ -94,6 +94,48 @@ describe("class noncombat presenter", () => {
     expect(text).not.toContain("✨ Благословення: ще 93 хвилини.");
   });
 
+  it("shows busy Priest aid as unavailable instead of ready", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "priest",
+      actorBlocked: true,
+      character: {
+        id: "character-1",
+        name: "Жрець",
+        classId: "class.priest",
+        manaCurrent: 16,
+        manaMax: 16
+      },
+      targets: [],
+      locationName: "Прямий прохід",
+      priestBlessCooldownAvailableAt: null
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).toContain("⚕️ Лікування: недоступне під час поточної справи.");
+    expect(text).toContain("✨ Благословення: недоступне під час поточної справи.");
+    expect(text).toContain("Спершу завершіть бій, рейд або іншу активну пригоду.");
+    expect(text).not.toContain("готово");
+    expect(text).not.toContain("активним протоколом");
+  });
+
+  it("explains stale busy Priest callbacks without the protocol wording", () => {
+    const text = presentPriestBlessResult({
+      state: "blocked",
+      reason: "actor-blocked",
+      actor: {
+        id: "character-1",
+        name: "Жрець"
+      },
+      target: {
+        id: "character-2",
+        name: "Сусід"
+      }
+    } as unknown as PriestBlessResult);
+
+    expect(text).toContain("Спершу завершіть бій, рейд або іншу активну пригоду.");
+    expect(text).not.toContain("активним протоколом");
+  });
+
   it("formats Priest blessing duration and mana spend clearly", () => {
     const text = presentPriestBlessResult({
       state: "completed",

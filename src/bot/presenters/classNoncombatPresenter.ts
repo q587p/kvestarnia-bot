@@ -23,7 +23,26 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
     ].join("\n");
   }
 
-  const lines = result.mode === "priest"
+  const lines = result.actorBlocked
+    ? [
+        result.mode === "priest"
+          ? "✨ <b>Жрецька поміч</b>"
+          : "🗡️ <b>Тиха кишеня</b>",
+        "",
+        `📍 ${escapeHtml(result.locationName)}`,
+        result.mode === "priest"
+          ? `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>.`
+          : "",
+        result.mode === "priest"
+          ? "⚕️ Лікування: недоступне під час поточної справи."
+          : "🕯️ Спроба: недоступна під час поточної справи.",
+        result.mode === "priest"
+          ? "✨ Благословення: недоступне під час поточної справи."
+          : "",
+        "",
+        "Спершу завершіть бій, рейд або іншу активну пригоду. Тоді оновіть картку, і Корчма знову дасть кнопки."
+      ]
+    : result.mode === "priest"
     ? [
         "✨ <b>Жрецька поміч</b>",
         "",
@@ -46,7 +65,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         "Оберіть активну ціль поруч:"
       ];
 
-  if (result.targets.length === 0 && result.mode === "rogue") {
+  if (!result.actorBlocked && result.targets.length === 0 && result.mode === "rogue") {
     lines.push("", "Активних цілей поруч немає. Кишені теж мають графік роботи.");
   }
   return lines.filter(Boolean).join("\n");
@@ -231,9 +250,9 @@ function presentBlocked(
       case "wrong-location":
         return "Корчемна географія змістилася: ви вже не в одній локації.";
       case "actor-blocked":
-        return "Ваш пригодник зараз зайнятий іншим активним протоколом.";
+        return "Спершу завершіть бій, рейд або іншу активну пригоду. Жрецька поміч не лізе поперед черги.";
       case "target-blocked":
-        return "Ціль зараз зайнята іншим активним протоколом.";
+        return "Ціль зараз зайнята боєм, рейдом або іншою активною пригодою. Допомога дочекається вільного віконця.";
       case "actor-defeated":
         return "При 0 HP кишені бачать вас першими.";
       case "full-hp":

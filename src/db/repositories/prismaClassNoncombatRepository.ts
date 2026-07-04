@@ -71,6 +71,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
     return {
       character: actorRecord,
+      actorBlocked: isBlocked(actor),
       targets: targets.slice(start, start + safePageSize),
       targetPage: safePage,
       targetTotalPages: totalPages,
@@ -102,6 +103,11 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         orderBy: { startedAt: "desc" }
       }));
     });
+  }
+
+  async isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean> {
+    const actor = await findCharacter(this.prisma, telegramUserId);
+    return actor ? isBlocked(actor) : false;
   }
 
   async completePriestHeal(

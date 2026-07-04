@@ -138,6 +138,36 @@ describe("hero command", () => {
     expect(flatInlineButtonTexts(fullHpReplies[0]?.options)).not.toContain("⚕️ Полікувати себе");
     expect(flatInlineButtonTexts(noManaReplies[0]?.options)).not.toContain("⚕️ Полікувати себе");
   });
+
+  it("hides Priest self-heal on the hero card while another active flow blocks class aid", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () =>
+        Promise.resolve({
+          state: "existing-character" as const,
+          character: {
+            ...character,
+            classId: "class.priest",
+            className: "Жрець",
+            level: 3,
+            hpCurrent: 11,
+            hpMax: 32,
+            manaCurrent: 9,
+            manaMax: 16
+          },
+          inventoryGoldValue: 0,
+          activeDrink: null,
+          activeCosmeticTitle: null,
+          activePriestBlessing: null,
+          classNoncombatBlocked: true,
+          restoreToFullItemId: null
+        })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("⚕️ Полікувати себе");
+  });
 });
 
 function makeReplyContext(replies: Array<{ text: string; options: unknown }>): Context {

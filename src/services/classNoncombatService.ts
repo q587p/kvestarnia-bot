@@ -35,6 +35,7 @@ export type ClassNoncombatOpenResult =
       state: "ready";
       mode: ClassNoncombatMode;
       character: CharacterSummary;
+      actorBlocked: boolean;
       locationName: string;
       targets: ClassNoncombatTarget[];
       targetPage: number;
@@ -108,6 +109,7 @@ export class ClassNoncombatService {
       state: "ready",
       mode,
       character,
+      actorBlocked: snapshot.actorBlocked,
       locationName: snapshot.locationName,
       targetPage: snapshot.targetPage,
       targetTotalPages: snapshot.targetTotalPages,

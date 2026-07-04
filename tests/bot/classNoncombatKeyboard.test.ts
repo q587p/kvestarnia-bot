@@ -25,6 +25,18 @@ describe("class noncombat keyboard", () => {
     expect(buttonTexts(keyboard)).toContain("✨ Благословити себе");
   });
 
+  it("hides Priest action buttons when the actor is busy with another active flow", () => {
+    const keyboard = buildClassNoncombatKeyboard(priestOpenResult({
+      hpCurrent: 13,
+      hpMax: 20
+    }, {
+      actorBlocked: true,
+      targets: [target({ name: "Поранений Сусід", hpCurrent: 7, hpMax: 20 })]
+    }));
+
+    expect(buttonTexts(keyboard)).toEqual(["🔄 Оновити"]);
+  });
+
   it("hides Priest target healing when the target is already at full HP", () => {
     const keyboard = buildClassNoncombatKeyboard(priestOpenResult({}, {
       targets: [target({ name: "Повний Сусід", hpCurrent: 20, hpMax: 20 })]
@@ -55,6 +67,7 @@ describe("class noncombat keyboard", () => {
 function priestOpenResult(
   overrides: Partial<CharacterSummary>,
   options: {
+    actorBlocked?: boolean;
     targets?: Extract<ClassNoncombatOpenResult, { state: "ready" }>["targets"];
     targetPage?: number;
     targetTotalPages?: number;
@@ -64,6 +77,7 @@ function priestOpenResult(
     state: "ready",
     mode: "priest",
     character: character(overrides),
+    actorBlocked: options.actorBlocked ?? false,
     locationName: "Стіл зі справами",
     targets: options.targets ?? [],
     targetPage: options.targetPage ?? 0,

@@ -17,6 +17,11 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
   const actorRemortCount = result.character.remortCount ?? 0;
   const currentPage = result.targetPage;
 
+  if (result.actorBlocked) {
+    keyboard.text("🔄 Оновити", makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
+    return keyboard;
+  }
+
   if (result.mode === "priest") {
     if (canHeal(result.character)) {
       keyboard

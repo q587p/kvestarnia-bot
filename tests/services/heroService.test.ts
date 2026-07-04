@@ -203,6 +203,24 @@ describe("HeroService", () => {
       }
     });
   });
+
+  it("reports when class noncombat shortcuts are blocked by an active flow", async () => {
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter()),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      new FakeClassNoncombatRepository(null, true)
+    );
+
+    await expect(service.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      classNoncombatBlocked: true
+    });
+  });
 });
 
 function buildCharacter(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
@@ -368,10 +386,17 @@ class FakeShynokRepository {
   }
 }
 
-class FakeClassNoncombatRepository implements Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser"> {
-  constructor(private readonly blessing: PriestBlessingRecord | null) {}
+class FakeClassNoncombatRepository implements Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser" | "isActorBlockedForTelegramUser"> {
+  constructor(
+    private readonly blessing: PriestBlessingRecord | null,
+    private readonly actorBlocked = false
+  ) {}
 
   getActivePriestBlessingForTelegramUser(): Promise<PriestBlessingRecord | null> {
     return Promise.resolve(this.blessing);
+  }
+
+  isActorBlockedForTelegramUser(): Promise<boolean> {
+    return Promise.resolve(this.actorBlocked);
   }
 }

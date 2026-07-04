@@ -41,6 +41,7 @@ export type HeroLookupResult =
       inventoryGoldValue: number;
       activeDrink: HeroActiveDrink | null;
       activePriestBlessing: HeroActivePriestBlessing | null;
+      classNoncombatBlocked: boolean;
       activeCosmeticTitle: string | null;
       restoreToFullItemId: string | null;
       recoveryNotice?: ResourceRecoveryNotice;
@@ -81,7 +82,7 @@ export class HeroService {
     shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | Clock,
     clock: Clock = systemClock,
     private readonly achievements?: AchievementService,
-    private readonly classNoncombat?: Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser">
+    private readonly classNoncombat?: Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser" | "isActorBlockedForTelegramUser">
   ) {
     if (typeof shynokOrClock === "function") {
       this.clock = shynokOrClock;
@@ -100,7 +101,15 @@ export class HeroService {
     }
 
     const now = this.clock();
-    const [inventoryRows, equipmentSnapshot, remortCount, activeDrink, recoveryDrink, activePriestBlessing] = await Promise.all([
+    const [
+      inventoryRows,
+      equipmentSnapshot,
+      remortCount,
+      activeDrink,
+      recoveryDrink,
+      activePriestBlessing,
+      classNoncombatBlocked
+    ] = await Promise.all([
       this.inventory.listByTelegramUserId(telegramUserId),
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
       this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0),
@@ -108,7 +117,8 @@ export class HeroService {
       this.shynok?.getRecoveryDrinkForTelegramUser?.(telegramUserId) ??
         this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ??
         Promise.resolve(null),
-      this.classNoncombat?.getActivePriestBlessingForTelegramUser(telegramUserId, now) ?? Promise.resolve(null)
+      this.classNoncombat?.getActivePriestBlessingForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
+      this.classNoncombat?.isActorBlockedForTelegramUser(telegramUserId) ?? Promise.resolve(false)
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
@@ -136,6 +146,7 @@ export class HeroService {
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
       activePriestBlessing: presentedPriestBlessing,
+      classNoncombatBlocked,
       activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
       ...(resourceAware.recoveryNotice

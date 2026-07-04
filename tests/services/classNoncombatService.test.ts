@@ -179,6 +179,17 @@ describe("ClassNoncombatService", () => {
     });
   });
 
+  it("carries actor busy state into the open result", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actorBlocked: true
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0]));
+
+    const result = await service.openForTelegramUser(actorTelegramUserId, "priest");
+
+    expect(result).toMatchObject({ state: "ready", mode: "priest", actorBlocked: true });
+  });
+
   it("tracks caught badly without creating a success event", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue({ level: 3, statsJson: { dexterity: 1, luck: 1 } }),
@@ -216,6 +227,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   private readonly healResult?: PriestHealRepositoryResult;
   private readonly blessResult?: PriestBlessRepositoryResult;
   private readonly pickpocketResult?: RoguePickpocketRepositoryResult;
+  private readonly actorBlocked: boolean;
 
   constructor(options: {
     actor?: CharacterRecord;
@@ -223,12 +235,14 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     healResult?: PriestHealRepositoryResult;
     blessResult?: PriestBlessRepositoryResult;
     pickpocketResult?: RoguePickpocketRepositoryResult;
+    actorBlocked?: boolean;
   } = {}) {
     this.actor = options.actor ?? priest();
     this.target = options.target ?? target();
     this.healResult = options.healResult;
     this.blessResult = options.blessResult;
     this.pickpocketResult = options.pickpocketResult;
+    this.actorBlocked = options.actorBlocked ?? false;
   }
 
   getSnapshotForTelegramUser(
@@ -238,6 +252,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     this.lastSnapshotInput = input;
     return Promise.resolve({
       character: this.actor,
+      actorBlocked: this.actorBlocked,
       targets: [{
         telegramUserId: targetTelegramUserId,
         characterId: this.target.id,
@@ -260,6 +275,10 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
 
   getActivePriestBlessingForTelegramUser() {
     return Promise.resolve(null);
+  }
+
+  isActorBlockedForTelegramUser() {
+    return Promise.resolve(this.actorBlocked);
   }
 
   completePriestHeal(

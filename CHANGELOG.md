@@ -48,6 +48,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Rogue pickpocket result cards now italicize the next-attempt wait, cooldown blockers name the finger-rest wait directly with bold remaining time, and fresh Rogue target lists hide targets already attempted by that Rogue on the current Kyiv day.
 - Kept Priest action buttons under blocked no-op heal, blessing cooldown and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, cooldown and repeated blessing blockers.
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
+- Hid Priest/Rogue class noncombat action buttons while the actor is already busy in combat, raid or another active adventure, and replaced the old generic protocol blocker copy with a clearer wait-for-current-affair explanation for stale callbacks.
 - Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.
 - Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
 - Refreshed `📖 Перекази` class entries so every class names its combat ability, while Warrior, Bard, Rogue, Priest and Ranger also mention their shipped side class surfaces in separate paragraphs.
@@ -55,6 +56,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
 - Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start blessing cooldown; successful healing never starts cooldown.
+- Priest/Rogue open cards and the hero self-heal shortcut now reuse the same active-flow block awareness as mutation-time gates, so busy actors do not receive misleading ready action buttons.
 - Successful Priest healing and blessing now anchor mana regeneration at the action time, so an old regen marker cannot immediately refill spent mana on the next hero/card read.
 - Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
 - Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
@@ -69,6 +71,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
 - Added repository regression coverage proving Priest healing does not create a cooldown row.
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.
+- Added presenter, keyboard, service and hero-command coverage for active-flow class noncombat blocking and hidden Priest self-heal shortcuts.
 - Added Prisma repository integration tests for exact normalized target listing, same-day Rogue target filtering, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
 - Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation and duplicate Rogue replay silence.
 - Added lore-board coverage for class combat ability references and separate side-surface paragraphs.
