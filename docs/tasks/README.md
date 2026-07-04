@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- None. The latest shipped version task is [0.2.24-mantok-balance-audit.md](0.2.24-mantok-balance-audit.md).
+- None. The latest shipped version task is [0.2.25-class-noncombat-priest-rogue.md](0.2.25-class-noncombat-priest-rogue.md).
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -85,7 +85,9 @@ Active task:
 - [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md) — craftable `Щільний бинт` and `Польова аптечка` after the second Yeger board, level/luck craft savings, improved Ranger/Yeger medical supplies, narrow solo-combat item restrictions and rewardless first craft/use achievements.
 - [0.2.23-mantok-equipment-slot-foundation.md](0.2.23-mantok-equipment-slot-foundation.md) — canonical manatka equipment slot foundation with explicit slot metadata, expanded inventory/equipment filters, legacy `armor` to `chest` compatibility and generated tool gear routed to the new `tool` slot.
 - [0.2.24-mantok-balance-audit.md](0.2.24-mantok-balance-audit.md) — Mantok balance audit after the slot foundation, generated Loot Expansion v1 slot/effect tuning, cheap authored trophy-power guard, hand-rule tags and focused combat/equipment regressions.
+- [0.2.25-class-noncombat-priest-rogue.md](0.2.25-class-noncombat-priest-rogue.md) — shipped class noncombat Priest/Rogue MVP with direct Priest heal/blessing, bounded same-location Rogue pickpocket, private notifications, rewardless achievements and Lore Board updates.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
+- [0.2.x-dice-poker-rework.md](0.2.x-dice-poker-rework.md) — draft future replacement for confusing `🎲 Кості` with quick dice poker, 13-turn scorecard poker, explicit tie-breakers and clearer Telegram rules.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.

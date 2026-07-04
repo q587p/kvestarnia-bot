@@ -3,7 +3,7 @@ import {
   buildLevelGrowthBonus,
   createEmptyEquipmentEffectSummary
 } from "../../domain/progression/effectiveStats";
-import type { HeroActiveDrink } from "../../services/heroService";
+import type { HeroActiveDrink, HeroActivePriestBlessing } from "../../services/heroService";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
@@ -13,6 +13,7 @@ export function presentHero(
   summary: CharacterSummary,
   options: {
     activeDrink?: HeroActiveDrink | null;
+    activePriestBlessing?: HeroActivePriestBlessing | null;
     activeCosmeticTitle?: string | null;
     inventoryGoldValue?: number;
   } = {}
@@ -52,6 +53,9 @@ export function presentHero(
   );
   const resourceRecoveryLines = presentResourceRecovery(summary);
   const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
+  const activePriestBlessingLine = presentActivePriestBlessing(options.activePriestBlessing ?? null);
+  const activeStatusLines = [activeDrinkLine, activePriestBlessingLine]
+    .filter((line): line is string => Boolean(line));
 
   return [
     `👤 <b>${escapeHtml(summary.name)}</b>`,
@@ -68,8 +72,8 @@ export function presentHero(
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     ...resourceRecoveryLines,
-    ...(activeDrinkLine ? ["", activeDrinkLine] : []),
-    ...(resourceRecoveryLines.length > 0 || activeDrinkLine ? [""] : []),
+    ...(activeStatusLines.length > 0 ? ["", ...activeStatusLines] : []),
+    ...(resourceRecoveryLines.length > 0 || activeStatusLines.length > 0 ? [""] : []),
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
     ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
@@ -119,6 +123,14 @@ function presentResourceRecovery(summary: CharacterSummary): string[] {
   return lines;
 }
 
+function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null): string | null {
+  if (!blessing) {
+    return null;
+  }
+
+  return `✨ Стан: <b>Жрецьке благословення</b> ще <b>${formatRemainingMinutes(blessing.expiresAt)}</b> — дає <b>+${blessing.bonusAmount} ${presentStatBonusLabel(blessing.bonusStat)}</b>.`;
+}
+
 function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
   if (!drink) {
     return null;
@@ -146,6 +158,21 @@ function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   }
 
   return effects;
+}
+
+function presentStatBonusLabel(stat: HeroActivePriestBlessing["bonusStat"]): string {
+  switch (stat) {
+    case "strength":
+      return "Сили";
+    case "dexterity":
+      return "Спритності";
+    case "intelligence":
+      return "Розуму";
+    case "charisma":
+      return "Харизми";
+    case "luck":
+      return "Вдачі";
+  }
 }
 
 function formatRecoveryBonusPercent(multiplierBp: number): number {

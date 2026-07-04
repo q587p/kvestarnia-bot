@@ -1,0 +1,283 @@
+import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../services/adventureService";
+import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
+import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
+import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
+import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
+import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
+import {
+  BESTIARY_MIN_LEVEL,
+  FIGHTING_CORNER_MIN_LEVEL,
+  STARTER_ACTIVITY_MAX_LEVEL,
+  meetsActivityLevel
+} from "../../domain/progression/activityGates";
+import {
+  PRESENCE_LOCATION_KORCHMA_BAR,
+  PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_CELLAR,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_HALL,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+  PRESENCE_LOCATION_KORCHMA_YARD,
+  normalizePresenceLocationId
+} from "../../services/presenceService";
+
+export enum QuestMarker {
+  NONE = 0,
+  CAN_ACCEPT = 1,
+  CAN_TURN_IN = 2
+}
+
+export type QuestMarkerTarget =
+  | "menu.quest"
+  | "location.korchma.hall"
+  | "location.korchma.front"
+  | "location.korchma.yard"
+  | "location.korchma.quest-table"
+  | "location.korchma.bar"
+  | "location.korchma.barrel"
+  | "location.korchma.cellar"
+  | "location.korchma.ranger-corner"
+  | "quest.adventure"
+  | "quest.fight"
+  | "quest.problem"
+  | "quest.yeger"
+  | "quest.cellar"
+  | "quest.cellar-grownup"
+  | "quest.daily-korchma-round";
+
+export interface QuestMarkerInput {
+  characterLevel?: number;
+  adventure?: Exclude<AdventureLookupResult, { state: "no-character" }>;
+  starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
+  fight?: Exclude<FightLookupResult, { state: "no-character" }>;
+  problemQuest?: ProblemQuestProgress;
+  yeger?: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
+  cellar?: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
+  cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
+  dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
+}
+
+const MARKER_SUFFIX: Record<QuestMarker, string> = {
+  [QuestMarker.NONE]: "",
+  [QuestMarker.CAN_ACCEPT]: "⚠️",
+  [QuestMarker.CAN_TURN_IN]: "✅"
+};
+
+export function decorateButtonLabel(label: string, marker: QuestMarker | undefined): string {
+  const suffix = marker === undefined ? "" : MARKER_SUFFIX[marker];
+
+  return suffix ? `${label} ${suffix}` : label;
+}
+
+export function stripQuestMarkerSuffix(label: string): string {
+  return label.replace(/\s(?:⚠️|📜|✅)$/u, "");
+}
+
+export function mergeQuestMarkers(markers: readonly (QuestMarker | undefined)[]): QuestMarker {
+  return markers.reduce<QuestMarker>((strongest, marker) => {
+    if (marker === undefined) {
+      return strongest;
+    }
+
+    return marker > strongest ? marker : strongest;
+  }, QuestMarker.NONE);
+}
+
+export function resolveQuestMarkerForTarget(
+  input: QuestMarkerInput | undefined,
+  target: QuestMarkerTarget
+): QuestMarker {
+  if (!input) {
+    return QuestMarker.NONE;
+  }
+
+  switch (target) {
+    case "quest.adventure":
+      return canOpenAdventure(input) ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
+    case "quest.fight":
+      return input.fight?.state === "ready" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
+    case "quest.problem":
+      return getProblemQuestMarker(input);
+    case "quest.yeger":
+      return getYegerMarker(input.yeger);
+    case "quest.cellar":
+      return input.cellar?.state === "ready" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
+    case "quest.cellar-grownup":
+      return getCellarGrownupMarker(input.cellarGrownup);
+    case "quest.daily-korchma-round":
+      return getDailyKorchmaRoundMarker(input.dailyKorchmaRound);
+    case "location.korchma.quest-table":
+    case "menu.quest":
+      return mergeQuestMarkers([
+        resolveQuestMarkerForTarget(input, "quest.adventure"),
+        resolveQuestMarkerForTarget(input, "quest.fight"),
+        resolveQuestMarkerForTarget(input, "quest.problem"),
+        resolveQuestMarkerForTarget(input, "quest.yeger"),
+        resolveQuestMarkerForTarget(input, "quest.cellar"),
+        resolveQuestMarkerForTarget(input, "quest.cellar-grownup"),
+        resolveQuestMarkerForTarget(input, "quest.daily-korchma-round")
+      ]);
+    case "location.korchma.bar":
+      return mergeQuestMarkers([
+        resolveQuestMarkerForTarget(input, "quest.problem"),
+        input.cellarGrownup?.state === "bottle-obtained" ? QuestMarker.CAN_TURN_IN : QuestMarker.NONE
+      ]);
+    case "location.korchma.barrel":
+      return input.yeger?.state === "offered" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
+    case "location.korchma.cellar":
+      return mergeQuestMarkers([
+        resolveQuestMarkerForTarget(input, "quest.cellar"),
+        resolveQuestMarkerForTarget(input, "quest.cellar-grownup")
+      ]);
+    case "location.korchma.ranger-corner":
+      return resolveQuestMarkerForTarget(input, "quest.yeger");
+    case "location.korchma.yard":
+      return QuestMarker.NONE;
+    case "location.korchma.front":
+      return QuestMarker.NONE;
+    case "location.korchma.hall":
+      return mergeQuestMarkers([
+        resolveQuestMarkerForTarget(input, "location.korchma.quest-table"),
+        resolveQuestMarkerForTarget(input, "location.korchma.bar"),
+        resolveQuestMarkerForTarget(input, "location.korchma.barrel"),
+        resolveQuestMarkerForTarget(input, "location.korchma.cellar"),
+        resolveQuestMarkerForTarget(input, "location.korchma.ranger-corner")
+      ]);
+  }
+}
+
+export function resolveQuestMarkerForPresenceLocation(
+  input: QuestMarkerInput | undefined,
+  locationId: string | null | undefined
+): QuestMarker {
+  if (!locationId) {
+    return resolveQuestMarkerForTarget(input, "location.korchma.hall");
+  }
+
+  switch (normalizePresenceLocationId(locationId)) {
+    case PRESENCE_LOCATION_KORCHMA_HALL:
+      return resolveQuestMarkerForTarget(input, "location.korchma.hall");
+    case PRESENCE_LOCATION_KORCHMA_FRONT:
+      return resolveQuestMarkerForTarget(input, "location.korchma.front");
+    case PRESENCE_LOCATION_KORCHMA_YARD:
+      return resolveQuestMarkerForTarget(input, "location.korchma.yard");
+    case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
+      return resolveQuestMarkerForTarget(input, "location.korchma.quest-table");
+    case PRESENCE_LOCATION_KORCHMA_BAR:
+      return resolveQuestMarkerForTarget(input, "location.korchma.bar");
+    case PRESENCE_LOCATION_KORCHMA_BARREL:
+      return resolveQuestMarkerForTarget(input, "location.korchma.barrel");
+    case PRESENCE_LOCATION_KORCHMA_CELLAR:
+      return resolveQuestMarkerForTarget(input, "location.korchma.cellar");
+    case PRESENCE_LOCATION_KORCHMA_RANGER_CORNER:
+      return resolveQuestMarkerForTarget(input, "location.korchma.ranger-corner");
+    default:
+      return QuestMarker.NONE;
+  }
+}
+
+function getYegerMarker(
+  yeger: QuestMarkerInput["yeger"]
+): QuestMarker {
+  if (yeger?.state === "turn-in-ready") {
+    return QuestMarker.CAN_TURN_IN;
+  }
+
+  if (yeger?.state === "offered") {
+    return QuestMarker.CAN_ACCEPT;
+  }
+
+  return QuestMarker.NONE;
+}
+
+function getProblemQuestMarker(input: QuestMarkerInput): QuestMarker {
+  const progress = getProblemQuestProgress(input);
+
+  if (!progress || !canOpenProblemQuestInBar(input, progress)) {
+    return QuestMarker.NONE;
+  }
+
+  if (progress.completed && !progress.rewardClaimed) {
+    return QuestMarker.CAN_TURN_IN;
+  }
+
+  if (!progress.issued || progress.rewardClaimed) {
+    return QuestMarker.CAN_ACCEPT;
+  }
+
+  return QuestMarker.NONE;
+}
+
+function getCellarGrownupMarker(
+  grownup: QuestMarkerInput["cellarGrownup"]
+): QuestMarker {
+  if (grownup?.state === "bottle-obtained") {
+    return QuestMarker.CAN_TURN_IN;
+  }
+
+  if (grownup?.state === "offered") {
+    return QuestMarker.CAN_ACCEPT;
+  }
+
+  return QuestMarker.NONE;
+}
+
+function getDailyKorchmaRoundMarker(
+  round: QuestMarkerInput["dailyKorchmaRound"]
+): QuestMarker {
+  if (round?.state === "turn-in-ready") {
+    return QuestMarker.CAN_TURN_IN;
+  }
+
+  if (round?.state === "not-issued") {
+    return QuestMarker.CAN_ACCEPT;
+  }
+
+  return QuestMarker.NONE;
+}
+
+function canOpenAdventure(input: QuestMarkerInput): boolean {
+  return (
+    input.adventure?.state === "ready" ||
+    (input.adventure?.state === "level-locked" &&
+      (input.characterLevel ?? 0) <= STARTER_ACTIVITY_MAX_LEVEL &&
+      input.starterAdventure?.state === "ready")
+  );
+}
+
+function canOpenProblemQuestInBar(input: QuestMarkerInput, progress: ProblemQuestProgress): boolean {
+  if (!canOpenFightingCorner(input)) {
+    return false;
+  }
+
+  if (progress.branchComplete) {
+    return false;
+  }
+
+  if (!progress.issued) {
+    return true;
+  }
+
+  return progress.completed || progress.rewardClaimed;
+}
+
+function canOpenFightingCorner(input: QuestMarkerInput): boolean {
+  return input.characterLevel === undefined || meetsActivityLevel(input.characterLevel, FIGHTING_CORNER_MIN_LEVEL);
+}
+
+function getProblemQuestProgress(input: QuestMarkerInput): ProblemQuestProgress | null {
+  if (input.problemQuest) {
+    return input.problemQuest;
+  }
+
+  if (input.fight && "questProgress" in input.fight) {
+    return input.fight.questProgress;
+  }
+
+  return null;
+}
+
+export function canOpenBestiaryFromMarkers(input: QuestMarkerInput): boolean {
+  return input.characterLevel === undefined || meetsActivityLevel(input.characterLevel, BESTIARY_MIN_LEVEL);
+}

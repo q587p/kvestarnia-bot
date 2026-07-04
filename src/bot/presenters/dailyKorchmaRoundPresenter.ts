@@ -133,7 +133,7 @@ export function presentDailyKorchmaRoundScene(
     `<b>${escapeHtml(getLocationName(result.scene.locationId))}</b>`,
     escapeHtml(result.scene.hook),
     ...(suffix ? [suffix] : []),
-    ...(canChooseAction ? ["", "<i>Оберіть одну дію. Вона спрацює тільки тут:</i>", ...result.scene.actions.map((action) => escapeHtml(action.label))] : [])
+    ...(canChooseAction ? ["", "<i>Оберіть одну дію. Вона спрацює тільки тут:</i>"] : [])
   ].join("\n");
 }
 

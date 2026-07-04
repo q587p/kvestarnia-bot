@@ -128,7 +128,7 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 10. Add an under-level, remorted level-2, or already-completed participant through an old/deep-link route; verify start blocks with a generic raid-office line and creates no boss session or `party-boss` lease.
 11. In a two-person raid, let the non-leader deal the most damage in round 1; verify ordinary boss hits first go to the leader, then switch to the previous round's top damage contributor, while turn 4 hits all living participants.
 12. Submit one action per participant; replay the old action buttons and verify HP/mana/contribution do not mutate twice. Verify `📜 Журнал` is not available while the battle is active.
-12a. Wound a participant who owns `Бинт відповідальної паніки`, then use `🎒 1 разові манатки` from the raid card or `⚔️ Використати у бою` from the item detail; verify one bandage is consumed, the frozen raid HP row updates, and stale/duplicate item buttons do not heal twice.
+12a. Wound a participant who owns one-use medical manatky, then open `🎒 Одноразові манатки` from the raid card and choose a concrete item, or use `⚔️ Використати у бою` from the item detail; verify the selected item is consumed, the frozen raid HP row updates, unavailable/full-HP choices are not offered from the menu, and stale/duplicate item buttons do not heal twice.
 13. With dev helpers disabled, replay or forge a `boss-timeout` callback before the deadline; verify the turn stays on the same number and no timeout action row is added.
 14. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
 15. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.
@@ -251,7 +251,7 @@ Use one level 3+ account. Local dev setup or seeded local fights are acceptable 
 Use one fresh account plus one account with at least one earned cosmetic title grant. Local dev grants/recalculation are acceptable for setup.
 
 1. Open `/hero` on a character with no title grants; press `🏷️ Титули` and verify the empty state is friendly and has no broken selection buttons.
-2. Create or recalculate at least one achievement that grants a title record; reopen `🏷️ Титули` and verify rows show title text, source achievement and no raw ids.
+2. Create or recalculate enough achievements to grant more than 10 title records; reopen `🏷️ Титули` and verify rows show title text, source achievement and no raw ids, while selection buttons are paginated with `◀️ Назад` / `Далі ▶️` instead of one huge keyboard.
 3. Select one title; verify it becomes marked active and `/hero` shows a separate `Косметичний титул` line below the generated title.
 4. Replay the same select button; verify the title remains active and no duplicate achievement/title rows or notifications appear.
 5. Clear the title; verify `/hero` no longer shows the cosmetic title line, then replay the clear button and verify canonical no-op replay.
@@ -816,6 +816,9 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_yeger_line [число]` — у локальному режимі додає єгерські риски на дощечці; без числа додає одну риску.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
+- `/dev_reset_priest_blessing` — у локальному режимі скидає cooldown жрецького благословення/підтримки для поточного персонажа.
+- `/dev_reset_quiet_pocket` — у локальному режимі скидає cooldown злодійської `Тихої кишені` для поточного персонажа.
+- `/dev_reset_rogue` — у локальному режимі скидає cooldown `Тихої кишені` й забуває цілі, які цей злодій уже перевіряв поточного київського дня.
 - `/dev_yeger_first_done` — у локальному режимі доводить першу Єгерську дошку до `5/5` реальними перемогами, лишаючи звичайну здачу квеста.
 - `/dev_yeger_second_done` — у локальному режимі доводить другу Єгерську дошку до `17/17` реальними перемогами після зданої першої дошки, лишаючи звичайну здачу квеста.
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.

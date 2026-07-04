@@ -588,7 +588,8 @@ function resolveMultiEnemyCombatItemTurn(
     heroHealing,
     heroHpAfter: nextState.hero.hp,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
-    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
+    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
+    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
   });
   nextState.lastTurn = summary;
   appendCombatTurnLog(nextState, input.state.turn, summary);
@@ -1003,7 +1004,8 @@ function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombat
     manaSpent: 0,
     critical: false,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
-    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
+    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
+    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
   });
   nextState.lastTurn = summary;
   appendCombatTurnLog(nextState, input.state.turn, summary);
@@ -1161,7 +1163,8 @@ function resolveMultiEnemyHeroAttack(
       ...(actorAction.summary.fumble ? { fumble: actorAction.summary.fumble } : {}),
       ...(skill ? { skill } : {}),
       ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
-      ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
+      ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
+      ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
     });
     nextState.lastTurn = summary;
     appendCombatTurnLog(nextState, input.state.turn, summary);
@@ -1217,6 +1220,7 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
   let enemyPhase: ReturnType<typeof resolveLivingEnemyPhase> = {
     monsterDamage: 0,
     enemyActions: [],
+    enemyPressureSkips: [],
     defendCounter: false
   };
   let heroEffectDamage = 0;
@@ -1246,7 +1250,8 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
     manaSpent: 0,
     critical: false,
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
-    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {})
+    ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
+    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
   });
   nextState.lastTurn = summary;
   appendCombatTurnLog(nextState, input.state.turn, summary);
@@ -1861,6 +1866,7 @@ function buildSummary(input: {
   allyResults?: CombatAllyAbilityResult[];
   fumble?: CombatPlayerAbilityFumbleSummary;
   enemyActions?: CombatEnemyTurnSummary[];
+  enemyPressureSkips?: CombatTurnSummary["enemyPressureSkips"];
   debugTrace?: ReturnType<typeof buildTurnDebugTrace>;
 }): CombatTurnSummary {
   return {
@@ -1907,6 +1913,9 @@ function buildSummary(input: {
     ...(input.allyResults && input.allyResults.length > 0 ? { allyResults: input.allyResults } : {}),
     ...(input.fumble ? { fumble: input.fumble } : {}),
     ...(input.enemyActions ? { enemyActions: input.enemyActions } : {}),
+    ...(input.enemyPressureSkips && input.enemyPressureSkips.length > 0
+      ? { enemyPressureSkips: input.enemyPressureSkips }
+      : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
   };
 }
@@ -1921,13 +1930,14 @@ function resolveHeroActivationAndLivingEnemyPhase(
   monsterDamage: number;
   enemyPhase: ReturnType<typeof resolveLivingEnemyPhase>;
 } {
-  const heroEffect = applyHeroActivationMonsterEffects(state);
+  const heroEffect = applyHeroActivationMonsterEffectsForCombatState(state, participants);
   const heroEffectDamage = heroEffect.damage;
   const enemyPhase = state.hero.hp > 0
     ? resolveLivingEnemyPhase(state, input, damageReduction, participants)
     : {
         monsterDamage: 0,
         enemyActions: [],
+        enemyPressureSkips: [],
         defendCounter: false
       };
 
@@ -1936,6 +1946,48 @@ function resolveHeroActivationAndLivingEnemyPhase(
     monsterDamage: heroEffectDamage + enemyPhase.monsterDamage,
     enemyPhase
   };
+}
+
+function applyHeroActivationMonsterEffectsForCombatState(
+  state: CombatState,
+  participants?: readonly CombatEnemyState[]
+): {
+  damage: number;
+} {
+  if (!hasCombatEnemyCollection(state)) {
+    return applyHeroActivationMonsterEffects(state);
+  }
+
+  const participantIds = new Set(
+    (participants ?? normalizeCombatEnemies(state)).map((enemy) => enemy.enemyId)
+  );
+  const primaryEnemyId = getPrimaryCombatEnemy(state).enemyId;
+  let damage = 0;
+  const enemies = normalizeCombatEnemies(state).map((enemy) => {
+    const runtime = enemy.monsterRuntime ?? (enemy.enemyId === primaryEnemyId ? state.monsterRuntime : undefined);
+    if (!participantIds.has(enemy.enemyId) || !runtime) {
+      return enemy;
+    }
+
+    const effectState: CombatState = {
+      ...state,
+      hero: state.hero,
+      monster: combatEnemyToMonster(enemy),
+      monsterRuntime: runtime
+    };
+    const effect = applyHeroActivationMonsterEffects(effectState);
+    damage += effect.damage;
+
+    return {
+      ...enemy,
+      ...(effectState.monsterRuntime ? { monsterRuntime: effectState.monsterRuntime } : {})
+    };
+  });
+
+  state.enemies = enemies;
+  syncPrimaryCombatEnemy(state);
+
+  return { damage };
 }
 
 function resolveLivingEnemyPhase(
@@ -1948,12 +2000,14 @@ function resolveLivingEnemyPhase(
   monsterOutcome?: CombatTurnSummary["monsterOutcome"];
   primaryAction?: CombatEnemyTurnSummary;
   enemyActions: CombatEnemyTurnSummary[];
+  enemyPressureSkips: NonNullable<CombatTurnSummary["enemyPressureSkips"]>;
   defendCounter: boolean;
 } {
   let monsterDamage = 0;
   let monsterOutcome: CombatTurnSummary["monsterOutcome"] | undefined;
   let defendCounter = false;
   const enemyActions: CombatEnemyTurnSummary[] = [];
+  const enemyPressureSkips: NonNullable<CombatTurnSummary["enemyPressureSkips"]> = [];
 
   for (const [participantIndex, participant] of participants.entries()) {
     if (state.hero.hp <= 0) {
@@ -1969,6 +2023,11 @@ function resolveLivingEnemyPhase(
       participantIndex,
       turn: state.turn
     })) {
+      enemyPressureSkips.push({
+        enemyId: enemy.enemyId,
+        monsterId: enemy.id,
+        ...(enemy.name ? { monsterName: enemy.name } : {})
+      });
       continue;
     }
     const simultaneousFinalResponse = participant.hp > 0 && enemy.hp <= 0;
@@ -2025,6 +2084,7 @@ function resolveLivingEnemyPhase(
     ...(monsterOutcome ? { monsterOutcome } : {}),
     ...(enemyActions[0] ? { primaryAction: enemyActions[0] } : {}),
     enemyActions,
+    enemyPressureSkips,
     defendCounter
   };
 }

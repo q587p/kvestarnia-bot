@@ -76,6 +76,10 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_add_yeger_line")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage_day")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_reset_yeger_trail")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_reset_priest_blessing")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_reset_quiet_pocket")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_reset_rogue")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_yeger_first_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_yeger_second_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
@@ -171,6 +175,10 @@ describe("bot command catalog", () => {
       "dev_add_yeger_line",
       "dev_reset_yeger_bandage",
       "dev_reset_yeger_bandage_day",
+      "dev_reset_yeger_trail",
+      "dev_reset_priest_blessing",
+      "dev_reset_quiet_pocket",
+      "dev_reset_rogue",
       "dev_yeger_first_done",
       "dev_yeger_second_done",
       "dev_reset_bard_performance"

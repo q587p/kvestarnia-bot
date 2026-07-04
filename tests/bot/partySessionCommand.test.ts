@@ -132,6 +132,43 @@ describe("handlePartySessionCallback", () => {
     expect(editMessageText).not.toHaveBeenCalled();
   });
 
+  it("updates raid readiness and refreshes other recruiting cards", async () => {
+    const session = makeBigBarrelSessionWithMember();
+    const updated = {
+      ...session,
+      participants: session.participants.map((participant) =>
+        participant.characterId === "character-42"
+          ? { ...participant, readiness: "ready" as const }
+          : participant
+      )
+    };
+    const setReadinessForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: updated
+    });
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(null);
+    const { ctx, answerCallbackQuery, editMessageText, apiEditMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "readiness", token: session.inviteToken, readiness: "ready" },
+      serviceWith({ setReadinessForTelegramUser }),
+      {
+        botUsername: "kvestarnia_test_bot",
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ getByPartyInviteToken })
+      }
+    );
+
+    expect(setReadinessForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken, "ready");
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Позначено: ви готові." });
+    expect(messageText(editMessageText)).toContain("1. ✅ <b>Тестова Лідерка</b>");
+    expect(keyboardJson(editMessageText)).toContain("⏳ Зачекайте");
+    expect(apiEditMessageText).toHaveBeenCalledTimes(1);
+    expect(apiEditMessageText.mock.calls[0]?.[0]).toBe(93);
+    expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("1. ✅ <b>Тестова Лідерка</b>");
+  });
+
   it("pushes the started boss card to other participants", async () => {
     const session = makeBossSession();
     const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "started", session });
@@ -242,6 +279,56 @@ describe("handlePartySessionCallback", () => {
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Хід оновлено");
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
+  });
+
+  it("opens a concrete one-use item picker instead of immediately using a bandage", async () => {
+    const session = makeBossSession({
+      participants: [
+        {
+          ...makeBossParticipant("character-42", "Тестова Лідерка"),
+          resources: {
+            hp: 10,
+            hpMax: 25,
+            mana: 10,
+            manaMax: 10
+          }
+        },
+        makeBossParticipant("character-93", "Друга Учасниця")
+      ]
+    });
+    const listCombatItemsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      session,
+      items: [
+        {
+          itemId: "item.field-kit",
+          itemKey: "field1",
+          name: "Польова аптечка",
+          quantity: 1
+        }
+      ]
+    });
+    const submitItemForTelegramUser = vi.fn();
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-items", token: session.partyInviteToken, turn: 1 },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          listCombatItemsForTelegramUser,
+          submitItemForTelegramUser
+        })
+      }
+    );
+
+    expect(listCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1);
+    expect(submitItemForTelegramUser).not.toHaveBeenCalled();
+    expect(messageText(editMessageText)).toContain("Одноразові манатки");
+    expect(keyboardJson(editMessageText)).toContain("⚕️ Польова аптечка");
+    expect(keyboardJson(editMessageText)).toContain("v1:party:bi:partyABC12:1:field1");
   });
 
   it("routes forged non-dev boss timeout callbacks through the due-timeout path only", async () => {
@@ -814,6 +901,15 @@ function makeSessionWithMember(): PartySessionRecord {
         character: member
       }
     ]
+  };
+}
+
+function makeBigBarrelSessionWithMember(): PartySessionRecord {
+  const session = makeSessionWithMember();
+
+  return {
+    ...session,
+    originLocationId: "barrel.big-brother"
   };
 }
 

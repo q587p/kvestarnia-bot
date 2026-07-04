@@ -31,16 +31,16 @@ describe("daily Korchma round presenter", () => {
     expect(text).not.toContain("Поверніться до Столу зі справами");
   });
 
-  it("renders active scene action names without pre-spoiling descriptions or outcomes", () => {
+  it("renders active scene action prompt without duplicating button labels or pre-spoiling details", () => {
     const text = presentDailyKorchmaRoundScene(stoolScene());
 
     expect(text).not.toContain("<b>Shannar de Kassal</b>");
     expect(text).not.toContain("Шахтна Іскрознавиця");
     expect(text).toContain("<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
     expect(text).not.toContain("ніжкам, що вертикальність має межі.\n\n\n<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
-    expect(text).toContain("🧺 Запропонувати подушку");
-    expect(text).toContain("📐 Вирівняти ніжки");
-    expect(text).toContain("🗓️ Записати перерву");
+    expect(text).not.toContain("🧺 Запропонувати подушку");
+    expect(text).not.toContain("📐 Вирівняти ніжки");
+    expect(text).not.toContain("🗓️ Записати перерву");
     expect(text).not.toContain("Мʼяка дипломатія");
     expect(text).not.toContain("Подушка додала табурету гідності");
   });

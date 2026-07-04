@@ -230,12 +230,15 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
   }
 
   const lines = [
+    presentActionHeading(result.action),
+    "",
+    `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}`,
+    `🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
+    "",
     ...presentOutcome(result),
-    ...presentCharacterFlavor(result.character, "quest.outcome", "fight", result.action),
+    ...presentVictoryFlavor(result),
     "",
-    `❤️ Ви: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}   🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
-    "",
-    presentRewardAmount({ ...result.reward, label: "Нагорода" }),
+    presentRewardAmount({ ...result.reward, label: "Винагорода за бій" }),
     ...presentItemGrantBlock(result.reward.itemGrants)
   ];
 
@@ -676,30 +679,57 @@ function presentCharacterFlavor(
   return flavor ? ["", escapeHtml(flavor.text)] : [];
 }
 
+function presentActionHeading(action: "attack" | "receipt" | "flee"): string {
+  if (action === "attack") {
+    return "⚔️ <b>Бій</b>: ви вдарили Міміка-шаурму.";
+  }
+
+  if (action === "receipt") {
+    return "⚔️ <b>Бій</b>: ви показали чек.";
+  }
+
+  return "⚔️ <b>Бій</b>: ви відступили красиво.";
+}
+
 function presentOutcome(
   result: Exclude<FightResult, { state: "no-character" | "already-completed" | "level-retired" }>
 ): string[] {
+  const enemyReply =
+    result.combat.enemyDamage > 0
+      ? [`Мімік атакує у відповідь і завдає ${result.combat.enemyDamage} шкоди.`]
+      : [];
+
   if (result.action === "attack") {
     return [
-      "🗡️ Ви вдарили Міміка-шаурму.",
-      "",
-      `Він отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`
+      `Мімік отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`,
+      ...enemyReply
     ];
   }
 
   if (result.action === "receipt") {
     return [
-      "📋 Ви показали чек.",
-      "",
-      `Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`
+      `Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`,
+      ...enemyReply
     ];
   }
 
-  return [
-    "🏃 Ви відступили красиво.",
-    "",
-    `${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`
-  ];
+  return [`${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`];
+}
+
+function presentVictoryFlavor(
+  result: Exclude<FightResult, { state: "no-character" | "already-completed" | "level-retired" }>
+): string[] {
+  if (result.combat.outcome === "flee") {
+    return [];
+  }
+
+  const flavor = selectCharacterFlavorLine(result.character, {
+    placement: "quest.outcome",
+    scene: "fight",
+    action: result.action
+  });
+
+  return ["", `🎉 Ви перемогли.${flavor ? ` ${escapeHtml(flavor.text)}` : ""}`];
 }
 
 function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: number }>): string[] {
@@ -866,7 +896,7 @@ function presentThreatPressureLine(
     return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> дійшов до межі ${pressure.levelCap}; зайві рівні Корчма вперла в стелю.`;
   }
 
-  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}.`;
+  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}; як підмога тримає коротшу планку здоровʼя.`;
 }
 
 function formatLevelPoints(value: number): string {
@@ -1139,13 +1169,17 @@ function presentTurnSummary(
   const heading = options.includeHeading === false ? [] : ["Остання дія"];
   const monsterResponse = presentMonsterResponse(summary);
   const enemyResponses = presentEnemyResponses(summary);
+  const enemyPressureSkips = presentEnemyPressureSkips(summary);
   const heroEffectResponse = presentHeroEffectDamage(summary);
 
   if (summary.heroOutcome === "not-enough-mana") {
     return withMonsterBark(summary, [
       ...heading,
       "Мани не стало навіть на драматичний жест.",
-      enemyResponses || monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр скористався паузою, але перечепився об власну впевненість.",
+        enemyPressureSkips
+      )
     ]);
   }
 
@@ -1153,7 +1187,10 @@ function presentTurnSummary(
     return withMonsterBark(summary, [
       ...heading,
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
-      enemyResponses || monsterResponse || "Монстр промахнувся й теж назвав це планом."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр промахнувся й теж назвав це планом.",
+        enemyPressureSkips
+      )
     ]);
   }
 
@@ -1162,7 +1199,10 @@ function presentTurnSummary(
       ...heading,
       "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
       heroEffectResponse,
-      enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",
+        enemyPressureSkips
+      ),
       summary.heroCounterDamage
         ? `Контрудар зачепив монстра на ${summary.heroCounterDamage} шкоди.`
         : ""
@@ -1177,7 +1217,10 @@ function presentTurnSummary(
       ...heading,
       `Ви використали <b>${itemName}</b>.${healing}`,
       heroEffectResponse,
-      enemyResponses || monsterResponse || "Монстр відреагував паузою, яка майже виглядала професійно."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр відреагував паузою, яка майже виглядала професійно.",
+        enemyPressureSkips
+      )
     ].filter(Boolean));
   }
 
@@ -1199,7 +1242,10 @@ function presentTurnSummary(
       ...heading,
       "Ви не встигли обрати дію.",
       heroEffectResponse,
-      enemyResponses || monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута."
+      withEnemyPressureSkips(
+        enemyResponses || monsterResponse || "Монстр скористався паузою, але не знайшов переконливого кута.",
+        enemyPressureSkips
+      )
     ].filter(Boolean));
   }
 
@@ -1211,11 +1257,14 @@ function presentTurnSummary(
         : "Відступ";
   const hit = presentHeroActionResult(summary, action);
   const response =
-    enemyResponses ||
-    monsterResponse ||
-    (summary.monsterOutcome === "miss"
-      ? "Монстр промахнувся й зробив вигляд, що так і планував."
-      : "");
+    withEnemyPressureSkips(
+      enemyResponses ||
+      monsterResponse ||
+      (summary.monsterOutcome === "miss"
+        ? "Монстр промахнувся й зробив вигляд, що так і планував."
+        : ""),
+      enemyPressureSkips
+    );
 
   return withMonsterBark(summary, [
     ...heading,
@@ -1359,6 +1408,24 @@ function presentEnemyResponses(summary: CombatTurnSummary): string {
         : `${name} відповідає на ваш хід, але шкоди цього разу не додає.`;
     })
     .join("\n");
+}
+
+function presentEnemyPressureSkips(summary: CombatTurnSummary): string {
+  if (!summary.enemyPressureSkips || summary.enemyPressureSkips.length === 0) {
+    return "";
+  }
+
+  return summary.enemyPressureSkips
+    .map((entry, index) => {
+      const name = escapeHtml(getShortMonsterName(entry.monsterName, `Монстр ${index + 2}`));
+
+      return `${name} займає позицію і поки не б’є: підмога тисне через хід.`;
+    })
+    .join("\n");
+}
+
+function withEnemyPressureSkips(response: string, skips: string): string {
+  return [response, skips].filter(Boolean).join("\n");
 }
 
 function presentMonsterResponse(summary: CombatTurnSummary): string {

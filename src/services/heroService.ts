@@ -1,10 +1,19 @@
 import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type {
+  ClassNoncombatRepository,
+  PriestBlessingRecord
+} from "../db/repositories/classNoncombatRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import type { CharacterItemRecord, InventoryRepository } from "../db/repositories/inventoryRepository";
 import type { RemortRepository } from "../db/repositories/remortRepository";
 import type { ShynokDrinkStateRecord, ShynokRepository } from "../db/repositories/shynokRepository";
 import { items } from "../content";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
+import type { StatKey } from "../domain/characters/starterStats";
+import {
+  applyPriestBlessingBonusToSummary,
+  normalizePriestBlessingBonus
+} from "../domain/noncombat/priestBlessingBonus";
 import { getItemUseEffect } from "../domain/itemUse";
 import {
   buildDrinkEffect,
@@ -35,6 +44,9 @@ export type HeroLookupResult =
       character: CharacterSummary;
       inventoryGoldValue: number;
       activeDrink: HeroActiveDrink | null;
+      activePriestBlessing: HeroActivePriestBlessing | null;
+      priestSelfBlessAvailableAt: Date | null;
+      classNoncombatBlocked: boolean;
       activeCosmeticTitle: string | null;
       restoreToFullItemId: string | null;
       recoveryNotice?: ResourceRecoveryNotice;
@@ -53,6 +65,14 @@ export interface HeroActiveDrink {
   incomingDamageMultiplierBp?: number;
 }
 
+export interface HeroActivePriestBlessing {
+  actorName: string;
+  targetName: string;
+  expiresAt: Date;
+  bonusStat: StatKey;
+  bonusAmount: number;
+}
+
 export class HeroService {
   private readonly shynok:
     | Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
@@ -66,7 +86,11 @@ export class HeroService {
     private readonly remorts?: Pick<RemortRepository, "countByTelegramUserId">,
     shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | Clock,
     clock: Clock = systemClock,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly classNoncombat?: Pick<
+      ClassNoncombatRepository,
+      "getActivePriestBlessingForTelegramUser" | "getPriestSelfBlessAvailableAtForTelegramUser" | "isActorBlockedForTelegramUser"
+    >
   ) {
     if (typeof shynokOrClock === "function") {
       this.clock = shynokOrClock;
@@ -85,14 +109,26 @@ export class HeroService {
     }
 
     const now = this.clock();
-    const [inventoryRows, equipmentSnapshot, remortCount, activeDrink, recoveryDrink] = await Promise.all([
+    const [
+      inventoryRows,
+      equipmentSnapshot,
+      remortCount,
+      activeDrink,
+      recoveryDrink,
+      activePriestBlessing,
+      priestSelfBlessAvailableAt,
+      classNoncombatBlocked
+    ] = await Promise.all([
       this.inventory.listByTelegramUserId(telegramUserId),
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
       this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0),
       this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
       this.shynok?.getRecoveryDrinkForTelegramUser?.(telegramUserId) ??
         this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ??
-        Promise.resolve(null)
+        Promise.resolve(null),
+      this.classNoncombat?.getActivePriestBlessingForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
+      this.classNoncombat?.getPriestSelfBlessAvailableAtForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
+      this.classNoncombat?.isActorBlockedForTelegramUser(telegramUserId) ?? Promise.resolve(false)
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
@@ -111,11 +147,21 @@ export class HeroService {
       ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
     });
 
+    const presentedPriestBlessing = presentHeroActivePriestBlessing(activePriestBlessing);
+    const characterSummary = applyPriestBlessingBonusToSummary(
+      resourceAware.character,
+      presentedPriestBlessing,
+      now
+    );
+
     return {
       state: "existing-character",
-      character: resourceAware.character,
+      character: characterSummary,
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
+      activePriestBlessing: presentedPriestBlessing,
+      priestSelfBlessAvailableAt,
+      classNoncombatBlocked,
       activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
       ...(resourceAware.recoveryNotice
@@ -189,7 +235,8 @@ export class HeroService {
   }
 
   async listCosmeticTitlesByTelegramUserId(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    page = 0
   ): Promise<{ state: "no-character" } | { state: "ready"; view: CosmeticTitleListView }> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -197,7 +244,7 @@ export class HeroService {
       return { state: "no-character" };
     }
 
-    const view = await this.achievements.listCosmeticTitlesForCharacter(character.id);
+    const view = await this.achievements.listCosmeticTitlesForCharacter(character.id, page);
 
     return view ? { state: "ready", view } : { state: "no-character" };
   }
@@ -205,7 +252,8 @@ export class HeroService {
   async selectCosmeticTitleByTelegramUserId(
     telegramUserId: bigint,
     titleGrantRowId: string,
-    expectedRemortCount: number
+    expectedRemortCount: number,
+    page = 0
   ): Promise<{ state: "no-character" } | { state: "ready"; result: CosmeticTitleMutationResult }> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -217,6 +265,7 @@ export class HeroService {
       characterId: character.id,
       titleGrantRowId,
       expectedRemortCount,
+      page,
       occurredAt: this.clock()
     });
 
@@ -225,7 +274,8 @@ export class HeroService {
 
   async clearCosmeticTitleByTelegramUserId(
     telegramUserId: bigint,
-    expectedRemortCount: number
+    expectedRemortCount: number,
+    page = 0
   ): Promise<{ state: "no-character" } | { state: "ready"; result: CosmeticTitleMutationResult }> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -235,7 +285,8 @@ export class HeroService {
 
     const result = await this.achievements.clearActiveCosmeticTitle({
       characterId: character.id,
-      expectedRemortCount
+      expectedRemortCount,
+      page
     });
 
     return result ? { state: "ready", result } : { state: "no-character" };
@@ -268,6 +319,19 @@ function resolveRestoreToFullItemId(
   }
 
   return null;
+}
+
+function presentHeroActivePriestBlessing(state: PriestBlessingRecord | null): HeroActivePriestBlessing | null {
+  const normalized = normalizePriestBlessingBonus(state);
+  return state
+    ? {
+        actorName: state.actorName,
+        targetName: state.targetName,
+        expiresAt: state.expiresAt,
+        bonusStat: normalized?.bonusStat ?? "luck",
+        bonusAmount: normalized?.bonusAmount ?? 1
+      }
+    : null;
 }
 
 function presentHeroActiveDrink(state: ShynokDrinkStateRecord | null): HeroActiveDrink | null {

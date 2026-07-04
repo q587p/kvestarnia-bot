@@ -17,6 +17,7 @@ import type {
 } from "../db/repositories/achievementRepository";
 
 export const ACHIEVEMENTS_PAGE_SIZE = 10;
+export const COSMETIC_TITLES_PAGE_SIZE = 10;
 
 export const achievementListFilters = ["all", "earned", "locked"] as const;
 export type AchievementListFilter = (typeof achievementListFilters)[number];
@@ -156,6 +157,9 @@ export interface CosmeticTitleListView {
   activeTitleGrantId: string | null;
   activeTitleMissing: boolean;
   remortCount: number;
+  page: number;
+  totalPages: number;
+  totalCount: number;
 }
 
 export type CosmeticTitleMutationState =
@@ -318,10 +322,13 @@ export class AchievementService {
     return { unlocks };
   }
 
-  async listCosmeticTitlesForCharacter(characterId: string): Promise<CosmeticTitleListView | null> {
+  async listCosmeticTitlesForCharacter(
+    characterId: string,
+    requestedPage = 0
+  ): Promise<CosmeticTitleListView | null> {
     const snapshot = await this.achievementsRepository.listCosmeticTitlesForCharacter(characterId);
 
-    return snapshot ? buildCosmeticTitleListView(snapshot) : null;
+    return snapshot ? buildCosmeticTitleListView(snapshot, requestedPage) : null;
   }
 
   async getActiveCosmeticTitleForCharacter(
@@ -349,6 +356,7 @@ export class AchievementService {
     characterId: string;
     titleGrantRowId: string;
     expectedRemortCount: number;
+    page?: number;
     occurredAt?: Date;
   }): Promise<CosmeticTitleMutationResult | null> {
     const state = await this.achievementsRepository.setActiveCosmeticTitle({
@@ -369,7 +377,7 @@ export class AchievementService {
           sourceId: input.titleGrantRowId
         })
       : [];
-    const view = await this.listCosmeticTitlesForCharacter(input.characterId);
+    const view = await this.listCosmeticTitlesForCharacter(input.characterId, input.page ?? 0);
 
     if (!view) {
       return null;
@@ -385,6 +393,7 @@ export class AchievementService {
   async clearActiveCosmeticTitle(input: {
     characterId: string;
     expectedRemortCount: number;
+    page?: number;
   }): Promise<CosmeticTitleMutationResult | null> {
     const state = await this.achievementsRepository.clearActiveCosmeticTitle({
       characterId: input.characterId,
@@ -395,7 +404,7 @@ export class AchievementService {
       return null;
     }
 
-    const view = await this.listCosmeticTitlesForCharacter(input.characterId);
+    const view = await this.listCosmeticTitlesForCharacter(input.characterId, input.page ?? 0);
 
     if (!view) {
       return null;
@@ -426,10 +435,13 @@ function filterAchievementEntries(
   return [...entries];
 }
 
-function buildCosmeticTitleListView(snapshot: CharacterCosmeticTitleSnapshot): CosmeticTitleListView {
+function buildCosmeticTitleListView(
+  snapshot: CharacterCosmeticTitleSnapshot,
+  requestedPage = 0
+): CosmeticTitleListView {
   const rawActiveTitleGrantId = snapshot.activeTitleGrantId;
   const activeTitleGrantId = normalizeTitleGrantId(snapshot.activeTitleGrantId);
-  const entries = snapshot.titleGrants.map((grant) => {
+  const allEntries = snapshot.titleGrants.map((grant) => {
     const title = resolveCosmeticTitleText(grant);
 
     return {
@@ -442,14 +454,19 @@ function buildCosmeticTitleListView(snapshot: CharacterCosmeticTitleSnapshot): C
       archived: title.archived
     };
   });
+  const totalPages = Math.max(1, Math.ceil(allEntries.length / COSMETIC_TITLES_PAGE_SIZE));
+  const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
 
   return {
-    entries,
+    entries: allEntries.slice(page * COSMETIC_TITLES_PAGE_SIZE, (page + 1) * COSMETIC_TITLES_PAGE_SIZE),
     activeTitleGrantId,
     activeTitleMissing: rawActiveTitleGrantId !== null &&
       (activeTitleGrantId === null ||
         !snapshot.titleGrants.some((grant) => grant.titleGrantId === activeTitleGrantId)),
-    remortCount: snapshot.remortCount
+    remortCount: snapshot.remortCount,
+    page,
+    totalPages,
+    totalCount: allEntries.length
   };
 }
 
@@ -691,6 +708,11 @@ function getRecalculationProgress(
     case "item.gift.received":
     case "mantok.sale.completed":
     case "bard.performance.completed":
+    case "priest.heal.completed":
+    case "priest.blessing.completed":
+    case "rogue.pickpocket.attempted":
+    case "rogue.pickpocket.success":
+    case "rogue.pickpocket.caught":
     case "yeger.free-bandage.claimed":
     case "shynok.drink.activated":
     case "passage.search.completed":
@@ -793,6 +815,11 @@ function getRecalculationOccurredAt(
     case "item.gift.received":
     case "mantok.sale.completed":
     case "bard.performance.completed":
+    case "priest.heal.completed":
+    case "priest.blessing.completed":
+    case "rogue.pickpocket.attempted":
+    case "rogue.pickpocket.success":
+    case "rogue.pickpocket.caught":
     case "yeger.free-bandage.claimed":
     case "shynok.drink.activated":
     case "passage.search.completed":
@@ -888,6 +915,11 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "item.gift.received":
     case "mantok.sale.completed":
     case "bard.performance.completed":
+    case "priest.heal.completed":
+    case "priest.blessing.completed":
+    case "rogue.pickpocket.attempted":
+    case "rogue.pickpocket.success":
+    case "rogue.pickpocket.caught":
     case "yeger.free-bandage.claimed":
     case "shynok.drink.activated":
     case "passage.search.completed":

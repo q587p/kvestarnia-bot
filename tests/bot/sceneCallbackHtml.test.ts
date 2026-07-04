@@ -540,6 +540,55 @@ describe("scene callback HTML options", () => {
     expect(String(edits[1]?.payload.text)).not.toContain("Списано");
   });
 
+  it("hides grownup mouse negotiation after unaffordable seal while cooldown is active", async () => {
+    const cooldownNow = new Date("2026-06-13T10:00:00.000Z");
+    const grownupCharacter = {
+      ...character,
+      level: 4,
+      gold: 5
+    };
+    const calls = await captureApiCalls(
+      makeCellarCallbackData("grownup-buy-seal"),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "level-retired" as const,
+              character: grownupCharacter,
+              maxLevel: 3,
+              completed: false
+            }),
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        cellarGrownup: {
+          buySeal: () =>
+            Promise.resolve({
+              state: "insufficient-gold" as const,
+              character: grownupCharacter,
+              price: 240,
+              roleplayCooldown: {
+                availableAt: new Date("2026-06-13T11:33:00.000Z"),
+                now: cooldownNow
+              }
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const buttons = (edit?.payload as {
+      reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> };
+    }).reply_markup?.inline_keyboard?.flat().map((button) => button.text) ?? [];
+
+    expect(String(edit?.payload.text)).toContain("🧀 Пломба дивиться дорого.");
+    expect(String(edit?.payload.text)).toContain("Домовлятися можна буде за 93 хвилини.");
+    expect(buttons).toEqual([
+      "🧀 Купити пломбу",
+      "🏹 Дошка полювання",
+      "⬅️ До зали"
+    ]);
+    expect(buttons).not.toContain("🐭 Домовитись із мишею");
+  });
+
   it("renders adventure method help without completing the selected problem", async () => {
     const completeAdventureApproach = vi.fn();
     const selectAdventureProblem = vi.fn(() =>
@@ -945,7 +994,8 @@ describe("scene callback HTML options", () => {
     expect(String(message?.payload.text)).toContain(expectedText);
   });
 
-  it("opens quest-table cellar route as intro, movement, then cellar action card", async () => {
+  it("opens quest-table cellar route without duplicate cellar movement notices", async () => {
+    let currentLocationId = "location.korchma.quest_table";
     const calls = await captureApiCalls(
       makeQuestCallbackData("cellar"),
       servicesWith({
@@ -954,22 +1004,29 @@ describe("scene callback HTML options", () => {
           complete: () => Promise.resolve({ state: "no-character" as const })
         },
         presence: {
-          markAction: () => Promise.resolve(),
+          markAction: (input) => {
+            currentLocationId = input.locationId;
+            return Promise.resolve();
+          },
           getCurrentPlaceForTelegramUser: () =>
             Promise.resolve({
               state: "ready" as const,
-              locationId: "location.korchma.quest_table",
-              locationName: "Стіл зі справами",
+              locationId: currentLocationId,
+              locationName: currentLocationId === "location.korchma.cellar" ? "Льох" : "Стіл зі справами",
               insideKorchma: true
             })
         }
       })
     );
     const messages = calls.filter((call) => call.method === "sendMessage");
+    const movementMessages = messages.filter((message) =>
+      String(message.payload.text).includes("Ви спустилися до льоху корчми.")
+    );
 
     expect(String(messages[0]?.payload.text)).toContain("Корчмар показує на люк під баром.");
-    expect(String(messages[1]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
-    expect(String(messages[2]?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(messages[1]?.payload.text)).toContain("🐭 Льохова справа");
+    expect(String(messages[2]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
+    expect(movementMessages).toHaveLength(1);
   });
 
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {
@@ -3870,6 +3927,84 @@ describe("scene callback HTML options", () => {
     expect(inventoryCalls).toBe(1);
     expect(String(edit?.payload.text)).toContain("🎒 Манатки");
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it.each([
+    ["inventory command", "/inventory", true],
+    ["inventory callback", "v1:item:inventory", false]
+  ])("marks equipped items in the general %s list", async (_name, input, asCommand) => {
+    const getEquipmentForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        character,
+        slots: [
+          {
+            slot: "weapon" as const,
+            item: {
+              itemId: "item.pan-of-persuasion",
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common" as const,
+                slot: "weapon" as const,
+                goldValue: 25
+              }
+            }
+          }
+        ]
+      })
+    );
+    const inventory = {
+      listForTelegramUser: () =>
+        Promise.resolve({
+          state: "found" as const,
+          totalGoldValue: 25,
+          items: [
+            {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common" as const,
+                slot: "weapon" as const,
+                goldValue: 25
+              }
+            },
+            {
+              id: "character-item-2",
+              itemId: "item.wet-hero-ticket",
+              quantity: 1,
+              content: {
+                id: "item.wet-hero-ticket",
+                name: "Квиток мокрого пригодника",
+                description: "Трофей.",
+                rarity: "common" as const,
+                slot: "junk" as const,
+                priceless: true
+              }
+            }
+          ]
+        })
+    };
+    const services = servicesWith({
+      inventory,
+      equipment: {
+        getEquipmentForTelegramUser
+      }
+    });
+    const calls = asCommand
+      ? await captureTextApiCalls(input, services, { asCommand })
+      : await captureApiCalls(input, services);
+    const message = calls.find((call) => call.method === (asCommand ? "sendMessage" : "editMessageText"));
+    const keyboard = JSON.stringify(message?.payload.reply_markup);
+
+    expect(getEquipmentForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(keyboard).toContain("✅ Пательня переконання");
+    expect(keyboard).toContain("🔎 Квиток мокрого пригодника");
   });
 
   it("lets item detail callbacks through during an active persistent fight", async () => {

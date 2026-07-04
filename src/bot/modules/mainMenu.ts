@@ -52,6 +52,7 @@ buildMainMenuKeyboard,
 getMainMenuLocationButtonPresenceId,
 getMainMenuLocationButtonText,
 mainMenuButtons,
+mainMenuQuestButtonTexts,
 mainMenuLocationButtonTexts,
 type MainMenuKeyboardOptions
 } from "../keyboards/mainMenuKeyboard";
@@ -72,6 +73,7 @@ sendPersistentFightPassagePreview
 } from "./persistentFightNavigation";
 import { buildQuestHubCommandOptions } from "./questHubOptions";
 import { markScenePresence } from "./scenePresence";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
 
 type MainMenuRouteOptions = {
   botUsername?: string | undefined;
@@ -91,7 +93,7 @@ export function registerMainMenuKeyboard(
     }
 
     await sendHero(ctx, services.hero, "reply", {
-      mainMenuKeyboard: await buildCurrentMainMenuKeyboard(ctx, services.presence, { includeAdmin })
+      mainMenuKeyboard: await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin })
     });
   });
 
@@ -99,7 +101,7 @@ export function registerMainMenuKeyboard(
     await sendCurrentLocation(ctx, services, options);
   });
 
-  bot.hears([mainMenuButtons.quest, "🗺️ Квест"], async (ctx) => {
+  bot.hears([...mainMenuQuestButtonTexts], async (ctx) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
     if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
       return;
@@ -118,7 +120,7 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    await sendInventory(ctx, services.inventory, "reply");
+    await sendInventory(ctx, services.inventory, "reply", 0, null, services.equipment);
   });
 
   bot.hears(mainMenuButtons.participants, async (ctx) => {
@@ -129,6 +131,7 @@ export function registerMainMenuKeyboard(
 
     await sendOnline(ctx, services.presence, {
       bardPerformanceEnabled: Boolean(services.bardPerformance),
+      classNoncombatEnabled: Boolean(services.classNoncombat),
       duelEnabled: Boolean(services.duel),
       itemGiftEnabled: Boolean(services.itemTransfers),
       partySessions: services.partySessions,
@@ -142,7 +145,7 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    const replyMarkup = await buildCurrentMainMenuKeyboard(ctx, services.presence, { includeAdmin });
+    const replyMarkup = await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin });
 
     await ctx.reply(presentHelp({
       includeDevReset: services.devReset.isEnabled(),
@@ -169,7 +172,7 @@ export function registerMainMenuKeyboard(
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
     }), {
-      reply_markup: await buildCurrentMainMenuKeyboard(ctx, services.presence, { includeAdmin })
+      reply_markup: await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin })
     });
   });
 }
@@ -181,7 +184,7 @@ export function shouldIncludeAdminMainMenu(services: Pick<BotServices, "devGrant
 export async function buildCurrentMainMenuKeyboard(
   ctx: Context,
   presenceService: PresenceService,
-  options: Pick<MainMenuKeyboardOptions, "includeAdmin"> = {}
+  options: Pick<MainMenuKeyboardOptions, "includeAdmin" | "questMarkers"> = {}
 ): Promise<ReturnType<typeof buildMainMenuKeyboard>> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -193,7 +196,24 @@ export async function buildCurrentMainMenuKeyboard(
 
   return buildMainMenuKeyboard({
     locationId: place.state === "ready" ? place.locationId : null,
+    ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers }),
     ...(options.includeAdmin === undefined ? {} : { includeAdmin: options.includeAdmin })
+  });
+}
+
+async function buildCurrentMainMenuKeyboardWithQuestMarkers(
+  ctx: Context,
+  services: BotServices,
+  options: Pick<MainMenuKeyboardOptions, "includeAdmin"> = {}
+): Promise<ReturnType<typeof buildMainMenuKeyboard>> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  const questMarkers = telegramUserId
+    ? await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+    : null;
+
+  return buildCurrentMainMenuKeyboard(ctx, services.presence, {
+    ...options,
+    ...(questMarkers ? { questMarkers } : {})
   });
 }
 
@@ -491,20 +511,30 @@ async function sendCurrentPresenceLocation(
   services: BotServices,
   options: MainMenuRouteOptions = {}
 ): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  const questMarkers = telegramUserId
+    ? await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+    : null;
+
   if (locationId === PRESENCE_LOCATION_KORCHMA_FRONT) {
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
-      playerHintService: services.playerHints
+      playerHintService: services.playerHints,
+      ...(questMarkers ? { questMarkers } : {})
     });
     return;
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_YARD) {
-    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     return;
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_HALL) {
-    await sendTavern(ctx, services.tavern, services.presence, "reply");
+    await sendTavern(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     return;
   }
 
@@ -521,7 +551,10 @@ async function sendCurrentPresenceLocation(
       "reply",
       services.cellarGrownup,
       services.fight,
-      services.tavernGames
+      services.tavernGames,
+      {
+        ...(questMarkers ? { questMarkers } : {})
+      }
     );
     return;
   }

@@ -52,6 +52,7 @@ describe("quest hub keyboard", () => {
   it("keeps daily Korchma round turn-in as a quest table claim", () => {
     const keyboard = buildQuestHubKeyboard(
       makeInput({
+        currentLocationId: "location.korchma.quest_table",
         dailyKorchmaRound: {
           state: "turn-in-ready",
           character: character(),
@@ -96,6 +97,8 @@ describe("quest hub keyboard", () => {
 
     expect(json).toContain("🧾 Здати обхід");
     expect(json).toContain("v1:dkr:c:20260628:7");
+    expect(json).not.toContain("🍺 До зали");
+    expect(json).not.toContain("v1:place:hall");
   });
 
   it("routes ready Yeger boards straight to turn-in from the quest table", () => {
@@ -123,6 +126,7 @@ describe("quest hub keyboard", () => {
   it("offers an untaken daily Korchma round without an existing offer token", () => {
     const keyboard = buildQuestHubKeyboard(
       makeInput({
+        currentLocationId: "location.korchma.quest_table",
         dailyKorchmaRound: {
           state: "not-issued",
           character: character(),
@@ -134,6 +138,50 @@ describe("quest hub keyboard", () => {
 
     expect(json).toContain("🧾 Корчмарський обхід");
     expect(json).toContain("v1:dkr:o:20260628");
+    expect(json).not.toContain("🍺 До зали");
+    expect(json).not.toContain("v1:place:hall");
+  });
+
+  it("keeps the back-to-hall route from other Korchma locations", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        currentLocationId: "location.korchma.bar"
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🍺 До зали");
+    expect(json).toContain("v1:place:hall");
+  });
+
+  it("marks the back-to-hall route when hall child locations have available quests", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        adventure: { state: "already-completed", character: character(), fightAvailable: false },
+        fight: {
+          state: "persistent-ready",
+          character: character(),
+          questProgress: completedProblemQuestProgress()
+        },
+        problemQuest: completedProblemQuestProgress(),
+        yeger: {
+          state: "completed",
+          character: character(),
+          progress: {
+            completed: true,
+            contractsClosed: 5,
+            target: 5,
+            rewardClaimed: true
+          }
+        },
+        cellar: { state: "ready", character: character(), completed: false }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🍻 До шинку ✅");
+    expect(json).toContain("🧹 У льох ⚠️");
+    expect(json).toContain("🍺 До зали ✅");
   });
 });
 

@@ -60,7 +60,12 @@ export type CellarGrownupQuestResult =
   | { state: "already-completed"; character: CharacterSummary; ending: CellarGrownupFinalEnding; reward: CellarGrownupReward }
   | { state: "seal-purchased"; character: CharacterSummary; price: number }
   | { state: "seal-already-owned"; character: CharacterSummary }
-  | { state: "insufficient-gold"; character: CharacterSummary; price: number }
+  | {
+      state: "insufficient-gold";
+      character: CharacterSummary;
+      price: number;
+      roleplayCooldown?: { availableAt: Date; now: Date };
+    }
   | { state: "roleplay-cooldown"; character: CharacterSummary; availableAt: Date; now: Date }
   | { state: "roleplay-failed"; character: CharacterSummary; availableAt: Date; now: Date; chance: number }
   | { state: "bottle-obtained"; character: CharacterSummary; reward: CellarGrownupBottleReward; source: "seal" | "roleplay" }
@@ -138,10 +143,16 @@ export class CellarGrownupQuestService {
     }
 
     if (result.state === "insufficient") {
+      const roleplayCooldown =
+        result.snapshot.roleplayCooldown && result.snapshot.roleplayCooldown.availableAt > now
+          ? { availableAt: result.snapshot.roleplayCooldown.availableAt, now }
+          : undefined;
+
       return {
         state: "insufficient-gold",
         character: summarizeCharacter(result.snapshot.character),
-        price: result.price
+        price: result.price,
+        ...(roleplayCooldown ? { roleplayCooldown } : {})
       };
     }
 

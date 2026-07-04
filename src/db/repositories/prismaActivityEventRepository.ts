@@ -59,31 +59,43 @@ export class PrismaActivityEventRepository implements ActivityEventRepository {
     const page = clampInteger(query.page ?? 0, 0, 9999);
     const retentionDays = clampInteger(query.retentionDays ?? DEFAULT_RETENTION_DAYS, 1, 3660);
     const since = new Date((query.now ?? new Date()).getTime() - retentionDays * 24 * 60 * 60 * 1000);
+    const notFilters: Prisma.ActivityEventWhereInput[] = [];
 
-    const rows = await this.prisma.activityEvent.findMany({
-      where: {
-        visibility: "public",
-        occurredAt: { gte: since },
-        ...(query.categories && query.categories.length > 0 ? { category: { in: [...query.categories] } } : {}),
-        ...(query.severities && query.severities.length > 0 ? { severity: { in: [...query.severities] } } : {}),
-        ...(query.excludeRareManatky
-          ? {
-              NOT: [
-                {
-                  eventType: "item.rare_received",
-                  payloadJson: {
-                    path: "$.rarity",
-                    equals: "rare"
-                  }
-                }
-              ]
-            }
-          : {})
-      },
-      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
-      skip: page * pageSize,
-      take: pageSize + 1
-    });
+    if (query.excludeRareManatky) {
+      notFilters.push({
+        eventType: "item.rare_received",
+        payloadJson: {
+          path: "$.rarity",
+          equals: "rare"
+        }
+      });
+    }
+
+    const where: Prisma.ActivityEventWhereInput = {
+      visibility: "public",
+      occurredAt: { gte: since },
+      ...(query.categories && query.categories.length > 0 ? { category: { in: [...query.categories] } } : {}),
+      ...(query.severities && query.severities.length > 0 ? { severity: { in: [...query.severities] } } : {}),
+      ...(notFilters.length > 0 ? { NOT: notFilters } : {})
+    };
+
+    const minimumUnderdogLevelDelta = typeof query.minimumUnderdogLevelDelta === "number"
+      ? Math.floor(query.minimumUnderdogLevelDelta)
+      : null;
+
+    const rows = minimumUnderdogLevelDelta === null
+      ? await this.prisma.activityEvent.findMany({
+          where,
+          orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+          skip: page * pageSize,
+          take: pageSize + 1
+        })
+      : await this.listRecentWithUnderdogThreshold({
+          where,
+          page,
+          pageSize,
+          minimumUnderdogLevelDelta
+        });
 
     return {
       events: rows.slice(0, pageSize).map(toRecord),
@@ -92,6 +104,55 @@ export class PrismaActivityEventRepository implements ActivityEventRepository {
       hasNextPage: rows.length > pageSize
     };
   }
+
+  private async listRecentWithUnderdogThreshold(input: {
+    where: Prisma.ActivityEventWhereInput;
+    page: number;
+    pageSize: number;
+    minimumUnderdogLevelDelta: number;
+  }) {
+    const requiredRows = (input.page + 1) * input.pageSize + 1;
+    const batchSize = Math.max(input.pageSize * 4, 25);
+    const rows: Awaited<ReturnType<PrismaClient["activityEvent"]["findMany"]>> = [];
+    let skip = 0;
+
+    while (rows.length < requiredRows) {
+      const batch = await this.prisma.activityEvent.findMany({
+        where: input.where,
+        orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+        skip,
+        take: batchSize
+      });
+      rows.push(...batch.filter((row) => keepsUnderdogThreshold(row, input.minimumUnderdogLevelDelta)));
+
+      if (batch.length < batchSize) {
+        break;
+      }
+      skip += batchSize;
+    }
+
+    return rows.slice(input.page * input.pageSize, (input.page + 1) * input.pageSize + 1);
+  }
+}
+
+function keepsUnderdogThreshold(
+  row: { eventType: string; payloadJson: Prisma.JsonValue | null },
+  minimumUnderdogLevelDelta: number
+): boolean {
+  if (row.eventType !== "combat.underdog_won") {
+    return true;
+  }
+
+  const levelDelta = readPayloadNumber(row.payloadJson, "levelDelta");
+  return levelDelta !== null && levelDelta >= minimumUnderdogLevelDelta;
+}
+
+function readPayloadNumber(payload: Prisma.JsonValue | null, key: string): number | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const value = payload[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function toRecord(row: {

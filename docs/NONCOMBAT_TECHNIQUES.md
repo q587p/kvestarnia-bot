@@ -2,6 +2,8 @@
 
 This started as a docs-only preservation of the `kvestarnia-noncombat-techniques-design-pack.zip` ideas. `0.2.5` now ships the first narrow runtime proof: Bard Performance solo in Shynok or in any other current location with another active same-location character, plus Shynok-only house payout. Keep the rest as planning input for future narrow `0.2.x+` tasks after the current branch is merged and `main` is refreshed.
 
+`0.2.25` ships the second narrow runtime proof: level 3+ Priest direct heal/blessing and level 3+ Rogue same-location pickpocket. This intentionally changes older planning assumptions: Priest aid is direct rather than an accept/decline offer in this MVP, and tightly bounded player-targeted Rogue gold theft is allowed with durable replay, private notifications and no public shame feed.
+
 ## Product Goal
 
 Non-combat techniques should give players reasons to:
@@ -85,6 +87,16 @@ Example: a Priest offers a blessing or heal to a nearby player.
 - resource mutation happens only after accept;
 - mana spend, heal and XP/result ledger are one replay-safe transition.
 
+`0.2.25` exception: Priest direct aid is not an offer flow. A level 3+ Priest can heal or bless self or an active same-location target directly outside combat. Healing spends mana only and starts no cooldown; blessing spends mana and starts a 93-minute repeat wait only for the same actor-target pair after a successful durable mutation. Failed/full-HP/already-blessed/stale attempts do not mutate, and another target receives a private best-effort notification after the stored result exists.
+
+Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + floor((charisma + intelligence) / 3) + floor(level / 2))`; mana cost scales from actual HP restored, from `1` mana for any tiny heal to a `13` mana cap around a `42 HP` heal. Missing HP, full-HP checks and healing caps use the target's current effective HP maximum, including level-derived HP.
+
+`0.2.25` Priest/Rogue planning freezes canonical effective summaries rather than raw character rows: level/path/race growth, equipped manatky effects and active non-expired Priest blessing bonuses are the stat inputs stored in result snapshots. Expired blessings do not affect stats, and active blessings do not stack.
+
+Priest aid keyboards do not show healing buttons for full-HP targets. Healing rows use the `⚕️` marker, while actual bandage icons stay reserved for medical manatky and Yeger supplies.
+
+Blocked Priest result cards keep the Priest action keyboard attached for full-HP heal, same-target blessing wait and already-blessed no-op results. Their headings name the blocker directly instead of using one generic failed-action title.
+
 ### Performance / Local Event
 
 Example: a Bard performs for active nearby characters in the current location.
@@ -105,6 +117,10 @@ Example: a Rogue pocket-theatre challenge.
 - non-lethal failure;
 - audit and replay;
 - not a first release.
+
+`0.2.25` exception: Rogue pickpocket MVP allows tightly bounded forced same-location gold theft. It is actor-target/day scoped, actor-cooldown gated, target-level protected, private, replay-safe and capped at tiny gold amounts. Fresh pickpocket target lists keep targets already attempted by this Rogue on the current Kyiv day visible with a tomorrow-only marker, while duplicate callbacks still replay the stored result. A noticed successful theft tells the target clearly that the theft succeeded but was seen, then offers that target private safe instant-duel and turn-based-duel retaliation buttons that auto-accept from the Rogue while keeping ordinary no-stakes/no-loss duel rules. Those retaliation callbacks are bound to the stored pickpocket attempt with a short opaque token and compact mode marker, expire after a short window and mark the attempt used before creating the duel, so forged, stale or duplicate clicks do not create another forced duel. It never steals items, creates gold, counts as trade/gift/quest/hunt/combat progress or emits a public shame/feed row. Caught-badly sets Rogue HP to `0` but adds no extra caught cooldown beyond the normal 93-minute pickpocket cooldown.
+
+Local `/dev_reset_quiet_pocket` clears the current `noncombat.rogue.pickpocket` cooldown key and keeps legacy quiet-pocket key cleanup only for compatibility. Local `/dev_reset_rogue` clears the same Rogue cooldown family and deletes the current actor's current-Kyiv-day pickpocket attempt rows so the same targets can be tested again.
 
 ### Information Action
 
@@ -232,16 +248,17 @@ Shipped in `0.2.5`:
 
 ### Priest Community Blessing
 
-Status: near, after Bard proves same-location offers.
+Status: shipped in `0.2.25` as direct Priest aid, not an offer flow.
 
 - level 3+ Priest;
-- self plus one consenting nearby target;
-- Shynok or Korchma hall;
-- 93-minute cooldown;
-- atomic mana cost and HP heal after accept;
+- self plus one active nearby target;
+- any current location covered by same-location presence;
+- direct heal has no cooldown;
+- direct blessing has a 93-minute repeat wait for the same actor-target pair;
+- atomic mana cost and HP heal after durable validation;
 - no over-heal;
 - no target in active combat;
-- small role-action XP for the actor on a completed useful blessing;
+- no XP in the MVP;
 - no gold, item, group heal or forced mutation.
 
 Suggested calculation:
@@ -252,11 +269,15 @@ heal = min(
   3 + floor((CHA + INT) / 3) + floor(level / 2)
 )
 
-manaCost = max(
-  7,
-  ceil(heal * 0.75) + 2
-)
+manaCost = clamp(ceil(heal * 13 / 42), 1, 13)
 ```
+
+Shipped behavior:
+
+- direct heal uses the formula above, spends proportional mana by actual HP restored capped at 13 around a 42 HP heal and sends a private target notification only after success;
+- direct blessing creates one visible `priest.blessing` status for 13 minutes;
+- blessing stores `bonusStat = "luck"` and a `bonusAmount` from `+1..+5` based on Priest intelligence plus actor/target level difference; mana cost scales as `8/12/16/20/23` for `+1..+5`; the hero card shows the resulting `Вдача` bonus while the status is active;
+- remort, location, activity, combat/raid/passage/party/duel blocking flows and duplicate callbacks fail closed.
 
 ### Race And Signature Techniques
 
@@ -268,7 +289,7 @@ manaCost = max(
 
 ### Rogue NPC Practice
 
-Ship before any player theft.
+Superseded by the `0.2.25` Rogue pickpocket MVP for the first Rogue noncombat slice. NPC practice can still be a later lower-friction training/economy slice.
 
 - level 3+;
 - Korchma/market-like scene;
@@ -281,7 +302,7 @@ Ship before any player theft.
 - non-lethal failure;
 - no real player target.
 
-Player-targeted Rogue tricks are later and opt-in only.
+Player-targeted Rogue item theft, broad PvP, markets and public shame/failure feeds remain later and out of scope.
 
 ### Informational Techniques
 

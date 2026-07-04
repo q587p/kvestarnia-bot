@@ -40,6 +40,23 @@ describe("cosmetic title presenter", () => {
     expect(text).not.toContain("title-row-");
   });
 
+  it("shows pagination state and stable global row numbers", () => {
+    const text = presentCosmeticTitles(buildView({
+      page: 1,
+      totalPages: 5,
+      totalCount: 47,
+      entries: [
+        buildEntry({
+          grantRowId: "title-row-11",
+          title: "Одинадцята табличка"
+        })
+      ]
+    }));
+
+    expect(text).toContain("Сторінка 2/5.");
+    expect(text).toContain("11. ▫️ <b>Одинадцята табличка</b>");
+  });
+
   it("explains a missing active title pointer without crashing", () => {
     const text = presentCosmeticTitles(buildView({
       activeTitleGrantId: "cosmetic-title.missing",
@@ -64,6 +81,9 @@ function buildView(overrides: Partial<CosmeticTitleListView> = {}): CosmeticTitl
     activeTitleGrantId: null,
     activeTitleMissing: false,
     remortCount: 0,
+    page: 0,
+    totalPages: 1,
+    totalCount: 1,
     ...overrides
   };
 }

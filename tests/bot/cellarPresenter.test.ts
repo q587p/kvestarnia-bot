@@ -33,14 +33,19 @@ describe("cellar presenter", () => {
     expect(text).toContain("🐭 Льохова справа");
     expect(text).not.toContain("<blockquote>");
     expect(text).not.toContain("Корчмар показує на люк");
+    expect(text).toContain("<i>Замовник:</i> миша з табличкою");
+    expect(text).toContain("<i>Проблема:</i> льохова автономія");
+    expect(text).toContain("<i>Ціль:</i> домовитися з норою");
     expect(text).toContain("<i>Можливі способи:</i>");
-    expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
+    expect(text).not.toContain("🧀 Поставити пастку по маршруту крихт");
     expect(text).not.toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
-    expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
+    expect(text).not.toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
     expect(text).not.toContain("Винагорода скромніша. Коштує 1 золото.");
     expect(text).not.toMatch(/Шанси \d|Підпис методу|race\+class/u);
-    expect(text).toContain("що робимо?");
-    expect(text.split("\n").length).toBeLessThanOrEqual(24);
+    expect(text).not.toContain("що робимо?");
+    expect(text.trim().endsWith("<i>Можливі способи:</i>")).toBe(true);
+    expect(text.indexOf("<i>Ціль:</i>")).toBeLessThan(text.indexOf("<i>Можливі способи:</i>"));
+    expect(text.split("\n").length).toBeLessThanOrEqual(28);
   });
 
   it("renders cellar method help separately", () => {
@@ -91,7 +96,7 @@ describe("cellar presenter", () => {
     ).toContain("автономію за шафою");
   });
 
-  it("escapes character names in cellar start text", () => {
+  it("does not render the old character prompt in cellar start text", () => {
     const text = presentCellarStart({
       state: "ready",
       character: {
@@ -100,8 +105,9 @@ describe("cellar presenter", () => {
       }
     });
 
-    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b><b>Мандрівник</b></b>, що робимо?");
+    expect(text).not.toContain("що робимо?");
   });
 
   it("renders completed result with reward and no exact timestamp", () => {
@@ -183,6 +189,26 @@ describe("cellar presenter", () => {
     expect(text).toContain("Льох визнав це фіналом");
     expect(text).toContain("Далі краще повернутися до столу справ або зали.");
     expect(text).not.toContain("Що робимо?");
+  });
+
+  it("explains active grownup roleplay cooldown on unaffordable seal results", () => {
+    const text = presentCellarGrownupResult({
+      state: "insufficient-gold",
+      character: {
+        ...character,
+        level: 4,
+        gold: 5
+      },
+      price: 240,
+      roleplayCooldown: {
+        availableAt: new Date("2026-06-13T11:33:00.000Z"),
+        now
+      }
+    });
+
+    expect(text).toContain("Потрібно 240 золота. У вас — 5.");
+    expect(text).toContain("Домовлятися можна буде за 93 хвилини.");
+    expect(text).not.toContain("спробуйте домовитись із мишею");
   });
 
   it("sends the obtained grownup cellar bottle to the Шинок instead of resolving it in the cellar", () => {

@@ -7,6 +7,7 @@ import type {
   ListRecentActivityEventsQuery,
   RecordActivityEventInput
 } from "../db/repositories/activityEventRepository";
+import { LATEST_EVENTS_IMPORTANT_UNDERDOG_LEVEL_DELTA } from "./publicActivityEventPublisher";
 
 export const LATEST_EVENTS_PAGE_SIZE = 15;
 export const LATEST_EVENTS_RETENTION_DAYS = 93;
@@ -46,10 +47,15 @@ export function filterToQuery(filter: LatestEventFilter): {
   categories?: ActivityEventCategory[] | undefined;
   severities?: ActivityEventSeverity[] | undefined;
   excludeRareManatky?: boolean | undefined;
+  minimumUnderdogLevelDelta?: number | undefined;
 } {
   switch (filter) {
     case "imp":
-      return { severities: ["high", "legendary"], excludeRareManatky: true };
+      return {
+        severities: ["high", "legendary"],
+        excludeRareManatky: true,
+        minimumUnderdogLevelDelta: LATEST_EVENTS_IMPORTANT_UNDERDOG_LEVEL_DELTA
+      };
     case "adv":
       return { categories: ["adventurer", "progression"] };
     case "cmb":

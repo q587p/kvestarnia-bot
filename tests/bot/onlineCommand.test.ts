@@ -104,6 +104,85 @@ describe("online command", () => {
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:gift:open");
   });
 
+  it("shows Priest class aid from nearby view even when only self-heal is available", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 1,
+          location: {
+            id: "location.korchma.hall",
+            name: "Зала корчми",
+            people: {
+              active: [{ telegramUserId: 42n, name: "Жрець", classId: "class.priest", level: 3, status: "active" }],
+              idle: [],
+              total: 1
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+
+    await sendOnline(ctx, presenceService, { classNoncombatEnabled: true });
+
+    expect(replies).toHaveLength(1);
+    expect(inlineButtonCallbacks(replies[0]?.options)).toContain("v1:nc:o:p:0");
+    expect(inlineButtonCallbacks(replies[0]?.options)).not.toContain("v1:nc:o:r:0");
+  });
+
+  it("shows Rogue pickpocket from nearby view only when another active player is nearby", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: "location.korchma.hall",
+            name: "Зала корчми",
+            people: {
+              active: [
+                { telegramUserId: 42n, name: "Злодій", classId: "class.rogue", level: 3, status: "active" },
+                { telegramUserId: 93n, name: "Сусід", classId: "class.warrior", level: 3, status: "active" }
+              ],
+              idle: [],
+              total: 2
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+
+    await sendOnline(ctx, presenceService, { classNoncombatEnabled: true });
+
+    expect(replies).toHaveLength(1);
+    expect(inlineButtonCallbacks(replies[0]?.options)).toContain("v1:nc:o:r:0");
+    expect(inlineButtonCallbacks(replies[0]?.options)).not.toContain("v1:nc:o:p:0");
+  });
+
   it("shows live party invite action above the nearby duel action", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {

@@ -57,6 +57,11 @@ export const achievementTriggerTypes = [
   "item.gift.received",
   "mantok.sale.completed",
   "bard.performance.completed",
+  "priest.heal.completed",
+  "priest.blessing.completed",
+  "rogue.pickpocket.attempted",
+  "rogue.pickpocket.success",
+  "rogue.pickpocket.caught",
   "yeger.free-bandage.claimed",
   "shynok.drink.activated",
   "passage.search.completed",
@@ -1060,6 +1065,61 @@ export const achievements = [
     trigger: { type: "bard.performance.completed", threshold: 13 },
     progressTarget: 13,
     cosmeticTitleGrantId: "cosmetic-title.thirteen-bard-performances"
+  },
+  {
+    id: "achievement.priest.heal.first",
+    category: "weird",
+    title: "Мана замість бинта",
+    description: "уперше полікувати жерцем поза боєм і не витратити жодного бинта на бюрократію.",
+    hidden: false,
+    lockedDescription: "уперше полікувати жерцем поза боєм.",
+    sortOrder: 107,
+    status: "enabled",
+    trigger: { type: "priest.heal.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.priest.blessing.first",
+    category: "weird",
+    title: "Печатка суворої турботи",
+    description: "уперше благословити когось жерцем так, щоб навіть пил став чемнішим.",
+    hidden: false,
+    lockedDescription: "уперше благословити жерцем поза боєм.",
+    sortOrder: 108,
+    status: "enabled",
+    trigger: { type: "priest.blessing.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.rogue.pickpocket.first",
+    category: "weird",
+    title: "Кишеня не підписувала згоду",
+    description: "уперше спробувати тиху кишеню як злодій і лишити протоколу дивні питання.",
+    hidden: false,
+    lockedDescription: "уперше спробувати тиху кишеню як злодій.",
+    sortOrder: 109,
+    status: "enabled",
+    trigger: { type: "rogue.pickpocket.attempted", threshold: 1 }
+  },
+  {
+    id: "achievement.rogue.pickpocket.success",
+    category: "weird",
+    title: "Монета змінила філософію",
+    description: "уперше успішно обчистити кишеню так тихо, що золото саме переглянуло біографію.",
+    hidden: false,
+    lockedDescription: "уперше успішно обчистити кишеню.",
+    sortOrder: 109.2,
+    status: "enabled",
+    trigger: { type: "rogue.pickpocket.success", threshold: 1 }
+  },
+  {
+    id: "achievement.rogue.pickpocket.caught",
+    category: "weird",
+    title: "Лікоть мав аргументи",
+    description: "уперше провалити тиху кишеню так голосно, що HP попросило прилягти.",
+    hidden: false,
+    lockedDescription: "уперше дуже невдало провалити тиху кишеню.",
+    sortOrder: 109.4,
+    status: "enabled",
+    trigger: { type: "rogue.pickpocket.caught", threshold: 1 }
   },
   {
     id: "achievement.training.doppelganger.first",

@@ -21,7 +21,7 @@ import {
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildTurnBasedDuelKeyboard } from "../keyboards/duelKeyboard";
 import { buildPartyBossKeyboard } from "../keyboards/partySessionKeyboard";
-import { isMainMenuLocationButtonText, mainMenuButtons } from "../keyboards/mainMenuKeyboard";
+import { isMainMenuLocationButtonText, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
 import { editPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import { presentFightStart, presentPersistentFight } from "../presenters/fightPresenter";
@@ -89,6 +89,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:spar:turn:") &&
       !data.startsWith("v1:duel:t:") &&
       !data.startsWith("v1:party:ba:") &&
+      !data.startsWith("v1:party:bm:") &&
       !data.startsWith("v1:party:bi:") &&
       !data.startsWith("v1:party:bt:") &&
       !data.startsWith("v1:fight:mimic:") &&
@@ -148,6 +149,10 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "dev_add_dense_bandage" ||
     command === "dev_add_field_kit" ||
     command === "dev_add_yeger_line" ||
+    command === "dev_reset_yeger_trail" ||
+    command === "dev_reset_priest_blessing" ||
+    command === "dev_reset_quiet_pocket" ||
+    command === "dev_reset_rogue" ||
     command === "dev_yeger_first_done" ||
     command === "dev_yeger_second_done" ||
     command === "dev_raid_win" ||
@@ -175,8 +180,7 @@ function isRestartOrRemortRoute(ctx: Context): boolean {
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     isMainMenuLocationButtonText(text) ||
-    text === mainMenuButtons.quest ||
-    text === "🗺️ Квест"
+    (text !== undefined && mainMenuQuestButtonTexts.includes(text))
   );
 }
 

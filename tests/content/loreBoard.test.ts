@@ -28,6 +28,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_LOCATION_KORCHMA_YARD
 } from "../../src/services/presenceService";
+import { raceAbilities } from "../../src/content/playerAbilities";
 
 describe("lore board content", () => {
   it("validates ids, category links, body/source text and canonical refs", () => {
@@ -135,6 +136,64 @@ describe("lore board content", () => {
     expect(shynok?.body).toContain("тавлеї чи кості");
   });
 
+  it("keeps class lore aligned with combat and side class surfaces", () => {
+    expect(classLoreBody("class-warrior")).toContain("🪓 Силовий замах");
+    expect(classLoreBody("class-mage")).toContain("🔥 Гаряче закляття");
+    expect(classLoreBody("class-bard")).toContain("🎶 Небезпечний куплет");
+    expect(classLoreBody("class-rogue")).toContain("🌘 Тіньовий розтин");
+    expect(classLoreBody("class-priest")).toContain("✨ Суворе благословення");
+    expect(classLoreBody("class-varenyk-mancer")).toContain("🥟 Кипляча начинка");
+    expect(classLoreBody("class-bureaucramancer")).toContain("📄 Форма 13-Б");
+    expect(classLoreBody("class-ranger")).toContain("🏹 Рикошетний постріл");
+    expect(classLoreBody("class-kharakternyk")).toContain("👁 Степовий косий погляд");
+
+    for (const entryId of ["class-warrior", "class-bard", "class-rogue", "class-priest", "class-ranger"]) {
+      expect(classLoreBody(entryId), entryId).toContain("\n\n");
+    }
+
+    expect(classLoreBody("class-warrior")).toContain("по зброї в кожній руці");
+    expect(classLoreBody("class-bard")).toContain("може виступити");
+    expect(classLoreBody("class-rogue")).toContain("Тихою кишенею");
+    expect(classLoreBody("class-priest")).toContain("полікувати маною без бинтів");
+    expect(classLoreBody("class-ranger")).toContain("єгерський куток");
+    expect(loreEntries.filter((entry) => entry.categoryId === "classes").map((entry) => entry.body).join("\n"))
+      .not.toContain("З 3 рівня");
+  });
+
+  it("keeps race lore aligned with race combat abilities", () => {
+    for (const ability of raceAbilities) {
+      const entry = loreEntries.find((candidate) =>
+        candidate.categoryId === "races" &&
+        candidate.canonicalRefs?.some((ref) => ref.type === "race" && ref.id === ability.raceId)
+      );
+
+      expect(entry?.body, ability.raceId).toContain("\n\n");
+      expect(entry?.body, ability.raceId).toContain(ability.label);
+    }
+  });
+
+  it("keeps manatky lore aligned with one-use and crafting surfaces", () => {
+    const lootTitles = loreEntries
+      .filter((entry) => entry.categoryId === "loot")
+      .map((entry) => entry.title);
+    const oneUse = loreEntries.find((entry) => entry.id === "loot-one-use-mantok");
+    const crafting = loreEntries.find((entry) => entry.id === "loot-mantok-crafting");
+
+    expect(lootTitles).toEqual(expect.arrayContaining([
+      "Разові манатки",
+      "Крафт манаток"
+    ]));
+    expect(oneUse?.body).toContain("Поза боєм");
+    expect(oneUse?.body).toContain("у бою");
+    expect(oneUse?.canonicalRefs?.map((ref) => ref.id)).toEqual(expect.arrayContaining([
+      "item.responsible-panic-bandage",
+      "item.dense-bandage",
+      "item.field-kit"
+    ]));
+    expect(crafting?.body).toContain("Щільний бинт");
+    expect(crafting?.body).toContain("Польову аптечку");
+  });
+
   it("detects broken lore records", () => {
     expect(validateLoreBoardContent({
       categories: loreCategories,
@@ -211,4 +270,10 @@ function canonicalRefIds(categoryId: string, type: "race" | "class" | "location"
   }
 
   return new Set(ids);
+}
+
+function classLoreBody(entryId: string): string {
+  const entry = loreEntries.find((candidate) => candidate.id === entryId);
+  expect(entry, entryId).toBeDefined();
+  return entry?.body ?? "";
 }

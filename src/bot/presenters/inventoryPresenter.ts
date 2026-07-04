@@ -17,6 +17,7 @@ export const INVENTORY_PAGE_SIZE = 8;
 
 export interface InventoryPresenterOptions {
   currentSlotItem?: EquipmentItemSummary | null;
+  equippedItemIds?: ReadonlySet<string> | null;
   slotCompatibleItemIds?: ReadonlySet<string> | null;
 }
 

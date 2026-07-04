@@ -7,6 +7,112 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.25] - 12026-07-04 - Class Noncombat Priest and Rogue Techniques
+
+### Added
+- Added level 3+ Priest direct aid outside combat: `✨ Жрецька поміч` opens from `Хто поруч`, supports self/active same-location targets, and can heal with mana or create a direct blessing without an accept/decline offer flow.
+- Added the preserved Priest heal formula with no overheal, mana spend only after a successful durable mutation and no healing cooldown.
+- Added a visible 13-minute Priest blessing status that grants a small `+1..+5 luck` bonus based on Priest intelligence and actor/target level difference, and stores that bonus on the blessing row.
+- Added level 3+ Rogue `🗡️ Тиха кишеня` from `Хто поруч` for active same-location targets with target level protection, once-per-actor-target Kyiv-day replay, a 93-minute actor cooldown after every resolved attempt and stored deterministic outcomes.
+- Added Rogue outcomes for clean success, noticed success, empty/no opportunity, noticed failure and caught badly. Caught badly sets Rogue HP to `0` through the character resource row and does not create an extra caught cooldown.
+- Added private best-effort target notifications after successful Priest heal/blessing and relevant Rogue pickpocket outcomes.
+- Added a two-button private retaliation path for noticed successful Rogue thefts: the target can launch either an instant or turn-based safe duel against the Rogue, with the Rogue auto-accepted and ordinary duel no-stakes/no-loss rules still applying.
+- Added rewardless achievements for first Priest heal, first Priest blessing, first Rogue pickpocket attempt, first successful pickpocket and first caught-badly outcome.
+- Added class noncombat callback, keyboard, presenter, service and repository slices with `v1:nc` callback routing.
+- Added Prisma tables for Priest aid actions, Priest blessings and Rogue pickpocket attempts.
+- Local `/dev_reset_priest_blessing`, `/dev_reset_quiet_pocket` and `/dev_reset_rogue` now clear Priest blessing/support and Rogue Quiet Pocket QA gates; `/dev_reset_quiet_pocket` keeps the narrow cooldown reset, `/dev_reset_rogue` also forgets the current Kyiv-day Rogue target-attempt rows, the Priest helper also expires active direct blessings and pair-target waits, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
+
+### Changed
+- Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
+- Updated `📖 Перекази` class entries for Priest and Rogue to mention the new noncombat behavior.
+- Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
+- Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
+- Kept starter quest-table and direct Yeger accept buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми`, `⚔️ До сутички` and `🏹 Взяти справу`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`, `🛢️ Бочка ⚠️` and barrel-result `🧥 Єгер ⚠️` routes for an offered Yeger quest.
+- Kept Korchma hall/location quest markers resilient when only the cellar errand currently has a character-bearing ready state, so `🐭 Льох ⚠️` still appears when the mouse is the next affair.
+- Swapped the pending Barrel fallback button icon from `🍺 Перевірити бочку` to `🔄 Перевірити бочку`, matching refresh-style action buttons.
+- Marked `🍺 До зали` / `⬅️ До зали` routes, including Shynok and Fighting Corner return buttons, when another Korchma location currently has an available quest route, while hiding the quest-hub `🍺 До зали` self-return when the hub is already opened from `Стіл зі справами`.
+- Hid the grownup cellar `🐭 Домовитись із мишею` action from unaffordable cheese-seal result screens while the mouse roleplay cooldown is still active, and adjusted the Korchmar copy to explain the wait.
+- Restored the native `🪧 Обрати пригоду` action icon on quest-table adventure buttons and marked ready adventure-choice buttons with the available-task suffix.
+- Marked currently equipped items in inventory keyboards with a left-side `✅` icon in both general and slot-filtered views.
+- Lowercased equipment slot names after the equipped-status dash in item detail cards, for example `вдягнено — основна рука`.
+- Added available-task markers to Korchma entry buttons and a first-entry hint explaining how the marker leads to current affairs.
+- Displayed positive active tavern-game table counts on Shynok game buttons, for example `🎲 Ігри за столом (2)`, while omitting the count when none are active.
+- Changed generated adventure method complication headlines from `⚠️` to `💥` and separated injury HP lines with visible heart icons.
+- Removed the duplicate cellar movement notice when entering the cellar quest from the quest table.
+- Removed the generated combo-title prefix from the starter shawarma scene while keeping its race/class flavor beat.
+- Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, hero damage, Mimic counterattack damage, victory flavor, `Винагорода за бій`, then item grants.
+- Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
+- Shortened starter shawarma, starter cellar, regular Adventure method-choice cards and Daily Korchma Round scene cards so the message body stops duplicating method/action labels and the character prompt; action labels stay in buttons and method/help surfaces.
+- Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
+- Active Priest blessing now appears as a visible `Вдача` bonus in the hero card stats and no longer uses technical stacking copy in player-facing text.
+- Priest blessing result cards now separate status and mana beats with blank lines, bold both visible participant names, and include the blessing Priest's active cosmetic title in target notifications.
+- Priest/Rogue class noncombat planning now uses canonical effective character summaries, so equipped manatky and active non-expired Priest blessing bonuses affect Priest heal amount, Priest blessing strength and Rogue pickpocket power/bonus consistently with the hero card.
+- Stored Priest/Rogue noncombat stat snapshots now reflect the effective inputs actually used for planning, including equipped item ids/effects and active blessing metadata when present.
+- Priest aid open cards now label the same-target blessing wait clearly, so it does not read like the active blessing duration.
+- Marked completed Priest healing resource lines with `❤️` for HP gained and `💫` for mana spent.
+- Scaled Priest direct-heal mana spending proportionally by actual HP restored, capped at 13 around a 42 HP heal, and scaled Priest blessing spending from 8 to 23 by the granted `+1..+5` luck bonus.
+- Removed the noncombat Priest heal cooldown and actor-wide Priest blessing cooldown; direct healing is limited by missing HP and mana, while direct blessing is limited by mana and a 93-minute repeat wait only for the same actor-target pair.
+- Removed the two-enemy Nyz threat backup HP shortcut: every threat monster now keeps its own full level-derived HP, and victory rewards/loot use the original encounter enemy level even after the primary enemy dies and the boosted backup becomes the active mirror.
+- Fixed multi-enemy combat effect expiry so hero-targeted monster effects tick down after any hero action, including `defend` and combat-item turns, and the turn log no longer repeats expired accuracy-penalty notices.
+- Multi-enemy combat journals now explicitly note when a backup enemy pauses on its softened-pressure cadence instead of making the second enemy look like it silently skipped by accident.
+- Big Barrel raid journals now include dense-bandage cooldowns in `Кулдауни та ефекти`, and raid medical-item action lines show item icons for `Щільний бинт` and `Польова аптечка`.
+- Big Barrel queued turn choices now let the latest selected action or combat item replace the earlier button before the round resolves, and overwritten combat items are not spent.
+- Big Barrel active cards now open an owned one-use combat item menu instead of hard-wiring the ordinary bandage behind the renamed button.
+- Big Barrel recruiting cards now let joined participants mark themselves `Готовий` / `Готова` / `Готові` or switch back to `Зачекайте`, showing `✅` / `⏳` beside names without blocking manual or automatic raid start.
+- Cosmetic title selection now paginates the `🏷️ Титули` keyboard instead of rendering every earned title button at once.
+- Extended local `/dev_two_enemies [N]` so manual QA can force `Натиск Низу` and boost the second enemy by `N` requested levels while keeping the dev fight excluded from ordinary threat history.
+- Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
+- Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
+- Rogue pickpocket result cards now bold the target name, separate target, outcome and next-attempt beats with blank lines, keep a refresh button under the result, italicize the next-attempt wait, and fresh Rogue target lists keep same-day attempted targets visible with a tomorrow-only marker before the active target prompt while omitting that prompt when no fresh pockets remain.
+- Noticed-success Rogue theft notifications now state plainly that the theft succeeded but was seen, and attach private instant-duel and turn-based-duel retaliation buttons only to that fresh target notification.
+- Rogue retaliation callbacks are now bound to the stored pickpocket attempt through a short opaque token and selected duel mode, expire after a short window and mark the attempt as used before creating the safe duel, so forged, stale or duplicate clicks cannot create unlimited forced duels.
+- Active turn-based duel keyboards now use compact combat-style rows: attack/defend, class/race ability and surrender/refresh.
+- Kept Priest action buttons under blocked no-op heal, same-target blessing wait and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, target wait and repeated blessing blockers.
+- Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
+- Hid Priest/Rogue class noncombat action buttons while the actor is already busy in combat or raid, stopped treating scene/adventure presence as a blocker, and replaced the old generic protocol blocker copy with clearer stale-callback explanations.
+- Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.
+- Added a `✨ Благословити себе` shortcut to the hero card for eligible Priests when mana is enough and no active self-blessing or same-target repeat wait blocks the action.
+- Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
+- Refreshed `📖 Перекази` class entries so every class names its combat ability, while Warrior, Bard, Rogue, Priest and Ranger also mention their shipped side class surfaces in separate paragraphs; race entries now also include their race combat ability as a second paragraph, and the manatky section now covers one-use combat/out-of-combat use plus narrow medical crafting.
+- Kept underdog combat wins with `+5..+7` level advantage in general/combat `📜 Хроніки Квестарні` rows but removed them from `⭐ Важливе`; only `+8` and higher underdog wins stay important for now, including historical rows already stored with high severity.
+
+### Safety
+- Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
+- Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start a same-target blessing wait; successful healing never starts cooldown.
+- Priest/Rogue open cards and the hero self-heal shortcut now reuse the same active-flow block awareness as mutation-time gates, so busy actors do not receive misleading ready action buttons.
+- Successful Priest healing and blessing now anchor mana regeneration at the action time, so an old regen marker cannot immediately refill spent mana on the next hero/card read.
+- Active Priest blessing stat bonuses now use a shared helper for hero summaries and class noncombat planning; expired blessings do not affect stats and active blessings still do not stack.
+- Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
+- Rogue retaliation uses the existing safe duel flows after the durable pickpocket result; it skips resource warnings and the Rogue accept prompt by design, but still creates no stakes, gold or item loss.
+- Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
+- Standard actor achievement notifications are sent only for fresh completed Priest heal/bless or Rogue attempts; blocked/no-op states and duplicate Rogue replays do not notify again.
+- No public shame/latest-events row, PvP tournament, item theft, universal noncombat engine, combat ability rebalance or paid advantage ships here.
+- Local `/dev_reset_priest_blessing`, `/dev_reset_quiet_pocket` and `/dev_reset_rogue` are non-production grant helpers; production config must not register, show or mutate through them, `/dev_reset_quiet_pocket` clears the actual current Rogue cooldown key, and `/dev_reset_rogue` clears both that cooldown family and same-day Rogue target memory for the current actor.
+
+### Tests
+- Added domain tests for Priest heal math and deterministic Rogue amount/outcome shaping.
+- Added callback parser tests for `v1:nc` open/action payloads and stale-click remort counters.
+- Added service tests for Priest heal/blessing planning, Priest heal no-cooldown behavior, scaled Priest blessing bonus, Rogue deterministic planning, duplicate replay and achievement hooks.
+- Added service/hero coverage proving equipped manatky and active non-expired Priest blessing bonuses affect Priest/Rogue noncombat planning, target effective HP max uses the same source as the heal plan and expired blessings do not affect hero stats.
+- Added presenter coverage that Daily Korchma Round scene cards keep local action labels out of the message body while help mode still shows action details.
+- Added DevGrant coverage proving `/dev_reset_quiet_pocket` sends the current `noncombat.rogue.pickpocket` cooldown key, `/dev_reset_rogue` clears same-day Rogue target rows, and disabled dev grants still do not route.
+- Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
+- Added repository regression coverage proving Priest healing does not create a cooldown row and Priest blessing waits are scoped to the same actor-target pair.
+- Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.
+- Added keyboard and command coverage for Shynok/Fighting Corner hall-return quest markers and the ready `🪧 Обрати пригоду ⚠️` button.
+- Added presenter, keyboard, service and hero-command coverage for active-flow class noncombat blocking and hidden Priest self-heal shortcuts.
+- Added hero-command and keyboard coverage for the Priest self-blessing hero-card shortcut.
+- Added presenter coverage for empty Rogue pickpocket target lists.
+- Added Prisma repository integration tests for exact normalized target listing, same-day Rogue target marking, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
+- Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation, duplicate Rogue replay silence and both instant/turn-based Rogue retaliation paths.
+- Added callback, presenter and command coverage for noticed Rogue theft clarity, target-only retaliation buttons and automatic duel acceptance parameters.
+- Added lore-board coverage for class combat ability references and separate side-surface paragraphs.
+- Added online/presence routing tests for the `Хто поруч` discovery surface and neutral `v1:nc` callback presence.
+- Added combat-engine regression coverage for expiring hero-targeted monster effects after `defend` in a two-enemy fight.
+- Added combat-engine and presenter coverage for visible backup-enemy pressure pauses in multi-enemy journals.
+- Added party-boss presenter coverage for dense-bandage raid cooldown rows and medical-item icons in raid action lines.
+- Added activity-event publisher and repository coverage for the `⭐ Важливе` underdog threshold, including historical high-severity `+7` rows.
+
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
 
 ### Changed
@@ -390,7 +496,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused two-enemy simulator coverage and persistent two-enemy reward replay coverage so threat fights keep one terminal settlement and one stored reward.
 
 ### Changed
-- Softened two-enemy threat pressure by applying a named backup-enemy HP guard, skipping backup actions on alternating pressure turns while both enemies live, and reducing backup response damage before it reaches the hero.
+- Softened two-enemy threat pressure by applying a named backup-enemy HP guard, skipping backup actions on alternating pressure turns while both enemies live, and reducing backup response damage before it reaches the hero. The HP guard was later superseded in `0.2.25`; backup enemies now keep full level-derived HP.
 - Tuned targeted 0.2.11 outliers without changing reward math: the zero-declaration tax dragon now uses controller/tiny-boss weighting, its two signature actions are standard-band, the siege iron varenyk loses the generic construct tag and its armored filling shield/counter loop is smaller, and Bisyny/Molfar Soul race guardrails are slightly stronger.
 - The simulator now counts all stored `enemyActions` instead of only the primary monster response, so shields, heals, telegraphs and skills from two-enemy runs show up in summaries.
 

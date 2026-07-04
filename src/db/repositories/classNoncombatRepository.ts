@@ -1,0 +1,205 @@
+import type { CharacterRecord } from "./characterRepository";
+import type { RoguePickpocketOutcome } from "../../domain/noncombat/classNoncombatTechniques";
+
+export interface NoncombatTargetRecord {
+  telegramUserId: bigint;
+  characterId: string;
+  character: CharacterRecord;
+  name: string;
+  classId: string;
+  level: number;
+  hpCurrent: number;
+  hpMax: number;
+  gold: number;
+  remortCount: number;
+  priestBlessAvailableAt: Date | null;
+  rogueAttemptedToday: boolean;
+}
+
+export interface NoncombatActionSnapshot {
+  character: CharacterRecord;
+  actorBlocked: boolean;
+  targets: NoncombatTargetRecord[];
+  targetPage: number;
+  targetTotalPages: number;
+  locationId: string;
+  locationName: string;
+  priestBlessCooldownAvailableAt: Date | null;
+  priestSelfBlessAvailableAt: Date | null;
+  roguePickpocketCooldownAvailableAt: Date | null;
+}
+
+export interface PriestAidRecord {
+  id: string;
+  actorCharacterId: string;
+  targetCharacterId: string;
+  actorTelegramUserId: bigint;
+  targetTelegramUserId: bigint;
+  actorName: string;
+  targetName: string;
+  actionKind: "heal" | "blessing";
+  healAmount: number;
+  manaCost: number;
+  cooldownAvailableAt: Date;
+  completedAt: Date;
+}
+
+export interface PriestBlessingRecord {
+  id: string;
+  actorName: string;
+  targetName: string;
+  expiresAt: Date;
+  bonusStat: string | null;
+  bonusAmount: number;
+}
+
+export interface RoguePickpocketAttemptRecord {
+  id: string;
+  actorCharacterId: string;
+  targetCharacterId: string;
+  actorTelegramUserId: bigint;
+  targetTelegramUserId: bigint;
+  actorName: string;
+  targetName: string;
+  outcome: RoguePickpocketOutcome;
+  stolenGold: number;
+  actorHpAfter: number | null;
+  retaliationToken: string | null;
+  retaliationAvailableUntil: Date | null;
+  retaliationUsedAt: Date | null;
+  retaliationDuelInviteToken: string | null;
+  cooldownAvailableAt: Date;
+  completedAt: Date;
+}
+
+export type NoncombatGateReason =
+  | "no-character"
+  | "target-not-found"
+  | "self-target"
+  | "not-priest"
+  | "not-rogue"
+  | "level-locked"
+  | "target-level-locked"
+  | "actor-remort-mismatch"
+  | "target-remort-mismatch"
+  | "wrong-location"
+  | "target-inactive"
+  | "actor-blocked"
+  | "target-blocked"
+  | "actor-defeated"
+  | "full-hp"
+  | "insufficient-mana"
+  | "already-blessed"
+  | "cooldown"
+  | "target-cooldown"
+  | "pair-daily-used"
+  | "stale";
+
+export type PriestHealRepositoryResult =
+  | { state: "completed"; action: PriestAidRecord; actor: CharacterRecord; target: CharacterRecord; created: true }
+  | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord; availableAt?: Date; blessing?: PriestBlessingRecord };
+
+export type PriestBlessRepositoryResult =
+  | {
+      state: "completed";
+      action: PriestAidRecord;
+      blessing: PriestBlessingRecord;
+      actor: CharacterRecord;
+      target: CharacterRecord;
+      created: true;
+    }
+  | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord; availableAt?: Date; blessing?: PriestBlessingRecord };
+
+export type RoguePickpocketRepositoryResult =
+  | { state: "completed"; attempt: RoguePickpocketAttemptRecord; actor: CharacterRecord; target: CharacterRecord; created: boolean }
+  | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord; availableAt?: Date };
+
+export type RogueRetaliationClaimReason =
+  | "not-found"
+  | "not-target"
+  | "invalid-attempt"
+  | "expired"
+  | "used"
+  | "actor-not-rogue";
+
+export type RogueRetaliationClaimResult =
+  | { state: "ready"; attempt: RoguePickpocketAttemptRecord; actor: CharacterRecord; target: CharacterRecord }
+  | { state: "blocked"; reason: RogueRetaliationClaimReason; attempt?: RoguePickpocketAttemptRecord };
+
+export interface ClassNoncombatRepository {
+  getSnapshotForTelegramUser(
+    telegramUserId: bigint,
+    input: { activeSince: Date; page: number; pageSize: number; now: Date; rogueAttemptedLocalDate?: string }
+  ): Promise<NoncombatActionSnapshot | null>;
+
+  getActivePriestBlessingForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<PriestBlessingRecord | null>;
+
+  getPriestSelfBlessAvailableAtForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<Date | null>;
+
+  isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean>;
+
+  completePriestHeal(
+    actorTelegramUserId: bigint,
+    input: {
+      targetTelegramUserId: bigint | null;
+      expectedActorRemortCount: number;
+      expectedTargetRemortCount: number;
+      activeSince: Date;
+      now: Date;
+      healAmount: number;
+      targetEffectiveHpMax: number;
+      manaCost: number;
+      statSnapshot: unknown;
+    }
+  ): Promise<PriestHealRepositoryResult>;
+
+  completePriestBlessing(
+    actorTelegramUserId: bigint,
+    input: {
+      targetTelegramUserId: bigint | null;
+      expectedActorRemortCount: number;
+      expectedTargetRemortCount: number;
+      activeSince: Date;
+      now: Date;
+      expiresAt: Date;
+      cooldownAvailableAt: Date;
+      manaCost: number;
+      bonusAmount: number;
+      statSnapshot: unknown;
+    }
+  ): Promise<PriestBlessRepositoryResult>;
+
+  completeRoguePickpocket(
+    actorTelegramUserId: bigint,
+    input: {
+      targetTelegramUserId: bigint;
+      expectedActorRemortCount: number;
+      expectedTargetRemortCount: number;
+      activeSince: Date;
+      now: Date;
+      localDate: string;
+      cooldownAvailableAt: Date;
+      outcome: RoguePickpocketOutcome;
+      stolenGold: number;
+      retaliationToken: string | null;
+      retaliationAvailableUntil: Date | null;
+      statSnapshot: unknown;
+    }
+  ): Promise<RoguePickpocketRepositoryResult>;
+
+  claimRogueRetaliation(
+    targetTelegramUserId: bigint,
+    input: { retaliationToken: string; now: Date }
+  ): Promise<RogueRetaliationClaimResult>;
+
+  recordRogueRetaliationDuel(
+    retaliationToken: string,
+    input: { duelInviteToken: string; now: Date }
+  ): Promise<void>;
+}

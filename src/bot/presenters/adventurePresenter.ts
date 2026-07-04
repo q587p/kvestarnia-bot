@@ -37,7 +37,6 @@ export function presentAdventureStart(): string {
 
 export function presentMimicShawarmaStart(character: CharacterSummary): string {
   const flavor = presentCharacterFlavor(character, "quest.start", "shawarma");
-  const methodLines = formatMethodLabelLines(buildStarterMethodOptions("shawarma", character));
 
   return [
     "🌯 Підозріла шаурма",
@@ -47,10 +46,7 @@ export function presentMimicShawarmaStart(character: CharacterSummary): string {
     npcQuote("Корчмар", "То не моя."),
     ...flavor,
     "",
-    "<i>Можливі способи:</i>",
-    ...methodLines,
-    "",
-    `<b>${escapeHtml(character.name)}</b>, що робимо?`
+    "<i>Можливі способи:</i>"
   ].join("\n");
 }
 
@@ -77,8 +73,6 @@ export function presentAdventureProblem(
     return presentAdventureAlreadyCompleted();
   }
 
-  const methodLines = formatMethodLabelLines(result.approaches);
-
   return [
     `📌 <b>${escapeHtml(result.choice.title)}</b>`,
     "",
@@ -88,10 +82,7 @@ export function presentAdventureProblem(
     `<i>Проблема:</i> ${escapeHtml(result.choice.problem)}`,
     `<i>Ціль:</i> ${escapeHtml(result.choice.goal)}`,
     "",
-    "<i>Можливі способи:</i>",
-    ...methodLines,
-    "",
-    npcQuote("Корчмар", "Метод оберіть самі. Потім не кажіть, що метод обрав вас.")
+    "<i>Можливі способи:</i>"
   ].join("\n");
 }
 
@@ -99,12 +90,6 @@ export function presentAdventureProblemMethodHelp(
   result: Extract<AdventureProblemResult, { state: "selected" }>
 ): string {
   return presentMethodHelp(result.approaches);
-}
-
-function formatMethodLabelLines(
-  methods: ReadonlyArray<{ label: string }>
-): string[] {
-  return methods.map((method) => escapeHtml(method.label));
 }
 
 function presentMethodHelp(
@@ -340,8 +325,9 @@ function presentHpLossLines(
   const currentHpMax = character?.hpMax ?? hpLoss.max;
 
   return [
-    `Втрачено здоров’я: ${hpLoss.lost}`,
-    `Здоров’я: ${currentHp}/${currentHpMax}`
+    "",
+    `💔 Втрачено здоров’я: ${hpLoss.lost}`,
+    `❤️‍🩹 Здоров’я: ${currentHp}/${currentHpMax}`
   ];
 }
 

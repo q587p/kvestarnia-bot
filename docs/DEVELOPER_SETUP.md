@@ -81,7 +81,7 @@ BOT_USERNAME=kvestarnia_bot
 
 `/dev_reset_me` лишається локальним reset-хелпером і працює, коли `NODE_ENV` не `production`.
 
-Усі `/dev_*` команди мають лишатися non-production only: production feature flags можуть відкривати ігрові поверхні, але не мають реєструвати `/dev_*`, показувати їх у `/help` або `/dev_help`, чи дозволяти dev-only callback mutation. Зокрема `PARTY_SESSION_DEV_HELPERS_ENABLED` не повинен відкривати `/dev_party` у `NODE_ENV=production`.
+Усі `/dev_*` команди мають лишатися non-production only: production feature flags можуть відкривати ігрові поверхні, але не мають реєструвати `/dev_*`, показувати їх у `/help` або `/dev_help`, чи дозволяти dev-only callback mutation. Будь-який новий player-facing timer/cooldown/retry/once-per-period gate, включно з класовими або соціяльними вміннями, має отримати вузьку локальну `/dev_*` команду до PR-ready стану або явний виняток у task doc і PR body. Зокрема `PARTY_SESSION_DEV_HELPERS_ENABLED` не повинен відкривати `/dev_party` у `NODE_ENV=production`.
 
 Value-granting helper commands вмикаються тільки явним локальним opt-in:
 
@@ -107,6 +107,9 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_add_yeger_line [число]` — додає єгерські риски на дощечці; без числа додає одну риску.
 - `/dev_reset_yeger_bandage` — скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — завершує поточне очікування Єгерського сліду для поточного персонажа.
+- `/dev_reset_priest_blessing` — скидає локальний cooldown жрецького благословення/підтримки для поточного персонажа.
+- `/dev_reset_quiet_pocket` — скидає локальний cooldown злодійської `Тихої кишені` для поточного персонажа.
+- `/dev_reset_rogue` — скидає локальний cooldown `Тихої кишені` та поточний київський день цілей, які цей злодій уже пробував обчистити.
 - `/dev_yeger_first_done` — доводить першу Єгерську дошку `Неспокійні справи` до `5/5` реальними terminal win rows; нагороду й досягнення треба забрати звичайною кнопкою здачі.
 - `/dev_yeger_second_done` — доводить другу Єгерську дошку `Неспокійні справи 2.0` до `17/17` реальними terminal win rows після зданої першої дошки; нагороду й досягнення треба забрати звичайною кнопкою здачі.
 - `/dev_adventure_reset` — скидає й перетасовує поточний вибір пригоди для швидкого локального тесту.

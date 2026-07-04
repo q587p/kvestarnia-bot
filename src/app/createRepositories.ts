@@ -5,6 +5,7 @@ import { PrismaBardPerformanceRepository } from "../db/repositories/prismaBardPe
 import { PrismaBarrelRaidNotificationRepository } from "../db/repositories/prismaBarrelRaidNotificationRepository";
 import { PrismaCellarGrownupQuestRepository } from "../db/repositories/prismaCellarGrownupQuestRepository";
 import { PrismaCharacterRepository } from "../db/repositories/prismaCharacterRepository";
+import { PrismaClassNoncombatRepository } from "../db/repositories/prismaClassNoncombatRepository";
 import { PrismaCombatBalanceAnalyticsRepository } from "../db/repositories/prismaCombatBalanceAnalyticsRepository";
 import { PrismaCooldownRepository } from "../db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../db/repositories/prismaDailyActionRepository";
@@ -42,6 +43,7 @@ export function createRepositories(prisma: PrismaClient) {
     barrelRaidNotifications: new PrismaBarrelRaidNotificationRepository(prisma),
     characters: new PrismaCharacterRepository(prisma),
     cellarGrownupQuests: new PrismaCellarGrownupQuestRepository(prisma),
+    classNoncombat: new PrismaClassNoncombatRepository(prisma),
     combatBalanceAnalytics: new PrismaCombatBalanceAnalyticsRepository(prisma),
     cooldowns: new PrismaCooldownRepository(prisma),
     dailyActions: new PrismaDailyActionRepository(prisma),

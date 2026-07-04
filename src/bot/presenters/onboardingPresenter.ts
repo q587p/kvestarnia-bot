@@ -77,7 +77,12 @@ export function presentCharacterCreated(
   const lines = [title, "", `${titleLine} <i>${escapeHtml(summary.title)}</i>`];
 
   if (options.includeKvestarniaOpened) {
-    lines.push("", "🍺 Квестарня відчинена.");
+    lines.push(
+      "",
+      "🍺 Квестарня відчинена.",
+      "",
+      "⚠️ Бачите такий знак на кнопці: там чекає актуальна справа. Корчма називає це навігацією, а не приводом нервувати."
+    );
   }
 
   return lines.join("\n");

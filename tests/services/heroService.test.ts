@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type {
+  ClassNoncombatRepository,
+  PriestBlessingRecord
+} from "../../src/db/repositories/classNoncombatRepository";
+import type {
   CharacterRecord,
   CharacterRepository,
   CreateCharacterInput,
@@ -159,6 +163,112 @@ describe("HeroService", () => {
         outgoingDamageMultiplierBp: 11300,
         incomingDamageMultiplierBp: 11300
       }
+    });
+  });
+
+  it("returns the active Priest blessing for hero presentation", async () => {
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter()),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      new FakeClassNoncombatRepository({
+        id: "blessing-1",
+        actorName: "Мандрівник",
+        targetName: "Мандрівник",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: null,
+        bonusAmount: 0
+      })
+    );
+
+    const result = await service.findByTelegramUserId(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "existing-character",
+      character: {
+        stats: {
+          luck: 8
+        }
+      },
+      activePriestBlessing: {
+        actorName: "Мандрівник",
+        targetName: "Мандрівник",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: "luck",
+        bonusAmount: 1
+      }
+    });
+  });
+
+  it("does not apply an expired Priest blessing bonus to the hero summary", async () => {
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter()),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:14:00.000Z"),
+      undefined,
+      new FakeClassNoncombatRepository({
+        id: "blessing-1",
+        actorName: "Мандрівник",
+        targetName: "Мандрівник",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: "luck",
+        bonusAmount: 5
+      })
+    );
+
+    const result = await service.findByTelegramUserId(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "existing-character",
+      character: {
+        stats: {
+          luck: 7
+        }
+      }
+    });
+  });
+
+  it("reports when class noncombat shortcuts are blocked by an active flow", async () => {
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter()),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      new FakeClassNoncombatRepository(null, true)
+    );
+
+    await expect(service.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      classNoncombatBlocked: true
+    });
+  });
+
+  it("returns Priest self-blessing wait for hero shortcuts", async () => {
+    const availableAt = new Date("2026-07-03T10:33:00.000Z");
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter({ classId: "class.priest", level: 3 })),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      new FakeClassNoncombatRepository(null, false, availableAt)
+    );
+
+    await expect(service.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      priestSelfBlessAvailableAt: availableAt
     });
   });
 });
@@ -323,5 +433,28 @@ class FakeShynokRepository {
 
   getRecoveryDrinkForTelegramUser(): Promise<ShynokDrinkStateRecord | null> {
     return Promise.resolve(this.recoveryDrink);
+  }
+}
+
+class FakeClassNoncombatRepository implements Pick<
+  ClassNoncombatRepository,
+  "getActivePriestBlessingForTelegramUser" | "getPriestSelfBlessAvailableAtForTelegramUser" | "isActorBlockedForTelegramUser"
+> {
+  constructor(
+    private readonly blessing: PriestBlessingRecord | null,
+    private readonly actorBlocked = false,
+    private readonly selfBlessAvailableAt: Date | null = null
+  ) {}
+
+  getActivePriestBlessingForTelegramUser(): Promise<PriestBlessingRecord | null> {
+    return Promise.resolve(this.blessing);
+  }
+
+  getPriestSelfBlessAvailableAtForTelegramUser(): Promise<Date | null> {
+    return Promise.resolve(this.selfBlessAvailableAt);
+  }
+
+  isActorBlockedForTelegramUser(): Promise<boolean> {
+    return Promise.resolve(this.actorBlocked);
   }
 }

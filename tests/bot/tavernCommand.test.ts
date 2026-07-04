@@ -280,7 +280,17 @@ describe("tavern command screens", () => {
       "reply",
       undefined,
       undefined,
-      { isEnabled: () => true } as Pick<TavernGameService, "isEnabled"> as TavernGameService
+      {
+        isEnabled: () => true,
+        getHub: () =>
+          Promise.resolve({
+            state: "ready",
+            maxStake: 25,
+            tavleiEnabled: true,
+            kostiEnabled: true,
+            openTables: [{}, {}]
+          })
+      } as unknown as TavernGameService
     );
 
     expect(replies[0]?.text).toContain("🍻 Шинок");
@@ -289,13 +299,42 @@ describe("tavern command screens", () => {
       reply_markup: {
         inline_keyboard: [
           ...shynokActionRows,
-          [{ text: "🎲 Ігри за столом", callback_data: "v1:sh:gm" }],
+          [{ text: "🎲 Ігри за столом (2)", callback_data: "v1:sh:gm" }],
           [
             {
               text: "⬅️ До зали",
               callback_data: makePlaceCallbackData("hall")
             }
           ]
+        ]
+      }
+    });
+  });
+
+  it("marks the Shynok hall return when hall quests are available", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      undefined,
+      undefined,
+      {
+        questMarkers: {
+          characterLevel: 4,
+          dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }
+        }
+      }
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      reply_markup: {
+        inline_keyboard: [
+          ...shynokActionRows,
+          [{ text: "⬅️ До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });
@@ -389,7 +428,13 @@ describe("tavern command screens", () => {
       makeContext(replies),
       readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
-      "reply"
+      "reply",
+      {
+        questMarkers: {
+          characterLevel: 4,
+          dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }
+        }
+      }
     );
 
     expect(replies[0]?.text).toContain("🥊 Бійцівський куток");
@@ -406,7 +451,7 @@ describe("tavern command screens", () => {
           [
             { text: "🏆 Переможці", callback_data: makePlaceCallbackData("duel-winners") }
           ],
-          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+          [{ text: "⬅️ До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });

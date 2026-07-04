@@ -11,7 +11,7 @@ const featureModuleOwners = {
   "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:mem:/", "/^v1:ev:/", "/^v[12]:cellar:/"],
   "quest.ts": ["/^v[12]:adv:/", "/^v1:quest:/", "/^v1:dkr:/", "/^v1:hunt:/", "/^v1:ygr:/"],
   "combat.ts": ["/^v1:spar:/", "/^v1:fight:/", "/^v1:search:/"],
-  "social.ts": ["/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:party:/"]
+  "social.ts": ["/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:nc:/", "/^v1:party:/"]
 };
 
 const expectedCallbackInventory = Object.values(featureModuleOwners).flat();
@@ -68,6 +68,9 @@ const expectedCommandAliasInventory = [
   "dev_reset_korchma_round",
   "dev_reset_me",
   "dev_reset_monster_rest",
+  "dev_reset_priest_blessing",
+  "dev_reset_quiet_pocket",
+  "dev_reset_rogue",
   "dev_reset_yeger_bandage",
   "dev_reset_yeger_bandage_day",
   "dev_reset_yeger_trail",

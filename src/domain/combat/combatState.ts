@@ -327,6 +327,7 @@ export interface CombatTurnSummary {
   allyResults?: CombatAllyAbilityResult[];
   fumble?: CombatPlayerAbilityFumbleSummary;
   enemyActions?: CombatEnemyTurnSummary[];
+  enemyPressureSkips?: CombatEnemyPressureSkipSummary[];
   debugTrace?: CombatDebugTrace;
 }
 
@@ -358,6 +359,12 @@ export interface CombatEnemyTurnSummary {
   monsterEffectText?: string;
   monsterTelegraphAbilityId?: string;
   simultaneousFinalResponse?: boolean;
+}
+
+export interface CombatEnemyPressureSkipSummary {
+  enemyId: string;
+  monsterId: string;
+  monsterName?: string;
 }
 
 export interface CombatTurnLogEntry {
@@ -784,6 +791,9 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
     ...summary,
     ...(summary.enemyActions
       ? { enemyActions: summary.enemyActions.map((entry) => ({ ...entry })) }
+      : {}),
+    ...(summary.enemyPressureSkips
+      ? { enemyPressureSkips: summary.enemyPressureSkips.map((entry) => ({ ...entry })) }
       : {}),
     ...(summary.enemyResults
       ? { enemyResults: summary.enemyResults.map((entry) => ({ ...entry })) }

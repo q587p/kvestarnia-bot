@@ -192,7 +192,7 @@ describe("application factory wiring", () => {
         enabled: nonProduction ||
           config.bigBarrelBrotherRaidEnabled,
         devHelpersEnabled: nonProduction
-      }, undefined, achievements, publicActivityEvents)
+      }, undefined, achievements, publicActivityEvents, repositories.inventory)
     `));
     expect(source).toContain(compact(`
       partySessions: new PartySessionService(repositories.partySessions, {

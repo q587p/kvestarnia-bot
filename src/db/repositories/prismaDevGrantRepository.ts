@@ -9,11 +9,13 @@ import { getLevelForXp } from "../../domain/progression/level";
 import type { CharacterRecord } from "./characterRepository";
 import type {
   DevGrantCharacterResult,
+  DevGrantCooldownMatchInput,
   DevGrantCooldownResult,
   DevGrantDailyActionResetResult,
   DevGrantItemResult,
   DevGrantProgressResult,
   DevGrantRepository,
+  DevGrantRogueResetResult,
   DevGrantYegerQuestProgressResult,
   DevGrantYegerQuestStage
 } from "./devGrantRepository";
@@ -270,6 +272,13 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
     telegramUserId: bigint,
     key: string
   ): Promise<DevGrantCooldownResult | null> {
+    return this.clearCooldownsForTelegramUser(telegramUserId, { keys: [key] });
+  }
+
+  async clearCooldownsForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput
+  ): Promise<DevGrantCooldownResult | null> {
     return this.prisma.$transaction(async (tx) => {
       const character = await findCharacterByTelegramUserId(tx, telegramUserId);
 
@@ -277,16 +286,105 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
         return null;
       }
 
+      const cooldownKeyWhere = buildCooldownKeyWhere(input);
       const deleted = await tx.characterCooldown.deleteMany({
         where: {
           characterId: character.id,
-          key
+          ...(cooldownKeyWhere ? { OR: cooldownKeyWhere } : { key: "__no_dev_cooldown_match__" })
         }
       });
 
       return {
         character: toCharacterRecord(character),
         cleared: deleted.count > 0
+      };
+    });
+  }
+
+  async resetPriestBlessingForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { now: Date }
+  ): Promise<DevGrantCooldownResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const cooldownKeyWhere = buildCooldownKeyWhere(input);
+      const legacyCooldowns = await tx.characterCooldown.deleteMany({
+        where: {
+          characterId: character.id,
+          ...(cooldownKeyWhere ? { OR: cooldownKeyWhere } : { key: "__no_dev_cooldown_match__" })
+        }
+      });
+      const pairWaits = await tx.noncombatPriestAidAction.updateMany({
+        where: {
+          actorCharacterId: character.id,
+          actionKind: "blessing",
+          cooldownAvailableAt: {
+            gt: input.now
+          }
+        },
+        data: {
+          cooldownAvailableAt: input.now,
+          updatedAt: input.now
+        }
+      });
+      const activeBlessings = await tx.noncombatPriestBlessing.updateMany({
+        where: {
+          actorCharacterId: character.id,
+          status: "active",
+          expiresAt: {
+            gt: input.now
+          }
+        },
+        data: {
+          status: "expired",
+          activeGuard: null,
+          expiresAt: input.now,
+          endedAt: input.now,
+          updatedAt: input.now
+        }
+      });
+
+      return {
+        character: toCharacterRecord(character),
+        cleared: legacyCooldowns.count + pairWaits.count + activeBlessings.count > 0
+      };
+    });
+  }
+
+  async resetRogueForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { localDate: string }
+  ): Promise<DevGrantRogueResetResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const cooldownKeyWhere = buildCooldownKeyWhere(input);
+      const cooldowns = await tx.characterCooldown.deleteMany({
+        where: {
+          characterId: character.id,
+          ...(cooldownKeyWhere ? { OR: cooldownKeyWhere } : { key: "__no_dev_cooldown_match__" })
+        }
+      });
+      const attempts = await tx.noncombatRoguePickpocketAttempt.deleteMany({
+        where: {
+          actorCharacterId: character.id,
+          localDate: input.localDate
+        }
+      });
+
+      return {
+        character: toCharacterRecord(character),
+        clearedCooldown: cooldowns.count > 0,
+        deletedAttempts: attempts.count
       };
     });
   }
@@ -451,7 +549,18 @@ function getDevYegerQuestStageConfig(stage: DevGrantYegerQuestStage): {
         startedKey: YEGER_UNQUIET_TRIAL_STARTED_KEY,
         completedKey: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
         target: YEGER_UNQUIET_TRIAL_TARGET
-      };
+    };
+}
+
+function buildCooldownKeyWhere(input: DevGrantCooldownMatchInput): Prisma.CharacterCooldownWhereInput[] | null {
+  const keys = [...new Set(input.keys ?? [])].filter((key) => key.length > 0);
+  const keyPrefixes = [...new Set(input.keyPrefixes ?? [])].filter((prefix) => prefix.length > 0);
+  const conditions: Prisma.CharacterCooldownWhereInput[] = [
+    ...(keys.length > 0 ? [{ key: { in: keys } }] : []),
+    ...keyPrefixes.map((prefix) => ({ key: { startsWith: prefix } }))
+  ];
+
+  return conditions.length > 0 ? conditions : null;
 }
 
 async function ensureYegerQuestStarted(

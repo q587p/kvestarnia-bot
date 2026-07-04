@@ -250,6 +250,9 @@ export class PrismaAchievementRepository implements AchievementRepository {
       completedGiftsReceived,
       completedMantokSales,
       completedBardPerformances,
+      completedPriestHealActions,
+      completedPriestBlessingActions,
+      completedRoguePickpocketAttempts,
       yegerFreeBandages,
       completedItemUseOrders,
       completedSelfDrinkOrders,
@@ -484,6 +487,21 @@ export class PrismaAchievementRepository implements AchievementRepository {
         select: { completedAt: true, updatedAt: true },
         orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
       }),
+      this.prisma.noncombatPriestAidAction.findMany({
+        where: { actorCharacterId: characterId, status: "completed", actionKind: "heal" },
+        select: { completedAt: true, updatedAt: true },
+        orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.noncombatPriestAidAction.findMany({
+        where: { actorCharacterId: characterId, status: "completed", actionKind: "blessing" },
+        select: { completedAt: true, updatedAt: true },
+        orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.noncombatRoguePickpocketAttempt.findMany({
+        where: { actorCharacterId: characterId, status: "completed" },
+        select: { completedAt: true, updatedAt: true, outcome: true, stolenGold: true },
+        orderBy: [{ completedAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }]
+      }),
       this.prisma.characterCooldown.findMany({
         where: { characterId, key: YEGER_RANGER_FREE_BANDAGE_KEY },
         select: { updatedAt: true }
@@ -645,6 +663,15 @@ export class PrismaAchievementRepository implements AchievementRepository {
       "item.gift.received": completedGiftsReceived.map((row) => row.completedAt ?? row.updatedAt),
       "mantok.sale.completed": completedMantokSales.map((row) => row.completedAt ?? row.updatedAt),
       "bard.performance.completed": completedBardPerformances.map((row) => row.completedAt ?? row.updatedAt),
+      "priest.heal.completed": completedPriestHealActions.map((row) => row.completedAt ?? row.updatedAt),
+      "priest.blessing.completed": completedPriestBlessingActions.map((row) => row.completedAt ?? row.updatedAt),
+      "rogue.pickpocket.attempted": completedRoguePickpocketAttempts.map((row) => row.completedAt ?? row.updatedAt),
+      "rogue.pickpocket.success": completedRoguePickpocketAttempts
+        .filter((row) => row.stolenGold > 0)
+        .map((row) => row.completedAt ?? row.updatedAt),
+      "rogue.pickpocket.caught": completedRoguePickpocketAttempts
+        .filter((row) => row.outcome === "caught-badly")
+        .map((row) => row.completedAt ?? row.updatedAt),
       "yeger.free-bandage.claimed": yegerFreeBandages.map((row) => row.updatedAt),
       "item.used": itemUseDates,
       [`item.used:${BANDAGE_ITEM_ID}`]: bandageUseDates,

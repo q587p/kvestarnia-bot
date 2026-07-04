@@ -45,6 +45,7 @@ export function registerCoreBotModule(
 ): void {
   registerOnlineCommand(bot, services.presence, {
     bardPerformanceEnabled: Boolean(services.bardPerformance),
+    classNoncombatEnabled: Boolean(services.classNoncombat),
     duelEnabled: Boolean(services.duel),
     itemGiftEnabled: Boolean(services.itemTransfers),
     partySessions: services.partySessions,
@@ -107,7 +108,7 @@ async function handleMenuCallback(
   }
 
   if (action === "inventory") {
-    await sendInventory(ctx, services.inventory, "edit");
+    await sendInventory(ctx, services.inventory, "edit", 0, null, services.equipment);
     return;
   }
 

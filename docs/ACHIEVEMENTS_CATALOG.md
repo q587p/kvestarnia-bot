@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 127 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 132 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -102,6 +102,11 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.level.barter.three` | enabled | visible | `level.barter.completed >= 3` | Три рівневі квитанції | тричі скористатися обміном Манчкіна й не сперечатися з дрібним шрифтом. |
 | `achievement.bard.performance.first` | enabled | visible | `bard.performance.completed >= 1` | Куплет вийшов на люди | уперше виступити як бард і змусити Шинок перевірити акустику. |
 | `achievement.bard.performance.thirteen` | enabled | visible | `bard.performance.completed >= 13` | Тринадцять куплетів свідчать | виступити як бард 13 разів і лишити Шинок у стані культурної обережности. |
+| `achievement.priest.heal.first` | enabled | visible | `priest.heal.completed >= 1` | Мана замість бинта | уперше полікувати жерцем поза боєм і не витратити жодного бинта на бюрократію. |
+| `achievement.priest.blessing.first` | enabled | visible | `priest.blessing.completed >= 1` | Печатка суворої турботи | уперше благословити когось жерцем так, щоб навіть пил став чемнішим. |
+| `achievement.rogue.pickpocket.first` | enabled | visible | `rogue.pickpocket.attempted >= 1` | Кишеня не підписувала згоду | уперше спробувати тиху кишеню як злодій і лишити протоколу дивні питання. |
+| `achievement.rogue.pickpocket.success` | enabled | visible | `rogue.pickpocket.success >= 1` | Монета змінила філософію | уперше успішно обчистити кишеню так тихо, що золото саме переглянуло біографію. |
+| `achievement.rogue.pickpocket.caught` | enabled | visible | `rogue.pickpocket.caught >= 1` | Лікоть мав аргументи | уперше провалити тиху кишеню так голосно, що HP попросило прилягти. |
 | `achievement.training.doppelganger.first` | enabled | visible | `training.doppelganger.finished >= 1` | Дзеркало вдарило першим | уперше завершити тренування з Допельґанґером і не підписувати протокол споріднености. |
 | `achievement.social.training-win-1` | enabled | visible | `training.doppelganger.won >= 1` | Сам собі суперник | перемогти Сумлінного Допельґанґера й не звинувачувати дзеркало в упередженості. |
 | `achievement.training.doppelganger.thirteen` | enabled | visible | `training.doppelganger.finished >= 13` | Допельґанґер просить відпустку | завершити 13 тренувань із Допельґанґером і лишити дзеркало втомленим. |

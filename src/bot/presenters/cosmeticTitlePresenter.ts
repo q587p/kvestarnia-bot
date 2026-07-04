@@ -3,6 +3,7 @@ import type {
   CosmeticTitleListView,
   CosmeticTitleMutationState
 } from "../../services/achievementService";
+import { COSMETIC_TITLES_PAGE_SIZE } from "../../services/achievementService";
 import { escapeHtml } from "./telegramHtml";
 
 const TITLE_DATE_TIME_ZONE = "Europe/Kyiv";
@@ -30,7 +31,12 @@ export function presentCosmeticTitles(
   if (view.entries.length === 0) {
     lines.push("Титулів ще нема. Ачівки вже точать таблички, але поки без вашого прізвища.");
   } else {
-    lines.push(...view.entries.map((entry, index) => presentCosmeticTitleRow(entry, index + 1)));
+    if (view.totalPages > 1) {
+      lines.push(`Сторінка ${view.page + 1}/${view.totalPages}.`);
+    }
+    lines.push(...view.entries.map((entry, index) =>
+      presentCosmeticTitleRow(entry, view.page * COSMETIC_TITLES_PAGE_SIZE + index + 1)
+    ));
   }
 
   if (view.activeTitleMissing) {

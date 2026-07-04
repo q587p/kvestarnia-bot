@@ -25,6 +25,12 @@ import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppe
 import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import {
+  decorateButtonLabel,
+  resolveQuestMarkerForTarget,
+  QuestMarker,
+  type QuestMarkerInput
+} from "./questButtonMarkers";
 
 export type TavernResultKeyboardState =
   | "completed"
@@ -33,12 +39,18 @@ export type TavernResultKeyboardState =
   | "pending-started"
   | "audit-break";
 
-export function buildTavernKeyboard(): InlineKeyboard {
+export function buildTavernKeyboard(options: { questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   return new InlineKeyboard()
     .text("🍺 У рейд на бочку", makeTavernCallbackData("raid"))
     .row()
-    .text("🧥 Єгер", makeTavernCallbackData("ranger"))
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(
+      decorateButtonLabel(
+        "🧥 Єгер",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.ranger-corner")
+      ),
+      makeTavernCallbackData("ranger")
+    )
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaFrontKeyboard(
@@ -47,10 +59,17 @@ export function buildKorchmaFrontKeyboard(
     munchkinLocation?: MunchkinLocation;
     dailyYard?: boolean;
     characterLevel?: number;
+    questMarkers?: QuestMarkerInput | null;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
-    .text("🚪 Зайти в корчму", makePlaceCallbackData("hall"))
+    .text(
+      decorateButtonLabel(
+        "🚪 Зайти в корчму",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall")
+      ),
+      makePlaceCallbackData("hall")
+    )
     .row();
 
   keyboard
@@ -65,7 +84,13 @@ export function buildKorchmaFrontKeyboard(
 
   if (options.dailyYard) {
     startFrontActionRow();
-    keyboard.text("🪣 У задвірок", makePlaceCallbackData("yard"));
+    keyboard.text(
+      decorateButtonLabel(
+        "🪣 У задвірок",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.yard")
+      ),
+      makePlaceCallbackData("yard")
+    );
   }
 
   const showMunchkin =
@@ -95,18 +120,34 @@ export function buildKorchmaFrontKeyboard(
   return keyboard;
 }
 
-export function buildKorchmaYardKeyboard(): InlineKeyboard {
+export function buildKorchmaYardKeyboard(options: { questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   return new InlineKeyboard()
-    .text("🧾 До обходу", makePlaceCallbackData("quest-table"))
+    .text(
+      decorateButtonLabel(
+        "🧾 До обходу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.quest-table")
+      ),
+      makePlaceCallbackData("quest-table")
+    )
     .row()
     .text("⬅️ До дверей", makePlaceCallbackData("front"));
 }
 
-export function buildEnterKorchmaKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text("🚪 Зайти в корчму", makePlaceCallbackData("hall"));
+export function buildEnterKorchmaKeyboard(
+  options: { questMarkers?: QuestMarkerInput | null } = {}
+): InlineKeyboard {
+  const marker =
+    options.questMarkers === undefined
+      ? QuestMarker.CAN_ACCEPT
+      : resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall");
+
+  return new InlineKeyboard().text(
+    decorateButtonLabel("🚪 Зайти в корчму", marker),
+    makePlaceCallbackData("hall")
+  );
 }
 
-export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = {}): InlineKeyboard {
+export function buildKorchmaHallKeyboard(options: { characterLevel?: number; questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const showFightingCorner = options.characterLevel === undefined || options.characterLevel >= 3;
   const showNyz = options.characterLevel === undefined || options.characterLevel >= 3;
@@ -119,15 +160,39 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
     keyboard.text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"));
   }
 
-  keyboard.text("📋 Стіл зі справами", makePlaceCallbackData("quest-table"))
+  keyboard.text(
+    decorateButtonLabel(
+      "📋 Стіл зі справами",
+      resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.quest-table")
+    ),
+    makePlaceCallbackData("quest-table")
+  )
     .row()
-    .text("🛢️ Бочка", makePlaceCallbackData("barrel"))
-    .text("🍻 Шинок", makePlaceCallbackData("bar"))
+    .text(
+      decorateButtonLabel(
+        "🛢️ Бочка",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.barrel")
+      ),
+      makePlaceCallbackData("barrel")
+    )
+    .text(
+      decorateButtonLabel(
+        "🍻 Шинок",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.bar")
+      ),
+      makePlaceCallbackData("bar")
+    )
     .row();
 
   keyboard
     .text("📰 Дошка корчми", makePlaceCallbackData("news-corner"))
-    .text("🐭 Льох", makePlaceCallbackData("cellar"))
+    .text(
+      decorateButtonLabel(
+        "🐭 Льох",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.cellar")
+      ),
+      makePlaceCallbackData("cellar")
+    )
     .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));
 
@@ -138,7 +203,9 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number } = 
   return keyboard;
 }
 
-export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {
+export function buildKorchmaFightingCornerKeyboard(
+  options: { questMarkers?: QuestMarkerInput | null } = {}
+): InlineKeyboard {
   return new InlineKeyboard()
     .text("🥊 Потренуватися", makeTrainingDoppelgangerCallbackData())
     .row()
@@ -148,7 +215,7 @@ export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {
     .row()
     .text("🏆 Переможці", makePlaceCallbackData("duel-winners"))
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaBarKeyboard(
@@ -157,6 +224,8 @@ export function buildKorchmaBarKeyboard(
     problemQuestAction?: "turn-in" | "take" | "next";
     bardPerformance?: boolean;
     tavernGames?: boolean;
+    tavernGameTableCount?: number;
+    questMarkers?: QuestMarkerInput | null;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
@@ -169,7 +238,7 @@ export function buildKorchmaBarKeyboard(
     .row();
 
   if (options.tavernGames) {
-    keyboard.text("🎲 Ігри за столом", makeShynokGamesCallbackData()).row();
+    keyboard.text(formatTavernGamesButtonLabel(options.tavernGameTableCount), makeShynokGamesCallbackData()).row();
   }
 
   if (options.bardPerformance) {
@@ -177,23 +246,47 @@ export function buildKorchmaBarKeyboard(
   }
 
   if (options.problemQuestAction === "turn-in") {
-    keyboard.text("📋 Здати справу", makeQuestCallbackData("problem")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "📋 Здати справу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.problem")
+      ),
+      makeQuestCallbackData("problem")
+    ).row();
   }
 
   if (options.problemQuestAction === "take") {
-    keyboard.text("📋 Взяти справу", makeQuestCallbackData("problem-next")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "📋 Взяти справу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.problem")
+      ),
+      makeQuestCallbackData("problem-next")
+    ).row();
   }
 
   if (options.problemQuestAction === "next") {
-    keyboard.text("📋 Взяти наступну справу", makeQuestCallbackData("problem-next")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "📋 Взяти наступну справу",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.problem")
+      ),
+      makeQuestCallbackData("problem-next")
+    ).row();
   }
 
   if (options.includeBottleTurnIn) {
-    keyboard.text("🍾 Здати пляшку", makeCellarCallbackData("grownup-turn-in")).row();
+    keyboard.text(
+      decorateButtonLabel(
+        "🍾 Здати пляшку",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.cellar-grownup")
+      ),
+      makeCellarCallbackData("grownup-turn-in")
+    ).row();
   }
 
   return keyboard
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
@@ -211,8 +304,10 @@ export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
     .text("⬅️ До зали", makePlaceCallbackData("hall"));
 }
 
-export function buildBackToKorchmaHallKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
+export function buildBackToKorchmaHallKeyboard(
+  options: { questMarkers?: QuestMarkerInput | null } = {}
+): InlineKeyboard {
+  return new InlineKeyboard().text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaDeepKeyboard(
@@ -274,11 +369,12 @@ export function buildKorchmaRemortMilestoneBoardKeyboard(): InlineKeyboard {
 }
 
 export function buildTavernResultKeyboard(
-  state: TavernResultKeyboardState
+  state: TavernResultKeyboardState,
+  options: { questMarkers?: QuestMarkerInput | null } = {}
 ): InlineKeyboard {
   if (state === "pending" || state === "pending-started") {
     return new InlineKeyboard()
-      .text("🍺 Перевірити бочку", makeTavernCallbackData("raid"))
+      .text("🔄 Перевірити бочку", makeTavernCallbackData("raid"))
       .row()
       .text("🏅 Перевірити рейтинг", makeTavernCallbackData("raid-leaderboard"))
       .row()
@@ -290,17 +386,29 @@ export function buildTavernResultKeyboard(
       .text("🍺 Просте всім", makeShynokBarrelRoundPreviewCallbackData("simple"))
       .text("🍻 Якісне всім", makeShynokBarrelRoundPreviewCallbackData("fine"))
       .row()
-      .text("🧥 Єгер", makeTavernCallbackData("ranger"))
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(
+        decorateButtonLabel(
+          "🧥 Єгер",
+          resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.ranger-corner")
+        ),
+        makeTavernCallbackData("ranger")
+      )
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
   }
 
   if (state === "audit-break") {
     return new InlineKeyboard()
-      .text("🧥 Єгер", makeTavernCallbackData("ranger"))
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(
+        decorateButtonLabel(
+          "🧥 Єгер",
+          resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.ranger-corner")
+        ),
+        makeTavernCallbackData("ranger")
+      )
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
   }
 
-  return buildTavernKeyboard();
+  return buildTavernKeyboard(options);
 }
 
 export function buildBackToTavernRaidKeyboard(): InlineKeyboard {
@@ -335,7 +443,7 @@ export function buildKorchmaRoundOfferKeyboard(
 
 export function buildKorchmaRoundResultKeyboard(
   result: Exclude<TavernRoundResult, { state: "no-character" }>,
-  options: { tavernGames?: boolean } = {}
+  options: { tavernGames?: boolean; tavernGameTableCount?: number } = {}
 ): InlineKeyboard {
   if (result.state === "raid-required") {
     return new InlineKeyboard()
@@ -345,4 +453,19 @@ export function buildKorchmaRoundResultKeyboard(
   }
 
   return buildKorchmaBarKeyboard(options);
+}
+
+export function formatTavernGamesButtonLabel(tableCount = 0): string {
+  const safeTableCount = Math.max(0, Math.trunc(tableCount));
+
+  return safeTableCount > 0
+    ? `🎲 Ігри за столом (${safeTableCount})`
+    : "🎲 Ігри за столом";
+}
+
+function buildBackToHallLabel(questMarkers: QuestMarkerInput | null | undefined): string {
+  return decorateButtonLabel(
+    "⬅️ До зали",
+    resolveQuestMarkerForTarget(questMarkers ?? undefined, "location.korchma.hall")
+  );
 }

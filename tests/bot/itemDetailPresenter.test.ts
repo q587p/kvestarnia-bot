@@ -216,9 +216,33 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("вдягнено");
-    expect(text).toContain("Основна рука");
+    expect(text).toContain("Екіпірування: <b>вдягнено — основна рука</b>.");
+    expect(text).not.toContain("вдягнено — Основна рука");
     expect(text).toContain("Ефект: <b>+2 до удару</b>");
     expect(text).not.toContain("Бонуси ще не рахуються");
+  });
+
+  it("uses lowercase equipment slot labels after equipped status dash", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.apron-of-foam-resistance",
+          name: "Фартух піностійкого пригодника",
+          description: "Пережив бочку.",
+          rarity: "common",
+          slot: "armor",
+          goldValue: 14,
+          effect: {
+            armor: 1,
+            hpMax: 2
+          }
+        }
+      }),
+      { equippedSlot: "chest" }
+    );
+
+    expect(text).toContain("Екіпірування: <b>вдягнено — тулуб</b>.");
+    expect(text).not.toContain("вдягнено — Тулуб");
   });
 
   it("shows concrete blocked equipment requirements in item details", () => {

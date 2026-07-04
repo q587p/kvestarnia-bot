@@ -54,6 +54,12 @@ model Character {
   barrelRaidNotifications BarrelRaidNotification[]
   bardPerformances BardPerformance[]
   bardPerformanceReactions BardPerformanceReaction[]
+  priestAidActionsGiven NoncombatPriestAidAction[] @relation("PriestAidActor")
+  priestAidActionsReceived NoncombatPriestAidAction[] @relation("PriestAidTarget")
+  priestBlessingsGiven NoncombatPriestBlessing[] @relation("PriestBlessingActor")
+  priestBlessingsReceived NoncombatPriestBlessing[] @relation("PriestBlessingTarget")
+  roguePickpocketAttemptsMade NoncombatRoguePickpocketAttempt[] @relation("RoguePickpocketActor")
+  roguePickpocketAttemptsReceived NoncombatRoguePickpocketAttempt[] @relation("RoguePickpocketTarget")
   mantokChestRuns MantokChestRun[]
   levelBarterExchanges LevelBarterExchange[]
   achievements CharacterAchievement[]
@@ -569,6 +575,105 @@ model BardPerformanceReaction {
   @@unique([performanceId, characterId])
   @@index([characterId, status, expiresAt])
   @@map("bard_performance_reactions")
+}
+
+model NoncombatPriestAidAction {
+  id                  String    @id @default(uuid())
+  actorCharacterId    String    @map("actor_character_id")
+  actor               Character @relation("PriestAidActor", fields: [actorCharacterId], references: [id], onDelete: Cascade)
+  targetCharacterId   String    @map("target_character_id")
+  target              Character @relation("PriestAidTarget", fields: [targetCharacterId], references: [id], onDelete: Cascade)
+  actorTelegramUserId BigInt    @map("actor_telegram_user_id")
+  targetTelegramUserId BigInt   @map("target_telegram_user_id")
+  actorName           String    @map("actor_name")
+  targetName          String    @map("target_name")
+  actorRemortCount    Int       @default(0) @map("actor_remort_count")
+  targetRemortCount   Int       @default(0) @map("target_remort_count")
+  actionKind          String    @map("action_kind")
+  techniqueId         String    @map("technique_id")
+  rulesVersion        String    @map("rules_version")
+  locationId          String    @map("location_id")
+  status              String    @default("completed")
+  healAmount          Int       @default(0) @map("heal_amount")
+  manaCost            Int       @default(0) @map("mana_cost")
+  blessingId          String?   @map("blessing_id")
+  resultJson          Json?     @map("result_json")
+  cooldownAvailableAt DateTime  @map("cooldown_available_at")
+  completedAt         DateTime  @map("completed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([actorCharacterId, actionKind, completedAt])
+  @@index([targetCharacterId, actionKind, completedAt])
+  @@map("noncombat_priest_aid_actions")
+}
+
+model NoncombatPriestBlessing {
+  id                  String    @id @default(uuid())
+  actorCharacterId    String    @map("actor_character_id")
+  actor               Character @relation("PriestBlessingActor", fields: [actorCharacterId], references: [id], onDelete: Cascade)
+  targetCharacterId   String    @map("target_character_id")
+  target              Character @relation("PriestBlessingTarget", fields: [targetCharacterId], references: [id], onDelete: Cascade)
+  actorTelegramUserId BigInt    @map("actor_telegram_user_id")
+  targetTelegramUserId BigInt   @map("target_telegram_user_id")
+  actorName           String    @map("actor_name")
+  targetName          String    @map("target_name")
+  actorRemortCount    Int       @default(0) @map("actor_remort_count")
+  targetRemortCount   Int       @default(0) @map("target_remort_count")
+  techniqueId         String    @map("technique_id")
+  rulesVersion        String    @map("rules_version")
+  locationId          String    @map("location_id")
+  status              String    @default("active")
+  activeGuard         String?   @unique @map("active_guard")
+  bonusStat           String?   @map("bonus_stat")
+  bonusAmount         Int       @default(0) @map("bonus_amount")
+  resultJson          Json?     @map("result_json")
+  startedAt           DateTime  @map("started_at")
+  expiresAt           DateTime  @map("expires_at")
+  endedAt             DateTime? @map("ended_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([targetCharacterId, status, expiresAt])
+  @@index([actorCharacterId, startedAt])
+  @@map("noncombat_priest_blessings")
+}
+
+model NoncombatRoguePickpocketAttempt {
+  id                  String    @id @default(uuid())
+  actorCharacterId    String    @map("actor_character_id")
+  actor               Character @relation("RoguePickpocketActor", fields: [actorCharacterId], references: [id], onDelete: Cascade)
+  targetCharacterId   String    @map("target_character_id")
+  target              Character @relation("RoguePickpocketTarget", fields: [targetCharacterId], references: [id], onDelete: Cascade)
+  actorTelegramUserId BigInt    @map("actor_telegram_user_id")
+  targetTelegramUserId BigInt   @map("target_telegram_user_id")
+  actorName           String    @map("actor_name")
+  targetName          String    @map("target_name")
+  actorRemortCount    Int       @default(0) @map("actor_remort_count")
+  targetRemortCount   Int       @default(0) @map("target_remort_count")
+  techniqueId         String    @map("technique_id")
+  rulesVersion        String    @map("rules_version")
+  locationId          String    @map("location_id")
+  localDate           String    @map("local_date")
+  status              String    @default("completed")
+  outcome             String
+  stolenGold          Int       @default(0) @map("stolen_gold")
+  actorHpAfter        Int?      @map("actor_hp_after")
+  retaliationToken           String?   @unique @map("retaliation_token")
+  retaliationAvailableUntil  DateTime? @map("retaliation_available_until")
+  retaliationUsedAt          DateTime? @map("retaliation_used_at")
+  retaliationDuelInviteToken String?   @map("retaliation_duel_invite_token")
+  statSnapshotJson    Json      @map("stat_snapshot_json")
+  resultJson          Json?     @map("result_json")
+  cooldownAvailableAt DateTime  @map("cooldown_available_at")
+  completedAt         DateTime  @map("completed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([actorCharacterId, targetCharacterId, localDate])
+  @@index([actorCharacterId, completedAt])
+  @@index([targetCharacterId, completedAt])
+  @@map("noncombat_rogue_pickpocket_attempts")
 }
 
 model ItemTransfer {

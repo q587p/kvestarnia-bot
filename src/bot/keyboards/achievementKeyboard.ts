@@ -1,5 +1,9 @@
 import { InlineKeyboard } from "grammy";
-import type { AchievementListView, CosmeticTitleListView } from "../../services/achievementService";
+import {
+  COSMETIC_TITLES_PAGE_SIZE,
+  type AchievementListView,
+  type CosmeticTitleListView
+} from "../../services/achievementService";
 import {
   makeAchievementCheckCallbackData,
   makeAchievementListCallbackData,
@@ -9,11 +13,23 @@ import {
 } from "../callbacks/achievementCallbackData";
 
 export function buildHeroAchievementsKeyboard(
-  options: { restoreCallbackData?: string | null } = {}
+  options: {
+    priestSelfHealCallbackData?: string | null;
+    priestSelfBlessCallbackData?: string | null;
+    restoreCallbackData?: string | null;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🏅 Ачівки", makeAchievementListCallbackData(0))
     .text("🏷️ Титули", makeCosmeticTitleListCallbackData());
+
+  if (options.priestSelfHealCallbackData) {
+    keyboard.row().text("⚕️ Полікувати себе", options.priestSelfHealCallbackData);
+  }
+
+  if (options.priestSelfBlessCallbackData) {
+    keyboard.row().text("✨ Благословити себе", options.priestSelfBlessCallbackData);
+  }
 
   if (options.restoreCallbackData) {
     keyboard.row().text("🧻 До відновлення", options.restoreCallbackData);
@@ -55,9 +71,10 @@ export function buildCosmeticTitlesKeyboard(view: CosmeticTitleListView): Inline
   const keyboard = new InlineKeyboard();
 
   view.entries.forEach((entry, index) => {
+    const displayIndex = view.page * COSMETIC_TITLES_PAGE_SIZE + index + 1;
     keyboard.text(
-      entry.active ? `✅ ${index + 1}` : `🏷️ ${index + 1}`,
-      makeCosmeticTitleSetCallbackData(entry.grantRowId, view.remortCount)
+      entry.active ? `✅ ${displayIndex}` : `🏷️ ${displayIndex}`,
+      makeCosmeticTitleSetCallbackData(entry.grantRowId, view.remortCount, view.page)
     );
 
     if ((index + 1) % 3 === 0) {
@@ -69,8 +86,22 @@ export function buildCosmeticTitlesKeyboard(view: CosmeticTitleListView): Inline
     keyboard.row();
   }
 
+  if (view.totalPages > 1) {
+    if (view.page > 0) {
+      keyboard.text("◀️ Назад", makeCosmeticTitleListCallbackData(view.page - 1));
+    }
+
+    keyboard.text(`${view.page + 1}/${view.totalPages}`, makeCosmeticTitleListCallbackData(view.page));
+
+    if (view.page < view.totalPages - 1) {
+      keyboard.text("Далі ▶️", makeCosmeticTitleListCallbackData(view.page + 1));
+    }
+
+    keyboard.row();
+  }
+
   if (view.activeTitleGrantId || view.activeTitleMissing) {
-    keyboard.text("🧹 Зняти титул", makeCosmeticTitleClearCallbackData(view.remortCount)).row();
+    keyboard.text("🧹 Зняти титул", makeCosmeticTitleClearCallbackData(view.remortCount, view.page)).row();
   }
 
   return keyboard

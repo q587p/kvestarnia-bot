@@ -1,5 +1,14 @@
 import { InlineKeyboard, type Bot, type Context, type Keyboard } from "grammy";
 import type { HeroService } from "../../services/heroService";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import {
+  buildPriestBlessingPlan,
+  CLASS_NONCOMBAT_MIN_LEVEL
+} from "../../domain/noncombat/classNoncombatTechniques";
+import {
+  makePriestBlessCallbackData,
+  makePriestHealCallbackData
+} from "../callbacks/classNoncombatCallbackData";
 import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallbackData";
 import { telegramUserIdFromContext } from "../context";
 import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
@@ -47,11 +56,19 @@ export async function sendHero(
   if (result.state === "existing-character") {
     const heroText = presentHero(result.character, {
       activeDrink: result.activeDrink,
+      activePriestBlessing: result.activePriestBlessing,
       activeCosmeticTitle: result.activeCosmeticTitle,
       inventoryGoldValue: result.inventoryGoldValue
     });
 
     const heroKeyboard = buildHeroAchievementsKeyboard({
+      priestSelfHealCallbackData: getPriestSelfHealCallbackData(result.character, result.classNoncombatBlocked),
+      priestSelfBlessCallbackData: getPriestSelfBlessCallbackData({
+        character: result.character,
+        classNoncombatBlocked: result.classNoncombatBlocked,
+        priestSelfBlessAvailableAt:
+          result.priestSelfBlessAvailableAt ?? result.activePriestBlessing?.expiresAt ?? null
+      }),
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
         : null
@@ -70,6 +87,59 @@ export async function sendHero(
   }
 
   await sendText(ctx, mode, presentHeroMissing(), false);
+}
+
+function getPriestSelfBlessCallbackData(input: {
+  character: CharacterSummary;
+  classNoncombatBlocked?: boolean;
+  priestSelfBlessAvailableAt?: Date | null;
+}): string | null {
+  const { character } = input;
+  if (
+    input.classNoncombatBlocked ||
+    input.priestSelfBlessAvailableAt ||
+    character.classId !== "class.priest" ||
+    character.level < CLASS_NONCOMBAT_MIN_LEVEL
+  ) {
+    return null;
+  }
+
+  const plan = buildPriestBlessingPlan({
+    priestLevel: character.level,
+    priestIntelligence: character.stats.intelligence,
+    targetLevel: character.level
+  });
+  if (character.manaCurrent < plan.manaCost) {
+    return null;
+  }
+
+  const remortCount = character.remortCount ?? 0;
+  return makePriestBlessCallbackData({
+    targetTelegramUserId: null,
+    actorRemortCount: remortCount,
+    targetRemortCount: remortCount,
+    page: 0
+  });
+}
+
+function getPriestSelfHealCallbackData(character: CharacterSummary, classNoncombatBlocked = false): string | null {
+  if (
+    classNoncombatBlocked ||
+    character.classId !== "class.priest" ||
+    character.level < CLASS_NONCOMBAT_MIN_LEVEL ||
+    character.hpCurrent >= character.hpMax ||
+    character.manaCurrent <= 0
+  ) {
+    return null;
+  }
+
+  const remortCount = character.remortCount ?? 0;
+  return makePriestHealCallbackData({
+    targetTelegramUserId: null,
+    actorRemortCount: remortCount,
+    targetRemortCount: remortCount,
+    page: 0
+  });
 }
 
 async function sendText(

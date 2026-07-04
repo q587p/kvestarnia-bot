@@ -8,6 +8,7 @@ import { AdventureService } from "../services/adventureService";
 import { BardPerformanceService } from "../services/bardPerformanceService";
 import { CellarErrandService } from "../services/cellarErrandService";
 import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
+import { ClassNoncombatService } from "../services/classNoncombatService";
 import { CombatBalanceAnalyticsService } from "../services/combatBalanceAnalyticsService";
 import { DeployNotificationService } from "../services/deployNotificationService";
 import { DevGrantService } from "../services/devGrantService";
@@ -95,6 +96,13 @@ export function createServices(
       repositories.dailyActions,
       repositories.cooldowns
     ),
+    classNoncombat: new ClassNoncombatService(
+      repositories.classNoncombat,
+      undefined,
+      undefined,
+      achievements,
+      repositories.equipment
+    ),
     dailyKorchmaRound: new DailyKorchmaRoundService(
       repositories.characters,
       repositories.dailyActions,
@@ -138,7 +146,8 @@ export function createServices(
       repositories.remorts,
       repositories.shynok,
       undefined,
-      achievements
+      achievements,
+      repositories.classNoncombat
     ),
     hunt: new HuntService(
       repositories.characters,
@@ -158,7 +167,7 @@ export function createServices(
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction
-    }, undefined, achievements, publicActivityEvents),
+    }, undefined, achievements, publicActivityEvents, repositories.inventory),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||

@@ -154,10 +154,11 @@ describe("adventure presenter", () => {
     expect(text).toContain("<i>Замовник:</i> Кухар &amp; свідок");
     expect(text).toContain("<i>Проблема:</i> Юшка співає замість бути стравою.");
     expect(text).toContain("<i>Ціль:</i> Стишити казанок без оперної премії.");
-    expect(text).toContain("<i>Можливі способи:</i>\n🛡️ Обережно");
+    expect(text).toContain("<i>Можливі способи:</i>");
     expect(text.indexOf("<i>Ціль:</i>")).toBeLessThan(text.indexOf("<i>Можливі способи:</i>"));
-    expect(text).toContain("Метод оберіть самі.");
-    expect(text).toContain("🛡️ Обережно");
+    expect(text).not.toContain("Метод оберіть самі.");
+    expect(text).not.toContain("🛡️ Обережно");
+    expect(text).not.toContain("що робимо?");
     expect(text).not.toContain("Майже без драматичних зубів.");
     expect(text).not.toContain("🧠 Хитро — Середній ризик.");
     expect(text).not.toContain("+4 XP");
@@ -171,14 +172,29 @@ describe("adventure presenter", () => {
 
     expect(text).toContain("🌯 Підозріла шаурма");
     expect(text).toContain("<i>Можливі способи:</i>");
-    expect(text).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
+    expect(text).not.toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
     expect(text).not.toContain("Розслідування без поспіху");
-    expect(text).toContain("🍴 Притиснути лаваш виделкою до зʼясування");
-    expect(text).toContain("🧄 Запропонувати зубчик часнику як примирення");
-    expect(text).toContain("<b>Мандрівник</b>, що робимо?");
-    expect(text.indexOf("Можливі способи:")).toBeLessThan(text.indexOf("<b>Мандрівник</b>, що робимо?"));
+    expect(text).not.toContain("🍴 Притиснути лаваш виделкою до зʼясування");
+    expect(text).not.toContain("🧄 Запропонувати зубчик часнику як примирення");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text.trim().endsWith("<i>Можливі способи:</i>")).toBe(true);
     expect(text).not.toContain("ризик 13%");
     expect(text).not.toContain("шанс ускладнення");
+  });
+
+  it("omits generated combo title prefix from the starter shawarma scene", () => {
+    const text = presentMimicShawarmaStart({
+      ...character,
+      raceId: "race.bisyny",
+      raceName: "Бісини",
+      classId: "class.priest",
+      className: "Жрець",
+      title: "Тлумач Підозрілих Благословень"
+    });
+
+    expect(text).toContain("Назва страви відчуває, що зараз її почнуть правити без попередження.");
+    expect(text).toContain("Моральна перевага підготовлена, освячена й трохи пахне часником.");
+    expect(text).not.toContain("Тлумач Підозрілих Благословень біля шаурми");
   });
 
   it("renders starter shawarma method help separately", () => {
@@ -248,8 +264,8 @@ describe("adventure presenter", () => {
 
     const text = presentAdventureProblem(result);
 
-    expect(text).toContain("Підсунути запасне поле");
-    expect(text).toContain("Домовитися з канцелярським краєм");
+    expect(text).not.toContain("Підсунути запасне поле");
+    expect(text).not.toContain("Домовитися з канцелярським краєм");
     expect(text).not.toContain("Підняти сухий приплив для");
     expect(text).not.toContain("Переспівати ритм");
     expect(text).not.toContain("«Співачка Без Моря» поєднує");
@@ -266,6 +282,7 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("точну біографію");
     expect(text).not.toContain(": форму");
     expect(text).toContain("<i>Можливі способи:</i>");
+    expect(text.trim().endsWith("<i>Можливі способи:</i>")).toBe(true);
     expect(text.match(/<i>/gu)?.length ?? 0).toBe(4);
     expect(presentAdventureProblemMethodHelp(result)).toContain("Детальніше про способи:");
     expect(presentAdventureProblemMethodHelp(result)).toContain("Домовитися з канцелярським краєм\n<i>Дипломатія полів");
@@ -334,6 +351,20 @@ describe("adventure presenter", () => {
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
   });
 
+  it("uses a distinct non-warning icon for generated method complications", () => {
+    const scene = buildAdventureResolutionScene({
+      problemId: "stew",
+      title: "Казанок репетирує оперу",
+      character
+    });
+    const method = scene.methods.find(
+      (candidate) => candidate.outcomeText.complication.headline !== "❌ Справу не закрито"
+    );
+
+    expect(method?.outcomeText.complication.headline).toBe("💥 Метод зачепив не той нерв");
+    expect(method?.outcomeText.complication.headline).not.toContain("⚠️");
+  });
+
   it("shows complication-to-fight copy without granting reward", () => {
     const text = presentAdventureResult(completed(true));
 
@@ -393,8 +424,7 @@ describe("adventure presenter", () => {
     };
     const text = presentAdventureResult(result);
 
-    expect(text).toContain("Втрачено здоров’я: 3");
-    expect(text).toContain("Здоров’я: 17/28");
+    expect(text).toContain("без заперечень.\n\n💔 Втрачено здоров’я: 3\n❤️‍🩹 Здоров’я: 17/28");
   });
 
   it("uses the returned character summary for the current HP line after injury", () => {
@@ -414,8 +444,8 @@ describe("adventure presenter", () => {
     };
     const text = presentAdventureResult(result);
 
-    expect(text).toContain("Втрачено здоров’я: 3");
-    expect(text).toContain("Здоров’я: 17/32");
+    expect(text).toContain("💔 Втрачено здоров’я: 3");
+    expect(text).toContain("❤️‍🩹 Здоров’я: 17/32");
     expect(text).not.toContain("Здоров’я: 17/28");
   });
 

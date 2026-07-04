@@ -2503,6 +2503,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const allyResults = parseAllyAbilityResults(value.allyResults);
   const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
+  const enemyPressureSkips = parseEnemyPressureSkipSummaries(value.enemyPressureSkips);
 
   if (
     !action ||
@@ -2544,6 +2545,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(allyResults.length > 0 ? { allyResults } : {}),
     ...(fumble ? { fumble } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
+    ...(enemyPressureSkips.length > 0 ? { enemyPressureSkips } : {}),
     ...(debugTrace ? { debugTrace } : {})
   };
 }
@@ -2664,6 +2666,24 @@ function parseEnemyTurnSummaries(value: unknown): CombatEnemyTurnSummary[] {
           ...(typeof entry.monsterTelegraphAbilityId === "string" ? { monsterTelegraphAbilityId: entry.monsterTelegraphAbilityId } : {}),
           ...(typeof entry.simultaneousFinalResponse === "boolean" ? { simultaneousFinalResponse: entry.simultaneousFinalResponse } : {})
         }];
+  });
+}
+
+function parseEnemyPressureSkipSummaries(value: unknown): NonNullable<CombatTurnSummary["enemyPressureSkips"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.enemyId !== "string" || typeof entry.monsterId !== "string") {
+      return [];
+    }
+
+    return [{
+      enemyId: entry.enemyId,
+      monsterId: entry.monsterId,
+      ...(typeof entry.monsterName === "string" ? { monsterName: entry.monsterName } : {})
+    }];
   });
 }
 

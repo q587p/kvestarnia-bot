@@ -8,7 +8,6 @@ import { buildRemortStarterStats, REMORT_REQUIRED_LEVEL } from "../domain/remort
 import {
   deriveMonsterCombatStats,
   expireCombat,
-  applyThreatBackupEnemyCombatStats,
   getActorCombatActionAvailability,
   getCombatRaceAbilityProfile,
   getCombatSkillProfile,
@@ -954,7 +953,7 @@ function buildEncounterEnemies(input: {
   const secondTemplate = selectThreatSecondMonsterTemplate(input.primary, secondLevel, input.seed);
   const second = materializeMonsterAtLevel(secondTemplate, secondLevel);
 
-  return [primaryStats, applyThreatBackupEnemyCombatStats(deriveMonsterCombatStats(second))];
+  return [primaryStats, deriveMonsterCombatStats(second)];
 }
 
 function selectMonsterTemplates(level: number): MonsterContent[] {

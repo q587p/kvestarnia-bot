@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
   makePartyBossStartCallbackData,
@@ -12,6 +13,7 @@ import {
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionReadinessCallbackData,
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData,
   parsePartySessionCallbackData
@@ -65,9 +67,21 @@ describe("party session callback data", () => {
       ok: true,
       value: { type: "invite", token, templateIndex: 12 }
     });
+    expect(parsePartySessionCallbackData(makePartySessionReadinessCallbackData(token, "ready"))).toEqual({
+      ok: true,
+      value: { type: "readiness", token, readiness: "ready" }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionReadinessCallbackData(token, "waiting"))).toEqual({
+      ok: true,
+      value: { type: "readiness", token, readiness: "waiting" }
+    });
     expect(parsePartySessionCallbackData(makePartyBossActionCallbackData(token, 42, "skill"))).toEqual({
       ok: true,
       value: { type: "boss-action", token, turn: 42, action: "skill" }
+    });
+    expect(parsePartySessionCallbackData(makePartyBossItemsMenuCallbackData(token, 42))).toEqual({
+      ok: true,
+      value: { type: "boss-items", token, turn: 42 }
     });
     expect(parsePartySessionCallbackData(makePartyBossItemUseCallbackData({
       token,
@@ -120,6 +134,10 @@ describe("party session callback data", () => {
       error: "invalid-target"
     });
     expect(parsePartySessionCallbackData("v1:party:ba:abCD_123-xy:1:bad")).toEqual({
+      ok: false,
+      error: "invalid-action"
+    });
+    expect(parsePartySessionCallbackData("v1:party:rs:abCD_123-xy:q")).toEqual({
       ok: false,
       error: "invalid-action"
     });

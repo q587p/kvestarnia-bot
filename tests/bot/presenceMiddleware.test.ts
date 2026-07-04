@@ -10,6 +10,7 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import {
+  makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartySessionViewCallbackData
 } from "../../src/bot/callbacks/partySessionCallbackData";
@@ -233,6 +234,10 @@ describe("presence middleware", () => {
     ["/dev_add_dense_bandage 2", "addDenseBandages"],
     ["/dev_add_field_kit 3", "addFieldKits"],
     ["/dev_add_yeger_line 4", "addYegerLines"],
+    ["/dev_reset_yeger_trail", "resetYegerTrackingCooldown"],
+    ["/dev_reset_priest_blessing", "resetPriestBlessingCooldown"],
+    ["/dev_reset_quiet_pocket", "resetQuietPocketCooldown"],
+    ["/dev_reset_rogue", "resetRogue"],
     ["/dev_yeger_first_done", "completeFirstYegerQuestProgress"],
     ["/dev_yeger_second_done", "completeSecondYegerQuestProgress"]
   ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
@@ -316,6 +321,15 @@ describe("presence middleware", () => {
             }]
           });
         },
+        resetYegerTrackingCooldown: () => {
+          calls.push("resetYegerTrackingCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "yeger-tracking-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
+          });
+        },
         completeFirstYegerQuestProgress: () => {
           calls.push("completeFirstYegerQuestProgress");
           return Promise.resolve({
@@ -327,6 +341,34 @@ describe("presence middleware", () => {
             target: 5,
             started: true,
             character: characterRecord()
+          });
+        },
+        resetPriestBlessingCooldown: () => {
+          calls.push("resetPriestBlessingCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "priest-blessing-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
+          });
+        },
+        resetQuietPocketCooldown: () => {
+          calls.push("resetQuietPocketCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "quiet-pocket-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
+          });
+        },
+        resetRogue: () => {
+          calls.push("resetRogue");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "rogue-reset" as const,
+            character: characterRecord(),
+            clearedCooldown: true,
+            deletedAttempts: 2
           });
         },
         completeSecondYegerQuestProgress: () => {
@@ -412,6 +454,38 @@ describe("presence middleware", () => {
     })));
 
     expect(submitItemForTelegramUser).toHaveBeenCalledWith(42n, boss.partyInviteToken, boss.turn, "bandage");
+  });
+
+  it("lets party boss item-menu callbacks bypass the active combat lock", async () => {
+    const presence = new CapturingPresenceService();
+    const boss = activePartyBossSession();
+    const listCombatItemsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready" as const,
+      session: boss,
+      items: []
+    });
+    const bot = createTestBot(presence, {
+      partySessions: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false
+      } as NonNullable<BotServices["partySessions"]>,
+      partyBoss: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        getActiveForTelegramUser: () => {
+          throw new Error("party item menu should not be intercepted by the combat lock");
+        },
+        listCombatItemsForTelegramUser
+      } as unknown as NonNullable<BotServices["partyBoss"]>
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makePartyBossItemsMenuCallbackData(
+      boss.partyInviteToken,
+      boss.turn
+    )));
+
+    expect(listCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, boss.partyInviteToken, boss.turn);
   });
 
   it("keeps active training combat presence instead of stamping blocked tavern destination", async () => {

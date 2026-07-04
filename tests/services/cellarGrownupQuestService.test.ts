@@ -95,6 +95,25 @@ describe("CellarGrownupQuestService", () => {
     expect(world.getItem(CELLAR_CHEESE_SEAL_ITEM_ID)).toBe(0);
   });
 
+  it("reports active roleplay cooldown when the seal is unaffordable", async () => {
+    const world = new FakeCellarGrownupWorld();
+    const availableAt = new Date(now.getTime() + CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_MS);
+    world.addCharacter({ xp: 45, gold: 12 });
+    world.setRoleplayCooldown(availableAt);
+    const service = createService(world);
+
+    await expect(service.buySeal(telegramUserId)).resolves.toMatchObject({
+      state: "insufficient-gold",
+      roleplayCooldown: {
+        availableAt,
+        now
+      }
+    });
+
+    expect(world.character?.gold).toBe(12);
+    expect(world.getItem(CELLAR_CHEESE_SEAL_ITEM_ID)).toBe(0);
+  });
+
   it("passes with a seal and grants the bottle once", async () => {
     const world = new FakeCellarGrownupWorld();
     world.addCharacter({ xp: 45, gold: 300 });

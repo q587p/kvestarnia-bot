@@ -20,13 +20,16 @@ export type AchievementCallback = {
   filter: AchievementListFilter;
 } | {
   type: "titles";
+  page: number;
 } | {
   type: "title-set";
   titleGrantRowId: string;
   remortCount: number;
+  page: number;
 } | {
   type: "title-clear";
   remortCount: number;
+  page: number;
 } | {
   type: "hero";
 };
@@ -49,16 +52,21 @@ export function makeAchievementCheckCallbackData(filter: AchievementListFilter =
   return filter === "all" ? CHECK_CALLBACK : `${CHECK_CALLBACK}:${filter}`;
 }
 
-export function makeCosmeticTitleListCallbackData(): string {
-  return TITLES_CALLBACK;
+export function makeCosmeticTitleListCallbackData(page = 0): string {
+  const normalizedPage = normalizePage(page);
+  return normalizedPage === 0 ? TITLES_CALLBACK : `${TITLES_CALLBACK}:${normalizedPage}`;
 }
 
-export function makeCosmeticTitleSetCallbackData(titleGrantRowId: string, remortCount: number): string {
-  return `${TITLE_SET_PREFIX}:${normalizeRemortCount(remortCount)}:${titleGrantRowId}`;
+export function makeCosmeticTitleSetCallbackData(
+  titleGrantRowId: string,
+  remortCount: number,
+  page = 0
+): string {
+  return `${TITLE_SET_PREFIX}:${normalizeRemortCount(remortCount)}:${titleGrantRowId}:${normalizePage(page)}`;
 }
 
-export function makeCosmeticTitleClearCallbackData(remortCount: number): string {
-  return `${TITLE_CLEAR_PREFIX}:${normalizeRemortCount(remortCount)}`;
+export function makeCosmeticTitleClearCallbackData(remortCount: number, page = 0): string {
+  return `${TITLE_CLEAR_PREFIX}:${normalizeRemortCount(remortCount)}:${normalizePage(page)}`;
 }
 
 export function parseAchievementCallbackData(
@@ -76,12 +84,24 @@ export function parseAchievementCallbackData(
     return ok({ type: "hero" });
   }
 
-  if (data === TITLES_CALLBACK) {
-    return ok({ type: "titles" });
+  if (data === TITLES_CALLBACK || data.startsWith(`${TITLES_CALLBACK}:`)) {
+    if (data === TITLES_CALLBACK) {
+      return ok({ type: "titles", page: 0 });
+    }
+
+    const [, section, scene, pageRaw, ...rest] = data.split(":");
+    if (section !== "ach" || scene !== "titles" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    const page = Number(pageRaw);
+    return Number.isInteger(page) && page >= 0
+      ? ok({ type: "titles", page })
+      : err("invalid-page");
   }
 
   if (data.startsWith(`${TITLE_SET_PREFIX}:`)) {
-    const [, section, scene, remortRaw, titleGrantRowId, ...rest] = data.split(":");
+    const [, section, scene, remortRaw, titleGrantRowId, pageRaw, ...rest] = data.split(":");
     if (section !== "ach" || scene !== "tset" || rest.length > 0) {
       return err("invalid-prefix");
     }
@@ -90,20 +110,30 @@ export function parseAchievementCallbackData(
     if (remortCount === null) {
       return err("invalid-life");
     }
+    const page = pageRaw === undefined ? 0 : Number(pageRaw);
+    if (!Number.isInteger(page) || page < 0) {
+      return err("invalid-page");
+    }
 
     return isGrantRowId(titleGrantRowId)
-      ? ok({ type: "title-set", titleGrantRowId, remortCount })
+      ? ok({ type: "title-set", titleGrantRowId, remortCount, page })
       : err("invalid-title");
   }
 
   if (data.startsWith(`${TITLE_CLEAR_PREFIX}:`)) {
-    const [, section, scene, remortRaw, ...rest] = data.split(":");
+    const [, section, scene, remortRaw, pageRaw, ...rest] = data.split(":");
     if (section !== "ach" || scene !== "tclr" || rest.length > 0) {
       return err("invalid-prefix");
     }
 
     const remortCount = parseRemortCount(remortRaw);
-    return remortCount === null ? err("invalid-life") : ok({ type: "title-clear", remortCount });
+    if (remortCount === null) {
+      return err("invalid-life");
+    }
+    const page = pageRaw === undefined ? 0 : Number(pageRaw);
+    return Number.isInteger(page) && page >= 0
+      ? ok({ type: "title-clear", remortCount, page })
+      : err("invalid-page");
   }
 
   if (data === CHECK_CALLBACK) {

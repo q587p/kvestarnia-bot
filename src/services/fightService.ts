@@ -34,7 +34,6 @@ import {
 import {
   deriveMonsterCombatStats,
   expireCombat,
-  applyThreatBackupEnemyCombatStats,
   freezeCombatLife,
   appendCombatTurnLogEntry,
   applyMonsterContextToStats,
@@ -56,6 +55,7 @@ import {
   findThreatEscalationLine,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINE_VERSION,
+  THREAT_ESCALATION_REQUIRED_WINS,
   THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS,
   type CombatActionType,
   type CombatActorStats,
@@ -487,6 +487,7 @@ export interface PersistentFightStartOptions {
   };
   enemyCount?: 1 | 2;
   devBypassAvailability?: boolean;
+  devThreatSecondEnemyLevelBonus?: number;
 }
 
 export type PassagePreviewRefreshReason = "expired" | "missing-monster" | "stale";
@@ -1766,10 +1767,13 @@ export class FightService {
       : selectSoloFightMonster(characterSummary, encounterRng, difficulty, recentMonsterIds);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const enemyCount = options.enemyCount ?? threatDecision.enemyCount;
+    const devThreatSecondEnemyLevelBonus = options.devBypassAvailability
+      ? normalizeDevThreatSecondEnemyLevelBonus(options.devThreatSecondEnemyLevelBonus)
+      : 0;
     const secondEnemyLevelBonus =
       threatDecision.enemyCount === 2 && !options.enemyCount
         ? threatDecision.secondEnemyLevelBonus
-        : 0;
+        : devThreatSecondEnemyLevelBonus;
     const extraBaseMonster = enemyCount === 2
       ? selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
           baseMonster.id,
@@ -1801,9 +1805,7 @@ export class FightService {
     const extraMonsterStats = extraMonsters.map(({ monster: enemy }) => {
       const context = resolveMonsterContext({ monster: enemy, world: worldContext });
 
-      return applyThreatBackupEnemyCombatStats(
-        applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context)
-      );
+      return applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context);
     });
     const state = startCombat({
       id: sessionId,
@@ -1823,10 +1825,19 @@ export class FightService {
       version: 1
     };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
-    if (threatDecision.enemyCount === 2 && !options.enemyCount) {
+    const shouldAttachThreat = (threatDecision.enemyCount === 2 && !options.enemyCount) ||
+      (options.enemyCount === 2 && options.devBypassAvailability && devThreatSecondEnemyLevelBonus > 0);
+    if (shouldAttachThreat) {
       state.threat = buildCombatThreatState({
         sessionId,
-        threatDecision,
+        threatDecision: threatDecision.enemyCount === 2
+          ? threatDecision
+          : {
+              enemyCount: 2,
+              reason: "ordinary-win-streak",
+              eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+              secondEnemyLevelBonus: devThreatSecondEnemyLevelBonus
+            },
         extraMonster: extraMonsters[0],
         boostedEnemy: state.enemies?.[1]
       });
@@ -2980,7 +2991,10 @@ export class FightService {
       ...withAchievementCombatOutcome(session.state?.status ?? session.status)
     });
     if ((session.state?.status ?? session.status) === "won") {
-      const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
+      const effectiveMonsterLevel = getPersistentFightSessionEncounterMonsterLevel(
+        session,
+        monster.level
+      );
       await this.activityEvents?.recordUnderdogCombatWinSafely({
         characterId: claim.character.id,
         actorDisplayName: claim.character.name,
@@ -3865,9 +3879,7 @@ export class FightService {
     const extraMonsterStats = (input.extraMonsters ?? []).map(({ monster }) => {
       const context = resolveMonsterContext({ monster, world: worldContext });
 
-      return applyThreatBackupEnemyCombatStats(
-        applyMonsterContextToStats(deriveMonsterCombatStats(monster), context)
-      );
+      return applyMonsterContextToStats(deriveMonsterCombatStats(monster), context);
     });
     const state = startCombat({
       id: input.sessionId,
@@ -4206,12 +4218,12 @@ function buildPersistentFightReward(
     };
   }
 
-  const difficulty = getPersistentFightSessionDifficulty(session);
-  const baseMonsterLevel = getPersistentFightSessionBaseMonsterLevel(
+  const difficulty = getPersistentFightSessionEncounterDifficulty(session);
+  const baseMonsterLevel = getPersistentFightSessionEncounterBaseMonsterLevel(
     session,
     getAuthoredMonsterLevel(monster)
   );
-  const effectiveMonsterLevel = getPersistentFightSessionMonsterLevel(session, monster.level);
+  const effectiveMonsterLevel = getPersistentFightSessionEncounterMonsterLevel(session, monster.level);
   const lootProfileLevel = Math.max(1, effectiveMonsterLevel + difficulty.lootPowerOffset);
   const gold = buildPersistentFightWinGold(character.level, rng);
   const loot = rollMonsterLoot({
@@ -4812,6 +4824,14 @@ function applyThreatSecondEnemyLevelBonus(input: {
   };
 }
 
+function normalizeDevThreatSecondEnemyLevelBonus(value: number | undefined): number {
+  if (value === undefined) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value));
+}
+
 function buildCombatThreatState(input: {
   sessionId: string;
   threatDecision: ReturnType<typeof decideThreatEscalation>;
@@ -4947,10 +4967,30 @@ function withPersistentEnemyCombatStats(state?: CombatState | null): { enemies?:
   return enemies && enemies.length > 0 ? { enemies } : {};
 }
 
-function getPersistentFightSessionDifficulty(
+function getPersistentFightSessionEncounterEnemy(
+  session: Pick<SoloCombatSessionRecord, "state"> | undefined
+): CombatEnemyState | undefined {
+  const state = session?.state;
+
+  if (!state) {
+    return undefined;
+  }
+
+  const enemies = normalizeCombatEnemies(state);
+
+  if (state.enemies && state.enemies.length > 1) {
+    return enemies.find((enemy) => enemy.enemyId === "enemy:1") ?? enemies[0];
+  }
+
+  return enemies[0];
+}
+
+function getPersistentFightSessionEncounterDifficulty(
   session?: Pick<SoloCombatSessionRecord, "state">
 ): PersistentFightDifficultyConfig {
-  const interventionKind = session?.state?.monster.debugTrace?.interventionKind;
+  const interventionKind =
+    getPersistentFightSessionEncounterEnemy(session)?.debugTrace?.interventionKind ??
+    session?.state?.monster.debugTrace?.interventionKind;
 
   if (interventionKind === "help") {
     return PERSISTENT_FIGHT_DIFFICULTY_CONFIG.easy;
@@ -4973,11 +5013,27 @@ function getPersistentFightSessionMonsterLevel(
   return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
 }
 
-function getPersistentFightSessionBaseMonsterLevel(
+function getPersistentFightSessionEncounterMonsterLevel(
   session: Pick<SoloCombatSessionRecord, "state"> | undefined,
   fallbackLevel: number
 ): number {
-  const storedLevel = session?.state?.monster.debugTrace?.baseMonsterLevel;
+  const enemy = getPersistentFightSessionEncounterEnemy(session);
+  const storedLevel =
+    enemy?.debugTrace?.effectiveMonsterLevel ??
+    enemy?.level ??
+    session?.state?.monster.debugTrace?.effectiveMonsterLevel ??
+    session?.state?.monster.level;
+
+  return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
+}
+
+function getPersistentFightSessionEncounterBaseMonsterLevel(
+  session: Pick<SoloCombatSessionRecord, "state"> | undefined,
+  fallbackLevel: number
+): number {
+  const enemy = getPersistentFightSessionEncounterEnemy(session);
+  const storedLevel =
+    enemy?.debugTrace?.baseMonsterLevel ?? session?.state?.monster.debugTrace?.baseMonsterLevel;
 
   return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
 }

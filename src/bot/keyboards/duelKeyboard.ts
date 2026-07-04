@@ -146,25 +146,25 @@ export function buildTurnBasedDuelKeyboard(
   if (canAct) {
     keyboard
       .text("⚔️ Атакувати", makeDuelTurnCallbackData(token, "attack", session.turn, session.version))
-      .row()
       .text("🛡 Захищатися", makeDuelTurnCallbackData(token, "defend", session.turn, session.version))
       .row();
 
-    if (skillAvailability?.available !== false) {
-      keyboard
-        .text(skillLabel, makeDuelTurnCallbackData(token, "skill", session.turn, session.version))
-        .row();
+    const skillAvailable = skillAvailability?.available !== false;
+    const raceAvailable = Boolean(resolvedRaceAbilityLabel && raceAvailability?.available);
+
+    if (skillAvailable) {
+      keyboard.text(skillLabel, makeDuelTurnCallbackData(token, "skill", session.turn, session.version));
     }
 
-    if (resolvedRaceAbilityLabel && raceAvailability?.available) {
-      keyboard
-        .text(resolvedRaceAbilityLabel, makeDuelTurnCallbackData(token, "race", session.turn, session.version))
-        .row();
+    if (resolvedRaceAbilityLabel && raceAvailable) {
+      keyboard.text(resolvedRaceAbilityLabel, makeDuelTurnCallbackData(token, "race", session.turn, session.version));
     }
 
-    keyboard
-      .text("🏳️ Здатися", makeDuelTurnCallbackData(token, "surrender", session.turn, session.version))
-      .row();
+    if (skillAvailable || raceAvailable) {
+      keyboard.row();
+    }
+
+    keyboard.text("🏳️ Здатися", makeDuelTurnCallbackData(token, "surrender", session.turn, session.version));
   }
 
   return keyboard.text("🔎 Оновити", makeDuelViewCallbackData(token));

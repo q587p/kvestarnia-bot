@@ -11,6 +11,10 @@ import {
   meetsActivityLevel,
   STARTER_ACTIVITY_MAX_LEVEL
 } from "../../domain/progression/activityGates";
+import {
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  normalizePresenceLocationId
+} from "../../services/presenceService";
 import { makeBestiaryListCallbackData } from "../callbacks/bestiaryCallbackData";
 import { makeMenuCallbackData } from "../callbacks/menuCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
@@ -19,10 +23,15 @@ import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDailyKorchmaRoundOverviewCallbackData, makeDailyKorchmaRoundClaimCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
 import { makeYegerTurnInCallbackData } from "../callbacks/yegerCallbackData";
+import {
+  decorateButtonLabel,
+  resolveQuestMarkerForTarget
+} from "./questButtonMarkers";
 
 export interface QuestHubKeyboardInput {
   mode?: "active" | "archive";
   characterLevel?: number;
+  currentLocationId?: string | null;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
@@ -44,7 +53,9 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
       keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0)).row();
     }
 
-    keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
+    if (shouldShowBackToHall(input)) {
+      keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
+    }
 
     return keyboard;
   }
@@ -56,12 +67,17 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   }
 
   if (canOpenProblemQuestInBar(input, problemQuest)) {
-    keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
+    keyboard.text(
+      decorateButtonLabel("🍻 До шинку", resolveQuestMarkerForTarget(input, "location.korchma.bar")),
+      makePlaceCallbackData("bar")
+    ).row();
   }
 
   if (canOpenAdventure(input)) {
     keyboard.text(
-      input.adventure.state === "level-locked" ? "🌯 До підозрілої шаурми" : "🪧 Обрати пригоду",
+      input.adventure.state === "level-locked"
+        ? "🌯 До підозрілої шаурми"
+        : decorateButtonLabel("🪧 Обрати пригоду", resolveQuestMarkerForTarget(input, "quest.adventure")),
       makeQuestCallbackData("adventure")
     );
     hasAction = true;
@@ -78,7 +94,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     }
 
     if (input.fight.state === "ready") {
-      keyboard.text("⚔️ До сутички", makeQuestCallbackData("fight"));
+      keyboard.text(
+        "⚔️ До сутички",
+        makeQuestCallbackData("fight")
+      );
     } else {
       keyboard.text("🪜 До Низу", makePlaceCallbackData("deep"));
     }
@@ -93,12 +112,18 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     input.yeger.state === "offered" ||
     input.yeger.state === "in-progress"
   ) {
-    keyboard.text("🏹 До Єгеря", makeTavernCallbackData("ranger"));
+    keyboard.text(
+      decorateButtonLabel("🏹 До Єгеря", resolveQuestMarkerForTarget(input, "quest.yeger")),
+      makeTavernCallbackData("ranger")
+    );
     keyboard.row();
   }
 
   if (input.yeger.state === "turn-in-ready") {
-    keyboard.text("🏹 Здати Єгерю", makeYegerTurnInCallbackData());
+    keyboard.text(
+      decorateButtonLabel("🏹 Здати Єгерю", resolveQuestMarkerForTarget(input, "quest.yeger")),
+      makeYegerTurnInCallbackData()
+    );
     keyboard.row();
   }
 
@@ -107,7 +132,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     input.cellar.state === "on-cooldown" ||
     (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed")
   ) {
-    keyboard.text("🧹 У льох", makeQuestCallbackData("cellar"));
+    keyboard.text(
+      decorateButtonLabel("🧹 У льох", resolveQuestMarkerForTarget(input, "location.korchma.cellar")),
+      makeQuestCallbackData("cellar")
+    );
     keyboard.row();
   }
 
@@ -118,7 +146,10 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   ) {
     keyboard
       .text(
-        input.dailyKorchmaRound.state === "turn-in-ready" ? "🧾 Здати обхід" : "🧾 Корчмарський обхід",
+        decorateButtonLabel(
+          input.dailyKorchmaRound.state === "turn-in-ready" ? "🧾 Здати обхід" : "🧾 Корчмарський обхід",
+          resolveQuestMarkerForTarget(input, "quest.daily-korchma-round")
+        ),
         input.dailyKorchmaRound.state === "turn-in-ready"
           ? makeDailyKorchmaRoundClaimCallbackData(
               input.dailyKorchmaRound.offer.dayToken,
@@ -140,9 +171,28 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
+  if (shouldShowBackToHall(input)) {
+    keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
+  }
 
   return keyboard;
+}
+
+function buildBackToHallLabel(input: QuestHubKeyboardInput): string {
+  return decorateButtonLabel(
+    "🍺 До зали",
+    resolveQuestMarkerForTarget(input, "location.korchma.hall")
+  );
+}
+
+function shouldShowBackToHall(input: QuestHubKeyboardInput): boolean {
+  if (!input.currentLocationId) {
+    return true;
+  }
+
+  const currentLocationId = normalizePresenceLocationId(input.currentLocationId);
+
+  return currentLocationId !== PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
 }
 
 function addQuestReferenceButtons(

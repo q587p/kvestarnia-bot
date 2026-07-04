@@ -1,4 +1,4 @@
-﻿import type { Context } from "grammy";
+import type { Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -39,7 +39,7 @@ describe("quest hub command", () => {
         inline_keyboard: [
           [
             {
-              text: "🚪 Зайти в корчму",
+              text: "🚪 Зайти в корчму ⚠️",
               callback_data: makePlaceCallbackData("hall")
             }
           ]
@@ -75,22 +75,50 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду ⚠️",
       "🪜 До Низу",
-      "🧹 У льох",
+      "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
-      { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
+      { text: "🪧 Обрати пригоду ⚠️", callback_data: makeQuestCallbackData("adventure") },
       { text: "🪜 До Низу", callback_data: makePlaceCallbackData("deep") },
-      { text: "🧹 У льох", callback_data: makeQuestCallbackData("cellar") }
+      { text: "🧹 У льох ⚠️", callback_data: makeQuestCallbackData("cellar") }
     ]));
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,
       currentAdventureId: null
+    });
+  });
+
+  it("does not offer a hall return when the quest hub is already opened from the quest table", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      insideKorchma: true
+    });
+
+    await sendQuestHub(makeContext(replies), servicesWith({ presence }), "reply");
+
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+
+    expect(buttons.map((button) => button.text)).toEqual([
+      "🪧 Обрати пригоду ⚠️",
+      "🪜 До Низу",
+      "🧹 У льох ⚠️",
+      "📦 Архів",
+      "📖 Бестіарій"
+    ]);
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
     });
   });
 
@@ -124,7 +152,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    const dailyButton = buttons.find((button) => button.text === "🧾 Корчмарський обхід");
+    const dailyButton = buttons.find((button) => button.text === "🧾 Корчмарський обхід ⚠️");
     expect(dailyButton?.callback_data).toMatch(/^v1:dkr:o:\d{8}$/);
   });
 
@@ -160,7 +188,7 @@ describe("quest hub command", () => {
       "🌯 До підозрілої шаурми",
       "⚔️ До сутички",
       "📦 Архів",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -195,9 +223,9 @@ describe("quest hub command", () => {
     expect(buttons.map((button) => button.text)).toEqual([
       "🌯 До підозрілої шаурми",
       "⚔️ До сутички",
-      "🧹 У льох",
+      "🧹 У льох ⚠️",
       "📦 Архів",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -346,10 +374,10 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🧹 У льох",
+      "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -396,12 +424,12 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду ⚠️",
       "🪜 До Низу",
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -459,12 +487,12 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду ⚠️",
       "🪜 До Низу",
-      "🏹 До Єгеря",
+      "🏹 До Єгеря ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -551,7 +579,7 @@ describe("quest hub command", () => {
         inline_keyboard: [
           [{ text: "📋 До справ", callback_data: makeQuestCallbackData("list") }],
           [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
-          [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
+          [{ text: "🍺 До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });
@@ -590,7 +618,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(activeButtons).toEqual(expect.arrayContaining([
-      { text: "🏹 Здати Єгерю", callback_data: makeYegerTurnInCallbackData() }
+      { text: "🏹 Здати Єгерю ✅", callback_data: makeYegerTurnInCallbackData() }
     ]));
     expect(activeButtons.map((button) => button.callback_data)).not.toContain("v1:tavern:ranger");
     expect(archiveReplies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
@@ -832,7 +860,7 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.text)).toContain("🍻 До шинку");
+    expect(buttons.map((button) => button.text)).toContain("🍻 До шинку ⚠️");
     expect(buttons.map((button) => button.text)).toContain("🪜 До Низу");
   });
 
@@ -862,12 +890,12 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду ⚠️",
       "🪜 До Низу",
-      "🧹 У льох",
+      "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -1083,12 +1111,12 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.text)).toEqual([
-      "🍻 До шинку",
-      "🪧 Обрати пригоду",
-      "🧹 У льох",
+      "🍻 До шинку ⚠️",
+      "🪧 Обрати пригоду ⚠️",
+      "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
     expect(buttons.map((button) => button.text)).not.toContain("До Низу");

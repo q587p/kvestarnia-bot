@@ -33,7 +33,7 @@ MVP event types:
 | `character.level_reached` | `progression` | `normal` / `high` at milestones | Level-ups are the simplest shared progress signal. |
 | `party.raid_won` | `raid` | `high` / `legendary` | Group victory is the strongest social proof. |
 | `item.rare_received` | `manatky` | `normal` for `rare`, `legendary` for `epic` | Rare items belong in the manatky feed; epic items also belong in the important filter. |
-| `combat.underdog_won` | `combat` | `high` | A win over a monster at least 5 levels stronger is a story, not routine combat. |
+| `combat.underdog_won` | `combat` | `normal` from `+5`, `high` from `+8` | A win over a monster at least 5 levels stronger is public combat color; only bigger gaps belong in important for now. |
 
 Deferred event types:
 
@@ -208,6 +208,7 @@ latestEvents:
     milestoneLevels: [5, 10, 13]
   combat:
     underdogLevelDelta: 5
+    importantUnderdogLevelDelta: 8
   manatky:
     publicRarities: [rare, epic]
     legendaryRarities: [epic]
@@ -253,7 +254,7 @@ The first MVP may use page numbers if the existing codebase prefers them, but re
 | Filter | Button | Query |
 | --- | --- | --- |
 | all | default | public normal/high/legendary events |
-| important | `⭐ Важливе` | high/legendary, excluding rare manatky while keeping epic manatky |
+| important | `⭐ Важливе` | high/legendary, excluding rare manatky while keeping epic manatky and underdog combat wins below `+8` |
 | adventurers | `👥 Пригодники` | character created + level reached |
 | combat | `⚔️ Бої` | raid + underdog combat |
 | manatky | `🎒 Манатки` | rare item and future item events |

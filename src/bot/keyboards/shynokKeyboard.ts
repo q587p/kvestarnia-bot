@@ -23,6 +23,12 @@ import {
 } from "../../domain/tavernGames";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { formatTavernGamesButtonLabel } from "./tavernKeyboard";
+import {
+  decorateButtonLabel,
+  resolveQuestMarkerForTarget,
+  type QuestMarkerInput
+} from "./questButtonMarkers";
 import {
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
@@ -58,7 +64,7 @@ import {
 
 export function buildShynokOverviewKeyboard(
   result?: ShynokOverviewResult,
-  options: { tavernGames?: boolean } = {}
+  options: { tavernGames?: boolean; tavernGameTableCount?: number; questMarkers?: QuestMarkerInput | null } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
@@ -70,7 +76,7 @@ export function buildShynokOverviewKeyboard(
     .row();
 
   if (options.tavernGames) {
-    keyboard.text("🎲 Ігри за столом", makeShynokGamesCallbackData()).row();
+    keyboard.text(formatTavernGamesButtonLabel(options.tavernGameTableCount), makeShynokGamesCallbackData()).row();
   }
 
   if (
@@ -90,12 +96,15 @@ export function buildShynokOverviewKeyboard(
     }
   }
 
-  return keyboard.text("⬅️ До зали", makePlaceCallbackData("hall"));
+  return keyboard.text(buildBackToHallLabel(options), makePlaceCallbackData("hall"));
 }
 
-export function buildShynokGameHubKeyboard(result: TavernGameHubResult): InlineKeyboard {
+export function buildShynokGameHubKeyboard(
+  result: TavernGameHubResult,
+  options: ShynokNavigationOptions = {}
+): InlineKeyboard {
   if (result.state !== "ready") {
-    return buildBackToShynokKeyboard();
+    return buildBackToShynokKeyboard(options);
   }
 
   const keyboard = new InlineKeyboard();
@@ -145,9 +154,9 @@ export function buildShynokGameSessionKeyboard(result: {
     creatorCharacterId: string;
     participants: Array<{ characterId: string; status: string; telegramUserId?: bigint }>;
   };
-}, options: { viewerTelegramUserId?: bigint } = {}): InlineKeyboard {
+}, options: { viewerTelegramUserId?: bigint; questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   if (!result.session) {
-    return buildBackToShynokKeyboard();
+    return buildBackToShynokKeyboard(options);
   }
 
   const keyboard = new InlineKeyboard();
@@ -208,9 +217,12 @@ export function buildShynokDrinkMenuKeyboard(): InlineKeyboard {
   return keyboard.text("⬅️ До Шинку", makeShynokOverviewCallbackData());
 }
 
-export function buildShynokDrinkPreviewKeyboard(result: ShynokDrinkOrderResult): InlineKeyboard {
+export function buildShynokDrinkPreviewKeyboard(
+  result: ShynokDrinkOrderResult,
+  options: ShynokNavigationOptions = {}
+): InlineKeyboard {
   if (result.state !== "preview") {
-    return buildBackToShynokKeyboard();
+    return buildBackToShynokKeyboard(options);
   }
 
   return new InlineKeyboard()
@@ -220,17 +232,20 @@ export function buildShynokDrinkPreviewKeyboard(result: ShynokDrinkOrderResult):
     .text("⬅️ До Шинку", makeShynokOverviewCallbackData());
 }
 
-export function buildShynokDrinkResultKeyboard(): InlineKeyboard {
-  return buildBackToShynokKeyboard();
+export function buildShynokDrinkResultKeyboard(options: ShynokNavigationOptions = {}): InlineKeyboard {
+  return buildBackToShynokKeyboard(options);
 }
 
-export function buildShynokRoundPreviewKeyboard(result: ShynokRoundPreviewResult): InlineKeyboard {
+export function buildShynokRoundPreviewKeyboard(
+  result: ShynokRoundPreviewResult,
+  options: ShynokNavigationOptions = {}
+): InlineKeyboard {
   if (result.state !== "preview") {
     if (result.state === "raid-required") {
-      return buildShynokRaidRequiredKeyboard();
+      return buildShynokRaidRequiredKeyboard(options);
     }
 
-    return buildBackToShynokKeyboard();
+    return buildBackToShynokKeyboard(options);
   }
 
   return new InlineKeyboard()
@@ -239,17 +254,23 @@ export function buildShynokRoundPreviewKeyboard(result: ShynokRoundPreviewResult
     .text("⬅️ До Шинку", makeShynokOverviewCallbackData());
 }
 
-export function buildShynokRoundResultKeyboard(result: ShynokRoundConfirmResult): InlineKeyboard {
+export function buildShynokRoundResultKeyboard(
+  result: ShynokRoundConfirmResult,
+  options: ShynokNavigationOptions = {}
+): InlineKeyboard {
   if (result.state === "raid-required") {
-    return buildShynokRaidRequiredKeyboard();
+    return buildShynokRaidRequiredKeyboard(options);
   }
 
-  return buildBackToShynokKeyboard();
+  return buildBackToShynokKeyboard(options);
 }
 
-export function buildShynokRoundOfferResponseKeyboard(result: ShynokRoundOfferRespondResult): InlineKeyboard {
+export function buildShynokRoundOfferResponseKeyboard(
+  result: ShynokRoundOfferRespondResult,
+  options: ShynokNavigationOptions = {}
+): InlineKeyboard {
   if (result.state !== "replacement-preview") {
-    return buildBackToShynokKeyboard();
+    return buildBackToShynokKeyboard(options);
   }
 
   return new InlineKeyboard()
@@ -296,9 +317,12 @@ export function buildBackToCurrentPlaceKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("↩️ До місцини", makePlaceCallbackData("current"));
 }
 
-export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResult): InlineKeyboard {
+export function buildShynokSaleSelectionKeyboard(
+  result: ShynokSaleSelectionResult,
+  options: ShynokNavigationOptions = {}
+): InlineKeyboard {
   if (result.state !== "selection") {
-    return buildBackToShynokKeyboard();
+    return buildBackToShynokKeyboard(options);
   }
 
   const keyboard = new InlineKeyboard();
@@ -342,14 +366,25 @@ export function buildShynokSaleSelectionKeyboard(result: ShynokSaleSelectionResu
   return keyboard
     .text("⬅️ До Шинку", makeShynokSaleCancelCallbackData(result.sale.token))
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options), makePlaceCallbackData("hall"));
 }
 
-export function buildBackToShynokKeyboard(): InlineKeyboard {
+export function buildBackToShynokKeyboard(options: ShynokNavigationOptions = {}): InlineKeyboard {
   return new InlineKeyboard()
     .text("⬅️ До Шинку", makePlaceCallbackData("bar"))
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options), makePlaceCallbackData("hall"));
+}
+
+interface ShynokNavigationOptions {
+  questMarkers?: QuestMarkerInput | null;
+}
+
+function buildBackToHallLabel(options: ShynokNavigationOptions = {}): string {
+  return decorateButtonLabel(
+    "⬅️ До зали",
+    resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall")
+  );
 }
 
 export function formatShynokOpenTableButtonLabel(
@@ -392,9 +427,9 @@ function kostiDecisionButtonLabel(
   return `${styleLabel} ${signLabel}`;
 }
 
-function buildShynokRaidRequiredKeyboard(): InlineKeyboard {
+function buildShynokRaidRequiredKeyboard(options: ShynokNavigationOptions = {}): InlineKeyboard {
   return new InlineKeyboard()
     .text("🛢️ До Бочки", makePlaceCallbackData("barrel"))
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options), makePlaceCallbackData("hall"));
 }

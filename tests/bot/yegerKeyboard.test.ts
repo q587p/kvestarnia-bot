@@ -36,7 +36,7 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)[0]).toEqual({
-      text: "🏹 Неспокійні справи",
+      text: "🏹 Неспокійні справи ⚠️",
       callback_data: makeYegerQuestCallbackData()
     });
   });
@@ -49,7 +49,7 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)[0]).toEqual({
-      text: "🏹 Здати Єгерю",
+      text: "🏹 Здати Єгерю ✅",
       callback_data: makeYegerTurnInCallbackData()
     });
     expect(flatButtons(keyboard).map((button) => button.callback_data)).not.toContain(
@@ -272,6 +272,18 @@ describe("Yeger keyboard", () => {
     );
   });
 
+  it("keeps direct Yeger quest accept actions free of available-task markers", () => {
+    const keyboard = buildYegerTurnInKeyboard({
+      state: "not-started",
+      character
+    });
+
+    expect(flatButtons(keyboard)).toEqual(expect.arrayContaining([
+      { text: "🏹 Взяти справу", callback_data: makeYegerStartCallbackData() }
+    ]));
+    expect(flatButtons(keyboard).map((button) => button.text)).not.toContain("🏹 Взяти справу ⚠️");
+  });
+
   it("keeps bandage supplies hidden before the base Yeger board is completed", () => {
     const keyboard = buildYegerCornerKeyboard({
       state: "level-locked",
@@ -338,7 +350,7 @@ describe("Yeger keyboard", () => {
     });
 
     expect(flatButtons(keyboard)).toContainEqual({
-      text: "🏹 Неспокійні справи 2.0",
+      text: "🏹 Неспокійні справи 2.0 ⚠️",
       callback_data: makeYegerQuestCallbackData()
     });
     expect(flatButtons(keyboard)).toContainEqual({

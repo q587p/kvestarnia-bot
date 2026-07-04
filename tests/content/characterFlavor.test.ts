@@ -179,7 +179,7 @@ describe("character flavor content", () => {
     expect(line?.text).not.toContain("{title}");
   });
 
-  it("renders combo flavor with the authored title instead of long race-class labels", () => {
+  it("renders starter shawarma combo flavor without the authored title or long race-class labels", () => {
     const line = selectCharacterFlavorLine(
       {
         ...baseCharacter,
@@ -192,7 +192,8 @@ describe("character flavor content", () => {
       fixed("quest.start", "shawarma")
     );
 
-    expect(line?.text).toContain("Кандидат Бойових Наук");
+    expect(line?.text).toContain("Запах часнику отримує тезу");
+    expect(line?.text).not.toContain("Кандидат Бойових Наук");
     expect(line?.text).not.toContain("Орк-інтелігент-Маг");
     expect(line?.text).not.toContain("{title}");
   });
@@ -257,8 +258,10 @@ describe("character flavor content", () => {
 
         const isCellarStartSelectedComboLine =
           query.placement === "quest.start" && query.scene === "cellar" && isSelectedComboLine;
+        const isShawarmaStartSelectedComboLine =
+          query.placement === "quest.start" && query.scene === "shawarma" && isSelectedComboLine;
 
-        if (isCellarStartSelectedComboLine) {
+        if (isCellarStartSelectedComboLine || isShawarmaStartSelectedComboLine) {
           expect(line?.text).not.toContain(character.title);
         } else if (query.placement !== "raid.prep-hint" || isSelectedComboLine) {
           expect(line?.text).toContain(character.title);

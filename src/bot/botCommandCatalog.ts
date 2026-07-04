@@ -267,7 +267,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_two_enemies",
     icon: "🧬",
-    description: "почати локальний бій із двома ворогами",
+    description: "почати локальний бій із двома ворогами; число додає рівні другому",
     includeInMenu: false,
     devOnly: "reset"
   },
@@ -359,6 +359,27 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "dev_reset_yeger_trail",
     icon: "👣",
     description: "завершити очікування сліду Єгеря локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_reset_priest_blessing",
+    icon: "🙏",
+    description: "скинути cooldown жрецького благословення локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_reset_quiet_pocket",
+    icon: "🗡️",
+    description: "скинути cooldown Тихої кишені локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_reset_rogue",
+    icon: "🧤",
+    description: "скинути cooldown і сьогоднішні кишені злодія локально",
     includeInMenu: false,
     devOnly: "grant"
   },

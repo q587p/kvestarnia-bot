@@ -35,6 +35,7 @@ import {
   type ProblemQuestProgress
 } from "../../services/fightService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
+import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import { systemClock } from "../../shared/time";
@@ -86,18 +87,21 @@ import {
 } from "../presenters/partySessionPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
+import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 type TavernCommandKeyboard =
   | boolean
   | "hall"
-  | { state: "hall"; characterLevel?: number }
+  | { state: "hall"; characterLevel?: number; questMarkers?: QuestMarkerInput | null }
   | {
       state: "bar";
       includeBottleTurnIn?: boolean;
       problemQuestAction?: "turn-in" | "take" | "next";
       bardPerformance?: boolean;
       tavernGames?: boolean;
+      tavernGameTableCount?: number;
+      questMarkers?: QuestMarkerInput | null;
     }
   | "front"
   | {
@@ -106,10 +110,13 @@ type TavernCommandKeyboard =
       munchkinLocation?: MunchkinLocation;
       dailyYard?: boolean;
       characterLevel?: number;
+      questMarkers?: QuestMarkerInput | null;
     }
   | "yard"
+  | { state: "yard"; questMarkers?: QuestMarkerInput | null }
   | "news-corner"
   | "fighting-corner"
+  | { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null }
   | "deep"
   | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
   | "back-to-fighting-corner"
@@ -118,6 +125,7 @@ type TavernCommandKeyboard =
   | { state: "memorial"; remortNumbers?: readonly number[] }
   | "remort-milestones"
   | "barrel-result"
+  | { state: "barrel-result"; questMarkers?: QuestMarkerInput | null }
   | "barrel-pending"
   | "barrel-participants";
 
@@ -127,6 +135,7 @@ export interface TavernCommandOptions {
   partySessions?: PartySessionService | undefined;
   openBigBarrelRecruiting?: boolean | undefined;
   onlyBigBarrelRecruiting?: boolean | undefined;
+  questMarkers?: QuestMarkerInput | null | undefined;
 }
 
 const HTML_MESSAGE_OPTIONS = {
@@ -155,7 +164,8 @@ export async function sendTavern(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: { questMarkers?: QuestMarkerInput | null } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -192,7 +202,11 @@ export async function sendTavern(
     presentKorchmaHall(result.character, presence, telegramUserId, {
       flavorSeed: `korchma-hall:${ctx.update?.update_id ?? "manual"}`
     }),
-    { state: "hall", characterLevel: result.character.level }
+    {
+      state: "hall",
+      characterLevel: result.character.level,
+      ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+    }
   );
 }
 
@@ -202,7 +216,11 @@ export async function sendKorchmaFront(
   presenceService: PresenceService,
   mode: "reply" | "edit",
   yegerQuestService?: Pick<YegerQuestService, "getForTelegramUser">,
-  options: { now?: Date; playerHintService?: Pick<PlayerHintService, "claimKorchmaFrontEntryHint"> } = {}
+  options: {
+    now?: Date;
+    playerHintService?: Pick<PlayerHintService, "claimKorchmaFrontEntryHint">;
+    questMarkers?: QuestMarkerInput | null;
+  } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -243,7 +261,8 @@ export async function sendKorchmaFront(
     yegerAction,
     munchkinLocation,
     dailyYard: result.character.level >= 3,
-    characterLevel: result.character.level
+    characterLevel: result.character.level,
+    ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
   });
 }
 
@@ -251,7 +270,8 @@ export async function sendKorchmaYard(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: { questMarkers?: QuestMarkerInput | null } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -280,7 +300,9 @@ export async function sendKorchmaYard(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_YARD);
-  await sendText(ctx, mode, presentKorchmaYard(result.character), "yard");
+  await sendText(ctx, mode, presentKorchmaYard(result.character), options.questMarkers
+    ? { state: "yard", questMarkers: options.questMarkers }
+    : "yard");
 }
 
 export async function sendKorchmaNewsCorner(
@@ -459,7 +481,8 @@ export async function sendKorchmaFightingCorner(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: { questMarkers?: QuestMarkerInput | null } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -494,7 +517,10 @@ export async function sendKorchmaFightingCorner(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
-  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character), "fighting-corner");
+  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character), {
+    state: "fighting-corner",
+    ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+  });
 }
 
 export async function sendKorchmaDeepClosed(
@@ -602,7 +628,8 @@ export async function sendKorchmaBar(
   mode: "reply" | "edit",
   cellarGrownupQuestService?: CellarGrownupQuestService,
   fightService?: FightService,
-  tavernGameService?: TavernGameService
+  tavernGameService?: TavernGameService,
+  options: { questMarkers?: QuestMarkerInput | null } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -629,12 +656,14 @@ export async function sendKorchmaBar(
     problemQuest?.state === "ready" && result.character.level >= PROBLEM_QUEST_REQUIRED_LEVEL
       ? getProblemQuestBarActionFromProgress(problemQuest.progress)
       : undefined;
+  const tavernGameOptions = await getTavernGameButtonOptions(tavernGameService);
   const barOptions = {
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
     bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
-    tavernGames: Boolean(tavernGameService?.isEnabled()),
+    ...tavernGameOptions,
+    ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers }),
     ...(problemQuestAction ? { problemQuestAction } : {})
   } as const;
 
@@ -664,13 +693,19 @@ export async function sendTavernBarrel(
 
   if (result.state === "already-completed") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-    await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), "barrel-result");
+    await sendText(ctx, mode, presentTavernAlreadyRaided(result.character), {
+      state: "barrel-result",
+      ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+    });
     return true;
   }
 
   if (result.state === "audit-break") {
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
-    await sendText(ctx, mode, presentTavernRaidAuditBreak(result), "barrel-result");
+    await sendText(ctx, mode, presentTavernRaidAuditBreak(result), {
+      state: "barrel-result",
+      ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+    });
     return true;
   }
 
@@ -872,17 +907,28 @@ async function sendText(
             ? buildKorchmaHallKeyboard()
             : isHallKeyboard(keyboard)
               ? buildKorchmaHallKeyboard(
-                  keyboard.characterLevel === undefined ? {} : { characterLevel: keyboard.characterLevel }
+                  {
+                    ...(keyboard.characterLevel === undefined ? {} : { characterLevel: keyboard.characterLevel }),
+                    ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers })
+                  }
                 )
             : isBarKeyboard(keyboard)
               ? buildKorchmaBarKeyboard({
                   includeBottleTurnIn: Boolean(keyboard.includeBottleTurnIn),
                   bardPerformance: Boolean(keyboard.bardPerformance),
                   tavernGames: Boolean(keyboard.tavernGames),
+                  ...(keyboard.tavernGameTableCount === undefined
+                    ? {}
+                    : { tavernGameTableCount: keyboard.tavernGameTableCount }),
+                  ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }),
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })
             : keyboard === "fighting-corner"
               ? buildKorchmaFightingCornerKeyboard()
+            : isFightingCornerKeyboard(keyboard)
+              ? buildKorchmaFightingCornerKeyboard(
+                  keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+                )
             : keyboard === "deep"
               ? buildKorchmaDeepKeyboard()
             : isDeepKeyboard(keyboard)
@@ -907,12 +953,19 @@ async function sendText(
                   ...(keyboard.characterLevel === undefined
                     ? {}
                     : { characterLevel: keyboard.characterLevel }),
+                  ...(keyboard.questMarkers === undefined
+                    ? {}
+                    : { questMarkers: keyboard.questMarkers }),
                   ...(keyboard.munchkinLocation === undefined
                     ? {}
                     : { munchkinLocation: keyboard.munchkinLocation })
                 })
             : keyboard === "yard"
               ? buildKorchmaYardKeyboard()
+            : isYardKeyboard(keyboard)
+              ? buildKorchmaYardKeyboard(
+                  keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+                )
             : keyboard === "news-corner"
               ? buildKorchmaNewsCornerKeyboard()
             : keyboard === "front"
@@ -927,10 +980,15 @@ async function sendText(
                   )
                 : keyboard === "remort-milestones"
                   ? buildKorchmaRemortMilestoneBoardKeyboard()
-                : keyboard === "barrel-result"
-                  ? buildTavernResultKeyboard("already-completed")
-                  : keyboard === "barrel-pending"
-                    ? buildTavernResultKeyboard("pending")
+            : keyboard === "barrel-result"
+              ? buildTavernResultKeyboard("already-completed")
+            : isBarrelResultKeyboard(keyboard)
+              ? buildTavernResultKeyboard(
+                  "already-completed",
+                  keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+                )
+            : keyboard === "barrel-pending"
+              ? buildTavernResultKeyboard("pending")
                     : buildTavernKeyboard()
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
@@ -949,8 +1007,24 @@ function isFrontKeyboard(
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
 }
 
+function isFightingCornerKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "fighting-corner";
+}
+
 function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "bar" }> {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "bar";
+}
+
+function isYardKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "yard" }> {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "yard";
+}
+
+function isBarrelResultKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is Extract<TavernCommandKeyboard, { state: "barrel-result" }> {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "barrel-result";
 }
 
 function isMemorialKeyboard(

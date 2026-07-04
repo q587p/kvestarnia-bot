@@ -86,6 +86,35 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: Єгерський слід уже готовий або ще не взятий.";
   }
 
+  if (result.kind === "priest-blessing-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: жрецьке благословення знову готове до локальної перевірки."
+      : "🧪 Dev: жрецьке благословення і так без активного cooldown.";
+  }
+
+  if (result.kind === "quiet-pocket-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: «Тиха кишеня» знову готова до локальної перевірки."
+      : "🧪 Dev: «Тиха кишеня» і так без активного cooldown.";
+  }
+
+  if (result.kind === "rogue-reset") {
+    if (result.clearedCooldown || result.deletedAttempts > 0) {
+      return [
+        "🧪 Dev: злодійський QA reset виконано.",
+        "",
+        result.clearedCooldown
+          ? "Пальці відсапались: cooldown скинуто."
+          : "Пальці й так були готові: активного cooldown не було.",
+        result.deletedAttempts > 0
+          ? `Сьогоднішні кишені забуто: ${result.deletedAttempts} ${formatUnit(result.deletedAttempts, ["запис", "записи", "записів"])}.`
+          : "Сьогоднішній список кишень уже був чистий."
+      ].join("\n");
+    }
+
+    return "🧪 Dev: злодій і так готовий до локальної перевірки.";
+  }
+
   if (result.kind === "yeger-bandage-day") {
     return result.deleted > 0
       ? `🧪 Dev: день купівлі бинтів Єгеря скинуто. Прибрано ${result.deleted} ${formatUnit(result.deleted, ["запис", "записи", "записів"])}.`

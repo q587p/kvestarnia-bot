@@ -6,11 +6,12 @@ import {
 } from "../../domain/combat";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
+import type { PartyBossCombatItemMenuEntry } from "../../services/partyBossService";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
-import { getCombatItemUseKey } from "../../services/combatItemUse";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
   makePartyBossStartCallbackData,
@@ -22,12 +23,13 @@ import {
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionReadinessCallbackData,
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
+import { addPaginationControls } from "./pagination";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
-const RESPONSIBLE_PANIC_BANDAGE_ID = "item.responsible-panic-bandage";
 
 export function buildPartySessionKeyboard(
   session: PartySessionRecord,
@@ -52,6 +54,13 @@ export function buildPartySessionKeyboard(
     if (!viewer) {
       keyboard.text("🤝 Приєднатися", makePartySessionJoinCallbackData(token)).row();
     } else {
+      if (session.originLocationId === "barrel.big-brother") {
+        const ready = viewer.readiness === "ready";
+        keyboard.text(
+          ready ? "⏳ Зачекайте" : getReadyButtonLabel(viewer.character.pronoun),
+          makePartySessionReadinessCallbackData(token, ready ? "waiting" : "ready")
+        ).row();
+      }
       keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token)).row();
     }
 
@@ -115,11 +124,7 @@ export function buildPartyBossKeyboard(
 
     keyboard.row();
     keyboard
-      .text("🎒 1 разові манатки", makePartyBossItemUseCallbackData({
-        token: session.partyInviteToken,
-        turn: session.turn,
-        itemKey: getCombatItemUseKey(RESPONSIBLE_PANIC_BANDAGE_ID)
-      }))
+      .text("🎒 Одноразові манатки", makePartyBossItemsMenuCallbackData(session.partyInviteToken, session.turn))
       .row();
   }
 
@@ -131,6 +136,27 @@ export function buildPartyBossKeyboard(
     keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
   }
   return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
+}
+
+export function buildPartyBossItemsKeyboard(input: {
+  token: string;
+  turn: number;
+  items: PartyBossCombatItemMenuEntry[];
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const item of input.items) {
+    keyboard.text(
+      formatCombatItemButton(item),
+      makePartyBossItemUseCallbackData({
+        token: input.token,
+        turn: input.turn,
+        itemKey: item.itemKey
+      })
+    ).row();
+  }
+
+  return keyboard.text("↩️ До бою", makePartySessionViewCallbackData(input.token));
 }
 
 export function buildPartyBossJournalKeyboard(
@@ -188,19 +214,11 @@ export function buildPartySessionNearbyCandidatesKeyboard(
       .row();
   }
 
-  if (snapshot.totalPages > 1) {
-    if (snapshot.page > 0) {
-      keyboard.text("⬅️", makePartySessionNearbyOpenCallbackData(snapshot.page - 1));
-    }
-
-    keyboard.text(`${snapshot.page + 1}/${snapshot.totalPages}`, makePartySessionNearbyOpenCallbackData(snapshot.page));
-
-    if (snapshot.page + 1 < snapshot.totalPages) {
-      keyboard.text("➡️", makePartySessionNearbyOpenCallbackData(snapshot.page + 1));
-    }
-
-    keyboard.row();
-  }
+  addPaginationControls(keyboard, {
+    page: snapshot.page,
+    totalPages: snapshot.totalPages,
+    makeCallbackData: makePartySessionNearbyOpenCallbackData
+  });
 
   keyboard.text("🔎 Оновити", makePartySessionNearbyOpenCallbackData(snapshot.page));
   return keyboard;
@@ -215,6 +233,23 @@ function formatCandidateButton(candidate: PresencePerson): string {
   return `${name}${level}`;
 }
 
+function formatCombatItemButton(item: PartyBossCombatItemMenuEntry): string {
+  const quantity = item.quantity > 1 ? ` ×${item.quantity}` : "";
+  const label = `${getCombatItemIcon(item.itemId)} ${item.name}${quantity}`;
+
+  return label.length > MAX_BUTTON_NAME_LENGTH
+    ? `${label.slice(0, MAX_BUTTON_NAME_LENGTH - 1)}…`
+    : label;
+}
+
+function getCombatItemIcon(itemId: string): string {
+  if (itemId === "item.field-kit") {
+    return "⚕️";
+  }
+
+  return "🩹";
+}
+
 function clampPage(page: number, total: number): number {
   if (!Number.isFinite(page)) {
     return 0;
@@ -227,6 +262,18 @@ function buildTelegramShareUrl(inviteUrl: string): string {
   const text = "Квестарня кличе у рейд до Старшого Брата Бочки.";
 
   return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
+}
+
+function getReadyButtonLabel(pronoun: string): string {
+  if (pronoun === "he") {
+    return "✅ Готовий";
+  }
+
+  if (pronoun === "she") {
+    return "✅ Готова";
+  }
+
+  return "✅ Готові";
 }
 
 function getPartyBossSkillButtonLabel(classId: string | undefined): string {

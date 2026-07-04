@@ -204,6 +204,7 @@ async function sendText(
     | {
         state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
         includeKeptBottle?: boolean;
+        hideRoleplay?: boolean;
       }
     | { state: "ready" | "on-cooldown"; character: CharacterSummary } = false
 ): Promise<void> {
@@ -215,7 +216,8 @@ async function sendText(
             ? buildEnterKorchmaKeyboard()
             : isGrownupKeyboard(keyboard)
               ? buildCellarGrownupKeyboard(keyboard.state, {
-                  includeKeptBottle: Boolean(keyboard.includeKeptBottle)
+                  includeKeptBottle: Boolean(keyboard.includeKeptBottle),
+                  hideRoleplay: Boolean(keyboard.hideRoleplay)
                 })
             : buildCellarResultKeyboard(keyboard.state, keyboard.character)
       }
@@ -240,6 +242,7 @@ function isGrownupKeyboard(
 ): keyboard is {
   state: "offered" | "has-seal" | "roleplay-cooldown" | "bottle-obtained" | "completed" | "insufficient";
   includeKeptBottle?: boolean;
+  hideRoleplay?: boolean;
 } {
   return typeof keyboard !== "string" && !("character" in keyboard);
 }

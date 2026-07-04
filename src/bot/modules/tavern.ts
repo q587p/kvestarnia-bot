@@ -60,12 +60,15 @@ sendTavern,
 sendTavernBarrel
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
+import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
 import {
 buildCellarGrownupKeyboard,
 buildCellarMethodHelpKeyboard,
 buildCellarParticipantsKeyboard,
 buildCellarResultKeyboard
 } from "../keyboards/cellarKeyboard";
+import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
 import {
 buildBardPerformanceResponseKeyboard,
 buildBardPerformanceRespondResultKeyboard,
@@ -269,15 +272,20 @@ async function handleShynokCallback(
     return;
   }
 
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+  const shynokNavigationOptions = {
+    ...(questMarkers ? { questMarkers } : {})
+  };
+
   if (action.type === "overview") {
     const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
-    const tavernGames = Boolean(services.tavernGames?.isEnabled());
+    const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
-    await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames }), {
+    await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames: tavernGameOptions.tavernGames }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready"
-        ? buildShynokOverviewKeyboard(result, { tavernGames })
-        : buildBackToShynokKeyboard()
+        ? buildShynokOverviewKeyboard(result, { ...tavernGameOptions, ...shynokNavigationOptions })
+        : buildBackToShynokKeyboard(shynokNavigationOptions)
     });
     return;
   }
@@ -292,7 +300,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
     await safeEditMessageText(ctx, presentTavernGameHub(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokGameHubKeyboard(result)
+      reply_markup: buildShynokGameHubKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -328,7 +336,7 @@ async function handleShynokCallback(
         gameKey: action.gameKey
       }), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildBackToShynokKeyboard()
+        reply_markup: buildBackToShynokKeyboard(shynokNavigationOptions)
       });
       return;
     }
@@ -381,7 +389,7 @@ async function handleShynokCallback(
     });
     await safeEditMessageText(ctx, presentTavernGameActionResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTavernGameActionKeyboard(result, telegramUserId)
+      reply_markup: buildTavernGameActionKeyboard(result, telegramUserId, shynokNavigationOptions)
     });
     await notifyTavernGameParticipants(ctx, result, telegramUserId);
     await notifyTavernGameAchievements(ctx, result);
@@ -393,7 +401,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
     await safeEditMessageText(ctx, presentShynokDrinkMenu(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: result.state === "ready" ? buildShynokDrinkMenuKeyboard() : buildBackToShynokKeyboard()
+      reply_markup: result.state === "ready" ? buildShynokDrinkMenuKeyboard() : buildBackToShynokKeyboard(shynokNavigationOptions)
     });
     return;
   }
@@ -457,7 +465,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
     await safeEditMessageText(ctx, presentShynokDrinkPreview(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokDrinkPreviewKeyboard(result)
+      reply_markup: buildShynokDrinkPreviewKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -469,7 +477,7 @@ async function handleShynokCallback(
       : { show_alert: result.state !== "replayed" });
     await safeEditMessageText(ctx, presentShynokDrinkConfirmResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokDrinkResultKeyboard()
+      reply_markup: buildShynokDrinkResultKeyboard(shynokNavigationOptions)
     });
     return;
   }
@@ -487,7 +495,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
     await safeEditMessageText(ctx, presentShynokRoundPreview(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundPreviewKeyboard(result)
+      reply_markup: buildShynokRoundPreviewKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -506,7 +514,7 @@ async function handleShynokCallback(
     }
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundResultKeyboard(result)
+      reply_markup: buildShynokRoundResultKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -536,7 +544,7 @@ async function handleShynokCallback(
         });
     await safeEditMessageText(ctx, presentShynokRoundOfferResponse(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundOfferResponseKeyboard(result)
+      reply_markup: buildShynokRoundOfferResponseKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -546,7 +554,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "selection" });
     await safeEditMessageText(ctx, presentShynokSaleSelection(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokSaleSelectionKeyboard(result)
+      reply_markup: buildShynokSaleSelectionKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -577,7 +585,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentShynokSaleSelection(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokSaleSelectionKeyboard(result)
+      reply_markup: buildShynokSaleSelectionKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -592,7 +600,7 @@ async function handleShynokCallback(
     : { show_alert: result.state !== "replayed" && result.state !== "cancelled" });
   await safeEditMessageText(ctx, presentShynokSaleConfirm(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildBackToShynokKeyboard()
+    reply_markup: buildBackToShynokKeyboard(shynokNavigationOptions)
   });
 }
 
@@ -630,7 +638,7 @@ function buildTavernGameActionKeyboard(result: {
       characterId: string;
     }>;
   };
-}, telegramUserId: bigint) {
+}, telegramUserId: bigint, options: { questMarkers?: QuestMarkerInput | null } = {}) {
   const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
   const canChoose = participant &&
     (participant.status === "joined" || participant.status === "decided") &&
@@ -647,7 +655,7 @@ function buildTavernGameActionKeyboard(result: {
     return buildShynokKostiDecisionKeyboard(result.session.token);
   }
 
-  return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId });
+  return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId, ...options });
 }
 
 async function notifyTavernGameParticipants(
@@ -844,6 +852,7 @@ async function handlePlaceCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
 
   if (action === "current") {
     await sendCurrentLocation(ctx, services);
@@ -856,7 +865,9 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendTavern(ctx, services.tavern, services.presence, "reply");
+    await sendTavern(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -864,7 +875,8 @@ async function handlePlaceCallback(
   if (action === "front") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_FRONT);
     await sendKorchmaFront(ctx, services.tavern, services.presence, "reply", services.yeger, {
-      playerHintService: services.playerHints
+      playerHintService: services.playerHints,
+      ...(questMarkers ? { questMarkers } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -876,7 +888,9 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaYard(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -914,7 +928,8 @@ async function handlePlaceCallback(
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
       botUsername: options.botUsername,
       partyBoss: services.partyBoss,
-      partySessions: services.partySessions
+      partySessions: services.partySessions,
+      ...(questMarkers ? { questMarkers } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -933,7 +948,10 @@ async function handlePlaceCallback(
       "reply",
       services.cellarGrownup,
       services.fight,
-      services.tavernGames
+      services.tavernGames,
+      {
+        ...(questMarkers ? { questMarkers } : {})
+      }
     );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -947,7 +965,9 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -1247,11 +1267,10 @@ async function handleTavernCallback(
     }
 
     await safeAnswerCallbackQuery(ctx);
+    const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
     await safeEditMessageText(ctx, presentTavernRoundResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaRoundResultKeyboard(result, {
-        tavernGames: Boolean(services.tavernGames?.isEnabled())
-      })
+      reply_markup: buildKorchmaRoundResultKeyboard(result, tavernGameOptions)
     });
     return;
   }
@@ -1279,10 +1298,14 @@ async function handleTavernCallback(
     return;
   }
 
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentTavernRaidResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildTavernResultKeyboard(result.state)
+    reply_markup: buildTavernResultKeyboard(result.state, {
+      ...(questMarkers ? { questMarkers } : {})
+    })
   });
 
   if (result.state === "pending-started") {
@@ -1542,19 +1565,21 @@ async function handleCellarGrownupCallback(
 
   await safeAnswerCallbackQuery(ctx);
   const grownupKeyboardState = getCellarGrownupKeyboardState(result);
+  const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
 
   await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     ...(action === "grownup-turn-in"
       ? {
           reply_markup: buildKorchmaBarKeyboard({
-            tavernGames: Boolean(services.tavernGames?.isEnabled())
+            ...tavernGameOptions
           })
         }
       : grownupKeyboardState
         ? {
             reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
-              includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result)
+              includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result),
+              hideRoleplay: shouldHideCellarGrownupRoleplayButton(result)
             })
           }
       : {})
@@ -1595,5 +1620,12 @@ function shouldShowCellarGrownupKeptBottleButton(result: CellarGrownupQuestResul
   return (
     (result.state === "completed" || result.state === "already-completed") &&
     result.ending === "keep"
+  );
+}
+
+function shouldHideCellarGrownupRoleplayButton(result: CellarGrownupQuestResult): boolean {
+  return (
+    result.state === "insufficient-gold" &&
+    Boolean(result.roleplayCooldown && result.roleplayCooldown.availableAt > result.roleplayCooldown.now)
   );
 }
