@@ -362,6 +362,51 @@ describe("TavernGameService", () => {
     expect(repository.lastSaveInput?.expiresAt?.toISOString()).toBe("2026-07-02T11:33:00.000Z");
   });
 
+  it("returns an active dice poker session for rules back navigation without mutating state", async () => {
+    const token = "12345678-1234-4234-9234-000000000429";
+    const quick = startQuickDicePoker("quick-view");
+    const repository = new FakeTavernGameRepository({
+      tokenSession: session({
+        token,
+        gameKey: "kosti",
+        status: "ready",
+        rulesVersion: DICE_POKER_RULES_VERSION,
+        result: quick,
+        participants: [participant("character-1", 42n, "Тест", { status: "joined" })]
+      })
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.viewDicePokerForTelegramUser(42n, token);
+
+    expect(result).toMatchObject({ state: "saved", dicePoker: quick });
+    expect(repository.saveDicePokerCalls).toBe(0);
+    expect(repository.completeDicePokerCalls).toBe(0);
+  });
+
+  it("resets tavern game creation cooldown for local QA through the repository", async () => {
+    const repository = new FakeTavernGameRepository({
+      resetCreateCooldownResult: { state: "reset", updated: 2 }
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true,
+      tavernGameKostiEnabled: true,
+      tavernGameCreateCooldownSec: 120
+    }), () => now);
+
+    const result = await service.resetCreateCooldownForDev(42n);
+
+    expect(result).toEqual({ state: "reset", updated: 2 });
+    expect(repository.lastResetCreateCooldownInput).toEqual({
+      now,
+      cooldownMs: 120_000
+    });
+  });
+
   it("builds day week and month leaderboards from completed tables", async () => {
     const alice = participant("character-a", 101n, "Аля");
     const bob = participant("character-b", 102n, "Боб");
@@ -498,6 +543,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
     now: Date;
     expiresAt?: Date;
   } | null = null;
+  lastResetCreateCooldownInput: { now: Date; cooldownMs: number } | null = null;
 
   constructor(private readonly options: {
     openTables?: TavernGameSessionRecord[];
@@ -505,6 +551,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
     tokenSession?: TavernGameSessionRecord;
     createResult?: Awaited<ReturnType<TavernGameRepository["createForTelegramUser"]>>;
     dicePokerActionResult?: DicePokerActionResult;
+    resetCreateCooldownResult?: Awaited<ReturnType<TavernGameRepository["resetCreateCooldownForTelegramUser"]>>;
   } = {}) {}
 
   listOpen(): Promise<TavernGameSessionRecord[]> {
@@ -614,6 +661,14 @@ class FakeTavernGameRepository implements TavernGameRepository {
     return Promise.resolve({ state: "cancelled", session: session() });
   }
 
+  resetCreateCooldownForTelegramUser(
+    _telegramUserId: bigint,
+    input: Parameters<TavernGameRepository["resetCreateCooldownForTelegramUser"]>[1]
+  ): ReturnType<TavernGameRepository["resetCreateCooldownForTelegramUser"]> {
+    this.lastResetCreateCooldownInput = input;
+    return Promise.resolve(this.options.resetCreateCooldownResult ?? { state: "reset", updated: 0 });
+  }
+
   refundDisabledByToken(): Promise<TavernGameSessionRecord | null> {
     this.refundDisabledCalls += 1;
     return Promise.resolve(this.options.tokenSession ?? null);
@@ -627,7 +682,8 @@ class FakeTavernGameRepository implements TavernGameRepository {
 function participant(
   characterId: string,
   telegramUserId: bigint,
-  displayName: string
+  displayName: string,
+  overrides: Partial<TavernGameSessionRecord["participants"][number]> = {}
 ): TavernGameSessionRecord["participants"][number] {
   const character = {
     id: characterId,
@@ -669,7 +725,8 @@ function participant(
     joinedAt: now,
     decidedAt: now,
     completedAt: now,
-    character
+    character,
+    ...overrides
   };
 }
 

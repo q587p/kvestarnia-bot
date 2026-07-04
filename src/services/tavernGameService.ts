@@ -81,6 +81,11 @@ export type DicePokerServiceResult =
   | TavernGameCreateCooldownServiceResult
   | (DicePokerActionResult & TavernGameAchievementPayload);
 
+export type TavernGameDevResetResult =
+  | { state: "disabled" }
+  | { state: "no-character" }
+  | { state: "reset"; updated: number };
+
 export interface TavernGameAchievementNotification {
   telegramUserId: bigint;
   unlocks: AchievementUnlock[];
@@ -122,6 +127,17 @@ export class TavernGameService {
 
   getMaxStake(): number {
     return this.config.tavernGameMaxStake;
+  }
+
+  async resetCreateCooldownForDev(telegramUserId: bigint): Promise<TavernGameDevResetResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    return this.repository.resetCreateCooldownForTelegramUser(telegramUserId, {
+      now: this.now(),
+      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000
+    });
   }
 
   async getHub(): Promise<TavernGameHubResult> {
@@ -458,6 +474,31 @@ export class TavernGameService {
     }
 
     return this.repository.cancelDicePokerForTelegramUser(telegramUserId, token, this.now());
+  }
+
+  async viewDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<DicePokerServiceResult> {
+    const current = await this.getDicePokerStateForAction(token);
+    if (!current) {
+      return { state: "not-found" };
+    }
+    if (!isDicePokerState(current.result)) {
+      return { state: "stale", session: current };
+    }
+
+    const participant = current.participants.find((row) =>
+      row.telegramUserId === telegramUserId && (row.status === "joined" || row.status === "decided")
+    );
+    if (!participant) {
+      return { state: "not-participant", session: current };
+    }
+    if (current.result.phase === "terminal" || current.status === "completed") {
+      return { state: "closed", session: current };
+    }
+
+    return { state: "saved", session: current, dicePoker: current.result };
   }
 
   async cancelForTelegramUser(

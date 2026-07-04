@@ -40,8 +40,10 @@ import {
   makeShynokDrinksCallbackData,
   makeShynokDicePokerCancelCallbackData,
   makeShynokDicePokerCreateCallbackData,
+  makeShynokDicePokerModeCallbackData,
   makeShynokDicePokerRollCallbackData,
   makeShynokDicePokerRulesCallbackData,
+  makeShynokDicePokerViewCallbackData,
   makeShynokDicePokerScoreCallbackData,
   makeShynokDicePokerToggleCallbackData,
   makeShynokGameCancelCallbackData,
@@ -144,14 +146,11 @@ export function buildShynokGameHubKeyboard(
 export function buildShynokGameRulesKeyboard(gameKey: TavernGameKey, maxStake: number): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (gameKey === "kosti") {
-    for (const stake of listTavernGameStakeOptions(maxStake)) {
-      keyboard
-        .text(`⚡ ${stake}`, makeShynokDicePokerCreateCallbackData("quick", stake))
-        .text(`📜 ${stake}`, makeShynokDicePokerCreateCallbackData("scorecard", stake))
-        .row();
-    }
-
     return keyboard
+      .text("⚡ Швидкі кості", makeShynokDicePokerModeCallbackData("quick"))
+      .row()
+      .text("📜 Табличні кості", makeShynokDicePokerModeCallbackData("scorecard"))
+      .row()
       .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
       .row()
       .text("↩ До ігор", makeShynokGamesCallbackData());
@@ -166,8 +165,28 @@ export function buildShynokGameRulesKeyboard(gameKey: TavernGameKey, maxStake: n
     .text("↩ До ігор", makeShynokGamesCallbackData());
 }
 
+export function buildShynokDicePokerStakeKeyboard(mode: "quick" | "scorecard", maxStake: number): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const stake of listTavernGameStakeOptions(maxStake)) {
+    keyboard.text(`💰 ${stake}`, makeShynokDicePokerCreateCallbackData(mode, stake)).row();
+  }
+
+  return keyboard
+    .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
+    .row()
+    .text("↩ До костей", makeShynokGameRulesCallbackData("kosti"));
+}
+
 export function buildBackToShynokGamesKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildBackToDicePokerKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("↩ До партії", makeShynokDicePokerViewCallbackData(token))
+    .row()
+    .text("↩ До ігор", makeShynokGamesCallbackData());
 }
 
 export function buildShynokGameSessionKeyboard(result: {
@@ -282,7 +301,7 @@ export function buildShynokDicePokerKeyboard(token: string, state: DicePokerStat
         makeShynokDicePokerRollCallbackData(token)
       )
       .row()
-      .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
+      .text("❔ Правила", makeShynokDicePokerRulesCallbackData(token))
       .text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token))
       .row()
       .text("↩ До ігор", makeShynokGamesCallbackData());
@@ -315,7 +334,7 @@ export function buildShynokDicePokerKeyboard(token: string, state: DicePokerStat
 
   return keyboard
     .row()
-    .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
+    .text("❔ Правила", makeShynokDicePokerRulesCallbackData(token))
     .text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token))
     .row()
     .text("↩ До ігор", makeShynokGamesCallbackData());

@@ -5,10 +5,12 @@ import {
   makeShynokBardPerformanceTipCallbackData,
   makeShynokDicePokerCancelCallbackData,
   makeShynokDicePokerCreateCallbackData,
+  makeShynokDicePokerModeCallbackData,
   makeShynokDicePokerRollCallbackData,
   makeShynokDicePokerRulesCallbackData,
   makeShynokDicePokerScoreCallbackData,
   makeShynokDicePokerToggleCallbackData,
+  makeShynokDicePokerViewCallbackData,
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
   makeShynokGameCancelCallbackData,
@@ -130,6 +132,14 @@ describe("shynokCallbackData", () => {
   });
 
   it("round-trips compact dice poker callbacks", () => {
+    expect(parseShynokCallbackData(makeShynokDicePokerModeCallbackData("quick"))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-mode", mode: "quick" }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerModeCallbackData("scorecard"))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-mode", mode: "scorecard" }
+    });
     expect(parseShynokCallbackData(makeShynokDicePokerCreateCallbackData("quick", 13))).toEqual({
       ok: true,
       value: { type: "game-dice-poker-create", mode: "quick", stakeGold: 13 }
@@ -141,6 +151,14 @@ describe("shynokCallbackData", () => {
     expect(parseShynokCallbackData(makeShynokDicePokerRulesCallbackData())).toEqual({
       ok: true,
       value: { type: "game-dice-poker-rules" }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerRulesCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-rules", token }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerViewCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-view", token }
     });
     expect(parseShynokCallbackData(makeShynokDicePokerToggleCallbackData(token, 4))).toEqual({
       ok: true,
@@ -164,6 +182,10 @@ describe("shynokCallbackData", () => {
     expect(Buffer.byteLength(makeShynokDicePokerScoreCallbackData(token, "large_straight"), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(makeShynokDicePokerToggleCallbackData(token, 4), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokDicePokerRulesCallbackData(token), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokDicePokerViewCallbackData(token), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 

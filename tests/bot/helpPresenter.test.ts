@@ -110,6 +110,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).not.toContain("/dev_yeger_first_done");
     expect(grantsEnabled).not.toContain("/dev_yeger_second_done");
     expect(grantsEnabled).not.toContain("/dev_reset_bard_performance");
+    expect(grantsEnabled).not.toContain("/dev_reset_tavern_games");
     expect(partyEnabled).not.toContain("/dev_party");
     expect(partyEnabled).not.toContain("/dev_help");
   });
@@ -150,6 +151,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("5️⃣ /dev_yeger_first_done");
     expect(grantsEnabled).toContain("7️⃣ /dev_yeger_second_done");
     expect(grantsEnabled).toContain("🎶 /dev_reset_bard_performance");
+    expect(grantsEnabled).toContain("🎲 /dev_reset_tavern_games");
     expect(partyEnabled).toContain("🪢 /dev_party — зібрати тимчасову ватагу локально");
     expect(partyEnabled).not.toContain("/dev_help");
     expect(disabled).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");

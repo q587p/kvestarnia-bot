@@ -211,6 +211,10 @@ export interface TavernGameRepository {
     token: string,
     now: Date
   ): Promise<DicePokerActionResult>;
+  resetCreateCooldownForTelegramUser(
+    telegramUserId: bigint,
+    input: { now: Date; cooldownMs: number }
+  ): Promise<{ state: "no-character" } | { state: "reset"; updated: number }>;
   cancelForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<TavernGameCancelResult>;
   refundDisabledByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null>;
   expireDue(now: Date, limit?: number): Promise<number>;

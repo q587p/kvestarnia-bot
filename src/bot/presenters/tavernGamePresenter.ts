@@ -68,10 +68,23 @@ export function presentTavernGameRules(gameKey: TavernGameKey, maxStake: number)
     "",
     "Кості в Корчмі нарешті пояснили правила людською мовою.",
     "",
-    "⚡ Швидкий покер — коротка партія: 5 костей, один перекид, сильніша комбінація перемагає.",
-    "📜 Табличний покер — довша партія на 13 ходів із клітинками для очок.",
+    "⚡ Швидкі кості — коротка дуель: 5 костей, один перекид, сильніша комбінація перемагає.",
+    "📜 Табличні кості — довша партія на 13 ходів із клітинками для очок.",
     "",
-    "Ставка тимчасово працює як обережний внесок: виграш або безпечне завершення повертають її через стіл.",
+    "Спершу оберіть режим. Ставку корчма спитає наступним кроком.",
+    `Межа ставки зараз: <b>${maxStake} зол.</b>`
+  ].join("\n");
+}
+
+export function presentDicePokerStakeMenu(mode: "quick" | "scorecard", maxStake: number): string {
+  return [
+    mode === "quick" ? "⚡ Швидкі кості" : "📜 Табличні кості",
+    "",
+    mode === "quick"
+      ? "Коротка дуель: один кидок, один перекид, далі сильніша комбінація бере партію."
+      : "Таблична партія на 13 ходів: кидаєте кості, перекидаєте до двох разів і вписуєте рахунок у клітинки.",
+    "",
+    "Оберіть ставку для цього столу.",
     `Межа ставки зараз: <b>${maxStake} зол.</b>`
   ].join("\n");
 }
@@ -80,11 +93,11 @@ export function presentDicePokerRules(): string {
   return [
     "❔ Правила костяного покеру",
     "",
-    "⚡ Швидкий покер: у тебе й шинкаря по 5 костей. Обери, які перекинути один раз, або лиши все як є. Далі перемагає сильніша комбінація.",
+    "⚡ Швидкі кості: у тебе й Допельґанґера по 5 костей. Обери, які перекинути один раз, або лиши все як є. Далі перемагає сильніша комбінація.",
     "",
     "Сила рук: Покер, Каре, Фул-хаус, Великий стріт, Малий стріт, Трійка, Дві пари, Пара, Старша кістка.",
     "",
-    "📜 Табличний покер: 13 ходів. У кожному ході є перший кидок і до двох перекидів. Після цього треба вписати результат в одну вільну клітинку.",
+    "📜 Табличні кості: 13 ходів. У кожному ході є перший кидок і до двох перекидів. Після цього треба вписати результат в одну вільну клітинку.",
     "",
     "Нічиї, скасування й протерміновані партії не забирають манатки й не дублюють винагороду."
   ].join("\n");
@@ -282,33 +295,35 @@ function presentDicePokerState(
     if (state.phase === "terminal") {
       const rewardLine = presentDicePokerStakeResult(session, state.outcome);
       return [
-        "⚡ Швидкий покер",
+        "⚡ Швидкі кості",
         "",
         `Твої кості: ${state.playerDice.join(" ")} — ${quickHandLabel(state.playerHand)}.`,
-        `Кості шинкаря: ${state.opponentDice.join(" ")} — ${quickHandLabel(state.opponentHand)}.`,
+        "",
+        `Кості Допельґанґера: ${state.opponentDice.join(" ")} — ${quickHandLabel(state.opponentHand)}.`,
+        "",
         presentQuickOutcomeLine(state),
         "",
         rewardLine
-      ].filter(Boolean).join("\n");
+      ].join("\n");
     }
 
     return [
-      "⚡ Швидкий покер",
+      "⚡ Швидкі кості",
       "",
-      `Раунд: ${state.drawRound}/3`,
+      state.drawRound > 1 ? `Додатковий раунд: ${state.drawRound}/3` : null,
       `Твої кості: ${state.playerDice.join(" ")} — ${quickHandLabel(evaluateQuickHand(state.playerDice))}.`,
-      `Кості шинкаря: ${state.opponentDice.join(" ")} — ${quickHandLabel(evaluateQuickHand(state.opponentDice))}.`,
+      `Кості Допельґанґера: ${state.opponentDice.join(" ")} — ${quickHandLabel(evaluateQuickHand(state.opponentDice))}.`,
       `Вибрано для перекиду: ${presentSelectedDice(state.playerDice, state.selectedMask)}.`,
       "",
       "Обери кості для одного перекиду або лиши кидок як є.",
       stakeLine
-    ].filter(Boolean).join("\n");
+    ].filter((line): line is string => line !== null).join("\n");
   }
 
   if (state.phase === "terminal") {
     const rewardLine = presentDicePokerStakeResult(session, "scorecard-complete", state.total);
     return [
-      "📜 Табличний покер завершено",
+      "📜 Табличні кості завершено",
       "",
       `Останні кості: ${state.dice.join(" ")}`,
       presentScorecardSummary(state.scores),
@@ -320,7 +335,7 @@ function presentDicePokerState(
 
   const previews = previewScorecardScores(state.dice, state.scores);
   return [
-    "📜 Табличний покер",
+    "📜 Табличні кості",
     "",
     `Хід ${state.turn}/13`,
     `Кидок ${state.roll}/3`,
@@ -339,18 +354,18 @@ function presentDicePokerState(
 
 function presentQuickOutcomeLine(state: Extract<DicePokerState, { mode: "quick"; phase: "terminal" }>): string {
   if (state.outcome === "refund") {
-    return "Нічия: третій рівний раунд поспіль, ставку повернено.";
+    return "🤝 Нічия: третій рівний раунд поспіль, ставку повернено.";
   }
   if (state.outcome === "draw") {
-    return "Нічия: комбінації повністю однакові.";
+    return "🤝 Нічия: комбінації повністю однакові.";
   }
 
   const winner = state.outcome === "win" ? state.playerHand : state.opponentHand;
   const loser = state.outcome === "win" ? state.opponentHand : state.playerHand;
-  const prefix = state.outcome === "win" ? "Перемога" : "Поразка";
+  const prefix = state.outcome === "win" ? "🏆 Перемога" : "💀 Поразка";
   const why = winner.rank === loser.rank
     ? `старші значення в комбінації «${quickRankLabel(winner.rank)}» вирішили партію`
-    : `${quickRankLabel(winner.rank).toLowerCase()} сильніша за ${quickRankLabel(loser.rank).toLowerCase()}`;
+    : `${quickRankSubjectLabel(winner.rank)} сильніша за ${quickRankObjectLabel(loser.rank)}`;
 
   return `${prefix}: ${why}.`;
 }
@@ -362,22 +377,22 @@ function presentDicePokerStakeResult(
 ): string {
   const participant = session?.participants[0];
   if (!participant) {
-    return outcome === "loss" ? "Ставка лишилась на столі." : "Ставку оброблено без дублювання.";
+    return outcome === "loss" ? "💸 Ставка лишилась на столі." : "💰 Ставку оброблено без дублювання.";
   }
   if (participant.payoutGold > 0) {
-    return `Виплата: <b>${participant.payoutGold} зол.</b>`;
+    return `💰 Виплата: <b>${participant.payoutGold} зол.</b>`;
   }
   if (participant.refundedGold > 0) {
-    return `Повернено: <b>${participant.refundedGold} зол.</b>`;
+    return `💰 Повернено: <b>${participant.refundedGold} зол.</b>`;
   }
   if (outcome === "loss") {
-    return "Ставка програна.";
+    return `💸 Ставка програна: <b>${participant.stakeGold} зол.</b>`;
   }
   if (score !== undefined) {
-    return "Ставка лишилась у шинкаря. Повторна кнопка не змінить рахунок.";
+    return "💸 Ставка лишилась на столі. Повторна кнопка не змінить рахунок.";
   }
 
-  return "Ставку оброблено без дублювання.";
+  return "💰 Ставку оброблено без дублювання.";
 }
 
 function presentSelectedDice(dice: readonly number[], mask: number): string {
@@ -440,6 +455,24 @@ function quickRankLabel(rank: DicePokerQuickRank): string {
     two_pairs: "Дві пари",
     pair: "Пара",
     high: "Старша кістка"
+  }[rank];
+}
+
+function quickRankSubjectLabel(rank: DicePokerQuickRank): string {
+  return quickRankLabel(rank).toLowerCase();
+}
+
+function quickRankObjectLabel(rank: DicePokerQuickRank): string {
+  return {
+    poker: "покер",
+    four_kind: "каре",
+    full_house: "фул-хаус",
+    large_straight: "великий стріт",
+    small_straight: "малий стріт",
+    triple: "трійку",
+    two_pairs: "дві пари",
+    pair: "пару",
+    high: "старшу кістку"
   }[rank];
 }
 

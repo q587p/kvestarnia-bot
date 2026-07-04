@@ -13,8 +13,9 @@ describe("tavern game presenter", () => {
     const text = presentTavernGameRules("kosti", 25);
 
     expect(text).toContain("🎲 Кості й покер");
-    expect(text).toContain("⚡ Швидкий покер");
-    expect(text).toContain("📜 Табличний покер");
+    expect(text).toContain("⚡ Швидкі кості");
+    expect(text).toContain("📜 Табличні кості");
+    expect(text).toContain("Ставку корчма спитає наступним кроком");
     expect(text).not.toContain("від двох до семи гравців");
   });
 
@@ -47,9 +48,38 @@ describe("tavern game presenter", () => {
     });
 
     expect(text).toContain("Твої кості: 6 6 6 2 1 — Трійка шісток");
-    expect(text).toContain("Кості шинкаря: 5 5 4 4 2 — Дві пари");
-    expect(text).toContain("Перемога: трійка сильніша за дві пари.");
-    expect(text).toContain("Виплата: <b>3 зол.</b>");
+    expect(text).toContain("Кості Допельґанґера: 5 5 4 4 2 — Дві пари");
+    expect(text).toContain("🏆 Перемога: трійка сильніша за дві пари.");
+    expect(text).toContain("💰 Виплата: <b>3 зол.</b>");
+  });
+
+  it("shows quick dice poker losses with readable spacing and exact lost stake", () => {
+    const state: DicePokerState = {
+      kind: "dice_poker",
+      mode: "quick",
+      phase: "terminal",
+      outcome: "loss",
+      drawRound: 1,
+      playerDice: [4, 5, 1, 6, 2],
+      opponentDice: [1, 6, 6, 4, 3],
+      playerHand: evaluateQuickHand([4, 5, 1, 6, 2]),
+      opponentHand: evaluateQuickHand([1, 6, 6, 4, 3]),
+      reason: "Пара сильніша за старшу кістку."
+    };
+
+    const text = presentTavernGameActionResult({
+      state: "completed",
+      session: session({
+        result: state,
+        participants: [participant({ payoutGold: 0, refundedGold: 0, stakeGold: 13 })]
+      }),
+      dicePoker: state
+    });
+
+    expect(text).toContain("Твої кості: 4 5 1 6 2 — Старша кістка 6.\n\nКості Допельґанґера");
+    expect(text).toContain("💀 Поразка: пара сильніша за старшу кістку.");
+    expect(text).toContain("💸 Ставка програна: <b>13 зол.</b>");
+    expect(text).not.toContain("шинкар");
   });
 
   it("fails stale legacy dice callbacks closed with friendly copy", () => {
@@ -128,24 +158,7 @@ function session(overrides: Partial<TavernGameSessionRecord> = {}): TavernGameSe
     statsJson: {},
     remortCount: 0
   };
-  const participant = {
-    id: "participant-1",
-    sessionId: "session-1",
-    characterId: character.id,
-    telegramUserId: 42n,
-    displayName: "Тест",
-    remortCount: 0,
-    status: "completed" as const,
-    stakeGold: 3,
-    payoutGold: 3,
-    refundedGold: 0,
-    decision: null,
-    result: null,
-    joinedAt: new Date("2026-07-02T10:00:00.000Z"),
-    decidedAt: null,
-    completedAt: new Date("2026-07-02T10:01:00.000Z"),
-    character
-  };
+  const baseParticipant = participant();
 
   return {
     id: "session-1",
@@ -165,7 +178,55 @@ function session(overrides: Partial<TavernGameSessionRecord> = {}): TavernGameSe
     createdAt: new Date("2026-07-02T10:00:00.000Z"),
     updatedAt: new Date("2026-07-02T10:01:00.000Z"),
     creator: character,
-    participants: [participant],
+    participants: [baseParticipant],
+    ...overrides
+  };
+}
+
+function participant(
+  overrides: Partial<TavernGameSessionRecord["participants"][number]> = {}
+): TavernGameSessionRecord["participants"][number] {
+  const character = {
+    id: "character-1",
+    userId: "user-1",
+    telegramUserId: 42n,
+    currentLocationId: "location.korchma.bar",
+    name: "Тест",
+    pronoun: "they" as const,
+    path: "path",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    xp: 0,
+    gold: 10,
+    hpCurrent: 10,
+    hpMax: 10,
+    manaCurrent: 5,
+    manaMax: 5,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
+  };
+
+  return {
+    id: "participant-1",
+    sessionId: "session-1",
+    characterId: character.id,
+    telegramUserId: 42n,
+    displayName: "Тест",
+    remortCount: 0,
+    status: "completed" as const,
+    stakeGold: 3,
+    payoutGold: 3,
+    refundedGold: 0,
+    decision: null,
+    result: null,
+    joinedAt: new Date("2026-07-02T10:00:00.000Z"),
+    decidedAt: null,
+    completedAt: new Date("2026-07-02T10:01:00.000Z"),
+    character,
     ...overrides
   };
 }

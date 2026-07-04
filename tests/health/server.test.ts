@@ -80,8 +80,8 @@ describe("health server", () => {
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Кості нарешті пояснили правила");
     expect(text).toContain("Тепер це <code>🎲 Кості й покер</code>");
-    expect(text).toContain("<code>⚡ Швидкий покер</code>");
-    expect(text).toContain("<code>📜 Табличний покер</code>");
+    expect(text).toContain("<code>⚡ Швидкі кості</code>");
+    expect(text).toContain("<code>📜 Табличні кості</code>");
     expect(text).toContain("Турнірів, публічних дошок сорому й великих призових ліг тут ще немає.");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");

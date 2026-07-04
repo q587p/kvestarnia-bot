@@ -50,8 +50,10 @@ export type ShynokCallback =
   | { type: "game-leaderboard" }
   | { type: "game-rules"; gameKey: TavernGameKey }
   | { type: "game-create"; gameKey: TavernGameKey; stakeGold: number }
+  | { type: "game-dice-poker-mode"; mode: DicePokerMode }
   | { type: "game-dice-poker-create"; mode: DicePokerMode; stakeGold: number }
-  | { type: "game-dice-poker-rules" }
+  | { type: "game-dice-poker-rules"; token?: string }
+  | { type: "game-dice-poker-view"; token: string }
   | { type: "game-dice-poker-toggle"; token: string; index: number }
   | { type: "game-dice-poker-roll"; token: string }
   | { type: "game-dice-poker-score"; token: string; category: DicePokerScoreCategory }
@@ -170,8 +172,16 @@ export function makeShynokDicePokerCreateCallbackData(mode: DicePokerMode, stake
   return assertData(`${PREFIX}:${mode === "quick" ? "gqc" : "gsc"}:${stakeGold}`);
 }
 
-export function makeShynokDicePokerRulesCallbackData(): string {
-  return assertData(`${PREFIX}:gpr`);
+export function makeShynokDicePokerModeCallbackData(mode: DicePokerMode): string {
+  return assertData(`${PREFIX}:${mode === "quick" ? "gqm" : "gsm"}`);
+}
+
+export function makeShynokDicePokerRulesCallbackData(token?: string): string {
+  return assertData(token ? `${PREFIX}:gpr:${token}` : `${PREFIX}:gpr`);
+}
+
+export function makeShynokDicePokerViewCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gdv:${token}`);
 }
 
 export function makeShynokDicePokerToggleCallbackData(token: string, index: number): string {
@@ -344,8 +354,23 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
       }
     };
   }
+  if ((action === "gqm" || action === "gsm") && first === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-mode",
+        mode: action === "gqm" ? "quick" : "scorecard"
+      }
+    };
+  }
   if (action === "gpr" && first === undefined) {
     return { ok: true, value: { type: "game-dice-poker-rules" } };
+  }
+  if (action === "gpr" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-rules", token: first ?? "" } };
+  }
+  if (action === "gdv" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-view", token: first ?? "" } };
   }
   if (action === "gdt" && isToken(first) && isDiceIndex(second) && third === undefined) {
     return {

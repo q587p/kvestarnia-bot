@@ -723,6 +723,32 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     });
   }
 
+  async resetCreateCooldownForTelegramUser(
+    telegramUserId: bigint,
+    input: { now: Date; cooldownMs: number }
+  ): Promise<{ state: "no-character" } | { state: "reset"; updated: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const cooldownAfter = new Date(input.now.getTime() - input.cooldownMs);
+      const resetOpenedAt = new Date(cooldownAfter.getTime() - 1000);
+      const updated = await tx.tavernGameSession.updateMany({
+        where: {
+          creatorCharacterId: character.id,
+          openedAt: { gt: cooldownAfter }
+        },
+        data: {
+          openedAt: resetOpenedAt
+        }
+      });
+
+      return { state: "reset", updated: updated.count };
+    });
+  }
+
   async cancelForTelegramUser(
     telegramUserId: bigint,
     token: string,

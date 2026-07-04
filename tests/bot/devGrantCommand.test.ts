@@ -30,6 +30,12 @@ describe("dev grant commands", () => {
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
+    const tavernGames = fakeTavernGamesService();
+    const tavernGameResetCalls = await captureMessageCalls(
+      "/dev_reset_tavern_games",
+      devGrant,
+      tavernGames
+    );
 
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 3);
@@ -53,6 +59,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetRogue).toHaveBeenCalledWith(42n);
     expect(devGrant.completeFirstYegerQuestProgress).toHaveBeenCalledWith(42n);
     expect(devGrant.completeSecondYegerQuestProgress).toHaveBeenCalledWith(42n);
+    expect(tavernGames.resetCreateCooldownForDev).toHaveBeenCalledWith(42n);
     expect(String(defaultLevelCalls.at(-1)?.payload.text)).toContain("додано 1 рівень");
     expect(String(explicitLevelCalls.at(-1)?.payload.text)).toContain("додано 3 рівні");
     expect(String(xpCalls.at(-1)?.payload.text)).toContain("додано 7 XP");
@@ -75,6 +82,9 @@ describe("dev grant commands", () => {
     expect(String(rogueResetCalls.at(-1)?.payload.text)).toContain("злодійський QA reset");
     expect(String(yegerFirstDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи» доведено до 5/5");
     expect(String(yegerSecondDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи 2.0» доведено до 17/17");
+    expect(String(tavernGameResetCalls.at(-1)?.payload.text)).toContain(
+      "🎲 Cooldown створення столів скинуто локально"
+    );
   });
 
   it("adds Yeger notch lines with default and explicit amounts", async () => {
@@ -167,6 +177,12 @@ describe("dev grant commands", () => {
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
+    const tavernGames = fakeTavernGamesService();
+    const tavernGameResetCalls = await captureMessageCalls(
+      "/dev_reset_tavern_games",
+      devGrant,
+      tavernGames
+    );
 
     expect(devGrant.addXp).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
@@ -183,6 +199,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetRogue).not.toHaveBeenCalled();
     expect(devGrant.completeFirstYegerQuestProgress).not.toHaveBeenCalled();
     expect(devGrant.completeSecondYegerQuestProgress).not.toHaveBeenCalled();
+    expect(tavernGames.resetCreateCooldownForDev).not.toHaveBeenCalled();
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(bandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -198,6 +215,7 @@ describe("dev grant commands", () => {
     expect(rogueResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerFirstDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerSecondDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(tavernGameResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 });
 
@@ -208,9 +226,10 @@ interface ApiCall {
 
 async function captureMessageCalls(
   text: string,
-  devGrant: ReturnType<typeof fakeDevGrantService>
+  devGrant: ReturnType<typeof fakeDevGrantService>,
+  tavernGames?: ReturnType<typeof fakeTavernGamesService>
 ): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", servicesWith(devGrant));
+  const bot = createBot("123456:test-token", servicesWith(devGrant, tavernGames));
   const calls: ApiCall[] = [];
 
   bot.api.config.use((_prev, method, payload) => {
@@ -264,6 +283,16 @@ async function captureMessageCalls(
   });
 
   return calls;
+}
+
+function fakeTavernGamesService(): {
+  resetCreateCooldownForDev: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint) => Promise<{ state: "reset"; updated: number }>>
+  >;
+} {
+  return {
+    resetCreateCooldownForDev: vi.fn(() => Promise.resolve({ state: "reset", updated: 2 }))
+  };
 }
 
 function fakeDevGrantService(input: {
@@ -503,7 +532,10 @@ function fakeDevGrantService(input: {
   };
 }
 
-function servicesWith(devGrant: ReturnType<typeof fakeDevGrantService>): BotServices {
+function servicesWith(
+  devGrant: ReturnType<typeof fakeDevGrantService>,
+  tavernGames?: ReturnType<typeof fakeTavernGamesService>
+): BotServices {
   return {
     adventure: {},
     cellarErrand: {},
@@ -524,6 +556,7 @@ function servicesWith(devGrant: ReturnType<typeof fakeDevGrantService>): BotServ
       isEnabled: () => true
     },
     restart: {},
-    tavern: {}
+    tavern: {},
+    ...(tavernGames ? { tavernGames } : {})
   } as unknown as BotServices;
 }

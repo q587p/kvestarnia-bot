@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildShynokDicePokerKeyboard,
+  buildShynokDicePokerStakeKeyboard,
   buildShynokGameRulesKeyboard,
   buildShynokGameSessionKeyboard,
   formatShynokOpenTableButtonLabel
@@ -54,7 +55,7 @@ describe("Shynok game keyboards", () => {
     expect(formatShynokOpenTableButtonLabel("kosti", 6, 5)).toBe("🎲 Кості · 6/7 · 5 зол.");
   });
 
-  it("uses the tavern-flavored stake ladder up to the configured cap", () => {
+  it("asks for the dice mode before showing stakes", () => {
     expect(flatInlineButtonTexts(buildShynokGameRulesKeyboard("tavlei", 93))).toEqual([
       "💰 1",
       "💰 5",
@@ -65,16 +66,18 @@ describe("Shynok game keyboards", () => {
       "↩ До ігор"
     ]);
     expect(flatInlineButtonTexts(buildShynokGameRulesKeyboard("kosti", 23))).toEqual([
-      "⚡ 1",
-      "📜 1",
-      "⚡ 5",
-      "📜 5",
-      "⚡ 13",
-      "📜 13",
-      "⚡ 23",
-      "📜 23",
+      "⚡ Швидкі кості",
+      "📜 Табличні кості",
       "❔ Правила",
       "↩ До ігор"
+    ]);
+    expect(flatInlineButtonTexts(buildShynokDicePokerStakeKeyboard("quick", 23))).toEqual([
+      "💰 1",
+      "💰 5",
+      "💰 13",
+      "💰 23",
+      "❔ Правила",
+      "↩ До костей"
     ]);
   });
 
@@ -97,6 +100,9 @@ describe("Shynok game keyboards", () => {
       "✖ Скасувати",
       "↩ До ігор"
     ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(
+      "v1:sh:gpr:12345678-1234-4234-9234-123456789abc"
+    );
   });
 
   it("shows scorecard scoring choices with preview values", () => {

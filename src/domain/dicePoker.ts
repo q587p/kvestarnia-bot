@@ -149,7 +149,7 @@ export function resolveQuickDicePokerRound(
         opponentDice,
         playerHand,
         opponentHand,
-        reason: "Третя нічия поспіль. Шинкар повертає ставку, бо стіл уже почав рахувати себе мітологічним."
+        reason: "Третя нічия поспіль. Допельґанґер повертає ставку, бо стіл уже почав рахувати себе мітологічним."
       };
     }
 

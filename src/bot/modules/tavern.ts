@@ -73,12 +73,14 @@ import {
 buildBardPerformanceResponseKeyboard,
 buildBardPerformanceRespondResultKeyboard,
 buildBackToShynokGamesKeyboard,
+buildBackToDicePokerKeyboard,
 buildBackToCurrentPlaceKeyboard,
 buildBackToShynokKeyboard,
 buildShynokDrinkMenuKeyboard,
 buildShynokDrinkPreviewKeyboard,
 buildShynokDrinkResultKeyboard,
 buildShynokDicePokerKeyboard,
+buildShynokDicePokerStakeKeyboard,
 buildShynokGameHubKeyboard,
 buildShynokGameRulesKeyboard,
 buildShynokGameSessionKeyboard,
@@ -143,6 +145,7 @@ presentShynokSaleSelection
 import {
 presentTavernGameActionResult,
 presentDicePokerRules,
+presentDicePokerStakeMenu,
 presentTavernGameHub,
 presentTavernGameLeaderboard,
 presentTavernGameRules,
@@ -207,6 +210,9 @@ export function registerTavernBotModule(
   registerLatestEventsCommand(bot, services.activityEvents, services.hero);
   registerBardPerformanceDevResetHandler(bot, services);
   registerPassageSearchDevResetHandler(bot, services);
+  if (services.devGrant?.isEnabled()) {
+    registerTavernGamesDevResetHandler(bot, services);
+  }
 
   registerParsedCallbackRoute(bot, /^v1:sh:/, parseShynokCallbackData, async (ctx, action) => {
     await handleShynokCallback(ctx, action, services);
@@ -365,7 +371,23 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentDicePokerRules(), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokGameRulesKeyboard("kosti", services.tavernGames.getMaxStake())
+      reply_markup: action.token
+        ? buildBackToDicePokerKeyboard(action.token)
+        : buildShynokGameRulesKeyboard("kosti", services.tavernGames.getMaxStake())
+    });
+    return;
+  }
+
+  if (action.type === "game-dice-poker-mode") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentDicePokerStakeMenu(action.mode, services.tavernGames.getMaxStake()), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokDicePokerStakeKeyboard(action.mode, services.tavernGames.getMaxStake())
     });
     return;
   }
@@ -373,6 +395,7 @@ async function handleShynokCallback(
   if (
     action.type === "game-create" ||
     action.type === "game-dice-poker-create" ||
+    action.type === "game-dice-poker-view" ||
     action.type === "game-dice-poker-toggle" ||
     action.type === "game-dice-poker-roll" ||
     action.type === "game-dice-poker-score" ||
@@ -401,6 +424,8 @@ async function handleShynokCallback(
         : await services.tavernGames.createForTelegramUser(telegramUserId, action.gameKey, action.stakeGold);
     } else if (action.type === "game-dice-poker-create") {
       result = await services.tavernGames.createDicePokerForTelegramUser(telegramUserId, action.mode, action.stakeGold);
+    } else if (action.type === "game-dice-poker-view") {
+      result = await services.tavernGames.viewDicePokerForTelegramUser(telegramUserId, action.token);
     } else if (action.type === "game-dice-poker-toggle") {
       result = await services.tavernGames.toggleDicePokerDieForTelegramUser(telegramUserId, action.token, action.index);
     } else if (action.type === "game-dice-poker-roll") {
@@ -887,6 +912,38 @@ function registerPassageSearchDevResetHandler(bot: Bot, services: BotServices): 
     }
 
     await ctx.reply(`🔎 Пошук у проходах скинуто локально. Збито пошуків: ${result.actions}. Cooldown-ів прибрано: ${result.cooldowns}.`);
+  });
+}
+
+function registerTavernGamesDevResetHandler(bot: Bot, services: BotServices): void {
+  bot.command("dev_reset_tavern_games", async (ctx) => {
+    if (!services.devGrant?.isEnabled()) {
+      await ctx.reply(presentDevGrantDisabled());
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (!telegramUserId) {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+
+    if (!services.tavernGames) {
+      await ctx.reply("Dev-скидання ігор за столом недоступне.");
+      return;
+    }
+
+    const result = await services.tavernGames.resetCreateCooldownForDev(telegramUserId);
+    if (result.state === "no-character") {
+      await ctx.reply(presentDevGrantNoCharacter());
+      return;
+    }
+    if (result.state === "disabled") {
+      await ctx.reply("Dev-скидання ігор за столом недоступне.");
+      return;
+    }
+
+    await ctx.reply(`🎲 Cooldown створення столів скинуто локально. Оновлено столів: ${result.updated}.`);
   });
 }
 
