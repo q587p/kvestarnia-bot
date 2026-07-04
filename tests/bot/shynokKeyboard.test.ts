@@ -6,6 +6,7 @@ import {
   buildShynokGameSessionKeyboard,
   formatShynokOpenTableButtonLabel
 } from "../../src/bot/keyboards/shynokKeyboard";
+import { buildTavernGameActionKeyboard } from "../../src/bot/modules/tavern";
 import { startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("Shynok game keyboards", () => {
@@ -135,6 +136,36 @@ describe("Shynok game keyboards", () => {
     expect(texts).toContain("Трійки: 3");
     expect(texts).toContain("Шанс: 10");
     expect(texts).toContain("✖ Скасувати");
+  });
+
+  it("does not fall back to old Kosti decision buttons for malformed dice poker table state", () => {
+    const keyboard = buildTavernGameActionKeyboard({
+      state: "saved",
+      session: {
+        token: "12345678-1234-4234-9234-123456789abc",
+        gameKey: "kosti",
+        status: "ready",
+        creatorCharacterId: "character-creator",
+        result: {
+          kind: "dice_poker_table",
+          mode: "quick",
+          phase: "playing",
+          playerCap: 2,
+          drawRound: 1
+        },
+        participants: [
+          {
+            characterId: "character-creator",
+            status: "joined",
+            telegramUserId: 1001n,
+            decision: null
+          }
+        ]
+      }
+    }, 1001n);
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.includes(":gk:"))).toBe(false);
   });
 });
 

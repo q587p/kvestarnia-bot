@@ -477,7 +477,9 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
       });
 
       const updated = await findSessionByToken(tx, token);
-      return updated ? { state: "joined", session: mapSession(updated) } : { state: "not-found" };
+      return updated
+        ? { state: shouldStartDicePokerQuick ? "started" : "joined", session: mapSession(updated) }
+        : { state: "not-found" };
     }).catch(async (error: unknown): Promise<TavernGameJoinResult> => {
       if (!isUniqueConflict(error)) {
         throw error;
@@ -606,7 +608,7 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
           include: tavernGameSessionInclude
         });
         return {
-          state: "replayed",
+          state: "started",
           session: mapSession(ready),
           resolution: null
         };
@@ -955,7 +957,13 @@ async function expireTokenIfNeededTx(tx: TxClient, token: string, now: Date): Pr
   if (!row || isTerminal(row.status)) {
     return;
   }
-  if (isDicePokerRow(row) && row.decisionExpiresAt && row.decisionExpiresAt <= now) {
+  if (
+    isDicePokerRow(row) &&
+    (
+      (row.status === "open" && row.joinExpiresAt <= now) ||
+      (row.status === "ready" && row.decisionExpiresAt !== null && row.decisionExpiresAt <= now)
+    )
+  ) {
     await refundSessionTx(tx, row, "expired_refund", now, {
       kind: "dice_poker_expired"
     });

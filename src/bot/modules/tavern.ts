@@ -476,11 +476,12 @@ async function handleShynokCallback(
         "cancelled",
         "replayed",
         "already-joined",
+        "started",
         "saved",
         "completed"
       ].includes(result.state)
     });
-    await safeEditMessageText(ctx, presentTavernGameActionResult(result), {
+    await safeEditMessageText(ctx, presentTavernGameActionResult({ ...result, viewerTelegramUserId: telegramUserId }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTavernGameActionKeyboard(result, telegramUserId, shynokNavigationOptions)
     });
@@ -717,7 +718,7 @@ async function notifyShynokRoundRecipients(
   ));
 }
 
-function buildTavernGameActionKeyboard(result: {
+export function buildTavernGameActionKeyboard(result: {
   state: string;
   dicePoker?: DicePokerState;
   session?: {
@@ -741,6 +742,9 @@ function buildTavernGameActionKeyboard(result: {
     : result.dicePoker ?? (isDicePokerState(result.session?.result) ? result.session.result : null);
   if (result.session && dicePoker) {
     return buildShynokDicePokerKeyboard(result.session.token, dicePoker, { allowCancel: !table });
+  }
+  if (table) {
+    return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId, ...options });
   }
 
   const canChoose = participant &&
@@ -786,7 +790,7 @@ async function notifyTavernGameParticipants(
   await Promise.allSettled(recipients.map((participant) =>
     ctx.api.sendMessage(
       Number(participant.telegramUserId),
-      presentTavernGameParticipantUpdate(result),
+      presentTavernGameParticipantUpdate(result, participant.telegramUserId),
       {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildTavernGameActionKeyboard(result, participant.telegramUserId)
@@ -822,6 +826,7 @@ function shouldNotifyTavernGameParticipants(
 ): boolean {
   return [
     "joined",
+    "started",
     "decided",
     "resolved",
     "completed",
@@ -832,21 +837,26 @@ function shouldNotifyTavernGameParticipants(
 }
 
 function presentTavernGameParticipantUpdate(
-  result: Parameters<typeof presentTavernGameActionResult>[0]
+  result: Parameters<typeof presentTavernGameActionResult>[0],
+  viewerTelegramUserId?: bigint
 ): string {
   if (!result.session) {
-    return presentTavernGameActionResult(result);
+    return presentTavernGameActionResult({ ...result, viewerTelegramUserId });
   }
 
   if (result.state === "joined") {
     return ["До столу підсів ще один пригодник.", "", presentTavernGameSession(result.session)].join("\n");
   }
 
+  if (result.state === "started") {
+    return ["Партія почалась.", "", presentTavernGameActionResult({ ...result, viewerTelegramUserId })].join("\n");
+  }
+
   if (result.state === "decided") {
     return ["За столом зроблено вибір.", "", presentTavernGameSession(result.session)].join("\n");
   }
 
-  return presentTavernGameActionResult(result);
+  return presentTavernGameActionResult({ ...result, viewerTelegramUserId });
 }
 
 async function notifyBardPerformanceAudience(

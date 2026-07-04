@@ -102,7 +102,8 @@ export type TavernGameJoinResult =
   | { state: "already-joined"; session: TavernGameSessionRecord }
   | { state: "insufficient-gold"; character: CharacterRecord; session: TavernGameSessionRecord }
   | { state: "active-session"; session: TavernGameSessionRecord }
-  | { state: "joined"; session: TavernGameSessionRecord };
+  | { state: "joined"; session: TavernGameSessionRecord }
+  | { state: "started"; session: TavernGameSessionRecord };
 
 export type TavernGameDecisionResult =
   | { state: "no-character" }
@@ -123,6 +124,7 @@ export type TavernGameResolveResult =
   | { state: "closed"; session: TavernGameSessionRecord }
   | { state: "failed-refund"; session: TavernGameSessionRecord }
   | { state: "resolved"; session: TavernGameSessionRecord; resolution: TavernGameResolution }
+  | { state: "started"; session: TavernGameSessionRecord; resolution: null }
   | { state: "replayed"; session: TavernGameSessionRecord; resolution: TavernGameResolution | null };
 
 export type TavernGameCancelResult =

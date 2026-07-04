@@ -6,7 +6,12 @@ import {
   presentTavernGameLeaderboard,
   presentTavernGameRules
 } from "../../src/bot/presenters/tavernGamePresenter";
-import { evaluateQuickHand, type DicePokerState } from "../../src/domain/dicePoker";
+import {
+  evaluateQuickHand,
+  startQuickDicePoker,
+  startScorecardDicePoker,
+  type DicePokerState
+} from "../../src/domain/dicePoker";
 
 describe("tavern game presenter", () => {
   it("describes Kosti as clear dice poker modes", () => {
@@ -80,6 +85,85 @@ describe("tavern game presenter", () => {
     expect(text).toContain("💀 Поразка: пара сильніша за старшу кістку.");
     expect(text).toContain("💸 Ставка програна: <b>13 зол.</b>");
     expect(text).not.toContain("шинкар");
+  });
+
+  it("renders social quick table starts with the viewer's own dice", () => {
+    const firstState = {
+      ...startQuickDicePoker("quick-social-first"),
+      playerDice: [1, 1, 2, 3, 4]
+    };
+    const secondState = {
+      ...startQuickDicePoker("quick-social-second"),
+      playerDice: [6, 6, 5, 4, 3]
+    };
+    const tableSession = session({
+      status: "ready",
+      result: {
+        kind: "dice_poker_table",
+        mode: "quick",
+        phase: "playing",
+        playerCap: 2,
+        drawRound: 1
+      },
+      participants: [
+        participant({ characterId: "character-1", telegramUserId: 1001n, status: "joined", decision: firstState }),
+        participant({ characterId: "character-2", telegramUserId: 2002n, status: "joined", decision: secondState })
+      ]
+    });
+
+    const firstText = presentTavernGameActionResult({
+      state: "started",
+      session: tableSession,
+      viewerTelegramUserId: 1001n
+    });
+    const secondText = presentTavernGameActionResult({
+      state: "started",
+      session: tableSession,
+      viewerTelegramUserId: 2002n
+    });
+
+    expect(firstText).toContain("Твої кості: 1 1 2 3 4");
+    expect(firstText).not.toContain("6 6 5 4 3");
+    expect(firstText).not.toContain("Допельґанґер");
+    expect(firstText).not.toContain("Партія йде");
+    expect(secondText).toContain("Твої кості: 6 6 5 4 3");
+  });
+
+  it("renders social scorecard starts with the viewer's own scorecard", () => {
+    const firstState = {
+      ...startScorecardDicePoker("scorecard-social-first"),
+      dice: [1, 1, 1, 3, 4]
+    };
+    const secondState = {
+      ...startScorecardDicePoker("scorecard-social-second"),
+      dice: [6, 6, 6, 5, 4]
+    };
+    const tableSession = session({
+      status: "ready",
+      result: {
+        kind: "dice_poker_table",
+        mode: "scorecard",
+        phase: "playing",
+        playerCap: 8,
+        drawRound: 1
+      },
+      participants: [
+        participant({ characterId: "character-1", telegramUserId: 1001n, status: "joined", decision: firstState }),
+        participant({ characterId: "character-2", telegramUserId: 2002n, status: "joined", decision: secondState })
+      ]
+    });
+
+    const text = presentTavernGameActionResult({
+      state: "started",
+      session: tableSession,
+      viewerTelegramUserId: 1001n
+    });
+
+    expect(text).toContain("📜 Табличні кості");
+    expect(text).toContain("Кості: 1 1 1 3 4");
+    expect(text).toContain("Одиниці 3");
+    expect(text).not.toContain("6 6 6 5 4");
+    expect(text).not.toContain("Партія йде");
   });
 
   it("fails stale legacy dice callbacks closed with friendly copy", () => {

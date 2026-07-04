@@ -33,6 +33,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Old incompatible active Kosti tables are hidden from the open-table hub and old decision/resolve callbacks fail closed through the existing safe refund/stale path with friendly Ukrainian copy.
 - Direct old Kosti join callbacks also refund/fail closed before any new join stake can be reserved.
+- Dice Poker social tables now start with viewer-specific cards for every participant, and expired `dice-poker-v1` tables refund before any legacy Kosti resolver can run.
 - Scorecard no-op reroll callbacks with no selected dice no longer consume a roll.
 - Stale, terminal, expired and duplicate dice-poker callbacks do not grant duplicate rewards or remove extra gold.
 

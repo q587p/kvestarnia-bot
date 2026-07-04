@@ -266,8 +266,8 @@ describe("PrismaTavernGameRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(592n, token, joinInput());
 
     expect(created.state).toBe("created");
-    expect(joined.state).toBe("joined");
-    expect(joined.state === "joined" ? joined.session.status : null).toBe("ready");
+    expect(joined.state).toBe("started");
+    expect(joined.state === "started" ? joined.session.status : null).toBe("ready");
     await expect(characterGold("character-social-quick-a")).resolves.toBe(7);
     await expect(characterGold("character-social-quick-b")).resolves.toBe(7);
 
@@ -313,6 +313,96 @@ describe("PrismaTavernGameRepository integration", () => {
     const goldA = await characterGold("character-social-quick-a");
     const goldB = await characterGold("character-social-quick-b");
     expect((goldA ?? 0) + (goldB ?? 0)).toBe(20);
+  });
+
+  it("refunds expired social scorecard dice poker tables on stale token actions without legacy resolution", async () => {
+    const token = "12345678-1234-4234-9234-000000000593";
+    await seedCharacter({ telegramUserId: 593n, characterId: "character-social-score-a", name: "Перший лист", gold: 10 });
+    await seedCharacter({ telegramUserId: 594n, characterId: "character-social-score-b", name: "Другий лист", gold: 10 });
+    await seedCharacter({ telegramUserId: 595n, characterId: "character-social-score-c", name: "Третій лист", gold: 10 });
+    const table = startDicePokerTable("scorecard");
+
+    const created = await repository.createDicePokerForTelegramUser(593n, {
+      mode: "scorecard",
+      token,
+      seed: "social-scorecard-expired",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 93 * 60_000),
+      joinExpiresAt: new Date(now().getTime() + 13 * 60_000),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: 0,
+      now: now(),
+      state: table,
+      participantState: startScorecardDicePoker("social-scorecard-expired:participant:a")
+    });
+    const joined = await repository.joinByTokenForTelegramUser(594n, token, joinInput());
+    const expiredAt = new Date(now().getTime() + 14 * 60_000);
+
+    const staleJoin = await repository.joinByTokenForTelegramUser(595n, token, joinInput(expiredAt));
+    const replay = await repository.resolveKostiForTelegramUser(593n, token, new Date(expiredAt.getTime() + 1000));
+
+    expect(created.state).toBe("created");
+    expect(joined.state).toBe("joined");
+    expect(staleJoin.state).toBe("closed");
+    expect(replay).toMatchObject({ state: "replayed", resolution: null });
+    await expect(characterGold("character-social-score-a")).resolves.toBe(10);
+    await expect(characterGold("character-social-score-b")).resolves.toBe(10);
+    await expect(characterGold("character-social-score-c")).resolves.toBe(10);
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, resultJson: true }
+    })).resolves.toMatchObject({
+      status: "expired_refund",
+      resultJson: {
+        kind: "dice_poker_expired",
+        refundedGold: 6
+      }
+    });
+    await expect(prisma.tavernGameParticipant.findMany({
+      where: { session: { token } },
+      select: { status: true, refundedGold: true, activeStakeKey: true },
+      orderBy: { joinedAt: "asc" }
+    })).resolves.toEqual([
+      { status: "left_refunded", refundedGold: 3, activeStakeKey: null },
+      { status: "left_refunded", refundedGold: 3, activeStakeKey: null }
+    ]);
+  });
+
+  it("starts a social scorecard dice poker table explicitly for participant notifications", async () => {
+    const token = "12345678-1234-4234-9234-000000000596";
+    await seedCharacter({ telegramUserId: 596n, characterId: "character-score-start-a", name: "Перший старт", gold: 10 });
+    await seedCharacter({ telegramUserId: 597n, characterId: "character-score-start-b", name: "Другий старт", gold: 10 });
+    const table = startDicePokerTable("scorecard");
+
+    await repository.createDicePokerForTelegramUser(596n, {
+      mode: "scorecard",
+      token,
+      seed: "social-scorecard-start",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 93 * 60_000),
+      joinExpiresAt: new Date(now().getTime() + 13 * 60_000),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: 0,
+      now: now(),
+      state: table,
+      participantState: startScorecardDicePoker("social-scorecard-start:participant:a")
+    });
+    await repository.joinByTokenForTelegramUser(597n, token, joinInput());
+
+    const started = await repository.resolveKostiForTelegramUser(596n, token, now());
+
+    expect(started.state).toBe("started");
+    expect(started.state === "started" ? started.resolution : "unexpected").toBeNull();
+    expect(started.state === "started" ? started.session.status : null).toBe("ready");
+    expect(started.state === "started" ? started.session.result : null).toMatchObject({
+      kind: "dice_poker_table",
+      mode: "scorecard",
+      phase: "playing"
+    });
   });
 
   it("keeps scorecard dice poker alive beyond quick ttl and refunds after scorecard deadline", async () => {
@@ -428,8 +518,7 @@ describe("PrismaTavernGameRepository integration", () => {
     };
   }
 
-  function joinInput() {
-    const base = now();
+  function joinInput(base = now()) {
     return {
       now: base,
       decisionExpiresAt: new Date(base.getTime() + 5 * 60_000)

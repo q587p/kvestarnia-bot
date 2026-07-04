@@ -148,20 +148,21 @@ export function presentTavernGameActionResult(result: {
   session?: TavernGameSessionRecord;
   resolution?: TavernGameResolution | null;
   dicePoker?: DicePokerState;
+  viewerTelegramUserId?: bigint | undefined;
   character?: { gold: number };
   now?: Date;
 }): string {
   if (result.resolution) {
     return presentTavernGameResolution(result.resolution);
   }
-  const dicePoker = result.dicePoker ?? getSessionDicePoker(result.session);
-  if (dicePoker && ["created", "saved", "completed", "active-session"].includes(result.state)) {
+  const dicePoker = result.dicePoker ?? getSessionDicePoker(result.session, result.viewerTelegramUserId);
+  if (dicePoker && ["created", "started", "saved", "completed", "active-session"].includes(result.state)) {
     if (result.session && isDicePokerTableState(result.session.result)) {
       return presentDicePokerTableState(result.session, dicePoker, result.state);
     }
     return presentDicePokerState(result.session, dicePoker, result.state);
   }
-  if (result.session && isDicePokerTableState(result.session.result) && ["created", "joined", "replayed", "active-session"].includes(result.state)) {
+  if (result.session && isDicePokerTableState(result.session.result) && ["created", "joined", "started", "saved", "replayed", "active-session"].includes(result.state)) {
     return presentDicePokerTableSession(result.session);
   }
 
@@ -204,6 +205,8 @@ export function presentTavernGameActionResult(result: {
       return result.session ? presentTavernGameSession(result.session) : "Стіл відкрито.";
     case "joined":
       return result.session ? presentTavernGameSession(result.session) : "Ви сіли за стіл.";
+    case "started":
+      return result.session ? presentTavernGameSession(result.session) : "Партія почалась.";
     case "decided":
       return result.session ? ["Вибір записано.", "", presentTavernGameSession(result.session)].join("\n") : "Вибір записано.";
     case "replayed":
@@ -650,8 +653,24 @@ function faceGenitivePlural(face: number): string {
   }[face] ?? `${face}`;
 }
 
-function getSessionDicePoker(session: TavernGameSessionRecord | undefined): DicePokerState | null {
-  return session && isDicePokerState(session.result) ? session.result : null;
+function getSessionDicePoker(
+  session: TavernGameSessionRecord | undefined,
+  viewerTelegramUserId?: bigint
+): DicePokerState | null {
+  if (!session) {
+    return null;
+  }
+  if (isDicePokerState(session.result)) {
+    return session.result;
+  }
+  if (viewerTelegramUserId !== undefined && isDicePokerTableState(session.result)) {
+    const participant = session.participants.find((row) =>
+      row.telegramUserId === viewerTelegramUserId && (row.status === "joined" || row.status === "decided")
+    );
+    return participant && isDicePokerState(participant.decision) ? participant.decision : null;
+  }
+
+  return null;
 }
 
 function presentLeaderboardSection(
