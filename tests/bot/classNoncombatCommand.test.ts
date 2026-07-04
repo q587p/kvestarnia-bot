@@ -4,6 +4,7 @@ import {
   makePriestBlessCallbackData,
   makePriestHealCallbackData,
   makeRoguePickpocketCallbackData,
+  makeRogueRetaliationDuelCallbackData,
   parseClassNoncombatCallbackData
 } from "../../src/bot/callbacks/classNoncombatCallbackData";
 import { handleClassNoncombatCallback } from "../../src/bot/commands/classNoncombatCommand";
@@ -186,16 +187,102 @@ describe("class noncombat command", () => {
     expect(reply).toHaveBeenCalledWith(expect.stringContaining("Нова ачівка"), { parse_mode: "HTML" });
     expect(reply).toHaveBeenCalledWith(expect.stringContaining("Пальці без протоколу"), { parse_mode: "HTML" });
   });
+
+  it("adds a retaliation duel button to noticed successful Rogue target notifications", async () => {
+    const { ctx, sendMessage } = callbackContext();
+    const service = {
+      pickpocketForTelegramUser: vi.fn().mockResolvedValue(roguePickpocketResult({ created: true }))
+    };
+    const callback = parseClassNoncombatCallbackData(makeRoguePickpocketCallbackData({
+      targetTelegramUserId,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      page: 0
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(ctx, callback.ok ? callback.value : neverCallback(), service as never);
+
+    expect(sendMessage).toHaveBeenCalledOnce();
+    const [chatId, text, options] = sendMessage.mock.calls[0];
+    expect(chatId).toBe(Number(targetTelegramUserId));
+    expect(text).toContain("Ви помітили успішну крадіжку");
+    expect(keyboardTexts(options as EditOptions)).toEqual(["⚡ Відплатити дуеллю"]);
+  });
+
+  it("starts and auto-accepts a quick duel when the pickpocket target retaliates", async () => {
+    const { ctx, editMessageText } = callbackContext({ telegramUserId: targetTelegramUserId });
+    const createTargetedChallengeForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge: {
+        inviteToken: "retaliate-token"
+      }
+    });
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "not-found"
+    });
+    const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      victimTelegramUserId: targetTelegramUserId,
+      rogueTelegramUserId: actorTelegramUserId
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(
+      ctx,
+      callback.ok ? callback.value : neverCallback(),
+      {} as never,
+      { createTargetedChallengeForTelegramUser, acceptForTelegramUser } as never
+    );
+
+    expect(createTargetedChallengeForTelegramUser).toHaveBeenCalledWith(targetTelegramUserId, actorTelegramUserId, {
+      ignoreResourceWarning: true,
+      mode: "quick"
+    });
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(actorTelegramUserId, "retaliate-token", {
+      confirmed: true,
+      ignoreResourceWarning: true,
+      expectedMode: "quick"
+    });
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("⚡ <b>Кишенькова відплата</b>");
+    expect(text).toContain("Цей виклик уже загубився");
+    expect(options.parse_mode).toBe("HTML");
+  });
+
+  it("does not let another Telegram user trigger pickpocket retaliation", async () => {
+    const { ctx, answerCallbackQuery } = callbackContext({ telegramUserId: 9999n });
+    const createTargetedChallengeForTelegramUser = vi.fn();
+    const acceptForTelegramUser = vi.fn();
+    const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      victimTelegramUserId: targetTelegramUserId,
+      rogueTelegramUserId: actorTelegramUserId
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(
+      ctx,
+      callback.ok ? callback.value : neverCallback(),
+      {} as never,
+      { createTargetedChallengeForTelegramUser, acceptForTelegramUser } as never
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Це не ваша кишеня подала скаргу.",
+      show_alert: true
+    });
+    expect(createTargetedChallengeForTelegramUser).not.toHaveBeenCalled();
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+  });
 });
 
-function callbackContext() {
+function callbackContext(options: { telegramUserId?: bigint } = {}) {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn<(text: string, options: EditOptions) => Promise<boolean>>().mockResolvedValue(true);
   const reply = vi.fn().mockResolvedValue(true);
   const sendMessage = vi.fn().mockResolvedValue(true);
   const ctx = {
     from: {
-      id: Number(actorTelegramUserId),
+      id: Number(options.telegramUserId ?? actorTelegramUserId),
       is_bot: false,
       first_name: "Тест"
     },

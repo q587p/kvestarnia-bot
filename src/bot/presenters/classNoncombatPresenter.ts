@@ -214,7 +214,7 @@ export function presentRoguePickpocketTargetNotification(result: Extract<RoguePi
     return [
       "🪙 <b>Кишеня подала скаргу</b>",
       "",
-      `${presentCharacterDisplayName(result.actor)} був надто близько, а <b>${result.attempt.stolenGold}</b> золота вже ні.`
+      `Ви помітили успішну крадіжку: ${presentCharacterDisplayName(result.actor)} був надто близько, а <b>${result.attempt.stolenGold}</b> золота вже ні.`
     ].join("\n");
   }
 

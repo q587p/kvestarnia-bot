@@ -23,6 +23,11 @@ export type ClassNoncombatCallback =
       actorRemortCount: number;
       targetRemortCount: number;
       page: number;
+    }
+  | {
+      type: "rogue-retaliation-duel";
+      victimTelegramUserId: bigint;
+      rogueTelegramUserId: bigint;
     };
 
 export type ClassNoncombatCallbackError =
@@ -69,6 +74,13 @@ export function makeRoguePickpocketCallbackData(input: {
   return makeTargetedCallback("p", input);
 }
 
+export function makeRogueRetaliationDuelCallbackData(input: {
+  victimTelegramUserId: bigint;
+  rogueTelegramUserId: bigint;
+}): string {
+  return `${PREFIX}:rd:${input.victimTelegramUserId.toString(36)}:${input.rogueTelegramUserId.toString(36)}`;
+}
+
 export function parseClassNoncombatCallbackData(
   data: string | undefined
 ): Result<ClassNoncombatCallback, ClassNoncombatCallbackError> {
@@ -97,6 +109,21 @@ export function parseClassNoncombatCallbackData(
       return err("invalid-page");
     }
     return ok({ type: "open", mode: first === "p" ? "priest" : "rogue", page: Number.parseInt(second, 36) });
+  }
+
+  if (action === "rd") {
+    if (!first || !targetPattern.test(first) || !second || !targetPattern.test(second)) {
+      return err("invalid-target");
+    }
+    if (third !== undefined || fourth !== undefined) {
+      return err("invalid-prefix");
+    }
+
+    return ok({
+      type: "rogue-retaliation-duel",
+      victimTelegramUserId: parseBase36BigInt(first),
+      rogueTelegramUserId: parseBase36BigInt(second)
+    });
   }
 
   if (action !== "h" && action !== "b" && action !== "p") {

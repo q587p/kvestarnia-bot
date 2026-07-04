@@ -118,7 +118,7 @@ export function registerSocialBotModule(
         return;
       }
 
-      await handleClassNoncombatCallback(ctx, callback, service);
+      await handleClassNoncombatCallback(ctx, callback, service, services.duel);
     }
   );
 

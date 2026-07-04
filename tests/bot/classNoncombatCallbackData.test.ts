@@ -4,6 +4,7 @@ import {
   makePriestBlessCallbackData,
   makePriestHealCallbackData,
   makeRoguePickpocketCallbackData,
+  makeRogueRetaliationDuelCallbackData,
   parseClassNoncombatCallbackData
 } from "../../src/bot/callbacks/classNoncombatCallbackData";
 
@@ -71,6 +72,25 @@ describe("class noncombat callback data", () => {
     });
 
     expect(parseClassNoncombatCallbackData("v1:nc:p:s:0:0:0")).toEqual({
+      ok: false,
+      error: "invalid-target"
+    });
+  });
+
+  it("encodes Rogue retaliation duel callbacks with victim and Rogue ids", () => {
+    expect(parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      victimTelegramUserId: 1002n,
+      rogueTelegramUserId: 1001n
+    }))).toEqual({
+      ok: true,
+      value: {
+        type: "rogue-retaliation-duel",
+        victimTelegramUserId: 1002n,
+        rogueTelegramUserId: 1001n
+      }
+    });
+
+    expect(parseClassNoncombatCallbackData("v1:nc:rd:!:rt")).toEqual({
       ok: false,
       error: "invalid-target"
     });
