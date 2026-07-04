@@ -7,6 +7,7 @@ import {
   makeRogueRetaliationDuelCallbackData,
   parseClassNoncombatCallbackData
 } from "../../src/bot/callbacks/classNoncombatCallbackData";
+import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
 
 describe("class noncombat callback data", () => {
   it("encodes open callbacks with mode and page", () => {
@@ -78,6 +79,13 @@ describe("class noncombat callback data", () => {
   });
 
   it("encodes Rogue retaliation duel callbacks with an opaque attempt token and mode", () => {
+    const longestValid = makeRogueRetaliationDuelCallbackData({
+      mode: "turn-based",
+      retaliationToken: "a".repeat(24)
+    });
+    expect(Buffer.byteLength(longestValid, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(longestValid).not.toContain(targetTelegramIdFragment);
+
     expect(parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
       mode: "quick",
       retaliationToken: "abc123xy"
@@ -129,3 +137,5 @@ describe("class noncombat callback data", () => {
     });
   });
 });
+
+const targetTelegramIdFragment = "123456789";
