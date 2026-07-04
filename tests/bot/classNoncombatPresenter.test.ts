@@ -176,7 +176,7 @@ describe("class noncombat presenter", () => {
 
     expect(text).toContain("Стан діє ще: <b>13 хвилин</b>.");
     expect(text).toContain("Бонус: <b>+5 Вдачі</b>. Видно в персонажі поруч із бафами.");
-    expect(text).toContain("🌌 Мана витрачена: <b>15</b>.");
+    expect(text).toContain("💫 Мана витрачена: <b>15</b>.");
     expect(text).not.toContain("Бонус поки");
     expect(text).not.toContain("не складається в стос");
   });
@@ -212,7 +212,7 @@ describe("class noncombat presenter", () => {
     } as unknown as PriestHealResult);
 
     expect(text).toContain("❤️ HP: <b>+4</b> · тепер <b>20/32</b>.");
-    expect(text).toContain("🌌 Мана витрачена: <b>10</b>.");
+    expect(text).toContain("💫 Мана витрачена: <b>10</b>.");
     expect(text).toContain("⚕️ <b>Лікування спрацювало</b>");
     expect(text).not.toContain("Відпочинок техніки");
     expect(text).not.toContain("🩹 <b>Лікування спрацювало</b>");
