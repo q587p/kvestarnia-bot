@@ -17,6 +17,9 @@ import { monsterBarks, monsterBarkTextByMonsterId } from "../../src/content/mons
 import { monsterContextTraits } from "../../src/content/monsterContext";
 import { monsterContextProfiles, monsterContextTraits } from "../../src/content/monsterContext";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
+import type { ItemContent } from "../../src/content/schema";
+
+type ItemEffectKey = keyof NonNullable<ItemContent["effect"]>;
 
 const contentTables = [
   { name: "races", rows: races, schema: raceSchema },
@@ -194,7 +197,7 @@ describe("content tables", () => {
   });
 
   it("keeps very cheap authored equipment at trophy-scale power", () => {
-    const effectKeys = [
+    const effectKeys: ItemEffectKey[] = [
       "hpMax",
       "manaMax",
       "strength",
@@ -216,7 +219,7 @@ describe("content tables", () => {
     expect(cheapAuthoredEquipment.length).toBeGreaterThan(0);
 
     for (const item of cheapAuthoredEquipment) {
-      const power = effectKeys.reduce((sum, key) => sum + (item.effect?.[key] ?? 0), 0);
+      const power = getItemEffectPower(item, effectKeys);
 
       expect(power, item.id).toBeLessThanOrEqual(2);
     }
@@ -545,3 +548,12 @@ describe("content tables", () => {
     }
   });
 });
+
+function getItemEffectPower(item: ItemContent, effectKeys: readonly ItemEffectKey[]): number {
+  const effect = item.effect;
+  if (!effect) {
+    return 0;
+  }
+
+  return effectKeys.reduce((sum, key) => sum + (effect[key] ?? 0), 0);
+}
