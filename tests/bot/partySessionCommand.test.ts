@@ -132,6 +132,43 @@ describe("handlePartySessionCallback", () => {
     expect(editMessageText).not.toHaveBeenCalled();
   });
 
+  it("updates raid readiness and refreshes other recruiting cards", async () => {
+    const session = makeBigBarrelSessionWithMember();
+    const updated = {
+      ...session,
+      participants: session.participants.map((participant) =>
+        participant.characterId === "character-42"
+          ? { ...participant, readiness: "ready" as const }
+          : participant
+      )
+    };
+    const setReadinessForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: updated
+    });
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(null);
+    const { ctx, answerCallbackQuery, editMessageText, apiEditMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "readiness", token: session.inviteToken, readiness: "ready" },
+      serviceWith({ setReadinessForTelegramUser }),
+      {
+        botUsername: "kvestarnia_test_bot",
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ getByPartyInviteToken })
+      }
+    );
+
+    expect(setReadinessForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken, "ready");
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Позначено: ви готові." });
+    expect(messageText(editMessageText)).toContain("1. ✅ <b>Тестова Лідерка</b>");
+    expect(keyboardJson(editMessageText)).toContain("⏳ Зачекайте");
+    expect(apiEditMessageText).toHaveBeenCalledTimes(1);
+    expect(apiEditMessageText.mock.calls[0]?.[0]).toBe(93);
+    expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("1. ✅ <b>Тестова Лідерка</b>");
+  });
+
   it("pushes the started boss card to other participants", async () => {
     const session = makeBossSession();
     const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "started", session });
@@ -864,6 +901,15 @@ function makeSessionWithMember(): PartySessionRecord {
         character: member
       }
     ]
+  };
+}
+
+function makeBigBarrelSessionWithMember(): PartySessionRecord {
+  const session = makeSessionWithMember();
+
+  return {
+    ...session,
+    originLocationId: "barrel.big-brother"
   };
 }
 

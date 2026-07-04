@@ -63,6 +63,7 @@ describe("party session keyboard", () => {
     });
 
     expect(inlineButtonTexts(keyboard)).toEqual([
+      "✅ Готові",
       "🚪 Вийти",
       "🧹 Скасувати збір",
       "🛢️ Почати рейд",
@@ -73,6 +74,27 @@ describe("party session keyboard", () => {
     expect(keyboardText(keyboard)).toContain("https://t.me/share/url");
     expect(keyboardText(keyboard)).toContain("party_partyABC12");
     expect(keyboardText(keyboard)).toContain("v1:party:sh:partyABC12");
+    expect(keyboardText(keyboard)).toContain("v1:party:rs:partyABC12:r");
+  });
+
+  it("toggles Big Barrel Brother readiness from ready back to waiting", () => {
+    const session = {
+      ...makeSession(),
+      originLocationId: "barrel.big-brother",
+      participants: makeSession().participants.map((participant) => ({
+        ...participant,
+        readiness: "ready" as const
+      }))
+    };
+
+    const keyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyABC12",
+      includeBossStart: true
+    });
+
+    expect(inlineButtonTexts(keyboard)).toContain("⏳ Зачекайте");
+    expect(keyboardText(keyboard)).toContain("v1:party:rs:partyABC12:w");
   });
 
   it("rotates Big Barrel Brother invite-card text", () => {

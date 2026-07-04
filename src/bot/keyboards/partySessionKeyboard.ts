@@ -23,6 +23,7 @@ import {
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionReadinessCallbackData,
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
@@ -52,6 +53,13 @@ export function buildPartySessionKeyboard(
     if (!viewer) {
       keyboard.text("🤝 Приєднатися", makePartySessionJoinCallbackData(token)).row();
     } else {
+      if (session.originLocationId === "barrel.big-brother") {
+        const ready = viewer.readiness === "ready";
+        keyboard.text(
+          ready ? "⏳ Зачекайте" : getReadyButtonLabel(viewer.character.pronoun),
+          makePartySessionReadinessCallbackData(token, ready ? "waiting" : "ready")
+        ).row();
+      }
       keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token)).row();
     }
 
@@ -261,6 +269,18 @@ function buildTelegramShareUrl(inviteUrl: string): string {
   const text = "Квестарня кличе у рейд до Старшого Брата Бочки.";
 
   return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
+}
+
+function getReadyButtonLabel(pronoun: string): string {
+  if (pronoun === "he") {
+    return "✅ Готовий";
+  }
+
+  if (pronoun === "she") {
+    return "✅ Готова";
+  }
+
+  return "✅ Готові";
 }
 
 function getPartyBossSkillButtonLabel(classId: string | undefined): string {

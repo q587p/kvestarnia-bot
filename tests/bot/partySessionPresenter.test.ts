@@ -454,6 +454,21 @@ describe("party session presenter", () => {
     expect(createdText).not.toContain("Бочку довго ображали словом «меблі»");
   });
 
+  it("shows Big Barrel Brother readiness markers near recruiting participant names", () => {
+    const session = {
+      ...makePartySession(),
+      participants: makePartySession().participants.map((participant, index) => ({
+        ...participant,
+        readiness: index === 0 ? "ready" as const : "waiting" as const
+      }))
+    };
+
+    const text = presentPartySession(session);
+
+    expect(text).toContain("1. ✅ <b>Голова</b>");
+    expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
+  });
+
   it("explains why Big Barrel Brother joins are ineligible", () => {
     const session = makePartySession();
 

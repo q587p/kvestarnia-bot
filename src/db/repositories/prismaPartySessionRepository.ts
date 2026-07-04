@@ -8,7 +8,9 @@ import type {
   PartyJoinRepositoryResult,
   PartyJoinIneligibleReason,
   PartyLeaveRepositoryResult,
+  PartyParticipantReadiness,
   PartyParticipantRecord,
+  PartyReadinessRepositoryResult,
   PartySessionRecord,
   PartySessionRepository,
   PartySessionStatus,
@@ -401,6 +403,63 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       await terminalizeSessionTx(tx, session.id, "cancelled");
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "cancelled", session: mapSession(updated) } : { state: "not-found" };
+    });
+  }
+
+  async setParticipantReadiness(
+    telegramUserId: bigint,
+    inviteToken: string,
+    readiness: PartyParticipantReadiness,
+    now: Date
+  ): Promise<PartyReadinessRepositoryResult> {
+    return this.prisma.$transaction(async (tx): Promise<PartyReadinessRepositoryResult> => {
+      await expireTokenIfNeededTx(tx, inviteToken, now);
+      const session = await findSessionByToken(tx, inviteToken);
+
+      if (!session) {
+        return { state: "not-found" };
+      }
+
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(session) };
+      }
+
+      if (session.status !== LIVE_STATUS) {
+        return { state: "not-recruiting", session: mapSession(session) };
+      }
+
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const participant = session.participants.find((row) =>
+        row.characterId === character.id && row.status === "joined"
+      );
+      if (!participant) {
+        return { state: "not-member", session: mapSession(session) };
+      }
+
+      if (parseParticipantReadiness(participant.snapshotJson) === readiness) {
+        return { state: "already-set", session: mapSession(session) };
+      }
+
+      await tx.partyParticipant.update({
+        where: { id: participant.id },
+        data: {
+          snapshotJson: snapshotWithReadiness(participant.snapshotJson, readiness)
+        }
+      });
+      await tx.partySession.update({
+        where: { id: session.id },
+        data: {
+          version: { increment: 1 }
+        }
+      });
+
+      const updated = await findSessionById(tx, session.id);
+      return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
     });
   }
 
@@ -877,6 +936,7 @@ function mapParticipant(row: PartySessionRow["participants"][number]): PartyPart
     leftAt: row.leftAt,
     chatId: row.chatId,
     messageId: row.messageId,
+    readiness: parseParticipantReadiness(row.snapshotJson),
     character: mapCharacter(row.character)
   };
 }
@@ -914,8 +974,34 @@ function snapshotCharacter(character: CharacterRow): Prisma.InputJsonObject {
     level: character.level,
     raceId: character.raceId,
     classId: character.classId,
-    remortCount: character._count.remorts
+    remortCount: character._count.remorts,
+    raidReadiness: "waiting"
   };
+}
+
+function snapshotWithReadiness(
+  snapshotJson: Prisma.JsonValue | null,
+  readiness: PartyParticipantReadiness
+): Prisma.InputJsonObject {
+  const snapshot: Record<string, Prisma.InputJsonValue> = {};
+
+  if (snapshotJson && typeof snapshotJson === "object" && !Array.isArray(snapshotJson)) {
+    for (const [key, value] of Object.entries(snapshotJson)) {
+      snapshot[key] = value as Prisma.InputJsonValue;
+    }
+  }
+
+  snapshot.raidReadiness = readiness;
+  return snapshot;
+}
+
+function parseParticipantReadiness(snapshotJson: Prisma.JsonValue | null): PartyParticipantReadiness {
+  if (snapshotJson && typeof snapshotJson === "object" && !Array.isArray(snapshotJson)) {
+    const readiness = (snapshotJson as Record<string, unknown>).raidReadiness;
+    return readiness === "ready" ? "ready" : "waiting";
+  }
+
+  return "waiting";
 }
 
 function getTerminalReplayState(row: PartySessionRow): "cancelled" | "expired" | null {

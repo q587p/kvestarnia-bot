@@ -4,6 +4,8 @@ import type {
   PartyCreateRepositoryResult,
   PartyJoinRepositoryResult,
   PartyLeaveRepositoryResult,
+  PartyParticipantReadiness,
+  PartyReadinessRepositoryResult,
   PartySessionRecord,
   PartySessionRepository
 } from "../db/repositories/partySessionRepository";
@@ -22,6 +24,7 @@ export type PartyViewResult = { state: "not-found" } | { state: "ready"; session
 export type PartyJoinResult = PartyJoinRepositoryResult;
 export type PartyLeaveResult = PartyLeaveRepositoryResult;
 export type PartyCancelResult = PartyCancelRepositoryResult;
+export type PartyReadinessResult = PartyReadinessRepositoryResult;
 
 export interface PartySessionServiceOptions {
   enabled: boolean;
@@ -119,6 +122,18 @@ export class PartySessionService {
     }
 
     return this.sessions.cancelByTokenForTelegramUser(telegramUserId, inviteToken, this.clock());
+  }
+
+  async setReadinessForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string,
+    readiness: PartyParticipantReadiness
+  ): Promise<PartyReadinessResult> {
+    if (!this.isEnabled()) {
+      return { state: "not-found" };
+    }
+
+    return this.sessions.setParticipantReadiness(telegramUserId, inviteToken, readiness, this.clock());
   }
 
   async getByToken(inviteToken: string): Promise<PartyViewResult> {

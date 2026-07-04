@@ -754,7 +754,9 @@ export function presentPartySession(
   if (joined.length === 0) {
     lines.push("Запис порожній. Це вже майже філософія.");
   } else {
-    lines.push(...joined.map((participant, index) => `${index + 1}. ${presentParticipantName(participant)}`));
+    lines.push(...joined.map((participant, index) => `${index + 1}. ${presentRecruitingParticipantName(participant, {
+      showReadiness: big && session.status === "recruiting"
+    })}`));
   }
 
   if (session.status === "recruiting" && options.inviteUrl && !big) {
@@ -1549,6 +1551,17 @@ function presentParticipantName(participant: PartyParticipantRecord): string {
     maxNameLength: 32,
     maxTitleLength: 32
   });
+}
+
+function presentRecruitingParticipantName(
+  participant: PartyParticipantRecord,
+  options: { showReadiness: boolean }
+): string {
+  const marker = options.showReadiness
+    ? participant.readiness === "ready" ? "✅ " : "⏳ "
+    : "";
+
+  return `${marker}${presentParticipantName(participant)}`;
 }
 
 function presentNearbyCandidate(candidate: PresencePerson): string {

@@ -113,6 +113,35 @@ describe("PrismaPartySessionRepository integration", () => {
     })).toBe(0);
   });
 
+  it("stores participant raid readiness in the recruiting snapshot", async () => {
+    await seedCharacter(prisma, "readiness-leader-user", 2111n, "Готова", { level: 8 });
+    await seedCharacter(prisma, "readiness-member-user", 2112n, "Дохиляється", { level: 8 });
+
+    const created = await repository.createForTelegramUser(2111n, bigBarrelInput("party-token-ready"));
+    const joined = await repository.joinByTokenForTelegramUser(2112n, "party-token-ready", joinInput());
+    const ready = await repository.setParticipantReadiness(2112n, "party-token-ready", "ready", now());
+    const duplicate = await repository.setParticipantReadiness(2112n, "party-token-ready", "ready", now());
+    const waiting = await repository.setParticipantReadiness(2112n, "party-token-ready", "waiting", now());
+
+    expect(created.state).toBe("created");
+    expect(joined.state).toBe("joined");
+    expect(readinessByTelegramUser(joined)).toEqual({
+      "2111": "waiting",
+      "2112": "waiting"
+    });
+    expect(ready.state).toBe("updated");
+    expect(readinessByTelegramUser(ready)).toEqual({
+      "2111": "waiting",
+      "2112": "ready"
+    });
+    expect(duplicate.state).toBe("already-set");
+    expect(waiting.state).toBe("updated");
+    expect(readinessByTelegramUser(waiting)).toEqual({
+      "2111": "waiting",
+      "2112": "waiting"
+    });
+  });
+
   it("records the actual sent recruiting card message reference for a joined participant", async () => {
     await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
     await repository.createForTelegramUser(2151n, {
@@ -488,6 +517,15 @@ function joinInput(joinSource: "nearby" | "deep-link" | "dev" = "deep-link") {
     chatId: 587n,
     messageId: 23
   };
+}
+
+function readinessByTelegramUser(
+  result: { session?: { participants: Array<{ readiness?: string; character: { telegramUserId: bigint } }> } }
+): Record<string, string | undefined> {
+  return Object.fromEntries((result.session?.participants ?? []).map((participant) => [
+    participant.character.telegramUserId.toString(),
+    participant.readiness
+  ]));
 }
 
 async function seedCharacter(

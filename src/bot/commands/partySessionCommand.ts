@@ -402,6 +402,48 @@ export async function handlePartySessionCallback(
     return;
   }
 
+  if (callback.type === "readiness") {
+    const boss = await options.partyBoss?.getByPartyInviteToken(callback.token);
+    if (boss) {
+      await safeAnswerCallbackQuery(ctx, { text: "Рейд уже стартував. Готовність лишилась у зборі." });
+      const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+      await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
+        session: boss,
+        viewerCharacterId,
+        includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
+      });
+      return;
+    }
+
+    const result = await service.setReadinessForTelegramUser(
+      telegramUserId,
+      callback.token,
+      callback.readiness
+    );
+    await safeAnswerCallbackQuery(ctx, { text: presentReadinessCallbackAnswer(result.state, callback.readiness) });
+
+    if (!("session" in result)) {
+      await sendText(ctx, "edit", result.state === "no-character"
+        ? "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта."
+        : "Ватага не знайшлася.", false);
+      return;
+    }
+
+    const inviteUrl = buildPartyInviteUrl(options.botUsername, result.session.inviteToken);
+    await sendText(ctx, "edit", presentPartyView({ state: "ready", session: result.session }, { inviteUrl }), {
+      session: result.session,
+      inviteUrl,
+      viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+      includeDevExpire: service.areDevHelpersEnabled(),
+      includeBossStart: isBigBarrelParty(result.session)
+    });
+
+    if (result.state === "updated") {
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+    }
+    return;
+  }
+
   if (callback.type === "join") {
     const result = await service.joinByTokenForTelegramUser(telegramUserId, callback.token, {
       source: "nearby",
@@ -871,6 +913,33 @@ function getViewerCharacterId(
   );
 
   return participant?.characterId ?? null;
+}
+
+function presentReadinessCallbackAnswer(
+  state: Awaited<ReturnType<PartySessionService["setReadinessForTelegramUser"]>>["state"],
+  readiness: "ready" | "waiting"
+): string {
+  if (state === "updated") {
+    return readiness === "ready" ? "Позначено: ви готові." : "Позначено: ще готуєтесь.";
+  }
+
+  if (state === "already-set") {
+    return "Статус уже такий.";
+  }
+
+  if (state === "not-member") {
+    return "Ця готовність не належить вашому запису.";
+  }
+
+  if (state === "not-recruiting") {
+    return "Збір уже не змінює готовність.";
+  }
+
+  if (state === "cancelled" || state === "expired") {
+    return "Цей збір уже закрито.";
+  }
+
+  return "Готовність не записалася.";
 }
 
 function isBigBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[0]): boolean {

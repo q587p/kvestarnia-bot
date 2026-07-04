@@ -1,4 +1,5 @@
 import { err, ok, type Result } from "../../shared/result";
+import type { PartyParticipantReadiness } from "../../db/repositories/partySessionRepository";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type PartySessionCallback =
@@ -7,6 +8,7 @@ export type PartySessionCallback =
   | { type: "leave"; token: string }
   | { type: "cancel"; token: string }
   | { type: "expire"; token: string }
+  | { type: "readiness"; token: string; readiness: PartyParticipantReadiness }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
   | { type: "boss-items"; token: string; turn: number }
@@ -53,6 +55,13 @@ export function makePartySessionCancelCallbackData(token: string): string {
 
 export function makePartySessionExpireCallbackData(token: string): string {
   return `${PREFIX}:x:${token}`;
+}
+
+export function makePartySessionReadinessCallbackData(
+  token: string,
+  readiness: PartyParticipantReadiness
+): string {
+  return `${PREFIX}:rs:${token}:${readiness === "ready" ? "r" : "w"}`;
 }
 
 export function makePartyBossStartCallbackData(token: string): string {
@@ -253,6 +262,23 @@ export function parsePartySessionCallbackData(
     });
   }
 
+  if (action === "rs") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    const readiness = parseReadinessKey(page);
+    if (!readiness) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "readiness",
+      token: tokenOrTarget,
+      readiness
+    });
+  }
+
   if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {
     return err("invalid-token");
   }
@@ -317,6 +343,16 @@ function parseActionKey(value: string): PartyBossCallbackAction | null {
   }
   if (value === "r") {
     return "race";
+  }
+  return null;
+}
+
+function parseReadinessKey(value: string | undefined): PartyParticipantReadiness | null {
+  if (value === "r") {
+    return "ready";
+  }
+  if (value === "w") {
+    return "waiting";
   }
   return null;
 }
