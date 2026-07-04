@@ -3959,6 +3959,59 @@ describe("FightService", () => {
     }
   });
 
+  it("starts a dev-forced Nyz pressure fight with an explicit second enemy level bonus", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.2])
+    });
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      enemyCount: 2,
+      devBypassAvailability: true,
+      devThreatSecondEnemyLevelBonus: 8,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      const enemies = normalizeCombatEnemies(started.session.state!);
+      const secondEnemy = enemies[1];
+      const baseSecondEnemy = monsters.find((monster) => monster.id === secondEnemy?.id);
+
+      expect(enemies).toHaveLength(2);
+      expect(secondEnemy).toBeDefined();
+      expect(baseSecondEnemy).toBeDefined();
+      if (!secondEnemy || !baseSecondEnemy) {
+        throw new Error("Expected a boosted dev second enemy.");
+      }
+      expect(secondEnemy.level).toBe((baseSecondEnemy.level ?? 0) + 8);
+      expect(started.session.state?.threat).toMatchObject({
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: 3,
+        pressure: {
+          requestedSecondEnemyLevelBonus: 8,
+          appliedSecondEnemyLevelBonus: 8,
+          boostedEnemyId: secondEnemy.enemyId,
+          boostedEnemyEffectiveLevel: secondEnemy.level,
+          levelCap: 23
+        }
+      });
+      expect(started.session.state?.threatExclusion).toEqual({
+        version: 1,
+        reason: "dev-forced-two-enemies"
+      });
+    }
+  });
+
   it("stacks the second enemy level boost across consecutive won two-enemy fights", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });

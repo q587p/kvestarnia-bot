@@ -267,7 +267,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_two_enemies",
     icon: "🧬",
-    description: "почати локальний бій із двома ворогами",
+    description: "почати локальний бій із двома ворогами; число додає рівні другому",
     includeInMenu: false,
     devOnly: "reset"
   },

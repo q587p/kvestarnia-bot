@@ -55,6 +55,7 @@ import {
   findThreatEscalationLine,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINE_VERSION,
+  THREAT_ESCALATION_REQUIRED_WINS,
   THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS,
   type CombatActionType,
   type CombatActorStats,
@@ -486,6 +487,7 @@ export interface PersistentFightStartOptions {
   };
   enemyCount?: 1 | 2;
   devBypassAvailability?: boolean;
+  devThreatSecondEnemyLevelBonus?: number;
 }
 
 export type PassagePreviewRefreshReason = "expired" | "missing-monster" | "stale";
@@ -1765,10 +1767,13 @@ export class FightService {
       : selectSoloFightMonster(characterSummary, encounterRng, difficulty, recentMonsterIds);
     const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
     const enemyCount = options.enemyCount ?? threatDecision.enemyCount;
+    const devThreatSecondEnemyLevelBonus = options.devBypassAvailability
+      ? normalizeDevThreatSecondEnemyLevelBonus(options.devThreatSecondEnemyLevelBonus)
+      : 0;
     const secondEnemyLevelBonus =
       threatDecision.enemyCount === 2 && !options.enemyCount
         ? threatDecision.secondEnemyLevelBonus
-        : 0;
+        : devThreatSecondEnemyLevelBonus;
     const extraBaseMonster = enemyCount === 2
       ? selectSoloFightMonster(characterSummary, encounterRng, difficulty, [
           baseMonster.id,
@@ -1820,10 +1825,19 @@ export class FightService {
       version: 1
     };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
-    if (threatDecision.enemyCount === 2 && !options.enemyCount) {
+    const shouldAttachThreat = (threatDecision.enemyCount === 2 && !options.enemyCount) ||
+      (options.enemyCount === 2 && options.devBypassAvailability && devThreatSecondEnemyLevelBonus > 0);
+    if (shouldAttachThreat) {
       state.threat = buildCombatThreatState({
         sessionId,
-        threatDecision,
+        threatDecision: threatDecision.enemyCount === 2
+          ? threatDecision
+          : {
+              enemyCount: 2,
+              reason: "ordinary-win-streak",
+              eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+              secondEnemyLevelBonus: devThreatSecondEnemyLevelBonus
+            },
         extraMonster: extraMonsters[0],
         boostedEnemy: state.enemies?.[1]
       });
@@ -4808,6 +4822,14 @@ function applyThreatSecondEnemyLevelBonus(input: {
     appliedLevelBonus,
     levelCap: CURRENT_GAME_LEVEL_CAP
   };
+}
+
+function normalizeDevThreatSecondEnemyLevelBonus(value: number | undefined): number {
+  if (value === undefined) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value));
 }
 
 function buildCombatThreatState(input: {

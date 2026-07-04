@@ -1,5 +1,5 @@
 import { Bot } from "grammy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { registerDevResetCommand } from "../../src/bot/commands/devResetCommand";
 import type { AdventureService } from "../../src/services/adventureService";
 import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
@@ -387,6 +387,52 @@ describe("dev adventure reset command", () => {
       [42n, "session-two-enemies", { chatId: "42", messageId: 2 }]
     ]);
   });
+
+  it("passes an explicit Nyz pressure level bonus to dev two-enemy fights", async () => {
+    const replies: string[] = [];
+    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "needs-rest",
+        character: {
+          id: "character-42",
+          name: "Тестовий пригодник",
+          pronoun: "they",
+          path: "boundary",
+          raceId: "race.human-ish",
+          classId: "class.warrior",
+          level: 3,
+          xp: 25,
+          xpToNextLevel: 10,
+          hpCurrent: 0,
+          hpMax: 30,
+          manaCurrent: 10,
+          manaMax: 10,
+          gold: 0,
+          baseStats: { strength: 7, dexterity: 7, intelligence: 7, charisma: 7, luck: 7 },
+          equippedItems: []
+        }
+      })
+    );
+    const bot = createTestBot(replies, {
+      devReset: enabledDevReset(),
+      adventure: {
+        resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
+      } as unknown as AdventureService,
+      fight: {
+        getOrStartPersistentFightForTelegramUser,
+        recordPersistentFightMessageReference: () => Promise.resolve(),
+        resetMonsterRestCooldownForDev: () => Promise.resolve({ state: "no-cooldown" })
+      } as unknown as FightService
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_two_enemies 8"));
+
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, expect.objectContaining({
+      enemyCount: 2,
+      devBypassAvailability: true,
+      devThreatSecondEnemyLevelBonus: 8
+    }));
+  });
 });
 
 function createTestBot(
@@ -448,6 +494,8 @@ function disabledDevReset(): Pick<DevResetService, "isEnabled" | "resetCurrentUs
 }
 
 function commandUpdate(text: string) {
+  const commandLength = text.split(/\s/, 1)[0]?.length ?? text.length;
+
   return {
     update_id: 1,
     message: {
@@ -466,7 +514,7 @@ function commandUpdate(text: string) {
       entities: [
         {
           offset: 0,
-          length: text.length,
+          length: commandLength,
           type: "bot_command"
         }
       ]

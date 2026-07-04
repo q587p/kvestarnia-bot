@@ -1,4 +1,4 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
 import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { DevResetService } from "../../services/devResetService";
@@ -25,6 +25,8 @@ import {
   presentPersistentFightIntro
 } from "../presenters/fightPresenter";
 import { presentLevelUpCelebration } from "../presenters/levelGrowthPresenter";
+
+type DevResetCommandContext = Context & { match?: string };
 
 export function registerDevResetCommand(
   bot: Bot,
@@ -207,6 +209,12 @@ export function registerDevResetCommand(
       return;
     }
 
+    const secondEnemyLevelBonus = parseDevTwoEnemiesLevelBonus((ctx as DevResetCommandContext).match);
+    if (secondEnemyLevelBonus === null) {
+      await ctx.reply("Формат: /dev_two_enemies [додатне ціле число рівнів для другого ворога].");
+      return;
+    }
+
     if (!fightService) {
       await ctx.reply("Dev-бій із двома ворогами зараз недоступний.");
       return;
@@ -222,6 +230,7 @@ export function registerDevResetCommand(
     const result = await fightService.getOrStartPersistentFightForTelegramUser(telegramUserId, {
       enemyCount: 2,
       devBypassAvailability: true,
+      devThreatSecondEnemyLevelBonus: secondEnemyLevelBonus,
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
     });
 
@@ -249,4 +258,18 @@ export function registerDevResetCommand(
 
     await ctx.reply("Dev-бій не стартував: спершу завершіть або відновіть поточний бій.");
   });
+}
+
+function parseDevTwoEnemiesLevelBonus(match: string | undefined): number | null {
+  const raw = match?.trim();
+  if (!raw) {
+    return 0;
+  }
+
+  if (!/^\d+$/.test(raw)) {
+    return null;
+  }
+
+  const amount = Number.parseInt(raw, 10);
+  return amount > 0 ? amount : null;
 }
