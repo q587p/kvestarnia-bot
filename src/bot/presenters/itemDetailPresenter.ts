@@ -51,7 +51,7 @@ export function presentOwnedItemDetail(
     `🔎 <b>${escapeHtml(content.name)}</b>`,
     "",
     `Рідкість: <b>${presentRarity(content.rarity)}</b>`,
-    `Категорія: <b>${presentItemSlot(content.slot)}</b>`,
+    `Категорія: <b>${presentItemCategory(content)}</b>`,
     `Вартість: ${presentItemValue(content)}`,
     `Кількість: <b>${quantity}</b>`,
     ...(effectLine ? [effectLine] : []),
@@ -239,6 +239,14 @@ export function presentItemSlot(slot: ItemContent["slot"]): string {
   return labels[slot];
 }
 
+function presentItemCategory(item: ItemContent): string {
+  if (item.equipmentSlot === "legs") {
+    return "річ на ноги";
+  }
+
+  return presentItemSlot(item.slot);
+}
+
 export function presentItemValue(item: ItemContent): string {
   if (item.priceless) {
     return "<i>безцінна</i>";
@@ -252,6 +260,10 @@ export function presentItemValue(item: ItemContent): string {
 function presentItemFlavor(item: ItemContent): string {
   if (item.slot === "weapon") {
     return "<i>Стійка для зброї робить поважний вигляд. Вона давно чекала аргумент із ручкою.</i>";
+  }
+
+  if (item.equipmentSlot === "legs") {
+    return "<i>Манекен виставив ногу й удав, що це теж поважний салон спорядження.</i>";
   }
 
   if (item.slot === "armor") {

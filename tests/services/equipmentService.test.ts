@@ -93,6 +93,24 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("equips generated foot gear into the legs slot", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.loot-v1-a013" })]
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.loot-v1-a013")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "legs",
+      item: {
+        content: {
+          name: "Шкарпетки Невразливого Комфорту"
+        }
+      }
+    });
+  });
+
   it("maps owned accessories into the accessory slot", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.cork-ring-of-serious-business" })]
