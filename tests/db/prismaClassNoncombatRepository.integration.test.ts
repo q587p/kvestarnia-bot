@@ -114,6 +114,23 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect(snapshot?.targets).toHaveLength(1);
   });
 
+  it("does not treat current adventure presence as a class noncombat blocker", async () => {
+    await seedCharacter({
+      telegramUserId: 811n,
+      userId: "user-priest",
+      characterId: "priest",
+      classId: "class.priest",
+      level: 3,
+      currentAdventureId: "adventure.mimic-shawarma"
+    });
+
+    const snapshot = await repository.getSnapshotForTelegramUser(811n, snapshotInput());
+
+    expect(snapshot).toMatchObject({
+      actorBlocked: false
+    });
+  });
+
   it("marks same-day Rogue attempted targets in target snapshots", async () => {
     await seedCharacter({ telegramUserId: 901n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
     await seedCharacter({ telegramUserId: 902n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
@@ -444,6 +461,7 @@ async function seedCharacter(input: {
   level?: number;
   gold?: number;
   locationId?: string;
+  currentAdventureId?: string | null;
   hpCurrent?: number;
   manaCurrent?: number;
   manaRegenAt?: Date | null;
@@ -456,7 +474,7 @@ async function seedCharacter(input: {
       lastActionAt: now,
       lastSeenLocationId: input.locationId ?? "location.korchma.front",
       currentRaidId: null,
-      currentAdventureId: null
+      currentAdventureId: input.currentAdventureId ?? null
     }
   });
   await prismaGlobal().character.create({

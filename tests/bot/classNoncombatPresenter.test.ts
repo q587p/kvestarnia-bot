@@ -113,9 +113,9 @@ describe("class noncombat presenter", () => {
       priestBlessCooldownAvailableAt: null
     } as unknown as ClassNoncombatOpenResult);
 
-    expect(text).toContain("⚕️ Лікування: недоступне під час поточної справи.");
-    expect(text).toContain("✨ Благословення: недоступне під час поточної справи.");
-    expect(text).toContain("Спершу завершіть бій, рейд або іншу активну пригоду.");
+    expect(text).toContain("⚕️ Лікування: недоступне під час бою або рейду.");
+    expect(text).toContain("✨ Благословення: недоступне під час бою або рейду.");
+    expect(text).toContain("Спершу завершіть бій або рейд.");
     expect(text).not.toContain("готово");
     expect(text).not.toContain("активним протоколом");
   });
@@ -134,7 +134,7 @@ describe("class noncombat presenter", () => {
       }
     } as unknown as PriestBlessResult);
 
-    expect(text).toContain("Спершу завершіть бій, рейд або іншу активну пригоду.");
+    expect(text).toContain("Спершу завершіть бій або рейд.");
     expect(text).not.toContain("активним протоколом");
   });
 

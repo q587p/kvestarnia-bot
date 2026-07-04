@@ -865,7 +865,7 @@ function getPresenceLocationQueryIds(locationId: string): string[] {
 }
 
 function isBlocked(character: IncludedCharacter): boolean {
-  return Boolean(character.activeCombatLease || character.user.currentRaidId || character.user.currentAdventureId);
+  return Boolean(character.activeCombatLease || character.user.currentRaidId);
 }
 
 type IncludedCharacter = Character & {
