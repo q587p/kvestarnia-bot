@@ -30,7 +30,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         `📍 ${escapeHtml(result.locationName)}`,
         `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>. Лікування бере ману, не бинти.`,
         "⚕️ Лікування: без відпочинку, доки вистачає мани.",
-        presentCooldownLine("✨ Благословення", result.priestBlessCooldownAvailableAt),
+        presentCooldownLine("✨ Благословення", result.priestBlessCooldownAvailableAt, "очікування"),
         "",
         result.targets.length > 0
           ? "Оберіть себе або когось активного поруч:"
@@ -285,8 +285,8 @@ function presentPriestBlessBlockedTitle(
   }
 }
 
-function presentCooldownLine(label: string, availableAt: Date | null): string {
-  return availableAt ? `${label}: ще ${formatRemaining(availableAt)}.` : `${label}: готово.`;
+function presentCooldownLine(label: string, availableAt: Date | null, cooldownName = "cooldown"): string {
+  return availableAt ? `${label}: ${cooldownName} ще ${formatRemaining(availableAt)}.` : `${label}: готово.`;
 }
 
 function formatRemaining(availableAt: Date, now = new Date()): string {

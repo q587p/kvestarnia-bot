@@ -363,6 +363,20 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_reset_priest_blessing",
+    icon: "🙏",
+    description: "скинути cooldown жрецького благословення локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_reset_quiet_pocket",
+    icon: "🗡️",
+    description: "скинути cooldown Тихої кишені локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_yeger_first_done",
     icon: "5️⃣",
     description: "довести першу дошку Єгеря до 5/5 локально",

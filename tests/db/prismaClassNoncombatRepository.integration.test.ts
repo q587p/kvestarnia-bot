@@ -142,7 +142,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
       characterId: "priest",
       classId: "class.priest",
       level: 3,
-      manaCurrent: 20
+      manaCurrent: 20,
+      manaRegenAt: new Date("2026-07-03T08:00:00.000Z")
     });
 
     const result = await repository.completePriestBlessing(701n, priestBlessInput({
@@ -167,7 +168,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
       expiresAt: new Date("2026-07-03T09:13:00.000Z")
     });
     await expect(prisma.character.findUnique({ where: { id: "priest" } })).resolves.toMatchObject({
-      manaCurrent: 13
+      manaCurrent: 13,
+      manaRegenAt: now
     });
   });
 
@@ -179,7 +181,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
       classId: "class.priest",
       level: 4,
       hpCurrent: 16,
-      manaCurrent: 20
+      manaCurrent: 20,
+      manaRegenAt: new Date("2026-07-03T08:00:00.000Z")
     });
 
     const result = await repository.completePriestHeal(711n, priestHealInput({
@@ -206,7 +209,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(prisma.character.findUnique({ where: { id: "priest" } })).resolves.toMatchObject({
       hpCurrent: 26,
       hpMax: 20,
-      manaCurrent: 10
+      manaCurrent: 10,
+      manaRegenAt: now
     });
     await expect(prisma.characterCooldown.findMany({
       where: { characterId: "priest" },
@@ -385,6 +389,7 @@ async function seedCharacter(input: {
   locationId?: string;
   hpCurrent?: number;
   manaCurrent?: number;
+  manaRegenAt?: Date | null;
 }): Promise<void> {
   await prismaGlobal().user.create({
     data: {
@@ -413,6 +418,7 @@ async function seedCharacter(input: {
       hpMax: 20,
       manaCurrent: input.manaCurrent ?? 20,
       manaMax: 20,
+      manaRegenAt: input.manaRegenAt,
       statsJson: { dexterity: 10, luck: 8, charisma: 8, intelligence: 8 }
     }
   });

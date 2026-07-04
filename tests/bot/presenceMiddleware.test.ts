@@ -233,6 +233,9 @@ describe("presence middleware", () => {
     ["/dev_add_dense_bandage 2", "addDenseBandages"],
     ["/dev_add_field_kit 3", "addFieldKits"],
     ["/dev_add_yeger_line 4", "addYegerLines"],
+    ["/dev_reset_yeger_trail", "resetYegerTrackingCooldown"],
+    ["/dev_reset_priest_blessing", "resetPriestBlessingCooldown"],
+    ["/dev_reset_quiet_pocket", "resetQuietPocketCooldown"],
     ["/dev_yeger_first_done", "completeFirstYegerQuestProgress"],
     ["/dev_yeger_second_done", "completeSecondYegerQuestProgress"]
   ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
@@ -316,6 +319,15 @@ describe("presence middleware", () => {
             }]
           });
         },
+        resetYegerTrackingCooldown: () => {
+          calls.push("resetYegerTrackingCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "yeger-tracking-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
+          });
+        },
         completeFirstYegerQuestProgress: () => {
           calls.push("completeFirstYegerQuestProgress");
           return Promise.resolve({
@@ -327,6 +339,24 @@ describe("presence middleware", () => {
             target: 5,
             started: true,
             character: characterRecord()
+          });
+        },
+        resetPriestBlessingCooldown: () => {
+          calls.push("resetPriestBlessingCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "priest-blessing-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
+          });
+        },
+        resetQuietPocketCooldown: () => {
+          calls.push("resetQuietPocketCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "quiet-pocket-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
           });
         },
         completeSecondYegerQuestProgress: () => {

@@ -74,6 +74,26 @@ describe("class noncombat presenter", () => {
     expect(text).not.toContain("Поруч нікого активного немає");
   });
 
+  it("labels Priest blessing cooldown as waiting, not blessing duration", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "priest",
+      character: {
+        id: "character-1",
+        name: "Жрець",
+        classId: "class.priest",
+        manaCurrent: 16,
+        manaMax: 16
+      },
+      targets: [],
+      locationName: "Дошка корчми",
+      priestBlessCooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z")
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).toContain("✨ Благословення: очікування ще 93 хвилини.");
+    expect(text).not.toContain("✨ Благословення: ще 93 хвилини.");
+  });
+
   it("formats Priest blessing duration and mana spend clearly", () => {
     const text = presentPriestBlessResult({
       state: "completed",

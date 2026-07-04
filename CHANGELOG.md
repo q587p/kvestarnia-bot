@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added rewardless achievements for first Priest heal, first Priest blessing, first Rogue pickpocket attempt, first successful pickpocket and first caught-badly outcome.
 - Added class noncombat callback, keyboard, presenter, service and repository slices with `v1:nc` callback routing.
 - Added Prisma tables for Priest aid actions, Priest blessings and Rogue pickpocket attempts.
+- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` now clear Priest blessing/support and Quiet Pocket cooldown rows for manual QA, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
 
 ### Changed
 - Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
@@ -38,6 +39,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, damage, victory flavor, `Винагорода за бій`, then item grants.
 - Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
+- Priest aid open cards now label the 93-minute blessing gate as `очікування`, so it does not read like the active blessing duration.
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `🌌` for mana spent.
 - Removed the noncombat Priest heal cooldown; direct healing is now limited by missing HP and mana, while direct blessing keeps the 93-minute actor cooldown.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
@@ -52,11 +54,12 @@ This project follows a simple pre-1.0 versioning policy:
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
 - Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start blessing cooldown; successful healing never starts cooldown.
+- Successful Priest healing and blessing now anchor mana regeneration at the action time, so an old regen marker cannot immediately refill spent mana on the next hero/card read.
 - Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
 - Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
 - Standard actor achievement notifications are sent only for fresh completed Priest heal/bless or Rogue attempts; blocked/no-op states and duplicate Rogue replays do not notify again.
 - No public shame/latest-events row, PvP tournament, item theft, universal noncombat engine, combat ability rebalance or paid advantage ships here.
-- No local `/dev_*` helper ships for this slice; the task doc records the decision and focused tests cover cooldown/day replay gates.
+- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` are non-production grant helpers; production config must not register, show or mutate through them.
 
 ### Tests
 - Added domain tests for Priest heal math and deterministic Rogue amount/outcome shaping.

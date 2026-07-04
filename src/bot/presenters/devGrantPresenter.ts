@@ -86,6 +86,18 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: Єгерський слід уже готовий або ще не взятий.";
   }
 
+  if (result.kind === "priest-blessing-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: жрецьке благословення знову готове до локальної перевірки."
+      : "🧪 Dev: жрецьке благословення і так без активного cooldown.";
+  }
+
+  if (result.kind === "quiet-pocket-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: «Тиха кишеня» знову готова до локальної перевірки."
+      : "🧪 Dev: «Тиха кишеня» і так без активного cooldown.";
+  }
+
   if (result.kind === "yeger-bandage-day") {
     return result.deleted > 0
       ? `🧪 Dev: день купівлі бинтів Єгеря скинуто. Прибрано ${result.deleted} ${formatUnit(result.deleted, ["запис", "записи", "записів"])}.`

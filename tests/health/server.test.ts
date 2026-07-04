@@ -80,9 +80,9 @@ describe("health server", () => {
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Класи згадали, що корчма теж поле пригод");
     expect(text).toContain("жерці можуть підтримати себе або активного пригодника поруч");
-    expect(text).toContain("жерці можуть накласти коротке благословення напряму");
-    expect(text).toContain("злодії можуть ризикнути дуже малою кишеньковою справою");
-    expect(text).toContain("не публічний цирк на дошці");
+    expect(text).toContain("накласти коротке благословення");
+    expect(text).toContain("злодії можуть ризикнути малою");
+    expect(text).toContain("ніякого публічного цирку");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

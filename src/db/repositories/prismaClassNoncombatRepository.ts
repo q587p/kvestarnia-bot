@@ -143,7 +143,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
                 hpCurrent: hpAfter,
                 manaCurrent: actor.manaCurrent - spent,
                 hpRegenAt: hpAfter >= targetEffectiveHpMax ? input.now : target.hpRegenAt,
-                manaRegenAt: actor.manaRegenAt ?? input.now
+                manaRegenAt: input.now
               }
             })
           : await mutatePriestHealPair(tx, actor, target, hpAfter, targetEffectiveHpMax, spent, input.now);
@@ -249,7 +249,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           where: { id: actor.id, manaCurrent: actor.manaCurrent },
           data: {
             manaCurrent: actor.manaCurrent - input.manaCost,
-            manaRegenAt: actor.manaRegenAt ?? input.now
+            manaRegenAt: input.now
           }
         });
         if (actorUpdate.count !== 1) {
@@ -637,7 +637,7 @@ async function mutatePriestHealPair(
     where: { id: actor.id, manaCurrent: actor.manaCurrent },
     data: {
       manaCurrent: actor.manaCurrent - manaCost,
-      manaRegenAt: actor.manaRegenAt ?? now
+      manaRegenAt: now
     }
   });
   if (actorUpdate.count !== 1) {

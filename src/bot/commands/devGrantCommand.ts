@@ -115,6 +115,14 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
     await handleDevResetYegerTrailCommand(ctx, devGrantService);
   });
 
+  bot.command("dev_reset_priest_blessing", async (ctx) => {
+    await handleDevResetPriestBlessingCommand(ctx, devGrantService);
+  });
+
+  bot.command("dev_reset_quiet_pocket", async (ctx) => {
+    await handleDevResetQuietPocketCommand(ctx, devGrantService);
+  });
+
   bot.command("dev_yeger_first_done", async (ctx) => {
     await handleDevCompleteYegerQuestCommand(ctx, devGrantService, "first");
   });
@@ -251,6 +259,48 @@ async function handleDevResetYegerTrailCommand(
   }
 
   const result = await devGrantService.resetYegerTrackingCooldown(telegramUserId);
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevResetPriestBlessingCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.resetPriestBlessingCooldown(telegramUserId);
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevResetQuietPocketCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.resetQuietPocketCooldown(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }

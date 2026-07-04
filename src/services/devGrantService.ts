@@ -18,6 +18,41 @@ import {
   YEGER_BANDAGE_PURCHASE_PREVIEW_KEY
 } from "./dailyActionKeys";
 
+const PRIEST_BLESSING_COOLDOWN_KEYS = [
+  "technique.class.priest.blessing",
+  "technique.class.priest.support",
+  "class.priest.blessing",
+  "class.priest.support",
+  "social.priest.blessing",
+  "priest.blessing"
+];
+const PRIEST_BLESSING_COOLDOWN_PREFIXES = [
+  "technique.class.priest.blessing",
+  "class.priest.blessing",
+  "social.priest.blessing",
+  "priest.blessing"
+];
+const QUIET_POCKET_COOLDOWN_KEYS = [
+  "technique.class.rogue.quiet-pocket",
+  "technique.class.thief.quiet-pocket",
+  "class.rogue.quiet-pocket",
+  "class.thief.quiet-pocket",
+  "social.rogue.quiet-pocket",
+  "social.thief.quiet-pocket",
+  "rogue.quiet-pocket",
+  "thief.quiet-pocket"
+];
+const QUIET_POCKET_COOLDOWN_PREFIXES = [
+  "technique.class.rogue.quiet-pocket",
+  "technique.class.thief.quiet-pocket",
+  "class.rogue.quiet-pocket",
+  "class.thief.quiet-pocket",
+  "social.rogue.quiet-pocket",
+  "social.thief.quiet-pocket",
+  "rogue.quiet-pocket",
+  "thief.quiet-pocket"
+];
+
 export type DevGrantResult =
   | { state: "disabled" }
   | { state: "no-character" }
@@ -36,7 +71,11 @@ export type DevGrantResult =
     }
   | {
       state: "updated";
-      kind: "yeger-bandage-cooldown" | "yeger-tracking-cooldown";
+      kind:
+        | "yeger-bandage-cooldown"
+        | "yeger-tracking-cooldown"
+        | "priest-blessing-cooldown"
+        | "quiet-pocket-cooldown";
       character: CharacterRecord;
       cleared: boolean;
     }
@@ -319,6 +358,46 @@ export class DevGrantService {
       ? {
           state: "updated",
           kind: "yeger-tracking-cooldown",
+          character: result.character,
+          cleared: result.cleared
+        }
+      : { state: "no-character" };
+  }
+
+  async resetPriestBlessingCooldown(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.clearCooldownsForTelegramUser(telegramUserId, {
+      keys: PRIEST_BLESSING_COOLDOWN_KEYS,
+      keyPrefixes: PRIEST_BLESSING_COOLDOWN_PREFIXES
+    });
+
+    return result
+      ? {
+          state: "updated",
+          kind: "priest-blessing-cooldown",
+          character: result.character,
+          cleared: result.cleared
+        }
+      : { state: "no-character" };
+  }
+
+  async resetQuietPocketCooldown(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.clearCooldownsForTelegramUser(telegramUserId, {
+      keys: QUIET_POCKET_COOLDOWN_KEYS,
+      keyPrefixes: QUIET_POCKET_COOLDOWN_PREFIXES
+    });
+
+    return result
+      ? {
+          state: "updated",
+          kind: "quiet-pocket-cooldown",
           character: result.character,
           cleared: result.cleared
         }
