@@ -58,7 +58,7 @@ Future task doc: [0.2.x-dense-bandage-field-kit.md](tasks/0.2.x-dense-bandage-fi
 Future source doc: [TAVERN_SOCIAL_GAMES.md](TAVERN_SOCIAL_GAMES.md).
 
 **Objective**
-Додати в шинок короткі opt-in `Ігри за столом`: спершу загальний table-game engine, потім `Тавлеї` як 1v1 тактичну партію і `Кості` як 2-7 player dice table.
+This line has mostly shipped: `0.2.21` added the flagged table-game engine and Tavlei, while `0.2.26` replaced the confusing old Kosti plan with Dice Poker. Future work here should focus on dice-poker tournaments/reactions or rollout hardening, not the retired 2-7 style/sign Kosti grid.
 
 **Scope guard**
 Це не частина Lore Board MVP і не runtime поточного PR. Не додавати меню, callbacks, Prisma schema, migrations, escrow, ставки, винагороди, telemetry або player-facing обіцянку, доки окрема version task не активує цей напрям.
@@ -67,9 +67,9 @@ Future source doc: [TAVERN_SOCIAL_GAMES.md](TAVERN_SOCIAL_GAMES.md).
 
 1. Audit current Shynok/Korchma menu, economy mutation path, callback router, combat/search locks and ledger patterns.
 2. Add transaction-safe table-game sessions, stake reserve/refund/payout and expiry behind flags.
-3. Ship `Тавлеї`.
-4. Ship `Кості`.
-5. Add result-copy polish, recent tavern activity, caps and QA hardening.
+3. Shipped: `Тавлеї`.
+4. Shipped/reworked: `Кості` as Dice Poker.
+5. Future: add result-copy polish, recent tavern activity, caps, tournaments and QA hardening in separate slices.
 
 **Guardrails**
 

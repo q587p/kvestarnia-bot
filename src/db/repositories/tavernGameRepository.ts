@@ -1,4 +1,5 @@
 import type { CharacterRecord } from "./characterRepository";
+import type { DicePokerMode, DicePokerState } from "../../domain/dicePoker";
 import type { TavernGameDecision, TavernGameKey, TavernGameResolution } from "../../domain/tavernGames";
 
 export type TavernGameSessionStatus =
@@ -127,6 +128,17 @@ export type TavernGameCancelResult =
   | { state: "not-cancellable"; session: TavernGameSessionRecord }
   | { state: "cancelled"; session: TavernGameSessionRecord };
 
+export type DicePokerActionResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "blocked"; reason: TavernGameGateReason }
+  | { state: "not-participant"; session: TavernGameSessionRecord }
+  | { state: "closed"; session: TavernGameSessionRecord }
+  | { state: "stale"; session: TavernGameSessionRecord }
+  | { state: "saved"; session: TavernGameSessionRecord; dicePoker: DicePokerState }
+  | { state: "completed"; session: TavernGameSessionRecord; dicePoker: DicePokerState }
+  | { state: "cancelled"; session: TavernGameSessionRecord };
+
 export interface TavernGameRepository {
   listOpen(now: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
   listCompletedSince(since: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
@@ -146,6 +158,20 @@ export interface TavernGameRepository {
       now: Date;
     }
   ): Promise<TavernGameCreateResult>;
+  createDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      mode: DicePokerMode;
+      token: string;
+      seed: string;
+      stakeGold: number;
+      maxStake: number;
+      expiresAt: Date;
+      cooldownMs: number;
+      now: Date;
+      state: DicePokerState;
+    }
+  ): Promise<TavernGameCreateResult>;
   joinByTokenForTelegramUser(
     telegramUserId: bigint,
     token: string,
@@ -162,6 +188,28 @@ export interface TavernGameRepository {
     token: string,
     now: Date
   ): Promise<TavernGameResolveResult>;
+  saveDicePokerStateForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    state: DicePokerState,
+    now: Date
+  ): Promise<DicePokerActionResult>;
+  completeDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    input: {
+      state: DicePokerState;
+      outcome: "win" | "loss" | "draw";
+      payoutGold: number;
+      refundedGold: number;
+      now: Date;
+    }
+  ): Promise<DicePokerActionResult>;
+  cancelDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    now: Date
+  ): Promise<DicePokerActionResult>;
   cancelForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<TavernGameCancelResult>;
   refundDisabledByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null>;
   expireDue(now: Date, limit?: number): Promise<number>;

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildShynokDicePokerKeyboard,
   buildShynokGameRulesKeyboard,
   buildShynokGameSessionKeyboard,
   formatShynokOpenTableButtonLabel
 } from "../../src/bot/keyboards/shynokKeyboard";
+import { startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("Shynok game keyboards", () => {
   it("shows Tavlei cancellation only to the creator while the table is still alone and open", () => {
@@ -63,12 +65,54 @@ describe("Shynok game keyboards", () => {
       "↩ До ігор"
     ]);
     expect(flatInlineButtonTexts(buildShynokGameRulesKeyboard("kosti", 23))).toEqual([
-      "💰 1",
-      "💰 5",
-      "💰 13",
-      "💰 23",
+      "⚡ 1",
+      "📜 1",
+      "⚡ 5",
+      "📜 5",
+      "⚡ 13",
+      "📜 13",
+      "⚡ 23",
+      "📜 23",
+      "❔ Правила",
       "↩ До ігор"
     ]);
+  });
+
+  it("shows clear quick dice poker next actions", () => {
+    const state = {
+      ...startQuickDicePoker("keyboard-quick"),
+      playerDice: [6, 6, 2, 3, 4],
+      selectedMask: 0b00011
+    };
+    const keyboard = buildShynokDicePokerKeyboard("12345678-1234-4234-9234-123456789abc", state);
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "✅ 6",
+      "✅ 6",
+      "⬜ 2",
+      "⬜ 3",
+      "⬜ 4",
+      "🎲 Перекинути вибране",
+      "❔ Правила",
+      "✖ Скасувати",
+      "↩ До ігор"
+    ]);
+  });
+
+  it("shows scorecard scoring choices with preview values", () => {
+    const state = {
+      ...startScorecardDicePoker("keyboard-scorecard"),
+      dice: [1, 1, 1, 3, 4],
+      selectedMask: 0
+    };
+    const keyboard = buildShynokDicePokerKeyboard("12345678-1234-4234-9234-123456789abc", state);
+    const texts = flatInlineButtonTexts(keyboard);
+
+    expect(texts).not.toContain("🎲 Лишити як є");
+    expect(texts).toContain("Одиниці: 3");
+    expect(texts).toContain("Трійки: 3");
+    expect(texts).toContain("Шанс: 10");
+    expect(texts).toContain("✖ Скасувати");
   });
 });
 

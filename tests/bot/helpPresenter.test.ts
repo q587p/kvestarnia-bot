@@ -38,7 +38,7 @@ describe("help presenter", () => {
     expect(presentHelp({
       includeDevReset: false,
       includeTavernGames: true
-    })).toContain("🎲 Ігри за столом — тавлеї та кості у шинку.");
+    })).toContain("🎲 Ігри за столом — тавлеї та костяний покер у шинку.");
     expect(presentHelp({
       includeDevReset: false,
       includeTavernGames: true

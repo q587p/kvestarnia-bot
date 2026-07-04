@@ -11,22 +11,19 @@
 - Same seed/session/decisions produce the same result.
 - Player-facing result contains tactic labels but no raw formula details.
 
-## Unit tests: Kosti resolver
+## Unit tests: Dice Poker / Kosti
 
-- Hand ranking order: five-kind > straight > four-kind > full house > triple > two pairs > pair > high.
-- Sign detection covers:
-  - exact two pairs;
-  - triple or better;
-  - high hand sum >= 22;
-  - straight 1-5 or 2-6;
-  - tower four/five same;
-  - no sign default if implemented.
-- Main/sign pool split conserves pot.
-- No sign winners sends sign pool to main winner.
-- Multiple sign winners split sign pool.
-- Remainder goes to main winner.
-- Style modifiers apply to score without mutating raw dice.
-- Tie-break order is deterministic.
+- Quick hand ranking order: poker > four of a kind > full house > large straight > small straight > triple > two pairs > pair > high die.
+- Five/four/three of a kind tie-break by grouped face then kickers.
+- Full house tie-breaks by triple value, then pair value.
+- Large straight beats small straight.
+- Pair and two-pair tie-breaks use pair values before kickers.
+- Exact equal evaluated hands draw.
+- Exact quick draws create a deciding round and cap at three repeated draws before refund.
+- NPC reroll heuristic keeps made hands, triples, two pairs, pairs, four-card straight candidates or the highest die.
+- Scorecard upper boxes, lower boxes, chance and upper bonus match the simplified rules.
+- Five of a kind is `Покер` but not simplified `Фул-хаус`.
+- Scorecard cannot score a used category and cannot reroll past the third roll.
 
 ## Unit tests: economy and state
 
@@ -37,6 +34,9 @@
 - Duplicate create/join/decision callbacks are idempotent or return current state.
 - Resolve pays exactly once.
 - Re-resolving a completed session does not mutate gold.
+- Dice Poker completion pays/refunds at most once.
+- Dice Poker cancel and expiry return reserved stake once.
+- Legacy Kosti style/sign callbacks refund or fail closed without accepting the old decision.
 - Cancel before another participant joins refunds creator.
 - Expired open session refunds participants.
 - Failed resolve path safe-refunds and reaches terminal state.
@@ -51,8 +51,10 @@
 - Open table list excludes completed/refunded sessions.
 - Tavlei moves to `READY` when the second player joins.
 - Tavlei decision buttons work and stale decision callbacks are friendly.
-- Kosti accepts 2-7 players.
-- Kosti can resolve after minimum players if a `resolve now` action exists.
+- Kosti opens `🎲 Кості й покер` with `⚡ Швидкий покер`, `📜 Табличний покер` and `❔ Правила`.
+- Quick Dice Poker supports selecting none/some/all dice for the one reroll and shows both final hands plus the reason.
+- Scorecard mode shows turn, roll, selected dice, score preview buttons and scorecard summary.
+- Scorecard used boxes disappear from available score buttons.
 - Stale join/decision/resolve callbacks return friendly messages.
 - Insufficient gold path is friendly and does not create a session.
 - Combat lock blocks create/join/submit actions according to existing project policy.
@@ -69,10 +71,13 @@
 1. Enable feature flags locally.
 2. Create Tavlei with 1 gold, cancel before opponent, verify refund.
 3. Create Tavlei with 1 gold, join as another user, choose tactics, verify result and ledger.
-4. Create Kosti with 3 users, mixed styles/signs, verify readable result and exact pot conservation.
-5. Let Kosti expire with only 1 participant, verify refund.
-6. Press stale buttons after completion and after expiration.
-7. Try insufficient gold.
-8. Try create/join/decision while under combat lock.
-9. Run the repo's local checks, at minimum `npm run check` if available.
-10. Inspect DB rows for terminal statuses and no orphan escrow.
+4. Open `🎲 Кості`; verify `🎲 Кості й покер` explains quick and scorecard modes.
+5. Start quick poker; test no reroll, some rerolled dice and all dice rerolled across attempts.
+6. Verify win/loss/draw/refund-cap result copy and stake behavior.
+7. Start scorecard mode; reroll selected dice twice, score boxes and verify used boxes disappear.
+8. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
+9. Press stale old Kosti buttons and stale dice-poker buttons after completion/expiry.
+10. Try insufficient gold.
+11. Try create/join/decision while under combat lock.
+12. Run the repo's local checks, at minimum `npm run check` if available.
+13. Inspect DB rows for terminal statuses and no orphan escrow.

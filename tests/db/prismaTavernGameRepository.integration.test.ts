@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaTavernGameRepository } from "../../src/db/repositories/prismaTavernGameRepository";
+import { evaluateQuickHand, startQuickDicePoker } from "../../src/domain/dicePoker";
 
 describe("PrismaTavernGameRepository integration", () => {
   let dir: string;
@@ -177,6 +178,61 @@ describe("PrismaTavernGameRepository integration", () => {
     ]);
     await expect(characterGold("character-fail-creator")).resolves.toBe(10);
     await expect(characterGold("character-fail-joiner")).resolves.toBe(10);
+  });
+
+  it("completes dice poker once and does not duplicate rewards on replay", async () => {
+    const token = "12345678-1234-4234-9234-000000000587";
+    await seedCharacter({ telegramUserId: 587n, characterId: "character-dice-poker", name: "Костяр", gold: 10 });
+    const state = startQuickDicePoker("dice-poker-replay");
+
+    const created = await repository.createDicePokerForTelegramUser(587n, {
+      mode: "quick",
+      token,
+      seed: "dice-poker-replay",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 5 * 60_000),
+      cooldownMs: 0,
+      now: now(),
+      state
+    });
+    expect(created.state).toBe("created");
+    await expect(characterGold("character-dice-poker")).resolves.toBe(7);
+
+    const terminal = {
+      kind: "dice_poker" as const,
+      mode: "quick" as const,
+      phase: "terminal" as const,
+      outcome: "win" as const,
+      drawRound: 1,
+      playerDice: [6, 6, 6, 6, 6],
+      opponentDice: [1, 2, 3, 4, 5],
+      playerHand: evaluateQuickHand([6, 6, 6, 6, 6]),
+      opponentHand: evaluateQuickHand([1, 2, 3, 4, 5]),
+      reason: "Покер сильніший за малий стріт."
+    };
+    const completed = await repository.completeDicePokerForTelegramUser(587n, token, {
+      state: terminal,
+      outcome: "win",
+      payoutGold: 3,
+      refundedGold: 0,
+      now: now()
+    });
+    const replay = await repository.completeDicePokerForTelegramUser(587n, token, {
+      state: terminal,
+      outcome: "win",
+      payoutGold: 3,
+      refundedGold: 0,
+      now: now()
+    });
+
+    expect(completed.state).toBe("completed");
+    expect(replay.state).toBe("closed");
+    await expect(characterGold("character-dice-poker")).resolves.toBe(10);
+    await expect(prisma.tavernGameParticipant.findMany({
+      where: { session: { token } },
+      select: { payoutGold: true, refundedGold: true, activeStakeKey: true }
+    })).resolves.toEqual([{ payoutGold: 3, refundedGold: 0, activeStakeKey: null }]);
   });
 
   function now(): Date {

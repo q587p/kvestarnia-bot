@@ -258,7 +258,7 @@ Minimum implementation:
 - спершу audit-only task for Shynok/Korchma routing, economy helpers, callbacks and locks;
 - shared table-game session engine with safe escrow/refund/payout;
 - `Тавлеї` as a 1v1 tactics table;
-- `Кості` as a 2-7 player dice table;
+- `Кості` as Dice Poker after `0.2.26`; the older 2-7 style/sign table is retired unless a future product decision reopens it;
 - feature flags, caps and stale-callback handling before public exposure.
 
 Abuse risk:

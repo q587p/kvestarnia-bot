@@ -23,7 +23,7 @@ This document defines the MVP rules for the tavern table games.
 Each game asks for at most one small decision per player in MVP:
 
 - Tavlei: one tactic.
-- Kosti: one style and one sign.
+- Dice Poker Kosti: selected dice to reroll and, in scorecard mode, one unused score box per turn.
 
 Missing decisions after timeout should use safe defaults rather than orphaning escrow.
 
@@ -124,101 +124,83 @@ The Shynok games hub exposes a read-only table-games rating for completed sessio
 - rows: wins, draws and losses;
 - scope: both Tavlei and Kosti;
 - Tavlei draw counts as a draw for both players;
-- Kosti win counts only for the main-pot winner; sign-pool recipients are not leaderboard winners;
+- Dice Poker Kosti is solo/NPC in `0.2.26`; wins/losses/draws are recorded from terminal session outcome and grant no reward power;
 - the rating grants no XP, gold, items, power or extra rewards.
 
 ## Kosti
 
 ### Fantasy
 
-Kosti is louder, faster, and less noble. It is a small group table where players push luck, chase a sign, or try to keep a steady hand.
+Kosti now routes to Dice Poker. The old 2-7 player style/sign table from `0.2.21` is legacy-compatible only: old rows may be safely refunded when touched, but new player-facing keyboards should not expose style/sign choices.
 
-### Format
+### Quick Dice Poker Format
 
-- Players: 2-7.
-- Stake: equal stake from each player.
-- Choice: one style and one sign.
-- Dice: 5d6 per player.
-- Result: best hand wins the main pool; sign winners split the sign pool.
+- Players: one player vs tavern opponent.
+- Stake: one escrowed stake from the player.
+- Dice: 5d6 per side.
+- Choice: player may reroll any subset once, including none.
+- Opponent: deterministic reroll heuristic from visible dice.
+- Result: strongest five-dice poker hand wins; exact equal hand starts a deciding round, capped at three repeated draw rounds before refund.
 
-### Pot split
+Hand ranking:
 
 ```text
-totalPot = stake * participantCount
-mainPool = floor(totalPot * 0.70)
-signPool = totalPot - mainPool
+Покер
+Каре
+Фул-хаус
+Великий стріт
+Малий стріт
+Трійка
+Дві пари
+Пара
+Старша кістка
 ```
 
-Rules:
+Tie-breakers:
 
-1. Best scored hand wins `mainPool`.
-2. Players whose chosen sign is true split `signPool`.
-3. If no sign is true, `signPool` goes to the main winner.
-4. Remainders from integer division go to the main winner.
-5. Total payouts must equal `totalPot`.
+- five/four/three of a kind: grouped face first, then kickers;
+- full house: triple value, then pair value;
+- straights: 6-high beats 5-high;
+- two pairs: high pair, low pair, kicker;
+- pair: pair value, kickers descending;
+- high dice: all dice descending.
 
-### Styles
+### Scorecard Dice Poker Format
 
-| Key | Ukrainian label | UI meaning | MVP effect |
-| --- | --- | --- | --- |
-| `steady` | Тримати руку | No heroics; modest but safe. | `+2` score if rank is below triple. |
-| `push` | Гнати банк | Throw loud and hard. | `+3` for triple+ or sum >= 22; `-4` for high-card/pair only. |
-| `sign_hunter` | Ловити знак | Not the biggest hand, the right one. | `-2` main score; `+1` sign split priority/tiebreak if needed. |
+- Solo 13-turn scorecard.
+- Each turn starts with 5d6.
+- Up to two selected-dice rerolls after the initial roll.
+- After stopping or after the third roll, the player scores one unused box.
+- Score previews are visible for unused boxes.
+- No joker rules and no extra poker bonus chains.
 
-Default style: `steady`.
+Upper boxes:
 
-### Signs
+- `Одиниці`, `Двійки`, `Трійки`, `Четвірки`, `Пʼятірки`, `Шістки`.
+- Upper bonus: `+35` if upper total is at least `63`.
 
-| Key | Ukrainian label | Condition | Approx. frequency | Role |
-| --- | --- | --- | ---: | --- |
-| `two_pairs` | Дві пари | counts are `[2, 2, 1]` | ~23.15% | safer sign |
-| `triple` | Трійня | max count >= 3 | ~21.30% | strong sign |
-| `high_hand` | Висока рука | sum >= 22 | ~15.20% | risky sum sign |
-| `straight` | Шлях | set is `1..5` or `2..6` | ~3.09% | rare sign |
-| `tower` | Вежа | max count >= 4 | ~2.01% | rare sign |
-| `no_sign` | Без знаку | never wins sign pool | n/a | safe default if UX needs it |
+Lower boxes:
 
-Recommended default sign: `high_hand` for a more exciting default, or `no_sign` if the project prefers explicit opt-in side bets.
+- `Трійка`, `Каре`, `Фул-хаус`, `Малий стріт`, `Великий стріт`, `Покер`, `Шанс`.
+- Five of a kind is `Покер` and is not a simplified `Фул-хаус`.
 
-### Hand ranking
+### Settlement
 
-Higher is better:
+- Stake is reserved at session start.
+- Quick wins and high scorecard completion can pay back from escrow.
+- Draw cap, cancel and expiry refund reserved stake.
+- Terminal callbacks must be replay-safe and clear the active stake key once.
+- This slice does not create house money, tournaments or claimable tournament rewards.
 
-```ts
-fiveKind:   700 + face * 10
-straight:   650 + highEnd
-fourKind:   600 + face * 10 + kicker
-fullHouse:  550 + tripleFace * 10 + pairFace
-triple:     500 + face * 10 + kickersSum
-twoPairs:   400 + highPair * 10 + lowPair + kicker
-pair:       300 + pairFace * 10 + kickersSum
-high:       100 + sum
-```
-
-Then apply style modifiers:
-
-```ts
-if (style === 'steady' && rank < 500) score += 2;
-if (style === 'push' && (rank >= 500 || sum >= 22)) score += 3;
-if (style === 'push' && rank < 400) score -= 4;
-if (style === 'sign_hunter') score -= 2;
-```
-
-Tie-break order:
-
-1. Higher final score.
-2. Higher raw rank.
-3. Higher dice sum.
-4. Highest single die.
-5. Stable seeded participant order.
-
-### Kosti result rendering
+### Dice Poker result rendering
 
 Show:
 
-- each participant's style, dice, and hand label;
-- main pool winner and payout;
-- sign pool winners and payout, or note that the main winner takes unused sign pool;
+- player dice and recognized hand;
+- opponent dice and recognized hand in quick mode;
+- scorecard turn/roll/current score summary in scorecard mode;
+- why the result won/lost/drew;
+- payout/refund/stake result;
 - short colorful text, not formulas.
 
 ## Future extensions, not MVP

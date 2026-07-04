@@ -1,37 +1,59 @@
 import { describe, expect, it } from "vitest";
+import type { TavernGameSessionRecord } from "../../src/db/repositories/tavernGameRepository";
 import {
+  presentDicePokerRules,
   presentTavernGameActionResult,
   presentTavernGameLeaderboard,
-  presentTavernGameRules,
-  presentTavernGameSession
+  presentTavernGameRules
 } from "../../src/bot/presenters/tavernGamePresenter";
+import { evaluateQuickHand, type DicePokerState } from "../../src/domain/dicePoker";
 
 describe("tavern game presenter", () => {
-  it("describes Kosti as a seven-player table", () => {
-    expect(presentTavernGameRules("kosti", 25)).toContain("від двох до семи гравців");
+  it("describes Kosti as clear dice poker modes", () => {
+    const text = presentTavernGameRules("kosti", 25);
+
+    expect(text).toContain("🎲 Кості й покер");
+    expect(text).toContain("⚡ Швидкий покер");
+    expect(text).toContain("📜 Табличний покер");
+    expect(text).not.toContain("від двох до семи гравців");
   });
 
-  it("does not imply an open Kosti table resolves immediately after two players decide", () => {
-    const text = presentTavernGameSession({
-      id: "session-1",
-      token: "12345678-1234-4234-9234-123456789abc",
-      gameKey: "kosti",
-      status: "open",
-      stakeGold: 1,
-      potGold: 2,
-      creatorCharacterId: "character-1",
-      createdAt: new Date("2026-07-02T10:00:00.000Z"),
-      expiresAt: new Date("2026-07-02T10:13:00.000Z"),
-      participants: [
-        { characterId: "character-1", displayName: "Shannar de Kassal" },
-        { characterId: "character-2", displayName: "Kyjivan BooksDragon" }
-      ]
+  it("keeps compact rules for both dice poker modes", () => {
+    const text = presentDicePokerRules();
+
+    expect(text).toContain("Сила рук: Покер, Каре, Фул-хаус");
+    expect(text).toContain("13 ходів");
+    expect(text).toContain("протерміновані партії");
+  });
+
+  it("shows quick dice poker result with hands and reason", () => {
+    const state: DicePokerState = {
+      kind: "dice_poker",
+      mode: "quick",
+      phase: "terminal",
+      outcome: "win",
+      drawRound: 1,
+      playerDice: [6, 6, 6, 2, 1],
+      opponentDice: [5, 5, 4, 4, 2],
+      playerHand: evaluateQuickHand([6, 6, 6, 2, 1]),
+      opponentHand: evaluateQuickHand([5, 5, 4, 4, 2]),
+      reason: "Трійка сильніша за дві пари."
+    };
+
+    const text = presentTavernGameActionResult({
+      state: "completed",
+      session: session({ result: state }),
+      dicePoker: state
     });
 
-    expect(text).toContain("Кинути зараз");
-    expect(text).toContain("стіл заповниться");
-    expect(text).toContain("час збору добіжить кінця");
-    expect(text).not.toContain("щонайменше двох гравців");
+    expect(text).toContain("Твої кості: 6 6 6 2 1 — Трійка шісток");
+    expect(text).toContain("Кості шинкаря: 5 5 4 4 2 — Дві пари");
+    expect(text).toContain("Перемога: трійка сильніша за дві пари.");
+    expect(text).toContain("Виплата: <b>3 зол.</b>");
+  });
+
+  it("fails stale legacy dice callbacks closed with friendly copy", () => {
+    expect(presentTavernGameActionResult({ state: "stale" })).toContain("Стара кнопка від старих костей");
   });
 
   it("explains create cooldown without implying an open table exists", () => {
@@ -81,3 +103,69 @@ describe("tavern game presenter", () => {
     expect(text).not.toContain("<b>Дара</b>");
   });
 });
+
+function session(overrides: Partial<TavernGameSessionRecord> = {}): TavernGameSessionRecord {
+  const character = {
+    id: "character-1",
+    userId: "user-1",
+    telegramUserId: 42n,
+    currentLocationId: "location.korchma.bar",
+    name: "Тест",
+    pronoun: "they" as const,
+    path: "path",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    xp: 0,
+    gold: 10,
+    hpCurrent: 10,
+    hpMax: 10,
+    manaCurrent: 5,
+    manaMax: 5,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
+  };
+  const participant = {
+    id: "participant-1",
+    sessionId: "session-1",
+    characterId: character.id,
+    telegramUserId: 42n,
+    displayName: "Тест",
+    remortCount: 0,
+    status: "completed" as const,
+    stakeGold: 3,
+    payoutGold: 3,
+    refundedGold: 0,
+    decision: null,
+    result: null,
+    joinedAt: new Date("2026-07-02T10:00:00.000Z"),
+    decidedAt: null,
+    completedAt: new Date("2026-07-02T10:01:00.000Z"),
+    character
+  };
+
+  return {
+    id: "session-1",
+    token: "12345678-1234-4234-9234-123456789abc",
+    gameKey: "kosti",
+    status: "completed",
+    creatorCharacterId: character.id,
+    stakeGold: 3,
+    potGold: 3,
+    seed: "seed",
+    rulesVersion: "dice-poker-v1",
+    result: null,
+    openedAt: new Date("2026-07-02T10:00:00.000Z"),
+    joinExpiresAt: new Date("2026-07-02T10:05:00.000Z"),
+    decisionExpiresAt: new Date("2026-07-02T10:05:00.000Z"),
+    completedAt: new Date("2026-07-02T10:01:00.000Z"),
+    createdAt: new Date("2026-07-02T10:00:00.000Z"),
+    updatedAt: new Date("2026-07-02T10:01:00.000Z"),
+    creator: character,
+    participants: [participant],
+    ...overrides
+  };
+}

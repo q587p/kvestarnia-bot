@@ -7,6 +7,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.26] - 12026-07-04 - Dice Poker Rework
+
+### Added
+- Added `src/domain/dicePoker.ts` with pure five-dice poker hand evaluation, tie-break tuples, deterministic fair d6 rolling, NPC reroll heuristic and scorecard scoring.
+- Added `⚡ Швидкий покер` under the existing `🎲 Кості` entry point: player vs tavern opponent, five dice each, one optional player reroll, one deterministic NPC reroll and explicit result cards showing both dice hands plus the win/loss/draw reason.
+- Added deciding quick-poker rounds for exact equal evaluated hands, capped at three repeated draw rounds before a safe stake refund and terminal close.
+- Added `📜 Табличний покер`: solo 13-turn scorecard mode with up to three rolls per turn, selected-dice rerolls, 13 once-only boxes, preview scores for unused boxes, simplified full-house/poker rules and the upper-section `63+` bonus.
+- Added compact `❔ Правила` copy for both dice-poker modes and compact callback payloads for create/toggle/reroll/score/cancel actions.
+
+### Changed
+- Replaced the old cryptic Kosti style/sign rule menu with `🎲 Кості й покер`, showing quick mode, scorecard mode and rules from the same `🎲 Кості` button.
+- Routed legacy `game-create` Kosti callbacks to quick dice poker for compatibility, while new keyboards no longer emit old Kosti style/sign choices.
+- Kept Dice Poker on the existing tavern-game escrow model with `rulesVersion = dice-poker-v1`, `gameKey = kosti`, one active stake session per character and no Prisma schema migration.
+- Bounded the economy: stake is reserved at session start; quick wins and high scorecard completions can pay back escrow; draws, draw-cap refunds, cancellation and expiry return reserved stake only; terminal sessions clear active stake keys and replayed completion callbacks do not pay again.
+
+### Fixed
+- Old incompatible active Kosti tables are hidden from the open-table hub and old decision/resolve callbacks fail closed through the existing safe refund/stale path with friendly Ukrainian copy.
+- Scorecard no-op reroll callbacks with no selected dice no longer consume a roll.
+- Stale, terminal, expired and duplicate dice-poker callbacks do not grant duplicate rewards or remove extra gold.
+
+### Deferred
+- Turn-based duel tournaments, tournament day/week/month reward claims and broader casino/economy changes remain deferred to `0.2.27+` or later.
+
 ## [0.2.25] - 12026-07-04 - Class Noncombat Priest and Rogue Techniques
 
 ### Added

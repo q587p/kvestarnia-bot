@@ -1,5 +1,11 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  DICE_POKER_RULES_VERSION,
+  isDicePokerState,
+  type DicePokerMode,
+  type DicePokerState
+} from "../../domain/dicePoker";
+import {
   isTavernGameKey,
   KOSTI_MIN_PLAYERS,
   KOSTI_PLAYER_CAP,
@@ -17,6 +23,7 @@ import type {
   TavernGameCancelResult,
   TavernGameCharacterSnapshot,
   TavernGameCreateResult,
+  DicePokerActionResult,
   TavernGameDecisionResult,
   TavernGameGateReason,
   TavernGameJoinResult,
@@ -211,6 +218,115 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
           openedAt: input.now,
           joinExpiresAt: input.joinExpiresAt,
           decisionExpiresAt: input.decisionExpiresAt,
+          participants: {
+            create: {
+              characterId: character.id,
+              telegramUserId,
+              displayName: character.name,
+              remortCount: getIncludedRemortCount(character),
+              status: "joined",
+              stakeGold: input.stakeGold,
+              activeStakeKey: activeStakeKey(character.id),
+              joinedAt: input.now
+            }
+          }
+        },
+        include: tavernGameSessionInclude
+      });
+
+      return { state: "created", session: mapSession(session) };
+    }).catch(async (error: unknown): Promise<TavernGameCreateResult> => {
+      if (!isUniqueConflict(error)) {
+        throw error;
+      }
+      const character = await findCharacterByTelegramUser(this.prisma, telegramUserId);
+      const live = character ? await findLiveMembershipSession(this.prisma, character.id) : null;
+      return live ? { state: "active-session", session: mapSession(live) } : { state: "no-character" };
+    });
+  }
+
+  async createDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      mode: DicePokerMode;
+      token: string;
+      seed: string;
+      stakeGold: number;
+      maxStake: number;
+      expiresAt: Date;
+      cooldownMs: number;
+      now: Date;
+      state: DicePokerState;
+    }
+  ): Promise<TavernGameCreateResult> {
+    if (input.stakeGold < 1 || input.stakeGold > input.maxStake) {
+      return { state: "invalid-stake", maxStake: input.maxStake };
+    }
+
+    return this.prisma.$transaction(async (tx): Promise<TavernGameCreateResult> => {
+      await expireDueTx(tx, input.now);
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const blocked = getGateReason(character);
+      if (blocked) {
+        return { state: "blocked", reason: blocked };
+      }
+
+      const live = await findLiveMembershipSession(tx, character.id);
+      if (live) {
+        return { state: "active-session", session: mapSession(live) };
+      }
+
+      const cooldownAfter = new Date(input.now.getTime() - input.cooldownMs);
+      const recent = await tx.tavernGameSession.findFirst({
+        where: {
+          creatorCharacterId: character.id,
+          openedAt: { gt: cooldownAfter }
+        },
+        orderBy: { openedAt: "desc" },
+        select: { openedAt: true }
+      });
+      if (recent) {
+        return {
+          state: "cooldown",
+          availableAt: new Date(recent.openedAt.getTime() + input.cooldownMs)
+        };
+      }
+
+      const spent = await tx.character.updateMany({
+        where: {
+          id: character.id,
+          gold: { gte: input.stakeGold }
+        },
+        data: {
+          gold: { decrement: input.stakeGold }
+        }
+      });
+      if (spent.count !== 1) {
+        return {
+          state: "insufficient-gold",
+          character: mapCharacter(character),
+          stakeGold: input.stakeGold
+        };
+      }
+
+      const session = await tx.tavernGameSession.create({
+        data: {
+          token: input.token,
+          gameKey: "kosti",
+          status: "ready",
+          creatorCharacterId: character.id,
+          stakeGold: input.stakeGold,
+          potGold: input.stakeGold,
+          seed: input.seed,
+          rulesVersion: DICE_POKER_RULES_VERSION,
+          resultJson: input.state as unknown as Prisma.InputJsonValue,
+          openedAt: input.now,
+          joinExpiresAt: input.expiresAt,
+          decisionExpiresAt: input.expiresAt,
           participants: {
             create: {
               characterId: character.id,
@@ -465,6 +581,149 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     });
   }
 
+  async saveDicePokerStateForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    state: DicePokerState,
+    now: Date
+  ): Promise<DicePokerActionResult> {
+    return this.prisma.$transaction(async (tx): Promise<DicePokerActionResult> => {
+      await expireTokenIfNeededTx(tx, token, now);
+      const session = await findSessionByToken(tx, token);
+      if (!session) {
+        return { state: "not-found" };
+      }
+      const gate = await validateDicePokerActionTx(tx, session, telegramUserId);
+      if (gate) {
+        return gate;
+      }
+
+      const updated = await tx.tavernGameSession.update({
+        where: { id: session.id },
+        data: {
+          resultJson: state as unknown as Prisma.InputJsonValue,
+          decisionExpiresAt: session.decisionExpiresAt && session.decisionExpiresAt < now
+            ? now
+            : session.decisionExpiresAt
+        },
+        include: tavernGameSessionInclude
+      });
+
+      return { state: "saved", session: mapSession(updated), dicePoker: state };
+    });
+  }
+
+  async completeDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    input: {
+      state: DicePokerState;
+      outcome: "win" | "loss" | "draw";
+      payoutGold: number;
+      refundedGold: number;
+      now: Date;
+    }
+  ): Promise<DicePokerActionResult> {
+    return this.prisma.$transaction(async (tx): Promise<DicePokerActionResult> => {
+      await expireTokenIfNeededTx(tx, token, input.now);
+      const session = await findSessionByToken(tx, token);
+      if (!session) {
+        return { state: "not-found" };
+      }
+      const gate = await validateDicePokerActionTx(tx, session, telegramUserId);
+      if (gate) {
+        return gate;
+      }
+
+      const participant = session.participants.find((row) => isJoinedStatus(row.status));
+      if (!participant) {
+        return { state: "closed", session: mapSession(session) };
+      }
+
+      const claimed = await tx.tavernGameSession.updateMany({
+        where: {
+          id: session.id,
+          status: "ready",
+          rulesVersion: DICE_POKER_RULES_VERSION
+        },
+        data: {
+          status: "resolving"
+        }
+      });
+      if (claimed.count !== 1) {
+        const replay = await findSessionById(tx, session.id);
+        return replay ? { state: "closed", session: mapSession(replay) } : { state: "not-found" };
+      }
+
+      const payoutGold = Math.max(0, Math.trunc(input.payoutGold));
+      const refundedGold = Math.max(0, Math.trunc(input.refundedGold));
+      const returnedGold = payoutGold + refundedGold;
+      if (returnedGold > 0) {
+        await tx.character.update({
+          where: { id: participant.characterId },
+          data: { gold: { increment: returnedGold } }
+        });
+      }
+
+      await tx.tavernGameParticipant.update({
+        where: { id: participant.id },
+        data: {
+          status: "completed",
+          payoutGold,
+          refundedGold,
+          resultJson: {
+            kind: "dice_poker",
+            outcome: input.outcome,
+            state: input.state
+          } as unknown as Prisma.InputJsonValue,
+          activeStakeKey: null,
+          completedAt: input.now
+        }
+      });
+
+      const completed = await tx.tavernGameSession.update({
+        where: { id: session.id },
+        data: {
+          status: "completed",
+          resultJson: {
+            kind: "dice_poker",
+            outcome: input.outcome,
+            state: input.state,
+            payoutGold,
+            refundedGold
+          } as unknown as Prisma.InputJsonValue,
+          completedAt: input.now
+        },
+        include: tavernGameSessionInclude
+      });
+
+      return { state: "completed", session: mapSession(completed), dicePoker: input.state };
+    });
+  }
+
+  async cancelDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    now: Date
+  ): Promise<DicePokerActionResult> {
+    return this.prisma.$transaction(async (tx): Promise<DicePokerActionResult> => {
+      await expireTokenIfNeededTx(tx, token, now);
+      const session = await findSessionByToken(tx, token);
+      if (!session) {
+        return { state: "not-found" };
+      }
+      const gate = await validateDicePokerActionTx(tx, session, telegramUserId);
+      if (gate) {
+        return gate;
+      }
+
+      const refunded = await refundSessionTx(tx, session, "cancelled_refund", now, {
+        kind: "dice_poker_cancelled"
+      });
+      return { state: "cancelled", session: mapSession(refunded) };
+    });
+  }
+
   async cancelForTelegramUser(
     telegramUserId: bigint,
     token: string,
@@ -535,7 +794,11 @@ async function expireDueTx(tx: TxClient, now: Date, limit = 23): Promise<number>
   });
 
   for (const row of rows) {
-    if (row.status === "open" && countLiveParticipants(row) < getMinimumParticipants(row.gameKey)) {
+    if (isDicePokerRow(row)) {
+      await refundSessionTx(tx, row, "expired_refund", now, {
+        kind: "dice_poker_expired"
+      });
+    } else if (row.status === "open" && countLiveParticipants(row) < getMinimumParticipants(row.gameKey)) {
       await refundSessionTx(tx, row, "expired_refund", now);
     } else {
       await resolveSessionTx(tx, row, now);
@@ -548,6 +811,12 @@ async function expireDueTx(tx: TxClient, now: Date, limit = 23): Promise<number>
 async function expireTokenIfNeededTx(tx: TxClient, token: string, now: Date): Promise<void> {
   const row = await findSessionByToken(tx, token);
   if (!row || isTerminal(row.status)) {
+    return;
+  }
+  if (isDicePokerRow(row) && row.decisionExpiresAt && row.decisionExpiresAt <= now) {
+    await refundSessionTx(tx, row, "expired_refund", now, {
+      kind: "dice_poker_expired"
+    });
     return;
   }
   if (row.status === "open" && row.joinExpiresAt <= now && countLiveParticipants(row) < getMinimumParticipants(row.gameKey)) {
@@ -702,6 +971,38 @@ async function refundSessionTx(
     },
     include: tavernGameSessionInclude
   });
+}
+
+async function validateDicePokerActionTx(
+  tx: TxClient,
+  session: TavernGameSessionRow,
+  telegramUserId: bigint
+): Promise<Exclude<DicePokerActionResult, { state: "saved" | "completed" | "cancelled" }> | null> {
+  if (isTerminal(session.status)) {
+    return { state: "closed", session: mapSession(session) };
+  }
+  if (!isDicePokerRow(session) || session.status !== "ready" || !isDicePokerState(session.resultJson)) {
+    return { state: "stale", session: mapSession(session) };
+  }
+
+  const character = await findCharacterByTelegramUser(tx, telegramUserId);
+  if (!character) {
+    return { state: "no-character" };
+  }
+
+  const blocked = getGateReason(character);
+  if (blocked) {
+    return { state: "blocked", reason: blocked };
+  }
+
+  const participant = session.participants.find((row) =>
+    row.characterId === character.id && isJoinedStatus(row.status)
+  );
+  if (!participant) {
+    return { state: "not-participant", session: mapSession(session) };
+  }
+
+  return null;
 }
 
 function shouldResolveAfterDecision(row: TavernGameSessionRow): boolean {
@@ -874,6 +1175,10 @@ function parseGameKey(value: string): TavernGameKey {
 
 function getParticipantCap(gameKey: string): number {
   return gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
+}
+
+function isDicePokerRow(row: TavernGameSessionRow): boolean {
+  return row.gameKey === "kosti" && row.rulesVersion === DICE_POKER_RULES_VERSION;
 }
 
 function getMinimumParticipants(gameKey: string): number {

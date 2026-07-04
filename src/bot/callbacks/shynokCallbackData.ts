@@ -5,6 +5,11 @@ import {
   type ShynokDrinkKey
 } from "../../domain/shynokDrinks";
 import {
+  DICE_POKER_SCORE_CATEGORIES,
+  type DicePokerScoreCategory,
+  type DicePokerMode
+} from "../../domain/dicePoker";
+import {
   isKostiSign,
   isKostiStyle,
   isTavernGameKey,
@@ -45,6 +50,12 @@ export type ShynokCallback =
   | { type: "game-leaderboard" }
   | { type: "game-rules"; gameKey: TavernGameKey }
   | { type: "game-create"; gameKey: TavernGameKey; stakeGold: number }
+  | { type: "game-dice-poker-create"; mode: DicePokerMode; stakeGold: number }
+  | { type: "game-dice-poker-rules" }
+  | { type: "game-dice-poker-toggle"; token: string; index: number }
+  | { type: "game-dice-poker-roll"; token: string }
+  | { type: "game-dice-poker-score"; token: string; category: DicePokerScoreCategory }
+  | { type: "game-dice-poker-cancel"; token: string }
   | { type: "game-join"; token: string }
   | { type: "game-cancel"; token: string }
   | { type: "game-tavlei-decision"; token: string; tactic: TavleiTactic }
@@ -153,6 +164,30 @@ export function makeShynokGameRulesCallbackData(gameKey: TavernGameKey): string 
 
 export function makeShynokGameCreateCallbackData(gameKey: TavernGameKey, stakeGold: number): string {
   return assertData(`${PREFIX}:gc:${encodeGameKey(gameKey)}:${stakeGold}`);
+}
+
+export function makeShynokDicePokerCreateCallbackData(mode: DicePokerMode, stakeGold: number): string {
+  return assertData(`${PREFIX}:${mode === "quick" ? "gqc" : "gsc"}:${stakeGold}`);
+}
+
+export function makeShynokDicePokerRulesCallbackData(): string {
+  return assertData(`${PREFIX}:gpr`);
+}
+
+export function makeShynokDicePokerToggleCallbackData(token: string, index: number): string {
+  return assertData(`${PREFIX}:gdt:${token}:${index}`);
+}
+
+export function makeShynokDicePokerRollCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gdr:${token}`);
+}
+
+export function makeShynokDicePokerScoreCallbackData(token: string, category: DicePokerScoreCategory): string {
+  return assertData(`${PREFIX}:gds:${token}:${encodeDicePokerCategory(category)}`);
+}
+
+export function makeShynokDicePokerCancelCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gdc:${token}`);
 }
 
 export function makeShynokGameJoinCallbackData(token: string): string {
@@ -299,6 +334,45 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
       value: { type: "game-create", gameKey: decodeGameKey(first)!, stakeGold: Number(second) }
     };
   }
+  if ((action === "gqc" || action === "gsc") && isSafeStake(first) && second === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-create",
+        mode: action === "gqc" ? "quick" : "scorecard",
+        stakeGold: Number(first)
+      }
+    };
+  }
+  if (action === "gpr" && first === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-rules" } };
+  }
+  if (action === "gdt" && isToken(first) && isDiceIndex(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-toggle",
+        token: first ?? "",
+        index: Number(second)
+      }
+    };
+  }
+  if (action === "gdr" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-roll", token: first ?? "" } };
+  }
+  if (action === "gds" && isToken(first) && second && decodeDicePokerCategory(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-score",
+        token: first ?? "",
+        category: decodeDicePokerCategory(second)!
+      }
+    };
+  }
+  if (action === "gdc" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-cancel", token: first ?? "" } };
+  }
   if (action === "gj" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-join", token: first ?? "" } };
   }
@@ -365,6 +439,10 @@ function isSafeIndex(value: string | undefined): boolean {
 
 function isSafeStake(value: string | undefined): boolean {
   return value !== undefined && /^\d{1,3}$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) >= 1;
+}
+
+function isDiceIndex(value: string | undefined): boolean {
+  return value !== undefined && /^[0-4]$/.test(value);
 }
 
 function isTier(value: string | undefined): value is "simple" | "fine" {
@@ -447,4 +525,43 @@ function decodeKostiSign(value: string): KostiSign | null {
   };
   const decoded = codes[value] ?? value;
   return isKostiSign(decoded) ? decoded : null;
+}
+
+function encodeDicePokerCategory(category: DicePokerScoreCategory): string {
+  const codes: Record<DicePokerScoreCategory, string> = {
+    ones: "o",
+    twos: "t",
+    threes: "h",
+    fours: "f",
+    fives: "v",
+    sixes: "x",
+    triple: "tr",
+    four_kind: "fk",
+    full_house: "fh",
+    small_straight: "ss",
+    large_straight: "ls",
+    poker: "p",
+    chance: "c"
+  };
+  return codes[category];
+}
+
+function decodeDicePokerCategory(value: string): DicePokerScoreCategory | null {
+  const codes: Record<string, DicePokerScoreCategory> = {
+    o: "ones",
+    t: "twos",
+    h: "threes",
+    f: "fours",
+    v: "fives",
+    x: "sixes",
+    tr: "triple",
+    fk: "four_kind",
+    fh: "full_house",
+    ss: "small_straight",
+    ls: "large_straight",
+    p: "poker",
+    c: "chance"
+  };
+  const decoded = codes[value] ?? value;
+  return (DICE_POKER_SCORE_CATEGORIES as readonly string[]).includes(decoded) ? decoded as DicePokerScoreCategory : null;
 }

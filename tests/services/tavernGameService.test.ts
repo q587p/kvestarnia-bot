@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type {
+  DicePokerActionResult,
   TavernGameRepository,
   TavernGameSessionRecord
 } from "../../src/db/repositories/tavernGameRepository";
 import { TavernGameService } from "../../src/services/tavernGameService";
+import {
+  DICE_POKER_RULES_VERSION,
+  startQuickDicePoker,
+  startScorecardDicePoker,
+  type DicePokerState
+} from "../../src/domain/dicePoker";
 
 const now = new Date("2026-07-02T10:00:00.000Z");
 
@@ -119,6 +126,131 @@ describe("TavernGameService", () => {
     expect(repository.joinCalls).toBe(0);
   });
 
+  it("creates quick dice poker through the Kosti entry point", async () => {
+    const repository = new FakeTavernGameRepository();
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true,
+      tavernGameMaxStake: 23,
+      tavernGameCreateCooldownSec: 42
+    }), () => now);
+
+    await service.createDicePokerForTelegramUser(42n, "quick", 13);
+
+    expect(repository.lastDicePokerCreateInput).toMatchObject({
+      stakeGold: 13,
+      maxStake: 23,
+      cooldownMs: 42_000,
+      now
+    });
+    expect(repository.lastDicePokerCreateInput?.state).toMatchObject({
+      kind: "dice_poker",
+      mode: "quick",
+      phase: "quick-reroll"
+    });
+    expect(repository.lastDicePokerCreateInput?.expiresAt.toISOString()).toBe("2026-07-02T10:05:00.000Z");
+  });
+
+  it("refunds old incompatible Kosti sessions before legacy decisions", async () => {
+    const existing = session({
+      gameKey: "kosti",
+      rulesVersion: "tavern-games-v1",
+      token: "12345678-1234-4234-9234-000000000421"
+    });
+    const repository = new FakeTavernGameRepository({ tokenSession: existing });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.submitKostiDecisionForTelegramUser(42n, existing.token, "steady", "no_sign");
+
+    expect(result).toEqual({ state: "game-disabled-refunded", gameKey: "kosti", session: existing });
+    expect(repository.refundDisabledCalls).toBe(1);
+    expect(repository.submitDecisionCalls).toBe(0);
+  });
+
+  it("refunds an old incompatible active Kosti session before starting dice poker", async () => {
+    const existing = session({
+      gameKey: "kosti",
+      rulesVersion: "tavern-games-v1",
+      token: "12345678-1234-4234-9234-000000000424"
+    });
+    const repository = new FakeTavernGameRepository({
+      createResult: { state: "active-session", session: existing },
+      tokenSession: existing
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.createDicePokerForTelegramUser(42n, "quick", 3);
+
+    expect(result).toEqual({ state: "game-disabled-refunded", gameKey: "kosti", session: existing });
+    expect(repository.refundDisabledCalls).toBe(1);
+  });
+
+  it("quick dice poker resolves once and completes through the repository", async () => {
+    const token = "12345678-1234-4234-9234-000000000422";
+    const quick = startQuickDicePoker("quick-win");
+    const repository = new FakeTavernGameRepository({
+      tokenSession: session({
+        token,
+        gameKey: "kosti",
+        status: "ready",
+        rulesVersion: DICE_POKER_RULES_VERSION,
+        seed: "quick-win",
+        result: {
+          ...quick,
+          playerDice: [6, 6, 6, 6, 6],
+          opponentDice: [1, 2, 3, 4, 5],
+          selectedMask: 0
+        }
+      })
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.rollDicePokerForTelegramUser(42n, token);
+
+    expect(result.state).toBe("completed");
+    expect(repository.completeDicePokerCalls).toBe(1);
+    expect(repository.lastCompleteInput).toMatchObject({
+      outcome: "win",
+      payoutGold: 3,
+      refundedGold: 0
+    });
+  });
+
+  it("does not reroll scorecard dice after the third roll", async () => {
+    const token = "12345678-1234-4234-9234-000000000423";
+    const scorecard = {
+      ...startScorecardDicePoker("scorecard-third"),
+      roll: 3
+    };
+    const repository = new FakeTavernGameRepository({
+      tokenSession: session({
+        token,
+        gameKey: "kosti",
+        status: "ready",
+        rulesVersion: DICE_POKER_RULES_VERSION,
+        result: scorecard
+      })
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.rollDicePokerForTelegramUser(42n, token);
+
+    expect(result).toMatchObject({ state: "saved", dicePoker: scorecard });
+    expect(repository.saveDicePokerCalls).toBe(0);
+  });
+
   it("builds day week and month leaderboards from completed tables", async () => {
     const alice = participant("character-a", 101n, "Аля");
     const bob = participant("character-b", 102n, "Боб");
@@ -216,13 +348,19 @@ class FakeTavernGameRepository implements TavernGameRepository {
   listOpenCalls = 0;
   joinCalls = 0;
   refundDisabledCalls = 0;
+  submitDecisionCalls = 0;
+  saveDicePokerCalls = 0;
+  completeDicePokerCalls = 0;
   lastCreateInput: Parameters<TavernGameRepository["createForTelegramUser"]>[1] | null = null;
+  lastDicePokerCreateInput: Parameters<TavernGameRepository["createDicePokerForTelegramUser"]>[1] | null = null;
+  lastCompleteInput: Parameters<TavernGameRepository["completeDicePokerForTelegramUser"]>[2] | null = null;
 
   constructor(private readonly options: {
     openTables?: TavernGameSessionRecord[];
     completedTables?: TavernGameSessionRecord[];
     tokenSession?: TavernGameSessionRecord;
     createResult?: Awaited<ReturnType<TavernGameRepository["createForTelegramUser"]>>;
+    dicePokerActionResult?: DicePokerActionResult;
   } = {}) {}
 
   listOpen(): Promise<TavernGameSessionRecord[]> {
@@ -255,12 +393,30 @@ class FakeTavernGameRepository implements TavernGameRepository {
     return Promise.resolve(this.options.createResult ?? { state: "created", session: session() });
   }
 
+  createDicePokerForTelegramUser(
+    _telegramUserId: bigint,
+    input: Parameters<TavernGameRepository["createDicePokerForTelegramUser"]>[1]
+  ): ReturnType<TavernGameRepository["createDicePokerForTelegramUser"]> {
+    this.lastDicePokerCreateInput = input;
+    return Promise.resolve(this.options.createResult ?? {
+      state: "created",
+      session: session({
+        gameKey: "kosti",
+        status: "ready",
+        rulesVersion: DICE_POKER_RULES_VERSION,
+        seed: input.seed,
+        result: input.state
+      })
+    });
+  }
+
   joinByTokenForTelegramUser(): ReturnType<TavernGameRepository["joinByTokenForTelegramUser"]> {
     this.joinCalls += 1;
     return Promise.resolve({ state: "joined", session: session() });
   }
 
   submitDecisionForTelegramUser(): ReturnType<TavernGameRepository["submitDecisionForTelegramUser"]> {
+    this.submitDecisionCalls += 1;
     return Promise.reject(new Error("Not implemented in fake."));
   }
 
@@ -270,6 +426,45 @@ class FakeTavernGameRepository implements TavernGameRepository {
 
   cancelForTelegramUser(): ReturnType<TavernGameRepository["cancelForTelegramUser"]> {
     return Promise.reject(new Error("Not implemented in fake."));
+  }
+
+  saveDicePokerStateForTelegramUser(
+    _telegramUserId: bigint,
+    _token: string,
+    state: DicePokerState
+  ): ReturnType<TavernGameRepository["saveDicePokerStateForTelegramUser"]> {
+    this.saveDicePokerCalls += 1;
+    const saved = session({
+      gameKey: "kosti",
+      status: "ready",
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: state
+    });
+    return Promise.resolve(this.options.dicePokerActionResult ?? { state: "saved", session: saved, dicePoker: state });
+  }
+
+  completeDicePokerForTelegramUser(
+    _telegramUserId: bigint,
+    _token: string,
+    input: Parameters<TavernGameRepository["completeDicePokerForTelegramUser"]>[2]
+  ): ReturnType<TavernGameRepository["completeDicePokerForTelegramUser"]> {
+    this.completeDicePokerCalls += 1;
+    this.lastCompleteInput = input;
+    const completed = session({
+      gameKey: "kosti",
+      status: "completed",
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: input.state
+    });
+    return Promise.resolve(this.options.dicePokerActionResult ?? {
+      state: "completed",
+      session: completed,
+      dicePoker: input.state
+    });
+  }
+
+  cancelDicePokerForTelegramUser(): ReturnType<TavernGameRepository["cancelDicePokerForTelegramUser"]> {
+    return Promise.resolve({ state: "cancelled", session: session() });
   }
 
   refundDisabledByToken(): Promise<TavernGameSessionRecord | null> {

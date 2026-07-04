@@ -3,6 +3,12 @@ import {
   makeShynokBardPerformanceApplaudCallbackData,
   makeShynokBardPerformanceStartCallbackData,
   makeShynokBardPerformanceTipCallbackData,
+  makeShynokDicePokerCancelCallbackData,
+  makeShynokDicePokerCreateCallbackData,
+  makeShynokDicePokerRollCallbackData,
+  makeShynokDicePokerRulesCallbackData,
+  makeShynokDicePokerScoreCallbackData,
+  makeShynokDicePokerToggleCallbackData,
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
   makeShynokGameCancelCallbackData,
@@ -123,9 +129,49 @@ describe("shynokCallbackData", () => {
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
+  it("round-trips compact dice poker callbacks", () => {
+    expect(parseShynokCallbackData(makeShynokDicePokerCreateCallbackData("quick", 13))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-create", mode: "quick", stakeGold: 13 }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerCreateCallbackData("scorecard", 23))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-create", mode: "scorecard", stakeGold: 23 }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerRulesCallbackData())).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-rules" }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerToggleCallbackData(token, 4))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-toggle", token, index: 4 }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerRollCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-roll", token }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerScoreCallbackData(token, "full_house"))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-score", token, category: "full_house" }
+    });
+    expect(parseShynokCallbackData(makeShynokDicePokerCancelCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-dice-poker-cancel", token }
+    });
+  });
+
+  it("keeps dice poker callbacks below Telegram limits", () => {
+    expect(Buffer.byteLength(makeShynokDicePokerScoreCallbackData(token, "large_straight"), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokDicePokerToggleCallbackData(token, 4), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
   it("rejects invalid tavern social game callbacks", () => {
     expect(parseShynokCallbackData("v1:sh:gc:x:3").ok).toBe(false);
     expect(parseShynokCallbackData(`v1:sh:gt:${token}:bad`).ok).toBe(false);
     expect(parseShynokCallbackData(`v1:sh:gk:${token}:st:bad`).ok).toBe(false);
+    expect(parseShynokCallbackData(`v1:sh:gdt:${token}:5`).ok).toBe(false);
+    expect(parseShynokCallbackData(`v1:sh:gds:${token}:bad`).ok).toBe(false);
   });
 });

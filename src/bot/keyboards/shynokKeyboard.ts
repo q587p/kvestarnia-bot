@@ -21,6 +21,11 @@ import {
   TAVLEI_TACTICS,
   type TavernGameKey
 } from "../../domain/tavernGames";
+import {
+  previewScorecardScores,
+  type DicePokerScoreCategory,
+  type DicePokerState
+} from "../../domain/dicePoker";
 import { listShynokDrinkDefinitions } from "../../services/shynokService";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { formatTavernGamesButtonLabel } from "./tavernKeyboard";
@@ -33,6 +38,12 @@ import {
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
   makeShynokDrinksCallbackData,
+  makeShynokDicePokerCancelCallbackData,
+  makeShynokDicePokerCreateCallbackData,
+  makeShynokDicePokerRollCallbackData,
+  makeShynokDicePokerRulesCallbackData,
+  makeShynokDicePokerScoreCallbackData,
+  makeShynokDicePokerToggleCallbackData,
   makeShynokGameCancelCallbackData,
   makeShynokGameCreateCallbackData,
   makeShynokGameJoinCallbackData,
@@ -132,6 +143,20 @@ export function buildShynokGameHubKeyboard(
 
 export function buildShynokGameRulesKeyboard(gameKey: TavernGameKey, maxStake: number): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  if (gameKey === "kosti") {
+    for (const stake of listTavernGameStakeOptions(maxStake)) {
+      keyboard
+        .text(`⚡ ${stake}`, makeShynokDicePokerCreateCallbackData("quick", stake))
+        .text(`📜 ${stake}`, makeShynokDicePokerCreateCallbackData("scorecard", stake))
+        .row();
+    }
+
+    return keyboard
+      .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
+      .row()
+      .text("↩ До ігор", makeShynokGamesCallbackData());
+  }
+
   for (const stake of listTavernGameStakeOptions(maxStake)) {
     keyboard.text(`💰 ${stake}`, makeShynokGameCreateCallbackData(gameKey, stake));
   }
@@ -234,6 +259,66 @@ export function buildShynokDrinkPreviewKeyboard(
 
 export function buildShynokDrinkResultKeyboard(options: ShynokNavigationOptions = {}): InlineKeyboard {
   return buildBackToShynokKeyboard(options);
+}
+
+export function buildShynokDicePokerKeyboard(token: string, state: DicePokerState): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (state.phase === "terminal") {
+    return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
+  }
+
+  if (state.mode === "quick") {
+    for (let index = 0; index < state.playerDice.length; index += 1) {
+      keyboard.text(
+        diceButtonLabel(state.playerDice[index] ?? 1, state.selectedMask, index),
+        makeShynokDicePokerToggleCallbackData(token, index)
+      );
+    }
+    keyboard
+      .row()
+      .text(
+        state.selectedMask === 0 ? "🎲 Лишити як є" : "🎲 Перекинути вибране",
+        makeShynokDicePokerRollCallbackData(token)
+      )
+      .row()
+      .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
+      .text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token))
+      .row()
+      .text("↩ До ігор", makeShynokGamesCallbackData());
+
+    return keyboard;
+  }
+
+  for (let index = 0; index < state.dice.length; index += 1) {
+    keyboard.text(
+      diceButtonLabel(state.dice[index] ?? 1, state.selectedMask, index),
+      makeShynokDicePokerToggleCallbackData(token, index)
+    );
+  }
+  keyboard.row();
+
+  if (state.roll < 3 && state.selectedMask !== 0) {
+    keyboard.text("🎲 Перекинути вибране", makeShynokDicePokerRollCallbackData(token)).row();
+  }
+
+  const previews = previewScorecardScores(state.dice, state.scores);
+  previews.forEach((preview, index) => {
+    keyboard.text(
+      `${scoreCategoryButtonLabel(preview.category)}: ${preview.score}`,
+      makeShynokDicePokerScoreCallbackData(token, preview.category)
+    );
+    if (index % 2 === 1) {
+      keyboard.row();
+    }
+  });
+
+  return keyboard
+    .row()
+    .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
+    .text("✖ Скасувати", makeShynokDicePokerCancelCallbackData(token))
+    .row()
+    .text("↩ До ігор", makeShynokGamesCallbackData());
 }
 
 export function buildShynokRoundPreviewKeyboard(
@@ -432,4 +517,26 @@ function buildShynokRaidRequiredKeyboard(options: ShynokNavigationOptions = {}):
     .text("🛢️ До Бочки", makePlaceCallbackData("barrel"))
     .row()
     .text(buildBackToHallLabel(options), makePlaceCallbackData("hall"));
+}
+
+function diceButtonLabel(value: number, mask: number, index: number): string {
+  return `${(mask & (1 << index)) !== 0 ? "✅" : "⬜"} ${value}`;
+}
+
+function scoreCategoryButtonLabel(category: DicePokerScoreCategory): string {
+  return {
+    ones: "Одиниці",
+    twos: "Двійки",
+    threes: "Трійки",
+    fours: "Четвірки",
+    fives: "Пʼятірки",
+    sixes: "Шістки",
+    triple: "Трійка",
+    four_kind: "Каре",
+    full_house: "Фул-хаус",
+    small_straight: "Малий стріт",
+    large_straight: "Великий стріт",
+    poker: "Покер",
+    chance: "Шанс"
+  }[category];
 }

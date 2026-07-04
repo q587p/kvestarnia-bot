@@ -78,6 +78,7 @@ buildBackToShynokKeyboard,
 buildShynokDrinkMenuKeyboard,
 buildShynokDrinkPreviewKeyboard,
 buildShynokDrinkResultKeyboard,
+buildShynokDicePokerKeyboard,
 buildShynokGameHubKeyboard,
 buildShynokGameRulesKeyboard,
 buildShynokGameSessionKeyboard,
@@ -141,6 +142,7 @@ presentShynokSaleSelection
 } from "../presenters/shynokPresenter";
 import {
 presentTavernGameActionResult,
+presentDicePokerRules,
 presentTavernGameHub,
 presentTavernGameLeaderboard,
 presentTavernGameRules,
@@ -157,6 +159,7 @@ presentTavernRoundResult
 import { presentBigBarrelApproachNotice } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { isDicePokerState, type DicePokerState } from "../../domain/dicePoker";
 
 import { barrelRaidCompletionScheduler } from "./barrelRaidCompletionScheduler";
 import { sendLevelUpCelebration } from "./levelUp";
@@ -353,8 +356,27 @@ async function handleShynokCallback(
     return;
   }
 
+  if (action.type === "game-dice-poker-rules") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentDicePokerRules(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokGameRulesKeyboard("kosti", services.tavernGames.getMaxStake())
+    });
+    return;
+  }
+
   if (
     action.type === "game-create" ||
+    action.type === "game-dice-poker-create" ||
+    action.type === "game-dice-poker-toggle" ||
+    action.type === "game-dice-poker-roll" ||
+    action.type === "game-dice-poker-score" ||
+    action.type === "game-dice-poker-cancel" ||
     action.type === "game-join" ||
     action.type === "game-cancel" ||
     action.type === "game-tavlei-decision" ||
@@ -366,26 +388,60 @@ async function handleShynokCallback(
       return;
     }
 
-    const result =
-      action.type === "game-create"
-        ? await services.tavernGames.createForTelegramUser(telegramUserId, action.gameKey, action.stakeGold)
-        : action.type === "game-join"
-          ? await services.tavernGames.joinByTokenForTelegramUser(telegramUserId, action.token)
-          : action.type === "game-cancel"
-            ? await services.tavernGames.cancelForTelegramUser(telegramUserId, action.token)
-            : action.type === "game-tavlei-decision"
-              ? await services.tavernGames.submitTavleiDecisionForTelegramUser(telegramUserId, action.token, action.tactic)
-              : action.type === "game-kosti-decision"
-                ? await services.tavernGames.submitKostiDecisionForTelegramUser(
-                    telegramUserId,
-                    action.token,
-                    action.style,
-                    action.sign
-                  )
-                : await services.tavernGames.resolveKostiForTelegramUser(telegramUserId, action.token);
+    let result: Parameters<typeof presentTavernGameActionResult>[0] & {
+      achievementNotifications?: Array<{
+        telegramUserId: bigint;
+        unlocks: Parameters<typeof presentAchievementUnlockNotification>[0];
+      }>;
+    };
+
+    if (action.type === "game-create") {
+      result = action.gameKey === "kosti"
+        ? await services.tavernGames.createDicePokerForTelegramUser(telegramUserId, "quick", action.stakeGold)
+        : await services.tavernGames.createForTelegramUser(telegramUserId, action.gameKey, action.stakeGold);
+    } else if (action.type === "game-dice-poker-create") {
+      result = await services.tavernGames.createDicePokerForTelegramUser(telegramUserId, action.mode, action.stakeGold);
+    } else if (action.type === "game-dice-poker-toggle") {
+      result = await services.tavernGames.toggleDicePokerDieForTelegramUser(telegramUserId, action.token, action.index);
+    } else if (action.type === "game-dice-poker-roll") {
+      result = await services.tavernGames.rollDicePokerForTelegramUser(telegramUserId, action.token);
+    } else if (action.type === "game-dice-poker-score") {
+      result = await services.tavernGames.scoreScorecardCategoryForTelegramUser(
+        telegramUserId,
+        action.token,
+        action.category
+      );
+    } else if (action.type === "game-dice-poker-cancel") {
+      result = await services.tavernGames.cancelDicePokerForTelegramUser(telegramUserId, action.token);
+    } else if (action.type === "game-join") {
+      result = await services.tavernGames.joinByTokenForTelegramUser(telegramUserId, action.token);
+    } else if (action.type === "game-cancel") {
+      result = await services.tavernGames.cancelForTelegramUser(telegramUserId, action.token);
+    } else if (action.type === "game-tavlei-decision") {
+      result = await services.tavernGames.submitTavleiDecisionForTelegramUser(telegramUserId, action.token, action.tactic);
+    } else if (action.type === "game-kosti-decision") {
+      result = await services.tavernGames.submitKostiDecisionForTelegramUser(
+        telegramUserId,
+        action.token,
+        action.style,
+        action.sign
+      );
+    } else {
+      result = await services.tavernGames.resolveKostiForTelegramUser(telegramUserId, action.token);
+    }
 
     await safeAnswerCallbackQuery(ctx, {
-      show_alert: !["created", "joined", "decided", "resolved", "cancelled", "replayed", "already-joined"].includes(result.state)
+      show_alert: ![
+        "created",
+        "joined",
+        "decided",
+        "resolved",
+        "cancelled",
+        "replayed",
+        "already-joined",
+        "saved",
+        "completed"
+      ].includes(result.state)
     });
     await safeEditMessageText(ctx, presentTavernGameActionResult(result), {
       ...HTML_MESSAGE_OPTIONS,
@@ -626,11 +682,13 @@ async function notifyShynokRoundRecipients(
 
 function buildTavernGameActionKeyboard(result: {
   state: string;
+  dicePoker?: DicePokerState;
   session?: {
     token: string;
     gameKey: "tavlei" | "kosti";
     status: string;
     creatorCharacterId: string;
+    result?: unknown;
     participants: Array<{
       telegramUserId: bigint;
       status: string;
@@ -639,6 +697,11 @@ function buildTavernGameActionKeyboard(result: {
     }>;
   };
 }, telegramUserId: bigint, options: { questMarkers?: QuestMarkerInput | null } = {}) {
+  const dicePoker = result.dicePoker ?? (isDicePokerState(result.session?.result) ? result.session.result : null);
+  if (result.session && dicePoker) {
+    return buildShynokDicePokerKeyboard(result.session.token, dicePoker);
+  }
+
   const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
   const canChoose = participant &&
     (participant.status === "joined" || participant.status === "decided") &&
