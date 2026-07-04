@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.25] - 12026-07-04 - Class Noncombat Priest and Rogue Techniques
+## [0.2.25] - 12026-07-05 - Class Noncombat Priest and Rogue Techniques
 
 ### Added
 - Added level 3+ Priest direct aid outside combat: `✨ Жрецька поміч` opens from `Хто поруч`, supports self/active same-location targets, and can heal with mana or create a direct blessing without an accept/decline offer flow.
