@@ -69,6 +69,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a `✨ Благословити себе` shortcut to the hero card for eligible Priests when mana is enough and no active self-blessing or same-target repeat wait blocks the action.
 - Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
 - Refreshed `📖 Перекази` class entries so every class names its combat ability, while Warrior, Bard, Rogue, Priest and Ranger also mention their shipped side class surfaces in separate paragraphs.
+- Kept underdog combat wins with `+5..+7` level advantage in general/combat `📜 Хроніки Квестарні` rows but removed them from `⭐ Важливе`; only `+8` and higher underdog wins stay important for now, including historical rows already stored with high severity.
 
 ### Safety
 - Priest and Rogue actions recheck actor/target remort life, class, level, active same-location presence and blocking flows before mutation.
@@ -105,6 +106,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added combat-engine regression coverage for expiring hero-targeted monster effects after `defend` in a two-enemy fight.
 - Added combat-engine and presenter coverage for visible backup-enemy pressure pauses in multi-enemy journals.
 - Added party-boss presenter coverage for dense-bandage raid cooldown rows and medical-item icons in raid action lines.
+- Added activity-event publisher and repository coverage for the `⭐ Важливе` underdog threshold, including historical high-severity `+7` rows.
 
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
 

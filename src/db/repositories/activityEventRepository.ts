@@ -61,6 +61,7 @@ export interface ListRecentActivityEventsQuery {
   categories?: readonly ActivityEventCategory[] | undefined;
   severities?: readonly ActivityEventSeverity[] | undefined;
   excludeRareManatky?: boolean | undefined;
+  minimumUnderdogLevelDelta?: number | undefined;
   page?: number | undefined;
   pageSize?: number | undefined;
   now?: Date | undefined;

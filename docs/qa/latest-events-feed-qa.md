@@ -124,7 +124,7 @@ Run targeted tests first. Run broader checks before opening a ready PR unless a 
 1. Win an ordinary same-level combat.
 2. Expected: no public row.
 3. Win against a monster at least 5 levels stronger.
-4. Expected: one `🛡️` row.
+4. Expected: one `🛡️` row in the general/combat feed; `+5..+7` stays out of `⭐ Важливе`, while `+8` and above appears there.
 5. Lose/flee/expire against the same monster.
 6. Expected: no public loss/shame row.
 

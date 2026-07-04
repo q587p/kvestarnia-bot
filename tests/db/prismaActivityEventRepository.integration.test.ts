@@ -83,6 +83,22 @@ describe("PrismaActivityEventRepository integration", () => {
       "2026-07-02T09:30:00.000Z",
       { rarity: "epic" }
     ));
+    await repository.record(makeEvent(
+      "event-underdog-7",
+      "combat.underdog_won",
+      "combat",
+      "high",
+      "2026-07-02T09:15:00.000Z",
+      { levelDelta: 7 }
+    ));
+    await repository.record(makeEvent(
+      "event-underdog-8",
+      "combat.underdog_won",
+      "combat",
+      "high",
+      "2026-07-02T09:00:00.000Z",
+      { levelDelta: 8 }
+    ));
     await repository.record(makeEvent("event-old", "combat.underdog_won", "combat", "high", "2026-03-01T10:00:00.000Z"));
 
     const manatky = await repository.listRecent({
@@ -94,6 +110,7 @@ describe("PrismaActivityEventRepository integration", () => {
     const important = await repository.listRecent({
       severities: ["high", "legendary"],
       excludeRareManatky: true,
+      minimumUnderdogLevelDelta: 8,
       pageSize: 5,
       now,
       retentionDays: 93
@@ -101,7 +118,7 @@ describe("PrismaActivityEventRepository integration", () => {
 
     expect(manatky.events.map((event) => event.dedupeKey)).toEqual(["event-2"]);
     expect(manatky.hasNextPage).toBe(true);
-    expect(important.events.map((event) => event.dedupeKey)).toEqual(["event-3"]);
+    expect(important.events.map((event) => event.dedupeKey)).toEqual(["event-3", "event-underdog-8"]);
   });
 });
 

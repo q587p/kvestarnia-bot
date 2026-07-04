@@ -10,6 +10,7 @@ import { achievements } from "../../src/content";
 import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
 import { ActivityEventService } from "../../src/services/activityEventService";
 import {
+  LATEST_EVENTS_IMPORTANT_UNDERDOG_LEVEL_DELTA,
   LATEST_EVENTS_MILESTONE_LEVELS,
   PublicActivityEventPublisher
 } from "../../src/services/publicActivityEventPublisher";
@@ -135,7 +136,7 @@ describe("ActivityEventService", () => {
     expect(LATEST_EVENTS_MILESTONE_LEVELS.every((level) => visibleAchievementLevels.includes(level))).toBe(true);
   });
 
-  it("emits underdog wins only at the configured threshold", async () => {
+  it("emits underdog wins from +5 but marks only +8 and above as important", async () => {
     const repository = new FakeActivityEventRepository();
     const publisher = makePublicActivityEventPublisher(repository);
     const occurredAt = new Date("2026-07-02T10:00:00.000Z");
@@ -153,20 +154,55 @@ describe("ActivityEventService", () => {
     await publisher.recordUnderdogCombatWinSafely({
       characterId: "character-1",
       actorDisplayName: "Пандочка",
-      combatSessionId: "combat-underdog",
+      combatSessionId: "combat-underdog-7",
       monsterId: "monster-b",
       monsterName: "Огрище",
-      monsterLevel: 7,
+      monsterLevel: 9,
+      characterLevel: 2,
+      occurredAt
+    });
+    await publisher.recordUnderdogCombatWinSafely({
+      characterId: "character-1",
+      actorDisplayName: "Пандочка",
+      combatSessionId: "combat-underdog-8",
+      monsterId: "monster-c",
+      monsterName: "Огрище",
+      monsterLevel: 10,
       characterLevel: 2,
       occurredAt
     });
 
-    expect(repository.rows).toHaveLength(1);
+    expect(repository.rows).toHaveLength(2);
     expect(repository.rows[0]).toMatchObject({
       eventType: "combat.underdog_won",
-      dedupeKey: "combat.underdog_won:combat-underdog",
-      payload: { levelDelta: 5 }
+      severity: "normal",
+      dedupeKey: "combat.underdog_won:combat-underdog-7",
+      payload: { levelDelta: 7 }
     });
+    expect(repository.rows[1]).toMatchObject({
+      eventType: "combat.underdog_won",
+      severity: "high",
+      dedupeKey: "combat.underdog_won:combat-underdog-8",
+      payload: { levelDelta: 8 }
+    });
+  });
+
+  it("skips underdog wins below the public feed threshold", async () => {
+    const repository = new FakeActivityEventRepository();
+    const publisher = makePublicActivityEventPublisher(repository);
+
+    await publisher.recordUnderdogCombatWinSafely({
+      characterId: "character-1",
+      actorDisplayName: "Пандочка",
+      combatSessionId: "combat-ordinary",
+      monsterId: "monster-a",
+      monsterName: "Огрище",
+      monsterLevel: 7,
+      characterLevel: 3,
+      occurredAt: new Date("2026-07-02T10:00:00.000Z")
+    });
+
+    expect(repository.rows).toHaveLength(0);
   });
 
   it("emits one Big Barrel Brother victory row per terminal boss session", async () => {
@@ -210,6 +246,7 @@ describe("ActivityEventService", () => {
     expect(repository.lastQuery).toMatchObject({
       severities: ["high", "legendary"],
       excludeRareManatky: true,
+      minimumUnderdogLevelDelta: LATEST_EVENTS_IMPORTANT_UNDERDOG_LEVEL_DELTA,
       pageSize: 15,
       retentionDays: 93
     });

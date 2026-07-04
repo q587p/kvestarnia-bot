@@ -8,6 +8,7 @@ import type { ActivityEventService } from "./activityEventService";
 export const LATEST_EVENTS_PUBLIC_MIN_LEVEL = 2;
 export const LATEST_EVENTS_MILESTONE_LEVELS = [5, 8, 10, 13] as const;
 export const LATEST_EVENTS_UNDERDOG_LEVEL_DELTA = 5;
+export const LATEST_EVENTS_IMPORTANT_UNDERDOG_LEVEL_DELTA = 8;
 export const LATEST_EVENTS_PUBLIC_ITEM_RARITIES = ["rare", "epic"] as const;
 export const LATEST_EVENTS_LEGENDARY_ITEM_RARITIES = ["epic"] as const;
 
@@ -102,7 +103,7 @@ export class PublicActivityEventPublisher {
     return this.recordSafely({
       eventType: "combat.underdog_won",
       category: "combat",
-      severity: "high",
+      severity: delta >= LATEST_EVENTS_IMPORTANT_UNDERDOG_LEVEL_DELTA ? "high" : "normal",
       actorCharacterId: input.characterId,
       actorDisplayName: input.actorDisplayName,
       subjectKind: "monster",
