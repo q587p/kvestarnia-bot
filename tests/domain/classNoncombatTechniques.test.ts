@@ -6,7 +6,7 @@ import {
 } from "../../src/domain/noncombat/classNoncombatTechniques";
 
 describe("class noncombat techniques", () => {
-  it("uses the preserved Priest heal formula with mana cost capped by actual healing", () => {
+  it("uses the preserved Priest heal formula with proportional mana cost capped near 42 HP", () => {
     expect(buildPriestHealPlan({
       missingHp: 99,
       charisma: 30,
@@ -14,6 +14,16 @@ describe("class noncombat techniques", () => {
       level: 13
     })).toEqual({
       heal: 29,
+      manaCost: 9
+    });
+
+    expect(buildPriestHealPlan({
+      missingHp: 99,
+      charisma: 80,
+      intelligence: 80,
+      level: 20
+    })).toEqual({
+      heal: 66,
       manaCost: 13
     });
 
@@ -24,7 +34,7 @@ describe("class noncombat techniques", () => {
       level: 5
     })).toEqual({
       heal: 4,
-      manaCost: 4
+      manaCost: 2
     });
 
     expect(buildPriestHealPlan({

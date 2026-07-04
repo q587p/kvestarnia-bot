@@ -41,7 +41,7 @@ describe("ClassNoncombatService", () => {
     expect(result.state).toBe("completed");
     expect(repository.lastHealInput).toMatchObject({
       healAmount: 10,
-      manaCost: 10,
+      manaCost: 4,
       statSnapshot: { level: 3, charisma: 11, intelligence: 9 }
     });
     expect(repository.lastHealInput).not.toHaveProperty("cooldownAvailableAt");
@@ -70,7 +70,7 @@ describe("ClassNoncombatService", () => {
 
     expect(repository.lastHealInput).toMatchObject({
       healAmount: 11,
-      manaCost: 11,
+      manaCost: 4,
       targetEffectiveHpMax: 32
     });
   });
@@ -109,7 +109,7 @@ describe("ClassNoncombatService", () => {
 
     expect(repository.lastHealInput).toMatchObject({
       healAmount: 10,
-      manaCost: 10,
+      manaCost: 4,
       targetEffectiveHpMax: 30,
       statSnapshot: {
         level: 3,

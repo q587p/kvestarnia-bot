@@ -7,6 +7,8 @@ export const PRIEST_DIRECT_AID_COOLDOWN_MINUTES = 93;
 export const PRIEST_BLESSING_DURATION_MINUTES = 13;
 export const ROGUE_PICKPOCKET_COOLDOWN_MINUTES = 93;
 export const ROGUE_PICKPOCKET_MAX_STOLEN_GOLD = 13;
+const PRIEST_HEAL_FULL_MANA_HP = 42;
+const PRIEST_HEAL_MAX_MANA_COST = 13;
 const PRIEST_BLESSING_MANA_COST_BY_BONUS = [8, 12, 16, 20, 23] as const;
 
 export type RoguePickpocketOutcome =
@@ -51,7 +53,7 @@ export function buildPriestHealPlan(input: {
 
   return {
     heal,
-    manaCost: clamp(heal, 0, 13)
+    manaCost: getPriestHealManaCost(heal)
   };
 }
 
@@ -130,6 +132,19 @@ function getPickpocketOutcome(power: number): RoguePickpocketOutcome {
   }
 
   return "caught-badly";
+}
+
+function getPriestHealManaCost(heal: number): number {
+  const actualHeal = Math.max(0, Math.floor(heal));
+  if (actualHeal <= 0) {
+    return 0;
+  }
+
+  return clamp(
+    Math.ceil((actualHeal * PRIEST_HEAL_MAX_MANA_COST) / PRIEST_HEAL_FULL_MANA_HP),
+    1,
+    PRIEST_HEAL_MAX_MANA_COST
+  );
 }
 
 function clamp(value: number, min: number, max: number): number {
