@@ -41,6 +41,7 @@ export type HeroLookupResult =
       inventoryGoldValue: number;
       activeDrink: HeroActiveDrink | null;
       activePriestBlessing: HeroActivePriestBlessing | null;
+      priestSelfBlessAvailableAt: Date | null;
       classNoncombatBlocked: boolean;
       activeCosmeticTitle: string | null;
       restoreToFullItemId: string | null;
@@ -82,7 +83,10 @@ export class HeroService {
     shynokOrClock?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | Clock,
     clock: Clock = systemClock,
     private readonly achievements?: AchievementService,
-    private readonly classNoncombat?: Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser" | "isActorBlockedForTelegramUser">
+    private readonly classNoncombat?: Pick<
+      ClassNoncombatRepository,
+      "getActivePriestBlessingForTelegramUser" | "getPriestSelfBlessAvailableAtForTelegramUser" | "isActorBlockedForTelegramUser"
+    >
   ) {
     if (typeof shynokOrClock === "function") {
       this.clock = shynokOrClock;
@@ -108,6 +112,7 @@ export class HeroService {
       activeDrink,
       recoveryDrink,
       activePriestBlessing,
+      priestSelfBlessAvailableAt,
       classNoncombatBlocked
     ] = await Promise.all([
       this.inventory.listByTelegramUserId(telegramUserId),
@@ -118,6 +123,7 @@ export class HeroService {
         this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ??
         Promise.resolve(null),
       this.classNoncombat?.getActivePriestBlessingForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
+      this.classNoncombat?.getPriestSelfBlessAvailableAtForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
       this.classNoncombat?.isActorBlockedForTelegramUser(telegramUserId) ?? Promise.resolve(false)
     ]);
 
@@ -146,6 +152,7 @@ export class HeroService {
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
       activePriestBlessing: presentedPriestBlessing,
+      priestSelfBlessAvailableAt,
       classNoncombatBlocked,
       activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),

@@ -110,6 +110,25 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     });
   }
 
+  async getPriestSelfBlessAvailableAtForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<Date | null> {
+    const actor = await findCharacter(this.prisma, telegramUserId);
+    if (!actor) {
+      return null;
+    }
+
+    const availableAtByTargetId = await listPriestBlessAvailableAtByTargetId(
+      this.prisma,
+      actor.id,
+      [actor.id],
+      now
+    );
+
+    return availableAtByTargetId.get(actor.id) ?? null;
+  }
+
   async isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean> {
     const actor = await findCharacter(this.prisma, telegramUserId);
     return actor ? isBlocked(actor) : false;

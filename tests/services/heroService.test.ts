@@ -221,6 +221,25 @@ describe("HeroService", () => {
       classNoncombatBlocked: true
     });
   });
+
+  it("returns Priest self-blessing wait for hero shortcuts", async () => {
+    const availableAt = new Date("2026-07-03T10:33:00.000Z");
+    const service = new HeroService(
+      new FakeCharacterRepository(buildCharacter({ classId: "class.priest", level: 3 })),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      new FakeClassNoncombatRepository(null, false, availableAt)
+    );
+
+    await expect(service.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      priestSelfBlessAvailableAt: availableAt
+    });
+  });
 });
 
 function buildCharacter(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
@@ -386,14 +405,22 @@ class FakeShynokRepository {
   }
 }
 
-class FakeClassNoncombatRepository implements Pick<ClassNoncombatRepository, "getActivePriestBlessingForTelegramUser" | "isActorBlockedForTelegramUser"> {
+class FakeClassNoncombatRepository implements Pick<
+  ClassNoncombatRepository,
+  "getActivePriestBlessingForTelegramUser" | "getPriestSelfBlessAvailableAtForTelegramUser" | "isActorBlockedForTelegramUser"
+> {
   constructor(
     private readonly blessing: PriestBlessingRecord | null,
-    private readonly actorBlocked = false
+    private readonly actorBlocked = false,
+    private readonly selfBlessAvailableAt: Date | null = null
   ) {}
 
   getActivePriestBlessingForTelegramUser(): Promise<PriestBlessingRecord | null> {
     return Promise.resolve(this.blessing);
+  }
+
+  getPriestSelfBlessAvailableAtForTelegramUser(): Promise<Date | null> {
+    return Promise.resolve(this.selfBlessAvailableAt);
   }
 
   isActorBlockedForTelegramUser(): Promise<boolean> {

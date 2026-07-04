@@ -11,6 +11,7 @@ import {
 export function buildHeroAchievementsKeyboard(
   options: {
     priestSelfHealCallbackData?: string | null;
+    priestSelfBlessCallbackData?: string | null;
     restoreCallbackData?: string | null;
   } = {}
 ): InlineKeyboard {
@@ -20,6 +21,10 @@ export function buildHeroAchievementsKeyboard(
 
   if (options.priestSelfHealCallbackData) {
     keyboard.row().text("⚕️ Полікувати себе", options.priestSelfHealCallbackData);
+  }
+
+  if (options.priestSelfBlessCallbackData) {
+    keyboard.row().text("✨ Благословити себе", options.priestSelfBlessCallbackData);
   }
 
   if (options.restoreCallbackData) {

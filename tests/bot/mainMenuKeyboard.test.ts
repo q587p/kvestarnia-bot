@@ -124,18 +124,21 @@ describe("main menu and scene keyboards", () => {
 
     const keyboard = buildHeroAchievementsKeyboard({
       priestSelfHealCallbackData: "v1:nc:h:s:0:0:0",
+      priestSelfBlessCallbackData: "v1:nc:b:s:0:0:0",
       restoreCallbackData: "v1:use:full:item.responsible-panic-bandage"
     });
 
     expect(inlineButtonRows(keyboard)).toEqual([
       ["🏅 Ачівки", "🏷️ Титули"],
       ["⚕️ Полікувати себе"],
+      ["✨ Благословити себе"],
       ["🧻 До відновлення"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:ach:list:all:0",
       "v1:ach:titles",
       "v1:nc:h:s:0:0:0",
+      "v1:nc:b:s:0:0:0",
       "v1:use:full:item.responsible-panic-bandage"
     ]);
   });

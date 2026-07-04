@@ -53,6 +53,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
 - Hid Priest/Rogue class noncombat action buttons while the actor is already busy in combat or raid, stopped treating scene/adventure presence as a blocker, and replaced the old generic protocol blocker copy with clearer stale-callback explanations.
 - Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.
+- Added a `✨ Благословити себе` shortcut to the hero card for eligible Priests when mana is enough and no active self-blessing or same-target repeat wait blocks the action.
 - Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
 - Refreshed `📖 Перекази` class entries so every class names its combat ability, while Warrior, Bard, Rogue, Priest and Ranger also mention their shipped side class surfaces in separate paragraphs.
 
@@ -75,6 +76,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added repository regression coverage proving Priest healing does not create a cooldown row and Priest blessing waits are scoped to the same actor-target pair.
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.
 - Added presenter, keyboard, service and hero-command coverage for active-flow class noncombat blocking and hidden Priest self-heal shortcuts.
+- Added hero-command and keyboard coverage for the Priest self-blessing hero-card shortcut.
 - Added Prisma repository integration tests for exact normalized target listing, same-day Rogue target marking, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
 - Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation and duplicate Rogue replay silence.
 - Added lore-board coverage for class combat ability references and separate side-surface paragraphs.

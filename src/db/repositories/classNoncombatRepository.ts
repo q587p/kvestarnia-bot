@@ -120,6 +120,11 @@ export interface ClassNoncombatRepository {
     now: Date
   ): Promise<PriestBlessingRecord | null>;
 
+  getPriestSelfBlessAvailableAtForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<Date | null>;
+
   isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean>;
 
   completePriestHeal(

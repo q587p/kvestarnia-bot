@@ -93,6 +93,7 @@ describe("hero command", () => {
           activeDrink: null,
           activeCosmeticTitle: null,
           activePriestBlessing: null,
+          priestSelfBlessAvailableAt: null,
           restoreToFullItemId: null
         })
     } as unknown as HeroService;
@@ -101,6 +102,39 @@ describe("hero command", () => {
 
     expect(inlineButtonRows(replies[0]?.options)).toContainEqual(["⚕️ Полікувати себе"]);
     expect(flatInlineButtonCallbacks(replies[0]?.options)).toContain("v1:nc:h:s:2:2:0");
+  });
+
+  it("shows Priest self-blessing on the hero card when no repeat wait is active", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () =>
+        Promise.resolve({
+          state: "existing-character" as const,
+          character: {
+            ...character,
+            classId: "class.priest",
+            className: "Жрець",
+            level: 3,
+            hpCurrent: 32,
+            hpMax: 32,
+            manaCurrent: 9,
+            manaMax: 16,
+            remortCount: 2
+          },
+          inventoryGoldValue: 0,
+          activeDrink: null,
+          activeCosmeticTitle: null,
+          activePriestBlessing: null,
+          priestSelfBlessAvailableAt: null,
+          restoreToFullItemId: null
+        })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(inlineButtonRows(replies[0]?.options)).toContainEqual(["✨ Благословити себе"]);
+    expect(flatInlineButtonCallbacks(replies[0]?.options)).toContain("v1:nc:b:s:2:2:0");
+    expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("⚕️ Полікувати себе");
   });
 
   it("hides Priest self-heal on the hero card when HP is full or mana is empty", async () => {
@@ -128,6 +162,7 @@ describe("hero command", () => {
           activeDrink: null,
           activeCosmeticTitle: null,
           activePriestBlessing: null,
+          priestSelfBlessAvailableAt: null,
           restoreToFullItemId: null
         })
     }) as unknown as HeroService;
@@ -137,6 +172,55 @@ describe("hero command", () => {
 
     expect(flatInlineButtonTexts(fullHpReplies[0]?.options)).not.toContain("⚕️ Полікувати себе");
     expect(flatInlineButtonTexts(noManaReplies[0]?.options)).not.toContain("⚕️ Полікувати себе");
+  });
+
+  it("hides Priest self-blessing on the hero card when wait, active flow, or mana blocks it", async () => {
+    const waitReplies: Array<{ text: string; options: unknown }> = [];
+    const blockedReplies: Array<{ text: string; options: unknown }> = [];
+    const noManaReplies: Array<{ text: string; options: unknown }> = [];
+    const priest = {
+      ...character,
+      classId: "class.priest",
+      className: "Жрець",
+      level: 3,
+      hpCurrent: 32,
+      hpMax: 32,
+      manaCurrent: 9,
+      manaMax: 16
+    };
+    const makeHeroService = (overrides: {
+      classNoncombatBlocked?: boolean;
+      manaCurrent?: number;
+      priestSelfBlessAvailableAt?: Date | null;
+    }) => ({
+      findByTelegramUserId: () =>
+        Promise.resolve({
+          state: "existing-character" as const,
+          character: {
+            ...priest,
+            ...(overrides.manaCurrent !== undefined ? { manaCurrent: overrides.manaCurrent } : {})
+          },
+          inventoryGoldValue: 0,
+          activeDrink: null,
+          activeCosmeticTitle: null,
+          activePriestBlessing: null,
+          classNoncombatBlocked: overrides.classNoncombatBlocked ?? false,
+          priestSelfBlessAvailableAt: overrides.priestSelfBlessAvailableAt ?? null,
+          restoreToFullItemId: null
+        })
+    }) as unknown as HeroService;
+
+    await sendHero(
+      makeReplyContext(waitReplies),
+      makeHeroService({ priestSelfBlessAvailableAt: new Date("2026-07-03T10:33:00.000Z") }),
+      "reply"
+    );
+    await sendHero(makeReplyContext(blockedReplies), makeHeroService({ classNoncombatBlocked: true }), "reply");
+    await sendHero(makeReplyContext(noManaReplies), makeHeroService({ manaCurrent: 0 }), "reply");
+
+    expect(flatInlineButtonTexts(waitReplies[0]?.options)).not.toContain("✨ Благословити себе");
+    expect(flatInlineButtonTexts(blockedReplies[0]?.options)).not.toContain("✨ Благословити себе");
+    expect(flatInlineButtonTexts(noManaReplies[0]?.options)).not.toContain("✨ Благословити себе");
   });
 
   it("hides Priest self-heal on the hero card while another active flow blocks class aid", async () => {
@@ -159,6 +243,7 @@ describe("hero command", () => {
           activeDrink: null,
           activeCosmeticTitle: null,
           activePriestBlessing: null,
+          priestSelfBlessAvailableAt: null,
           classNoncombatBlocked: true,
           restoreToFullItemId: null
         })
