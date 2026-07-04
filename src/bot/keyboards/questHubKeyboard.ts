@@ -20,7 +20,12 @@ import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDailyKorchmaRoundOverviewCallbackData, makeDailyKorchmaRoundClaimCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
 import { makeYegerTurnInCallbackData } from "../callbacks/yegerCallbackData";
 import {
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  normalizePresenceLocationId
+} from "../../services/presenceService";
+import {
   decorateButtonLabel,
+  mergeQuestMarkers,
   resolveQuestMarkerForTarget
 } from "./questButtonMarkers";
 
@@ -173,8 +178,21 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
 function buildBackToHallLabel(input: QuestHubKeyboardInput): string {
   return decorateButtonLabel(
     "🍺 До зали",
-    resolveQuestMarkerForTarget(input, "location.korchma.hall")
+    getBackToHallMarker(input)
   );
+}
+
+function getBackToHallMarker(input: QuestHubKeyboardInput) {
+  if (normalizePresenceLocationId(input.currentLocationId) !== PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
+    return resolveQuestMarkerForTarget(input, "location.korchma.hall");
+  }
+
+  return mergeQuestMarkers([
+    resolveQuestMarkerForTarget(input, "location.korchma.bar"),
+    resolveQuestMarkerForTarget(input, "location.korchma.barrel"),
+    resolveQuestMarkerForTarget(input, "location.korchma.cellar"),
+    resolveQuestMarkerForTarget(input, "location.korchma.ranger-corner")
+  ]);
 }
 
 function addQuestReferenceButtons(
