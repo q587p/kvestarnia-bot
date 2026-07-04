@@ -14,6 +14,7 @@ Use these docs for future ideas, deferred mechanics and planning notes that are 
 - [`../HUNT_BOARD_FOLLOWUP_PLAN.md`](../HUNT_BOARD_FOLLOWUP_PLAN.md) — hunt board follow-up plan.
 - [`../HUNT_JOURNAL_PROGRESS_PLAN.md`](../HUNT_JOURNAL_PROGRESS_PLAN.md) — hunt journal progress plan.
 - [`QUEST_OVERVIEW_ROUTE.md`](QUEST_OVERVIEW_ROUTE.md) — deferred `Квести` reply-button redesign into a compact quest overview/journal instead of a duplicate quest-table opener.
+- [`ROGUE_REPUTATION_LOCATION_RISK.md`](ROGUE_REPUTATION_LOCATION_RISK.md) — deferred Rogue reputation consequences with stronger loss in public locations and lower exposure in Nyz/passages/yard-style spaces.
 
 ## Task drafts
 
