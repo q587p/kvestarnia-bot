@@ -979,7 +979,7 @@ function presentPartyBossItemHealing(
     return " Але журнал не знайшов браку HP.";
   }
 
-  if (action.itemId === FIELD_KIT_ITEM_ID && action.hpAfter !== undefined) {
+  if (isPartyBossFieldKit(action.itemId, action.itemName) && action.hpAfter !== undefined) {
     return ` HP підтягнуто до ${action.hpAfter}.`;
   }
 
@@ -1029,12 +1029,12 @@ function presentPartyBossCooldownLines(
 }
 
 function presentPartyBossItemName(itemId: string | undefined, fallbackName: string): string {
-  const icon = getPartyBossItemIcon(itemId);
+  const icon = getPartyBossItemIcon(itemId, fallbackName);
   return `${icon} <b>${escapeHtml(fallbackName)}</b>`;
 }
 
 function getPartyBossItemName(itemId: string | undefined): string {
-  if (itemId === FIELD_KIT_ITEM_ID) {
+  if (isPartyBossFieldKit(itemId)) {
     return "Польова аптечка";
   }
 
@@ -1045,12 +1045,16 @@ function getPartyBossItemName(itemId: string | undefined): string {
   return "Манатка";
 }
 
-function getPartyBossItemIcon(itemId: string | undefined): string {
-  if (itemId === FIELD_KIT_ITEM_ID) {
+function getPartyBossItemIcon(itemId: string | undefined, itemName?: string): string {
+  if (isPartyBossFieldKit(itemId, itemName)) {
     return "🩺";
   }
 
   return "🩹";
+}
+
+function isPartyBossFieldKit(itemId: string | undefined, itemName?: string): boolean {
+  return itemId === FIELD_KIT_ITEM_ID || itemName === "Польова аптечка";
 }
 
 function getCooldownEntries(

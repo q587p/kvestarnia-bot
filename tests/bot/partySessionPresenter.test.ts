@@ -223,7 +223,6 @@ describe("party session presenter", () => {
             outcome: "item-used",
             damage: 0,
             manaSpent: 0,
-            itemId: "item.field-kit",
             itemName: "Польова аптечка",
             healing: 83,
             hpAfter: 93
