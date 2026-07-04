@@ -41,6 +41,7 @@ import type {
 
 export const TAVERN_GAME_JOIN_TTL_MS = 13 * 60_000;
 export const TAVERN_GAME_DECISION_TTL_MS = 5 * 60_000;
+export const DICE_POKER_SCORECARD_TTL_MS = 93 * 60_000;
 const TAVERN_GAME_LEADERBOARD_LIMIT = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -210,7 +211,7 @@ export class TavernGameService {
       seed,
       stakeGold: Math.trunc(stakeGold),
       maxStake: this.config.tavernGameMaxStake,
-      expiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS),
+      expiresAt: getDicePokerExpiresAt(now, mode),
       cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
       now,
       state: mode === "quick" ? startQuickDicePoker(seed) : startScorecardDicePoker(seed)
@@ -234,6 +235,10 @@ export class TavernGameService {
     const tokenGate = await this.refundIfTokenGameDisabled(token, now);
     if (tokenGate) {
       return tokenGate;
+    }
+    const stale = await this.refundOldKostiTable(token, now);
+    if (stale) {
+      return stale;
     }
 
     return this.repository.joinByTokenForTelegramUser(telegramUserId, token, {
@@ -311,7 +316,14 @@ export class TavernGameService {
       selectedMask: toggleDieSelection(current.result.selectedMask, index)
     } as DicePokerState;
 
-    return this.repository.saveDicePokerStateForTelegramUser(telegramUserId, token, state, this.now());
+    const now = this.now();
+    return this.repository.saveDicePokerStateForTelegramUser(
+      telegramUserId,
+      token,
+      state,
+      now,
+      getDicePokerRefreshExpiresAt(now, state)
+    );
   }
 
   async resolveQuickDicePokerForTelegramUser(
@@ -328,7 +340,14 @@ export class TavernGameService {
 
     const next = resolveQuickDicePokerRound(current.result, current.seed);
     if (next.phase !== "terminal") {
-      return this.repository.saveDicePokerStateForTelegramUser(telegramUserId, token, next, this.now());
+      const now = this.now();
+      return this.repository.saveDicePokerStateForTelegramUser(
+        telegramUserId,
+        token,
+        next,
+        now,
+        getDicePokerRefreshExpiresAt(now, next)
+      );
     }
 
     const result = await this.repository.completeDicePokerForTelegramUser(telegramUserId, token, {
@@ -380,7 +399,14 @@ export class TavernGameService {
     }
 
     const next = rerollScorecardDice(current.result, current.seed);
-    return this.repository.saveDicePokerStateForTelegramUser(telegramUserId, token, next, this.now());
+    const now = this.now();
+    return this.repository.saveDicePokerStateForTelegramUser(
+      telegramUserId,
+      token,
+      next,
+      now,
+      getDicePokerRefreshExpiresAt(now, next)
+    );
   }
 
   async scoreScorecardCategoryForTelegramUser(
@@ -401,17 +427,25 @@ export class TavernGameService {
 
     const next = scoreScorecardCategory(current.result, category, current.seed);
     if (next.phase !== "terminal") {
-      return this.repository.saveDicePokerStateForTelegramUser(telegramUserId, token, next, this.now());
+      const now = this.now();
+      return this.repository.saveDicePokerStateForTelegramUser(
+        telegramUserId,
+        token,
+        next,
+        now,
+        getDicePokerRefreshExpiresAt(now, next)
+      );
     }
 
+    const outcome = next.total >= 200 ? "win" : "draw";
     const result = await this.repository.completeDicePokerForTelegramUser(telegramUserId, token, {
       state: next,
-      outcome: "draw",
+      outcome,
       payoutGold: next.total >= 200 ? current.stakeGold : 0,
       refundedGold: next.total >= 200 ? 0 : current.stakeGold,
       now: this.now()
     });
-    return this.withDicePokerAchievements(result, this.now(), next.total >= 200 ? "win" : "draw");
+    return this.withDicePokerAchievements(result, this.now(), outcome);
   }
 
   async cancelDicePokerForTelegramUser(
@@ -625,12 +659,10 @@ function buildLeaderboard(
       continue;
     }
 
-    const resolution = parseStoredResolution(record.result);
-    if (!resolution) {
+    const outcomes = getStoredOutcomes(record);
+    if (!outcomes) {
       continue;
     }
-
-    const outcomes = getParticipantOutcomes(resolution);
     for (const participant of record.participants) {
       const outcome = outcomes.get(participant.characterId);
       if (!outcome) {
@@ -725,4 +757,41 @@ function parseStoredResolution(input: unknown): TavernGameResolution | null {
   }
 
   return null;
+}
+
+function getStoredOutcomes(record: TavernGameSessionRecord): Map<string, "win" | "draw" | "loss"> | null {
+  const resolution = parseStoredResolution(record.result);
+  if (resolution) {
+    return getParticipantOutcomes(resolution);
+  }
+
+  const dicePokerOutcome = parseStoredDicePokerOutcome(record.result);
+  const participant = record.participants.length === 1 ? record.participants[0] : null;
+  if (!dicePokerOutcome || !participant) {
+    return null;
+  }
+
+  return new Map([[participant.characterId, dicePokerOutcome]]);
+}
+
+function parseStoredDicePokerOutcome(input: unknown): "win" | "draw" | "loss" | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+
+  const value = input as { kind?: unknown; outcome?: unknown };
+  if (value.kind !== "dice_poker") {
+    return null;
+  }
+  return value.outcome === "win" || value.outcome === "draw" || value.outcome === "loss"
+    ? value.outcome
+    : null;
+}
+
+function getDicePokerExpiresAt(now: Date, mode: DicePokerMode): Date {
+  return new Date(now.getTime() + (mode === "scorecard" ? DICE_POKER_SCORECARD_TTL_MS : TAVERN_GAME_DECISION_TTL_MS));
+}
+
+function getDicePokerRefreshExpiresAt(now: Date, state: DicePokerState): Date | undefined {
+  return state.mode === "scorecard" ? getDicePokerExpiresAt(now, "scorecard") : undefined;
 }

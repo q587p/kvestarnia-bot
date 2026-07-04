@@ -24,6 +24,7 @@
 - Scorecard upper boxes, lower boxes, chance and upper bonus match the simplified rules.
 - Five of a kind is `Покер` but not simplified `Фул-хаус`.
 - Scorecard cannot score a used category and cannot reroll past the third roll.
+- Scorecard sessions use a longer deadline than quick poker and valid state changes refresh it.
 
 ## Unit tests: economy and state
 
@@ -36,7 +37,8 @@
 - Re-resolving a completed session does not mutate gold.
 - Dice Poker completion pays/refunds at most once.
 - Dice Poker cancel and expiry return reserved stake once.
-- Legacy Kosti style/sign callbacks refund or fail closed without accepting the old decision.
+- Legacy Kosti join/style/sign callbacks refund or fail closed without accepting the old table action.
+- Completed Dice Poker quick win/loss/draw and high scorecard completion count in the tavern-games leaderboard.
 - Cancel before another participant joins refunds creator.
 - Expired open session refunds participants.
 - Failed resolve path safe-refunds and reaches terminal state.
@@ -55,6 +57,7 @@
 - Quick Dice Poker supports selecting none/some/all dice for the one reroll and shows both final hands plus the reason.
 - Scorecard mode shows turn, roll, selected dice, score preview buttons and scorecard summary.
 - Scorecard used boxes disappear from available score buttons.
+- Scorecard can continue after the quick-poker decision window and still expires/refunds after its longer deadline.
 - Stale join/decision/resolve callbacks return friendly messages.
 - Insufficient gold path is friendly and does not create a session.
 - Combat lock blocks create/join/submit actions according to existing project policy.
@@ -75,9 +78,12 @@
 5. Start quick poker; test no reroll, some rerolled dice and all dice rerolled across attempts.
 6. Verify win/loss/draw/refund-cap result copy and stake behavior.
 7. Start scorecard mode; reroll selected dice twice, score boxes and verify used boxes disappear.
-8. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
-9. Press stale old Kosti buttons and stale dice-poker buttons after completion/expiry.
-10. Try insufficient gold.
-11. Try create/join/decision while under combat lock.
-12. Run the repo's local checks, at minimum `npm run check` if available.
-13. Inspect DB rows for terminal statuses and no orphan escrow.
+8. Keep a scorecard session open past the quick-poker window, press a valid scorecard action and verify the game continues.
+9. Let a scorecard session pass its longer deadline and verify a single escrow refund.
+10. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
+11. Verify `🏆 Рейтинг` counts quick win/loss/draw and high scorecard completion.
+12. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
+13. Try insufficient gold.
+14. Try create/join/decision while under combat lock.
+15. Run the repo's local checks, at minimum `npm run check` if available.
+16. Inspect DB rows for terminal statuses and no orphan escrow.

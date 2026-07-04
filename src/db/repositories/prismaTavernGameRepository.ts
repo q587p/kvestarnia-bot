@@ -585,7 +585,8 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     telegramUserId: bigint,
     token: string,
     state: DicePokerState,
-    now: Date
+    now: Date,
+    expiresAt?: Date
   ): Promise<DicePokerActionResult> {
     return this.prisma.$transaction(async (tx): Promise<DicePokerActionResult> => {
       await expireTokenIfNeededTx(tx, token, now);
@@ -602,9 +603,7 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
         where: { id: session.id },
         data: {
           resultJson: state as unknown as Prisma.InputJsonValue,
-          decisionExpiresAt: session.decisionExpiresAt && session.decisionExpiresAt < now
-            ? now
-            : session.decisionExpiresAt
+          ...(expiresAt ? { decisionExpiresAt: expiresAt } : {})
         },
         include: tavernGameSessionInclude
       });

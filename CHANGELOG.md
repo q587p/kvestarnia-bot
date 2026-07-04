@@ -21,9 +21,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Routed legacy `game-create` Kosti callbacks to quick dice poker for compatibility, while new keyboards no longer emit old Kosti style/sign choices.
 - Kept Dice Poker on the existing tavern-game escrow model with `rulesVersion = dice-poker-v1`, `gameKey = kosti`, one active stake session per character and no Prisma schema migration.
 - Bounded the economy: stake is reserved at session start; quick wins and high scorecard completions can pay back escrow; draws, draw-cap refunds, cancellation and expiry return reserved stake only; terminal sessions clear active stake keys and replayed completion callbacks do not pay again.
+- Gave scorecard Dice Poker a longer per-action expiry window than quick poker; valid scorecard state changes refresh that deadline while preserving one-time expiry/cancel/settlement.
+- Count completed Dice Poker outcomes in the tavern-games leaderboard from stored dice-poker session results.
 
 ### Fixed
 - Old incompatible active Kosti tables are hidden from the open-table hub and old decision/resolve callbacks fail closed through the existing safe refund/stale path with friendly Ukrainian copy.
+- Direct old Kosti join callbacks also refund/fail closed before any new join stake can be reserved.
 - Scorecard no-op reroll callbacks with no selected dice no longer consume a roll.
 - Stale, terminal, expired and duplicate dice-poker callbacks do not grant duplicate rewards or remove extra gold.
 

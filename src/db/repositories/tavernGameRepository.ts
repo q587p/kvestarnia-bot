@@ -192,7 +192,8 @@ export interface TavernGameRepository {
     telegramUserId: bigint,
     token: string,
     state: DicePokerState,
-    now: Date
+    now: Date,
+    expiresAt?: Date
   ): Promise<DicePokerActionResult>;
   completeDicePokerForTelegramUser(
     telegramUserId: bigint,

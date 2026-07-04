@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaTavernGameRepository } from "../../src/db/repositories/prismaTavernGameRepository";
-import { evaluateQuickHand, startQuickDicePoker } from "../../src/domain/dicePoker";
+import { evaluateQuickHand, startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("PrismaTavernGameRepository integration", () => {
   let dir: string;
@@ -233,6 +233,72 @@ describe("PrismaTavernGameRepository integration", () => {
       where: { session: { token } },
       select: { payoutGold: true, refundedGold: true, activeStakeKey: true }
     })).resolves.toEqual([{ payoutGold: 3, refundedGold: 0, activeStakeKey: null }]);
+  });
+
+  it("keeps scorecard dice poker alive beyond quick ttl and refunds after scorecard deadline", async () => {
+    const token = "12345678-1234-4234-9234-000000000588";
+    await seedCharacter({ telegramUserId: 588n, characterId: "character-scorecard-expiry", name: "Табличник", gold: 10 });
+    const state = startScorecardDicePoker("scorecard-expiry");
+    const created = await repository.createDicePokerForTelegramUser(588n, {
+      mode: "scorecard",
+      token,
+      seed: "scorecard-expiry",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 93 * 60_000),
+      cooldownMs: 0,
+      now: now(),
+      state
+    });
+    expect(created.state).toBe("created");
+    await expect(characterGold("character-scorecard-expiry")).resolves.toBe(7);
+
+    await expect(repository.expireDue(new Date(now().getTime() + 6 * 60_000))).resolves.toBe(0);
+    await expect(characterGold("character-scorecard-expiry")).resolves.toBe(7);
+
+    await expect(repository.expireDue(new Date(now().getTime() + 94 * 60_000))).resolves.toBe(1);
+    await expect(characterGold("character-scorecard-expiry")).resolves.toBe(10);
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, resultJson: true }
+    })).resolves.toMatchObject({
+      status: "expired_refund",
+      resultJson: { kind: "dice_poker_expired", refundedGold: 3 }
+    });
+  });
+
+  it("refreshes scorecard dice poker deadline on saved state changes", async () => {
+    const token = "12345678-1234-4234-9234-000000000589";
+    await seedCharacter({ telegramUserId: 589n, characterId: "character-scorecard-refresh", name: "Перекидач", gold: 10 });
+    const state = startScorecardDicePoker("scorecard-refresh");
+    const created = await repository.createDicePokerForTelegramUser(589n, {
+      mode: "scorecard",
+      token,
+      seed: "scorecard-refresh",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 93 * 60_000),
+      cooldownMs: 0,
+      now: now(),
+      state
+    });
+    expect(created.state).toBe("created");
+
+    const refreshAt = new Date(now().getTime() + 60 * 60_000);
+    const refreshed = await repository.saveDicePokerStateForTelegramUser(
+      589n,
+      token,
+      { ...state, selectedMask: 1 },
+      refreshAt,
+      new Date(refreshAt.getTime() + 93 * 60_000)
+    );
+    expect(refreshed.state).toBe("saved");
+
+    await expect(repository.expireDue(new Date(now().getTime() + 94 * 60_000))).resolves.toBe(0);
+    await expect(characterGold("character-scorecard-refresh")).resolves.toBe(7);
+
+    await expect(repository.expireDue(new Date(now().getTime() + 154 * 60_000))).resolves.toBe(1);
+    await expect(characterGold("character-scorecard-refresh")).resolves.toBe(10);
   });
 
   function now(): Date {
