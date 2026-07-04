@@ -251,7 +251,7 @@ Use one level 3+ account. Local dev setup or seeded local fights are acceptable 
 Use one fresh account plus one account with at least one earned cosmetic title grant. Local dev grants/recalculation are acceptable for setup.
 
 1. Open `/hero` on a character with no title grants; press `🏷️ Титули` and verify the empty state is friendly and has no broken selection buttons.
-2. Create or recalculate at least one achievement that grants a title record; reopen `🏷️ Титули` and verify rows show title text, source achievement and no raw ids.
+2. Create or recalculate enough achievements to grant more than 10 title records; reopen `🏷️ Титули` and verify rows show title text, source achievement and no raw ids, while selection buttons are paginated with `◀️ Назад` / `Далі ▶️` instead of one huge keyboard.
 3. Select one title; verify it becomes marked active and `/hero` shows a separate `Косметичний титул` line below the generated title.
 4. Replay the same select button; verify the title remains active and no duplicate achievement/title rows or notifications appear.
 5. Clear the title; verify `/hero` no longer shows the cosmetic title line, then replay the clear button and verify canonical no-op replay.

@@ -965,6 +965,34 @@ describe("AchievementService", () => {
     });
   });
 
+  it("paginates cosmetic title grants", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    const grantedAt = new Date("2026-06-28T09:00:00.000Z");
+    repo.snapshot.titleGrants = Array.from({ length: 12 }, (_unused, index) => ({
+      id: `title-row-${index + 1}`,
+      characterId: "character-1",
+      titleGrantId: `cosmetic-title.test-${index + 1}`,
+      achievementId: `achievement.test-${index + 1}`,
+      sourceType: "test",
+      sourceId: null,
+      grantedAt,
+      createdAt: grantedAt
+    }));
+
+    const view = await service.listCosmeticTitlesForCharacter("character-1", 1);
+
+    expect(view).toMatchObject({
+      page: 1,
+      totalPages: 2,
+      totalCount: 12,
+      entries: [
+        { grantRowId: "title-row-11" },
+        { grantRowId: "title-row-12" }
+      ]
+    });
+  });
+
   it("sets an owned active cosmetic title once and unlocks first-selection once", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);

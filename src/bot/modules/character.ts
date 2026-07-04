@@ -214,7 +214,7 @@ async function handleAchievementCallback(
   }
 
   if (callback.type === "titles") {
-    const result = await heroService.listCosmeticTitlesByTelegramUserId(telegramUserId);
+    const result = await heroService.listCosmeticTitlesByTelegramUserId(telegramUserId, callback.page);
 
     if (result.state === "no-character") {
       await safeEditMessageText(ctx, presentInvalidCallback());
@@ -232,7 +232,8 @@ async function handleAchievementCallback(
     const result = await heroService.selectCosmeticTitleByTelegramUserId(
       telegramUserId,
       callback.titleGrantRowId,
-      callback.remortCount
+      callback.remortCount,
+      callback.page
     );
 
     if (result.state === "no-character") {
@@ -256,7 +257,8 @@ async function handleAchievementCallback(
   if (callback.type === "title-clear") {
     const result = await heroService.clearCosmeticTitleByTelegramUserId(
       telegramUserId,
-      callback.remortCount
+      callback.remortCount,
+      callback.page
     );
 
     if (result.state === "no-character") {

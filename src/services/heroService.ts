@@ -189,7 +189,8 @@ export class HeroService {
   }
 
   async listCosmeticTitlesByTelegramUserId(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    page = 0
   ): Promise<{ state: "no-character" } | { state: "ready"; view: CosmeticTitleListView }> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -197,7 +198,7 @@ export class HeroService {
       return { state: "no-character" };
     }
 
-    const view = await this.achievements.listCosmeticTitlesForCharacter(character.id);
+    const view = await this.achievements.listCosmeticTitlesForCharacter(character.id, page);
 
     return view ? { state: "ready", view } : { state: "no-character" };
   }
@@ -205,7 +206,8 @@ export class HeroService {
   async selectCosmeticTitleByTelegramUserId(
     telegramUserId: bigint,
     titleGrantRowId: string,
-    expectedRemortCount: number
+    expectedRemortCount: number,
+    page = 0
   ): Promise<{ state: "no-character" } | { state: "ready"; result: CosmeticTitleMutationResult }> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -217,6 +219,7 @@ export class HeroService {
       characterId: character.id,
       titleGrantRowId,
       expectedRemortCount,
+      page,
       occurredAt: this.clock()
     });
 
@@ -225,7 +228,8 @@ export class HeroService {
 
   async clearCosmeticTitleByTelegramUserId(
     telegramUserId: bigint,
-    expectedRemortCount: number
+    expectedRemortCount: number,
+    page = 0
   ): Promise<{ state: "no-character" } | { state: "ready"; result: CosmeticTitleMutationResult }> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -235,7 +239,8 @@ export class HeroService {
 
     const result = await this.achievements.clearActiveCosmeticTitle({
       characterId: character.id,
-      expectedRemortCount
+      expectedRemortCount,
+      page
     });
 
     return result ? { state: "ready", result } : { state: "no-character" };
