@@ -1361,13 +1361,10 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
       "🔎 Оновити"
     ]);
-    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-2", "💪 Силовий удар"))).toEqual([
-      "⚔️ Атакувати",
-      "🛡 Захищатися",
-      "💪 Силовий удар",
-      "🧰 Практична імпровізація",
-      "🏳️ Здатися",
-      "🔎 Оновити"
+    expect(inlineButtonRows(buildTurnBasedDuelKeyboard(result, "character-2", "💪 Силовий удар"))).toEqual([
+      ["⚔️ Атакувати", "🛡 Захищатися"],
+      ["💪 Силовий удар", "🧰 Практична імпровізація"],
+      ["🏳️ Здатися", "🔎 Оновити"]
     ]);
   });
 
@@ -1389,12 +1386,10 @@ describe("main menu and scene keyboards", () => {
       }
     });
 
-    expect(flatInlineButtonTexts(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
-      "⚔️ Атакувати",
-      "🛡 Захищатися",
-      "🧰 Практична імпровізація",
-      "🏳️ Здатися",
-      "🔎 Оновити"
+    expect(inlineButtonRows(buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар"))).toEqual([
+      ["⚔️ Атакувати", "🛡 Захищатися"],
+      ["🧰 Практична імпровізація"],
+      ["🏳️ Здатися", "🔎 Оновити"]
     ]);
   });
 
