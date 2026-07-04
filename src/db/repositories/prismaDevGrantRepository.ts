@@ -9,6 +9,7 @@ import { getLevelForXp } from "../../domain/progression/level";
 import type { CharacterRecord } from "./characterRepository";
 import type {
   DevGrantCharacterResult,
+  DevGrantCooldownMatchInput,
   DevGrantCooldownResult,
   DevGrantDailyActionResetResult,
   DevGrantItemResult,
@@ -270,6 +271,13 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
     telegramUserId: bigint,
     key: string
   ): Promise<DevGrantCooldownResult | null> {
+    return this.clearCooldownsForTelegramUser(telegramUserId, { keys: [key] });
+  }
+
+  async clearCooldownsForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput
+  ): Promise<DevGrantCooldownResult | null> {
     return this.prisma.$transaction(async (tx) => {
       const character = await findCharacterByTelegramUserId(tx, telegramUserId);
 
@@ -277,10 +285,11 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
         return null;
       }
 
+      const cooldownKeyWhere = buildCooldownKeyWhere(input);
       const deleted = await tx.characterCooldown.deleteMany({
         where: {
           characterId: character.id,
-          key
+          ...(cooldownKeyWhere ? { OR: cooldownKeyWhere } : { key: "__no_dev_cooldown_match__" })
         }
       });
 
@@ -451,7 +460,18 @@ function getDevYegerQuestStageConfig(stage: DevGrantYegerQuestStage): {
         startedKey: YEGER_UNQUIET_TRIAL_STARTED_KEY,
         completedKey: YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
         target: YEGER_UNQUIET_TRIAL_TARGET
-      };
+    };
+}
+
+function buildCooldownKeyWhere(input: DevGrantCooldownMatchInput): Prisma.CharacterCooldownWhereInput[] | null {
+  const keys = [...new Set(input.keys ?? [])].filter((key) => key.length > 0);
+  const keyPrefixes = [...new Set(input.keyPrefixes ?? [])].filter((prefix) => prefix.length > 0);
+  const conditions: Prisma.CharacterCooldownWhereInput[] = [
+    ...(keys.length > 0 ? [{ key: { in: keys } }] : []),
+    ...keyPrefixes.map((prefix) => ({ key: { startsWith: prefix } }))
+  ];
+
+  return conditions.length > 0 ? conditions : null;
 }
 
 async function ensureYegerQuestStarted(

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type {
   DevGrantCharacterResult,
+  DevGrantCooldownMatchInput,
   DevGrantCooldownResult,
   DevGrantDailyActionResetResult,
   DevGrantItemResult,
@@ -328,6 +329,38 @@ describe("DevGrantService", () => {
     expect(repository.calls).toContain(`cooldown-ready:42:${YEGER_TRACKING_COOLDOWN_KEY}`);
   });
 
+  it("resets Priest blessing and Quiet Pocket cooldowns for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.resetPriestBlessingCooldown(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "priest-blessing-cooldown",
+      cleared: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    await expect(service.resetQuietPocketCooldown(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "quiet-pocket-cooldown",
+      cleared: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    expect(repository.calls.some((call) =>
+      call.includes("cooldowns:42:") &&
+      call.includes("technique.class.priest.blessing") &&
+      call.includes("social.priest.blessing")
+    )).toBe(true);
+    expect(repository.calls.some((call) =>
+      call.includes("cooldowns:42:") &&
+      call.includes("technique.class.rogue.quiet-pocket") &&
+      call.includes("social.thief.quiet-pocket")
+    )).toBe(true);
+  });
+
   it("resets the Yeger paid bandage purchase day for local QA", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -382,6 +415,8 @@ describe("DevGrantService", () => {
     const service = new DevGrantService(repository, "development", false, new FakeRandomSource([0]));
 
     await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.resetPriestBlessingCooldown(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.resetQuietPocketCooldown(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.completeFirstYegerQuestProgress(42n)).resolves.toEqual({ state: "disabled" });
     expect(repository.calls).toEqual([]);
   });
@@ -540,6 +575,27 @@ class FakeDevGrantRepository implements DevGrantRepository {
     key: string
   ): Promise<DevGrantCooldownResult | null> {
     this.calls.push(`cooldown:${telegramUserId.toString()}:${key}`);
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      character: this.character,
+      cleared: true
+    });
+  }
+
+  clearCooldownsForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput
+  ): Promise<DevGrantCooldownResult | null> {
+    this.calls.push(
+      `cooldowns:${telegramUserId.toString()}:${[
+        ...(input.keys ?? []),
+        ...(input.keyPrefixes ?? [])
+      ].join(",")}`
+    );
 
     if (telegramUserId !== 42n) {
       return Promise.resolve(null);

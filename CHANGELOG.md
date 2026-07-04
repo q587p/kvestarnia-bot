@@ -16,6 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother recruiting cards now let joined participants mark themselves `Готовий` / `Готова` / `Готові` or switch back to `Зачекайте`, showing `✅` / `⏳` beside names without blocking manual or automatic raid start.
 - Cosmetic title selection now paginates the `🏷️ Титули` keyboard instead of rendering every earned title button at once.
 - Two-enemy `Натиск Низу` intros now state that the boosted backup enemy keeps a shorter HP bar, and regression coverage proves the boosted level still feeds backup HP, attack and defenses.
+- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` now clear Priest blessing/support and Quiet Pocket cooldown rows for manual QA, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
 
 ## [0.2.24] - 12026-07-04 - Mantok Balance Audit and Rebalance Pass
 
