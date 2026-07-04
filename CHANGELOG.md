@@ -44,6 +44,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `💫` for mana spent.
 - Removed the noncombat Priest heal cooldown and actor-wide Priest blessing cooldown; direct healing is limited by missing HP and mana, while direct blessing is limited by mana and a 93-minute repeat wait only for the same actor-target pair.
 - Removed the two-enemy Nyz threat backup HP shortcut: every threat monster now keeps its own full level-derived HP, and victory rewards/loot use the original encounter enemy level even after the primary enemy dies and the boosted backup becomes the active mirror.
+- Fixed multi-enemy combat effect expiry so hero-targeted monster effects tick down after any hero action, including `defend` and combat-item turns, and the turn log no longer repeats expired accuracy-penalty notices.
 - Extended local `/dev_two_enemies [N]` so manual QA can force `Натиск Низу` and boost the second enemy by `N` requested levels while keeping the dev fight excluded from ordinary threat history.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
@@ -78,6 +79,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation and duplicate Rogue replay silence.
 - Added lore-board coverage for class combat ability references and separate side-surface paragraphs.
 - Added online/presence routing tests for the `Хто поруч` discovery surface and neutral `v1:nc` callback presence.
+- Added combat-engine regression coverage for expiring hero-targeted monster effects after `defend` in a two-enemy fight.
 
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
 

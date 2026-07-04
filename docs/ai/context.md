@@ -93,6 +93,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `0.2.25` Rogue target-list polish: fresh `🗡️ Тиха кишеня` target lists keep actor-target pairs already attempted on the current Kyiv day visible with a tomorrow-only marker, while duplicate callbacks still replay stored results; Rogue result cards italicize the next-attempt wait, and Rogue cooldown blockers use a finger-rest title with bold remaining time.
 - `0.2.25` lore polish: `📖 Перекази` class entries name each class combat ability, while Warrior, Bard, Rogue, Priest and Ranger separately mention their shipped side class surfaces.
 - `0.2.25` dev QA polish: `/dev_two_enemies [N]` starts the local two-enemy Nyz fight as before, and a positive `N` also forces `Натиск Низу` pressure metadata so the second enemy is boosted by the requested levels while the dev fight remains excluded from ordinary threat history.
+- `0.2.25` combat follow-up: multi-enemy hero-targeted monster effects now tick down from the enemy runtime list after hero actions such as `defend` and combat-item use, so expired accuracy penalties stop appearing in the next turn log.
 
 ## Code map
 

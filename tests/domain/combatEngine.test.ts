@@ -1895,6 +1895,59 @@ describe("combat domain engine", () => {
     );
   });
 
+  it("expires target activation effects after defending in a multi-enemy fight", () => {
+    const pressuredState: CombatState = {
+      ...startCombat({ hero: warrior, monster, enemies: [secondMonster] })
+    };
+    const accuracyPressure = {
+      version: 1 as const,
+      rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+      aiProfile: "controller" as const,
+      loadoutIds: [],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 0,
+      ownActionCount: 0,
+      effects: [{
+        id: "test-accuracy-pressure",
+        sourceAbilityId: "monster.test-pressure",
+        sourceActor: "monster" as const,
+        target: "hero" as const,
+        kind: "accuracy" as const,
+        value: 10,
+        polarity: "harmful" as const,
+        removable: true,
+        remainingTargetActivations: 1
+      }]
+    };
+    pressuredState.monsterRuntime = accuracyPressure;
+    pressuredState.enemies![0] = {
+      ...pressuredState.enemies![0]!,
+      monsterRuntime: accuracyPressure
+    };
+
+    const effectTurn = resolveCombatTurn({
+      state: pressuredState,
+      action: "defend",
+      hero: warrior,
+      monster,
+      enemies: [monster, secondMonster],
+      rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+    });
+
+    expect(effectTurn.ok).toBe(true);
+    if (!effectTurn.ok) {
+      throw new Error("Expected defend with active effect to resolve.");
+    }
+    expect(effectTurn.summary.heroOutcome).toBe("defended");
+    expect(
+      normalizeCombatEnemies(effectTurn.state).flatMap((enemy) => enemy.monsterRuntime?.effects ?? [])
+    ).not.toContainEqual(expect.objectContaining({ id: "test-accuracy-pressure" }));
+    expect(effectTurn.state.turnLog?.[0]?.notices ?? []).not.toContain(
+      "Ефект триває: ваша влучність просіла на 10 пунктів, спаде після вашої наступної дії."
+    );
+  });
+
   it("treats reactive final-enemy mutual KO as a hero win", () => {
     const state: CombatState = {
       ...startCombat({ hero: warrior, monster }),

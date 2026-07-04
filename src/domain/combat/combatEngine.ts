@@ -1921,7 +1921,7 @@ function resolveHeroActivationAndLivingEnemyPhase(
   monsterDamage: number;
   enemyPhase: ReturnType<typeof resolveLivingEnemyPhase>;
 } {
-  const heroEffect = applyHeroActivationMonsterEffects(state);
+  const heroEffect = applyHeroActivationMonsterEffectsForCombatState(state, participants);
   const heroEffectDamage = heroEffect.damage;
   const enemyPhase = state.hero.hp > 0
     ? resolveLivingEnemyPhase(state, input, damageReduction, participants)
@@ -1936,6 +1936,48 @@ function resolveHeroActivationAndLivingEnemyPhase(
     monsterDamage: heroEffectDamage + enemyPhase.monsterDamage,
     enemyPhase
   };
+}
+
+function applyHeroActivationMonsterEffectsForCombatState(
+  state: CombatState,
+  participants?: readonly CombatEnemyState[]
+): {
+  damage: number;
+} {
+  if (!hasCombatEnemyCollection(state)) {
+    return applyHeroActivationMonsterEffects(state);
+  }
+
+  const participantIds = new Set(
+    (participants ?? normalizeCombatEnemies(state)).map((enemy) => enemy.enemyId)
+  );
+  const primaryEnemyId = getPrimaryCombatEnemy(state).enemyId;
+  let damage = 0;
+  const enemies = normalizeCombatEnemies(state).map((enemy) => {
+    const runtime = enemy.monsterRuntime ?? (enemy.enemyId === primaryEnemyId ? state.monsterRuntime : undefined);
+    if (!participantIds.has(enemy.enemyId) || !runtime) {
+      return enemy;
+    }
+
+    const effectState: CombatState = {
+      ...state,
+      hero: state.hero,
+      monster: combatEnemyToMonster(enemy),
+      monsterRuntime: runtime
+    };
+    const effect = applyHeroActivationMonsterEffects(effectState);
+    damage += effect.damage;
+
+    return {
+      ...enemy,
+      ...(effectState.monsterRuntime ? { monsterRuntime: effectState.monsterRuntime } : {})
+    };
+  });
+
+  state.enemies = enemies;
+  syncPrimaryCombatEnemy(state);
+
+  return { damage };
 }
 
 function resolveLivingEnemyPhase(
