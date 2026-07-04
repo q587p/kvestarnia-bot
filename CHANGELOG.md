@@ -56,6 +56,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Fixed multi-enemy combat effect expiry so hero-targeted monster effects tick down after any hero action, including `defend` and combat-item turns, and the turn log no longer repeats expired accuracy-penalty notices.
 - Multi-enemy combat journals now explicitly note when a backup enemy pauses on its softened-pressure cadence instead of making the second enemy look like it silently skipped by accident.
 - Big Barrel raid journals now include dense-bandage cooldowns in `Кулдауни та ефекти`, and raid medical-item action lines show item icons for `Щільний бинт` and `Польова аптечка`.
+- Big Barrel queued turn choices now let the latest selected action or combat item replace the earlier button before the round resolves, and overwritten combat items are not spent.
+- Big Barrel active cards now open an owned one-use combat item menu instead of hard-wiring the ordinary bandage behind the renamed button.
+- Big Barrel recruiting cards now let joined participants mark themselves `Готовий` / `Готова` / `Готові` or switch back to `Зачекайте`, showing `✅` / `⏳` beside names without blocking manual or automatic raid start.
+- Cosmetic title selection now paginates the `🏷️ Титули` keyboard instead of rendering every earned title button at once.
 - Extended local `/dev_two_enemies [N]` so manual QA can force `Натиск Низу` and boost the second enemy by `N` requested levels while keeping the dev fight excluded from ordinary threat history.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.

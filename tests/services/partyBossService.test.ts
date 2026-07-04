@@ -4,6 +4,7 @@ import type {
   PartyBossRepository,
   PartyBossSessionRecord
 } from "../../src/db/repositories/partyBossRepository";
+import type { InventoryRepository } from "../../src/db/repositories/inventoryRepository";
 import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import type { AchievementService } from "../../src/services/achievementService";
@@ -119,6 +120,69 @@ describe("PartyBossService achievements", () => {
     );
   });
 
+  it("lists owned useful one-use combat items for the active party boss participant", async () => {
+    const occurredAt = new Date("2026-07-01T19:00:00.000Z");
+    const session = makeSessionWithParticipant({
+      resources: {
+        hp: 10,
+        hpMax: 25,
+        mana: 10,
+        manaMax: 10
+      },
+      combatItems: {
+        cooldowns: {
+          "item.dense-bandage": {
+            itemId: "item.dense-bandage",
+            remainingTurns: 2
+          }
+        }
+      }
+    });
+    const repository = {
+      findByPartyInviteToken: vi.fn<PartyBossRepository["findByPartyInviteToken"]>().mockResolvedValue(session)
+    } as unknown as PartyBossRepository;
+    const listByTelegramUserId = vi.fn<InventoryRepository["listByTelegramUserId"]>().mockResolvedValue([
+      makeInventoryItem("character-leader", "item.responsible-panic-bandage", 3),
+      makeInventoryItem("character-leader", "item.dense-bandage", 1),
+      makeInventoryItem("character-leader", "item.field-kit", 1),
+      makeInventoryItem("character-other", "item.responsible-panic-bandage", 9),
+      makeInventoryItem("character-leader", "item.fake-stone", 1)
+    ]);
+    const inventory = {
+      listByTelegramUserId
+    } as unknown as InventoryRepository;
+    const service = new PartyBossService(
+      repository,
+      { enabled: true },
+      () => occurredAt,
+      undefined,
+      undefined,
+      inventory
+    );
+
+    const result = await service.listCombatItemsForTelegramUser(123n, "token-1", 1);
+
+    expect(listByTelegramUserId).toHaveBeenCalledWith(123n);
+    expect(result).toEqual({
+      state: "ready",
+      session,
+      items: [
+        {
+          itemId: "item.responsible-panic-bandage",
+          itemKey: getCombatItemUseKey("item.responsible-panic-bandage"),
+          name: "Бинт відповідальної паніки",
+          quantity: 3
+        },
+        {
+          itemId: "item.field-kit",
+          itemKey: getCombatItemUseKey("item.field-kit"),
+          name: "Польова аптечка",
+          quantity: 1
+        }
+      ]
+    });
+  });
+
   it("does not track achievements for replay results without fresh settlement events", async () => {
     const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
     const repository = {
@@ -210,5 +274,90 @@ function makeSession(status: "active" | "won" | "lost" | "cancelled"): PartyBoss
     turnExpiresAt: now,
     completedAt: status === "active" ? null : now,
     participants: []
+  };
+}
+
+function makeSessionWithParticipant(
+  overrides: Partial<PartyBossSessionRecord["state"]["participants"][number]> = {}
+): PartyBossSessionRecord {
+  const session = makeSession("active");
+  const participant: PartyBossSessionRecord["state"]["participants"][number] = {
+    characterId: "character-leader",
+    name: "Тестова Лідерка",
+    remortCount: 0,
+    status: "active",
+    combatStats: {
+      level: 8,
+      hpMax: 25,
+      manaMax: 10,
+      hpCurrent: 25,
+      manaCurrent: 10,
+      strength: 5,
+      dexterity: 5,
+      intelligence: 5,
+      charisma: 5,
+      luck: 5,
+      raceId: "race.human-ish",
+      classId: "class.warrior"
+    },
+    resources: {
+      hp: 25,
+      hpMax: 25,
+      mana: 10,
+      manaMax: 10
+    },
+    contribution: {
+      submittedActions: 0,
+      timeoutActions: 0,
+      damageDealt: 0,
+      damageTaken: 0
+    },
+    ...overrides
+  };
+
+  return {
+    ...session,
+    state: {
+      ...session.state,
+      participants: [participant]
+    },
+    participants: [
+      {
+        id: "character-leader",
+        userId: "user-leader",
+        telegramUserId: 123n,
+        currentLocationId: "korchma.board",
+        name: "Тестова Лідерка",
+        pronoun: "they",
+        path: "path.boundary",
+        raceId: "race.human-ish",
+        classId: "class.warrior",
+        level: 8,
+        xp: 0,
+        gold: 13,
+        hpCurrent: 25,
+        hpMax: 25,
+        manaCurrent: 10,
+        manaMax: 10,
+        hpRegenAt: null,
+        manaRegenAt: null,
+        activeCosmeticTitleGrantId: null,
+        statsJson: {},
+        remortCount: 0
+      }
+    ]
+  };
+}
+
+function makeInventoryItem(characterId: string, itemId: string, quantity: number) {
+  const now = new Date("2026-07-01T19:00:00.000Z");
+
+  return {
+    id: `${characterId}:${itemId}`,
+    characterId,
+    itemId,
+    quantity,
+    createdAt: now,
+    updatedAt: now
   };
 }

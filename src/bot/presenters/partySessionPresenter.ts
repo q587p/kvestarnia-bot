@@ -19,6 +19,7 @@ import {
 } from "../../domain/partyBoss/partyBoss";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
 import { getCombatSkillDisplay } from "../../services/fightService";
+import type { PartyBossCombatItemMenuResult } from "../../services/partyBossService";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -337,7 +338,14 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
   if (result.state === "duplicate") {
     return presentPartyBoss(result.session, {
       viewerCharacterId,
-      notice: "Вашу дію для цього ходу вже прийнято. Друга кнопка не додає другого ліктя."
+      notice: "Цей вибір уже записано. Корчмар не ставить другу печатку на той самий лікоть."
+    });
+  }
+
+  if (result.state === "updated") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Вибір оновлено. У хід піде остання записана дія."
     });
   }
 
@@ -363,6 +371,51 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
   }
 
   return presentPartyBoss(result.session, { viewerCharacterId });
+}
+
+export function presentPartyBossItems(
+  result: PartyBossCombatItemMenuResult,
+  viewerCharacterId?: string | null
+): string {
+  if (result.state === "disabled") {
+    return "🧪 Тестовий бос вимкнений.";
+  }
+
+  if (result.state === "no-character") {
+    return "Квестарня не впізнала пригодника або його манатки. Спробуйте ще раз.";
+  }
+
+  if (result.state === "not-found") {
+    return "Бій не знайшовся.";
+  }
+
+  if (result.state === "not-participant") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Це меню належить учасникам рейду. Манатки не люблять чужі кишені."
+    });
+  }
+
+  if (result.state === "stale") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Це меню зі старого ходу. Показую канонічний стан."
+    });
+  }
+
+  if (result.state === "terminal") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Бій уже завершився. Манатки прибралися з протоколу."
+    });
+  }
+
+  return presentPartyBoss(result.session, {
+    viewerCharacterId,
+    notice: result.items.length > 0
+      ? "🎒 Одноразові манатки: оберіть, що піде в цей хід. Новий вибір замінить попередній."
+      : "🎒 Одноразові манатки: зараз немає корисних предметів для цього ходу."
+  });
 }
 
 export function presentPartyBoss(
@@ -542,7 +595,7 @@ function presentPartyBossJournalNotices(
 ): string[] {
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
   const notices = [
-    ...presentJournalCooldownLines(session.state.participants),
+    ...presentJournalCooldownLines(round, session.state.participants),
     ...(nextFocus ? [nextFocus] : []),
     ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
   ];
@@ -551,13 +604,30 @@ function presentPartyBossJournalNotices(
 }
 
 function presentJournalCooldownLines(
+  round: PartyBossSessionRecord["state"]["roundLog"][number],
   participants: PartyBossSessionRecord["state"]["participants"]
 ): string[] {
-  return participants.flatMap((participant) =>
-    presentPartyBossCooldownLines(participant).map((line) =>
+  const resourcesByCharacterId = new Map(round.participantsAfter?.map((participant) => [
+    participant.characterId,
+    participant
+  ]) ?? []);
+
+  return participants.flatMap((participant) => {
+    const resourceSnapshot = resourcesByCharacterId.get(participant.characterId);
+    const cooldowns = resourceSnapshot
+      ? resourceSnapshot.cooldowns
+      : participant.resources.cooldowns;
+    const combatItems = resourceSnapshot?.combatItems ?? participant.combatItems;
+
+    const skillLines = presentCooldownLines(cooldowns).map((line) =>
       `${escapeHtml(participant.name)}: ${line}`
-    )
-  );
+    );
+    const itemLines = presentItemCooldownLines(combatItems).map((line) =>
+      `${escapeHtml(participant.name)}: ${line}`
+    );
+
+    return [...skillLines, ...itemLines];
+  });
 }
 
 function presentParticipantResourceRows(
@@ -690,7 +760,9 @@ export function presentPartySession(
   if (joined.length === 0) {
     lines.push("Запис порожній. Це вже майже філософія.");
   } else {
-    lines.push(...joined.map((participant, index) => `${index + 1}. ${presentParticipantName(participant)}`));
+    lines.push(...joined.map((participant, index) => `${index + 1}. ${presentRecruitingParticipantName(participant, {
+      showReadiness: big && session.status === "recruiting"
+    })}`));
   }
 
   if (session.status === "recruiting" && options.inviteUrl && !big) {
@@ -1014,18 +1086,30 @@ function presentPartyBossCooldownLines(
     return [];
   }
 
-  const skillLines = getCooldownEntries(viewer.resources.cooldowns).map((cooldown) => {
-    const skill = getCombatSkillDisplay(cooldown.id);
+  const skillLines = presentCooldownLines(viewer.resources.cooldowns);
+  const itemLines = presentItemCooldownLines(viewer.combatItems);
 
-    return `🫁 ${skill.icon} <i>${escapeHtml(skill.name)}</i> відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
-  });
-  const itemLines = Object.values(viewer.combatItems?.cooldowns ?? {})
+  return [...skillLines, ...itemLines];
+}
+
+function presentItemCooldownLines(
+  combatItems: PartyBossSessionRecord["state"]["participants"][number]["combatItems"] | undefined
+): string[] {
+  return Object.values(combatItems?.cooldowns ?? {})
     .filter((cooldown) => cooldown.remainingTurns > 0)
     .map((cooldown) =>
       `🫁 ${getPartyBossItemIcon(cooldown.itemId)} ${escapeHtml(getPartyBossItemName(cooldown.itemId))} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`
     );
+}
 
-  return [...skillLines, ...itemLines];
+function presentCooldownLines(
+  cooldowns: PartyBossSessionRecord["state"]["participants"][number]["resources"]["cooldowns"]
+): string[] {
+  return getCooldownEntries(cooldowns).map((cooldown) => {
+    const skill = getCombatSkillDisplay(cooldown.id);
+
+    return `🫁 ${skill.icon} <i>${escapeHtml(skill.name)}</i> відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
+  });
 }
 
 function presentPartyBossItemName(itemId: string | undefined, fallbackName: string): string {
@@ -1515,6 +1599,17 @@ function presentParticipantName(participant: PartyParticipantRecord): string {
     maxNameLength: 32,
     maxTitleLength: 32
   });
+}
+
+function presentRecruitingParticipantName(
+  participant: PartyParticipantRecord,
+  options: { showReadiness: boolean }
+): string {
+  const marker = options.showReadiness
+    ? participant.readiness === "ready" ? "✅ " : "⏳ "
+    : "";
+
+  return `${marker}${presentParticipantName(participant)}`;
 }
 
 function presentNearbyCandidate(candidate: PresencePerson): string {

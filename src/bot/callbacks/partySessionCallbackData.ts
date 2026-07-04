@@ -1,4 +1,5 @@
 import { err, ok, type Result } from "../../shared/result";
+import type { PartyParticipantReadiness } from "../../db/repositories/partySessionRepository";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type PartySessionCallback =
@@ -7,8 +8,10 @@ export type PartySessionCallback =
   | { type: "leave"; token: string }
   | { type: "cancel"; token: string }
   | { type: "expire"; token: string }
+  | { type: "readiness"; token: string; readiness: PartyParticipantReadiness }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
+  | { type: "boss-items"; token: string; turn: number }
   | { type: "boss-item"; token: string; turn: number; itemKey: string }
   | { type: "boss-timeout"; token: string }
   | { type: "boss-journal"; token: string; page: number | null }
@@ -54,6 +57,13 @@ export function makePartySessionExpireCallbackData(token: string): string {
   return `${PREFIX}:x:${token}`;
 }
 
+export function makePartySessionReadinessCallbackData(
+  token: string,
+  readiness: PartyParticipantReadiness
+): string {
+  return `${PREFIX}:rs:${token}:${readiness === "ready" ? "r" : "w"}`;
+}
+
 export function makePartyBossStartCallbackData(token: string): string {
   return `${PREFIX}:bs:${token}`;
 }
@@ -64,6 +74,10 @@ export function makePartyBossActionCallbackData(
   action: PartyBossCallbackAction
 ): string {
   return `${PREFIX}:ba:${token}:${turn.toString(36)}:${actionKey(action)}`;
+}
+
+export function makePartyBossItemsMenuCallbackData(token: string, turn: number): string {
+  return `${PREFIX}:bm:${token}:${turn.toString(36)}`;
 }
 
 export function makePartyBossItemUseCallbackData(input: {
@@ -194,6 +208,22 @@ export function parsePartySessionCallbackData(
     });
   }
 
+  if (action === "bm") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    return ok({
+      type: "boss-items",
+      token: tokenOrTarget,
+      turn: Number.parseInt(page, 36)
+    });
+  }
+
   if (action === "bi") {
     if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
       return err("invalid-token");
@@ -229,6 +259,23 @@ export function parsePartySessionCallbackData(
       type: "invite",
       token: tokenOrTarget,
       templateIndex: Number.parseInt(page, 36)
+    });
+  }
+
+  if (action === "rs") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    const readiness = parseReadinessKey(page);
+    if (!readiness) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "readiness",
+      token: tokenOrTarget,
+      readiness
     });
   }
 
@@ -296,6 +343,16 @@ function parseActionKey(value: string): PartyBossCallbackAction | null {
   }
   if (value === "r") {
     return "race";
+  }
+  return null;
+}
+
+function parseReadinessKey(value: string | undefined): PartyParticipantReadiness | null {
+  if (value === "r") {
+    return "ready";
+  }
+  if (value === "w") {
+    return "waiting";
   }
   return null;
 }

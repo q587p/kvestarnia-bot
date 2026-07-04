@@ -2,6 +2,7 @@ import type { CharacterRecord } from "./characterRepository";
 
 export type PartySessionStatus = "recruiting" | "cancelled" | "expired" | "active" | "completed";
 export type PartyParticipantStatus = "joined" | "left";
+export type PartyParticipantReadiness = "waiting" | "ready";
 export type PartyJoinSource = "leader" | "nearby" | "deep-link" | "dev";
 
 export interface PartyCharacterSnapshot extends CharacterRecord {
@@ -21,6 +22,7 @@ export interface PartyParticipantRecord {
   leftAt: Date | null;
   chatId: bigint | null;
   messageId: number | null;
+  readiness?: PartyParticipantReadiness | undefined;
   character: PartyCharacterSnapshot;
 }
 
@@ -103,6 +105,12 @@ export type PartyCancelRepositoryResult =
   | { state: "not-leader"; session: PartySessionRecord }
   | { state: "cancelled" | "expired"; session: PartySessionRecord };
 
+export type PartyReadinessRepositoryResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "not-member" | "not-recruiting"; session: PartySessionRecord }
+  | { state: "updated" | "already-set" | "cancelled" | "expired"; session: PartySessionRecord };
+
 export interface PartySessionRepository {
   createForTelegramUser(
     telegramUserId: bigint,
@@ -126,6 +134,13 @@ export interface PartySessionRepository {
     inviteToken: string,
     now: Date
   ): Promise<PartyCancelRepositoryResult>;
+
+  setParticipantReadiness(
+    telegramUserId: bigint,
+    inviteToken: string,
+    readiness: PartyParticipantReadiness,
+    now: Date
+  ): Promise<PartyReadinessRepositoryResult>;
 
   findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
   findLiveRecruitingByTelegramUser(telegramUserId: bigint, now: Date): Promise<PartySessionRecord | null>;

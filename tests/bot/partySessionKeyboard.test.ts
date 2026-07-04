@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPartyBossItemsKeyboard,
   buildPartyBossKeyboard,
   buildPartyBossJournalKeyboard,
   buildPartySessionInviteShareKeyboard,
@@ -37,10 +38,12 @@ describe("party session keyboard", () => {
       "🛡 Захищатися",
       "🪓 Силовий замах",
       "🧰 Практична імпровізація",
-      "🎒 1 разові манатки",
+      "🎒 Одноразові манатки",
       "⏱️ Dev: добити хід",
       "🔎 Оновити"
     ]);
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bi:");
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, null))).toEqual([
       "🔎 Оновити"
     ]);
@@ -60,6 +63,7 @@ describe("party session keyboard", () => {
     });
 
     expect(inlineButtonTexts(keyboard)).toEqual([
+      "✅ Готові",
       "🚪 Вийти",
       "🧹 Скасувати збір",
       "🛢️ Почати рейд",
@@ -70,6 +74,27 @@ describe("party session keyboard", () => {
     expect(keyboardText(keyboard)).toContain("https://t.me/share/url");
     expect(keyboardText(keyboard)).toContain("party_partyABC12");
     expect(keyboardText(keyboard)).toContain("v1:party:sh:partyABC12");
+    expect(keyboardText(keyboard)).toContain("v1:party:rs:partyABC12:r");
+  });
+
+  it("toggles Big Barrel Brother readiness from ready back to waiting", () => {
+    const session = {
+      ...makeSession(),
+      originLocationId: "barrel.big-brother",
+      participants: makeSession().participants.map((participant) => ({
+        ...participant,
+        readiness: "ready" as const
+      }))
+    };
+
+    const keyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyABC12",
+      includeBossStart: true
+    });
+
+    expect(inlineButtonTexts(keyboard)).toContain("⏳ Зачекайте");
+    expect(keyboardText(keyboard)).toContain("v1:party:rs:partyABC12:w");
   });
 
   it("rotates Big Barrel Brother invite-card text", () => {
@@ -100,9 +125,38 @@ describe("party session keyboard", () => {
       "🗡️ Вдарити",
       "🛡 Захищатися",
       "🧰 Практична імпровізація",
-      "🎒 1 разові манатки",
+      "🎒 Одноразові манатки",
       "🔎 Оновити"
     ]);
+  });
+
+  it("shows concrete one-use party boss item choices in the opened item menu", () => {
+    const keyboard = buildPartyBossItemsKeyboard({
+      token: "partyABC12",
+      turn: 2,
+      items: [
+        {
+          itemId: "item.dense-bandage",
+          itemKey: "dense1",
+          name: "Щільний бинт",
+          quantity: 2
+        },
+        {
+          itemId: "item.field-kit",
+          itemKey: "field1",
+          name: "Польова аптечка",
+          quantity: 1
+        }
+      ]
+    });
+
+    expect(inlineButtonTexts(keyboard)).toEqual([
+      "🩹 Щільний бинт ×2",
+      "⚕️ Польова аптечка",
+      "↩️ До бою"
+    ]);
+    expect(keyboardText(keyboard)).toContain("v1:party:bi:partyABC12:2:dense1");
+    expect(keyboardText(keyboard)).toContain("v1:party:bi:partyABC12:2:field1");
   });
 
   it("shows the party boss journal only after the battle ends", () => {

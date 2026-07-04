@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildHeroAchievementsKeyboard } from "../../src/bot/keyboards/achievementKeyboard";
+import {
+  buildCosmeticTitlesKeyboard,
+  buildHeroAchievementsKeyboard
+} from "../../src/bot/keyboards/achievementKeyboard";
 import {
   buildAdventureApproachHelpKeyboard,
   buildAdventureApproachKeyboard,
@@ -142,6 +145,48 @@ describe("main menu and scene keyboards", () => {
       "v1:nc:b:s:0:0:0",
       "v1:use:full:item.responsible-panic-bandage"
     ]);
+  });
+
+  it("paginates cosmetic title selection buttons", () => {
+    const keyboard = buildCosmeticTitlesKeyboard({
+      entries: [
+        {
+          grantRowId: "title-row-11",
+          titleGrantId: "cosmetic-title.11",
+          title: "Одинадцятий",
+          sourceAchievementTitle: "Ачівка 11",
+          grantedAt: new Date("2026-06-28T09:00:00.000Z"),
+          active: false,
+          archived: false
+        },
+        {
+          grantRowId: "title-row-12",
+          titleGrantId: "cosmetic-title.12",
+          title: "Дванадцятий",
+          sourceAchievementTitle: "Ачівка 12",
+          grantedAt: new Date("2026-06-28T09:00:00.000Z"),
+          active: true,
+          archived: false
+        }
+      ],
+      activeTitleGrantId: "cosmetic-title.12",
+      activeTitleMissing: false,
+      remortCount: 0,
+      page: 1,
+      totalPages: 2,
+      totalCount: 12
+    });
+
+    expect(inlineButtonRows(keyboard)).toEqual([
+      ["🏷️ 11", "✅ 12"],
+      ["◀️ Назад", "2/2"],
+      ["🧹 Зняти титул"],
+      ["🏅 Ачівки"],
+      ["↩️ До персонажа"]
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain("v1:ach:titles");
+    expect(flatInlineButtonCallbacks(keyboard)).toContain("v1:ach:tset:0:title-row-12:1");
+    expect(flatInlineButtonCallbacks(keyboard)).toContain("v1:ach:tclr:0:1");
   });
 
   it("labels the persistent location button with the current place", () => {

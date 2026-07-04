@@ -45,7 +45,7 @@ describe("PrismaPartyBossRepository integration", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("starts from recruiting party, dedupes actions, and timeout-resolves past the old cap without terminalizing by turn count", async () => {
+  it("starts from recruiting party, replaces queued actions, and timeout-resolves past the old cap without terminalizing by turn count", async () => {
     await seedCharacter(prisma, "leader-user", 1001n, "Лідерка", { hp: 300 });
     await seedCharacter(prisma, "joiner-user", 1002n, "Помічник", { hp: 300 });
     await partyRepository.createForTelegramUser(1001n, partyInput("party-token-a"));
@@ -61,13 +61,21 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss" } })).toBe(2);
 
     const first = await bossRepository.submitActionForTelegramUser(1001n, "party-token-a", 1, "attack", resolveInput());
-    const duplicate = await bossRepository.submitActionForTelegramUser(1001n, "party-token-a", 1, "defend", resolveInput());
+    const updated = await bossRepository.submitActionForTelegramUser(1001n, "party-token-a", 1, "defend", resolveInput());
 
     expect(first.state).toBe("queued");
-    expect(duplicate.state).toBe("duplicate");
+    expect(updated.state).toBe("updated");
     expect(await prisma.partyBossAction.count()).toBe(1);
+    await expect(prisma.partyBossAction.findFirstOrThrow({
+      where: {
+        sessionId: expectPartyBossSession(updated).id,
+        actorCharacterId: "leader-user-character",
+        turn: 1
+      },
+      select: { actionKey: true }
+    })).resolves.toEqual({ actionKey: "defend" });
 
-    let latest = expectPartyBossSession(duplicate);
+    let latest = expectPartyBossSession(updated);
     for (let turn = latest.turn; turn <= 6; turn += 1) {
       const resolved = await bossRepository.resolveTimedOutByToken("party-token-a", {
         now: new Date(`2026-06-30T10:0${turn}:00.000Z`),
@@ -295,7 +303,7 @@ describe("PrismaPartyBossRepository integration", () => {
     ]));
   });
 
-  it("emits only item.used for non-Big medical item actions and suppresses duplicate or stale item events", async () => {
+  it("emits item events only when the queued party-boss item action resolves", async () => {
     await seedCharacter(prisma, "proof-bandage-user", 1161n, "Бинтова Проба", {
       hpCurrent: 10,
       hpMax: 40,
@@ -343,17 +351,16 @@ describe("PrismaPartyBossRepository integration", () => {
 
     expect(queued.state).toBe("queued");
     expect(expectPartyBossSession(queued).rulesVersion).toBe("party-boss-proof-v1");
-    expect(queued.achievementEvents).toEqual([
-      expect.objectContaining({
-        type: "item.used",
-        characterId: "proof-bandage-user-character",
-        itemId: "item.responsible-panic-bandage",
-        occurredAt: resolveInput().now
-      })
-    ]);
-    expect(queued.achievementEvents).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "barrel.raid.bandage-used" })
-    ]));
+    expect(queued.achievementEvents).toBeUndefined();
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "proof-bandage-user-character",
+          itemId: "item.responsible-panic-bandage"
+        }
+      },
+      select: { quantity: true }
+    })).resolves.toEqual({ quantity: 2 });
 
     const duplicate = await bossRepository.submitItemForTelegramUser(
       1161n,
@@ -374,6 +381,214 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(duplicate.achievementEvents).toBeUndefined();
     expect(stale.state).toBe("stale");
     expect(stale.achievementEvents).toBeUndefined();
+
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      1162n,
+      "party-token-proof-bandage",
+      1,
+      "defend",
+      resolveInput()
+    );
+
+    expect(resolved.state).toBe("resolved");
+    expect(resolved.achievementEvents).toEqual([
+      expect.objectContaining({
+        type: "item.used",
+        characterId: "proof-bandage-user-character",
+        itemId: "item.responsible-panic-bandage",
+        occurredAt: resolveInput().now
+      })
+    ]);
+    expect(resolved.achievementEvents).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "barrel.raid.bandage-used" })
+    ]));
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "proof-bandage-user-character",
+          itemId: "item.responsible-panic-bandage"
+        }
+      },
+      select: { quantity: true }
+    })).resolves.toEqual({ quantity: 1 });
+  });
+
+  it("uses the latest queued party-boss choice and does not spend an overwritten item", async () => {
+    await seedCharacter(prisma, "replace-item-user", 1171n, "Переобрана", {
+      hpCurrent: 10,
+      hpMax: 40,
+      strength: 20,
+      dexterity: 20
+    });
+    await seedCharacter(prisma, "replace-item-joiner", 1172n, "Свідок Вибору", {
+      hpCurrent: 40,
+      hpMax: 40,
+      strength: 20,
+      dexterity: 20
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "replace-item-user-character",
+        itemId: "item.responsible-panic-bandage",
+        quantity: 1
+      }
+    });
+    await partyRepository.createForTelegramUser(1171n, partyInput("party-token-replace-item"));
+    await partyRepository.joinByTokenForTelegramUser(1172n, "party-token-replace-item", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1171n, {
+      partyInviteToken: "party-token-replace-item",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const item = {
+      id: "item.responsible-panic-bandage",
+      name: "Бинт відповідальної паніки",
+      effect: {
+        kind: "heal-hp" as const,
+        amount: 7
+      }
+    };
+
+    const itemQueued = await bossRepository.submitItemForTelegramUser(
+      1171n,
+      "party-token-replace-item",
+      1,
+      item,
+      resolveInput()
+    );
+    const overwritten = await bossRepository.submitActionForTelegramUser(
+      1171n,
+      "party-token-replace-item",
+      1,
+      "defend",
+      resolveInput()
+    );
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      1172n,
+      "party-token-replace-item",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(itemQueued.state).toBe("queued");
+    expect(overwritten.state).toBe("updated");
+    expect(resolved.state).toBe("resolved");
+    expect(latest.state.roundLog.at(-1)?.actions.find(
+      (action) => action.characterId === "replace-item-user-character"
+    )).toMatchObject({
+      action: "defend"
+    });
+    expect(resolved.achievementEvents).toBeUndefined();
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "replace-item-user-character",
+          itemId: "item.responsible-panic-bandage"
+        }
+      },
+      select: { quantity: true }
+    })).resolves.toEqual({ quantity: 1 });
+  });
+
+  it("uses a party-boss item when it overwrites the earlier queued action", async () => {
+    await seedCharacter(prisma, "replace-action-user", 1181n, "Переобрана Манатка", {
+      hpCurrent: 10,
+      hpMax: 40,
+      strength: 20,
+      dexterity: 20
+    });
+    await seedCharacter(prisma, "replace-action-joiner", 1182n, "Свідок Манатки", {
+      hpCurrent: 40,
+      hpMax: 40,
+      strength: 20,
+      dexterity: 20
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "replace-action-user-character",
+        itemId: "item.responsible-panic-bandage",
+        quantity: 1
+      }
+    });
+    await partyRepository.createForTelegramUser(1181n, partyInput("party-token-replace-action"));
+    await partyRepository.joinByTokenForTelegramUser(1182n, "party-token-replace-action", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1181n, {
+      partyInviteToken: "party-token-replace-action",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const actionQueued = await bossRepository.submitActionForTelegramUser(
+      1181n,
+      "party-token-replace-action",
+      1,
+      "defend",
+      resolveInput()
+    );
+    const itemUpdated = await bossRepository.submitItemForTelegramUser(
+      1181n,
+      "party-token-replace-action",
+      1,
+      {
+        id: "item.responsible-panic-bandage",
+        name: "Бинт відповідальної паніки",
+        effect: {
+          kind: "heal-hp",
+          amount: 7
+        }
+      },
+      resolveInput()
+    );
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "replace-action-user-character",
+          itemId: "item.responsible-panic-bandage"
+        }
+      },
+      select: { quantity: true }
+    })).resolves.toEqual({ quantity: 1 });
+
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      1182n,
+      "party-token-replace-action",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(actionQueued.state).toBe("queued");
+    expect(itemUpdated.state).toBe("updated");
+    expect(resolved.state).toBe("resolved");
+    expect(latest.state.roundLog.at(-1)?.actions.find(
+      (action) => action.characterId === "replace-action-user-character"
+    )).toMatchObject({
+      action: "item",
+      outcome: "item-used",
+      itemName: "Бинт відповідальної паніки",
+      healing: 7
+    });
+    expect(resolved.achievementEvents).toEqual([
+      expect.objectContaining({
+        type: "item.used",
+        characterId: "replace-action-user-character",
+        itemId: "item.responsible-panic-bandage"
+      })
+    ]);
+    expect(await prisma.characterItem.count({
+      where: {
+        characterId: "replace-action-user-character",
+        itemId: "item.responsible-panic-bandage"
+      }
+    })).toBe(0);
   });
 
   it("does not consume a party-boss field kit when raid HP is already above its threshold", async () => {

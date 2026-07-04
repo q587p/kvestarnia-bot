@@ -52,7 +52,7 @@ describe("party session presenter", () => {
       abilities: {
         "ability.race.step-through-the-border": {
           id: "ability.race.step-through-the-border",
-          remainingTurns: 2
+          remainingTurns: 4
         }
       }
     };
@@ -64,8 +64,15 @@ describe("party session presenter", () => {
         }
       }
     };
+    const striker = participant("striker", "Шкодійка");
+    striker.resources.cooldowns = {
+      skill: {
+        id: "skill.ricochet-shot",
+        remainingTurns: 3
+      }
+    };
     const text = presentPartyBossJournal(makeBigBossSession({
-      participants: [leader, participant("striker", "Шкодійка")],
+      participants: [leader, striker],
       roundLog: [{
         turn: 4,
         actions: [
@@ -93,7 +100,30 @@ describe("party session presenter", () => {
           { characterId: "striker", damage: 7, hpAfter: 53 }
         ],
         participantsAfter: [
-          { characterId: "leader", status: "active", hp: 55, hpMax: 60, mana: 19, manaMax: 20 },
+          {
+            characterId: "leader",
+            status: "active",
+            hp: 55,
+            hpMax: 60,
+            mana: 19,
+            manaMax: 20,
+            cooldowns: {
+              abilities: {
+                "ability.race.step-through-the-border": {
+                  id: "ability.race.step-through-the-border",
+                  remainingTurns: 1
+                }
+              }
+            },
+            combatItems: {
+              cooldowns: {
+                "item.dense-bandage": {
+                  itemId: "item.dense-bandage",
+                  remainingTurns: 4
+                }
+              }
+            }
+          },
           { characterId: "striker", status: "active", hp: 53, hpMax: 60, mana: 20, manaMax: 20 }
         ],
         statusAfter: "active"
@@ -108,8 +138,9 @@ describe("party session presenter", () => {
     expect(text).toContain("<b>Останні дії:</b>");
     expect(text).toContain("Старший Брат Бочки застосував 🛢️ <i>Бочковий гуркіт</i>: Голова отримує 5 шкоди; Шкодійка отримує 7 шкоди.");
     expect(text).toContain("<b>Кулдауни та ефекти:</b>");
-    expect(text).toContain("Голова: 🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 2 ходи.");
+    expect(text).toContain("Голова: 🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 1 хід.");
     expect(text).toContain("Голова: 🫁 🩹 Щільний бинт відсапується: ще 4 ходи.");
+    expect(text).not.toContain("Рикошетний постріл відсапується");
     expect(text).toContain("🎯 На наступний хід увага боса переходить на Шкодійка.");
     expect(text).not.toContain("Бос отримав:");
   });
@@ -464,6 +495,21 @@ describe("party session presenter", () => {
     expect(text).not.toContain("https://t.me/kvestarnia_test_bot?start=party_partyBIG12");
     expect(text).not.toContain("Бочку довго ображали словом «меблі»");
     expect(createdText).not.toContain("Бочку довго ображали словом «меблі»");
+  });
+
+  it("shows Big Barrel Brother readiness markers near recruiting participant names", () => {
+    const session = {
+      ...makePartySession(),
+      participants: makePartySession().participants.map((participant, index) => ({
+        ...participant,
+        readiness: index === 0 ? "ready" as const : "waiting" as const
+      }))
+    };
+
+    const text = presentPartySession(session);
+
+    expect(text).toContain("1. ✅ <b>Голова</b>");
+    expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
   });
 
   it("explains why Big Barrel Brother joins are ineligible", () => {

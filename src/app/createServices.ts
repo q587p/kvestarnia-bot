@@ -167,7 +167,7 @@ export function createServices(
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction
-    }, undefined, achievements, publicActivityEvents),
+    }, undefined, achievements, publicActivityEvents, repositories.inventory),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||

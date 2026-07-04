@@ -9,6 +9,7 @@ import {
 } from "../../services/partySessionService";
 import { telegramUserIdFromContext } from "../context";
 import {
+  buildPartyBossItemsKeyboard,
   buildPartySessionInviteKeyboard,
   buildPartySessionInviteShareKeyboard,
   buildPartyBossKeyboard,
@@ -21,6 +22,7 @@ import {
   presentPartyBoss,
   presentPartyBossAction,
   presentPartyBossIntro,
+  presentPartyBossItems,
   presentPartyBossJournal,
   presentPartyBossStart,
   presentPartyCreate,
@@ -188,7 +190,11 @@ export async function handlePartySessionCallback(
       callback.turn,
       callback.action
     );
-    await safeAnswerCallbackQuery(ctx, result.state === "duplicate" ? { text: "Дію вже записано." } : undefined);
+    await safeAnswerCallbackQuery(ctx, result.state === "updated"
+      ? { text: "Вибір оновлено." }
+      : result.state === "duplicate"
+        ? { text: "Дію вже записано." }
+        : undefined);
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
       : null;
@@ -215,6 +221,46 @@ export async function handlePartySessionCallback(
     return;
   }
 
+  if (callback.type === "boss-items") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await options.partyBoss.listCombatItemsForTelegramUser(
+      telegramUserId,
+      callback.token,
+      callback.turn
+    );
+    await safeAnswerCallbackQuery(ctx, result.state === "ready" && result.items.length === 0
+      ? { text: "Немає корисних одноразових манаток." }
+      : undefined);
+    const viewerCharacterId = "session" in result
+      ? getBossViewerCharacterId(result.session, telegramUserId)
+      : null;
+
+    if (result.state === "ready") {
+      await safeEditMessageText(ctx, presentPartyBossItems(result, viewerCharacterId), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPartyBossItemsKeyboard({
+          token: result.session.partyInviteToken,
+          turn: result.session.turn,
+          items: result.items
+        })
+      });
+      return;
+    }
+
+    await sendBossText(ctx, "edit", presentPartyBossItems(result, viewerCharacterId), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId,
+          includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
+        }
+      : false);
+    return;
+  }
+
   if (callback.type === "boss-item") {
     if (!options.partyBoss?.isEnabled()) {
       await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
@@ -227,9 +273,11 @@ export async function handlePartySessionCallback(
       callback.turn,
       callback.itemKey
     );
-    await safeAnswerCallbackQuery(ctx, result.state === "duplicate"
-      ? { text: "Дію вже записано." }
-      : result.state === "item-unavailable"
+    await safeAnswerCallbackQuery(ctx, result.state === "updated"
+      ? { text: "Вибір оновлено." }
+      : result.state === "duplicate"
+        ? { text: "Дію вже записано." }
+        : result.state === "item-unavailable"
         ? { text: "Манатка не спрацювала." }
         : undefined);
     const viewerCharacterId = "session" in result
@@ -351,6 +399,48 @@ export async function handlePartySessionCallback(
 
     const result = await service.getByToken(callback.token);
     await sendPartyView(ctx, "edit", result, service, telegramUserId, options.botUsername);
+    return;
+  }
+
+  if (callback.type === "readiness") {
+    const boss = await options.partyBoss?.getByPartyInviteToken(callback.token);
+    if (boss) {
+      await safeAnswerCallbackQuery(ctx, { text: "Рейд уже стартував. Готовність лишилась у зборі." });
+      const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+      await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
+        session: boss,
+        viewerCharacterId,
+        includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
+      });
+      return;
+    }
+
+    const result = await service.setReadinessForTelegramUser(
+      telegramUserId,
+      callback.token,
+      callback.readiness
+    );
+    await safeAnswerCallbackQuery(ctx, { text: presentReadinessCallbackAnswer(result.state, callback.readiness) });
+
+    if (!("session" in result)) {
+      await sendText(ctx, "edit", result.state === "no-character"
+        ? "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта."
+        : "Ватага не знайшлася.", false);
+      return;
+    }
+
+    const inviteUrl = buildPartyInviteUrl(options.botUsername, result.session.inviteToken);
+    await sendText(ctx, "edit", presentPartyView({ state: "ready", session: result.session }, { inviteUrl }), {
+      session: result.session,
+      inviteUrl,
+      viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+      includeDevExpire: service.areDevHelpersEnabled(),
+      includeBossStart: isBigBarrelParty(result.session)
+    });
+
+    if (result.state === "updated") {
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+    }
     return;
   }
 
@@ -823,6 +913,33 @@ function getViewerCharacterId(
   );
 
   return participant?.characterId ?? null;
+}
+
+function presentReadinessCallbackAnswer(
+  state: Awaited<ReturnType<PartySessionService["setReadinessForTelegramUser"]>>["state"],
+  readiness: "ready" | "waiting"
+): string {
+  if (state === "updated") {
+    return readiness === "ready" ? "Позначено: ви готові." : "Позначено: ще готуєтесь.";
+  }
+
+  if (state === "already-set") {
+    return "Статус уже такий.";
+  }
+
+  if (state === "not-member") {
+    return "Ця готовність не належить вашому запису.";
+  }
+
+  if (state === "not-recruiting") {
+    return "Збір уже не змінює готовність.";
+  }
+
+  if (state === "cancelled" || state === "expired") {
+    return "Цей збір уже закрито.";
+  }
+
+  return "Готовність не записалася.";
 }
 
 function isBigBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[0]): boolean {
