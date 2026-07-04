@@ -213,6 +213,26 @@ describe("ClassNoncombatService", () => {
     });
   });
 
+  it("carries active cosmetic titles into Priest blessing summaries", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: priest({ activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk" }),
+      target: target()
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0]));
+
+    const result = await service.blessForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error("Expected completed Priest blessing");
+    }
+    expect(result.actor.activeCosmeticTitle).toBe("Перший писар");
+  });
+
   it("plans Rogue pickpocket deterministically and tracks attempt plus success", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue({ level: 8, statsJson: { dexterity: 14, luck: 7 } }),

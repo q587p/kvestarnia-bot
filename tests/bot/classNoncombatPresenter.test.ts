@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   presentClassNoncombatOpen,
+  presentPriestBlessTargetNotification,
   presentPriestBlessResult,
   presentPriestHealResult,
   presentRoguePickpocketResult,
@@ -177,9 +178,93 @@ describe("class noncombat presenter", () => {
 
     expect(text).toContain("Стан діє ще: <b>13 хвилин</b>.");
     expect(text).toContain("Бонус: <b>+5 Вдачі</b>. Видно в персонажі поруч із бафами.");
+    expect(text).toContain("кадилом.\n\nСтан діє ще");
+    expect(text).toContain("бафами.\n\n💫 Мани витрачено");
     expect(text).toContain("💫 Мани витрачено: <b>23</b>.");
     expect(text).not.toContain("Бонус поки");
     expect(text).not.toContain("не складається в стос");
+  });
+
+  it("bolds both names and separates Priest blessing status beats", () => {
+    const text = presentPriestBlessResult({
+      state: "completed",
+      action: {
+        id: "aid-1",
+        actorCharacterId: "character-1",
+        targetCharacterId: "character-2",
+        actorTelegramUserId: 1001n,
+        targetTelegramUserId: 1002n,
+        actorName: "Zerg M",
+        targetName: "Kyjivan BooksDragon",
+        actionKind: "blessing",
+        healAmount: 0,
+        manaCost: 8,
+        cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+        completedAt: new Date("2026-07-03T09:00:00.000Z")
+      },
+      blessing: {
+        id: "blessing-1",
+        actorName: "Zerg M",
+        targetName: "Kyjivan BooksDragon",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: "luck",
+        bonusAmount: 1
+      },
+      actor: {
+        id: "character-1",
+        name: "Zerg M"
+      },
+      target: {
+        id: "character-2",
+        name: "Kyjivan BooksDragon"
+      },
+      created: true
+    } as unknown as PriestBlessResult);
+
+    expect(text).toContain("<b>Zerg M</b> благословив <b>Kyjivan BooksDragon</b>.");
+    expect(text).toContain("<b>Kyjivan BooksDragon</b>.\n\nСтан діє ще");
+    expect(text).toContain("бафами.\n\n💫 Мани витрачено: <b>8</b>.");
+  });
+
+  it("shows the blessing Priest title in target notifications", () => {
+    const text = presentPriestBlessTargetNotification({
+      state: "completed",
+      action: {
+        id: "aid-1",
+        actorCharacterId: "character-1",
+        targetCharacterId: "character-2",
+        actorTelegramUserId: 1001n,
+        targetTelegramUserId: 1002n,
+        actorName: "Zerg M",
+        targetName: "Kyjivan BooksDragon",
+        actionKind: "blessing",
+        healAmount: 0,
+        manaCost: 8,
+        cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+        completedAt: new Date("2026-07-03T09:00:00.000Z")
+      },
+      blessing: {
+        id: "blessing-1",
+        actorName: "Zerg M",
+        targetName: "Kyjivan BooksDragon",
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        bonusStat: "luck",
+        bonusAmount: 1
+      },
+      actor: {
+        id: "character-1",
+        name: "Zerg M",
+        activeCosmeticTitle: "Тлумач Підозрілих Благословень"
+      },
+      target: {
+        id: "character-2",
+        name: "Kyjivan BooksDragon"
+      },
+      created: true
+    } as unknown as Extract<PriestBlessResult, { state: "completed" }>);
+
+    expect(text).toContain("<b>Zerg M</b> (<i>«Тлумач Підозрілих Благословень»</i>) благословив вас.");
+    expect(text).toContain("планувала.\n\nСтан діє ще");
   });
 
   it("formats Priest healing resource lines with visible icons", () => {

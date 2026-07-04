@@ -26,6 +26,7 @@ import { getEquippedItemContents } from "./equipmentService";
 import { PRESENCE_ACTIVE_MS } from "./presenceService";
 import { toKorchmaLocalDate } from "./tavernRaidService";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 
 export type ClassNoncombatMode = "priest" | "rogue";
 
@@ -410,9 +411,13 @@ export class ClassNoncombatService {
     ]);
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
     const baseSummary = summarizeCharacter(character, { equippedItems });
+    const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
+    const titledSummary = activeCosmeticTitle
+      ? { ...baseSummary, activeCosmeticTitle }
+      : baseSummary;
 
     return {
-      summary: applyPriestBlessingBonusToSummary(baseSummary, activeBlessing, now),
+      summary: applyPriestBlessingBonusToSummary(titledSummary, activeBlessing, now),
       equippedItemIds: equippedItems.map((item) => item.id),
       activePriestBlessing: activeBlessing
     };

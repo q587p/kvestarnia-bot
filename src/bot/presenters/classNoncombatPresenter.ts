@@ -132,9 +132,11 @@ export function presentPriestBlessResult(result: PriestBlessResult): string {
     "",
     targetSelf
       ? "Жрець благословив себе. Корчма це записала як самодогляд із кадилом."
-      : `${presentCharacterDisplayName(result.actor)} благословив ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
+      : `${presentCharacterDisplayName(result.actor)} благословив ${presentCharacterDisplayName(result.target)}.`,
+    "",
     `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`,
     `Бонус: <b>+${normalizeBlessingBonus(result.blessing.bonusAmount)} ${presentBlessingStatLabel(result.blessing)}</b>. Видно в персонажі поруч із бафами.`,
+    "",
     `💫 Мани витрачено: <b>${result.action.manaCost}</b>.`
   ].join("\n");
 }
@@ -194,6 +196,7 @@ export function presentPriestBlessTargetNotification(result: Extract<PriestBless
     "✨ <b>Вас благословили</b>",
     "",
     `${presentCharacterDisplayName(result.actor)} благословив вас. Корчма зробила вигляд, що це планувала.`,
+    "",
     `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`,
     `Бонус: <b>+${normalizeBlessingBonus(result.blessing.bonusAmount)} ${presentBlessingStatLabel(result.blessing)}</b>.`
   ].join("\n");
