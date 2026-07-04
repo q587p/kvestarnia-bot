@@ -14,7 +14,8 @@ import {
   sendKorchmaNewsCorner,
   sendKorchmaMemorialBoard,
   sendKorchmaRemortMilestoneBoard,
-  sendTavern
+  sendTavern,
+  sendTavernBarrel
 } from "../../src/bot/commands/tavernCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
@@ -335,6 +336,40 @@ describe("tavern command screens", () => {
         inline_keyboard: [
           ...shynokActionRows,
           [{ text: "⬅️ До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
+  it("marks the Yeger button at the Barrel when a Yeger quest is waiting", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendTavernBarrel(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      {
+        questMarkers: {
+          characterLevel: 4,
+          yeger: {
+            state: "offered",
+            character: { ...character, level: 4 },
+            progress: { wins: 0, target: 5 }
+          }
+        }
+      }
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🍺 У рейд на бочку", callback_data: "v1:tavern:raid" }],
+          [
+            { text: "🧥 Єгер ⚠️", callback_data: "v1:tavern:ranger" },
+            { text: "⬅️ До зали ⚠️", callback_data: makePlaceCallbackData("hall") }
+          ]
         ]
       }
     });

@@ -7,10 +7,15 @@ import { makeCellarCallbackData, makeCellarMethodBackCallbackData, makeCellarMet
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
+import { decorateButtonLabel, resolveQuestMarkerForTarget, type QuestMarkerInput } from "./questButtonMarkers";
 
 export type CellarKeyboardState = "ready" | "completed" | "on-cooldown";
 
-export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboard {
+type CellarNavigationOptions = {
+  questMarkers?: QuestMarkerInput | null;
+};
+
+export function buildCellarKeyboard(character?: CharacterSummary, options: CellarNavigationOptions = {}): InlineKeyboard {
   if (character) {
     const keyboard = new InlineKeyboard();
 
@@ -23,7 +28,7 @@ export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboar
     keyboard
       .text("💡 Підказка", makeCellarMethodHelpCallbackData())
       .row()
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 
     return keyboard;
   }
@@ -35,10 +40,13 @@ export function buildCellarKeyboard(character?: CharacterSummary): InlineKeyboar
     .row()
     .text("🤝 Домовитись із мишею", makeCellarCallbackData("negotiate"))
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
-export function buildCellarMethodHelpKeyboard(character: CharacterSummary): InlineKeyboard {
+export function buildCellarMethodHelpKeyboard(
+  character: CharacterSummary,
+  options: CellarNavigationOptions = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   for (const method of buildCellarMethodOptions(character)) {
@@ -50,18 +58,19 @@ export function buildCellarMethodHelpKeyboard(character: CharacterSummary): Inli
   return keyboard
     .text("⬅️ Назад", makeCellarMethodBackCallbackData())
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildCellarResultKeyboard(
   state: CellarKeyboardState,
-  character?: CharacterSummary
+  character?: CharacterSummary,
+  options: CellarNavigationOptions = {}
 ): InlineKeyboard {
   if (state === "ready") {
-    return buildCellarKeyboard(character);
+    return buildCellarKeyboard(character, options);
   }
 
-  return new InlineKeyboard().text("⬅️ До зали", makePlaceCallbackData("hall"));
+  return new InlineKeyboard().text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildCellarParticipantsKeyboard(): InlineKeyboard {
@@ -79,6 +88,7 @@ export type CellarGrownupKeyboardState =
 export interface CellarGrownupKeyboardOptions {
   includeKeptBottle?: boolean;
   hideRoleplay?: boolean;
+  questMarkers?: QuestMarkerInput | null;
 }
 
 export function buildCellarGrownupKeyboard(
@@ -89,7 +99,7 @@ export function buildCellarGrownupKeyboard(
     return new InlineKeyboard()
       .text("🍻 До шинку", makePlaceCallbackData("bar"))
       .row()
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
   }
 
   if (state === "has-seal") {
@@ -98,7 +108,7 @@ export function buildCellarGrownupKeyboard(
       .row()
       .text("🐭 Домовитись без пломби", makeCellarCallbackData("grownup-roleplay"))
       .row()
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
   }
 
   if (state === "completed") {
@@ -112,7 +122,7 @@ export function buildCellarGrownupKeyboard(
     return keyboard
       .text("📋 До справ", makePlaceCallbackData("quest-table"))
       .row()
-      .text("⬅️ До зали", makePlaceCallbackData("hall"));
+      .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
   }
 
   const keyboard = new InlineKeyboard();
@@ -126,9 +136,16 @@ export function buildCellarGrownupKeyboard(
     .row()
     .text("🏹 Дошка полювання", makeQuestCallbackData("hunt"))
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 
   return keyboard;
+}
+
+function buildBackToHallLabel(questMarkers: QuestMarkerInput | null | undefined): string {
+  return decorateButtonLabel(
+    "⬅️ До зали",
+    resolveQuestMarkerForTarget(questMarkers ?? undefined, "location.korchma.hall")
+  );
 }
 
 function getCellarFoamyMirageBottle(): { itemId: string; name: string } {
