@@ -172,6 +172,28 @@ describe("lore board content", () => {
     }
   });
 
+  it("keeps manatky lore aligned with one-use and crafting surfaces", () => {
+    const lootTitles = loreEntries
+      .filter((entry) => entry.categoryId === "loot")
+      .map((entry) => entry.title);
+    const oneUse = loreEntries.find((entry) => entry.id === "loot-one-use-mantok");
+    const crafting = loreEntries.find((entry) => entry.id === "loot-mantok-crafting");
+
+    expect(lootTitles).toEqual(expect.arrayContaining([
+      "Разові манатки",
+      "Крафт манаток"
+    ]));
+    expect(oneUse?.body).toContain("Поза боєм");
+    expect(oneUse?.body).toContain("у бою");
+    expect(oneUse?.canonicalRefs?.map((ref) => ref.id)).toEqual(expect.arrayContaining([
+      "item.responsible-panic-bandage",
+      "item.dense-bandage",
+      "item.field-kit"
+    ]));
+    expect(crafting?.body).toContain("Щільний бинт");
+    expect(crafting?.body).toContain("Польову аптечку");
+  });
+
   it("detects broken lore records", () => {
     expect(validateLoreBoardContent({
       categories: loreCategories,

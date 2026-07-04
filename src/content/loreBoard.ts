@@ -426,6 +426,30 @@ export const loreEntries: readonly LoreEntry[] = [
     ]
   },
   {
+    id: "loot-one-use-mantok",
+    categoryId: "loot",
+    title: "Разові манатки",
+    source: "памʼятка з дна торби",
+    body: "Разові манатки не вдягають на себе, а витрачають у слушну мить. Поза боєм Бинт відповідальної паніки можна прикласти без зайвого геройства; у бою медична манатка стає дією ходу, лікує тут і зараз, а вороги не завжди чемно чекають.",
+    canonicalRefs: [
+      { type: "item", id: "item.responsible-panic-bandage" },
+      { type: "item", id: "item.dense-bandage" },
+      { type: "item", id: "item.field-kit" }
+    ]
+  },
+  {
+    id: "loot-mantok-crafting",
+    categoryId: "loot",
+    title: "Крафт манаток",
+    source: "зі шпаргалки Єгеря, трохи в бинтах",
+    body: "Крафт у Квестарні поки що вузький і медичний: після єгерських неспокійних справ звичайні бинти можна перешити у Щільний бинт або зібрати в Польову аптечку. Це не фабрика чудес, а спосіб змусити паніку тримати форму.",
+    canonicalRefs: [
+      { type: "item", id: "item.responsible-panic-bandage" },
+      { type: "item", id: "item.dense-bandage" },
+      { type: "item", id: "item.field-kit" }
+    ]
+  },
+  {
     id: "loot-apology-items",
     categoryId: "loot",
     title: "Вибачальні манатки",
