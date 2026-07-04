@@ -174,14 +174,17 @@ export function buildShynokDicePokerStakeKeyboard(
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const doppelgangerAvailable = options.doppelgangerAvailable ?? true;
+  const stakes = listTavernGameStakeOptions(maxStake);
 
-  for (const stake of listTavernGameStakeOptions(maxStake)) {
-    keyboard.text(`👥 Стіл · ${stake}`, makeShynokDicePokerCreateCallbackData(mode, stake));
+  for (const stake of stakes) {
+    keyboard.text(`👥 ${stake}`, makeShynokDicePokerCreateCallbackData(mode, stake));
+  }
+  keyboard.row();
 
-    if (doppelgangerAvailable) {
-      keyboard.text(`🪞 Допельґанґер · ${stake}`, makeShynokDicePokerDoppelgangerCreateCallbackData(mode, stake));
+  if (doppelgangerAvailable) {
+    for (const stake of stakes) {
+      keyboard.text(`🪞 ${stake}`, makeShynokDicePokerDoppelgangerCreateCallbackData(mode, stake));
     }
-
     keyboard.row();
   }
 

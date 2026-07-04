@@ -72,29 +72,21 @@ describe("Shynok game keyboards", () => {
       "❔ Правила",
       "↩ До ігор"
     ]);
-    expect(flatInlineButtonTexts(buildShynokDicePokerStakeKeyboard("quick", 23))).toEqual([
-      "👥 Стіл · 1",
-      "🪞 Допельґанґер · 1",
-      "👥 Стіл · 5",
-      "🪞 Допельґанґер · 5",
-      "👥 Стіл · 13",
-      "🪞 Допельґанґер · 13",
-      "👥 Стіл · 23",
-      "🪞 Допельґанґер · 23",
-      "❔ Правила",
-      "↩ До костей"
+    expect(inlineButtonRows(buildShynokDicePokerStakeKeyboard("quick", 23))).toEqual([
+      ["👥 1", "👥 5", "👥 13", "👥 23"],
+      ["🪞 1", "🪞 5", "🪞 13", "🪞 23"],
+      ["❔ Правила"],
+      ["↩ До костей"]
     ]);
   });
 
   it("hides the Doppelganger stake buttons while he is in the fighting corner", () => {
-    expect(flatInlineButtonTexts(buildShynokDicePokerStakeKeyboard("quick", 13, {
+    expect(inlineButtonRows(buildShynokDicePokerStakeKeyboard("quick", 13, {
       doppelgangerAvailable: false
     }))).toEqual([
-      "👥 Стіл · 1",
-      "👥 Стіл · 5",
-      "👥 Стіл · 13",
-      "❔ Правила",
-      "↩ До костей"
+      ["👥 1", "👥 5", "👥 13"],
+      ["❔ Правила"],
+      ["↩ До костей"]
     ]);
   });
 
@@ -199,6 +191,10 @@ function kostiSession(overrides: { status: string }) {
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);
+}
+
+function inlineButtonRows(keyboard: { inline_keyboard: { text: string }[][] }): string[][] {
+  return keyboard.inline_keyboard.map((row) => row.map((button) => button.text));
 }
 
 function flatInlineButtonCallbacks(
