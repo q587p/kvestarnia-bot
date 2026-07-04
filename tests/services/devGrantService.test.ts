@@ -8,6 +8,7 @@ import type {
   DevGrantItemResult,
   DevGrantProgressResult,
   DevGrantRepository,
+  DevGrantRogueResetResult,
   type DevGrantYegerQuestProgressResult,
   type DevGrantYegerQuestStage
 } from "../../src/db/repositories/devGrantRepository";
@@ -362,6 +363,27 @@ describe("DevGrantService", () => {
     )).toBe(true);
   });
 
+  it("resets Rogue cooldowns and same-day target memory for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.resetRogue(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "rogue-reset",
+      clearedCooldown: true,
+      deletedAttempts: 2,
+      character: {
+        id: "character-42"
+      }
+    });
+    expect(repository.calls.some((call) =>
+      call.includes("rogue-reset:42:") &&
+      call.includes("noncombat.rogue.pickpocket") &&
+      call.includes("technique.class.rogue.quiet-pocket") &&
+      /\d{4}-\d{2}-\d{2}$/.test(call)
+    )).toBe(true);
+  });
+
   it("resets the Yeger paid bandage purchase day for local QA", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -418,6 +440,7 @@ describe("DevGrantService", () => {
     await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetPriestBlessingCooldown(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetQuietPocketCooldown(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.resetRogue(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.completeFirstYegerQuestProgress(42n)).resolves.toEqual({ state: "disabled" });
     expect(repository.calls).toEqual([]);
   });
@@ -627,6 +650,29 @@ class FakeDevGrantRepository implements DevGrantRepository {
     return Promise.resolve({
       character: this.character,
       cleared: true
+    });
+  }
+
+  resetRogueForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { localDate: string }
+  ): Promise<DevGrantRogueResetResult | null> {
+    this.calls.push(
+      `rogue-reset:${telegramUserId.toString()}:${[
+        ...(input.keys ?? []),
+        ...(input.keyPrefixes ?? []),
+        input.localDate
+      ].join(",")}`
+    );
+
+    if (telegramUserId !== 42n) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      character: this.character,
+      clearedCooldown: true,
+      deletedAttempts: 2
     });
   }
 

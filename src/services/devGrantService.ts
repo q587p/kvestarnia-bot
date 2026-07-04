@@ -17,6 +17,7 @@ import {
   YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
   YEGER_BANDAGE_PURCHASE_PREVIEW_KEY
 } from "./dailyActionKeys";
+import { getKyivDayKey } from "../shared/kyivDate";
 
 const PRIEST_BLESSING_COOLDOWN_KEYS = [
   "technique.class.priest.blessing",
@@ -80,6 +81,13 @@ export type DevGrantResult =
         | "quiet-pocket-cooldown";
       character: CharacterRecord;
       cleared: boolean;
+    }
+  | {
+      state: "updated";
+      kind: "rogue-reset";
+      character: CharacterRecord;
+      clearedCooldown: boolean;
+      deletedAttempts: number;
     }
   | {
       state: "updated";
@@ -408,6 +416,30 @@ export class DevGrantService {
           kind: "quiet-pocket-cooldown",
           character: result.character,
           cleared: result.cleared
+        }
+      : { state: "no-character" };
+  }
+
+  async resetRogue(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = this.grants.resetRogueForTelegramUser
+      ? await this.grants.resetRogueForTelegramUser(telegramUserId, {
+          keys: QUIET_POCKET_COOLDOWN_KEYS,
+          keyPrefixes: QUIET_POCKET_COOLDOWN_PREFIXES,
+          localDate: getKyivDayKey()
+        })
+      : null;
+
+    return result
+      ? {
+          state: "updated",
+          kind: "rogue-reset",
+          character: result.character,
+          clearedCooldown: result.clearedCooldown,
+          deletedAttempts: result.deletedAttempts
         }
       : { state: "no-character" };
   }

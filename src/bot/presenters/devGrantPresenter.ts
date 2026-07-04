@@ -98,6 +98,23 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: «Тиха кишеня» і так без активного cooldown.";
   }
 
+  if (result.kind === "rogue-reset") {
+    if (result.clearedCooldown || result.deletedAttempts > 0) {
+      return [
+        "🧪 Dev: злодійський QA reset виконано.",
+        "",
+        result.clearedCooldown
+          ? "Пальці відсапались: cooldown скинуто."
+          : "Пальці й так були готові: активного cooldown не було.",
+        result.deletedAttempts > 0
+          ? `Сьогоднішні кишені забуто: ${result.deletedAttempts} ${formatUnit(result.deletedAttempts, ["запис", "записи", "записів"])}.`
+          : "Сьогоднішній список кишень уже був чистий."
+      ].join("\n");
+    }
+
+    return "🧪 Dev: злодій і так готовий до локальної перевірки.";
+  }
+
   if (result.kind === "yeger-bandage-day") {
     return result.deleted > 0
       ? `🧪 Dev: день купівлі бинтів Єгеря скинуто. Прибрано ${result.deleted} ${formatUnit(result.deleted, ["запис", "записи", "записів"])}.`

@@ -15,6 +15,7 @@ import type {
   DevGrantItemResult,
   DevGrantProgressResult,
   DevGrantRepository,
+  DevGrantRogueResetResult,
   DevGrantYegerQuestProgressResult,
   DevGrantYegerQuestStage
 } from "./devGrantRepository";
@@ -351,6 +352,39 @@ export class PrismaDevGrantRepository implements DevGrantRepository {
       return {
         character: toCharacterRecord(character),
         cleared: legacyCooldowns.count + pairWaits.count + activeBlessings.count > 0
+      };
+    });
+  }
+
+  async resetRogueForTelegramUser(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { localDate: string }
+  ): Promise<DevGrantRogueResetResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacterByTelegramUserId(tx, telegramUserId);
+
+      if (!character) {
+        return null;
+      }
+
+      const cooldownKeyWhere = buildCooldownKeyWhere(input);
+      const cooldowns = await tx.characterCooldown.deleteMany({
+        where: {
+          characterId: character.id,
+          ...(cooldownKeyWhere ? { OR: cooldownKeyWhere } : { key: "__no_dev_cooldown_match__" })
+        }
+      });
+      const attempts = await tx.noncombatRoguePickpocketAttempt.deleteMany({
+        where: {
+          actorCharacterId: character.id,
+          localDate: input.localDate
+        }
+      });
+
+      return {
+        character: toCharacterRecord(character),
+        clearedCooldown: cooldowns.count > 0,
+        deletedAttempts: attempts.count
       };
     });
   }

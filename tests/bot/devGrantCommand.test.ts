@@ -27,6 +27,7 @@ describe("dev grant commands", () => {
     const yegerTrailResetCalls = await captureMessageCalls("/dev_reset_yeger_trail", devGrant);
     const priestResetCalls = await captureMessageCalls("/dev_reset_priest_blessing", devGrant);
     const quietPocketResetCalls = await captureMessageCalls("/dev_reset_quiet_pocket", devGrant);
+    const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
 
@@ -49,6 +50,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetYegerTrackingCooldown).toHaveBeenCalledWith(42n);
     expect(devGrant.resetPriestBlessingCooldown).toHaveBeenCalledWith(42n);
     expect(devGrant.resetQuietPocketCooldown).toHaveBeenCalledWith(42n);
+    expect(devGrant.resetRogue).toHaveBeenCalledWith(42n);
     expect(devGrant.completeFirstYegerQuestProgress).toHaveBeenCalledWith(42n);
     expect(devGrant.completeSecondYegerQuestProgress).toHaveBeenCalledWith(42n);
     expect(String(defaultLevelCalls.at(-1)?.payload.text)).toContain("додано 1 рівень");
@@ -70,6 +72,7 @@ describe("dev grant commands", () => {
     expect(String(yegerTrailResetCalls.at(-1)?.payload.text)).toContain("очікування Єгерського сліду");
     expect(String(priestResetCalls.at(-1)?.payload.text)).toContain("жрецьке благословення");
     expect(String(quietPocketResetCalls.at(-1)?.payload.text)).toContain("Тиха кишеня");
+    expect(String(rogueResetCalls.at(-1)?.payload.text)).toContain("злодійський QA reset");
     expect(String(yegerFirstDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи» доведено до 5/5");
     expect(String(yegerSecondDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи 2.0» доведено до 17/17");
   });
@@ -161,6 +164,7 @@ describe("dev grant commands", () => {
     const yegerTrailCalls = await captureMessageCalls("/dev_reset_yeger_trail", devGrant);
     const priestResetCalls = await captureMessageCalls("/dev_reset_priest_blessing", devGrant);
     const quietPocketResetCalls = await captureMessageCalls("/dev_reset_quiet_pocket", devGrant);
+    const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
 
@@ -176,6 +180,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetYegerTrackingCooldown).not.toHaveBeenCalled();
     expect(devGrant.resetPriestBlessingCooldown).not.toHaveBeenCalled();
     expect(devGrant.resetQuietPocketCooldown).not.toHaveBeenCalled();
+    expect(devGrant.resetRogue).not.toHaveBeenCalled();
     expect(devGrant.completeFirstYegerQuestProgress).not.toHaveBeenCalled();
     expect(devGrant.completeSecondYegerQuestProgress).not.toHaveBeenCalled();
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -190,6 +195,7 @@ describe("dev grant commands", () => {
     expect(yegerTrailCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(priestResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(quietPocketResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(rogueResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerFirstDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerSecondDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
   });
@@ -302,6 +308,9 @@ function fakeDevGrantService(input: {
     typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
   >;
   resetQuietPocketCooldown: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
+  >;
+  resetRogue: ReturnType<
     typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
   >;
   completeFirstYegerQuestProgress: ReturnType<
@@ -463,6 +472,13 @@ function fakeDevGrantService(input: {
       kind: "quiet-pocket-cooldown",
       character,
       cleared: true
+    })),
+    resetRogue: vi.fn(() => Promise.resolve({
+      state: "updated",
+      kind: "rogue-reset",
+      character,
+      clearedCooldown: true,
+      deletedAttempts: 2
     })),
     completeFirstYegerQuestProgress: vi.fn(() => Promise.resolve({
       state: "updated",

@@ -20,7 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added rewardless achievements for first Priest heal, first Priest blessing, first Rogue pickpocket attempt, first successful pickpocket and first caught-badly outcome.
 - Added class noncombat callback, keyboard, presenter, service and repository slices with `v1:nc` callback routing.
 - Added Prisma tables for Priest aid actions, Priest blessings and Rogue pickpocket attempts.
-- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` now clear Priest blessing/support and Quiet Pocket cooldown rows for manual QA; the Rogue helper clears the current `noncombat.rogue.pickpocket` key plus legacy quiet-pocket keys, the Priest helper also expires active direct blessings and pair-target waits, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
+- Local `/dev_reset_priest_blessing`, `/dev_reset_quiet_pocket` and `/dev_reset_rogue` now clear Priest blessing/support and Rogue Quiet Pocket QA gates; `/dev_reset_quiet_pocket` keeps the narrow cooldown reset, `/dev_reset_rogue` also forgets the current Kyiv-day Rogue target-attempt rows, the Priest helper also expires active direct blessings and pair-target waits, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
 
 ### Changed
 - Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
@@ -79,14 +79,14 @@ This project follows a simple pre-1.0 versioning policy:
 - Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
 - Standard actor achievement notifications are sent only for fresh completed Priest heal/bless or Rogue attempts; blocked/no-op states and duplicate Rogue replays do not notify again.
 - No public shame/latest-events row, PvP tournament, item theft, universal noncombat engine, combat ability rebalance or paid advantage ships here.
-- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` are non-production grant helpers; production config must not register, show or mutate through them, and `/dev_reset_quiet_pocket` clears the actual current Rogue cooldown key.
+- Local `/dev_reset_priest_blessing`, `/dev_reset_quiet_pocket` and `/dev_reset_rogue` are non-production grant helpers; production config must not register, show or mutate through them, `/dev_reset_quiet_pocket` clears the actual current Rogue cooldown key, and `/dev_reset_rogue` clears both that cooldown family and same-day Rogue target memory for the current actor.
 
 ### Tests
 - Added domain tests for Priest heal math and deterministic Rogue amount/outcome shaping.
 - Added callback parser tests for `v1:nc` open/action payloads and stale-click remort counters.
 - Added service tests for Priest heal/blessing planning, Priest heal no-cooldown behavior, scaled Priest blessing bonus, Rogue deterministic planning, duplicate replay and achievement hooks.
 - Added service/hero coverage proving equipped manatky and active non-expired Priest blessing bonuses affect Priest/Rogue noncombat planning, target effective HP max uses the same source as the heal plan and expired blessings do not affect hero stats.
-- Added DevGrant coverage proving `/dev_reset_quiet_pocket` sends the current `noncombat.rogue.pickpocket` cooldown key while disabled dev grants still do not route.
+- Added DevGrant coverage proving `/dev_reset_quiet_pocket` sends the current `noncombat.rogue.pickpocket` cooldown key, `/dev_reset_rogue` clears same-day Rogue target rows, and disabled dev grants still do not route.
 - Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
 - Added repository regression coverage proving Priest healing does not create a cooldown row and Priest blessing waits are scoped to the same actor-target pair.
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.

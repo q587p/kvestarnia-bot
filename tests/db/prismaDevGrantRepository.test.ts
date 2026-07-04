@@ -185,6 +185,49 @@ describe("PrismaDevGrantRepository", () => {
     });
   });
 
+  it("resets Rogue cooldown and current-day pickpocket attempts for local QA", async () => {
+    const prisma = new FakeDevGrantPrisma({
+      level: 5,
+      hpCurrent: 20,
+      hpMax: 20
+    });
+    prisma.characterCooldowns.push(
+      { characterId: "character-1", key: "noncombat.rogue.pickpocket" },
+      { characterId: "character-1", key: "rogue.quiet-pocket.legacy" },
+      { characterId: "character-other", key: "noncombat.rogue.pickpocket" },
+      { characterId: "character-1", key: "unrelated.cooldown" }
+    );
+    prisma.rogueAttempts.push(
+      { actorCharacterId: "character-1", targetCharacterId: "target-1", localDate: "2026-07-04" },
+      { actorCharacterId: "character-1", targetCharacterId: "target-2", localDate: "2026-07-04" },
+      { actorCharacterId: "character-1", targetCharacterId: "target-3", localDate: "2026-07-03" },
+      { actorCharacterId: "character-other", targetCharacterId: "target-1", localDate: "2026-07-04" }
+    );
+    const repository = new PrismaDevGrantRepository(prisma.client);
+
+    const result = await repository.resetRogueForTelegramUser(telegramUserId, {
+      keys: ["noncombat.rogue.pickpocket"],
+      keyPrefixes: ["rogue.quiet-pocket"],
+      localDate: "2026-07-04"
+    });
+
+    expect(result).toMatchObject({
+      clearedCooldown: true,
+      deletedAttempts: 2,
+      character: {
+        id: "character-1"
+      }
+    });
+    expect(prisma.characterCooldowns).toEqual([
+      { characterId: "character-other", key: "noncombat.rogue.pickpocket" },
+      { characterId: "character-1", key: "unrelated.cooldown" }
+    ]);
+    expect(prisma.rogueAttempts).toEqual([
+      { actorCharacterId: "character-1", targetCharacterId: "target-3", localDate: "2026-07-03" },
+      { actorCharacterId: "character-other", targetCharacterId: "target-1", localDate: "2026-07-04" }
+    ]);
+  });
+
   it("creates real Yeger win rows for local turn-in QA without completing the quest", async () => {
     const prisma = new FakeDevGrantPrisma({
       level: 5,
@@ -239,6 +282,8 @@ class FakeDevGrantPrisma {
   lastDuelCombatUpdateInput: FakeSessionUpdateInput | null = null;
   readonly dailyActions: FakeDailyAction[] = [];
   readonly soloCombatSessions: FakeSoloCombatSession[] = [];
+  readonly characterCooldowns: FakeCharacterCooldown[] = [];
+  readonly rogueAttempts: FakeRogueAttempt[] = [];
   private readonly character: FakeCharacter;
   private readonly activeCombat: FakeActiveCombat | null;
 
@@ -299,6 +344,30 @@ class FakeDevGrantPrisma {
     },
     characterRemort: {
       count: () => Promise.resolve(0)
+    },
+    characterCooldown: {
+      deleteMany: ({ where }: FakeCooldownDeleteManyInput): Promise<{ count: number }> => {
+        const before = this.characterCooldowns.length;
+        const remaining = this.characterCooldowns.filter((cooldown) =>
+          !matchesCooldownDelete(cooldown, where)
+        );
+
+        this.characterCooldowns.splice(0, this.characterCooldowns.length, ...remaining);
+
+        return Promise.resolve({ count: before - remaining.length });
+      }
+    },
+    noncombatRoguePickpocketAttempt: {
+      deleteMany: ({ where }: FakeRogueAttemptDeleteManyInput): Promise<{ count: number }> => {
+        const before = this.rogueAttempts.length;
+        const remaining = this.rogueAttempts.filter((attempt) =>
+          attempt.actorCharacterId !== where.actorCharacterId || attempt.localDate !== where.localDate
+        );
+
+        this.rogueAttempts.splice(0, this.rogueAttempts.length, ...remaining);
+
+        return Promise.resolve({ count: before - remaining.length });
+      }
     },
     activeCombatLease: {
       findUnique: ({ where }: { where: { characterId: string } }): Promise<FakeActiveCombatLease | null> =>
@@ -419,6 +488,12 @@ interface FakeTransactionClient {
   };
   characterRemort: {
     count(): Promise<number>;
+  };
+  characterCooldown: {
+    deleteMany(input: FakeCooldownDeleteManyInput): Promise<{ count: number }>;
+  };
+  noncombatRoguePickpocketAttempt: {
+    deleteMany(input: FakeRogueAttemptDeleteManyInput): Promise<{ count: number }>;
   };
   activeCombatLease: {
     findUnique(input: { where: { characterId: string } }): Promise<FakeActiveCombatLease | null>;
@@ -552,7 +627,61 @@ interface FakeSoloCombatCreateInput {
   };
 }
 
+interface FakeCharacterCooldown {
+  characterId: string;
+  key: string;
+}
+
+interface FakeCooldownDeleteManyInput {
+  where: {
+    characterId: string;
+    OR?: Array<{
+      key: string | { in?: string[]; startsWith?: string };
+    }>;
+    key?: string;
+  };
+}
+
+interface FakeRogueAttempt {
+  actorCharacterId: string;
+  targetCharacterId: string;
+  localDate: string;
+}
+
+interface FakeRogueAttemptDeleteManyInput {
+  where: {
+    actorCharacterId: string;
+    localDate: string;
+  };
+}
+
 type FakeCharacter = ReturnType<typeof makeCharacter>;
+
+function matchesCooldownDelete(
+  cooldown: FakeCharacterCooldown,
+  where: FakeCooldownDeleteManyInput["where"]
+): boolean {
+  if (cooldown.characterId !== where.characterId) {
+    return false;
+  }
+
+  if (where.OR) {
+    return where.OR.some((condition) => matchesCooldownKey(cooldown.key, condition.key));
+  }
+
+  return typeof where.key === "string" && cooldown.key === where.key;
+}
+
+function matchesCooldownKey(key: string, condition: string | { in?: string[]; startsWith?: string }): boolean {
+  if (typeof condition === "string") {
+    return key === condition;
+  }
+
+  return (
+    condition.in?.includes(key) === true ||
+    (condition.startsWith !== undefined && key.startsWith(condition.startsWith))
+  );
+}
 
 function makeCharacter(input: { level: number; hpCurrent: number; hpMax: number }) {
   return {

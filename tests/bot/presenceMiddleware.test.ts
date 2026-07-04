@@ -236,6 +236,7 @@ describe("presence middleware", () => {
     ["/dev_reset_yeger_trail", "resetYegerTrackingCooldown"],
     ["/dev_reset_priest_blessing", "resetPriestBlessingCooldown"],
     ["/dev_reset_quiet_pocket", "resetQuietPocketCooldown"],
+    ["/dev_reset_rogue", "resetRogue"],
     ["/dev_yeger_first_done", "completeFirstYegerQuestProgress"],
     ["/dev_yeger_second_done", "completeSecondYegerQuestProgress"]
   ] as const)("lets %s bypass the active combat lock for local QA", async (command, methodName) => {
@@ -357,6 +358,16 @@ describe("presence middleware", () => {
             kind: "quiet-pocket-cooldown" as const,
             character: characterRecord(),
             cleared: true
+          });
+        },
+        resetRogue: () => {
+          calls.push("resetRogue");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "rogue-reset" as const,
+            character: characterRecord(),
+            clearedCooldown: true,
+            deletedAttempts: 2
           });
         },
         completeSecondYegerQuestProgress: () => {

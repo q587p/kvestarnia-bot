@@ -151,6 +151,7 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "dev_reset_yeger_trail" ||
     command === "dev_reset_priest_blessing" ||
     command === "dev_reset_quiet_pocket" ||
+    command === "dev_reset_rogue" ||
     command === "dev_yeger_first_done" ||
     command === "dev_yeger_second_done" ||
     command === "dev_raid_win" ||

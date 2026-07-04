@@ -25,6 +25,12 @@ export type DevGrantCooldownResult = {
   cleared: boolean;
 };
 
+export type DevGrantRogueResetResult = {
+  character: CharacterRecord;
+  clearedCooldown: boolean;
+  deletedAttempts: number;
+};
+
 export type DevGrantCooldownMatchInput = {
   keys?: readonly string[];
   keyPrefixes?: readonly string[];
@@ -99,6 +105,11 @@ export interface DevGrantRepository {
     telegramUserId: bigint,
     input: DevGrantCooldownMatchInput & { now: Date }
   ): Promise<DevGrantCooldownResult | null>;
+
+  resetRogueForTelegramUser?(
+    telegramUserId: bigint,
+    input: DevGrantCooldownMatchInput & { localDate: string }
+  ): Promise<DevGrantRogueResetResult | null>;
 
   finishCooldownForTelegramUser(
     telegramUserId: bigint,

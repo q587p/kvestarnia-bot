@@ -70,6 +70,7 @@ const expectedCommandAliasInventory = [
   "dev_reset_monster_rest",
   "dev_reset_priest_blessing",
   "dev_reset_quiet_pocket",
+  "dev_reset_rogue",
   "dev_reset_yeger_bandage",
   "dev_reset_yeger_bandage_day",
   "dev_reset_yeger_trail",
