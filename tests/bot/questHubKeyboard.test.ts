@@ -154,6 +154,39 @@ describe("quest hub keyboard", () => {
     expect(json).toContain("v1:place:hall");
   });
 
+  it("keeps the hall return unmarked from the quest table when only table quests are ready", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        currentLocationId: "location.korchma.quest_table",
+        adventure: { state: "ready", character: character() },
+        fight: { state: "level-retired", character: character(), maxLevel: 13, completed: true },
+        problemQuest: {
+          ...problemQuestProgress(),
+          branchComplete: true,
+          completed: true,
+          rewardClaimed: true
+        },
+        yeger: {
+          state: "completed",
+          character: character(),
+          progress: {
+            completed: true,
+            contractsClosed: 5,
+            target: 5,
+            rewardClaimed: true
+          }
+        },
+        cellar: { state: "level-retired", character: character(), maxLevel: 3, completed: true }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🪧 Обрати пригоду ⚠️");
+    expect(json).toContain("🍺 До зали");
+    expect(json).toContain("v1:place:hall");
+    expect(json).not.toContain("🍺 До зали ⚠️");
+  });
+
   it("marks the back-to-hall route when hall child locations have available quests", () => {
     const keyboard = buildQuestHubKeyboard(
       makeInput({
