@@ -135,6 +135,36 @@ describe("quest hub keyboard", () => {
     expect(json).toContain("🧾 Корчмарський обхід");
     expect(json).toContain("v1:dkr:o:20260628");
   });
+
+  it("marks the back-to-hall route when hall child locations have available quests", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        adventure: { state: "already-completed", character: character(), fightAvailable: false },
+        fight: {
+          state: "persistent-ready",
+          character: character(),
+          questProgress: completedProblemQuestProgress()
+        },
+        problemQuest: completedProblemQuestProgress(),
+        yeger: {
+          state: "completed",
+          character: character(),
+          progress: {
+            completed: true,
+            contractsClosed: 5,
+            target: 5,
+            rewardClaimed: true
+          }
+        },
+        cellar: { state: "ready", character: character(), completed: false }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("🍻 До шинку ✅");
+    expect(json).toContain("🧹 У льох ⚠️");
+    expect(json).toContain("🍺 До зали ✅");
+  });
 });
 
 function makeInput(overrides: Partial<QuestHubKeyboardInput> = {}): QuestHubKeyboardInput {

@@ -2708,7 +2708,7 @@ describe("main menu and scene keyboards", () => {
       "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
     expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
     expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму ⚠️");
@@ -2747,7 +2747,7 @@ describe("main menu and scene keyboards", () => {
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
     expect(flatInlineButtonCallbacks(level13HubKeyboard)).toContain("v1:rm:open");
 
@@ -2863,7 +2863,7 @@ describe("main menu and scene keyboards", () => {
       "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
 
     expect(
@@ -2893,7 +2893,7 @@ describe("main menu and scene keyboards", () => {
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
 
     expect(

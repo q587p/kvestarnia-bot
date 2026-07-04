@@ -48,7 +48,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
       keyboard.text("📖 Бестіарій", makeBestiaryListCallbackData(0)).row();
     }
 
-    keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
+    keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
 
     return keyboard;
   }
@@ -162,9 +162,16 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
-  keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
+  keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
 
   return keyboard;
+}
+
+function buildBackToHallLabel(input: QuestHubKeyboardInput): string {
+  return decorateButtonLabel(
+    "🍺 До зали",
+    resolveQuestMarkerForTarget(input, "location.korchma.hall")
+  );
 }
 
 function addQuestReferenceButtons(

@@ -80,7 +80,7 @@ describe("quest hub command", () => {
       "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
     expect(buttons).toEqual(expect.arrayContaining([
       { text: "🪧 Обрати пригоду", callback_data: makeQuestCallbackData("adventure") },
@@ -160,7 +160,7 @@ describe("quest hub command", () => {
       "🌯 До підозрілої шаурми",
       "⚔️ До сутички",
       "📦 Архів",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -197,7 +197,7 @@ describe("quest hub command", () => {
       "⚔️ До сутички",
       "🧹 У льох ⚠️",
       "📦 Архів",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -349,7 +349,7 @@ describe("quest hub command", () => {
       "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -401,7 +401,7 @@ describe("quest hub command", () => {
       "🧹 У льох",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -464,7 +464,7 @@ describe("quest hub command", () => {
       "🏹 До Єгеря ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -551,7 +551,7 @@ describe("quest hub command", () => {
         inline_keyboard: [
           [{ text: "📋 До справ", callback_data: makeQuestCallbackData("list") }],
           [{ text: "📖 Бестіарій", callback_data: makeBestiaryListCallbackData(0) }],
-          [{ text: "🍺 До зали", callback_data: makePlaceCallbackData("hall") }]
+          [{ text: "🍺 До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });
@@ -867,7 +867,7 @@ describe("quest hub command", () => {
       "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
   });
 
@@ -1088,7 +1088,7 @@ describe("quest hub command", () => {
       "🧹 У льох ⚠️",
       "📦 Архів",
       "📖 Бестіарій",
-      "🍺 До зали"
+      "🍺 До зали ⚠️"
     ]);
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("bar"));
     expect(buttons.map((button) => button.text)).not.toContain("До Низу");
