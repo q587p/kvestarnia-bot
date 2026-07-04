@@ -28,6 +28,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
   PRESENCE_LOCATION_KORCHMA_YARD
 } from "../../src/services/presenceService";
+import { raceAbilities } from "../../src/content/playerAbilities";
 
 describe("lore board content", () => {
   it("validates ids, category links, body/source text and canonical refs", () => {
@@ -157,6 +158,18 @@ describe("lore board content", () => {
     expect(classLoreBody("class-ranger")).toContain("єгерський куток");
     expect(loreEntries.filter((entry) => entry.categoryId === "classes").map((entry) => entry.body).join("\n"))
       .not.toContain("З 3 рівня");
+  });
+
+  it("keeps race lore aligned with race combat abilities", () => {
+    for (const ability of raceAbilities) {
+      const entry = loreEntries.find((candidate) =>
+        candidate.categoryId === "races" &&
+        candidate.canonicalRefs?.some((ref) => ref.type === "race" && ref.id === ability.raceId)
+      );
+
+      expect(entry?.body, ability.raceId).toContain("\n\n");
+      expect(entry?.body, ability.raceId).toContain(ability.label);
+    }
   });
 
   it("detects broken lore records", () => {

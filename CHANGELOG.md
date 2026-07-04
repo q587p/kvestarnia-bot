@@ -69,7 +69,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.
 - Added a `✨ Благословити себе` shortcut to the hero card for eligible Priests when mana is enough and no active self-blessing or same-target repeat wait blocks the action.
 - Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
-- Refreshed `📖 Перекази` class entries so every class names its combat ability, while Warrior, Bard, Rogue, Priest and Ranger also mention their shipped side class surfaces in separate paragraphs.
+- Refreshed `📖 Перекази` class entries so every class names its combat ability, while Warrior, Bard, Rogue, Priest and Ranger also mention their shipped side class surfaces in separate paragraphs; race entries now also include their race combat ability as a second paragraph.
 - Kept underdog combat wins with `+5..+7` level advantage in general/combat `📜 Хроніки Квестарні` rows but removed them from `⭐ Важливе`; only `+8` and higher underdog wins stay important for now, including historical rows already stored with high severity.
 
 ### Safety
