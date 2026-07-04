@@ -19,7 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added rewardless achievements for first Priest heal, first Priest blessing, first Rogue pickpocket attempt, first successful pickpocket and first caught-badly outcome.
 - Added class noncombat callback, keyboard, presenter, service and repository slices with `v1:nc` callback routing.
 - Added Prisma tables for Priest aid actions, Priest blessings and Rogue pickpocket attempts.
-- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` now clear Priest blessing/support and Quiet Pocket cooldown rows for manual QA; the Priest helper also expires active direct blessings and pair-target waits, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
+- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` now clear Priest blessing/support and Quiet Pocket cooldown rows for manual QA; the Rogue helper clears the current `noncombat.rogue.pickpocket` key plus legacy quiet-pocket keys, the Priest helper also expires active direct blessings and pair-target waits, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
 
 ### Changed
 - Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
@@ -44,6 +44,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Shortened starter shawarma, starter cellar and regular Adventure method-choice cards so the message body stops duplicating method labels and the character prompt; action labels stay in buttons and method help.
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
 - Active Priest blessing now appears as a visible `Вдача` bonus in the hero card stats and no longer uses technical stacking copy in player-facing text.
+- Priest/Rogue class noncombat planning now uses canonical effective character summaries, so equipped manatky and active non-expired Priest blessing bonuses affect Priest heal amount, Priest blessing strength and Rogue pickpocket power/bonus consistently with the hero card.
+- Stored Priest/Rogue noncombat stat snapshots now reflect the effective inputs actually used for planning, including equipped item ids/effects and active blessing metadata when present.
 - Priest aid open cards now label the same-target blessing wait clearly, so it does not read like the active blessing duration.
 - Marked completed Priest healing resource lines with `❤️` for HP gained and `💫` for mana spent.
 - Scaled Priest direct-heal mana spending to actual HP restored, capped at 13, and scaled Priest blessing spending from 8 to 23 by the granted `+1..+5` luck bonus.
@@ -67,16 +69,19 @@ This project follows a simple pre-1.0 versioning policy:
 - Failed, no-op, full-HP, insufficient-mana, already-blessed, stale and blocked Priest attempts do not spend mana or start a same-target blessing wait; successful healing never starts cooldown.
 - Priest/Rogue open cards and the hero self-heal shortcut now reuse the same active-flow block awareness as mutation-time gates, so busy actors do not receive misleading ready action buttons.
 - Successful Priest healing and blessing now anchor mana regeneration at the action time, so an old regen marker cannot immediately refill spent mana on the next hero/card read.
+- Active Priest blessing stat bonuses now use a shared helper for hero summaries and class noncombat planning; expired blessings do not affect stats and active blessings still do not stack.
 - Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
 - Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
 - Standard actor achievement notifications are sent only for fresh completed Priest heal/bless or Rogue attempts; blocked/no-op states and duplicate Rogue replays do not notify again.
 - No public shame/latest-events row, PvP tournament, item theft, universal noncombat engine, combat ability rebalance or paid advantage ships here.
-- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` are non-production grant helpers; production config must not register, show or mutate through them.
+- Local `/dev_reset_priest_blessing` and `/dev_reset_quiet_pocket` are non-production grant helpers; production config must not register, show or mutate through them, and `/dev_reset_quiet_pocket` clears the actual current Rogue cooldown key.
 
 ### Tests
 - Added domain tests for Priest heal math and deterministic Rogue amount/outcome shaping.
 - Added callback parser tests for `v1:nc` open/action payloads and stale-click remort counters.
 - Added service tests for Priest heal/blessing planning, Priest heal no-cooldown behavior, scaled Priest blessing bonus, Rogue deterministic planning, duplicate replay and achievement hooks.
+- Added service/hero coverage proving equipped manatky and active non-expired Priest blessing bonuses affect Priest/Rogue noncombat planning, target effective HP max uses the same source as the heal plan and expired blessings do not affect hero stats.
+- Added DevGrant coverage proving `/dev_reset_quiet_pocket` sends the current `noncombat.rogue.pickpocket` cooldown key while disabled dev grants still do not route.
 - Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
 - Added repository regression coverage proving Priest healing does not create a cooldown row and Priest blessing waits are scoped to the same actor-target pair.
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.

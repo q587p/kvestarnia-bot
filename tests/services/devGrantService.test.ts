@@ -356,6 +356,7 @@ describe("DevGrantService", () => {
     )).toBe(true);
     expect(repository.calls.some((call) =>
       call.includes("cooldowns:42:") &&
+      call.includes("noncombat.rogue.pickpocket") &&
       call.includes("technique.class.rogue.quiet-pocket") &&
       call.includes("social.thief.quiet-pocket")
     )).toBe(true);

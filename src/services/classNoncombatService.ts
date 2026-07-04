@@ -1,4 +1,3 @@
-import { items } from "../content";
 import type {
   ClassNoncombatRepository,
   NoncombatGateReason,
@@ -7,6 +6,8 @@ import type {
   PriestBlessingRecord,
   RoguePickpocketAttemptRecord
 } from "../db/repositories/classNoncombatRepository";
+import type { CharacterRecord } from "../db/repositories/characterRepository";
+import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   buildPriestBlessingPlan,
@@ -17,8 +18,10 @@ import {
   PRIEST_DIRECT_AID_COOLDOWN_MINUTES,
   ROGUE_PICKPOCKET_COOLDOWN_MINUTES
 } from "../domain/noncombat/classNoncombatTechniques";
+import { applyPriestBlessingBonusToSummary } from "../domain/noncombat/priestBlessingBonus";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
+import { getEquippedItemContents } from "./equipmentService";
 import { PRESENCE_ACTIVE_MS } from "./presenceService";
 import { toKorchmaLocalDate } from "./tavernRaidService";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
@@ -78,7 +81,8 @@ export class ClassNoncombatService {
     private readonly repository: ClassNoncombatRepository,
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly equipment?: Pick<EquipmentRepository, "listByTelegramUserId">
   ) {}
 
   async openForTelegramUser(
@@ -98,7 +102,8 @@ export class ClassNoncombatService {
       return { state: "no-character" };
     }
 
-    const character = summarizeWithKnownItems(snapshot.character);
+    const effectiveActor = await this.summarizeForPlanning(telegramUserId, snapshot.character, now);
+    const character = effectiveActor.summary;
     const eligible =
       character.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
       ((mode === "priest" && character.classId === "class.priest") ||
@@ -115,15 +120,16 @@ export class ClassNoncombatService {
       locationName: snapshot.locationName,
       targetPage: snapshot.targetPage,
       targetTotalPages: snapshot.targetTotalPages,
-      targets: snapshot.targets.map((target) => ({
+      targets: await Promise.all(snapshot.targets.map(async (target) => ({
         ...target,
+        ...summarizeTargetFields((await this.summarizeForPlanning(target.telegramUserId, target.character, now)).summary),
         canPriestAid: mode === "priest",
         canRoguePickpocket:
           mode === "rogue" &&
           target.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
           !target.rogueAttemptedToday &&
           !snapshot.roguePickpocketCooldownAvailableAt
-      })),
+      }))),
       priestBlessCooldownAvailableAt: snapshot.priestBlessCooldownAvailableAt,
       priestSelfBlessAvailableAt: snapshot.priestSelfBlessAvailableAt,
       roguePickpocketCooldownAvailableAt: snapshot.roguePickpocketCooldownAvailableAt
@@ -145,16 +151,23 @@ export class ClassNoncombatService {
       pageSize: 50,
       now
     });
-    const actor = preflight ? summarizeWithKnownItems(preflight.character) : null;
+    const actor = preflight
+      ? await this.summarizeForPlanning(actorTelegramUserId, preflight.character, now)
+      : null;
+    const targetRecord = input.targetTelegramUserId === null
+      ? null
+      : preflight?.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId) ?? null;
     const target = input.targetTelegramUserId === null
       ? actor
-      : preflight?.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId) ?? null;
+      : targetRecord
+        ? await this.summarizeForPlanning(targetRecord.telegramUserId, targetRecord.character, now)
+        : null;
     const plan = actor && target
       ? buildPriestHealPlan({
-          missingHp: target.hpMax - target.hpCurrent,
-          charisma: actor.stats.charisma,
-          intelligence: actor.stats.intelligence,
-          level: actor.level
+          missingHp: target.summary.hpMax - target.summary.hpCurrent,
+          charisma: actor.summary.stats.charisma,
+          intelligence: actor.summary.stats.intelligence,
+          level: actor.summary.level
         })
       : buildPriestHealPlan({ missingHp: 1, charisma: 0, intelligence: 0, level: 1 });
     const result = await this.repository.completePriestHeal(actorTelegramUserId, {
@@ -162,9 +175,15 @@ export class ClassNoncombatService {
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       now,
       healAmount: plan.heal,
-      targetEffectiveHpMax: target?.hpMax ?? 1,
+      targetEffectiveHpMax: target?.summary.hpMax ?? 1,
       manaCost: plan.manaCost,
-      statSnapshot: actor ? { level: actor.level, charisma: actor.stats.charisma, intelligence: actor.stats.intelligence } : {}
+      statSnapshot: actor
+        ? buildPriestStatSnapshot(actor, {
+            targetLevel: target?.summary.level,
+            healAmount: plan.heal,
+            targetEffectiveHpMax: target?.summary.hpMax
+          })
+        : {}
     });
 
     if (result.state === "blocked") {
@@ -181,8 +200,8 @@ export class ClassNoncombatService {
     return {
       state: "completed",
       action: result.action,
-      actor: summarizeWithKnownItems(result.actor),
-      target: summarizeWithKnownItems(result.target),
+      actor: (await this.summarizeForPlanning(result.action.actorTelegramUserId, result.actor, now)).summary,
+      target: (await this.summarizeForPlanning(result.action.targetTelegramUserId, result.target, now)).summary,
       unlocks
     };
   }
@@ -202,15 +221,22 @@ export class ClassNoncombatService {
       pageSize: 50,
       now
     });
-    const actor = snapshot ? summarizeWithKnownItems(snapshot.character) : null;
+    const actor = snapshot
+      ? await this.summarizeForPlanning(actorTelegramUserId, snapshot.character, now)
+      : null;
+    const targetRecord = input.targetTelegramUserId === null
+      ? null
+      : snapshot?.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId) ?? null;
     const target = input.targetTelegramUserId === null
       ? actor
-      : snapshot?.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId) ?? null;
+      : targetRecord
+        ? await this.summarizeForPlanning(targetRecord.telegramUserId, targetRecord.character, now)
+        : null;
     const plan = actor && target
       ? buildPriestBlessingPlan({
-          priestLevel: actor.level,
-          priestIntelligence: actor.stats.intelligence,
-          targetLevel: target.level
+          priestLevel: actor.summary.level,
+          priestIntelligence: actor.summary.stats.intelligence,
+          targetLevel: target.summary.level
         })
       : buildPriestBlessingPlan({ priestLevel: 1, priestIntelligence: 0, targetLevel: 1 });
     const result = await this.repository.completePriestBlessing(actorTelegramUserId, {
@@ -223,10 +249,7 @@ export class ClassNoncombatService {
       bonusAmount: plan.bonusAmount,
       statSnapshot: actor
         ? {
-            level: actor.level,
-            charisma: actor.stats.charisma,
-            intelligence: actor.stats.intelligence,
-            targetLevel: target?.level ?? 1,
+            ...buildPriestStatSnapshot(actor, { targetLevel: target?.summary.level ?? 1 }),
             levelDiff: plan.levelDiff,
             blessingBonus: plan.bonusAmount
           }
@@ -248,8 +271,8 @@ export class ClassNoncombatService {
       state: "completed",
       action: result.action,
       blessing: result.blessing,
-      actor: summarizeWithKnownItems(result.actor),
-      target: summarizeWithKnownItems(result.target),
+      actor: (await this.summarizeForPlanning(result.action.actorTelegramUserId, result.actor, now)).summary,
+      target: (await this.summarizeForPlanning(result.action.targetTelegramUserId, result.target, now)).summary,
       unlocks
     };
   }
@@ -269,14 +292,19 @@ export class ClassNoncombatService {
       pageSize: 50,
       now
     });
-    const actor = snapshot ? summarizeWithKnownItems(snapshot.character) : null;
-    const target = snapshot?.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId) ?? null;
+    const actor = snapshot
+      ? await this.summarizeForPlanning(actorTelegramUserId, snapshot.character, now)
+      : null;
+    const targetRecord = snapshot?.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId) ?? null;
+    const target = targetRecord
+      ? await this.summarizeForPlanning(targetRecord.telegramUserId, targetRecord.character, now)
+      : null;
     const plan = buildRoguePickpocketPlan({
-      rogueDexterity: actor?.stats.dexterity ?? 0,
-      rogueLuck: actor?.stats.luck ?? 0,
-      rogueLevel: actor?.level ?? 1,
-      targetLevel: target?.level ?? 1,
-      targetGold: target?.gold ?? 0,
+      rogueDexterity: actor?.summary.stats.dexterity ?? 0,
+      rogueLuck: actor?.summary.stats.luck ?? 0,
+      rogueLevel: actor?.summary.level ?? 1,
+      targetLevel: target?.summary.level ?? 1,
+      targetGold: target?.summary.gold ?? 0,
       baseRoll: this.rng.nextInt(0, 4),
       outcomeRoll: this.rng.nextInt(-13, 13)
     });
@@ -289,10 +317,8 @@ export class ClassNoncombatService {
       outcome: plan.outcome,
       stolenGold: plan.stolenGold,
       statSnapshot: {
-        level: actor?.level ?? 1,
-        dexterity: actor?.stats.dexterity ?? 0,
-        luck: actor?.stats.luck ?? 0,
-        targetLevel: target?.level ?? 1,
+        ...buildRogueStatSnapshot(actor),
+        targetLevel: target?.summary.level ?? 1,
         baseGold: plan.baseGold,
         bonusGold: plan.bonusGold,
         levelDiff: plan.levelDiff,
@@ -334,10 +360,29 @@ export class ClassNoncombatService {
     return {
       state: "completed",
       attempt: result.attempt,
-      actor: summarizeWithKnownItems(result.actor),
-      target: summarizeWithKnownItems(result.target),
+      actor: (await this.summarizeForPlanning(result.attempt.actorTelegramUserId, result.actor, now)).summary,
+      target: (await this.summarizeForPlanning(result.attempt.targetTelegramUserId, result.target, now)).summary,
       created: result.created,
       unlocks
+    };
+  }
+
+  private async summarizeForPlanning(
+    telegramUserId: bigint,
+    character: CharacterRecord,
+    now: Date
+  ): Promise<EffectiveClassNoncombatCharacter> {
+    const [equipmentSnapshot, activeBlessing] = await Promise.all([
+      this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
+      this.repository.getActivePriestBlessingForTelegramUser(telegramUserId, now)
+    ]);
+    const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+    const baseSummary = summarizeCharacter(character, { equippedItems });
+
+    return {
+      summary: applyPriestBlessingBonusToSummary(baseSummary, activeBlessing, now),
+      equippedItemIds: equippedItems.map((item) => item.id),
+      activePriestBlessing: activeBlessing
     };
   }
 }
@@ -347,18 +392,82 @@ function presentBlocked<T extends { state: "blocked"; reason: NoncombatGateReaso
 ): T & { actor?: CharacterSummary; target?: CharacterSummary } {
   const mapped = { ...result } as T & { actor?: CharacterSummary; target?: CharacterSummary };
   if (result.actor) {
-    mapped.actor = summarizeWithKnownItems(result.actor as Parameters<typeof summarizeWithKnownItems>[0]);
+    mapped.actor = summarizeCharacter(result.actor as CharacterRecord);
   }
   if (result.target) {
-    mapped.target = summarizeWithKnownItems(result.target as Parameters<typeof summarizeWithKnownItems>[0]);
+    mapped.target = summarizeCharacter(result.target as CharacterRecord);
   }
   return mapped;
 }
 
-function summarizeWithKnownItems(character: Parameters<typeof summarizeCharacter>[0]): CharacterSummary {
-  return summarizeCharacter(character, {
-    equippedItems: items.filter(() => false)
-  });
+interface EffectiveClassNoncombatCharacter {
+  summary: CharacterSummary;
+  equippedItemIds: string[];
+  activePriestBlessing: {
+    id: string;
+    bonusStat: string | null;
+    bonusAmount: number;
+    expiresAt: Date;
+  } | null;
+}
+
+function summarizeTargetFields(summary: CharacterSummary): Pick<NoncombatTargetRecord, "level" | "hpCurrent" | "hpMax" | "gold"> {
+  return {
+    level: summary.level,
+    hpCurrent: summary.hpCurrent,
+    hpMax: summary.hpMax,
+    gold: summary.gold
+  };
+}
+
+function buildPriestStatSnapshot(
+  actor: EffectiveClassNoncombatCharacter,
+  extra: {
+    targetLevel?: number | undefined;
+    healAmount?: number | undefined;
+    targetEffectiveHpMax?: number | undefined;
+  } = {}
+) {
+  return {
+    level: actor.summary.level,
+    charisma: actor.summary.stats.charisma,
+    intelligence: actor.summary.stats.intelligence,
+    stats: actor.summary.stats,
+    equipmentItemIds: actor.equippedItemIds,
+    equipmentEffects: actor.summary.equipmentEffects,
+    ...(actor.activePriestBlessing
+      ? {
+          activePriestBlessing: {
+            id: actor.activePriestBlessing.id,
+            bonusStat: actor.activePriestBlessing.bonusStat,
+            bonusAmount: actor.activePriestBlessing.bonusAmount,
+            expiresAt: actor.activePriestBlessing.expiresAt.toISOString()
+          }
+        }
+      : {}),
+    ...extra
+  };
+}
+
+function buildRogueStatSnapshot(actor: EffectiveClassNoncombatCharacter | null) {
+  return {
+    level: actor?.summary.level ?? 1,
+    dexterity: actor?.summary.stats.dexterity ?? 0,
+    luck: actor?.summary.stats.luck ?? 0,
+    stats: actor?.summary.stats ?? {},
+    equipmentItemIds: actor?.equippedItemIds ?? [],
+    equipmentEffects: actor?.summary.equipmentEffects,
+    ...(actor?.activePriestBlessing
+      ? {
+          activePriestBlessing: {
+            id: actor.activePriestBlessing.id,
+            bonusStat: actor.activePriestBlessing.bonusStat,
+            bonusAmount: actor.activePriestBlessing.bonusAmount,
+            expiresAt: actor.activePriestBlessing.expiresAt.toISOString()
+          }
+        }
+      : {})
+  };
 }
 
 function addMinutes(date: Date, minutes: number): Date {

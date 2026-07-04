@@ -96,7 +96,13 @@ export function createServices(
       repositories.dailyActions,
       repositories.cooldowns
     ),
-    classNoncombat: new ClassNoncombatService(repositories.classNoncombat, undefined, undefined, achievements),
+    classNoncombat: new ClassNoncombatService(
+      repositories.classNoncombat,
+      undefined,
+      undefined,
+      achievements,
+      repositories.equipment
+    ),
     dailyKorchmaRound: new DailyKorchmaRoundService(
       repositories.characters,
       repositories.dailyActions,

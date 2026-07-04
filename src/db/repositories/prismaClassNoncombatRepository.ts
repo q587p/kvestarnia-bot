@@ -767,6 +767,7 @@ async function listActiveTargets(
       ? [{
           telegramUserId: user.telegramUserId,
           characterId: user.character.id,
+          character: toActiveTargetCharacterRecord(user.character, user.character.userId, user.lastSeenLocationId),
           name: user.character.name,
           classId: user.character.classId,
           level: user.character.level,
@@ -938,6 +939,22 @@ async function findCharacterByIdOrThrow(client: TxClient, characterId: string): 
     where: { id: characterId },
     include: characterInclude
   });
+}
+
+function toActiveTargetCharacterRecord(
+  character: Character & { _count?: { remorts?: number } },
+  userId: string,
+  currentLocationId: string | null
+): CharacterRecord {
+  const { _count, ...record } = character;
+  void _count;
+
+  return {
+    ...record,
+    userId,
+    currentLocationId,
+    remortCount: getIncludedRemortCount(character)
+  };
 }
 
 function toCharacterRecord(character: IncludedCharacter): CharacterRecord {

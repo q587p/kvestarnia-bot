@@ -32,7 +32,9 @@ const PRIEST_BLESSING_COOLDOWN_PREFIXES = [
   "social.priest.blessing",
   "priest.blessing"
 ];
+const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
 const QUIET_POCKET_COOLDOWN_KEYS = [
+  ROGUE_PICKPOCKET_COOLDOWN_KEY,
   "technique.class.rogue.quiet-pocket",
   "technique.class.thief.quiet-pocket",
   "class.rogue.quiet-pocket",

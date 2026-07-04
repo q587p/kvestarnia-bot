@@ -4,6 +4,7 @@ import type { RoguePickpocketOutcome } from "../../domain/noncombat/classNoncomb
 export interface NoncombatTargetRecord {
   telegramUserId: bigint;
   characterId: string;
+  character: CharacterRecord;
   name: string;
   classId: string;
   level: number;

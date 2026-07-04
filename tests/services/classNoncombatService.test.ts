@@ -3,12 +3,18 @@ import type {
   ClassNoncombatRepository,
   NoncombatActionSnapshot,
   PriestAidRecord,
+  PriestBlessingRecord,
   PriestBlessRepositoryResult,
   PriestHealRepositoryResult,
   RoguePickpocketAttemptRecord,
   RoguePickpocketRepositoryResult
 } from "../../src/db/repositories/classNoncombatRepository";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
+import type {
+  CharacterEquipmentRecord,
+  CharacterEquipmentSnapshot,
+  EquipmentRepository
+} from "../../src/db/repositories/equipmentRepository";
 import { ClassNoncombatService } from "../../src/services/classNoncombatService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { AchievementService } from "../../src/services/achievementService";
@@ -69,6 +75,57 @@ describe("ClassNoncombatService", () => {
     });
   });
 
+  it("plans Priest healing with equipped manatky and target effective HP max", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: priest({ manaCurrent: 20, statsJson: { charisma: 9, intelligence: 8 } }),
+      target: target({ hpCurrent: 20, hpMax: 20 })
+    });
+    const equipment = new FakeEquipmentRepository([
+      snapshotFor(actorTelegramUserId, [
+        equipmentRow({ characterId: "actor", itemId: "item.stamp-of-minor-authority", slot: "weapon" })
+      ]),
+      snapshotFor(targetTelegramUserId, [
+        equipmentRow({
+          id: "equipment-target-chest",
+          characterId: "target",
+          itemId: "item.apron-of-foam-resistance",
+          slot: "chest"
+        })
+      ])
+    ]);
+    const service = new ClassNoncombatService(
+      repository,
+      () => now,
+      new FakeRandomSource([0]),
+      undefined,
+      equipment
+    );
+
+    await service.healForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0
+    });
+
+    expect(repository.lastHealInput).toMatchObject({
+      healAmount: 10,
+      manaCost: 10,
+      targetEffectiveHpMax: 30,
+      statSnapshot: {
+        level: 3,
+        charisma: 11,
+        intelligence: 9,
+        targetEffectiveHpMax: 30,
+        equipmentItemIds: ["item.stamp-of-minor-authority"],
+        equipmentEffects: {
+          stats: {
+            intelligence: 1
+          }
+        }
+      }
+    });
+  });
+
   it("keeps full-HP Priest heal as a no-op without achievement tracking", async () => {
     const repository = new FakeClassNoncombatRepository({
       healResult: { state: "blocked", reason: "full-hp", actor: priest(), target: target({ hpCurrent: 20, hpMax: 20 }) }
@@ -117,6 +174,44 @@ describe("ClassNoncombatService", () => {
     expect(achievements.events.map((event) => event.type)).toEqual(["priest.blessing.completed"]);
   });
 
+  it("plans Priest blessing bonus from effective equipment stats", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: priest({ level: 3, statsJson: { intelligence: 10 } }),
+      target: target({ level: 3 })
+    });
+    const equipment = new FakeEquipmentRepository([
+      snapshotFor(actorTelegramUserId, [
+        equipmentRow({ characterId: "actor", itemId: "item.stamp-of-minor-authority", slot: "weapon" })
+      ])
+    ]);
+    const service = new ClassNoncombatService(
+      repository,
+      () => now,
+      new FakeRandomSource([0]),
+      undefined,
+      equipment
+    );
+
+    await service.blessForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0
+    });
+
+    expect(repository.lastBlessInput).toMatchObject({
+      bonusAmount: 2,
+      manaCost: 12,
+      statSnapshot: {
+        level: 3,
+        intelligence: 11,
+        targetLevel: 3,
+        levelDiff: 0,
+        blessingBonus: 2,
+        equipmentItemIds: ["item.stamp-of-minor-authority"]
+      }
+    });
+  });
+
   it("plans Rogue pickpocket deterministically and tracks attempt plus success", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue({ level: 8, statsJson: { dexterity: 14, luck: 7 } }),
@@ -151,6 +246,54 @@ describe("ClassNoncombatService", () => {
       "rogue.pickpocket.attempted",
       "rogue.pickpocket.success"
     ]);
+  });
+
+  it("plans Rogue pickpocket with equipped manatky and active Priest blessing stats", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: rogue({ level: 3, statsJson: { dexterity: 7, luck: 5 } }),
+      target: target({ level: 3, gold: 50 }),
+      activeBlessings: new Map([
+        [actorTelegramUserId, priestBlessing({ bonusStat: "luck", bonusAmount: 3 })]
+      ])
+    });
+    const equipment = new FakeEquipmentRepository([
+      snapshotFor(actorTelegramUserId, [
+        equipmentRow({ characterId: "actor", itemId: "item.bone-key-of-half-access", slot: "accessory" })
+      ])
+    ]);
+    const service = new ClassNoncombatService(
+      repository,
+      () => now,
+      new FakeRandomSource([0.8, 0.99]),
+      undefined,
+      equipment
+    );
+
+    await service.pickpocketForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0
+    });
+
+    expect(repository.lastPickpocketInput).toMatchObject({
+      outcome: "clean-success",
+      stolenGold: 6,
+      statSnapshot: {
+        level: 3,
+        dexterity: 9,
+        luck: 11,
+        targetLevel: 3,
+        bonusGold: 1,
+        power: 33,
+        equipmentItemIds: ["item.bone-key-of-half-access"],
+        activePriestBlessing: {
+          id: "blessing-1",
+          bonusStat: "luck",
+          bonusAmount: 3,
+          expiresAt: "2026-07-03T09:13:00.000Z"
+        }
+      }
+    });
   });
 
   it("does not track achievements again when Rogue duplicate callback replays stored result", async () => {
@@ -239,6 +382,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   private readonly blessResult?: PriestBlessRepositoryResult;
   private readonly pickpocketResult?: RoguePickpocketRepositoryResult;
   private readonly actorBlocked: boolean;
+  private readonly activeBlessings: Map<bigint, PriestBlessingRecord>;
 
   constructor(options: {
     actor?: CharacterRecord;
@@ -247,6 +391,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     blessResult?: PriestBlessRepositoryResult;
     pickpocketResult?: RoguePickpocketRepositoryResult;
     actorBlocked?: boolean;
+    activeBlessings?: Map<bigint, PriestBlessingRecord>;
   } = {}) {
     this.actor = options.actor ?? priest();
     this.target = options.target ?? target();
@@ -254,6 +399,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     this.blessResult = options.blessResult;
     this.pickpocketResult = options.pickpocketResult;
     this.actorBlocked = options.actorBlocked ?? false;
+    this.activeBlessings = options.activeBlessings ?? new Map<bigint, PriestBlessingRecord>();
   }
 
   getSnapshotForTelegramUser(
@@ -267,6 +413,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       targets: [{
         telegramUserId: targetTelegramUserId,
         characterId: this.target.id,
+        character: this.target,
         name: this.target.name,
         classId: this.target.classId,
         level: this.target.level,
@@ -287,8 +434,8 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     });
   }
 
-  getActivePriestBlessingForTelegramUser() {
-    return Promise.resolve(null);
+  getActivePriestBlessingForTelegramUser(telegramUserId: bigint) {
+    return Promise.resolve(this.activeBlessings.get(telegramUserId) ?? null);
   }
 
   isActorBlockedForTelegramUser() {
@@ -360,6 +507,20 @@ class FakeAchievementService {
       return Promise.resolve([]);
     }
   } as unknown as AchievementService;
+}
+
+class FakeEquipmentRepository implements Pick<EquipmentRepository, "listByTelegramUserId"> {
+  private readonly snapshotsByTelegramUserId = new Map<bigint, CharacterEquipmentSnapshot>();
+
+  constructor(snapshots: Array<{ telegramUserId: bigint; snapshot: CharacterEquipmentSnapshot }>) {
+    for (const entry of snapshots) {
+      this.snapshotsByTelegramUserId.set(entry.telegramUserId, entry.snapshot);
+    }
+  }
+
+  listByTelegramUserId(telegramUserId: bigint): Promise<CharacterEquipmentSnapshot | null> {
+    return Promise.resolve(this.snapshotsByTelegramUserId.get(telegramUserId) ?? null);
+  }
 }
 
 function priest(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
@@ -434,6 +595,43 @@ function pickpocketAttempt(overrides: Partial<RoguePickpocketAttemptRecord> = {}
     actorHpAfter: null,
     cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
     completedAt: now,
+    ...overrides
+  };
+}
+
+function priestBlessing(overrides: Partial<PriestBlessingRecord> = {}): PriestBlessingRecord {
+  return {
+    id: "blessing-1",
+    actorName: "Отець Кут",
+    targetName: "Тихий Кут",
+    expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+    bonusStat: "luck",
+    bonusAmount: 1,
+    ...overrides
+  };
+}
+
+function snapshotFor(
+  telegramUserId: bigint,
+  equipment: CharacterEquipmentRecord[]
+): { telegramUserId: bigint; snapshot: CharacterEquipmentSnapshot } {
+  return {
+    telegramUserId,
+    snapshot: {
+      characterId: equipment[0]?.characterId ?? "character",
+      equipment
+    }
+  };
+}
+
+function equipmentRow(overrides: Partial<CharacterEquipmentRecord>): CharacterEquipmentRecord {
+  return {
+    id: "equipment-1",
+    characterId: "actor",
+    slot: "weapon",
+    itemId: "item.stamp-of-minor-authority",
+    createdAt: new Date("2026-07-03T09:00:00.000Z"),
+    updatedAt: new Date("2026-07-03T09:00:00.000Z"),
     ...overrides
   };
 }

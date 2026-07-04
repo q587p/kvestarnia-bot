@@ -10,6 +10,10 @@ import type { ShynokDrinkStateRecord, ShynokRepository } from "../db/repositorie
 import { items } from "../content";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import type { StatKey } from "../domain/characters/starterStats";
+import {
+  applyPriestBlessingBonusToSummary,
+  normalizePriestBlessingBonus
+} from "../domain/noncombat/priestBlessingBonus";
 import { getItemUseEffect } from "../domain/itemUse";
 import {
   buildDrinkEffect,
@@ -144,7 +148,11 @@ export class HeroService {
     });
 
     const presentedPriestBlessing = presentHeroActivePriestBlessing(activePriestBlessing);
-    const characterSummary = applyPriestBlessingBonus(resourceAware.character, presentedPriestBlessing);
+    const characterSummary = applyPriestBlessingBonusToSummary(
+      resourceAware.character,
+      presentedPriestBlessing,
+      now
+    );
 
     return {
       state: "existing-character",
@@ -309,46 +317,16 @@ function resolveRestoreToFullItemId(
 }
 
 function presentHeroActivePriestBlessing(state: PriestBlessingRecord | null): HeroActivePriestBlessing | null {
+  const normalized = normalizePriestBlessingBonus(state);
   return state
     ? {
         actorName: state.actorName,
         targetName: state.targetName,
         expiresAt: state.expiresAt,
-        bonusStat: normalizePriestBlessingStat(state.bonusStat),
-        bonusAmount: normalizePriestBlessingAmount(state.bonusAmount)
+        bonusStat: normalized?.bonusStat ?? "luck",
+        bonusAmount: normalized?.bonusAmount ?? 1
       }
     : null;
-}
-
-function applyPriestBlessingBonus(
-  character: CharacterSummary,
-  blessing: HeroActivePriestBlessing | null
-): CharacterSummary {
-  if (!blessing || blessing.bonusAmount <= 0) {
-    return character;
-  }
-
-  return {
-    ...character,
-    stats: {
-      ...character.stats,
-      [blessing.bonusStat]: character.stats[blessing.bonusStat] + blessing.bonusAmount
-    }
-  };
-}
-
-function normalizePriestBlessingStat(value: string | null): StatKey {
-  return value === "strength" ||
-    value === "dexterity" ||
-    value === "intelligence" ||
-    value === "charisma" ||
-    value === "luck"
-    ? value
-    : "luck";
-}
-
-function normalizePriestBlessingAmount(value: number): number {
-  return value > 0 ? Math.floor(value) : 1;
 }
 
 function presentHeroActiveDrink(state: ShynokDrinkStateRecord | null): HeroActiveDrink | null {

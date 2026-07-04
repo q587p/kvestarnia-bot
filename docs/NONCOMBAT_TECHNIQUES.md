@@ -91,6 +91,8 @@ Example: a Priest offers a blessing or heal to a nearby player.
 
 Priest direct healing uses the preserved bounded formula: `min(missing HP, 3 + floor((charisma + intelligence) / 3) + floor(level / 2))`; mana cost follows actual HP restored and is capped at `13`. Missing HP, full-HP checks and healing caps use the target's current effective HP maximum, including level-derived HP.
 
+`0.2.25` Priest/Rogue planning freezes canonical effective summaries rather than raw character rows: level/path/race growth, equipped manatky effects and active non-expired Priest blessing bonuses are the stat inputs stored in result snapshots. Expired blessings do not affect stats, and active blessings do not stack.
+
 Priest aid keyboards do not show healing buttons for full-HP targets. Healing rows use the `⚕️` marker, while actual bandage icons stay reserved for medical manatky and Yeger supplies.
 
 Blocked Priest result cards keep the Priest action keyboard attached for full-HP heal, same-target blessing wait and already-blessed no-op results. Their headings name the blocker directly instead of using one generic failed-action title.
@@ -117,6 +119,8 @@ Example: a Rogue pocket-theatre challenge.
 - not a first release.
 
 `0.2.25` exception: Rogue pickpocket MVP allows tightly bounded forced same-location gold theft. It is actor-target/day scoped, actor-cooldown gated, target-level protected, private, replay-safe and capped at tiny gold amounts. Fresh pickpocket target lists keep targets already attempted by this Rogue on the current Kyiv day visible with a tomorrow-only marker, while duplicate callbacks still replay the stored result. It never steals items, creates gold, counts as trade/gift/quest/hunt/combat progress or emits a public shame/feed row. Caught-badly sets Rogue HP to `0` but adds no extra caught cooldown beyond the normal 93-minute pickpocket cooldown.
+
+Local `/dev_reset_quiet_pocket` clears the current `noncombat.rogue.pickpocket` cooldown key and keeps legacy quiet-pocket key cleanup only for compatibility.
 
 ### Information Action
 
