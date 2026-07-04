@@ -154,10 +154,11 @@ describe("adventure presenter", () => {
     expect(text).toContain("<i>Замовник:</i> Кухар &amp; свідок");
     expect(text).toContain("<i>Проблема:</i> Юшка співає замість бути стравою.");
     expect(text).toContain("<i>Ціль:</i> Стишити казанок без оперної премії.");
-    expect(text).toContain("<i>Можливі способи:</i>\n🛡️ Обережно");
+    expect(text).toContain("<i>Можливі способи:</i>");
     expect(text.indexOf("<i>Ціль:</i>")).toBeLessThan(text.indexOf("<i>Можливі способи:</i>"));
-    expect(text).toContain("Метод оберіть самі.");
-    expect(text).toContain("🛡️ Обережно");
+    expect(text).not.toContain("Метод оберіть самі.");
+    expect(text).not.toContain("🛡️ Обережно");
+    expect(text).not.toContain("що робимо?");
     expect(text).not.toContain("Майже без драматичних зубів.");
     expect(text).not.toContain("🧠 Хитро — Середній ризик.");
     expect(text).not.toContain("+4 XP");
@@ -171,12 +172,12 @@ describe("adventure presenter", () => {
 
     expect(text).toContain("🌯 Підозріла шаурма");
     expect(text).toContain("<i>Можливі способи:</i>");
-    expect(text).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
+    expect(text).not.toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
     expect(text).not.toContain("Розслідування без поспіху");
-    expect(text).toContain("🍴 Притиснути лаваш виделкою до зʼясування");
-    expect(text).toContain("🧄 Запропонувати зубчик часнику як примирення");
-    expect(text).toContain("<b>Мандрівник</b>, що робимо?");
-    expect(text.indexOf("Можливі способи:")).toBeLessThan(text.indexOf("<b>Мандрівник</b>, що робимо?"));
+    expect(text).not.toContain("🍴 Притиснути лаваш виделкою до зʼясування");
+    expect(text).not.toContain("🧄 Запропонувати зубчик часнику як примирення");
+    expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
+    expect(text.trim().endsWith("<i>Можливі способи:</i>")).toBe(true);
     expect(text).not.toContain("ризик 13%");
     expect(text).not.toContain("шанс ускладнення");
   });
@@ -263,8 +264,8 @@ describe("adventure presenter", () => {
 
     const text = presentAdventureProblem(result);
 
-    expect(text).toContain("Підсунути запасне поле");
-    expect(text).toContain("Домовитися з канцелярським краєм");
+    expect(text).not.toContain("Підсунути запасне поле");
+    expect(text).not.toContain("Домовитися з канцелярським краєм");
     expect(text).not.toContain("Підняти сухий приплив для");
     expect(text).not.toContain("Переспівати ритм");
     expect(text).not.toContain("«Співачка Без Моря» поєднує");
@@ -281,6 +282,7 @@ describe("adventure presenter", () => {
     expect(text).not.toContain("точну біографію");
     expect(text).not.toContain(": форму");
     expect(text).toContain("<i>Можливі способи:</i>");
+    expect(text.trim().endsWith("<i>Можливі способи:</i>")).toBe(true);
     expect(text.match(/<i>/gu)?.length ?? 0).toBe(4);
     expect(presentAdventureProblemMethodHelp(result)).toContain("Детальніше про способи:");
     expect(presentAdventureProblemMethodHelp(result)).toContain("Домовитися з канцелярським краєм\n<i>Дипломатія полів");

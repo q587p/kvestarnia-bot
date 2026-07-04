@@ -38,6 +38,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Removed the generated combo-title prefix from the starter shawarma scene while keeping its race/class flavor beat.
 - Reordered the starter shawarma combat result to match the compact battle-result shape: battle heading, split HP rows, damage, victory flavor, `Винагорода за бій`, then item grants.
 - Added `Замовник`, `Проблема` and `Ціль` context rows to the starter cellar errand card before its method list.
+- Shortened starter shawarma, starter cellar and regular Adventure method-choice cards so the message body stops duplicating method labels and the character prompt; action labels stay in buttons and method help.
 - Show active Priest blessing status on the hero card beside other timed status lines, clarified Priest blessing result copy and hid the redundant Priest target prompt when no active nearby targets exist.
 - Active Priest blessing now appears as a visible `Вдача` bonus in the hero card stats and no longer uses technical stacking copy in player-facing text.
 - Priest aid open cards now label the same-target blessing wait clearly, so it does not read like the active blessing duration.

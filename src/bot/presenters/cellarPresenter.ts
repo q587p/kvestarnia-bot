@@ -29,10 +29,6 @@ export function presentCellarIntro(
 export function presentCellarStart(
   result: Extract<CellarErrandLookupResult, { state: "ready" }>
 ): string {
-  const methodLines = buildCellarMethodOptions(result.character).map((method) =>
-    escapeHtml(method.label)
-  );
-
   return [
     "🐭 Льохова справа",
     ...presentCharacterFlavor(result.character, "quest.start", "cellar"),
@@ -41,10 +37,7 @@ export function presentCellarStart(
     "<i>Проблема:</i> льохова автономія зайшла далі, ніж дозволяє корчмарський спокій",
     "<i>Ціль:</i> домовитися з норою так, щоб льох лишився льохом, а не окремою державою",
     "",
-    "<i>Можливі способи:</i>",
-    ...methodLines,
-    "",
-    `<b>${escapeHtml(result.character.name)}</b>, що робимо?`
+    "<i>Можливі способи:</i>"
   ].join("\n");
 }
 

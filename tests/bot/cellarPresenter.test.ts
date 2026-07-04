@@ -37,12 +37,13 @@ describe("cellar presenter", () => {
     expect(text).toContain("<i>Проблема:</i> льохова автономія");
     expect(text).toContain("<i>Ціль:</i> домовитися з норою");
     expect(text).toContain("<i>Можливі способи:</i>");
-    expect(text).toContain("🧀 Поставити пастку по маршруту крихт");
+    expect(text).not.toContain("🧀 Поставити пастку по маршруту крихт");
     expect(text).not.toContain("Пастка й сліди. Винагорода звичайна. Можна постраждати.");
-    expect(text).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
+    expect(text).not.toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
     expect(text).not.toContain("Винагорода скромніша. Коштує 1 золото.");
     expect(text).not.toMatch(/Шанси \d|Підпис методу|race\+class/u);
-    expect(text).toContain("що робимо?");
+    expect(text).not.toContain("що робимо?");
+    expect(text.trim().endsWith("<i>Можливі способи:</i>")).toBe(true);
     expect(text.indexOf("<i>Ціль:</i>")).toBeLessThan(text.indexOf("<i>Можливі способи:</i>"));
     expect(text.split("\n").length).toBeLessThanOrEqual(28);
   });
@@ -95,7 +96,7 @@ describe("cellar presenter", () => {
     ).toContain("автономію за шафою");
   });
 
-  it("escapes character names in cellar start text", () => {
+  it("does not render the old character prompt in cellar start text", () => {
     const text = presentCellarStart({
       state: "ready",
       character: {
@@ -104,8 +105,9 @@ describe("cellar presenter", () => {
       }
     });
 
-    expect(text).toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
+    expect(text).not.toContain("<b>&lt;b&gt;Мандрівник&lt;/b&gt;</b>, що робимо?");
     expect(text).not.toContain("<b><b>Мандрівник</b></b>, що робимо?");
+    expect(text).not.toContain("що робимо?");
   });
 
   it("renders completed result with reward and no exact timestamp", () => {
