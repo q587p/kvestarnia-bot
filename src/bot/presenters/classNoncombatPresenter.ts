@@ -108,7 +108,7 @@ export function presentPriestHealResult(result: PriestHealResult): string {
       ? "Жрець приклав ману до себе. Мана трохи обурилась, але виконала обов’язок."
       : `${presentCharacterDisplayName(result.actor)} полікував ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
     `❤️ HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`,
-    `💫 Мана витрачена: <b>${result.action.manaCost}</b>.`
+    `💫 Мани витрачено: <b>${result.action.manaCost}</b>.`
   ].join("\n");
 }
 
@@ -132,7 +132,7 @@ export function presentPriestBlessResult(result: PriestBlessResult): string {
       : `${presentCharacterDisplayName(result.actor)} благословив ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
     `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`,
     `Бонус: <b>+${normalizeBlessingBonus(result.blessing.bonusAmount)} ${presentBlessingStatLabel(result.blessing)}</b>. Видно в персонажі поруч із бафами.`,
-    `💫 Мана витрачена: <b>${result.action.manaCost}</b>.`
+    `💫 Мани витрачено: <b>${result.action.manaCost}</b>.`
   ].join("\n");
 }
 
