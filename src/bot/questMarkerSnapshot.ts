@@ -18,13 +18,8 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     return null;
   }
 
-  const adventure = await services.adventure.getAdventureOfferForTelegramUser(telegramUserId);
-
-  if (adventure.state === "no-character") {
-    return null;
-  }
-
   const [
+    adventure,
     starterAdventure,
     fight,
     problemQuest,
@@ -32,43 +27,70 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     cellar,
     dailyKorchmaRound
   ] = await Promise.all([
+    typeof services.adventure?.getAdventureOfferForTelegramUser === "function"
+      ? services.adventure.getAdventureOfferForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
     typeof services.adventure.getMimicShawarmaForTelegramUser === "function"
       ? services.adventure.getMimicShawarmaForTelegramUser(telegramUserId)
       : Promise.resolve(null),
-    services.fight.getFightOverviewForTelegramUser(telegramUserId),
-    services.fight.getProblemQuestProgressForTelegramUser(telegramUserId),
-    services.yeger.getForTelegramUser(telegramUserId),
-    services.cellarErrand.getForTelegramUser(telegramUserId),
+    typeof services.fight?.getFightOverviewForTelegramUser === "function"
+      ? services.fight.getFightOverviewForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    typeof services.fight?.getProblemQuestProgressForTelegramUser === "function"
+      ? services.fight.getProblemQuestProgressForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    typeof services.yeger?.getForTelegramUser === "function"
+      ? services.yeger.getForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    typeof services.cellarErrand?.getForTelegramUser === "function"
+      ? services.cellarErrand.getForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
     services.dailyKorchmaRound
       ? services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
       : Promise.resolve(null)
   ]);
 
-  if (
-    fight.state === "no-character" ||
-    problemQuest.state === "no-character" ||
-    yeger.state === "no-character" ||
-    cellar.state === "no-character"
-  ) {
-    return null;
-  }
-
   const cellarGrownup =
-    services.cellarGrownup && cellar.state === "level-retired"
+    services.cellarGrownup && cellar?.state === "level-retired"
       ? await services.cellarGrownup.getForTelegramUser(telegramUserId)
       : null;
 
-  return {
-    characterLevel: fight.character.level,
+  const characterLevel = [
     adventure,
-    ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
+    starterAdventure,
     fight,
-    problemQuest: problemQuest.progress,
+    problemQuest,
     yeger,
     cellar,
+    dailyKorchmaRound,
+    cellarGrownup
+  ].map(getCharacterLevel).find((level) => level !== undefined);
+
+  if (characterLevel === undefined) {
+    return null;
+  }
+
+  return {
+    characterLevel,
+    ...(adventure && adventure.state !== "no-character" ? { adventure } : {}),
+    ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
+    ...(fight && fight.state !== "no-character" ? { fight } : {}),
+    ...(problemQuest && problemQuest.state !== "no-character" ? { problemQuest: problemQuest.progress } : {}),
+    ...(yeger && yeger.state !== "no-character" ? { yeger } : {}),
+    ...(cellar && cellar.state !== "no-character" ? { cellar } : {}),
     ...(dailyKorchmaRound && dailyKorchmaRound.state !== "no-character" ? { dailyKorchmaRound } : {}),
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"
       ? { cellarGrownup }
       : {})
   };
+}
+
+function getCharacterLevel(result: unknown): number | undefined {
+  if (!result || typeof result !== "object" || !("character" in result)) {
+    return undefined;
+  }
+
+  const character = (result as { character?: { level?: unknown } }).character;
+
+  return typeof character?.level === "number" ? character.level : undefined;
 }
