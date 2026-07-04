@@ -271,6 +271,24 @@ describe("class noncombat presenter", () => {
     expect(text).not.toContain("Техніка відсапується");
   });
 
+  it("does not ask the Rogue to choose a target when no active targets exist", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "rogue",
+      character: {
+        id: "rogue-1",
+        name: "Злодій",
+        classId: "class.rogue"
+      },
+      targets: [],
+      locationName: "Дошка корчми",
+      roguePickpocketCooldownAvailableAt: null
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).toContain("Активних цілей поруч немає. Кишені теж мають графік роботи.");
+    expect(text).not.toContain("Оберіть активну ціль поруч:");
+  });
+
   it("uses reason-specific Priest blocked headings", () => {
     const healText = presentPriestHealResult({
       state: "blocked",

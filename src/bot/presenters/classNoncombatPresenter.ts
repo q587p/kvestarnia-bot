@@ -62,7 +62,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         "Ризик малий не буває: можна нічого не знайти, засвітитись або дуже невдало зустріти чужий лікоть.",
         presentRogueOtherTargetsLine(result.roguePickpocketCooldownAvailableAt),
         "",
-        "Оберіть активну ціль поруч:"
+        result.targets.length > 0 ? "Оберіть активну ціль поруч:" : ""
       ];
 
   if (!result.actorBlocked && result.mode === "priest") {

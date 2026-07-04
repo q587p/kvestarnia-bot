@@ -48,7 +48,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Extended local `/dev_two_enemies [N]` so manual QA can force `Натиск Низу` and boost the second enemy by `N` requested levels while keeping the dev fight excluded from ordinary threat history.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
-- Rogue pickpocket result cards now italicize the next-attempt wait, cooldown blockers name the finger-rest wait directly with bold remaining time, and fresh Rogue target lists keep same-day attempted targets visible with a tomorrow-only marker instead of hiding them.
+- Rogue pickpocket result cards now italicize the next-attempt wait, cooldown blockers name the finger-rest wait directly with bold remaining time, empty target lists no longer ask the Rogue to choose a target, and fresh Rogue target lists keep same-day attempted targets visible with a tomorrow-only marker instead of hiding them.
 - Kept Priest action buttons under blocked no-op heal, same-target blessing wait and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, target wait and repeated blessing blockers.
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
 - Hid Priest/Rogue class noncombat action buttons while the actor is already busy in combat or raid, stopped treating scene/adventure presence as a blocker, and replaced the old generic protocol blocker copy with clearer stale-callback explanations.
@@ -77,6 +77,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.
 - Added presenter, keyboard, service and hero-command coverage for active-flow class noncombat blocking and hidden Priest self-heal shortcuts.
 - Added hero-command and keyboard coverage for the Priest self-blessing hero-card shortcut.
+- Added presenter coverage for empty Rogue pickpocket target lists.
 - Added Prisma repository integration tests for exact normalized target listing, same-day Rogue target marking, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
 - Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation and duplicate Rogue replay silence.
 - Added lore-board coverage for class combat ability references and separate side-surface paragraphs.
