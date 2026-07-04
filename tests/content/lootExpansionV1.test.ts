@@ -22,6 +22,8 @@ import {
 } from "../../src/content/lootExpansionV1";
 import { itemSchema } from "../../src/content/schema";
 
+const generatedLegGearBaseIds = ["a013", "a014", "a015", "a018"] as const;
+
 describe("loot expansion v1 content adapter", () => {
   it("imports the expected base families, generated variants, and effects", () => {
     expect(LOOT_EXPANSION_V1_BASE_ITEM_COUNT).toBe(120);
@@ -61,6 +63,8 @@ describe("loot expansion v1 content adapter", () => {
 
       if (item.id.startsWith("item.loot-v1-t")) {
         expect(item).toMatchObject({ slot: "accessory", equipmentSlot: "tool" });
+      } else if (isGeneratedLegGear(item.id)) {
+        expect(item.equipmentSlot).toBe("legs");
       } else if (item.id.startsWith("item.loot-v1-a")) {
         expect(item.equipmentSlot).toBe("chest");
       } else if (item.id.startsWith("item.loot-v1-w")) {
@@ -69,6 +73,27 @@ describe("loot expansion v1 content adapter", () => {
         expect(item.equipmentSlot).toBe("accessory");
       }
     }
+  });
+
+  it("routes generated foot and leg gear to the legs slot with leg-facing copy", () => {
+    for (const baseId of generatedLegGearBaseIds) {
+      const variant = findLootExpansionVariantByItemId(getLootExpansionItemId(baseId, 0));
+
+      expect(variant, baseId).toMatchObject({
+        item: {
+          slot: "armor",
+          equipmentSlot: "legs"
+        }
+      });
+      expect(variant?.item.description, baseId).toContain("Береже ноги");
+      expect(variant?.item.description, baseId).not.toContain("Захищає не тільки тіло");
+    }
+
+    expect(findLootExpansionVariantByItemId("item.loot-v1-a013")).toMatchObject({
+      item: {
+        name: "Шкарпетки Невразливого Комфорту"
+      }
+    });
   });
 
   it("keeps every equippable generated loot variant effect-bearing", () => {
@@ -335,3 +360,9 @@ describe("loot expansion v1 content adapter", () => {
     });
   });
 });
+
+function isGeneratedLegGear(itemId: string): boolean {
+  return generatedLegGearBaseIds.some((baseId) =>
+    itemId === `item.loot-v1-${baseId}` || itemId.startsWith(`item.loot-v1-${baseId}-plus-`)
+  );
+}

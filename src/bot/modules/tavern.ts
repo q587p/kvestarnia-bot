@@ -1218,7 +1218,8 @@ async function handlePlaceCallback(
       "reply",
       {
         tavernRaid: services.tavern,
-        ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
+        ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {}),
+        ...(questMarkers ? { questMarkers } : {})
       }
     );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
@@ -1493,6 +1494,7 @@ async function handleCellarCallback(
   }
 
   const lookup = await services.cellarErrand.getForTelegramUser(telegramUserId);
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
 
   if (lookup.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);
@@ -1543,7 +1545,9 @@ async function handleCellarCallback(
       await safeAnswerCallbackQuery(ctx);
       await safeEditMessageText(ctx, presentCellarGrownupQuest(grownup), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildCellarGrownupKeyboard(grownup.state)
+        reply_markup: buildCellarGrownupKeyboard(grownup.state, {
+          ...(questMarkers ? { questMarkers } : {})
+        })
       });
       return;
     }
@@ -1580,7 +1584,9 @@ async function handleCellarCallback(
       await safeAnswerCallbackQuery(ctx);
       await safeEditMessageText(ctx, presentCellarCooldown(lookup), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildCellarResultKeyboard("on-cooldown", lookup.character)
+        reply_markup: buildCellarResultKeyboard("on-cooldown", lookup.character, {
+          ...(questMarkers ? { questMarkers } : {})
+        })
       });
       return;
     }
@@ -1598,8 +1604,12 @@ async function handleCellarCallback(
       {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: callback.type === "method-help"
-          ? buildCellarMethodHelpKeyboard(lookup.character)
-          : buildCellarResultKeyboard("ready", lookup.character)
+          ? buildCellarMethodHelpKeyboard(lookup.character, {
+              ...(questMarkers ? { questMarkers } : {})
+            })
+          : buildCellarResultKeyboard("ready", lookup.character, {
+              ...(questMarkers ? { questMarkers } : {})
+            })
       }
     );
     return;
@@ -1640,13 +1650,15 @@ async function handleCellarCallback(
     currentRaidId: null,
     currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
   });
+  const resultQuestMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentCellarResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildCellarResultKeyboard(
       result.state === "insufficient-gold" || result.state === "stale" ? "ready" : result.state,
-      result.character
+      result.character,
+      resultQuestMarkers ? { questMarkers: resultQuestMarkers } : {}
     )
   });
   if (result.state === "completed") {
@@ -1697,20 +1709,23 @@ async function handleCellarGrownupCallback(
   await safeAnswerCallbackQuery(ctx);
   const grownupKeyboardState = getCellarGrownupKeyboardState(result);
   const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
 
   await safeEditMessageText(ctx, presentCellarGrownupResult(result), {
     ...HTML_MESSAGE_OPTIONS,
     ...(action === "grownup-turn-in"
       ? {
           reply_markup: buildKorchmaBarKeyboard({
-            ...tavernGameOptions
+            ...tavernGameOptions,
+            ...(questMarkers ? { questMarkers } : {})
           })
         }
       : grownupKeyboardState
         ? {
             reply_markup: buildCellarGrownupKeyboard(grownupKeyboardState, {
               includeKeptBottle: shouldShowCellarGrownupKeptBottleButton(result),
-              hideRoleplay: shouldHideCellarGrownupRoleplayButton(result)
+              hideRoleplay: shouldHideCellarGrownupRoleplayButton(result),
+              ...(questMarkers ? { questMarkers } : {})
             })
           }
       : {})

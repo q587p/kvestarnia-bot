@@ -39,7 +39,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Turn-based duel tournaments, tournament day/week/month reward claims and broader casino/economy changes remain deferred to `0.2.27+` or later.
 - Dedicated deep-link invite buttons for Dice Poker/Tavlei remain a follow-up polish item; open social tables are visible through the existing tavern games hub and join callbacks in this release.
 
-## [0.2.25] - 12026-07-04 - Class Noncombat Priest and Rogue Techniques
+## [0.2.25] - 12026-07-05 - Class Noncombat Priest and Rogue Techniques
 
 ### Added
 - Added level 3+ Priest direct aid outside combat: `✨ Жрецька поміч` opens from `Хто поруч`, supports self/active same-location targets, and can heal with mana or create a direct blessing without an accept/decline offer flow.

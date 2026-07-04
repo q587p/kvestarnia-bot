@@ -98,6 +98,32 @@ describe("item detail presenter", () => {
     expect(accessory).toContain("Поличка для дрібних дивин обережно блищить");
   });
 
+  it("shows leg gear as items for legs instead of generic armor", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.loot-v1-a013",
+          name: "Шкарпетки Невразливого Комфорту",
+          description: "Береже ноги й право виглядати підозріло.",
+          rarity: "common",
+          slot: "armor",
+          equipmentSlot: "legs",
+          goldValue: 27,
+          effect: {
+            armor: 1,
+            hpMax: 2
+          }
+        }
+      })
+    );
+
+    expect(text).toContain("Категорія: <b>річ на ноги</b>");
+    expect(text).toContain("можна екіпірувати у слот «Ноги»");
+    expect(text).toContain("Манекен виставив ногу");
+    expect(text).not.toContain("Категорія: <b>обладунок</b>");
+    expect(text).not.toContain("Манекен випростав плечі");
+  });
+
   it("uses clear fallback flavor for consumables instead of future-system wording", () => {
     const text = presentOwnedItemDetail(
       itemSummary({

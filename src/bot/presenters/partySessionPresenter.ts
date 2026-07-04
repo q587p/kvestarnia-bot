@@ -617,7 +617,9 @@ function presentJournalCooldownLines(
     const cooldowns = resourceSnapshot
       ? resourceSnapshot.cooldowns
       : participant.resources.cooldowns;
-    const combatItems = resourceSnapshot?.combatItems ?? participant.combatItems;
+    const combatItems = resourceSnapshot
+      ? resourceSnapshot.combatItems
+      : participant.combatItems;
 
     const skillLines = presentCooldownLines(cooldowns).map((line) =>
       `${escapeHtml(participant.name)}: ${line}`

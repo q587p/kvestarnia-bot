@@ -30,8 +30,13 @@ type RawLootExpansionAffinityEntry = Readonly<{
   equip_note_uk: string;
 }>;
 
-type RawLootExpansionBaseItem = Omit<RawLootExpansionData["items"][number], "requirements" | "affinity"> &
+type RawLootExpansionBaseItem = Omit<
+  RawLootExpansionData["items"][number],
+  "requirements" | "affinity" | "name_uk" | "flavor_uk"
+> &
   Readonly<{
+    name_uk: string;
+    flavor_uk: string;
     requirements: RawLootExpansionRequirement;
     affinity: {
       classes: readonly RawLootExpansionAffinityEntry[];
@@ -742,6 +747,8 @@ function normalizeLootExpansionV1Data(raw: RawLootExpansionData): NormalizedLoot
 function normalizeBaseItem(base: RawLootExpansionBaseItem): RawLootExpansionBaseItem {
   return {
     ...base,
+    name_uk: normalizeBaseItemName(base),
+    flavor_uk: normalizeBaseItemFlavor(base),
     requirements: normalizeRequirements(base.requirements),
     affinity: {
       ...base.affinity,
@@ -750,6 +757,25 @@ function normalizeBaseItem(base: RawLootExpansionBaseItem): RawLootExpansionBase
       titles: normalizeAffinityEntries(base.affinity.titles, canonicalizeTitleId)
     }
   };
+}
+
+function normalizeBaseItemName(base: RawLootExpansionBaseItem): string {
+  if (base.id === "a013") {
+    return base.name_uk.replace(/^Носки/u, "Шкарпетки");
+  }
+
+  return base.name_uk;
+}
+
+function normalizeBaseItemFlavor(base: RawLootExpansionBaseItem): string {
+  if (isLootExpansionLegGear(base)) {
+    return base.flavor_uk.replace(
+      "Захищає не тільки тіло, а й право виглядати підозріло.",
+      "Береже ноги й право виглядати підозріло."
+    );
+  }
+
+  return base.flavor_uk;
 }
 
 function normalizeRequirements(requirement: RawLootExpansionRequirement): RawLootExpansionRequirement {
@@ -894,6 +920,10 @@ function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent
   }
 
   if (base.category === "armor") {
+    if (isLootExpansionLegGear(base)) {
+      return "legs";
+    }
+
     return "chest";
   }
 
@@ -906,6 +936,10 @@ function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent
   }
 
   return null;
+}
+
+function isLootExpansionLegGear(base: Pick<LootExpansionBaseItem, "category" | "slot">): boolean {
+  return base.category === "armor" && (base.slot === "feet" || base.slot === "legs");
 }
 
 function mapLootExpansionEffect(
