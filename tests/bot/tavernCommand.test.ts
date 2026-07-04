@@ -311,6 +311,35 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("marks the Shynok hall return when hall quests are available", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService(),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      undefined,
+      undefined,
+      {
+        questMarkers: {
+          characterLevel: 4,
+          dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }
+        }
+      }
+    );
+
+    expect(replies[0]?.options).toMatchObject({
+      reply_markup: {
+        inline_keyboard: [
+          ...shynokActionRows,
+          [{ text: "⬅️ До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
+        ]
+      }
+    });
+  });
+
   it("shows the news board as a location with news, gift and postal actions", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 
@@ -399,7 +428,13 @@ describe("tavern command screens", () => {
       makeContext(replies),
       readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
-      "reply"
+      "reply",
+      {
+        questMarkers: {
+          characterLevel: 4,
+          dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }
+        }
+      }
     );
 
     expect(replies[0]?.text).toContain("🥊 Бійцівський куток");
@@ -416,7 +451,7 @@ describe("tavern command screens", () => {
           [
             { text: "🏆 Переможці", callback_data: makePlaceCallbackData("duel-winners") }
           ],
-          [{ text: "⬅️ До зали", callback_data: makePlaceCallbackData("hall") }]
+          [{ text: "⬅️ До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });

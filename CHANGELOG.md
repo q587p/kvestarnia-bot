@@ -27,12 +27,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated `📖 Перекази` class entries for Priest and Rogue to mention the new noncombat behavior.
 - Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
 - Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
-- Kept direct starter quest-table and Yeger accept buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми`, `⚔️ До сутички` and `🏹 Взяти справу`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`, `🛢️ Бочка ⚠️` and barrel-result `🧥 Єгер ⚠️` routes for an offered Yeger quest.
+- Kept starter quest-table and direct Yeger accept buttons free of available-task markers while preserving their native action icons such as `🌯 До підозрілої шаурми`, `⚔️ До сутички` and `🏹 Взяти справу`; Korchma location buttons keep place icons and markers such as `🐭 Льох ⚠️`, `🛢️ Бочка ⚠️` and barrel-result `🧥 Єгер ⚠️` routes for an offered Yeger quest.
 - Kept Korchma hall/location quest markers resilient when only the cellar errand currently has a character-bearing ready state, so `🐭 Льох ⚠️` still appears when the mouse is the next affair.
 - Swapped the pending Barrel fallback button icon from `🍺 Перевірити бочку` to `🔄 Перевірити бочку`, matching refresh-style action buttons.
-- Marked `🍺 До зали` / `⬅️ До зали` routes when another Korchma location currently has an available quest route.
+- Marked `🍺 До зали` / `⬅️ До зали` routes, including Shynok and Fighting Corner return buttons, when another Korchma location currently has an available quest route.
 - Hid the grownup cellar `🐭 Домовитись із мишею` action from unaffordable cheese-seal result screens while the mouse roleplay cooldown is still active, and adjusted the Korchmar copy to explain the wait.
-- Restored the native `🪧 Обрати пригоду` action icon on quest-table adventure buttons.
+- Restored the native `🪧 Обрати пригоду` action icon on quest-table adventure buttons and marked ready adventure-choice buttons with the available-task suffix.
 - Marked currently equipped items in inventory keyboards with a left-side `✅` icon in both general and slot-filtered views.
 - Lowercased equipment slot names after the equipped-status dash in item detail cards, for example `вдягнено — основна рука`.
 - Added available-task markers to Korchma entry buttons and a first-entry hint explaining how the marker leads to current affairs.
@@ -92,6 +92,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added repository regression coverage for Priest healing above stored base HP when effective max HP is higher.
 - Added repository regression coverage proving Priest healing does not create a cooldown row and Priest blessing waits are scoped to the same actor-target pair.
 - Added keyboard coverage for Priest target-heal hiding, `⚕️` target labels and paginated class noncombat target lists.
+- Added keyboard and command coverage for Shynok/Fighting Corner hall-return quest markers and the ready `🪧 Обрати пригоду ⚠️` button.
 - Added presenter, keyboard, service and hero-command coverage for active-flow class noncombat blocking and hidden Priest self-heal shortcuts.
 - Added hero-command and keyboard coverage for the Priest self-blessing hero-card shortcut.
 - Added presenter coverage for empty Rogue pickpocket target lists.

@@ -66,6 +66,7 @@ import {
 import { dailyKorchmaRoundScenes } from "../../src/content/dailyKorchmaRoundContent";
 import {
   buildBackToShynokKeyboard,
+  buildShynokOverviewKeyboard,
   buildShynokRoundPreviewKeyboard,
   buildShynokRoundResultKeyboard
 } from "../../src/bot/keyboards/shynokKeyboard";
@@ -383,6 +384,12 @@ describe("main menu and scene keyboards", () => {
       "v1:place:duel-winners",
       "v1:place:hall"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({
+      questMarkers: {
+        characterLevel: 4,
+        dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard())).toEqual([
       "🍹 Напої для себе",
       "🍺 Просте всім",
@@ -406,6 +413,12 @@ describe("main menu and scene keyboards", () => {
       tavernGames: true,
       tavernGameTableCount: 2
     }))).toContain("🎲 Ігри за столом (2)");
+    expect(flatInlineButtonTexts(buildShynokOverviewKeyboard(undefined, {
+      questMarkers: {
+        characterLevel: 4,
+        dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
     expect(flatInlineButtonCallbacks(buildKorchmaBarKeyboard({ tavernGames: true }))).toContain("v1:sh:gm");
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ includeBottleTurnIn: true }))).toEqual([
       "🍹 Напої для себе",
@@ -793,6 +806,12 @@ describe("main menu and scene keyboards", () => {
       "⬅️ До Шинку",
       "⬅️ До зали"
     ]);
+    expect(flatInlineButtonTexts(buildBackToShynokKeyboard({
+      questMarkers: {
+        characterLevel: 4,
+        dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
     expect(flatInlineButtonCallbacks(buildBackToShynokKeyboard())).toEqual([
       "v1:place:bar",
       "v1:place:hall"
@@ -2702,7 +2721,7 @@ describe("main menu and scene keyboards", () => {
         fullHubKeyboard
       )
     ).toEqual([
-      "🪧 Обрати пригоду",
+      "🪧 Обрати пригоду ⚠️",
       "⚔️ До сутички",
       "🏹 До Єгеря ⚠️",
       "🧹 У льох ⚠️",

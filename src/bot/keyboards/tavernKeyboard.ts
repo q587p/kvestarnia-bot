@@ -203,7 +203,9 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
   return keyboard;
 }
 
-export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {
+export function buildKorchmaFightingCornerKeyboard(
+  options: { questMarkers?: QuestMarkerInput | null } = {}
+): InlineKeyboard {
   return new InlineKeyboard()
     .text("🥊 Потренуватися", makeTrainingDoppelgangerCallbackData())
     .row()
@@ -213,7 +215,7 @@ export function buildKorchmaFightingCornerKeyboard(): InlineKeyboard {
     .row()
     .text("🏆 Переможці", makePlaceCallbackData("duel-winners"))
     .row()
-    .text("⬅️ До зали", makePlaceCallbackData("hall"));
+    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
 export function buildKorchmaBarKeyboard(

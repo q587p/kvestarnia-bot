@@ -116,6 +116,7 @@ type TavernCommandKeyboard =
   | { state: "yard"; questMarkers?: QuestMarkerInput | null }
   | "news-corner"
   | "fighting-corner"
+  | { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null }
   | "deep"
   | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
   | "back-to-fighting-corner"
@@ -480,7 +481,8 @@ export async function sendKorchmaFightingCorner(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: { questMarkers?: QuestMarkerInput | null } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -515,7 +517,10 @@ export async function sendKorchmaFightingCorner(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
-  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character), "fighting-corner");
+  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character), {
+    state: "fighting-corner",
+    ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+  });
 }
 
 export async function sendKorchmaDeepClosed(
@@ -920,6 +925,10 @@ async function sendText(
                 })
             : keyboard === "fighting-corner"
               ? buildKorchmaFightingCornerKeyboard()
+            : isFightingCornerKeyboard(keyboard)
+              ? buildKorchmaFightingCornerKeyboard(
+                  keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+                )
             : keyboard === "deep"
               ? buildKorchmaDeepKeyboard()
             : isDeepKeyboard(keyboard)
@@ -996,6 +1005,12 @@ function isFrontKeyboard(
   keyboard: TavernCommandKeyboard
 ): keyboard is { state: "front"; yegerAction: "hidden" | "hunt"; munchkinLocation?: MunchkinLocation; dailyYard?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "front";
+}
+
+function isFightingCornerKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null } {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "fighting-corner";
 }
 
 function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "bar" }> {

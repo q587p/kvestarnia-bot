@@ -68,6 +68,7 @@ buildCellarMethodHelpKeyboard,
 buildCellarParticipantsKeyboard,
 buildCellarResultKeyboard
 } from "../keyboards/cellarKeyboard";
+import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
 import {
 buildBardPerformanceResponseKeyboard,
 buildBardPerformanceRespondResultKeyboard,
@@ -271,6 +272,11 @@ async function handleShynokCallback(
     return;
   }
 
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+  const shynokNavigationOptions = {
+    ...(questMarkers ? { questMarkers } : {})
+  };
+
   if (action.type === "overview") {
     const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
     const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
@@ -278,8 +284,8 @@ async function handleShynokCallback(
     await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames: tavernGameOptions.tavernGames }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready"
-        ? buildShynokOverviewKeyboard(result, tavernGameOptions)
-        : buildBackToShynokKeyboard()
+        ? buildShynokOverviewKeyboard(result, { ...tavernGameOptions, ...shynokNavigationOptions })
+        : buildBackToShynokKeyboard(shynokNavigationOptions)
     });
     return;
   }
@@ -294,7 +300,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
     await safeEditMessageText(ctx, presentTavernGameHub(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokGameHubKeyboard(result)
+      reply_markup: buildShynokGameHubKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -330,7 +336,7 @@ async function handleShynokCallback(
         gameKey: action.gameKey
       }), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildBackToShynokKeyboard()
+        reply_markup: buildBackToShynokKeyboard(shynokNavigationOptions)
       });
       return;
     }
@@ -383,7 +389,7 @@ async function handleShynokCallback(
     });
     await safeEditMessageText(ctx, presentTavernGameActionResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTavernGameActionKeyboard(result, telegramUserId)
+      reply_markup: buildTavernGameActionKeyboard(result, telegramUserId, shynokNavigationOptions)
     });
     await notifyTavernGameParticipants(ctx, result, telegramUserId);
     await notifyTavernGameAchievements(ctx, result);
@@ -395,7 +401,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
     await safeEditMessageText(ctx, presentShynokDrinkMenu(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: result.state === "ready" ? buildShynokDrinkMenuKeyboard() : buildBackToShynokKeyboard()
+      reply_markup: result.state === "ready" ? buildShynokDrinkMenuKeyboard() : buildBackToShynokKeyboard(shynokNavigationOptions)
     });
     return;
   }
@@ -459,7 +465,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
     await safeEditMessageText(ctx, presentShynokDrinkPreview(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokDrinkPreviewKeyboard(result)
+      reply_markup: buildShynokDrinkPreviewKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -471,7 +477,7 @@ async function handleShynokCallback(
       : { show_alert: result.state !== "replayed" });
     await safeEditMessageText(ctx, presentShynokDrinkConfirmResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokDrinkResultKeyboard()
+      reply_markup: buildShynokDrinkResultKeyboard(shynokNavigationOptions)
     });
     return;
   }
@@ -489,7 +495,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "preview" });
     await safeEditMessageText(ctx, presentShynokRoundPreview(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundPreviewKeyboard(result)
+      reply_markup: buildShynokRoundPreviewKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -508,7 +514,7 @@ async function handleShynokCallback(
     }
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundResultKeyboard(result)
+      reply_markup: buildShynokRoundResultKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -538,7 +544,7 @@ async function handleShynokCallback(
         });
     await safeEditMessageText(ctx, presentShynokRoundOfferResponse(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundOfferResponseKeyboard(result)
+      reply_markup: buildShynokRoundOfferResponseKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -548,7 +554,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "selection" });
     await safeEditMessageText(ctx, presentShynokSaleSelection(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokSaleSelectionKeyboard(result)
+      reply_markup: buildShynokSaleSelectionKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -579,7 +585,7 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentShynokSaleSelection(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokSaleSelectionKeyboard(result)
+      reply_markup: buildShynokSaleSelectionKeyboard(result, shynokNavigationOptions)
     });
     return;
   }
@@ -594,7 +600,7 @@ async function handleShynokCallback(
     : { show_alert: result.state !== "replayed" && result.state !== "cancelled" });
   await safeEditMessageText(ctx, presentShynokSaleConfirm(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildBackToShynokKeyboard()
+    reply_markup: buildBackToShynokKeyboard(shynokNavigationOptions)
   });
 }
 
@@ -632,7 +638,7 @@ function buildTavernGameActionKeyboard(result: {
       characterId: string;
     }>;
   };
-}, telegramUserId: bigint) {
+}, telegramUserId: bigint, options: { questMarkers?: QuestMarkerInput | null } = {}) {
   const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
   const canChoose = participant &&
     (participant.status === "joined" || participant.status === "decided") &&
@@ -649,7 +655,7 @@ function buildTavernGameActionKeyboard(result: {
     return buildShynokKostiDecisionKeyboard(result.session.token);
   }
 
-  return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId });
+  return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId, ...options });
 }
 
 async function notifyTavernGameParticipants(
@@ -959,7 +965,9 @@ async function handlePlaceCallback(
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
     }
-    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply", {
+      ...(questMarkers ? { questMarkers } : {})
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
