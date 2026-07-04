@@ -357,7 +357,52 @@ describe("class noncombat presenter", () => {
     expect(blessText).not.toContain("Благословення не лягло");
   });
 
-  it("shows Rogue same-day targets and other-target cooldown separately", () => {
+  it("shows Rogue same-day targets before active pickpocket prompt", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "rogue",
+      character: {
+        id: "rogue-1",
+        name: "Злодій",
+        classId: "class.rogue"
+      },
+      targets: [{
+        telegramUserId: 1002n,
+        characterId: "target-1",
+        name: "Сусід",
+        classId: "class.warrior",
+        level: 3,
+        hpCurrent: 10,
+        hpMax: 20,
+        gold: 3,
+        remortCount: 0,
+        rogueAttemptedToday: true,
+        canRoguePickpocket: false
+      }, {
+        telegramUserId: 1003n,
+        characterId: "target-2",
+        name: "Нова кишеня",
+        classId: "class.warrior",
+        level: 3,
+        hpCurrent: 10,
+        hpMax: 20,
+        gold: 3,
+        remortCount: 0,
+        rogueAttemptedToday: false,
+        canRoguePickpocket: true
+      }],
+      locationName: "Дошка корчми",
+      roguePickpocketCooldownAvailableAt: null
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).not.toContain("Інші цілі: готово");
+    expect(text).toContain("📍 Дошка корчми\n\nРизик малий");
+    expect(text).toContain("Сьогодні вже були:");
+    expect(text).toContain("🗓️ Сусід — цю кишеню знову тільки завтра.");
+    expect(text.indexOf("Сьогодні вже були:")).toBeLessThan(text.indexOf("Оберіть активну ціль поруч:"));
+  });
+
+  it("does not ask the Rogue to choose a target when only same-day targets remain", () => {
     const text = presentClassNoncombatOpen({
       state: "ready",
       mode: "rogue",
@@ -380,12 +425,43 @@ describe("class noncombat presenter", () => {
         canRoguePickpocket: false
       }],
       locationName: "Дошка корчми",
+      roguePickpocketCooldownAvailableAt: null
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).toContain("Сьогодні вже були:");
+    expect(text).toContain("🗓️ Сусід — цю кишеню знову тільки завтра.");
+    expect(text).toContain("Нових кишень поруч немає. Старі записи Корчма вже сховала до завтра.");
+    expect(text).not.toContain("Оберіть активну ціль поруч:");
+  });
+
+  it("explains Rogue other-target cooldown without a ready filler line", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "rogue",
+      character: {
+        id: "rogue-1",
+        name: "Злодій",
+        classId: "class.rogue"
+      },
+      targets: [{
+        telegramUserId: 1002n,
+        characterId: "target-1",
+        name: "Сусід",
+        classId: "class.warrior",
+        level: 3,
+        hpCurrent: 10,
+        hpMax: 20,
+        gold: 3,
+        remortCount: 0,
+        rogueAttemptedToday: false,
+        canRoguePickpocket: false
+      }],
+      locationName: "Дошка корчми",
       roguePickpocketCooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z")
     } as unknown as ClassNoncombatOpenResult);
 
-    expect(text).toContain("🕯️ Інші цілі: пальці відсапуються ще 93 хвилини.");
-    expect(text).toContain("Сьогодні вже були:");
-    expect(text).toContain("🗓️ Сусід — цю кишеню знову тільки завтра.");
-    expect(text.indexOf("Сьогодні вже були:")).toBeLessThan(text.indexOf("Оберіть активну ціль поруч:"));
+    expect(text).toContain("🕯️ Нова спроба по іншій цілі: пальці відсапуються ще 93 хвилини.");
+    expect(text).not.toContain("Інші цілі: готово");
+    expect(text).not.toContain("Оберіть активну ціль поруч:");
   });
 });

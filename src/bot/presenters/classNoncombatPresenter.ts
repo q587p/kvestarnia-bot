@@ -23,7 +23,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
     ].join("\n");
   }
 
-  const lines = result.actorBlocked
+  const lines: Array<string | null> = result.actorBlocked
     ? [
         result.mode === "priest"
           ? "✨ <b>Жрецька поміч</b>"
@@ -32,13 +32,13 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         `📍 ${escapeHtml(result.locationName)}`,
         result.mode === "priest"
           ? `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>.`
-          : "",
+          : null,
         result.mode === "priest"
           ? "⚕️ Лікування: недоступне під час бою або рейду."
           : "🕯️ Спроба: недоступна під час бою або рейду.",
         result.mode === "priest"
           ? "✨ Благословення: недоступне під час бою або рейду."
-          : "",
+          : null,
         "",
         "Спершу завершіть бій або рейд. Тоді оновіть картку, і Корчма знову дасть кнопки."
       ]
@@ -59,9 +59,9 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         "🗡️ <b>Тиха кишеня</b>",
         "",
         `📍 ${escapeHtml(result.locationName)}`,
+        "",
         "Ризик малий не буває: можна нічого не знайти, засвітитись або дуже невдало зустріти чужий лікоть.",
-        presentRogueOtherTargetsLine(result.roguePickpocketCooldownAvailableAt),
-        ""
+        ...presentRogueOtherTargetsLines(result.roguePickpocketCooldownAvailableAt)
       ];
 
   if (!result.actorBlocked && result.mode === "priest") {
@@ -72,23 +72,24 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
   }
 
   if (!result.actorBlocked && result.mode === "rogue") {
+    const availableTargets = result.targets.filter((target) => target.canRoguePickpocket);
     const attemptedLines = presentRogueAttemptedLines(result);
     if (attemptedLines.length > 0) {
       lines.push("", ...attemptedLines);
     }
-    if (result.targets.length > 0) {
+    if (availableTargets.length > 0) {
       lines.push("", "Оберіть активну ціль поруч:");
     }
-    if (result.targets.filter((target) => target.canRoguePickpocket).length === 0 && result.targets.length === 0) {
+    if (availableTargets.length === 0 && result.targets.length === 0) {
       lines.push("", "Активних цілей поруч немає. Кишені теж мають графік роботи.");
     } else if (
-      result.targets.filter((target) => target.canRoguePickpocket).length === 0 &&
+      availableTargets.length === 0 &&
       !result.roguePickpocketCooldownAvailableAt
     ) {
       lines.push("", "Нових кишень поруч немає. Старі записи Корчма вже сховала до завтра.");
     }
   }
-  return lines.filter(Boolean).join("\n");
+  return lines.filter((line): line is string => line !== null).join("\n");
 }
 
 export function presentPriestHealResult(result: PriestHealResult): string {
@@ -380,10 +381,10 @@ function presentRogueAttemptedLines(
   ];
 }
 
-function presentRogueOtherTargetsLine(availableAt: Date | null): string {
+function presentRogueOtherTargetsLines(availableAt: Date | null): string[] {
   return availableAt
-    ? `🕯️ Інші цілі: пальці відсапуються ще ${formatRemaining(availableAt)}.`
-    : "🕯️ Інші цілі: готово.";
+    ? ["", `🕯️ Нова спроба по іншій цілі: пальці відсапуються ще ${formatRemaining(availableAt)}.`]
+    : [];
 }
 
 function formatRemaining(availableAt: Date, now = new Date()): string {
