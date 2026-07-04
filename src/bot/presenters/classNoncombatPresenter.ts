@@ -61,8 +61,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         `📍 ${escapeHtml(result.locationName)}`,
         "Ризик малий не буває: можна нічого не знайти, засвітитись або дуже невдало зустріти чужий лікоть.",
         presentRogueOtherTargetsLine(result.roguePickpocketCooldownAvailableAt),
-        "",
-        result.targets.length > 0 ? "Оберіть активну ціль поруч:" : ""
+        ""
       ];
 
   if (!result.actorBlocked && result.mode === "priest") {
@@ -76,6 +75,9 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
     const attemptedLines = presentRogueAttemptedLines(result);
     if (attemptedLines.length > 0) {
       lines.push("", ...attemptedLines);
+    }
+    if (result.targets.length > 0) {
+      lines.push("", "Оберіть активну ціль поруч:");
     }
     if (result.targets.filter((target) => target.canRoguePickpocket).length === 0 && result.targets.length === 0) {
       lines.push("", "Активних цілей поруч немає. Кишені теж мають графік роботи.");

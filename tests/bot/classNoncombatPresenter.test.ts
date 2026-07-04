@@ -386,5 +386,6 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("🕯️ Інші цілі: пальці відсапуються ще 93 хвилини.");
     expect(text).toContain("Сьогодні вже були:");
     expect(text).toContain("🗓️ Сусід — цю кишеню знову тільки завтра.");
+    expect(text.indexOf("Сьогодні вже були:")).toBeLessThan(text.indexOf("Оберіть активну ціль поруч:"));
   });
 });
