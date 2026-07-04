@@ -304,7 +304,7 @@ describe("class noncombat presenter", () => {
     expect(text).not.toContain("🩹 <b>Лікування спрацювало</b>");
   });
 
-  it("formats Rogue next-attempt time in italics", () => {
+  it("formats Rogue result target, spacing and next-attempt time clearly", () => {
     const text = presentRoguePickpocketResult({
       state: "completed",
       attempt: {
@@ -315,8 +315,8 @@ describe("class noncombat presenter", () => {
         targetTelegramUserId: 1002n,
         actorName: "Злодій",
         targetName: "Сусід",
-        outcome: "clean-success",
-        stolenGold: 6,
+        outcome: "empty",
+        stolenGold: 0,
         actorHpAfter: null,
         cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
         completedAt: new Date("2026-07-03T09:00:00.000Z")
@@ -333,7 +333,11 @@ describe("class noncombat presenter", () => {
       unlocks: []
     } as unknown as RoguePickpocketResult);
 
+    expect(text).toContain("Ціль: <b>Сусід</b>");
+    expect(text).toContain("Ціль: <b>Сусід</b>\n\nНічого.");
+    expect(text).toContain("вихована.\n\nНаступна спроба");
     expect(text).toContain("Наступна спроба: <i>93 хвилини</i>.");
+    expect(text).not.toContain("Ціль: Сусід");
   });
 
   it("explains that noticed Rogue theft notifications are successful but seen", () => {

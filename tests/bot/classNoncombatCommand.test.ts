@@ -151,7 +151,7 @@ describe("class noncombat command", () => {
   });
 
   it("does not notify achievements or target again for Rogue duplicate replay", async () => {
-    const { ctx, reply, sendMessage } = callbackContext();
+    const { ctx, editMessageText, reply, sendMessage } = callbackContext();
     const service = {
       pickpocketForTelegramUser: vi.fn().mockResolvedValue(roguePickpocketResult({ created: false }))
     };
@@ -167,6 +167,10 @@ describe("class noncombat command", () => {
 
     expect(sendMessage).not.toHaveBeenCalled();
     expect(reply).not.toHaveBeenCalled();
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("Ціль: <b>Ціль</b>");
+    expect(text).toContain("Цей запис уже зафіксовано");
+    expect(keyboardTexts(options)).toEqual(["🔄 Оновити"]);
   });
 
   it("notifies the actor once for fresh Rogue attempt achievements", async () => {

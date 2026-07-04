@@ -150,7 +150,7 @@ export function presentRoguePickpocketResult(result: RoguePickpocketResult): str
     return presentBlocked("🗡️", "Кишеня не піддалася", result.reason, result.availableAt);
   }
 
-  const replayLine = result.created ? "" : "\nЦей запис уже зафіксовано: повтор не перекидає долю.";
+  const replayLines = result.created ? [] : ["", "Цей запис уже зафіксовано: повтор не перекидає долю."];
   const outcome = result.attempt.outcome;
   const body = outcome === "clean-success"
     ? `Чисто. У протоколі з’явилось <b>${result.attempt.stolenGold}</b> золота, і навіть протяг соромиться.`
@@ -165,11 +165,14 @@ export function presentRoguePickpocketResult(result: RoguePickpocketResult): str
   return [
     "🗡️ <b>Тиха кишеня</b>",
     "",
-    `Ціль: ${presentCharacterDisplayName(result.target, { boldName: false })}`,
+    `Ціль: ${presentCharacterDisplayName(result.target)}`,
+    "",
     body,
-    outcome === "caught-badly" ? "HP злодія: <b>0</b>." : "",
-    `Наступна спроба: <i>${formatRemaining(result.attempt.cooldownAvailableAt)}</i>.${replayLine}`
-  ].filter(Boolean).join("\n");
+    ...(outcome === "caught-badly" ? ["", "HP злодія: <b>0</b>."] : []),
+    "",
+    `Наступна спроба: <i>${formatRemaining(result.attempt.cooldownAvailableAt)}</i>.`,
+    ...replayLines
+  ].join("\n");
 }
 
 function presentRogueCooldownBlocked(availableAt?: Date): string {

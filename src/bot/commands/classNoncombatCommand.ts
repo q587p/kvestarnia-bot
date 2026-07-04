@@ -1,5 +1,6 @@
 import { InlineKeyboard, type Context } from "grammy";
 import {
+  makeClassNoncombatOpenCallbackData,
   makeRogueRetaliationDuelCallbackData,
   type ClassNoncombatCallback
 } from "../callbacks/classNoncombatCallbackData";
@@ -92,7 +93,10 @@ export async function handleClassNoncombatCallback(
     expectedActorRemortCount: callback.actorRemortCount,
     expectedTargetRemortCount: callback.targetRemortCount
   });
-  await safeEditMessageText(ctx, presentRoguePickpocketResult(result), HTML_MESSAGE_OPTIONS);
+  await safeEditMessageText(ctx, presentRoguePickpocketResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildClassNoncombatRefreshKeyboard("rogue", callback.page)
+  });
 
   if (result.state === "completed") {
     const notification = presentRoguePickpocketTargetNotification(result);
@@ -106,6 +110,11 @@ export async function handleClassNoncombatCallback(
     }
   }
   await notifyActorAchievements(ctx, result.state === "completed" ? result.unlocks : []);
+}
+
+function buildClassNoncombatRefreshKeyboard(mode: "priest" | "rogue", page: number): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔄 Оновити", makeClassNoncombatOpenCallbackData(mode, page));
 }
 
 async function editOpen(
