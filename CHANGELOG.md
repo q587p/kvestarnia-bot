@@ -16,7 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added level 3+ Rogue `🗡️ Тиха кишеня` from `Хто поруч` for active same-location targets with target level protection, once-per-actor-target Kyiv-day replay, a 93-minute actor cooldown after every resolved attempt and stored deterministic outcomes.
 - Added Rogue outcomes for clean success, noticed success, empty/no opportunity, noticed failure and caught badly. Caught badly sets Rogue HP to `0` through the character resource row and does not create an extra caught cooldown.
 - Added private best-effort target notifications after successful Priest heal/blessing and relevant Rogue pickpocket outcomes.
-- Added a one-button private retaliation path for noticed successful Rogue thefts: the target can launch a safe quick duel against the Rogue, with the Rogue auto-accepted and ordinary duel no-stakes/no-loss rules still applying.
+- Added a two-button private retaliation path for noticed successful Rogue thefts: the target can launch either an instant or turn-based safe duel against the Rogue, with the Rogue auto-accepted and ordinary duel no-stakes/no-loss rules still applying.
 - Added rewardless achievements for first Priest heal, first Priest blessing, first Rogue pickpocket attempt, first successful pickpocket and first caught-badly outcome.
 - Added class noncombat callback, keyboard, presenter, service and repository slices with `v1:nc` callback routing.
 - Added Prisma tables for Priest aid actions, Priest blessings and Rogue pickpocket attempts.
@@ -60,8 +60,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
 - Rogue pickpocket result cards now bold the target name, separate target, outcome and next-attempt beats with blank lines, keep a refresh button under the result, italicize the next-attempt wait, and fresh Rogue target lists keep same-day attempted targets visible with a tomorrow-only marker before the active target prompt while omitting that prompt when no fresh pockets remain.
-- Noticed-success Rogue theft notifications now state plainly that the theft succeeded but was seen, and attach the private retaliation duel button only to that fresh target notification.
-- Rogue retaliation callbacks are now bound to the stored pickpocket attempt through a short opaque token, expire after a short window and mark the attempt as used before creating the safe quick duel, so forged, stale or duplicate clicks cannot create unlimited forced duels.
+- Noticed-success Rogue theft notifications now state plainly that the theft succeeded but was seen, and attach private instant-duel and turn-based-duel retaliation buttons only to that fresh target notification.
+- Rogue retaliation callbacks are now bound to the stored pickpocket attempt through a short opaque token and selected duel mode, expire after a short window and mark the attempt as used before creating the safe duel, so forged, stale or duplicate clicks cannot create unlimited forced duels.
 - Kept Priest action buttons under blocked no-op heal, same-target blessing wait and already-blessed blessing result cards so players can immediately choose another Priest action or refresh the list, with reason-specific headings for full HP, target wait and repeated blessing blockers.
 - Hid the Priest self-heal button while the character is already at full HP, matching the inventory medical-item no-op behavior.
 - Hid Priest/Rogue class noncombat action buttons while the actor is already busy in combat or raid, stopped treating scene/adventure presence as a blocker, and replaced the old generic protocol blocker copy with clearer stale-callback explanations.
@@ -78,7 +78,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Successful Priest healing and blessing now anchor mana regeneration at the action time, so an old regen marker cannot immediately refill spent mana on the next hero/card read.
 - Active Priest blessing stat bonuses now use a shared helper for hero summaries and class noncombat planning; expired blessings do not affect stats and active blessings still do not stack.
 - Rogue transfers debit target and credit actor in one transaction, cap stolen gold at `13` and target balance, never create gold, never steal items and never count as trade/gift/quest/hunt/combat progress.
-- Rogue retaliation uses the existing safe quick-duel resolver after the durable pickpocket result; it skips resource warnings and the Rogue accept prompt by design, but still creates no stakes, gold, item loss or quick-duel XP.
+- Rogue retaliation uses the existing safe duel flows after the durable pickpocket result; it skips resource warnings and the Rogue accept prompt by design, but still creates no stakes, gold or item loss.
 - Duplicate Rogue callbacks replay the stored attempt without rerolling, double-transfer or double achievement tracking, even if live location/remort gates have drifted after the original stored attempt.
 - Standard actor achievement notifications are sent only for fresh completed Priest heal/bless or Rogue attempts; blocked/no-op states and duplicate Rogue replays do not notify again.
 - No public shame/latest-events row, PvP tournament, item theft, universal noncombat engine, combat ability rebalance or paid advantage ships here.
@@ -99,8 +99,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added hero-command and keyboard coverage for the Priest self-blessing hero-card shortcut.
 - Added presenter coverage for empty Rogue pickpocket target lists.
 - Added Prisma repository integration tests for exact normalized target listing, same-day Rogue target marking, atomic Rogue gold movement, target-balance capping, no-gold empty outcomes, duplicate replay after live drift and caught-badly HP mutation.
-- Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation and duplicate Rogue replay silence.
-- Added callback, presenter and command coverage for noticed Rogue theft clarity, target-only retaliation buttons and automatic quick-duel acceptance parameters.
+- Added class noncombat command tests for actor achievement notifications, blocked Priest keyboard preservation, duplicate Rogue replay silence and both instant/turn-based Rogue retaliation paths.
+- Added callback, presenter and command coverage for noticed Rogue theft clarity, target-only retaliation buttons and automatic duel acceptance parameters.
 - Added lore-board coverage for class combat ability references and separate side-surface paragraphs.
 - Added online/presence routing tests for the `Хто поруч` discovery surface and neutral `v1:nc` callback presence.
 - Added combat-engine regression coverage for expiring hero-targeted monster effects after `defend` in a two-enemy fight.

@@ -77,13 +77,36 @@ describe("class noncombat callback data", () => {
     });
   });
 
-  it("encodes Rogue retaliation duel callbacks with an opaque attempt token", () => {
+  it("encodes Rogue retaliation duel callbacks with an opaque attempt token and mode", () => {
     expect(parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      mode: "quick",
       retaliationToken: "abc123xy"
     }))).toEqual({
       ok: true,
       value: {
         type: "rogue-retaliation-duel",
+        mode: "quick",
+        retaliationToken: "abc123xy"
+      }
+    });
+
+    expect(parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      mode: "turn-based",
+      retaliationToken: "turn1234"
+    }))).toEqual({
+      ok: true,
+      value: {
+        type: "rogue-retaliation-duel",
+        mode: "turn-based",
+        retaliationToken: "turn1234"
+      }
+    });
+
+    expect(parseClassNoncombatCallbackData("v1:nc:rd:abc123xy")).toEqual({
+      ok: true,
+      value: {
+        type: "rogue-retaliation-duel",
+        mode: "quick",
         retaliationToken: "abc123xy"
       }
     });
@@ -92,11 +115,15 @@ describe("class noncombat callback data", () => {
       ok: false,
       error: "invalid-target"
     });
+    expect(parseClassNoncombatCallbackData("v1:nc:rd:x:abc123xy")).toEqual({
+      ok: false,
+      error: "invalid-target"
+    });
     expect(parseClassNoncombatCallbackData(`v1:nc:rd:${"a".repeat(60)}`)).toEqual({
       ok: false,
       error: "too-long"
     });
-    expect(parseClassNoncombatCallbackData("v1:nc:rd:abc123xy:extra")).toEqual({
+    expect(parseClassNoncombatCallbackData("v1:nc:rd:q:abc123xy:extra")).toEqual({
       ok: false,
       error: "invalid-prefix"
     });

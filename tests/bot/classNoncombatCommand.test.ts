@@ -194,7 +194,7 @@ describe("class noncombat command", () => {
     expect(reply).toHaveBeenCalledWith(expect.stringContaining("Пальці без протоколу"), { parse_mode: "HTML" });
   });
 
-  it("adds a retaliation duel button to noticed successful Rogue target notifications", async () => {
+  it("adds instant and turn-based retaliation duel buttons to noticed successful Rogue target notifications", async () => {
     const { ctx, sendMessage } = callbackContext();
     const service = {
       pickpocketForTelegramUser: vi.fn().mockResolvedValue(roguePickpocketResult({ created: true }))
@@ -213,7 +213,10 @@ describe("class noncombat command", () => {
     const [chatId, text, options] = sendMessage.mock.calls[0];
     expect(chatId).toBe(Number(targetTelegramUserId));
     expect(text).toContain("Ви помітили успішну крадіжку");
-    expect(keyboardTexts(options as EditOptions)).toEqual(["⚡ Відплатити дуеллю"]);
+    expect(keyboardTexts(options as EditOptions)).toEqual([
+      "⚡ Відплатити миттєвою дуеллю",
+      "♟️ Відплатити покроковою дуеллю"
+    ]);
   });
 
   it("starts and auto-accepts a quick duel when the pickpocket target retaliates", async () => {
@@ -267,6 +270,76 @@ describe("class noncombat command", () => {
     expect(text).toContain("⚡ <b>Кишенькова відплата</b>");
     expect(text).toContain("Цей виклик уже загубився");
     expect(options.parse_mode).toBe("HTML");
+  });
+
+  it("starts and auto-accepts a turn-based duel when the pickpocket target chooses slow retaliation", async () => {
+    const { ctx, editMessageText, sendMessage } = callbackContext({ telegramUserId: targetTelegramUserId });
+    const claimRogueRetaliationForTelegramUser = vi.fn<(target: bigint, token: string) => Promise<RogueRetaliationResult>>()
+      .mockResolvedValue({
+        state: "ready",
+        attempt: roguePickpocketAttempt(),
+        actor: character("Злодій", "class.rogue"),
+        target: character("Ціль", "class.warrior")
+      });
+    const recordRogueRetaliationDuel = vi.fn<(token: string, inviteToken: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const service = {
+      claimRogueRetaliationForTelegramUser,
+      recordRogueRetaliationDuel
+    } satisfies Pick<ClassNoncombatService, "claimRogueRetaliationForTelegramUser" | "recordRogueRetaliationDuel">;
+    const active = turnBasedRetaliationResult();
+    const createTargetedChallengeForTelegramUser = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge: {
+        inviteToken: "retaliate-token"
+      }
+    });
+    const acceptForTelegramUser = vi.fn().mockResolvedValue(active);
+    const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
+      mode: "turn-based",
+      retaliationToken: "abc123xy"
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(
+      ctx,
+      callback.ok ? callback.value : neverCallback(),
+      service as never,
+      { createTargetedChallengeForTelegramUser, acceptForTelegramUser, recordTurnBasedMessageReference } as never
+    );
+
+    expect(claimRogueRetaliationForTelegramUser).toHaveBeenCalledWith(targetTelegramUserId, "abc123xy");
+    expect(createTargetedChallengeForTelegramUser).toHaveBeenCalledWith(targetTelegramUserId, actorTelegramUserId, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+    expect(recordRogueRetaliationDuel).toHaveBeenCalledWith("abc123xy", "retaliate-token");
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(actorTelegramUserId, "retaliate-token", {
+      confirmed: true,
+      ignoreResourceWarning: true,
+      expectedMode: "turn-based"
+    });
+
+    const [text, options] = firstEditCall(editMessageText);
+    expect(text).toContain("♟️ <b>Кишенькова відплата</b>");
+    expect(text).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
+      "⚔️ Атакувати",
+      "🛡 Захищатися",
+      "🏳️ Здатися",
+      "🔎 Оновити"
+    ]));
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      Number(actorTelegramUserId),
+      expect.stringContaining("♟️ <b>Кишенькова відплата</b>"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(recordTurnBasedMessageReference).toHaveBeenCalledWith("duel-session-1", "target", {
+      chatId: actorTelegramUserId,
+      messageId: 77
+    });
   });
 
   it("does not let another Telegram user trigger pickpocket retaliation", async () => {
@@ -371,7 +444,7 @@ function callbackContext(options: { telegramUserId?: bigint } = {}) {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn<(text: string, options: EditOptions) => Promise<boolean>>().mockResolvedValue(true);
   const reply = vi.fn().mockResolvedValue(true);
-  const sendMessage = vi.fn().mockResolvedValue(true);
+  const sendMessage = vi.fn().mockResolvedValue({ message_id: 77 });
   const ctx = {
     from: {
       id: Number(options.telegramUserId ?? actorTelegramUserId),
@@ -507,6 +580,83 @@ function priestOpenResult(): ClassNoncombatOpenResult {
     priestBlessCooldownAvailableAt: null,
     priestSelfBlessAvailableAt: null,
     roguePickpocketCooldownAvailableAt: null
+  };
+}
+
+function turnBasedRetaliationResult(): Extract<RogueRetaliationDuelAcceptResult, { state: "active" }> {
+  return {
+    state: "active",
+    challenge: {
+      inviteToken: "retaliate-token",
+      mode: "turn-based",
+      challenger: {
+        telegramUserId: targetTelegramUserId,
+        name: "Ціль"
+      },
+      target: {
+        telegramUserId: actorTelegramUserId,
+        name: "Злодій"
+      }
+    },
+    session: {
+      id: "duel-session-1",
+      status: "active",
+      turn: 1,
+      version: 1,
+      challengerCharacterId: "target",
+      targetCharacterId: "actor",
+      state: {
+        status: "active",
+        turn: 1,
+        participants: {
+          challenger: turnBasedParticipant("target", "Ціль", "class.warrior"),
+          target: turnBasedParticipant("actor", "Злодій", "class.rogue")
+        }
+      }
+    },
+    challenger: character("Ціль", "class.warrior"),
+    target: character("Злодій", "class.rogue"),
+    turnExpiresAt: new Date("2026-07-03T09:00:23.000Z"),
+    now
+  } as unknown as Extract<RogueRetaliationDuelAcceptResult, { state: "active" }>;
+}
+
+type RogueRetaliationDuelAcceptResult = Awaited<ReturnType<import("../../src/services/duelChallengeService").DuelChallengeService["acceptForTelegramUser"]>>;
+
+function turnBasedParticipant(characterId: string, displayName: string, classId: string) {
+  return {
+    characterId,
+    displayName,
+    title: "Пересічні Пригодники",
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId,
+    className: classId === "class.rogue" ? "Злодій" : "Воїн",
+    level: 3,
+    remortCount: 0,
+    hp: 20,
+    hpMax: 20,
+    mana: 20,
+    manaMax: 20,
+    stats: {
+      strength: 8,
+      dexterity: 8,
+      intelligence: 8,
+      charisma: 8,
+      luck: 8
+    },
+    combatStats: {
+      classId,
+      raceId: "race.human-ish",
+      level: 3,
+      attack: 8,
+      defense: 8,
+      maxHp: 20,
+      maxMana: 20,
+      skillPower: 8,
+      critChance: 0.05
+    },
+    cooldowns: {}
   };
 }
 

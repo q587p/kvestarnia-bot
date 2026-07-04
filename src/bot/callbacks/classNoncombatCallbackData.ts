@@ -26,6 +26,7 @@ export type ClassNoncombatCallback =
     }
   | {
       type: "rogue-retaliation-duel";
+      mode: "quick" | "turn-based";
       retaliationToken: string;
     };
 
@@ -76,8 +77,10 @@ export function makeRoguePickpocketCallbackData(input: {
 
 export function makeRogueRetaliationDuelCallbackData(input: {
   retaliationToken: string;
+  mode?: "quick" | "turn-based";
 }): string {
-  return `${PREFIX}:rd:${input.retaliationToken}`;
+  const mode = input.mode === "turn-based" ? "t" : "q";
+  return `${PREFIX}:rd:${mode}:${input.retaliationToken}`;
 }
 
 export function parseClassNoncombatCallbackData(
@@ -111,16 +114,27 @@ export function parseClassNoncombatCallbackData(
   }
 
   if (action === "rd") {
-    if (!first || !retaliationTokenPattern.test(first)) {
+    const legacyToken = first && retaliationTokenPattern.test(first) && second === undefined;
+    const mode = legacyToken
+      ? "quick"
+      : first === "q"
+        ? "quick"
+        : first === "t"
+          ? "turn-based"
+          : null;
+    const token = legacyToken ? first : second;
+
+    if (!mode || !token || !retaliationTokenPattern.test(token)) {
       return err("invalid-target");
     }
-    if (second !== undefined || third !== undefined || fourth !== undefined) {
+    if (third !== undefined || fourth !== undefined) {
       return err("invalid-prefix");
     }
 
     return ok({
       type: "rogue-retaliation-duel",
-      retaliationToken: first
+      mode,
+      retaliationToken: token
     });
   }
 
