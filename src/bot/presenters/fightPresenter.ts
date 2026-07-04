@@ -694,12 +694,23 @@ function presentActionHeading(action: "attack" | "receipt" | "flee"): string {
 function presentOutcome(
   result: Exclude<FightResult, { state: "no-character" | "already-completed" | "level-retired" }>
 ): string[] {
+  const enemyReply =
+    result.combat.enemyDamage > 0
+      ? [`Мімік атакує у відповідь і завдає ${result.combat.enemyDamage} шкоди.`]
+      : [];
+
   if (result.action === "attack") {
-    return [`Мімік отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`];
+    return [
+      `Мімік отримав ${result.combat.playerDamage} шкоди й задумався про карʼєру салату.`,
+      ...enemyReply
+    ];
   }
 
   if (result.action === "receipt") {
-    return [`Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`];
+    return [
+      `Мімік отримав ${result.combat.playerDamage} шкоди від формальної ввічливості.`,
+      ...enemyReply
+    ];
   }
 
   return [`${escapeHtml(result.character.name)} зберіг обличчя, нерви й підозру до лаваша.`];
