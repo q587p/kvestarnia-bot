@@ -17,7 +17,7 @@ import {
   isMeaningfulBigBarrelParticipant,
   PARTY_BOSS_TURN_MS
 } from "../../domain/partyBoss/partyBoss";
-import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
+import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
@@ -922,12 +922,12 @@ function presentPartyBossActionLine(
   const name = escapeHtml(participant?.name ?? "Учасник");
 
   if (action.outcome === "item-used") {
-    const itemName = escapeHtml(action.itemName ?? "манатку");
+    const itemName = presentPartyBossItemName(action.itemId, action.itemName ?? "манатку");
     const healing = presentPartyBossItemHealing(action);
 
     return isViewer
-      ? `Ви застосували <b>${itemName}</b>.${healing}`
-      : `${name} застосовує <b>${itemName}</b>.${healing}`;
+      ? `Ви застосували ${itemName}.${healing}`
+      : `${name} застосовує ${itemName}.${healing}`;
   }
 
   if (action.outcome === "defended") {
@@ -1014,11 +1014,43 @@ function presentPartyBossCooldownLines(
     return [];
   }
 
-  return getCooldownEntries(viewer.resources.cooldowns).map((cooldown) => {
+  const skillLines = getCooldownEntries(viewer.resources.cooldowns).map((cooldown) => {
     const skill = getCombatSkillDisplay(cooldown.id);
 
     return `🫁 ${skill.icon} <i>${escapeHtml(skill.name)}</i> відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
   });
+  const itemLines = Object.values(viewer.combatItems?.cooldowns ?? {})
+    .filter((cooldown) => cooldown.remainingTurns > 0)
+    .map((cooldown) =>
+      `🫁 ${getPartyBossItemIcon(cooldown.itemId)} ${escapeHtml(getPartyBossItemName(cooldown.itemId))} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`
+    );
+
+  return [...skillLines, ...itemLines];
+}
+
+function presentPartyBossItemName(itemId: string | undefined, fallbackName: string): string {
+  const icon = getPartyBossItemIcon(itemId);
+  return `${icon} <b>${escapeHtml(fallbackName)}</b>`;
+}
+
+function getPartyBossItemName(itemId: string | undefined): string {
+  if (itemId === FIELD_KIT_ITEM_ID) {
+    return "Польова аптечка";
+  }
+
+  if (itemId === DENSE_BANDAGE_ITEM_ID) {
+    return "Щільний бинт";
+  }
+
+  return "Манатка";
+}
+
+function getPartyBossItemIcon(itemId: string | undefined): string {
+  if (itemId === FIELD_KIT_ITEM_ID) {
+    return "🩺";
+  }
+
+  return "🩹";
 }
 
 function getCooldownEntries(

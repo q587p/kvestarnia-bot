@@ -54,6 +54,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Removed the two-enemy Nyz threat backup HP shortcut: every threat monster now keeps its own full level-derived HP, and victory rewards/loot use the original encounter enemy level even after the primary enemy dies and the boosted backup becomes the active mirror.
 - Fixed multi-enemy combat effect expiry so hero-targeted monster effects tick down after any hero action, including `defend` and combat-item turns, and the turn log no longer repeats expired accuracy-penalty notices.
 - Multi-enemy combat journals now explicitly note when a backup enemy pauses on its softened-pressure cadence instead of making the second enemy look like it silently skipped by accident.
+- Big Barrel raid journals now include dense-bandage cooldowns in `Кулдауни та ефекти`, and raid medical-item action lines show item icons for `Щільний бинт` and `Польова аптечка`.
 - Extended local `/dev_two_enemies [N]` so manual QA can force `Натиск Низу` and boost the second enemy by `N` requested levels while keeping the dev fight excluded from ordinary threat history.
 - Fixed Priest healing persistence to cap against the target's effective HP maximum, so level-derived max HP no longer truncates a valid heal at the stored base `hpMax`.
 - Hid Priest target-heal buttons for full-HP nearby targets, switched Priest healing UI markers from bandage to `⚕️`, and added page controls for longer class noncombat target lists through a shared keyboard pagination helper.
@@ -99,6 +100,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added online/presence routing tests for the `Хто поруч` discovery surface and neutral `v1:nc` callback presence.
 - Added combat-engine regression coverage for expiring hero-targeted monster effects after `defend` in a two-enemy fight.
 - Added combat-engine and presenter coverage for visible backup-enemy pressure pauses in multi-enemy journals.
+- Added party-boss presenter coverage for dense-bandage raid cooldown rows and medical-item icons in raid action lines.
 
 ## [0.2.24] - 12026-07-03 - Mantok Balance Audit and Rebalance Pass
 

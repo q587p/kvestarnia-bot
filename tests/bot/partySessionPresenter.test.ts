@@ -56,6 +56,14 @@ describe("party session presenter", () => {
         }
       }
     };
+    leader.combatItems = {
+      cooldowns: {
+        "item.dense-bandage": {
+          itemId: "item.dense-bandage",
+          remainingTurns: 4
+        }
+      }
+    };
     const text = presentPartyBossJournal(makeBigBossSession({
       participants: [leader, participant("striker", "Шкодійка")],
       roundLog: [{
@@ -101,6 +109,7 @@ describe("party session presenter", () => {
     expect(text).toContain("Старший Брат Бочки застосував 🛢️ <i>Бочковий гуркіт</i>: Голова отримує 5 шкоди; Шкодійка отримує 7 шкоди.");
     expect(text).toContain("<b>Кулдауни та ефекти:</b>");
     expect(text).toContain("Голова: 🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 2 ходи.");
+    expect(text).toContain("Голова: 🫁 🩹 Щільний бинт відсапується: ще 4 ходи.");
     expect(text).toContain("🎯 На наступний хід увага боса переходить на Шкодійка.");
     expect(text).not.toContain("Бос отримав:");
   });
@@ -227,8 +236,36 @@ describe("party session presenter", () => {
       }]
     }), { viewerCharacterId: "leader" });
 
-    expect(text).toContain("Ви застосували <b>Польова аптечка</b>. HP підтягнуто до 93.");
+    expect(text).toContain("Ви застосували 🩺 <b>Польова аптечка</b>. HP підтягнуто до 93.");
     expect(text).not.toContain("Польова аптечка</b>. HP відновлено на 83.");
+  });
+
+  it("renders Big Barrel dense bandage item actions with the medical icon", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "leader",
+            action: "item",
+            origin: "manual",
+            outcome: "item-used",
+            damage: 0,
+            manaSpent: 0,
+            itemId: "item.dense-bandage",
+            itemName: "Щільний бинт",
+            healing: 23,
+            hpAfter: 42
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 100,
+        bossRetaliations: [],
+        statusAfter: "active"
+      }]
+    }), { viewerCharacterId: "striker" });
+
+    expect(text).toContain("Голова застосовує 🩹 <b>Щільний бинт</b>. HP відновлено на 23.");
   });
 
   it("uses participant names instead of viewer shorthand on completed Big Barrel Brother cards", () => {
