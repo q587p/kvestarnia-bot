@@ -385,9 +385,14 @@ async function handleShynokCallback(
     }
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentDicePokerStakeMenu(action.mode, services.tavernGames.getMaxStake()), {
+    const doppelgangerAvailable = services.tavernGames.isDoppelgangerAtShynok();
+    await safeEditMessageText(ctx, presentDicePokerStakeMenu(action.mode, services.tavernGames.getMaxStake(), {
+      doppelgangerAvailable
+    }), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokDicePokerStakeKeyboard(action.mode, services.tavernGames.getMaxStake())
+      reply_markup: buildShynokDicePokerStakeKeyboard(action.mode, services.tavernGames.getMaxStake(), {
+        doppelgangerAvailable
+      })
     });
     return;
   }

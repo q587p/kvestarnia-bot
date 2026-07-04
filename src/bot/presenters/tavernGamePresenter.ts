@@ -77,7 +77,13 @@ export function presentTavernGameRules(gameKey: TavernGameKey, maxStake: number)
   ].join("\n");
 }
 
-export function presentDicePokerStakeMenu(mode: "quick" | "scorecard", maxStake: number): string {
+export function presentDicePokerStakeMenu(
+  mode: "quick" | "scorecard",
+  maxStake: number,
+  options: { doppelgangerAvailable?: boolean } = {}
+): string {
+  const doppelgangerAvailable = options.doppelgangerAvailable ?? true;
+
   return [
     mode === "quick" ? "⚡ Швидкі кості" : "📜 Табличні кості",
     "",
@@ -85,7 +91,9 @@ export function presentDicePokerStakeMenu(mode: "quick" | "scorecard", maxStake:
       ? "Коротка дуель: один кидок, один перекид, далі сильніша комбінація бере партію."
       : "Таблична партія на 13 ходів: кидаєте кості, перекидаєте до двох разів і вписуєте рахунок у клітинки.",
     "",
-    "Оберіть ставку. «Стіл» відкриє партію для інших гравців; «Допельґанґер» лишиться запасним суперником.",
+    doppelgangerAvailable
+      ? "Оберіть ставку. «Стіл» відкриє партію для інших гравців; «Допельґанґер» лишиться запасним суперником."
+      : "Оберіть ставку. Допельґанґер зараз у бійцівському кутку, тому тут лишаються столи з іншими гравцями.",
     `Межа ставки зараз: <b>${maxStake} зол.</b>`
   ].join("\n");
 }
@@ -691,6 +699,9 @@ function presentBlockReason(reason: string | undefined): string {
   }
   if (reason === "pending-raid") {
     return "Спершу завершіть рейд на Бочку. Вона ревниво ставиться до ставок.";
+  }
+  if (reason === "doppelganger-at-fighting-corner") {
+    return "Сумлінний Допельґанґер зараз у бійцівському кутку. До костей у Шинку він сідає після 23:00 і до 07:00.";
   }
 
   return "Зараз не до шинкових ігор.";

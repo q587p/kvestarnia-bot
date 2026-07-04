@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Dice Poker rules cards can return to the current active Dice Poker session when opened from that session.
 - Quick result cards use spaced combat-like win/loss/draw markers and print the exact stake payout/loss/refund amount.
 - Social Dice Poker stores per-participant dice/scorecard state in participant decisions, settles a shared pot once all active players finish, refunds tied tables safely and records all participant outcomes for the leaderboard.
+- `🪞 Допельґанґер` fallback now follows the in-world schedule: from 23:00 until 07:00 Kyiv time he is available for Dice Poker in Shynok, while daytime keeps him in the Fighting Corner and hides the Shynok fallback buttons.
 
 ### Fixed
 - Old incompatible active Kosti tables are hidden from the open-table hub and old decision/resolve callbacks fail closed through the existing safe refund/stale path with friendly Ukrainian copy.

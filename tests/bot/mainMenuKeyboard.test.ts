@@ -430,6 +430,14 @@ describe("main menu and scene keyboards", () => {
       "v1:place:hall"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({
+      trainingDoppelgangerAvailable: false
+    }))).toEqual([
+      "⚡ Миттєва дуель",
+      "♟️ Покрокова дуель",
+      "🏆 Переможці",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({
       questMarkers: {
         characterLevel: 4,
         dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }

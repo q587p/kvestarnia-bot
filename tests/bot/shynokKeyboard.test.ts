@@ -85,6 +85,18 @@ describe("Shynok game keyboards", () => {
     ]);
   });
 
+  it("hides the Doppelganger stake buttons while he is in the fighting corner", () => {
+    expect(flatInlineButtonTexts(buildShynokDicePokerStakeKeyboard("quick", 13, {
+      doppelgangerAvailable: false
+    }))).toEqual([
+      "👥 Стіл · 1",
+      "👥 Стіл · 5",
+      "👥 Стіл · 13",
+      "❔ Правила",
+      "↩ До костей"
+    ]);
+  });
+
   it("shows clear quick dice poker next actions", () => {
     const state = {
       ...startQuickDicePoker("keyboard-quick"),

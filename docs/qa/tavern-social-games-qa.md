@@ -56,7 +56,7 @@
 - Tavlei decision buttons work and stale decision callbacks are friendly.
 - Kosti opens `🎲 Кості й покер` with `⚡ Швидкі кості`, `📜 Табличні кості` and `❔ Правила`, with stakes shown only after choosing a mode.
 - Quick Dice Poker supports a two-player social table, selecting none/some/all dice for the one reroll and a terminal shared result once both players finish.
-- Quick Dice Poker with `🪞 Допельґанґер` shows both final hands plus the reason.
+- Quick Dice Poker with `🪞 Допельґанґер` is available in Shynok from 23:00 until 07:00 Kyiv time and shows both final hands plus the reason.
 - Dice Poker rules opened from an active game can return to that same active game.
 - Scorecard mode shows turn, roll, selected dice, score preview buttons and scorecard summary.
 - Scorecard used boxes disappear from available score buttons.
@@ -82,17 +82,19 @@
 6. Pick `⚡ Швидкі кості`, choose a stake and open a social table.
 7. Join from a second account; test no reroll, some rerolled dice and all dice rerolled across attempts.
 8. Verify social quick completion settles one shared pot once and appears in `🏆 Рейтинг`.
-9. Start quick dice with `🪞 Допельґанґер`; verify win/loss/draw/refund-cap result copy, blank-line spacing and exact stake behavior.
-10. Open rules from the active game and return to the same active game.
-11. Start `📜 Табличні кості` as a social table; join from at least one more account, reroll selected dice twice, score boxes and verify used boxes disappear.
-12. Keep a scorecard session open past the quick-poker window, press a valid scorecard action and verify the game continues.
-13. Let a scorecard session pass its longer deadline and verify a single escrow refund.
-14. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
-15. Verify `🏆 Рейтинг` counts quick win/loss/draw and high scorecard completion.
-16. Verify open social Dice Poker table counts in `🎲 Ігри за столом`; dedicated invite/deep-link buttons remain backlog.
-17. Use `/dev_reset_tavern_games` locally and verify it resets only the table-create cooldown.
-18. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
-19. Try insufficient gold.
-20. Try create/join/decision while under combat lock.
-21. Run the repo's local checks, at minimum `npm run check` if available.
-22. Inspect DB rows for terminal statuses and no orphan escrow.
+9. From 23:00 until 07:00 Kyiv time, start quick dice with `🪞 Допельґанґер`; verify win/loss/draw/refund-cap result copy, blank-line spacing and exact stake behavior.
+10. Outside 23:00-07:00 Kyiv time, verify Shynok hides `🪞 Допельґанґер` stake buttons, `/spar` works from the fighting corner and stale direct fallback callbacks do not reserve a stake.
+11. At 23:00-07:00 Kyiv time, verify the fighting corner hides `🥊 Потренуватися` and `/spar` says the Doppelganger went to Shynok.
+12. Open rules from the active game and return to the same active game.
+13. Start `📜 Табличні кості` as a social table; join from at least one more account, reroll selected dice twice, score boxes and verify used boxes disappear.
+14. Keep a scorecard session open past the quick-poker window, press a valid scorecard action and verify the game continues.
+15. Let a scorecard session pass its longer deadline and verify a single escrow refund.
+16. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
+17. Verify `🏆 Рейтинг` counts quick win/loss/draw and high scorecard completion.
+18. Verify open social Dice Poker table counts in `🎲 Ігри за столом`; dedicated invite/deep-link buttons remain backlog.
+19. Use `/dev_reset_tavern_games` locally and verify it resets only the table-create cooldown.
+20. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
+21. Try insufficient gold.
+22. Try create/join/decision while under combat lock.
+23. Run the repo's local checks, at minimum `npm run check` if available.
+24. Inspect DB rows for terminal statuses and no orphan escrow.

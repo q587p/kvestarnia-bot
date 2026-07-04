@@ -465,6 +465,7 @@ describe("tavern command screens", () => {
       capturingPresenceService(),
       "reply",
       {
+        now: dayInKyiv,
         questMarkers: {
           characterLevel: 4,
           dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260628" }

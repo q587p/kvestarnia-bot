@@ -135,15 +135,21 @@ export function presentKorchmaHall(
   ].join("\n");
 }
 
-export function presentKorchmaFightingCorner(_character: CharacterSummary): string {
+export function presentKorchmaFightingCorner(
+  _character: CharacterSummary,
+  options: { trainingDoppelgangerAvailable?: boolean } = {}
+): string {
   void _character;
+  const trainingLine = options.trainingDoppelgangerAvailable === false
+    ? "Сумлінний Допельґанґер після 23:00 пішов до Шинку грати в кості. Тут лишилися дуелі й дошка переможців."
+    : "Можна потренуватися з Сумлінним Допельґанґером, глянути переможців або кинути дружній виклик іншому пригоднику.";
 
   return [
     "🥊 Бійцівський куток",
     "",
     "Тут не бʼються одразу. Спершу Корчмар показує пальцем на дошку правил, потім на ваші манатки, потім знову на дошку правил.",
     "",
-    "Можна потренуватися з Сумлінним Допельґанґером, глянути переможців або кинути дружній виклик іншому пригоднику.",
+    trainingLine,
     "",
     "⚡ Миттєва дуель — результат одразу після згоди.",
     "♟️ Покрокова дуель — гравці таємно обирають дії за раунд.",

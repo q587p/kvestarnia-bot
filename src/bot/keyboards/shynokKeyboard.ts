@@ -167,14 +167,22 @@ export function buildShynokGameRulesKeyboard(gameKey: TavernGameKey, maxStake: n
     .text("↩ До ігор", makeShynokGamesCallbackData());
 }
 
-export function buildShynokDicePokerStakeKeyboard(mode: "quick" | "scorecard", maxStake: number): InlineKeyboard {
+export function buildShynokDicePokerStakeKeyboard(
+  mode: "quick" | "scorecard",
+  maxStake: number,
+  options: { doppelgangerAvailable?: boolean } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const doppelgangerAvailable = options.doppelgangerAvailable ?? true;
 
   for (const stake of listTavernGameStakeOptions(maxStake)) {
-    keyboard
-      .text(`👥 Стіл · ${stake}`, makeShynokDicePokerCreateCallbackData(mode, stake))
-      .text(`🪞 Допельґанґер · ${stake}`, makeShynokDicePokerDoppelgangerCreateCallbackData(mode, stake))
-      .row();
+    keyboard.text(`👥 Стіл · ${stake}`, makeShynokDicePokerCreateCallbackData(mode, stake));
+
+    if (doppelgangerAvailable) {
+      keyboard.text(`🪞 Допельґанґер · ${stake}`, makeShynokDicePokerDoppelgangerCreateCallbackData(mode, stake));
+    }
+
+    keyboard.row();
   }
 
   return keyboard

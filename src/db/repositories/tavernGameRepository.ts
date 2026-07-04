@@ -77,7 +77,11 @@ export interface TavernGameLeaderboard {
   month: TavernGameLeaderboardEntry[];
 }
 
-export type TavernGameGateReason = "wrong-place" | "active-combat" | "pending-raid";
+export type TavernGameGateReason =
+  | "wrong-place"
+  | "active-combat"
+  | "pending-raid"
+  | "doppelganger-at-fighting-corner";
 
 export type TavernGameCreateResult =
   | { state: "no-character" }

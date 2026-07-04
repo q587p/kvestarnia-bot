@@ -30,6 +30,7 @@ import {
   type TavernGameResolution,
   type TavleiTactic
 } from "../domain/tavernGames";
+import { isTrainingDoppelgangerAtShynok } from "../domain/trainingDoppelganger";
 import type {
   TavernGameCancelResult,
   TavernGameCreateResult,
@@ -131,6 +132,10 @@ export class TavernGameService {
 
   getMaxStake(): number {
     return this.config.tavernGameMaxStake;
+  }
+
+  isDoppelgangerAtShynok(): boolean {
+    return isTrainingDoppelgangerAtShynok(this.now());
   }
 
   async resetCreateCooldownForDev(telegramUserId: bigint): Promise<TavernGameDevResetResult> {
@@ -263,6 +268,10 @@ export class TavernGameService {
     }
 
     const now = this.now();
+    if (!isTrainingDoppelgangerAtShynok(now)) {
+      return { state: "blocked", reason: "doppelganger-at-fighting-corner" };
+    }
+
     const seed = `dice-poker:doppelganger:${mode}:${randomUUID()}`;
     const result = await this.repository.createDicePokerForTelegramUser(telegramUserId, {
       mode,

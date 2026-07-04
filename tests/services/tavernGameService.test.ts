@@ -182,6 +182,40 @@ describe("TavernGameService", () => {
     expect(DICE_POKER_SCORECARD_TTL_MS).toBe(93 * 60_000);
   });
 
+  it("blocks daytime Doppelganger dice poker before reserving a stake", async () => {
+    const repository = new FakeTavernGameRepository();
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.createDicePokerWithDoppelgangerForTelegramUser(42n, "quick", 13);
+
+    expect(result).toEqual({ state: "blocked", reason: "doppelganger-at-fighting-corner" });
+    expect(repository.lastDicePokerCreateInput).toBeNull();
+  });
+
+  it("allows Doppelganger dice poker at night in Shynok", async () => {
+    const repository = new FakeTavernGameRepository();
+    const night = new Date("2026-07-02T20:00:00.000Z");
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => night);
+
+    const result = await service.createDicePokerWithDoppelgangerForTelegramUser(42n, "quick", 13);
+
+    expect(result.state).toBe("created");
+    expect(repository.lastDicePokerCreateInput).toMatchObject({
+      stakeGold: 13,
+      now: night
+    });
+    expect(repository.lastDicePokerCreateInput?.state).toMatchObject({
+      kind: "dice_poker",
+      mode: "quick"
+    });
+  });
+
   it("refunds old incompatible Kosti sessions before legacy decisions", async () => {
     const existing = session({
       gameKey: "kosti",

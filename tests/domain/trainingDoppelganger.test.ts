@@ -5,6 +5,7 @@ import {
   buildTrainingDoppelgangerCombatStats,
   buildTrainingDoppelgangerCombatStatsFromState,
   buildTrainingDoppelgangerSpawn,
+  getTrainingDoppelgangerLocationAt,
   getTrainingDoppelgangerRecoveryMs,
   rollTrainingDoppelgangerXpReward,
   TRAINING_DOPPELGANGER_MONSTER_ID
@@ -13,6 +14,13 @@ import { startCombat } from "../../src/domain/combat";
 import { FakeRandomSource } from "../../src/shared/random";
 
 describe("training doppelganger domain", () => {
+  it("moves the doppelganger to Shynok from 23:00 until 07:00 Kyiv time", () => {
+    expect(getTrainingDoppelgangerLocationAt(new Date("2026-07-02T19:59:00.000Z"))).toBe("fighting-corner");
+    expect(getTrainingDoppelgangerLocationAt(new Date("2026-07-02T20:00:00.000Z"))).toBe("shynok");
+    expect(getTrainingDoppelgangerLocationAt(new Date("2026-07-03T03:59:00.000Z"))).toBe("shynok");
+    expect(getTrainingDoppelgangerLocationAt(new Date("2026-07-03T04:00:00.000Z"))).toBe("fighting-corner");
+  });
+
   it("builds a combat enemy from the current hero summary", () => {
     const character = buildCharacter();
     const stats = buildTrainingDoppelgangerCombatStats(character);

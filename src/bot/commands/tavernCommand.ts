@@ -38,6 +38,7 @@ import type { YegerQuestService } from "../../services/yegerQuestService";
 import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
+import { isTrainingDoppelgangerAtShynok } from "../../domain/trainingDoppelganger";
 import { systemClock } from "../../shared/time";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
@@ -116,7 +117,7 @@ type TavernCommandKeyboard =
   | { state: "yard"; questMarkers?: QuestMarkerInput | null }
   | "news-corner"
   | "fighting-corner"
-  | { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null }
+  | { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean }
   | "deep"
   | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
   | "back-to-fighting-corner"
@@ -483,7 +484,7 @@ export async function sendKorchmaFightingCorner(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options: { questMarkers?: QuestMarkerInput | null } = {}
+  options: { questMarkers?: QuestMarkerInput | null; now?: Date } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -518,8 +519,10 @@ export async function sendKorchmaFightingCorner(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
-  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character), {
+  const trainingDoppelgangerAvailable = !isTrainingDoppelgangerAtShynok(options.now ?? systemClock());
+  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character, { trainingDoppelgangerAvailable }), {
     state: "fighting-corner",
+    trainingDoppelgangerAvailable,
     ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
   });
 }
@@ -931,10 +934,17 @@ async function sendText(
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })
             : keyboard === "fighting-corner"
-              ? buildKorchmaFightingCornerKeyboard()
+              ? buildKorchmaFightingCornerKeyboard({
+                  trainingDoppelgangerAvailable: !isTrainingDoppelgangerAtShynok(systemClock())
+                })
             : isFightingCornerKeyboard(keyboard)
               ? buildKorchmaFightingCornerKeyboard(
-                  keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+                  {
+                    ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }),
+                    ...(keyboard.trainingDoppelgangerAvailable === undefined
+                      ? {}
+                      : { trainingDoppelgangerAvailable: keyboard.trainingDoppelgangerAvailable })
+                  }
                 )
             : keyboard === "deep"
               ? buildKorchmaDeepKeyboard()
@@ -950,7 +960,9 @@ async function sendText(
                   }
                 )
             : keyboard === "back-to-fighting-corner"
-              ? buildKorchmaFightingCornerKeyboard()
+              ? buildKorchmaFightingCornerKeyboard({
+                  trainingDoppelgangerAvailable: !isTrainingDoppelgangerAtShynok(systemClock())
+                })
             : keyboard === "back-to-hall"
               ? buildBackToKorchmaHallKeyboard()
             : isFrontKeyboard(keyboard)
@@ -1020,7 +1032,7 @@ function isFrontKeyboard(
 
 function isFightingCornerKeyboard(
   keyboard: TavernCommandKeyboard
-): keyboard is { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null } {
+): keyboard is { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "fighting-corner";
 }
 
