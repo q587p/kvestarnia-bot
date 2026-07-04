@@ -9,6 +9,7 @@ export type PartySessionCallback =
   | { type: "expire"; token: string }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
+  | { type: "boss-items"; token: string; turn: number }
   | { type: "boss-item"; token: string; turn: number; itemKey: string }
   | { type: "boss-timeout"; token: string }
   | { type: "boss-journal"; token: string; page: number | null }
@@ -64,6 +65,10 @@ export function makePartyBossActionCallbackData(
   action: PartyBossCallbackAction
 ): string {
   return `${PREFIX}:ba:${token}:${turn.toString(36)}:${actionKey(action)}`;
+}
+
+export function makePartyBossItemsMenuCallbackData(token: string, turn: number): string {
+  return `${PREFIX}:bm:${token}:${turn.toString(36)}`;
 }
 
 export function makePartyBossItemUseCallbackData(input: {
@@ -191,6 +196,22 @@ export function parsePartySessionCallbackData(
       type: "boss-journal",
       token: tokenOrTarget,
       page: page === undefined ? null : Number.parseInt(page, 36)
+    });
+  }
+
+  if (action === "bm") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    return ok({
+      type: "boss-items",
+      token: tokenOrTarget,
+      turn: Number.parseInt(page, 36)
     });
   }
 

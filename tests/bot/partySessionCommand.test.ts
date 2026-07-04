@@ -244,6 +244,56 @@ describe("handlePartySessionCallback", () => {
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
   });
 
+  it("opens a concrete one-use item picker instead of immediately using a bandage", async () => {
+    const session = makeBossSession({
+      participants: [
+        {
+          ...makeBossParticipant("character-42", "Тестова Лідерка"),
+          resources: {
+            hp: 10,
+            hpMax: 25,
+            mana: 10,
+            manaMax: 10
+          }
+        },
+        makeBossParticipant("character-93", "Друга Учасниця")
+      ]
+    });
+    const listCombatItemsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      session,
+      items: [
+        {
+          itemId: "item.field-kit",
+          itemKey: "field1",
+          name: "Польова аптечка",
+          quantity: 1
+        }
+      ]
+    });
+    const submitItemForTelegramUser = vi.fn();
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-items", token: session.partyInviteToken, turn: 1 },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          listCombatItemsForTelegramUser,
+          submitItemForTelegramUser
+        })
+      }
+    );
+
+    expect(listCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1);
+    expect(submitItemForTelegramUser).not.toHaveBeenCalled();
+    expect(messageText(editMessageText)).toContain("Одноразові манатки");
+    expect(keyboardJson(editMessageText)).toContain("⚕️ Польова аптечка");
+    expect(keyboardJson(editMessageText)).toContain("v1:party:bi:partyABC12:1:field1");
+  });
+
   it("routes forged non-dev boss timeout callbacks through the due-timeout path only", async () => {
     const session = makeBossSession();
     const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({ state: "queued", session });

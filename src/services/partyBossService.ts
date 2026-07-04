@@ -7,8 +7,13 @@ import type {
   PartyBossSessionRecord,
   PartyBossStartResult
 } from "../db/repositories/partyBossRepository";
-import { PARTY_BOSS_TURN_MS } from "../domain/partyBoss/partyBoss";
-import { findCombatUsableItemByKey } from "./combatItemUse";
+import type { InventoryRepository } from "../db/repositories/inventoryRepository";
+import {
+  calculatePartyBossCombatItemHealing,
+  getPartyBossCombatItemAvailability,
+  PARTY_BOSS_TURN_MS
+} from "../domain/partyBoss/partyBoss";
+import { findCombatUsableItemByKey, getCombatUsableItem } from "./combatItemUse";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
@@ -22,13 +27,30 @@ export type PartyBossDevRaidWinResult =
   | { state: "disabled" }
   | PartyBossDevWinResult;
 
+export interface PartyBossCombatItemMenuEntry {
+  itemId: string;
+  itemKey: string;
+  name: string;
+  quantity: number;
+}
+
+export type PartyBossCombatItemMenuResult =
+  | { state: "disabled" }
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "not-participant"; session: PartyBossSessionRecord }
+  | { state: "stale"; session: PartyBossSessionRecord }
+  | { state: "terminal"; session: PartyBossSessionRecord }
+  | { state: "ready"; session: PartyBossSessionRecord; items: PartyBossCombatItemMenuEntry[] };
+
 export class PartyBossService {
   constructor(
     private readonly sessions: PartyBossRepository,
     private readonly options: PartyBossServiceOptions,
     private readonly clock: Clock = systemClock,
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: PublicActivityEventPublisher
+    private readonly activityEvents?: PublicActivityEventPublisher,
+    private readonly inventory?: InventoryRepository
   ) {}
 
   isEnabled(): boolean {
@@ -116,6 +138,85 @@ export class PartyBossService {
     await this.trackActivityEvents(result);
 
     return result;
+  }
+
+  async listCombatItemsForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number
+  ): Promise<PartyBossCombatItemMenuResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
+    if (!session) {
+      return { state: "not-found" };
+    }
+
+    if (session.status !== "active") {
+      return { state: "terminal", session };
+    }
+
+    if (session.turn !== turn || session.state.turn !== turn) {
+      return { state: "stale", session };
+    }
+
+    const participantRecord = session.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId
+    );
+    const participant = participantRecord
+      ? session.state.participants.find((candidate) => candidate.characterId === participantRecord.id)
+      : null;
+
+    if (!participantRecord || !participant) {
+      return { state: "not-participant", session };
+    }
+
+    if (participant.status !== "active" || participant.resources.hp <= 0) {
+      return { state: "stale", session };
+    }
+
+    const inventoryItems = await this.inventory?.listByTelegramUserId(telegramUserId);
+    if (!inventoryItems) {
+      return { state: "no-character" };
+    }
+
+    const contentById = new Map(items.map((item) => [item.id, item]));
+    const entries = inventoryItems.flatMap((inventoryItem): PartyBossCombatItemMenuEntry[] => {
+      if (inventoryItem.characterId !== participant.characterId || inventoryItem.quantity <= 0) {
+        return [];
+      }
+
+      const item = contentById.get(inventoryItem.itemId);
+      const combatItem = item ? getCombatUsableItem(item) : null;
+      if (!combatItem) {
+        return [];
+      }
+
+      const availability = getPartyBossCombatItemAvailability(participant, combatItem.item.id);
+      if (!availability.available) {
+        return [];
+      }
+
+      const healing = calculatePartyBossCombatItemHealing(participant.resources, combatItem.effect);
+      if (healing <= 0) {
+        return [];
+      }
+
+      return [{
+        itemId: combatItem.item.id,
+        itemKey: combatItem.key,
+        name: combatItem.item.name,
+        quantity: inventoryItem.quantity
+      }];
+    });
+
+    return {
+      state: "ready",
+      session,
+      items: entries
+    };
   }
 
   async resolveDueTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {

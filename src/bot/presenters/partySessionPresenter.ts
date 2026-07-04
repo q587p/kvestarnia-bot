@@ -19,6 +19,7 @@ import {
 } from "../../domain/partyBoss/partyBoss";
 import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
 import { getCombatSkillDisplay } from "../../services/fightService";
+import type { PartyBossCombatItemMenuResult } from "../../services/partyBossService";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -370,6 +371,51 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
   }
 
   return presentPartyBoss(result.session, { viewerCharacterId });
+}
+
+export function presentPartyBossItems(
+  result: PartyBossCombatItemMenuResult,
+  viewerCharacterId?: string | null
+): string {
+  if (result.state === "disabled") {
+    return "🧪 Тестовий бос вимкнений.";
+  }
+
+  if (result.state === "no-character") {
+    return "Квестарня не впізнала пригодника або його манатки. Спробуйте ще раз.";
+  }
+
+  if (result.state === "not-found") {
+    return "Бій не знайшовся.";
+  }
+
+  if (result.state === "not-participant") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Це меню належить учасникам рейду. Манатки не люблять чужі кишені."
+    });
+  }
+
+  if (result.state === "stale") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Це меню зі старого ходу. Показую канонічний стан."
+    });
+  }
+
+  if (result.state === "terminal") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: "Бій уже завершився. Манатки прибралися з протоколу."
+    });
+  }
+
+  return presentPartyBoss(result.session, {
+    viewerCharacterId,
+    notice: result.items.length > 0
+      ? "🎒 Одноразові манатки: оберіть, що піде в цей хід. Новий вибір замінить попередній."
+      : "🎒 Одноразові манатки: зараз немає корисних предметів для цього ходу."
+  });
 }
 
 export function presentPartyBoss(

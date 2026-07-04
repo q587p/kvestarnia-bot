@@ -12,6 +12,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Big Barrel Brother battle journal pages now replay each round's stored ability cooldown snapshot instead of showing the final/current cooldown state on older entries.
 - Big Barrel Brother queued turn choices now let the latest selected action or combat item replace the earlier button before the round resolves, and overwritten combat items are not spent.
+- Big Barrel Brother active cards now open an owned one-use combat item menu instead of hard-wiring the ordinary bandage behind the renamed button.
 
 ## [0.2.24] - 12026-07-04 - Mantok Balance Audit and Rebalance Pass
 

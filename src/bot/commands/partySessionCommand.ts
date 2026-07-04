@@ -9,6 +9,7 @@ import {
 } from "../../services/partySessionService";
 import { telegramUserIdFromContext } from "../context";
 import {
+  buildPartyBossItemsKeyboard,
   buildPartySessionInviteKeyboard,
   buildPartySessionInviteShareKeyboard,
   buildPartyBossKeyboard,
@@ -21,6 +22,7 @@ import {
   presentPartyBoss,
   presentPartyBossAction,
   presentPartyBossIntro,
+  presentPartyBossItems,
   presentPartyBossJournal,
   presentPartyBossStart,
   presentPartyCreate,
@@ -216,6 +218,46 @@ export async function handlePartySessionCallback(
             : "Тестовий бій завершено. Показую підсумок."
       });
     }
+    return;
+  }
+
+  if (callback.type === "boss-items") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await options.partyBoss.listCombatItemsForTelegramUser(
+      telegramUserId,
+      callback.token,
+      callback.turn
+    );
+    await safeAnswerCallbackQuery(ctx, result.state === "ready" && result.items.length === 0
+      ? { text: "Немає корисних одноразових манаток." }
+      : undefined);
+    const viewerCharacterId = "session" in result
+      ? getBossViewerCharacterId(result.session, telegramUserId)
+      : null;
+
+    if (result.state === "ready") {
+      await safeEditMessageText(ctx, presentPartyBossItems(result, viewerCharacterId), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPartyBossItemsKeyboard({
+          token: result.session.partyInviteToken,
+          turn: result.session.turn,
+          items: result.items
+        })
+      });
+      return;
+    }
+
+    await sendBossText(ctx, "edit", presentPartyBossItems(result, viewerCharacterId), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId,
+          includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
+        }
+      : false);
     return;
   }
 
