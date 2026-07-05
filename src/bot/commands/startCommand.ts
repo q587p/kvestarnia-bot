@@ -4,6 +4,10 @@ import type { OnboardingService } from "../../services/onboardingService";
 import type { PartyBossService } from "../../services/partyBossService";
 import type { PartySessionService } from "../../services/partySessionService";
 import type { TavernGameService } from "../../services/tavernGameService";
+import {
+  PRESENCE_LOCATION_KORCHMA_BAR,
+  type PresenceService
+} from "../../services/presenceService";
 import type { TelegramUserProfile } from "../../db/repositories/userRepository";
 import { playerFromContext } from "../context";
 import {
@@ -35,6 +39,7 @@ export interface StartCommandOptions {
   partyBoss?: PartyBossService;
   partySessions?: PartySessionService;
   tavernGames?: TavernGameService;
+  presence?: PresenceService;
   botUsername?: string | undefined;
   duelBotUsername?: string | undefined;
 }
@@ -77,7 +82,10 @@ export function registerStartCommand(
         options.tavernGames,
         player,
         payload.token,
-        { botUsername: options.botUsername }
+        {
+          botUsername: options.botUsername,
+          ...(options.presence ? { presence: options.presence } : {})
+        }
       );
       return;
     }
@@ -172,9 +180,17 @@ export async function sendTavernGameJoinFromStartPayload(
   tavernGames: TavernGameService,
   player: TelegramUserProfile,
   token: string,
-  options: { botUsername?: string | undefined } = {}
+  options: { botUsername?: string | undefined; presence?: PresenceService | undefined } = {}
 ): Promise<void> {
-  const result = await tavernGames.joinByTokenForTelegramUser(player.telegramUserId, token);
+  let result = await tavernGames.joinByTokenForTelegramUser(player.telegramUserId, token);
+  if (result.state === "blocked" && result.reason === "wrong-place" && options.presence) {
+    await options.presence.markAction({
+      user: player,
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR
+    });
+    result = await tavernGames.joinByTokenForTelegramUser(player.telegramUserId, token);
+  }
+
   if (result.state === "no-character") {
     await onboardingService.start(player);
     await ctx.reply(presentTavernGameActionResult(result), {

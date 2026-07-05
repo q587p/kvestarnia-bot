@@ -5,6 +5,7 @@ import {
   sendTavernGameJoinFromStartPayload
 } from "../../src/bot/commands/startCommand";
 import { startDicePokerTable, startQuickDicePoker } from "../../src/domain/dicePoker";
+import { PRESENCE_LOCATION_KORCHMA_BAR } from "../../src/services/presenceService";
 import type { OnboardingService } from "../../src/services/onboardingService";
 import type { TavernGameService } from "../../src/services/tavernGameService";
 
@@ -99,6 +100,89 @@ describe("start command", () => {
     expect(existingPlayerText).not.toContain("Чекаємо другого гравця");
     expect(existingPlayerKeyboard).toContain(`v1:sh:gpr:${session.token}`);
     expect(existingPlayerKeyboard).toContain(`v1:sh:gdt:${session.token}:`);
+  });
+
+  it("moves game deep-link users to Shynok before retrying a wrong-place join", async () => {
+    const session = tavernGameSession({
+      status: "ready",
+      participants: [
+        tavernGameParticipant(93n, "character-creator", "Kyjivan BooksDragon", "joined", null),
+        tavernGameParticipant(42n, "character-joiner", "Shannar de Kassal", "joined", null)
+      ]
+    });
+    const joinByTokenForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({ state: "blocked", reason: "wrong-place" })
+      .mockResolvedValueOnce({ state: "joined", session });
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const reply = vi.fn().mockResolvedValue(undefined);
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const player = { telegramUserId: 42n, displayName: "Shannar de Kassal" };
+
+    await sendTavernGameJoinFromStartPayload(
+      { reply, api: { sendMessage } } as unknown as Context,
+      { start: vi.fn() } as unknown as OnboardingService,
+      { joinByTokenForTelegramUser } as unknown as TavernGameService,
+      player,
+      session.token,
+      {
+        botUsername: "kvestarnia_test_bot",
+        presence: { markAction } as never
+      }
+    );
+
+    expect(markAction).toHaveBeenCalledWith({
+      user: player,
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR
+    });
+    expect(markAction.mock.calls[0]?.[0]).not.toHaveProperty("currentRaidId");
+    expect(markAction.mock.calls[0]?.[0]).not.toHaveProperty("currentAdventureId");
+    expect(joinByTokenForTelegramUser).toHaveBeenNthCalledWith(1, 42n, session.token);
+    expect(joinByTokenForTelegramUser).toHaveBeenNthCalledWith(2, 42n, session.token);
+    expect(reply).toHaveBeenCalledWith(
+      expect.stringContaining("♟ Тавлеї · ставка <b>1 зол.</b>"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("Зараз не до шинкових ігор");
+  });
+
+  it("keeps the retry blocked when wrong-place movement reveals a pending raid", async () => {
+    const session = tavernGameSession({
+      status: "open",
+      participants: [
+        tavernGameParticipant(93n, "character-creator", "Kyjivan BooksDragon", "joined", null)
+      ]
+    });
+    const joinByTokenForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({ state: "blocked", reason: "wrong-place" })
+      .mockResolvedValueOnce({ state: "blocked", reason: "pending-raid" });
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const reply = vi.fn().mockResolvedValue(undefined);
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const player = { telegramUserId: 42n, displayName: "Shannar de Kassal" };
+
+    await sendTavernGameJoinFromStartPayload(
+      { reply, api: { sendMessage } } as unknown as Context,
+      { start: vi.fn() } as unknown as OnboardingService,
+      { joinByTokenForTelegramUser } as unknown as TavernGameService,
+      player,
+      session.token,
+      {
+        botUsername: "kvestarnia_test_bot",
+        presence: { markAction } as never
+      }
+    );
+
+    expect(markAction).toHaveBeenCalledWith({
+      user: player,
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR
+    });
+    expect(markAction.mock.calls[0]?.[0]).not.toHaveProperty("currentRaidId");
+    expect(markAction.mock.calls[0]?.[0]).not.toHaveProperty("currentAdventureId");
+    expect(joinByTokenForTelegramUser).toHaveBeenNthCalledWith(1, 42n, session.token);
+    expect(joinByTokenForTelegramUser).toHaveBeenNthCalledWith(2, 42n, session.token);
+    expect(reply).toHaveBeenCalledWith(expect.any(String), { parse_mode: "HTML" });
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).not.toContain("reply_markup");
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
 
