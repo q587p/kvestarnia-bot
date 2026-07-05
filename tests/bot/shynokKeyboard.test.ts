@@ -127,9 +127,61 @@ describe("Shynok game keyboards", () => {
       inviteUrl: `https://t.me/kvestarnia_bot?start=game_${token}`
     });
 
-    expect(flatInlineButtonTexts(keyboard)).toEqual(["↩ До ігор"]);
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["✅ Готові", "↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(`v1:sh:grd:${token}:r`);
     expect(flatInlineButtonCallbacks(keyboard)).not.toContain(`v1:sh:gsh:${token}`);
     expect(flatInlineButtonUrls(keyboard)).toEqual([]);
+  });
+
+  it("toggles Dice Poker readiness back to waiting", () => {
+    const token = "12345678-1234-4234-9234-123456789abc";
+    const keyboard = buildShynokGameSessionKeyboard({
+      state: "updated",
+      session: kostiSession({
+        status: "open",
+        token,
+        participantCount: 2,
+        result: {
+          kind: "dice_poker_table",
+          mode: "quick",
+          phase: "waiting",
+          playerCap: 8,
+          drawRound: 1
+        },
+        participantResults: [
+          null,
+          { kind: "tavern_table_readiness", readiness: "ready" }
+        ]
+      })
+    }, {
+      viewerTelegramUserId: 2002n,
+      inviteUrl: `https://t.me/kvestarnia_bot?start=game_${token}`
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["⏳ Зачекайте", "↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(`v1:sh:grd:${token}:w`);
+  });
+
+  it("uses gendered Dice Poker ready labels", () => {
+    const token = "12345678-1234-4234-9234-123456789abc";
+    const keyboard = buildShynokGameSessionKeyboard({
+      state: "joined",
+      session: kostiSession({
+        status: "open",
+        token,
+        participantCount: 1,
+        participantPronouns: ["she"],
+        result: {
+          kind: "dice_poker_table",
+          mode: "quick",
+          phase: "waiting",
+          playerCap: 8,
+          drawRound: 1
+        }
+      })
+    }, { viewerTelegramUserId: 1001n });
+
+    expect(flatInlineButtonTexts(keyboard)).toContain("✅ Готова");
   });
 
   it("shows Kosti resolve only while the table is still open or ready", () => {
@@ -456,11 +508,26 @@ function kostiSession(overrides: {
   token?: string;
   participantCount?: number;
   result?: unknown;
+  participantResults?: unknown[];
+  participantPronouns?: string[];
 }) {
   const participants = [
-    { characterId: "character-creator", status: "decided", telegramUserId: 1001n },
-    { characterId: "character-guest", status: "decided", telegramUserId: 2002n }
-  ].slice(0, overrides.participantCount ?? 2);
+    {
+      characterId: "character-creator",
+      status: "decided",
+      telegramUserId: 1001n,
+      character: { pronoun: overrides.participantPronouns?.[0] ?? "they" }
+    },
+    {
+      characterId: "character-guest",
+      status: "decided",
+      telegramUserId: 2002n,
+      character: { pronoun: overrides.participantPronouns?.[1] ?? "they" }
+    }
+  ].slice(0, overrides.participantCount ?? 2).map((participant, index) => ({
+    ...participant,
+    result: overrides.participantResults?.[index] ?? null
+  }));
 
   return {
     token: overrides.token ?? "kosti-token",

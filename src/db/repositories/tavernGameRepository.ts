@@ -132,6 +132,18 @@ export type TavernGameResolveResult =
   | { state: "started"; session: TavernGameSessionRecord; resolution: null }
   | { state: "replayed"; session: TavernGameSessionRecord; resolution: TavernGameResolution | null };
 
+export type TavernGameReadiness = "ready" | "waiting";
+
+export type TavernGameReadinessResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "not-participant"; session: TavernGameSessionRecord }
+  | { state: "closed"; session: TavernGameSessionRecord }
+  | { state: "not-waiting"; session: TavernGameSessionRecord }
+  | { state: "already-set"; session: TavernGameSessionRecord }
+  | { state: "updated"; session: TavernGameSessionRecord }
+  | { state: "started"; session: TavernGameSessionRecord; resolution: null };
+
 export type TavernGameCancelResult =
   | { state: "no-character" }
   | { state: "not-found" }
@@ -217,6 +229,12 @@ export interface TavernGameRepository {
     token: string,
     now: Date
   ): Promise<TavernGameResolveResult>;
+  setReadinessForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    readiness: TavernGameReadiness,
+    input: { now: Date }
+  ): Promise<TavernGameReadinessResult>;
   saveDicePokerStateForTelegramUser(
     telegramUserId: bigint,
     token: string,

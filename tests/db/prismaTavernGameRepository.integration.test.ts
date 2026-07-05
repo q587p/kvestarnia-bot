@@ -469,6 +469,64 @@ describe("PrismaTavernGameRepository integration", () => {
     });
   });
 
+  it("starts a social quick dice poker table when all seated players are ready", async () => {
+    const token = "12345678-1234-4234-9234-000000000602";
+    const base = now();
+    await seedCharacter({ telegramUserId: 602n, characterId: "character-social-quick-ready-a", name: "Перша готова", gold: 10 });
+    await seedCharacter({ telegramUserId: 603n, characterId: "character-social-quick-ready-b", name: "Другий готовий", gold: 10 });
+    const table = startDicePokerTable("quick");
+
+    await repository.createDicePokerForTelegramUser(602n, {
+      mode: "quick",
+      token,
+      seed: "social-quick-ready-start",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(base.getTime() + 13 * 60_000),
+      joinExpiresAt: new Date(base.getTime() + 13 * 60_000),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: 0,
+      now: base,
+      state: table,
+      participantState: startQuickDicePoker("social-quick-ready-start:participant:a")
+    });
+    await repository.joinByTokenForTelegramUser(603n, token, joinInput(base));
+
+    const firstReady = await repository.setReadinessForTelegramUser(602n, token, "ready", {
+      now: base
+    });
+    const duplicate = await repository.setReadinessForTelegramUser(602n, token, "ready", {
+      now: base
+    });
+    const started = await repository.setReadinessForTelegramUser(603n, token, "ready", {
+      now: base
+    });
+
+    expect(firstReady.state).toBe("updated");
+    expect(duplicate.state).toBe("already-set");
+    expect(started.state).toBe("started");
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, decisionExpiresAt: true, resultJson: true }
+    })).resolves.toMatchObject({
+      status: "ready",
+      decisionExpiresAt: new Date(base.getTime() + 3 * 60_000),
+      resultJson: { kind: "dice_poker_table", mode: "quick", phase: "playing" }
+    });
+    const participants = await prisma.tavernGameParticipant.findMany({
+      where: { session: { token } },
+      select: { resultJson: true }
+    });
+    expect(participants).toHaveLength(2);
+    expect(participants.every((participant) =>
+      typeof participant.resultJson === "object" &&
+      participant.resultJson !== null &&
+      "readiness" in participant.resultJson &&
+      participant.resultJson.readiness === "ready"
+    )).toBe(true);
+  });
+
   it("auto-finishes an unresolved social quick dice poker round after three minutes", async () => {
     const token = "12345678-1234-4234-9234-000000000600";
     const base = now();

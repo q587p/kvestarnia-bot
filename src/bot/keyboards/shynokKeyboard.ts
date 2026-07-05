@@ -55,6 +55,7 @@ import {
   makeShynokGameInviteRotateCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokGameLeaderboardCallbackData,
+  makeShynokGameReadinessCallbackData,
   makeShynokGameRematchCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
@@ -258,7 +259,13 @@ export function buildShynokGameSessionKeyboard(result: {
     gameKey: TavernGameKey;
     status: string;
     creatorCharacterId: string;
-    participants: Array<{ characterId: string; status: string; telegramUserId?: bigint }>;
+    participants: Array<{
+      characterId: string;
+      status: string;
+      telegramUserId?: bigint;
+      result?: unknown;
+      character?: { pronoun?: string | null };
+    }>;
     result?: unknown;
   };
 }, options: {
@@ -292,6 +299,13 @@ export function buildShynokGameSessionKeyboard(result: {
   }
   if (!viewer && canJoinTavernGameSession(result.session)) {
     keyboard.text("✅ Сісти за стіл", makeShynokGameJoinCallbackData(result.session.token)).row();
+  }
+  if (viewer && result.session.status === "open" && table?.phase === "waiting") {
+    const ready = parseTableReadiness(viewer.result) === "ready";
+    keyboard.text(
+      ready ? "⏳ Зачекайте" : getReadyButtonLabel(viewer.character?.pronoun ?? undefined),
+      makeShynokGameReadinessCallbackData(result.session.token, ready ? "waiting" : "ready")
+    ).row();
   }
   if (viewerIsCreator && canInviteToTavernGameSession(result.session) && options.inviteUrl) {
     keyboard.text("📣 Запрошення до столу", makeShynokGameShareCallbackData(result.session.token)).row();
@@ -640,6 +654,33 @@ function buildTelegramShareUrl(inviteUrl: string): string {
   const text = "Квестарня кличе за стіл у шинку.";
 
   return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
+}
+
+function getReadyButtonLabel(pronoun: string | undefined): string {
+  if (pronoun === "he") {
+    return "✅ Готовий";
+  }
+
+  if (pronoun === "she") {
+    return "✅ Готова";
+  }
+
+  return "✅ Готові";
+}
+
+function parseTableReadiness(input: unknown): "ready" | "waiting" {
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "kind" in input &&
+    input.kind === "tavern_table_readiness" &&
+    "readiness" in input &&
+    input.readiness === "ready"
+  ) {
+    return "ready";
+  }
+
+  return "waiting";
 }
 
 function tavleiTacticButtonLabel(tactic: (typeof TAVLEI_TACTICS)[number]): string {

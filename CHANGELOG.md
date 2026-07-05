@@ -31,6 +31,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Dice Poker rules cards can return to the current active Dice Poker session when opened from that session.
 - Quick result cards use spaced combat-like win/loss/draw markers and print the exact stake payout/loss/refund amount.
 - Social Dice Poker stores per-participant dice/scorecard state in participant decisions, settles a shared pot once all active players finish, refunds tied tables safely and records all participant outcomes for the leaderboard.
+- Waiting Dice Poker tables now show seated-player readiness and let players toggle `✅ Готовий` / `✅ Готова` / `✅ Готові`; when every seated player is ready and at least two are present, the table starts immediately.
 - Quick social Dice Poker now arms a short auto-start window after the second player joins and auto-finishes unresolved quick hands as no-reroll hands after the action window, so multi-player quick tables do not trap seated players indefinitely.
 - `🪞 Допельґанґер` fallback now follows the in-world schedule: from 23:00 until 07:00 Kyiv time he is available for Dice Poker in Shynok, while daytime keeps him in the Fighting Corner and hides the Shynok fallback buttons.
 - Public Dice Poker stake pickers now use compact horizontal public-table stake rows; Doppelganger stake selection lives under his separate branch.

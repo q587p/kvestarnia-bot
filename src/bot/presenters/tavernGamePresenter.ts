@@ -204,7 +204,11 @@ export function presentTavernGameActionResult(result: {
   if (result.session && table?.phase === "terminal") {
     return presentDicePokerTableSession(result.session);
   }
-  if (result.session && table && ["created", "joined", "started", "saved", "replayed", "active-session"].includes(result.state)) {
+  if (
+    result.session &&
+    table &&
+    ["created", "joined", "updated", "already-set", "started", "saved", "replayed", "active-session"].includes(result.state)
+  ) {
     return presentDicePokerTableSession(result.session);
   }
 
@@ -247,6 +251,10 @@ export function presentTavernGameActionResult(result: {
       return result.session ? presentTavernGameSession(result.session) : "Стіл відкрито.";
     case "joined":
       return result.session ? presentTavernGameSession(result.session) : "Ви сіли за стіл.";
+    case "updated":
+      return result.session ? presentTavernGameSession(result.session) : "Готовність записано.";
+    case "already-set":
+      return result.session ? presentTavernGameSession(result.session) : "Цю готовність уже записано.";
     case "started":
       return result.session ? presentTavernGameSession(result.session) : "Партія почалась.";
     case "decided":
@@ -259,6 +267,8 @@ export function presentTavernGameActionResult(result: {
       return "Цю дію може зробити лише той, хто тримає стіл.";
     case "not-ready":
       return result.session ? presentTavernGameSession(result.session) : "Стіл ще не готовий.";
+    case "not-waiting":
+      return result.session ? presentTavernGameSession(result.session) : "Цей стіл уже не чекає готовності.";
     case "cancelled":
       return "Стіл скасовано, ставку повернено.";
     case "not-cancellable":
@@ -554,6 +564,7 @@ function presentDicePokerTableSession(session: TavernGameSessionRecord): string 
 
   if (table.phase === "waiting") {
     lines.push(
+      `Готовність: ${presentTableReadiness(session.participants)}`,
       "",
       table.mode === "quick"
         ? session.participants.length >= 2
@@ -649,6 +660,27 @@ function presentDicePokerTableResults(
 
 function dicePokerTableTitle(mode: "quick" | "scorecard"): string {
   return mode === "quick" ? "⚡ Швидкі кості" : "📜 Табличні кості";
+}
+
+function presentTableReadiness(participants: TavernGameSessionRecord["participants"]): string {
+  return participants.map((participant) =>
+    `${parseTableReadiness(participant.result) === "ready" ? "✅" : "⏳"} ${escapeHtml(participant.displayName)}`
+  ).join(" · ");
+}
+
+function parseTableReadiness(input: unknown): "ready" | "waiting" {
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "kind" in input &&
+    input.kind === "tavern_table_readiness" &&
+    "readiness" in input &&
+    input.readiness === "ready"
+  ) {
+    return "ready";
+  }
+
+  return "waiting";
 }
 
 function presentQuickOutcomeLine(state: Extract<DicePokerState, { mode: "quick"; phase: "terminal" }>): string {

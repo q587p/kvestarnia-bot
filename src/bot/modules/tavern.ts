@@ -478,6 +478,7 @@ async function handleShynokCallback(
     action.type === "game-dice-poker-cancel" ||
     action.type === "game-rematch" ||
     action.type === "game-join" ||
+    action.type === "game-readiness" ||
     action.type === "game-cancel" ||
     action.type === "game-tavlei-decision" ||
     action.type === "game-kosti-decision" ||
@@ -534,6 +535,12 @@ async function handleShynokCallback(
       result = await services.tavernGames.createRematchForTelegramUser(telegramUserId, action.token);
     } else if (action.type === "game-join") {
       result = await services.tavernGames.joinByTokenForTelegramUser(telegramUserId, action.token);
+    } else if (action.type === "game-readiness") {
+      result = await services.tavernGames.setReadinessForTelegramUser(
+        telegramUserId,
+        action.token,
+        action.readiness
+      );
     } else if (action.type === "game-cancel") {
       result = await services.tavernGames.cancelForTelegramUser(telegramUserId, action.token);
     } else if (action.type === "game-tavlei-decision") {
@@ -558,6 +565,8 @@ async function handleShynokCallback(
         "cancelled",
         "replayed",
         "already-joined",
+        "already-set",
+        "updated",
         "started",
         "saved",
         "completed"

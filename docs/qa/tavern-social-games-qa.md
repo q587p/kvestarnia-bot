@@ -41,6 +41,7 @@
 - Legacy Kosti join/style/sign callbacks refund or fail closed without accepting the old table action.
 - Completed Dice Poker quick win/loss/draw and high scorecard completion count in the tavern-games leaderboard.
 - Social Dice Poker quick and scorecard tables settle 2-8 participants once.
+- Waiting Dice Poker tables show participant readiness, let seated players toggle ready/waiting and start immediately when all seated players are ready and at least two are present.
 - Quick social tables auto-start after the short 2+ player join window and auto-finish unresolved quick hands as no-reroll hands after the action window.
 - Cancel before another participant joins refunds creator.
 - Expired open session refunds participants.
@@ -59,6 +60,7 @@
 - Kosti opens `🎲 Кості й покер` with `⚡ Швидкі кості`, `📜 Табличні кості` and `❔ Правила`, with stakes shown only after choosing a mode.
 - `🎲 Ігри за столом` shows current gold, a short Doppelganger availability paragraph and a separate `🪞 Допельґанґер` branch when he is in Shynok.
 - Quick Dice Poker supports a 2-8 player social table, can start manually from two seated players, automatically after the short 2+ player join window or automatically when full, shows each participant their own dice/card, supports selecting none/some/all dice for the one reroll and reaches a terminal shared result once all seated players finish or the action window auto-finishes unresolved hands.
+- Waiting Dice Poker cards show `✅` / `⏳` readiness per seated player; `✅ Готовий` / `✅ Готова` / `✅ Готові` toggles to `⏳ Зачекайте`, and all-ready starts the current seated table.
 - Social Dice Poker terminal results are pushed to the other seated participants with active titles, bold payout/refund amounts and rematch/back controls; scorecard result rows use bold names/scores and blank-line player blocks; closed-table callbacks do not show old reroll/score buttons.
 - Waiting Tavlei, quick-dice and scorecard-dice tables expose creator-only invite controls: a rotating invite-card button plus a Telegram share deep link that joins the same table through `/start game_...`.
 - `/start game_...` deep-link joins notify already seated participants like Shynok callback joins; if quick fills to capacity, is started manually or reaches the short 2+ player start window, seated players receive their own dice/card, and Tavlei-ready joins send the creator tactic controls.
@@ -98,7 +100,7 @@
 7. Pick `⚡ Швидкі кості`, choose a stake and open a social table.
 8. On the waiting quick table as creator, press `📣 Запрошення до столу`; verify the invite card appears, `🎲 Інший текст` rotates copy, and `🔗 Запросити до столу` opens Telegram share.
 9. As a seated non-creator, verify invite buttons are absent; if an old invite-rotate callback is pressed, verify the bot says the creator manages invitations.
-10. Open invite deep links from second and third accounts; verify the table stays open at 2/8 or 3/8 before the start window, the creator can press `▶️ Почати партію`, and then every seated player receives their own dice/card and action keyboard.
+10. Open invite deep links from second and third accounts; verify the table stays open at 2/8 or 3/8 before the start window, seated players can toggle ready/waiting and the card shows `✅` / `⏳` markers. Verify all-ready starts the current seated table; also verify the creator can still press `▶️ Почати партію`.
 11. Repeat invite-card and deep-link checks for an open Tavlei table and an open `📜 Табличні кості` table; verify Tavlei ready joins notify the creator with tactic controls, and waiting/ready cards have blank lines between blocks and bold titled player names.
 12. Press stale invite-card rotation/share buttons after a table starts, closes or passes its join window; verify a friendly stale answer, no status/gold mutation from preview and no reroll/score buttons on closed tables.
 13. Open an invite deep link from a second account without enough gold; verify the card says gold is missing and shows `✅ Сісти за стіл` plus `↩ До ігор`, then sell manatky for enough gold and press `✅ Сісти за стіл` to join the same table.

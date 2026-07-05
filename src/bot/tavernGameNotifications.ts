@@ -130,6 +130,7 @@ export async function notifyTavernGameParticipants(
 function shouldNotifyTavernGameParticipants(result: TavernGameActionResult): boolean {
   return [
     "joined",
+    "updated",
     "started",
     "decided",
     "resolved",
@@ -150,6 +151,10 @@ function presentTavernGameParticipantUpdate(
 
   if (result.state === "joined") {
     return ["До столу підсів ще один пригодник.", "", presentTavernGameSession(result.session)].join("\n");
+  }
+
+  if (result.state === "updated") {
+    return ["Готовність за столом змінилась.", "", presentTavernGameSession(result.session)].join("\n");
   }
 
   if (result.state === "started") {

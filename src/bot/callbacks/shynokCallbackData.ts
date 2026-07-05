@@ -66,6 +66,7 @@ export type ShynokCallback =
   | { type: "game-share"; token: string }
   | { type: "game-invite"; token: string; templateIndex: number }
   | { type: "game-join"; token: string }
+  | { type: "game-readiness"; token: string; readiness: "ready" | "waiting" }
   | { type: "game-cancel"; token: string }
   | { type: "game-tavlei-decision"; token: string; tactic: TavleiTactic }
   | { type: "game-kosti-decision"; token: string; style: KostiStyle; sign: KostiSign }
@@ -237,6 +238,10 @@ export function makeShynokGameInviteRotateCallbackData(token: string, templateIn
 
 export function makeShynokGameJoinCallbackData(token: string): string {
   return assertData(`${PREFIX}:gj:${token}`);
+}
+
+export function makeShynokGameReadinessCallbackData(token: string, readiness: "ready" | "waiting"): string {
+  return assertData(`${PREFIX}:grd:${token}:${readiness === "ready" ? "r" : "w"}`);
 }
 
 export function makeShynokGameCancelCallbackData(token: string): string {
@@ -470,6 +475,16 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   if (action === "gj" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-join", token: first ?? "" } };
   }
+  if (action === "grd" && isToken(first) && isReadiness(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-readiness",
+        token: first ?? "",
+        readiness: second === "r" ? "ready" : "waiting"
+      }
+    };
+  }
   if (action === "gx" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-cancel", token: first ?? "" } };
   }
@@ -537,6 +552,10 @@ function isSafeTemplateIndex(value: string | undefined): boolean {
 
 function isSafeStake(value: string | undefined): boolean {
   return value !== undefined && /^\d{1,3}$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) >= 1;
+}
+
+function isReadiness(value: string | undefined): value is "r" | "w" {
+  return value === "r" || value === "w";
 }
 
 function isDiceIndex(value: string | undefined): boolean {

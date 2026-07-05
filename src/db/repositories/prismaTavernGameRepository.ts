@@ -43,6 +43,7 @@ import type {
   TavernGameJoinResult,
   TavernGameParticipantRecord,
   TavernGameParticipantStatus,
+  TavernGameReadinessResult,
   TavernGameRepository,
   TavernGameResolveResult,
   TavernGameSessionRecord,
@@ -735,6 +736,75 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
         session: mapSession(resolved.session),
         resolution: resolved.resolution
       };
+    });
+  }
+
+  async setReadinessForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    readiness: "ready" | "waiting",
+    input: { now: Date }
+  ): Promise<TavernGameReadinessResult> {
+    return this.prisma.$transaction(async (tx): Promise<TavernGameReadinessResult> => {
+      await expireTokenIfNeededTx(tx, token, input.now);
+      const session = await findSessionByToken(tx, token);
+      if (!session) {
+        return { state: "not-found" };
+      }
+      if (isTerminal(session.status)) {
+        return { state: "closed", session: mapSession(session) };
+      }
+      if (
+        session.status !== "open" ||
+        !isDicePokerRow(session) ||
+        !isDicePokerTableState(session.resultJson) ||
+        session.resultJson.phase !== "waiting"
+      ) {
+        return { state: "not-waiting", session: mapSession(session) };
+      }
+
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const participant = session.participants.find((row) =>
+        row.characterId === character.id && isJoinedStatus(row.status)
+      );
+      if (!participant) {
+        return { state: "not-participant", session: mapSession(session) };
+      }
+
+      if (parseTableReadiness(participant.resultJson) === readiness) {
+        return { state: "already-set", session: mapSession(session) };
+      }
+
+      await tx.tavernGameParticipant.update({
+        where: { id: participant.id },
+        data: {
+          resultJson: {
+            kind: "tavern_table_readiness",
+            readiness
+          } satisfies Prisma.InputJsonValue
+        }
+      });
+
+      const updated = await findSessionByToken(tx, token);
+      if (!updated) {
+        return { state: "not-found" };
+      }
+
+      const live = updated.participants.filter((row) => isJoinedStatus(row.status));
+      const allReady = live.length >= KOSTI_MIN_PLAYERS &&
+        live.every((row) => parseTableReadiness(row.resultJson) === "ready");
+      if (allReady) {
+        const started = await startDicePokerTableTx(tx, updated, input.now);
+        return started
+          ? { state: "started", session: mapSession(started), resolution: null }
+          : { state: "not-waiting", session: mapSession(updated) };
+      }
+
+      return { state: "updated", session: mapSession(updated) };
     });
   }
 
@@ -1856,6 +1926,21 @@ function countLiveParticipants(row: TavernGameSessionRow): number {
 
 function isJoinedStatus(status: string): boolean {
   return status === "joined" || status === "decided";
+}
+
+function parseTableReadiness(input: unknown): "ready" | "waiting" {
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "kind" in input &&
+    input.kind === "tavern_table_readiness" &&
+    "readiness" in input &&
+    input.readiness === "ready"
+  ) {
+    return "ready";
+  }
+
+  return "waiting";
 }
 
 function isTerminal(status: string): status is TavernGameSessionStatus {

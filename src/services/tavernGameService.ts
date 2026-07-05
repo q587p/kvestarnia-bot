@@ -45,6 +45,7 @@ import type {
   TavernGameLeaderboardEntry,
   TavernGameJoinResult,
   TavernGameRepository,
+  TavernGameReadinessResult,
   TavernGameResolveResult,
   TavernGameSessionRecord
 } from "../db/repositories/tavernGameRepository";
@@ -84,6 +85,7 @@ export type TavernGameDecisionServiceResult =
   | { state: "invalid-decision" }
   | TavernGameDecisionResultWithAchievements;
 export type TavernGameResolveServiceResult = TavernGameFeatureResult | TavernGameResolveResultWithAchievements;
+export type TavernGameReadinessServiceResult = TavernGameFeatureResult | TavernGameReadinessResult;
 export type TavernGameCancelServiceResult = TavernGameFeatureResult | TavernGameCancelResult;
 export type DicePokerServiceResult =
   | TavernGameFeatureResult
@@ -493,6 +495,24 @@ export class TavernGameService {
 
     const result = await this.repository.resolveKostiForTelegramUser(telegramUserId, token, now);
     return this.withResolvedAchievements(result, now);
+  }
+
+  async setReadinessForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    readiness: "ready" | "waiting"
+  ): Promise<TavernGameReadinessServiceResult> {
+    const now = this.now();
+    const tokenGate = await this.refundIfTokenGameDisabled(token, now);
+    if (tokenGate) {
+      return tokenGate;
+    }
+    const stale = await this.refundOldKostiTable(token, now);
+    if (stale) {
+      return stale;
+    }
+
+    return this.repository.setReadinessForTelegramUser(telegramUserId, token, readiness, { now });
   }
 
   async toggleDicePokerDieForTelegramUser(

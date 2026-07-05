@@ -227,6 +227,18 @@ describe("TavernGameService", () => {
     expect(DICE_POKER_QUICK_SOCIAL_TTL_MS).toBe(3 * 60_000);
   });
 
+  it("passes current time when table readiness may start a game", async () => {
+    const repository = new FakeTavernGameRepository();
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    await service.setReadinessForTelegramUser(42n, "12345678-1234-4234-9234-000000000778", "ready");
+
+    expect(repository.lastReadinessInput?.now).toBe(now);
+  });
+
   it("blocks daytime Doppelganger Tavlei before reserving a stake", async () => {
     const repository = new FakeTavernGameRepository();
     const service = new TavernGameService(repository, config({
@@ -914,6 +926,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
   lastDicePokerCreateInput: Parameters<TavernGameRepository["createDicePokerForTelegramUser"]>[1] | null = null;
   lastTavleiDoppelgangerCreateInput: Parameters<TavernGameRepository["createTavleiDoppelgangerForTelegramUser"]>[1] | null = null;
   lastJoinInput: Parameters<TavernGameRepository["joinByTokenForTelegramUser"]>[2] | null = null;
+  lastReadinessInput: Parameters<TavernGameRepository["setReadinessForTelegramUser"]>[3] | null = null;
   lastCompleteInput: Parameters<TavernGameRepository["completeDicePokerForTelegramUser"]>[2] | null = null;
   lastSaveInput: {
     state: DicePokerState;
@@ -1019,6 +1032,16 @@ class FakeTavernGameRepository implements TavernGameRepository {
 
   resolveKostiForTelegramUser(): ReturnType<TavernGameRepository["resolveKostiForTelegramUser"]> {
     return Promise.reject(new Error("Not implemented in fake."));
+  }
+
+  setReadinessForTelegramUser(
+    _telegramUserId: bigint,
+    _token: string,
+    _readiness: "ready" | "waiting",
+    input: Parameters<TavernGameRepository["setReadinessForTelegramUser"]>[3]
+  ): ReturnType<TavernGameRepository["setReadinessForTelegramUser"]> {
+    this.lastReadinessInput = input;
+    return Promise.resolve({ state: "updated", session: session() });
   }
 
   cancelForTelegramUser(): ReturnType<TavernGameRepository["cancelForTelegramUser"]> {

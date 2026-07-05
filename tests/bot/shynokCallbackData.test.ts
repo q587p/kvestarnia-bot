@@ -21,6 +21,7 @@ import {
   makeShynokGameInviteRotateCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokGameLeaderboardCallbackData,
+  makeShynokGameReadinessCallbackData,
   makeShynokGameRematchCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
@@ -127,6 +128,14 @@ describe("shynokCallbackData", () => {
       ok: true,
       value: { type: "game-join", token }
     });
+    expect(parseShynokCallbackData(makeShynokGameReadinessCallbackData(token, "ready"))).toEqual({
+      ok: true,
+      value: { type: "game-readiness", token, readiness: "ready" }
+    });
+    expect(parseShynokCallbackData(makeShynokGameReadinessCallbackData(token, "waiting"))).toEqual({
+      ok: true,
+      value: { type: "game-readiness", token, readiness: "waiting" }
+    });
     expect(parseShynokCallbackData(makeShynokGameRematchCallbackData(token))).toEqual({
       ok: true,
       value: { type: "game-rematch", token }
@@ -169,6 +178,8 @@ describe("shynokCallbackData", () => {
     expect(Buffer.byteLength(makeShynokGameShareCallbackData(token), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(makeShynokGameInviteRotateCallbackData(token, 93), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokGameReadinessCallbackData(token, "ready"), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 

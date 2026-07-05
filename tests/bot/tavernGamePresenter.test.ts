@@ -224,6 +224,7 @@ describe("tavern game presenter", () => {
     expect(text).toContain("⚡ Швидкі кості");
     expect(text).toContain("Місця: 2/8");
     expect(text).toContain("Ставка: <b>13 зол.</b> · банк: <b>26 зол.</b>");
+    expect(text).toContain("Готовність: ⏳ Kyjivan BooksDragon · ⏳ Shannar de Kassal");
     expect(text).toContain("За столом уже можна грати.");
     expect(text).toContain("потім швидкі кості стартують самі.");
     expect(text).not.toContain("Чекаємо другого гравця");
