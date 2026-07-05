@@ -4,6 +4,19 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.26 — Mantok Equipment Slot Coverage smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Seed or grant one authored coverage item for every slot and open `🎒 Манатки` slot filters.
+2. Equip universal weapon, offhand, head, chest, legs, accessory and tool manatky.
+3. Equip a two-handed bow and verify the offhand slot is occupied/cleared according to existing twohand confirmation rules.
+4. Try an offhand shield and an offhand dagger on a non-warrior and verify explicit offhand items are allowed.
+5. Try a class-restricted item on a wrong class and verify the rejection names the class requirement.
+6. Try a race-restricted item on a wrong race and verify the rejection names the race requirement.
+7. Try a title/path item with a matching and non-matching active title.
+8. Verify old generated hats/helmets/scarves, boots/greaves/pants, shields and tools appear under the expected slot filters.
+
 ## 0.2.24 — Mantok Balance Audit smoke
 
 Manual Telegram QA status for the implementation pass: not run.

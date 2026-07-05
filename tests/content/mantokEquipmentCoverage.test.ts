@@ -1,86 +1,109 @@
 import { describe, expect, it } from "vitest";
-import { getComboTitle } from "../../src/content/characterOptions";
-import { classes } from "../../src/content/classes";
 import { equipmentSlots } from "../../src/content/equipmentSlots";
-import { items } from "../../src/content/items";
-import { mantokEquipmentCoverageItems } from "../../src/content/mantokEquipmentCoverage";
+import {
+  MANTOK_EQUIPMENT_COVERAGE_TITLE_BUCKETS,
+  checkMantokEquipmentCoverageRequirement,
+  getMantokEquipmentCoverageReport,
+  mantokEquipmentCoverageItems
+} from "../../src/content/mantokEquipmentCoverage";
+import { classes } from "../../src/content/classes";
 import { activeRaces } from "../../src/content/races";
-import type { EquipmentSlotContent, ItemContent } from "../../src/content/schema";
-import { mapItemToEquipmentSlot } from "../../src/services/equipmentService";
+import { itemSchema } from "../../src/content/schema";
 
 describe("mantok equipment coverage content", () => {
-  it("fills every canonical equipment slot with authored manatky", () => {
-    const authoredSlots = new Set(
-      items
-        .filter((item) => !item.id.startsWith("item.loot-v1-"))
-        .flatMap((item) => maybeOne(mapItemToEquipmentSlot(item)))
-    );
+  it("ships valid authored equipment for every canonical equipment slot", () => {
+    const report = getMantokEquipmentCoverageReport();
 
-    expect(authoredSlots).toEqual(new Set(equipmentSlots));
-  });
+    expect(report.itemCount).toBe(101);
+    expect(report.slotCounts).toEqual({
+      weapon: 18,
+      offhand: 16,
+      head: 14,
+      chest: 12,
+      legs: 12,
+      accessory: 15,
+      tool: 14
+    });
+    expect(report.slotSpread).toBeLessThanOrEqual(10);
 
-  it("keeps the authored coverage pack narrow and balanced", () => {
-    const coverageBySlot = new Map<EquipmentSlotContent, ItemContent>();
+    for (const slot of equipmentSlots) {
+      expect(report.slotCounts[slot], slot).toBeGreaterThanOrEqual(5);
+    }
 
     for (const item of mantokEquipmentCoverageItems) {
-      const slot = mapItemToEquipmentSlot(item);
-
-      expect(slot, item.id).toBeDefined();
+      expect(() => itemSchema.parse(item)).not.toThrow();
       expect(item.effect, item.id).toBeDefined();
-      expect(item.id.startsWith("item.loot-v1-")).toBe(false);
+    }
+  });
 
-      if (slot) {
-        coverageBySlot.set(slot, item);
-      }
+  it("gives every active class, active race and title bucket at least two restricted items", () => {
+    const report = getMantokEquipmentCoverageReport();
+
+    for (const characterClass of classes) {
+      expect(report.restrictedClassCounts[characterClass.id], characterClass.id).toBeGreaterThanOrEqual(2);
     }
 
-    expect(new Set(coverageBySlot.keys())).toEqual(new Set(equipmentSlots));
-    expect(coverageBySlot.get("offhand")).toMatchObject({
-      tags: ["offhand"]
-    });
-    expect(coverageBySlot.get("weapon")).toMatchObject({
+    for (const race of activeRaces) {
+      expect(report.restrictedRaceCounts[race.id], race.id).toBeGreaterThanOrEqual(2);
+    }
+
+    for (const titleBucket of MANTOK_EQUIPMENT_COVERAGE_TITLE_BUCKETS) {
+      expect(report.restrictedTitleBucketCounts[titleBucket], titleBucket).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("enforces class, race and title-bucket gates for authored coverage manatky", () => {
+    expect(
+      checkMantokEquipmentCoverageRequirement("item.mantok.coverage.class.ranger.twohand-bow", {
+        level: 13,
+        classId: "class.warrior",
+        raceId: "race.human-ish"
+      })
+    ).toMatchObject({ canEquip: false, reasons: ["class"] });
+
+    expect(
+      checkMantokEquipmentCoverageRequirement("item.mantok.coverage.class.ranger.twohand-bow", {
+        level: 13,
+        classId: "class.ranger",
+        raceId: "race.elf"
+      })
+    ).toMatchObject({ canEquip: true, reasons: [] });
+
+    expect(
+      checkMantokEquipmentCoverageRequirement("item.mantok.coverage.race.dwarf-stone-buckler", {
+        level: 13,
+        classId: "class.warrior",
+        raceId: "race.human-ish"
+      })
+    ).toMatchObject({ canEquip: false, reasons: ["race"] });
+
+    expect(
+      checkMantokEquipmentCoverageRequirement("item.mantok.coverage.path.ranger-long-bow", {
+        level: 13,
+        classId: "class.ranger",
+        raceId: "race.elf",
+        title: "Слідознавець Чужої Карти"
+      })
+    ).toMatchObject({ canEquip: true, reasons: [] });
+
+    expect(
+      checkMantokEquipmentCoverageRequirement("item.mantok.coverage.path.ranger-long-bow", {
+        level: 13,
+        classId: "class.ranger",
+        raceId: "race.elf",
+        title: "Пригодник місцевого значення"
+      })
+    ).toMatchObject({ canEquip: false, reasons: ["title"] });
+  });
+
+  it("marks logical offhand and two-handed coverage items with hand tags", () => {
+    expect(mantokEquipmentCoverageItems.find((item) => item.id === "item.mantok.coverage.class.ranger.twohand-bow")).toMatchObject({
+      equipmentSlot: "weapon",
       tags: ["twohand"]
     });
-  });
-
-  it("uses only current class, race, and title gates for authored equipment", () => {
-    const classIds = new Set(classes.map((entry) => entry.id));
-    const raceIds = new Set(activeRaces.map((entry) => entry.id));
-    const comboTitles = new Set(
-      activeRaces.flatMap((race) =>
-        classes.flatMap((characterClass) => [
-          getComboTitle(race.id, characterClass.id, "he"),
-          getComboTitle(race.id, characterClass.id, "she"),
-          getComboTitle(race.id, characterClass.id, "they")
-        ])
-      )
-    );
-    const requirements = mantokEquipmentCoverageItems.flatMap((item) =>
-      item.equipmentRequirements ? [item.equipmentRequirements] : []
-    );
-
-    expect(requirements.some((requirement) => (requirement.classIds?.length ?? 0) > 0)).toBe(true);
-    expect(requirements.some((requirement) => (requirement.raceIds?.length ?? 0) > 0)).toBe(true);
-    expect(requirements.some((requirement) => (requirement.titleLabels?.length ?? 0) > 0)).toBe(
-      true
-    );
-
-    for (const requirement of requirements) {
-      for (const classId of requirement.classIds ?? []) {
-        expect(classIds.has(classId), classId).toBe(true);
-      }
-
-      for (const raceId of requirement.raceIds ?? []) {
-        expect(raceIds.has(raceId), raceId).toBe(true);
-      }
-
-      for (const title of requirement.titleLabels ?? []) {
-        expect(comboTitles.has(title), title).toBe(true);
-      }
-    }
+    expect(mantokEquipmentCoverageItems.find((item) => item.id === "item.mantok.coverage.universal.notice-board-shield")).toMatchObject({
+      equipmentSlot: "offhand",
+      tags: ["offhand"]
+    });
   });
 });
-
-function maybeOne<T>(value: T | null | undefined): T[] {
-  return value ? [value] : [];
-}

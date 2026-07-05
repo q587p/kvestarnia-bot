@@ -83,13 +83,15 @@ export const itemEquipmentRequirementsSchema = z.object({
   minLevel: z.number().int().min(1).optional(),
   classIds: z.array(contentIdSchema).optional(),
   raceIds: z.array(contentIdSchema).optional(),
-  titleLabels: z.array(z.string().min(1)).optional()
+  titleLabels: z.array(z.string().min(1)).optional(),
+  titleBucketIds: z.array(z.string().regex(/^[a-z]+(?:_[a-z0-9]+)*$/)).optional()
 }).strict().refine(
   (requirements) =>
     requirements.minLevel !== undefined ||
     (requirements.classIds?.length ?? 0) > 0 ||
     (requirements.raceIds?.length ?? 0) > 0 ||
-    (requirements.titleLabels?.length ?? 0) > 0,
+    (requirements.titleLabels?.length ?? 0) > 0 ||
+    (requirements.titleBucketIds?.length ?? 0) > 0,
   {
     message: "Equipment requirements must declare at least one gate."
   }

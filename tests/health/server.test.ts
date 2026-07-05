@@ -78,11 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Класи згадали, що корчма теж поле пригод");
-    expect(text).toContain("жерці можуть підтримати себе або активного пригодника поруч");
-    expect(text).toContain("накласти коротке благословення");
-    expect(text).toContain("злодії можуть ризикнути малою");
-    expect(text).toContain("ніякого публічного цирку");
+    expect(text).toContain("Корчмар знайшов гачки для всіх манаток");
+    expect(text).toContain("у всіх слотах спорядження стало більше корисних авторських манаток");
+    expect(text).toContain("частина манаток тепер чесно прив'язана до класу, раси або титульної пригодницької репутації");
+    expect(text).toContain("луки, списи, посохи та інші дворукі штуки чесніше займають обидві руки");
+    expect(text).toContain("Це не нова крамниця й не перебалансування бою");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

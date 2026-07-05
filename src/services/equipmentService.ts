@@ -3,8 +3,10 @@ import { classes } from "../content/classes";
 import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import {
   checkLootExpansionEquipRequirement,
+  findLootExpansionTitleBucketName,
   getLootExpansionEquipRequirementDetails,
   isLootExpansionItemId,
+  normalizeLootExpansionTitleIds,
   type LootExpansionEquipCheck
 } from "../content/lootExpansionV1";
 import { activeRaces } from "../content/races";
@@ -589,7 +591,25 @@ export class EquipmentService {
     const classIds = requirement.classIds ?? [];
     const raceIds = requirement.raceIds ?? [];
     const titleLabels = requirement.titleLabels ?? [];
+    const titleBucketIds = requirement.titleBucketIds ?? [];
     const activeTitleLabel = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
+    const titleIds = normalizeLootExpansionTitleIds({
+      level: summary.level,
+      classId: summary.classId,
+      raceId: summary.raceId,
+      title: summary.title
+    });
+
+    if (activeTitleLabel) {
+      for (const titleId of normalizeLootExpansionTitleIds({
+        level: summary.level,
+        classId: summary.classId,
+        raceId: summary.raceId,
+        title: activeTitleLabel
+      })) {
+        titleIds.add(titleId);
+      }
+    }
 
     if (summary.level < minLevel) {
       reasons.push("min-level");
@@ -604,9 +624,10 @@ export class EquipmentService {
     }
 
     if (
-      titleLabels.length > 0 &&
+      (titleLabels.length > 0 || titleBucketIds.length > 0) &&
       !titleLabels.includes(summary.title) &&
-      (!activeTitleLabel || !titleLabels.includes(activeTitleLabel))
+      (!activeTitleLabel || !titleLabels.includes(activeTitleLabel)) &&
+      !titleBucketIds.some((titleId) => titleIds.has(titleId))
     ) {
       reasons.push("title");
     }
@@ -663,7 +684,10 @@ function getEquipmentRequirementDetails(
     minLevel: requirement.minLevel ?? 1,
     classes: (requirement.classIds ?? []).map((id) => findClassName(id)),
     races: (requirement.raceIds ?? []).map((id) => findRaceName(id)),
-    titles: requirement.titleLabels ?? []
+    titles: [
+      ...(requirement.titleLabels ?? []),
+      ...(requirement.titleBucketIds ?? []).map((id) => findLootExpansionTitleBucketName(id))
+    ]
   };
 }
 

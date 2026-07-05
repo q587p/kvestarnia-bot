@@ -24,6 +24,7 @@ import { itemSchema } from "../../src/content/schema";
 
 const generatedLegGearBaseIds = ["a013", "a014", "a015", "a018"] as const;
 const generatedHeadGearBaseIds = ["a001", "a002", "a003", "a004", "a019", "a020", "a023", "a025"] as const;
+const generatedToolLikeAccessoryBaseIds = ["x008"] as const;
 
 describe("loot expansion v1 content adapter", () => {
   it("imports the expected base families, generated variants, and effects", () => {
@@ -46,11 +47,21 @@ describe("loot expansion v1 content adapter", () => {
     const accessoryUtilityVariants = utilityVariants.filter((item) =>
       item.slot === "accessory" && item.equipmentSlot === "tool"
     );
+    const keyVariants = lootExpansionV1ItemContents.filter((item) =>
+      generatedToolLikeAccessoryBaseIds.some((baseId) =>
+        item.id === `item.loot-v1-${baseId}` || item.id.startsWith(`item.loot-v1-${baseId}-plus-`)
+      )
+    );
 
     expect(accessoryUtilityVariants.length).toBe(utilityVariants.length);
 
     for (const item of accessoryUtilityVariants) {
       expect(item.effect, `missing utility effect for ${item.id}`).toBeDefined();
+    }
+
+    for (const item of keyVariants) {
+      expect(item, item.id).toMatchObject({ slot: "accessory", equipmentSlot: "tool" });
+      expect(item.effect, `missing tool-like accessory effect for ${item.id}`).toBeDefined();
     }
   });
 
@@ -63,6 +74,8 @@ describe("loot expansion v1 content adapter", () => {
       expect(item.equipmentSlot, `missing generated equipment slot for ${item.id}`).toBeDefined();
 
       if (item.id.startsWith("item.loot-v1-t")) {
+        expect(item).toMatchObject({ slot: "accessory", equipmentSlot: "tool" });
+      } else if (isGeneratedToolLikeAccessory(item.id)) {
         expect(item).toMatchObject({ slot: "accessory", equipmentSlot: "tool" });
       } else if (isGeneratedHeadGear(item.id)) {
         expect(item.equipmentSlot).toBe("head");
@@ -402,6 +415,12 @@ function isGeneratedLegGear(itemId: string): boolean {
 
 function isGeneratedHeadGear(itemId: string): boolean {
   return generatedHeadGearBaseIds.some((baseId) =>
+    itemId === `item.loot-v1-${baseId}` || itemId.startsWith(`item.loot-v1-${baseId}-plus-`)
+  );
+}
+
+function isGeneratedToolLikeAccessory(itemId: string): boolean {
+  return generatedToolLikeAccessoryBaseIds.some((baseId) =>
     itemId === `item.loot-v1-${baseId}` || itemId.startsWith(`item.loot-v1-${baseId}-plus-`)
   );
 }

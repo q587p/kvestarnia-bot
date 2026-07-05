@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- None. The latest shipped version task is [0.2.25-class-noncombat-priest-rogue.md](0.2.25-class-noncombat-priest-rogue.md).
+- None. The latest shipped version task is [0.2.26-mantok-equipment-slot-coverage.md](0.2.26-mantok-equipment-slot-coverage.md).
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -88,7 +88,7 @@ Active task:
 - [0.2.25-class-noncombat-priest-rogue.md](0.2.25-class-noncombat-priest-rogue.md) — shipped class noncombat Priest/Rogue MVP with direct Priest heal/blessing, bounded same-location Rogue pickpocket, private notifications, rewardless achievements and Lore Board updates.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-dice-poker-rework.md](0.2.x-dice-poker-rework.md) — draft future replacement for confusing `🎲 Кості` with quick dice poker, 13-turn scorecard poker, explicit tie-breakers and clearer Telegram rules.
-- [0.2.x-mantok-equipment-slot-coverage.md](0.2.x-mantok-equipment-slot-coverage.md) — parallel mantok-content/equipment slice for authored slot coverage, authored equip gates and generated logical slot/tag materialization without touching shops, rewards, sinks, Prisma schema or dice/Shynok work.
+- [0.2.26-mantok-equipment-slot-coverage.md](0.2.26-mantok-equipment-slot-coverage.md) — authored mantok equipment-slot coverage, identity equip gates and generated logical slot/tag materialization without touching shops, rewards, sinks, Prisma schema or dice/Shynok work.
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
