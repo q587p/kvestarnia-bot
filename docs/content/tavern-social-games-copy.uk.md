@@ -28,7 +28,7 @@ Player-facing copy for Tavern Social Games. Keep these texts Ukrainian. Avoid ra
 ```
 
 ```text
-🪞 Допельґанґер зараз у бійцівському кутку. До ігор за столом він приходить після 23:00.
+🪞 Окремий стіл Допельґанґера зараз порожній. Якщо він сяде до гри, корчма покаже це тут.
 ```
 
 ## Open tables empty state

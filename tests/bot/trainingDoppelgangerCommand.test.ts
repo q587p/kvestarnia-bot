@@ -70,8 +70,10 @@ describe("training doppelganger command", () => {
     );
 
     expect(service.calls).toBe(0);
-    expect(replies[0]?.text).toContain("після 23:00");
-    expect(replies[0]?.text).toContain("до Шинку");
+    expect(replies[0]?.text).toContain("зараз тут немає");
+    expect(replies[0]?.text).toContain("🎲 Кості й покер");
+    expect(replies[0]?.text).not.toContain("після 23:00");
+    expect(replies[0]?.text).not.toContain("до 07:00");
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:place:fighting-corner");
   });
 

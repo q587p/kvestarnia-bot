@@ -35,6 +35,22 @@ describe("tavern game presenter", () => {
     expect(text).toContain("🪞 Допельґанґер уже сів окремо");
   });
 
+  it("does not spoil the Doppelganger table schedule when he is unavailable", () => {
+    const text = presentTavernGameHub({
+      state: "ready",
+      maxStake: 93,
+      tavleiEnabled: true,
+      kostiEnabled: true,
+      doppelgangerAvailable: false,
+      character: { gold: 42 },
+      openTables: []
+    });
+
+    expect(text).toContain("🪞 Окремий стіл Допельґанґера зараз порожній.");
+    expect(text).not.toContain("після 23:00");
+    expect(text).not.toContain("бійцівському кутку");
+  });
+
   it("shows active Doppelganger games in the table-games hub", () => {
     const text = presentTavernGameHub({
       state: "ready",
@@ -73,6 +89,18 @@ describe("tavern game presenter", () => {
   it("describes Doppelganger game and stake menus compactly", () => {
     expect(presentDoppelgangerGameMenu(93)).toContain("Оберіть гру з Допельґанґером");
     expect(presentDoppelgangerStakeMenu("tavlei", 93)).toContain("♟ Тавлеї з Допельґанґером");
+  });
+
+  it("does not spoil the Doppelganger fallback schedule in blocked callbacks", () => {
+    const text = presentTavernGameActionResult({
+      state: "blocked",
+      reason: "doppelganger-at-fighting-corner"
+    });
+
+    expect(text).toContain("Сумлінного Допельґанґера зараз немає за столом.");
+    expect(text).not.toContain("після 23:00");
+    expect(text).not.toContain("до 07:00");
+    expect(text).not.toContain("бійцівському кутку");
   });
 
   it("describes Kosti as clear dice poker modes", () => {
