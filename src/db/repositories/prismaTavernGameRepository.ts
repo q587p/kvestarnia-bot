@@ -593,6 +593,9 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
           session: mapSession(session)
         };
       }
+      if (decision.gameKey === "kosti" && isDicePokerRow(session)) {
+        return { state: "closed", session: mapSession(session) };
+      }
       const acceptingDecision =
         session.gameKey === "tavlei"
           ? session.status === "ready"

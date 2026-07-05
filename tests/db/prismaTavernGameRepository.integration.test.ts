@@ -578,6 +578,48 @@ describe("PrismaTavernGameRepository integration", () => {
     expect((goldA ?? 0) + (goldB ?? 0)).toBe(20);
   });
 
+  it("treats legacy Kosti decisions on solo Dice Poker rows as closed without writing old choices", async () => {
+    const token = "12345678-1234-4234-9234-000000000435";
+    await seedCharacter({ telegramUserId: 435n, characterId: "character-dice-legacy-guard", name: "Сторож", gold: 10 });
+
+    const created = await repository.createDicePokerForTelegramUser(435n, {
+      mode: "quick",
+      token,
+      seed: "dice-legacy-guard",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 13 * 60_000),
+      joinExpiresAt: new Date(now().getTime() + 13 * 60_000),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: 0,
+      now: now(),
+      state: startQuickDicePoker("dice-legacy-guard:solo")
+    });
+
+    const replay = await repository.submitDecisionForTelegramUser(435n, token, {
+      gameKey: "kosti",
+      style: "push",
+      sign: "high_hand"
+    }, now());
+
+    expect(created.state).toBe("created");
+    expect(replay.state).toBe("closed");
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, potGold: true }
+    })).resolves.toEqual({ status: "open", potGold: 3 });
+
+    const participant = await prisma.tavernGameParticipant.findFirstOrThrow({
+      where: { characterId: "character-dice-legacy-guard" },
+      select: { status: true, decisionJson: true, activeStakeKey: true }
+    });
+    expect(participant.status).toBe("joined");
+    expect(participant.activeStakeKey).toBeTypeOf("string");
+    expect(participant.decisionJson).toBeNull();
+    await expect(characterGold("character-dice-legacy-guard")).resolves.toBe(7);
+  });
+
   it("refunds expired social scorecard dice poker tables on stale token actions without legacy resolution", async () => {
     const token = "12345678-1234-4234-9234-000000000593";
     await seedCharacter({ telegramUserId: 593n, characterId: "character-social-score-a", name: "Перший лист", gold: 10 });
