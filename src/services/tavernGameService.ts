@@ -21,6 +21,8 @@ import {
   type DicePokerTableState
 } from "../domain/dicePoker";
 import {
+  TAVLEI_DOPPELGANGER_CHARACTER_ID,
+  TAVLEI_DOPPELGANGER_NAME,
   TAVLEI_PLAYER_CAP,
   isKostiSign,
   isKostiStyle,
@@ -1048,6 +1050,7 @@ function buildLeaderboard(
     if (!outcomes) {
       continue;
     }
+    const participantCharacterIds = new Set(record.participants.map((participant) => participant.characterId));
     for (const participant of record.participants) {
       const outcome = outcomes.get(participant.characterId);
       if (!outcome) {
@@ -1055,13 +1058,12 @@ function buildLeaderboard(
       }
 
       const entry = getOrCreateLeaderboardEntry(entries, participant);
-      if (outcome === "win") {
-        entry.winCount += 1;
-      } else if (outcome === "draw") {
-        entry.drawCount += 1;
-      } else {
-        entry.lossCount += 1;
-      }
+      addLeaderboardOutcome(entry, outcome);
+    }
+
+    const doppelgangerOutcome = getDoppelgangerLeaderboardOutcome(record, outcomes, participantCharacterIds);
+    if (doppelgangerOutcome) {
+      addLeaderboardOutcome(getOrCreateDoppelgangerLeaderboardEntry(entries), doppelgangerOutcome);
     }
   }
 
@@ -1081,6 +1083,16 @@ function buildLeaderboard(
       return lossDiff === 0 ? left.name.localeCompare(right.name, "uk") : lossDiff;
     })
     .slice(0, TAVERN_GAME_LEADERBOARD_LIMIT);
+}
+
+function addLeaderboardOutcome(entry: TavernGameLeaderboardEntry, outcome: "win" | "draw" | "loss"): void {
+  if (outcome === "win") {
+    entry.winCount += 1;
+  } else if (outcome === "draw") {
+    entry.drawCount += 1;
+  } else {
+    entry.lossCount += 1;
+  }
 }
 
 function getOrCreateLeaderboardEntry(
@@ -1104,6 +1116,25 @@ function getOrCreateLeaderboardEntry(
   };
 
   entries.set(participant.characterId, next);
+  return next;
+}
+
+function getOrCreateDoppelgangerLeaderboardEntry(
+  entries: Map<string, TavernGameLeaderboardEntry>
+): TavernGameLeaderboardEntry {
+  const current = entries.get(TAVLEI_DOPPELGANGER_CHARACTER_ID);
+  if (current) {
+    return current;
+  }
+
+  const next: TavernGameLeaderboardEntry = {
+    characterId: TAVLEI_DOPPELGANGER_CHARACTER_ID,
+    name: TAVLEI_DOPPELGANGER_NAME,
+    winCount: 0,
+    drawCount: 0,
+    lossCount: 0
+  };
+  entries.set(TAVLEI_DOPPELGANGER_CHARACTER_ID, next);
   return next;
 }
 
@@ -1157,6 +1188,26 @@ function getStoredOutcomes(record: TavernGameSessionRecord): Map<string, "win" |
   }
 
   return new Map([[participant.characterId, dicePokerOutcome]]);
+}
+
+function getDoppelgangerLeaderboardOutcome(
+  record: TavernGameSessionRecord,
+  outcomes: Map<string, "win" | "draw" | "loss">,
+  participantCharacterIds: Set<string>
+): "win" | "draw" | "loss" | null {
+  const storedOutcome = outcomes.get(TAVLEI_DOPPELGANGER_CHARACTER_ID);
+  if (storedOutcome && !participantCharacterIds.has(TAVLEI_DOPPELGANGER_CHARACTER_ID)) {
+    return storedOutcome;
+  }
+
+  const playerDicePokerOutcome = parseStoredDicePokerOutcome(record.result);
+  return playerDicePokerOutcome && record.participants.length === 1
+    ? invertLeaderboardOutcome(playerDicePokerOutcome)
+    : null;
+}
+
+function invertLeaderboardOutcome(outcome: "win" | "draw" | "loss"): "win" | "draw" | "loss" {
+  return outcome === "win" ? "loss" : outcome === "loss" ? "win" : "draw";
 }
 
 function parseStoredDicePokerTableOutcomes(input: unknown): Map<string, "win" | "draw" | "loss"> | null {

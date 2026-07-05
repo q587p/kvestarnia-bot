@@ -65,6 +65,7 @@
 - `🪞 Допельґанґер` is available in Shynok from 23:00 until 07:00 Kyiv time, opens a separate game choice, and supports quick dice, scorecard dice and Tavlei.
 - Active games against `🪞 Допельґанґер` appear in `🎲 Ігри за столом` and `👀 Хто поруч` as occupied tables without join buttons.
 - Completed Dice Poker games against `🪞 Допельґанґер` replay their stored result and `🔁 Зіграти ще` starts the same fallback game without old Kosti stale-copy.
+- `🏆 Рейтинг` includes `🪞 Допельґанґер` as a visible table-games opponent when fallback games finish.
 - Quick Dice Poker with `🪞 Допельґанґер` shows both final hands plus the reason.
 - Tavlei with `🪞 Допельґанґер` shows tactic choices, settles after the player choice and records the result without a second participant row.
 - Dice Poker rules opened from an active game can return to that same active game.
@@ -113,7 +114,7 @@
 26. Let a started scorecard session pass its longer deadline and verify a single escrow refund.
 27. Let unresolved Tavlei vs Doppelganger expire and verify a single escrow refund.
 28. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
-29. Verify `🏆 Рейтинг` counts quick win/loss/draw, Tavlei vs Doppelganger and high scorecard completion.
+29. Verify `🏆 Рейтинг` counts quick win/loss/draw, Tavlei vs Doppelganger, high scorecard completion and `🪞 Допельґанґер`'s own win/draw/loss row.
 30. Press `🔁 Зіграти ще` from a completed social table and verify a new same-stake table opens for the actor while the previous opponent receives a private join invite.
 31. Press duplicate rematch callbacks and verify there is no duplicate table or duplicate invite while the actor has an active stake session.
 32. Press `🔁 Зіграти ще` from a completed Doppelganger game and verify the same fallback path starts directly without inviting another player or showing old Kosti stale-copy.

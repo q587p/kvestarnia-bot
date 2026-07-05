@@ -15,6 +15,10 @@ import {
   type DicePokerScoreCategory,
   type DicePokerState
 } from "../../src/domain/dicePoker";
+import {
+  TAVLEI_DOPPELGANGER_CHARACTER_ID,
+  TAVLEI_DOPPELGANGER_NAME
+} from "../../src/domain/tavernGames";
 
 const now = new Date("2026-07-02T10:00:00.000Z");
 
@@ -732,10 +736,49 @@ describe("TavernGameService", () => {
     const result = await service.getLeaderboard();
 
     expect(result.state === "ready" ? result.leaderboard.day : []).toEqual([
+      {
+        characterId: TAVLEI_DOPPELGANGER_CHARACTER_ID,
+        name: TAVLEI_DOPPELGANGER_NAME,
+        winCount: 1,
+        drawCount: 1,
+        lossCount: 2
+      },
       { characterId: "character-quick-win", name: "Перша", winCount: 1, drawCount: 0, lossCount: 0 },
       { characterId: "character-scorecard-win", name: "Четверта", winCount: 1, drawCount: 0, lossCount: 0 },
       { characterId: "character-quick-draw", name: "Третя", winCount: 0, drawCount: 1, lossCount: 0 },
       { characterId: "character-quick-loss", name: "Другий", winCount: 0, drawCount: 0, lossCount: 1 }
+    ]);
+  });
+
+  it("counts the Doppelganger from completed Tavlei fallback outcomes", async () => {
+    const playerWinner = participant("character-tavlei-win", 301n, "Переможниця");
+    const playerLoser = participant("character-tavlei-loss", 302n, "Програвець");
+    const playerDrawer = participant("character-tavlei-draw", 303n, "Нічийник");
+    const repository = new FakeTavernGameRepository({
+      completedTables: [
+        tavleiDoppelgangerSession("tavlei-player-win", playerWinner, "win"),
+        tavleiDoppelgangerSession("tavlei-player-loss", playerLoser, "loss"),
+        tavleiDoppelgangerSession("tavlei-player-draw", playerDrawer, "draw")
+      ]
+    });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true
+    }), () => now);
+
+    const result = await service.getLeaderboard();
+
+    expect(result.state === "ready" ? result.leaderboard.day : []).toEqual([
+      {
+        characterId: TAVLEI_DOPPELGANGER_CHARACTER_ID,
+        name: TAVLEI_DOPPELGANGER_NAME,
+        winCount: 1,
+        drawCount: 1,
+        lossCount: 1
+      },
+      { characterId: "character-tavlei-win", name: "Переможниця", winCount: 1, drawCount: 0, lossCount: 0 },
+      { characterId: "character-tavlei-draw", name: "Нічийник", winCount: 0, drawCount: 1, lossCount: 0 },
+      { characterId: "character-tavlei-loss", name: "Програвець", winCount: 0, drawCount: 0, lossCount: 1 }
     ]);
   });
 });
@@ -1039,6 +1082,59 @@ function dicePokerSession(
       kind: "dice_poker",
       outcome,
       state: startQuickDicePoker(`${id}-seed`)
+    },
+    completedAt: new Date("2026-07-02T09:00:00.000Z"),
+    participants: [player]
+  });
+}
+
+function tavleiDoppelgangerSession(
+  id: string,
+  player: TavernGameSessionRecord["participants"][number],
+  playerOutcome: "win" | "draw" | "loss"
+): TavernGameSessionRecord {
+  const outcome = playerOutcome === "draw" ? "draw" : "win";
+  const winnerCharacterId = playerOutcome === "win"
+    ? player.characterId
+    : playerOutcome === "loss"
+      ? TAVLEI_DOPPELGANGER_CHARACTER_ID
+      : undefined;
+
+  return session({
+    id,
+    token: `${id}-token`,
+    gameKey: "tavlei",
+    status: "completed",
+    rulesVersion: "tavlei-doppelganger-v1",
+    result: {
+      gameKey: "tavlei",
+      outcome,
+      potGold: 13,
+      payouts: winnerCharacterId ? { [winnerCharacterId]: 13 } : {},
+      refunds: playerOutcome === "draw" ? { [player.characterId]: 13 } : {},
+      players: [
+        {
+          participantId: player.id,
+          characterId: player.characterId,
+          name: player.displayName,
+          tactic: "quiet_trap"
+        },
+        {
+          participantId: "doppelganger",
+          characterId: TAVLEI_DOPPELGANGER_CHARACTER_ID,
+          name: TAVLEI_DOPPELGANGER_NAME,
+          tactic: "long_game"
+        }
+      ],
+      ...(winnerCharacterId
+        ? {
+            winnerCharacterId,
+            winnerName: winnerCharacterId === player.characterId ? player.displayName : TAVLEI_DOPPELGANGER_NAME,
+            loserName: winnerCharacterId === player.characterId ? TAVLEI_DOPPELGANGER_NAME : player.displayName,
+            narrativeKey: "quiet_trap:long_game"
+          }
+        : {}),
+      opponentKind: "doppelganger"
     },
     completedAt: new Date("2026-07-02T09:00:00.000Z"),
     participants: [player]
