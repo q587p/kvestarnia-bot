@@ -14,7 +14,8 @@ const EQUIPMENT_PREFIX = "v1:equip";
 
 export type ItemCallback =
   | { type: "detail"; itemId: string; page: number; filter: InventoryFilter }
-  | { type: "inventory"; page: number; filter: InventoryFilter };
+  | { type: "inventory"; page: number; filter: InventoryFilter }
+  | { type: "page-prompt"; totalPages: number; filter: InventoryFilter };
 export type EquipmentCallback =
   | { type: "view" }
   | { type: "equip-item"; itemId: string; targetSlot: EquipmentSlot | null; confirmTwohand: boolean }
@@ -38,6 +39,16 @@ export function makeInventoryCallbackData(page = 0, filter: InventoryFilter = nu
   const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
 
   return assertCallbackData(`${ITEM_PREFIX}:inventory${filterSuffix}${pageSuffix}`);
+}
+
+export function makeInventoryPagePromptCallbackData(
+  totalPages: number,
+  filter: InventoryFilter = null
+): string {
+  const safeTotalPages = Math.max(1, Math.floor(Number.isFinite(totalPages) ? totalPages : 1));
+  const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
+
+  return assertCallbackData(`${ITEM_PREFIX}:page${filterSuffix}:${safeTotalPages}`);
 }
 
 export function parseItemCallbackData(data: string | undefined): ParseItemCallbackResult {
@@ -78,6 +89,23 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       value: {
         type: "inventory",
         page: parsed.page,
+        filter: parsed.filter
+      }
+    };
+  }
+
+  if (action === "page") {
+    const parsed = parseInventoryPagePromptRest(rest);
+
+    if (!parsed) {
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      value: {
+        type: "page-prompt",
+        totalPages: parsed.totalPages,
         filter: parsed.filter
       }
     };
@@ -235,6 +263,27 @@ function parseInventoryRest(rest: string[]): { page: number; filter: InventoryFi
     const page = parsePage(rest[2]);
 
     return page === null ? null : { page, filter };
+  }
+
+  return null;
+}
+
+function parseInventoryPagePromptRest(rest: string[]): { totalPages: number; filter: InventoryFilter } | null {
+  if (rest.length === 1) {
+    const totalPages = parsePage(rest[0]);
+
+    return totalPages === null || totalPages < 1 ? null : { totalPages, filter: null };
+  }
+
+  if (rest.length === 3) {
+    const filter = callbackPartToFilter(rest[0], rest[1]);
+    const totalPages = parsePage(rest[2]);
+
+    if (!filter || totalPages === null || totalPages < 1) {
+      return null;
+    }
+
+    return { totalPages, filter };
   }
 
   return null;

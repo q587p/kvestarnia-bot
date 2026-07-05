@@ -3,6 +3,7 @@ import {
   makeEquipItemCallbackData,
   makeEquipmentCallbackData,
   makeInventoryCallbackData,
+  makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData,
   makeUnequipSlotCallbackData,
   parseEquipmentCallbackData,
@@ -107,6 +108,16 @@ describe("item and equipment callback data", () => {
         filter: "one-use"
       }
     });
+    expect(parseItemCallbackData(makeInventoryPagePromptCallbackData(25, "offhand"))).toEqual({
+      ok: true,
+      value: {
+        type: "page-prompt",
+        totalPages: 25,
+        filter: "offhand"
+      }
+    });
+    expect(makeInventoryPagePromptCallbackData(4, "offhand")).toBe("v1:item:page:s:o:4");
+    expect(makeInventoryPagePromptCallbackData(25)).toBe("v1:item:page:25");
     expect(parseEquipmentCallbackData(makeEquipmentCallbackData())).toEqual({
       ok: true,
       value: {
@@ -186,6 +197,9 @@ describe("item and equipment callback data", () => {
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:1:extra").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:page:0").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:page:s:boots:4").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:page:s:o:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:s:boots").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:f:rare").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:s:boots").ok).toBe(false);

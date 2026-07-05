@@ -1665,7 +1665,7 @@ describe("main menu and scene keyboards", () => {
       "v1:chest:open",
       "v1:item:detail:item.test-9:1",
       "v1:item:inventory",
-      "v1:item:inventory:1"
+      "v1:item:page:2"
     ]);
     expect(
       flatInlineButtonTexts(
