@@ -248,6 +248,40 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("Бонуси ще не рахуються");
   });
 
+  it("shows Mantok set progress and next bonus on set item details", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        itemId: "item.set.barrel-brother.helm",
+        content: {
+          id: "item.set.barrel-brother.helm",
+          name: "Шолом бочкового дзвону",
+          description:
+            "Дзвенить часто. Частина комплекту «Бочковий панцир старшого Брата»: 1/4.",
+          rarity: "epic",
+          slot: "armor",
+          equipmentSlot: "head",
+          goldValue: 118,
+          effect: {
+            armor: 2,
+            resist: 1
+          }
+        }
+      }),
+      {
+        equippedSlot: "head",
+        equippedItemIds: [
+          "item.set.barrel-brother.helm",
+          "item.set.barrel-brother.cuirass"
+        ]
+      }
+    );
+
+    expect(text).toContain("Комплект: <b>Бочковий панцир старшого Брата</b>");
+    expect(text).toContain("Зараз вдягнено: <b>2/4</b>");
+    expect(text).toContain("Активно: Обруч не питає <i>(+2 HP · +1 до захисту)</i>");
+    expect(text).toContain("Далі: 3 частини — Бочка тримає форму <i>(+1 до опору)</i>");
+  });
+
   it("uses lowercase equipment slot labels after equipped status dash", () => {
     const text = presentOwnedItemDetail(
       itemSummary({

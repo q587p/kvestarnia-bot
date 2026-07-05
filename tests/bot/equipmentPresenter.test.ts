@@ -60,6 +60,56 @@ describe("equipment presenter", () => {
     expect(text).not.toContain("Пательня переконання — приклад");
   });
 
+  it("summarizes active and next Mantok set bonuses", () => {
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        {
+          slot: "head",
+          item: {
+            itemId: "item.set.barrel-brother.helm",
+            content: {
+              id: "item.set.barrel-brother.helm",
+              name: "Шолом бочкового дзвону",
+              description: "Частина комплекту «Бочковий панцир старшого Брата»: 1/4.",
+              rarity: "epic",
+              slot: "armor",
+              equipmentSlot: "head",
+              goldValue: 118,
+              effect: { armor: 2, resist: 1 }
+            }
+          }
+        },
+        {
+          slot: "chest",
+          item: {
+            itemId: "item.set.barrel-brother.cuirass",
+            content: {
+              id: "item.set.barrel-brother.cuirass",
+              name: "Нагрудник старшого обруча",
+              description: "Частина комплекту «Бочковий панцир старшого Брата»: 2/4.",
+              rarity: "epic",
+              slot: "armor",
+              equipmentSlot: "chest",
+              goldValue: 134,
+              effect: { armor: 3, hpMax: 5 }
+            }
+          }
+        },
+        { slot: "weapon", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("🧩 <b>Комплекти</b>");
+    expect(text).toContain("<b>Бочковий панцир старшого Брата</b>: 2/4");
+    expect(text).toContain("Активно: Обруч не питає <i>(+2 HP · +1 до захисту)</i>");
+    expect(text).toContain("Далі: 3 частини — Бочка тримає форму <i>(+1 до опору)</i>");
+  });
+
   it("shows the offhand as occupied by a twohand main-hand item", () => {
     const text = presentEquipment({
       state: "ready",

@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.x] - 12026-07-05 - Mantok Set Synergies Foundation
+
+### Added
+- Added 13 authored Mantok equipment set families with 47 set-piece items, covering paired weapons, armor families and cross-slot kits.
+- Added stat-only set threshold definitions driven by equipped item ids, including arbitrary `2/2`, `2/3`, `3/3`, `2/4`, `3/4` and `4/4` style thresholds.
+- Added set progress and active/next bonus summaries to item detail and equipment surfaces.
+- Added active set stat bonuses as synthetic equipment contributions in the existing effective-stat path, so hero/combat/equipment summaries share the same numbers.
+- Added rare set-piece loot additions to current level `9..13` monsters while preserving base, trophy/fallback and Mantok equipment coverage loot.
+- Added focused content, set-bonus, effective-stat and presenter tests for set validation, threshold activation, simultaneous sets, replacement/removal behavior, loot merge safety and visible progress copy.
+
+### Changed
+- Updated `📖 Перекази` manatky lore to mention that some manatky recognize set relatives and push stats more confidently together.
+- Documented the foundation balance posture and deferred ability/status/service ideas from the reference package for later slices.
+
+### Deferred
+- Gear-action buttons, bleed/burn/status runtime, borrowed class/race actions, Yeger disguise/service perks, shops, markets, crafting and broad combat rebalance remain deferred.
+
 ## [0.2.27] - 12026-07-05 - Dice Poker Rework
 
 ### Added

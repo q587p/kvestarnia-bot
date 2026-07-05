@@ -7,6 +7,8 @@ import type {
   ItemEquipPreviewResult,
   UnequipSlotResult
 } from "../../services/equipmentService";
+import type { ItemEffectContent } from "../../content/schema";
+import { getActiveMantokSets } from "../../domain/equipment/mantokSetBonuses";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
 
@@ -48,7 +50,8 @@ export function presentEquipment(result: EquipmentResult): string {
     "",
     "<i>Манатки нарешті штовхають циферки. Корчма робить вигляд, що так і планувала.</i>",
     "",
-    ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots)))
+    ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots))),
+    ...presentMantokSetSummaryLines(result.slots)
   ].join("\n");
 }
 
@@ -139,6 +142,55 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
   }
 
   return `${slot.icon} <b>${slot.label}</b>: <i>${slot.emptyText}</i>`;
+}
+
+function presentMantokSetSummaryLines(slots: EquipmentSlotSummary[]): string[] {
+  const equippedItemIds = [
+    ...new Set(slots.flatMap((slot) => (slot.item ? [slot.item.itemId] : [])))
+  ];
+  const summaries = getActiveMantokSets(equippedItemIds);
+
+  if (summaries.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    "",
+    "🧩 <b>Комплекти</b>",
+    "",
+    ...summaries.flatMap((summary, index) => [
+      ...(index === 0 ? [] : [""]),
+      `<b>${escapeHtml(summary.set.name)}</b>: ${summary.equippedPieces.length}/${summary.set.pieces.length}`,
+      ...presentMantokSetBonusLines(summary.activeBonuses, "Активно"),
+      ...(summary.nextBonus ? [presentMantokSetNextBonusLine(summary.nextBonus)] : [])
+    ])
+  ];
+}
+
+function presentMantokSetBonusLines(
+  bonuses: readonly { name: string; effect: Partial<ItemEffectContent> }[],
+  label: string
+): string[] {
+  if (bonuses.length === 0) {
+    return [`${label}: <i>ще жоден поріг не зібрано</i>`];
+  }
+
+  return bonuses.map((bonus) => {
+    const effect = presentItemEffect(bonus.effect) ?? "без видимого ефекту";
+
+    return `${label}: ${escapeHtml(bonus.name)} <i>(${effect})</i>`;
+  });
+}
+
+function presentMantokSetNextBonusLine(bonus: {
+  pieces: number;
+  name: string;
+  effect: Partial<ItemEffectContent>;
+}): string {
+  const effect = presentItemEffect(bonus.effect) ?? "без видимого ефекту";
+
+  return `Далі: ${bonus.pieces} частини — ${escapeHtml(bonus.name)} <i>(${effect})</i>`;
 }
 
 export function presentSlotDeniedReason(

@@ -168,6 +168,10 @@ async function handleItemCallback(
     equipment.state === "ready"
       ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
       : null;
+  const equippedItemIds =
+    equipment.state === "ready"
+      ? [...new Set(equipment.slots.flatMap((slot) => (slot.item ? [slot.item.itemId] : [])))]
+      : [];
   const itemUse = result.state === "found"
     ? services.itemUse.getAvailability(result.item.content)
     : null;
@@ -186,7 +190,8 @@ async function handleItemCallback(
       equippedSlot,
       equipPreview,
       itemUse,
-      combatUseAvailable: Boolean(combatUse?.action)
+      combatUseAvailable: Boolean(combatUse?.action),
+      equippedItemIds
     }),
     {
       ...HTML_MESSAGE_OPTIONS,

@@ -2,6 +2,7 @@ import type { CharacterFlavorSelector } from "./characterFlavor";
 import type { CharacterPath } from "../domain/characters/path";
 import type { Pronoun } from "./schema";
 import { mantokEquipmentCoverageLoot } from "./mantokEquipmentCoverageLoot";
+import { mantokSetLootAdditions } from "./mantokSetItems";
 import { monsterTrophyLoot } from "./monsterTrophyCoverage";
 
 export type MonsterFlavorPlacement = "monster.start" | "monster.action" | "monster.outcome" | "monster.loot-note";
@@ -261,7 +262,12 @@ const baseMonsterLoot = {
   ],
 } as const;
 
-export const monsterLoot = mergeMonsterLoot(baseMonsterLoot, monsterTrophyLoot, mantokEquipmentCoverageLoot);
+export const monsterLoot = mergeMonsterLoot(
+  baseMonsterLoot,
+  monsterTrophyLoot,
+  mantokEquipmentCoverageLoot,
+  mantokSetLootAdditions
+);
 
 function mergeMonsterLoot(
   ...sources: ReadonlyArray<Readonly<Record<string, readonly MonsterLootContentEntry[]>>>
