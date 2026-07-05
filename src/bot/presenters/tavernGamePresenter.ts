@@ -23,6 +23,7 @@ import type {
   TavernGameLeaderboardEntry,
   TavernGameSessionRecord
 } from "../../db/repositories/tavernGameRepository";
+import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
@@ -274,21 +275,32 @@ export function presentTavernGameSession(session: TavernGameSessionRecord): stri
 
   const lines = [
     `${gameLabel(session.gameKey)} · ставка <b>${session.stakeGold} зол.</b>`,
-    `За столом: ${session.participants.map((participant) => escapeHtml(participant.displayName)).join(", ")}`,
+    "",
+    `За столом: ${session.participants.map(presentTavernGameParticipantName).join(", ")}`,
     `Банк: <b>${session.potGold} зол.</b>`
   ];
 
   if (session.status === "open") {
+    lines.push("");
     lines.push(session.gameKey === "kosti"
       ? "Можна обрати стиль і знак. Кидок почнеться, коли творець натисне «Кинути зараз», стіл заповниться або час збору добіжить кінця."
       : "Чекаємо другого гравця.");
   } else if (session.status === "ready") {
+    lines.push("");
     lines.push(session.gameKey === "tavlei"
       ? "Оберіть тактику. Коли обидва зроблять вибір, партія завершиться сама."
       : "Кості вже готові гримнути по столу.");
   }
 
   return lines.join("\n");
+}
+
+function presentTavernGameParticipantName(participant: TavernGameSessionRecord["participants"][number]): string {
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(participant.character.activeCosmeticTitleGrantId);
+  return presentCharacterDisplayName({
+    name: participant.character.name || participant.displayName,
+    ...(activeCosmeticTitle ? { activeCosmeticTitle } : {})
+  });
 }
 
 export function presentTavernGameInviteShare(

@@ -8,7 +8,8 @@ import {
   presentTavernGameActionResult,
   presentTavernGameHub,
   presentTavernGameLeaderboard,
-  presentTavernGameRules
+  presentTavernGameRules,
+  presentTavernGameSession
 } from "../../src/bot/presenters/tavernGamePresenter";
 import {
   evaluateQuickHand,
@@ -47,6 +48,84 @@ describe("tavern game presenter", () => {
     expect(text).toContain("📜 Табличні кості");
     expect(text).toContain("Ставку корчма спитає наступним кроком");
     expect(text).not.toContain("від двох до семи гравців");
+  });
+
+  it("renders open Tavlei table cards with spaced blocks and titled bold names", () => {
+    const host = participant({
+      status: "joined",
+      stakeGold: 13,
+      payoutGold: 0,
+      displayName: "Kyjivan BooksDragon",
+      character: {
+        ...participant().character,
+        name: "Kyjivan BooksDragon",
+        activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+      }
+    });
+    const text = presentTavernGameSession(session({
+      gameKey: "tavlei",
+      status: "open",
+      stakeGold: 13,
+      potGold: 13,
+      completedAt: null,
+      participants: [host]
+    }));
+
+    expect(text).toBe([
+      "♟ Тавлеї · ставка <b>13 зол.</b>",
+      "",
+      "За столом: <b>Kyjivan BooksDragon</b> (<i>«Перший писар»</i>)",
+      "Банк: <b>13 зол.</b>",
+      "",
+      "Чекаємо другого гравця."
+    ].join("\n"));
+  });
+
+  it("renders ready Tavlei decision cards with spaced blocks and titled bold names", () => {
+    const first = participant({
+      status: "joined",
+      stakeGold: 13,
+      payoutGold: 0,
+      displayName: "Kyjivan BooksDragon",
+      character: {
+        ...participant().character,
+        name: "Kyjivan BooksDragon",
+        activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+      }
+    });
+    const second = participant({
+      id: "participant-2",
+      characterId: "character-2",
+      telegramUserId: 43n,
+      status: "joined",
+      stakeGold: 13,
+      payoutGold: 0,
+      displayName: "Shannar de Kassal",
+      character: {
+        ...participant().character,
+        id: "character-2",
+        telegramUserId: 43n,
+        name: "Shannar de Kassal",
+        activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+      }
+    });
+    const text = presentTavernGameSession(session({
+      gameKey: "tavlei",
+      status: "ready",
+      stakeGold: 13,
+      potGold: 26,
+      completedAt: null,
+      participants: [first, second]
+    }));
+
+    expect(text).toBe([
+      "♟ Тавлеї · ставка <b>13 зол.</b>",
+      "",
+      "За столом: <b>Kyjivan BooksDragon</b> (<i>«Перший писар»</i>), <b>Shannar de Kassal</b> (<i>«Табуретник»</i>)",
+      "Банк: <b>26 зол.</b>",
+      "",
+      "Оберіть тактику. Коли обидва зроблять вибір, партія завершиться сама."
+    ].join("\n"));
   });
 
   it("renders compact invite cards for open table games", () => {

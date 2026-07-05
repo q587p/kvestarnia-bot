@@ -59,6 +59,7 @@
 - `🎲 Ігри за столом` shows current gold, a short Doppelganger availability paragraph and a separate `🪞 Допельґанґер` branch when he is in Shynok.
 - Quick Dice Poker supports a two-player social table, auto-starts when the second player joins, shows each participant their own dice/card, supports selecting none/some/all dice for the one reroll and reaches a terminal shared result once both players finish.
 - Waiting Tavlei, quick-dice and scorecard-dice tables expose invite controls: a rotating invite-card button plus a Telegram share deep link that joins the same table through `/start game_...`.
+- Open and ready Tavlei table cards separate title, players, bank and next action with blank lines, and show seated character names in bold with active cosmetic titles.
 - Invite-link join failures for non-participants keep the table retry path visible: insufficient-gold responses show `✅ Сісти за стіл`, not creator-only invite buttons.
 - `🪞 Допельґанґер` is available in Shynok from 23:00 until 07:00 Kyiv time, opens a separate game choice, and supports quick dice, scorecard dice and Tavlei.
 - Quick Dice Poker with `🪞 Допельґанґер` shows both final hands plus the reason.
@@ -90,7 +91,7 @@
 7. Pick `⚡ Швидкі кості`, choose a stake and open a social table.
 8. On the waiting quick table press `📣 Запрошення до столу`; verify the invite card appears, `🎲 Інший текст` rotates copy, and `🔗 Запросити до столу` opens Telegram share.
 9. Open the invite deep link from a second account; verify the table auto-starts and both accounts see their own dice/card and controls.
-10. Repeat invite-card and deep-link checks for an open Tavlei table and an open `📜 Табличні кості` table.
+10. Repeat invite-card and deep-link checks for an open Tavlei table and an open `📜 Табличні кості` table; verify Tavlei waiting/ready cards have blank lines between blocks and bold titled player names.
 11. Press stale invite-card rotation/share buttons after a table starts or closes; verify a friendly stale answer and no stake mutation.
 12. Open an invite deep link from a second account without enough gold; verify the card says gold is missing and shows `✅ Сісти за стіл` plus `↩ До ігор`, then sell manatky for enough gold and press `✅ Сісти за стіл` to join the same table.
 13. Test no reroll, some rerolled dice and all dice rerolled across quick attempts.

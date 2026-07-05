@@ -54,6 +54,26 @@ Player-facing copy for Tavern Social Games. Keep these texts Ukrainian. Avoid ra
 До кидка: ~{timeLeft}
 ```
 
+## Tavlei table card examples
+
+```text
+♟ Тавлеї · ставка {stake} зол.
+
+За столом: <b>{playerName}</b> (<i>«{title}»</i>)
+Банк: <b>{pot} зол.</b>
+
+Чекаємо другого гравця.
+```
+
+```text
+♟ Тавлеї · ставка {stake} зол.
+
+За столом: <b>{playerOne}</b> (<i>«{titleOne}»</i>), <b>{playerTwo}</b> (<i>«{titleTwo}»</i>)
+Банк: <b>{pot} зол.</b>
+
+Оберіть тактику. Коли обидва зроблять вибір, партія завершиться сама.
+```
+
 ## Generic friendly errors
 
 ```text

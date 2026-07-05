@@ -3139,7 +3139,14 @@ describe("scene callback HTML options", () => {
       call.method === "sendMessage" && call.payload.chat_id === 93
     );
     expect(notification?.payload.text).toContain("♟ Тавлеї · ставка <b>1 зол.</b>");
-    expect(notification?.payload.text).toContain("За столом: Kyjivan BooksDragon, Shannar de Kassal");
+    expect(notification?.payload.text).toContain([
+      "♟ Тавлеї · ставка <b>1 зол.</b>",
+      "",
+      "За столом: <b>Kyjivan BooksDragon</b>, <b>Shannar de Kassal</b>",
+      "Банк: <b>2 зол.</b>",
+      "",
+      "Оберіть тактику."
+    ].join("\n"));
     expect(notification?.payload.text).toContain("Оберіть тактику.");
     expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gt:12345678-1234-4234-9234-123456789abc");
     expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gm");
@@ -3174,7 +3181,7 @@ describe("scene callback HTML options", () => {
     );
     expect(notification?.payload.text).toContain("За столом зроблено вибір.");
     expect(notification?.payload.text).toContain("🎲 Кості · ставка <b>1 зол.</b>");
-    expect(notification?.payload.text).toContain("За столом: Kyjivan BooksDragon, Shannar de Kassal");
+    expect(notification?.payload.text).toContain("За столом: <b>Kyjivan BooksDragon</b>, <b>Shannar de Kassal</b>");
     expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gk:12345678-1234-4234-9234-123456789abc");
     expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gm");
   });
