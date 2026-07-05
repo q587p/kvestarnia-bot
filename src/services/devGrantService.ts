@@ -618,7 +618,7 @@ export function normalizeDevGrantRandomItemFilter(input: {
   if (input.tag !== undefined) {
     const tag = input.tag.trim().toLowerCase();
 
-    if (!isItemTag(tag)) {
+    if (!isRandomItemFilterTag(tag)) {
       return null;
     }
 
@@ -656,23 +656,8 @@ function getCanonicalEquipmentSlot(item: ItemContent): EquipmentSlot | null {
   return null;
 }
 
-function isItemTag(value: string): value is ItemTagContent {
-  const supportedTags = new Set<ItemTagContent>([
-    "consumable",
-    "one-use",
-    "tradeable",
-    "trade-blocked",
-    "duel-blocked",
-    "raid-blocked",
-    "twohand",
-    "offhand",
-    "story",
-    "memory",
-    "sentimental",
-    "soulbound"
-  ]);
-
-  return supportedTags.has(value as ItemTagContent);
+function isRandomItemFilterTag(value: string): value is ItemTagContent {
+  return value === "twohand" || value === "offhand";
 }
 
 function uniqueAchievementUnlocks(unlocks: readonly AchievementUnlock[]): AchievementUnlock[] {

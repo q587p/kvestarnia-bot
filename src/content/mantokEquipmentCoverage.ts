@@ -361,6 +361,10 @@ function buildDescription(definition: CoverageDefinition): string {
   }
 
   if (definition.kind === "path" && definition.titleBucketId) {
+    if (definition.titleBucketId === "common_title") {
+      return "Звичайна манатка для пригодника без гучного титулу: корисна вже зараз і не вимагає, щоб хтось урочисто падав у фанфари.";
+    }
+
     return `Манатка для титулу «${findLootExpansionTitleBucketName(definition.titleBucketId)}»: корисна, але спершу перевіряє, чи назва пригодника звучить достатньо підозріло.`;
   }
 

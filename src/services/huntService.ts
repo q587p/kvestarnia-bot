@@ -10,8 +10,8 @@ import { summarizeCharacter, type CharacterSummary } from "../domain/characters/
 import { HUNT_MIN_LEVEL, meetsActivityLevel } from "../domain/progression/activityGates";
 import {
   getLootCandidates,
-  getMonsterLootEntryItemId,
-  type LootCandidate
+  type LootCandidate,
+  type MonsterLootEntry
 } from "../domain/loot/lootEngine";
 import { systemClock, type Clock } from "../shared/time";
 import { HUNT_BOARD_CONTRACT_KEY } from "./dailyActionKeys";
@@ -396,20 +396,28 @@ export function buildHuntContractToken(
   characterId: string,
   monster: Pick<MonsterContent, "id" | "level" | "tags">
 ): string {
-  const lootIds = [...(monsterLoot[monster.id] ?? [])]
-    .map(getMonsterLootEntryItemId)
+  const lootFingerprints = [...(monsterLoot[monster.id] ?? [])]
+    .map(getMonsterLootEntryFingerprint)
     .sort();
   const tags = [...monster.tags].sort();
   const contentFingerprint = [
     monster.id,
     `level=${monster.level}`,
     `tags=${tags.join(",")}`,
-    `loot=${lootIds.join(",")}`
+    `loot=${lootFingerprints.join(",")}`
   ].join("|");
 
   return stableHash(`hunt:${localPeriodId}:${characterId}:${contentFingerprint}`)
     .toString(36)
     .padStart(7, "0");
+}
+
+function getMonsterLootEntryFingerprint(entry: MonsterLootEntry): string {
+  if (typeof entry === "string") {
+    return `${entry}:1`;
+  }
+
+  return `${entry.itemId}:${entry.weight ?? 1}`;
 }
 
 export function buildHuntRewardAmounts(

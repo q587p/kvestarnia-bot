@@ -110,6 +110,7 @@ describe("dev grant commands", () => {
     const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 0", devGrant);
     const invalidRandomSlotCalls = await captureMessageCalls("/dev_add_random_item slot=helmet", devGrant);
     const invalidRandomTagCalls = await captureMessageCalls("/dev_add_random_item tag=helmet", devGrant);
+    const invalidRandomStoryTagCalls = await captureMessageCalls("/dev_add_random_item tag=story", devGrant);
     const invalidRandomDuplicateAmountCalls = await captureMessageCalls("/dev_add_random_item 1 2", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 0", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 0", devGrant);
@@ -141,6 +142,7 @@ describe("dev grant commands", () => {
       "Формат: /dev_add_random_item [додатне ціле число]"
     );
     expect(String(invalidRandomTagCalls.at(-1)?.payload.text)).toContain("tag=twohand|offhand");
+    expect(String(invalidRandomStoryTagCalls.at(-1)?.payload.text)).toContain("tag=twohand|offhand");
     expect(String(invalidRandomDuplicateAmountCalls.at(-1)?.payload.text)).toContain("slot=weapon");
     expect(String(healCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_heal [додатне ціле число HP]."

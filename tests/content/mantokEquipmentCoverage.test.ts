@@ -101,6 +101,10 @@ describe("mantok equipment coverage content", () => {
       "item.mantok.coverage.path.local-paper-hat",
       "item.mantok.coverage.path.ordinary-route-ruler"
     ]) {
+      const item = mantokEquipmentCoverageItems.find((candidate) => candidate.id === itemId);
+
+      expect(item?.description).toContain("без гучного титулу");
+      expect(item?.description).not.toContain("Манатка для титулу");
       expect(
         checkMantokEquipmentCoverageRequirement(itemId, {
           level: 13,
