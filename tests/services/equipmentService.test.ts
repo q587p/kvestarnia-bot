@@ -303,6 +303,44 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("allows common title coverage items in preview and equip for current characters", async () => {
+    const service = createService({
+      inventoryRows: [
+        buildItem({ itemId: "item.mantok.coverage.path.local-paper-hat" }),
+        buildItem({
+          id: "character-item-2",
+          itemId: "item.mantok.coverage.path.ordinary-route-ruler"
+        })
+      ],
+      character: buildCharacter({ raceId: "race.human-ish", classId: "class.warrior" })
+    });
+
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.mantok.coverage.path.local-paper-hat")
+    ).resolves.toMatchObject({
+      state: "can-equip",
+      slot: "head"
+    });
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.mantok.coverage.path.local-paper-hat")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "head"
+    });
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.mantok.coverage.path.ordinary-route-ruler")
+    ).resolves.toMatchObject({
+      state: "can-equip",
+      slot: "tool"
+    });
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.mantok.coverage.path.ordinary-route-ruler")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "tool"
+    });
+  });
+
   it("rejects unowned items", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.wet-hero-ticket" })]

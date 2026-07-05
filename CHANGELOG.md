@@ -19,6 +19,8 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Equip preview/equip now enforces authored coverage class, race and title-bucket requirements alongside generated Loot Expansion v1 gates.
+- `common_title` authored coverage gear now behaves as broad common-bucket gear instead of a dead title gate for current characters.
+- Yeger/hunt item rewards now use deterministic weighted selection over loot candidates instead of flattening candidate weights to a uniform id list.
 - Restricted authored Mantok coverage gear can still drop for mismatched characters as social trade/gift material; class/race/title requirements remain enforced at equip preview/equip time.
 - Bestiary monster details now describe possible loot broadly instead of calling every reachable candidate a trophy.
 - Generated Loot Expansion v1 materialization now uses slot/name/tag heuristics for head-like armor, leg/boot/pants gear, shield/buckler offhand gear, tool-like accessories and logical `offhand`/`twohand` hand tags.

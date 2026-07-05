@@ -27,6 +27,7 @@ import {
   buildHuntContractToken,
   HUNT_BOARD_CONTRACT_KEY,
   HuntService,
+  selectWeightedHuntLootCandidate,
   selectHuntMonster,
   toKyivHourPeriodId
 } from "../../src/services/huntService";
@@ -185,6 +186,31 @@ describe("HuntService", () => {
       xp: 25 + (result.state === "completed" ? result.reward.xp : 0),
       gold: result.state === "completed" ? result.reward.gold : 0
     });
+  });
+
+  it("selects deterministic hunt reward loot with candidate weights", () => {
+    const lightItem = items.find((item) => item.id === "item.monster-pocket-lint");
+    const heavyItem = items.find((item) => item.id === "item.monster-field-note-scrap");
+
+    if (!lightItem || !heavyItem) {
+      throw new Error("Expected stable monster fallback loot items.");
+    }
+
+    const candidates = [
+      { item: lightItem, rarity: lightItem.rarity, weight: 0.35 },
+      { item: heavyItem, rarity: heavyItem.rarity, weight: 3.5 }
+    ] as const;
+    const selections = Array.from({ length: 200 }, (_, index) =>
+      selectWeightedHuntLootCandidate(candidates, `weighted-hunt-${index}`)?.item.id
+    );
+    const lightCount = selections.filter((itemId) => itemId === lightItem.id).length;
+    const heavyCount = selections.filter((itemId) => itemId === heavyItem.id).length;
+
+    expect(selectWeightedHuntLootCandidate(candidates, "weighted-hunt-42")).toEqual(
+      selectWeightedHuntLootCandidate(candidates, "weighted-hunt-42")
+    );
+    expect(lightCount).toBeGreaterThan(0);
+    expect(heavyCount).toBeGreaterThan(lightCount * 4);
   });
 
   it("creates one posted contract row when the hunt board opens", async () => {

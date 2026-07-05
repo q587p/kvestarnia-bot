@@ -96,6 +96,21 @@ describe("mantok equipment coverage content", () => {
     ).toMatchObject({ canEquip: false, reasons: ["title"] });
   });
 
+  it("treats common title coverage as broadly equippable common-bucket gear", () => {
+    for (const itemId of [
+      "item.mantok.coverage.path.local-paper-hat",
+      "item.mantok.coverage.path.ordinary-route-ruler"
+    ]) {
+      expect(
+        checkMantokEquipmentCoverageRequirement(itemId, {
+          level: 13,
+          classId: "class.warrior",
+          raceId: "race.human-ish"
+        })
+      ).toMatchObject({ canEquip: true, reasons: [] });
+    }
+  });
+
   it("marks logical offhand and two-handed coverage items with hand tags", () => {
     expect(mantokEquipmentCoverageItems.find((item) => item.id === "item.mantok.coverage.class.ranger.twohand-bow")).toMatchObject({
       equipmentSlot: "weapon",

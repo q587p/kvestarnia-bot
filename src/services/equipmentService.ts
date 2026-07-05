@@ -627,7 +627,7 @@ export class EquipmentService {
       (titleLabels.length > 0 || titleBucketIds.length > 0) &&
       !titleLabels.includes(summary.title) &&
       (!activeTitleLabel || !titleLabels.includes(activeTitleLabel)) &&
-      !titleBucketIds.some((titleId) => titleIds.has(titleId))
+      !titleBucketIds.some((titleId) => titleBucketMatchesProfile(titleId, titleIds))
     ) {
       reasons.push("title");
     }
@@ -664,6 +664,10 @@ export class EquipmentService {
       title: summary.title
     });
   }
+}
+
+function titleBucketMatchesProfile(titleBucketId: string, titleIds: ReadonlySet<string>): boolean {
+  return titleBucketId === "common_title" || titleIds.has(titleBucketId);
 }
 
 function getEquipmentRequirementDetails(

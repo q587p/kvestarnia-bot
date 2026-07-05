@@ -36,7 +36,8 @@ The spread is `18 - 12 = 6`, below the requested ceiling of ten.
 - Title/path gear uses rare rarity and slightly higher prices, but remains narrow and gated by title-bucket matching.
 - Monster loot integration uses a small explicit coverage weight beside existing monster/trophy candidates, so authored gear becomes reachable without turning any single item into a guaranteed drop.
 - Restricted coverage gear can still drop for mismatched characters as social trade/gift material; the restriction remains enforced only when previewing or equipping the item.
-- Existing reward settlement, idempotency and replay paths are reused; the change broadens candidate pools rather than adding a new reward faucet.
+- The `common_title` path pair is treated as broad common-bucket gear, so those two items remain usable by current ordinary characters even when their generated race/class title is not the fallback title text.
+- Existing reward settlement, idempotency and replay paths are reused; fight loot and deterministic Yeger/hunt reward selection both respect typed candidate weights while broadening candidate pools rather than adding a new reward faucet.
 - Two-handed weapons are tagged `twohand` so they use the existing offhand conflict/confirmation model.
 - Shields, bucklers, parrying daggers and second-hand utilities use `offhand` metadata/tags instead of pretending to be generic chest armor.
 - Tool coverage items are `slot: "accessory"` plus `equipmentSlot: "tool"`, matching the current item schema while using the canonical equipment slot.

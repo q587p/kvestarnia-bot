@@ -267,10 +267,11 @@ export function checkMantokEquipmentCoverageRequirement(
   }
 
   const titleIds = normalizeLootExpansionTitleIds(profile);
+  const titleBucketIds = requirement.titleBucketIds ?? [];
 
   if (
-    (requirement.titleBucketIds?.length ?? 0) > 0 &&
-    !requirement.titleBucketIds?.some((titleBucketId) => titleIds.has(titleBucketId))
+    titleBucketIds.length > 0 &&
+    !titleBucketIds.some((titleBucketId) => titleBucketMatchesProfile(titleBucketId, titleIds))
   ) {
     reasons.push("title");
   }
@@ -279,6 +280,10 @@ export function checkMantokEquipmentCoverageRequirement(
     canEquip: reasons.length === 0,
     reasons
   };
+}
+
+function titleBucketMatchesProfile(titleBucketId: string, titleIds: ReadonlySet<string>): boolean {
+  return titleBucketId === "common_title" || titleIds.has(titleBucketId);
 }
 
 function universal(
