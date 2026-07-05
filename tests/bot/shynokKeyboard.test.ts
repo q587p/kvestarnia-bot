@@ -35,7 +35,7 @@ describe("Shynok game keyboards", () => {
   it("hides Tavlei cancellation from non-creators", () => {
     const keyboard = buildShynokGameSessionKeyboard({
       state: "created",
-      session: tavleiSession()
+      session: tavleiSession({ status: "ready", participantCount: 2 })
     }, { viewerTelegramUserId: 2002n });
 
     expect(flatInlineButtonTexts(keyboard)).toEqual(["↩ До ігор"]);
@@ -78,6 +78,32 @@ describe("Shynok game keyboards", () => {
     expect(flatInlineButtonCallbacks(tavleiKeyboard)).toContain(`v1:sh:gsh:${token}`);
     expect(flatInlineButtonUrls(tavleiKeyboard)[0]).toContain(encodeURIComponent(`game_${token}`));
     expect(flatInlineButtonTexts(diceKeyboard)).toContain("📣 Запрошення до столу");
+  });
+
+  it("shows join retry instead of invite actions to non-participants on open tables", () => {
+    const token = "12345678-1234-4234-9234-123456789abc";
+    const keyboard = buildShynokGameSessionKeyboard({
+      state: "insufficient-gold",
+      session: kostiSession({
+        status: "open",
+        token,
+        participantCount: 1,
+        result: {
+          kind: "dice_poker_table",
+          mode: "quick",
+          phase: "waiting",
+          playerCap: 2,
+          drawRound: 1
+        }
+      })
+    }, {
+      viewerTelegramUserId: 2002n,
+      inviteUrl: `https://t.me/kvestarnia_bot?start=game_${token}`
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["✅ Сісти за стіл", "↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(`v1:sh:gj:${token}`);
+    expect(flatInlineButtonCallbacks(keyboard)).not.toContain(`v1:sh:gsh:${token}`);
   });
 
   it("shows Kosti resolve only while the table is still open or ready", () => {

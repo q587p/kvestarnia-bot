@@ -43,6 +43,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Dice Poker social tables now start with viewer-specific cards for every participant, and expired `dice-poker-v1` tables refund before any legacy Kosti resolver can run.
 - Scorecard no-op reroll callbacks with no selected dice no longer consume a roll.
 - Stale, terminal, expired and duplicate dice-poker callbacks do not grant duplicate rewards or remove extra gold.
+- Invite-link join failures now show `✅ Сісти за стіл` for non-participants on still-open tables instead of creator-only invite buttons, so a player can sell manatky for gold and retry the same table.
 
 ### Deferred
 - Turn-based duel tournaments, tournament day/week/month reward claims and broader casino/economy changes remain deferred to `0.2.27+` or later.

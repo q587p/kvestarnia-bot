@@ -290,7 +290,10 @@ export function buildShynokGameSessionKeyboard(result: {
   ) {
     keyboard.text("✖ Скасувати", makeShynokGameCancelCallbackData(result.session.token)).row();
   }
-  if (canInviteToTavernGameSession(result.session) && options.inviteUrl) {
+  if (!viewer && canJoinTavernGameSession(result.session)) {
+    keyboard.text("✅ Сісти за стіл", makeShynokGameJoinCallbackData(result.session.token)).row();
+  }
+  if (viewer && canInviteToTavernGameSession(result.session) && options.inviteUrl) {
     keyboard.text("📣 Запрошення до столу", makeShynokGameShareCallbackData(result.session.token)).row();
     keyboard.url("🔗 Запросити до столу", buildTelegramShareUrl(options.inviteUrl)).row();
   }
@@ -622,6 +625,15 @@ function canInviteToTavernGameSession(session: {
   }
 
   return session.gameKey === "tavlei" && session.participants.length < TAVLEI_PLAYER_CAP;
+}
+
+function canJoinTavernGameSession(session: {
+  gameKey: TavernGameKey;
+  status: string;
+  participants: Array<unknown>;
+  result?: unknown;
+}): boolean {
+  return canInviteToTavernGameSession(session);
 }
 
 function buildTelegramShareUrl(inviteUrl: string): string {
