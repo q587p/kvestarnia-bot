@@ -58,7 +58,7 @@
 - Kosti opens `🎲 Кості й покер` with `⚡ Швидкі кості`, `📜 Табличні кості` and `❔ Правила`, with stakes shown only after choosing a mode.
 - `🎲 Ігри за столом` shows current gold, a short Doppelganger availability paragraph and a separate `🪞 Допельґанґер` branch when he is in Shynok.
 - Quick Dice Poker supports a two-player social table, auto-starts when the second player joins, shows each participant their own dice/card, supports selecting none/some/all dice for the one reroll and reaches a terminal shared result once both players finish.
-- Social Dice Poker terminal results are pushed to the other seated participants with active titles, bold payout/refund amounts and rematch/back controls; closed-table callbacks do not show old reroll/score buttons.
+- Social Dice Poker terminal results are pushed to the other seated participants with active titles, bold payout/refund amounts and rematch/back controls; scorecard result rows use bold names/scores and blank-line player blocks; closed-table callbacks do not show old reroll/score buttons.
 - Waiting Tavlei, quick-dice and scorecard-dice tables expose creator-only invite controls: a rotating invite-card button plus a Telegram share deep link that joins the same table through `/start game_...`.
 - `/start game_...` deep-link joins notify already seated participants like Shynok callback joins; quick auto-start sends the existing player their own dice/card, and Tavlei-ready joins send the creator tactic controls.
 - Invite-card view/rotate callbacks are passive: stale invite previews do not expire/refund/resolve the table or mutate gold.
@@ -116,7 +116,7 @@
 26. Let an unstarted scorecard table pass its join window, press stale join/resolve callbacks and verify one Dice Poker escrow refund with no legacy Kosti result.
 27. Let a started scorecard session pass its longer deadline and verify a single escrow refund.
 28. Let unresolved Tavlei vs Doppelganger expire and verify a single escrow refund.
-29. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
+29. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard; verify bold names/titles, bold scores/payouts and blank lines between player result blocks.
 30. Verify `🏆 Рейтинг` counts quick win/loss/draw, Tavlei vs Doppelganger, high scorecard completion and `🪞 Допельґанґер`'s own win/draw/loss row.
 31. Press `🔁 Зіграти ще` from a completed social table and verify a new same-stake table opens for the actor while the previous opponent receives a private join invite.
 32. Press duplicate rematch callbacks and verify there is no duplicate table or duplicate invite while the actor has an active stake session.

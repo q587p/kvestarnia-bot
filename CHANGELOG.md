@@ -43,7 +43,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Dice Poker social tables now start with viewer-specific cards for every participant, and expired `dice-poker-v1` tables refund before any legacy Kosti resolver can run.
 - Scorecard no-op reroll callbacks with no selected dice no longer consume a roll.
 - Stale, terminal, expired and duplicate dice-poker callbacks do not grant duplicate rewards or remove extra gold.
-- Completed social Dice Poker result cards now notify other seated participants with the terminal table result, active titles and safe rematch/back controls instead of leaving old waiting cards or stale reroll buttons.
+- Completed social Dice Poker result cards now notify other seated participants with the terminal table result, active titles and safe rematch/back controls instead of leaving old waiting cards or stale reroll buttons; scorecard result rows use readable blank-line blocks with bold names, scores and payout/refund amounts.
 - Active games against `🪞 Допельґанґер` now count in `🎲 Ігри за столом` and appear in `👀 Хто поруч` as occupied tables without exposing join buttons.
 - Completed Dice Poker games against `🪞 Допельґанґер` now replay their stored result and `🔁 Зіграти ще` starts the same fallback game instead of falling into old Kosti stale-copy.
 - `🏆 Рейтинг` now counts `🪞 Допельґанґер` as a visible table-games opponent for Dice Poker and Tavlei fallback wins, draws and losses.

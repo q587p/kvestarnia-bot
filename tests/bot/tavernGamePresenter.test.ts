@@ -359,6 +359,97 @@ describe("tavern game presenter", () => {
     ].join("\n"));
   });
 
+  it("renders terminal social scorecard results with spaced titled blocks", () => {
+    const tableSession = session({
+      status: "completed",
+      stakeGold: 23,
+      potGold: 69,
+      result: {
+        kind: "dice_poker_table",
+        mode: "scorecard",
+        phase: "terminal",
+        playerCap: 8,
+        drawRound: 1,
+        outcomes: {
+          "character-1": "loss",
+          "character-2": "win",
+          "character-3": "loss"
+        },
+        totals: {
+          "character-1": 63,
+          "character-2": 105,
+          "character-3": 63
+        }
+      },
+      participants: [
+        participant({
+          id: "participant-1",
+          characterId: "character-1",
+          telegramUserId: 1001n,
+          displayName: "Ігровий Майстер",
+          stakeGold: 23,
+          payoutGold: 0,
+          character: {
+            ...participant().character,
+            id: "character-1",
+            telegramUserId: 1001n,
+            name: "Ігровий Майстер",
+            activeCosmeticTitleGrantId: null
+          }
+        }),
+        participant({
+          id: "participant-2",
+          characterId: "character-2",
+          telegramUserId: 2002n,
+          displayName: "Kyjivan BooksDragon",
+          stakeGold: 23,
+          payoutGold: 69,
+          character: {
+            ...participant().character,
+            id: "character-2",
+            telegramUserId: 2002n,
+            name: "Kyjivan BooksDragon",
+            activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+          }
+        }),
+        participant({
+          id: "participant-3",
+          characterId: "character-3",
+          telegramUserId: 3003n,
+          displayName: "Shannar de Kassal",
+          stakeGold: 23,
+          payoutGold: 0,
+          character: {
+            ...participant().character,
+            id: "character-3",
+            telegramUserId: 3003n,
+            name: "Shannar de Kassal",
+            activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+          }
+        })
+      ]
+    });
+
+    const text = presentTavernGameActionResult({
+      state: "completed",
+      session: tableSession,
+      viewerTelegramUserId: 2002n
+    });
+
+    expect(text).toBe([
+      "📜 Табличні кості",
+      "",
+      "<b>Ігровий Майстер</b> · <b>63 очк.</b>",
+      "💀 поразка",
+      "",
+      "<b>Kyjivan BooksDragon</b> (<i>«Перший писар»</i>) · <b>105 очк.</b>",
+      "🏆 перемога · виплата <b>69 зол.</b>",
+      "",
+      "<b>Shannar de Kassal</b> (<i>«Табуретник»</i>) · <b>63 очк.</b>",
+      "💀 поразка"
+    ].join("\n"));
+  });
+
   it("renders social scorecard starts with the viewer's own scorecard", () => {
     const firstState = {
       ...startScorecardDicePoker("scorecard-social-first"),

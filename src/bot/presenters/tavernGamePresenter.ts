@@ -302,9 +302,9 @@ export function presentTavernGameSession(session: TavernGameSessionRecord): stri
 }
 
 function presentTavernGameParticipantName(participant: TavernGameSessionRecord["participants"][number]): string {
-  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(participant.character.activeCosmeticTitleGrantId);
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(participant.character?.activeCosmeticTitleGrantId ?? null);
   return presentCharacterDisplayName({
-    name: participant.character.name || participant.displayName,
+    name: participant.character?.name || participant.displayName,
     ...(activeCosmeticTitle ? { activeCosmeticTitle } : {})
   });
 }
@@ -536,6 +536,14 @@ function presentDicePokerTableSession(session: TavernGameSessionRecord): string 
     return presentTavernGameSession(session);
   }
 
+  if (table.phase === "terminal") {
+    return [
+      dicePokerTableTitle(table.mode),
+      "",
+      ...presentDicePokerTableResults(session, table.outcomes ?? {}, table.totals)
+    ].join("\n");
+  }
+
   const lines = [
     dicePokerTableTitle(table.mode),
     "",
@@ -553,8 +561,6 @@ function presentDicePokerTableSession(session: TavernGameSessionRecord): string 
     );
   } else if (table.phase === "playing") {
     lines.push("", "Партія йде. Кожен гравець робить свій хід на своїй картці.");
-  } else {
-    lines.push("", ...presentDicePokerTableResults(session, table.outcomes ?? {}, table.totals));
   }
 
   return lines.join("\n");
@@ -632,7 +638,9 @@ function presentDicePokerTableResults(
       : participant.refundedGold > 0
         ? ` · повернено <b>${participant.refundedGold} зол.</b>`
         : "";
-    const line = `${presentTavernGameParticipantName(participant)}${score !== undefined ? ` · ${score} очк.` : ""}: ${result}${money}`;
+    const line = score !== undefined
+      ? `${presentTavernGameParticipantName(participant)} · <b>${score} очк.</b>\n${result}${money}`
+      : `${presentTavernGameParticipantName(participant)}: ${result}${money}`;
     return index === 0 ? [line] : ["", line];
   });
 }
