@@ -8,6 +8,7 @@ import {
 } from "../../domain/tavernGames";
 import {
   DICE_POKER_SCORE_CATEGORIES,
+  compareQuickHands,
   evaluateQuickHand,
   getStoredDicePokerState,
   isDicePokerState,
@@ -642,6 +643,11 @@ function presentDicePokerTableResults(
   outcomes: Record<string, string>,
   totals?: Record<string, number>
 ): string[] {
+  const quickResults = totals ? null : presentQuickDicePokerTableResults(session, outcomes);
+  if (quickResults) {
+    return quickResults;
+  }
+
   return session.participants.flatMap((participant, index) => {
     const outcome = outcomes[participant.characterId] ?? "draw";
     const score = totals?.[participant.characterId];
@@ -656,6 +662,93 @@ function presentDicePokerTableResults(
       : `${presentTavernGameParticipantName(participant)}: ${result}${money}`;
     return index === 0 ? [line] : ["", line];
   });
+}
+
+function presentQuickDicePokerTableResults(
+  session: TavernGameSessionRecord,
+  outcomes: Record<string, string>
+): string[] | null {
+  const maybeRows = session.participants.map((participant) => ({
+    participant,
+    state: getParticipantQuickTerminalState(participant)
+  }));
+  if (!maybeRows.every(hasQuickTerminalState)) {
+    return null;
+  }
+  const rows = maybeRows;
+
+  const lines = rows.flatMap(({ participant, state }, index) => {
+    const outcome = outcomes[participant.characterId] ?? "draw";
+    const result = outcome === "win" ? "🏆 перемога" : outcome === "loss" ? "💀 поразка" : "🤝 нічия";
+    const money = participant.payoutGold > 0
+      ? ` · виплата <b>${participant.payoutGold} зол.</b>`
+      : participant.refundedGold > 0
+        ? ` · повернено <b>${participant.refundedGold} зол.</b>`
+        : "";
+    const line = [
+      `${presentTavernGameParticipantName(participant)}: ${state.playerDice.join(" ")} — ${quickHandLabel(state.playerHand)}.`,
+      `${result}${money}`
+    ].join("\n");
+    return index === 0 ? [line] : ["", line];
+  });
+
+  const reason = presentQuickDicePokerTableReason(rows, outcomes);
+  return reason ? [...lines, "", reason] : lines;
+}
+
+type QuickTerminalState = Extract<DicePokerState, { mode: "quick"; phase: "terminal" }>;
+type QuickTableResultRow = {
+  participant: TavernGameSessionRecord["participants"][number];
+  state: QuickTerminalState;
+};
+
+function hasQuickTerminalState(input: {
+  participant: TavernGameSessionRecord["participants"][number];
+  state: QuickTerminalState | null;
+}): input is QuickTableResultRow {
+  return input.state !== null;
+}
+
+function getParticipantQuickTerminalState(
+  participant: TavernGameSessionRecord["participants"][number]
+): QuickTerminalState | null {
+  const decision = asQuickTerminalState(participant.decision);
+  if (decision) {
+    return decision;
+  }
+
+  return asQuickTerminalState(getStoredDicePokerState(participant.result));
+}
+
+function asQuickTerminalState(input: unknown): QuickTerminalState | null {
+  return isDicePokerState(input) && input.mode === "quick" && input.phase === "terminal" ? input : null;
+}
+
+function presentQuickDicePokerTableReason(
+  rows: QuickTableResultRow[],
+  outcomes: Record<string, string>
+): string | null {
+  const winners = rows.filter((row) => outcomes[row.participant.characterId] === "win");
+  if (winners.length !== 1) {
+    return "Причина: найсильніші комбінації повністю однакові.";
+  }
+
+  const winner = winners[0]!;
+  const strongestOpponent = rows
+    .filter((row) => row.participant.characterId !== winner.participant.characterId)
+    .reduce<QuickTableResultRow | null>((best, current) =>
+      !best || compareQuickHands(current.state.playerHand, best.state.playerHand) > 0 ? current : best
+    , null);
+  if (!strongestOpponent) {
+    return null;
+  }
+
+  const comparison = compareQuickHands(winner.state.playerHand, strongestOpponent.state.playerHand);
+  const why = comparison === 0
+    ? `старші значення в комбінації «${quickRankLabel(winner.state.playerHand.rank)}» вирішили партію`
+    : `${quickRankSubjectLabel(winner.state.playerHand.rank)} сильніша за ${quickRankObjectLabel(strongestOpponent.state.playerHand.rank)}`;
+
+  return `Причина: ${why}.`;
 }
 
 function dicePokerTableTitle(mode: "quick" | "scorecard"): string {

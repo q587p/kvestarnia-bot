@@ -386,6 +386,18 @@ describe("tavern game presenter", () => {
           displayName: "Shannar de Kassal",
           stakeGold: 13,
           payoutGold: 26,
+          decision: {
+            kind: "dice_poker",
+            mode: "quick",
+            phase: "terminal",
+            outcome: "draw",
+            drawRound: 1,
+            playerDice: [3, 3, 3, 6, 1],
+            opponentDice: [],
+            playerHand: evaluateQuickHand([3, 3, 3, 6, 1]),
+            opponentHand: evaluateQuickHand([3, 3, 3, 6, 1]),
+            reason: "Кидок записано."
+          },
           character: {
             ...participant().character,
             id: "character-1",
@@ -401,6 +413,18 @@ describe("tavern game presenter", () => {
           displayName: "Kyjivan BooksDragon",
           stakeGold: 13,
           payoutGold: 0,
+          decision: {
+            kind: "dice_poker",
+            mode: "quick",
+            phase: "terminal",
+            outcome: "draw",
+            drawRound: 1,
+            playerDice: [5, 5, 4, 4, 2],
+            opponentDice: [],
+            playerHand: evaluateQuickHand([5, 5, 4, 4, 2]),
+            opponentHand: evaluateQuickHand([5, 5, 4, 4, 2]),
+            reason: "Кидок записано."
+          },
           character: {
             ...participant().character,
             id: "character-2",
@@ -422,9 +446,13 @@ describe("tavern game presenter", () => {
     expect(text).toBe([
       "⚡ Швидкі кості",
       "",
-      "<b>Shannar de Kassal</b> (<i>«Табуретник»</i>): 🏆 перемога · виплата <b>26 зол.</b>",
+      "<b>Shannar de Kassal</b> (<i>«Табуретник»</i>): 3 3 3 6 1 — Трійка трійок.",
+      "🏆 перемога · виплата <b>26 зол.</b>",
       "",
-      "<b>Kyjivan BooksDragon</b> (<i>«Перший писар»</i>): 💀 поразка"
+      "<b>Kyjivan BooksDragon</b> (<i>«Перший писар»</i>): 5 5 4 4 2 — Дві пари: пʼятірки й четвірки.",
+      "💀 поразка",
+      "",
+      "Причина: трійка сильніша за дві пари."
     ].join("\n"));
   });
 
