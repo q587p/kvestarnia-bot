@@ -1,7 +1,9 @@
 import { items } from "../content";
+import { normalizeEquipmentSlot, type EquipmentSlot } from "../content/equipmentSlots";
 import type { CharacterRecord } from "../db/repositories/characterRepository";
 import type { DevGrantRepository, DevGrantYegerQuestStage } from "../db/repositories/devGrantRepository";
 import type { ItemGrant, RewardLevelChange } from "../db/repositories/dailyActionRepository";
+import type { ItemContent, ItemTagContent } from "../content/schema";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 import {
   BANDAGE_ITEM_ID,
@@ -117,6 +119,10 @@ export type DevGrantItemsResult =
   | { state: "disabled" }
   | { state: "no-character" }
   | {
+      state: "no-matching-items";
+      filter: DevGrantRandomItemFilter;
+    }
+  | {
       state: "updated";
       kind: "items";
       amount: number;
@@ -124,6 +130,11 @@ export type DevGrantItemsResult =
       itemGrants: RewardItemGrant[];
       achievementUnlocks?: AchievementUnlock[];
     };
+
+export interface DevGrantRandomItemFilter {
+  equipmentSlot?: EquipmentSlot;
+  tag?: ItemTagContent;
+}
 
 export class DevGrantService {
   constructor(
@@ -240,12 +251,21 @@ export class DevGrantService {
       : { state: "no-character" };
   }
 
-  async addRandomItems(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+  async addRandomItems(
+    telegramUserId: bigint,
+    amount = 1,
+    filter: DevGrantRandomItemFilter = {}
+  ): Promise<DevGrantItemsResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
 
-    const itemGrants = this.pickRandomItemGrants(amount);
+    const itemGrants = this.pickRandomItemGrants(amount, filter);
+
+    if (itemGrants.length === 0) {
+      return { state: "no-matching-items", filter };
+    }
+
     const result = await this.grants.addItemsForTelegramUser(telegramUserId, itemGrants);
 
     if (!result) {
@@ -513,19 +533,21 @@ export class DevGrantService {
     };
   }
 
-  private pickRandomItemGrants(amount: number): ItemGrant[] {
-    if (items.length === 0) {
+  private pickRandomItemGrants(amount: number, filter: DevGrantRandomItemFilter): ItemGrant[] {
+    const candidates = items.filter((item) => matchesRandomItemFilter(item, filter));
+
+    if (candidates.length === 0) {
       return [];
     }
 
-    const fallback = items[0];
+    const fallback = candidates[0];
 
     if (!fallback) {
       return [];
     }
 
     return Array.from({ length: amount }, () => {
-      const item = items[this.rng.nextInt(0, items.length - 1)] ?? fallback;
+      const item = candidates[this.rng.nextInt(0, candidates.length - 1)] ?? fallback;
 
       return {
         itemId: item.id,
@@ -575,6 +597,82 @@ export class DevGrantService {
 
     return uniqueAchievementUnlocks([...unlocks, ...recalculated.unlocks]);
   }
+}
+
+export function normalizeDevGrantRandomItemFilter(input: {
+  equipmentSlot?: string;
+  tag?: string;
+}): DevGrantRandomItemFilter | null {
+  const filter: DevGrantRandomItemFilter = {};
+
+  if (input.equipmentSlot !== undefined) {
+    const equipmentSlot = normalizeEquipmentSlot(input.equipmentSlot);
+
+    if (!equipmentSlot) {
+      return null;
+    }
+
+    filter.equipmentSlot = equipmentSlot;
+  }
+
+  if (input.tag !== undefined) {
+    const tag = input.tag.trim().toLowerCase();
+
+    if (!isItemTag(tag)) {
+      return null;
+    }
+
+    filter.tag = tag;
+  }
+
+  return filter;
+}
+
+function matchesRandomItemFilter(item: ItemContent, filter: DevGrantRandomItemFilter): boolean {
+  if (filter.equipmentSlot && getCanonicalEquipmentSlot(item) !== filter.equipmentSlot) {
+    return false;
+  }
+
+  if (filter.tag && !(item.tags ?? []).includes(filter.tag)) {
+    return false;
+  }
+
+  return true;
+}
+
+function getCanonicalEquipmentSlot(item: ItemContent): EquipmentSlot | null {
+  if (item.equipmentSlot) {
+    return item.equipmentSlot;
+  }
+
+  if (item.slot === "weapon") {
+    return "weapon";
+  }
+
+  if (item.slot === "accessory") {
+    return "accessory";
+  }
+
+  return null;
+}
+
+function isItemTag(value: string): value is ItemTagContent {
+  const supportedTags = new Set<ItemTagContent>([
+    "consumable",
+    "one-use",
+    "tradeable",
+    "trade-blocked",
+    "duel-blocked",
+    "raid-blocked",
+    "twohand",
+    "offhand",
+    "story",
+    "memory",
+    "sentimental",
+    "soulbound"
+  ]);
+
+  return supportedTags.has(value as ItemTagContent);
 }
 
 function uniqueAchievementUnlocks(unlocks: readonly AchievementUnlock[]): AchievementUnlock[] {

@@ -1,8 +1,10 @@
 import type { Bot, Context } from "grammy";
-import type {
-  DevGrantItemsResult,
-  DevGrantResult,
-  DevGrantService
+import {
+  normalizeDevGrantRandomItemFilter,
+  type DevGrantItemsResult,
+  type DevGrantRandomItemFilter,
+  type DevGrantResult,
+  type DevGrantService
 } from "../../services/devGrantService";
 import { playerFromContext } from "../context";
 import {
@@ -59,12 +61,7 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
   });
 
   bot.command("dev_add_random_item", async (ctx) => {
-    await handleDevGrantCommand(
-      ctx,
-      devGrantService,
-      "dev_add_random_item",
-      (telegramUserId, amount) => devGrantService.addRandomItems(telegramUserId, amount)
-    );
+    await handleDevAddRandomItemCommand(ctx, devGrantService);
   });
 
   bot.command("dev_add_bandage", async (ctx) => {
@@ -165,6 +162,38 @@ async function handleDevGrantCommand(
   }
 
   const result = await grant(telegramUserId, amount);
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevAddRandomItemCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const parsed = parseDevRandomItemGrantInput(ctx.match);
+
+  if (!parsed) {
+    await ctx.reply(presentDevGrantInvalidAmount("dev_add_random_item"));
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.addRandomItems(
+    telegramUserId,
+    parsed.amount,
+    parsed.filter
+  );
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
@@ -391,6 +420,77 @@ function parseDevGrantAmount(raw: string | undefined): number | null {
   return Number.isSafeInteger(amount) && amount >= 1 && amount <= MAX_DEV_GRANT_AMOUNT
     ? amount
     : null;
+}
+
+function parseDevRandomItemGrantInput(raw: string | undefined): {
+  amount: number;
+  filter: DevGrantRandomItemFilter;
+} | null {
+  const value = raw?.trim();
+
+  if (!value) {
+    return {
+      amount: DEFAULT_DEV_GRANT_AMOUNT,
+      filter: {}
+    };
+  }
+
+  const tokens = value.split(/\s+/).filter(Boolean);
+  let amount = DEFAULT_DEV_GRANT_AMOUNT;
+  let hasAmount = false;
+  const filterInput: { equipmentSlot?: string; tag?: string } = {};
+
+  for (const token of tokens) {
+    if (/^\d+$/.test(token)) {
+      const parsedAmount = Number(token);
+
+      if (
+        !Number.isSafeInteger(parsedAmount) ||
+        parsedAmount < 1 ||
+        parsedAmount > MAX_DEV_GRANT_AMOUNT ||
+        hasAmount
+      ) {
+        return null;
+      }
+
+      amount = parsedAmount;
+      hasAmount = true;
+      continue;
+    }
+
+    const [rawKey, rawValue, ...extraParts] = token.split("=");
+
+    if (!rawKey || !rawValue || extraParts.length > 0) {
+      return null;
+    }
+
+    const key = rawKey.toLowerCase();
+    const filterValue = rawValue.toLowerCase();
+
+    if (key === "slot") {
+      if (filterInput.equipmentSlot) {
+        return null;
+      }
+
+      filterInput.equipmentSlot = filterValue;
+      continue;
+    }
+
+    if (key === "tag") {
+      if (filterInput.tag) {
+        return null;
+      }
+
+      filterInput.tag = filterValue;
+      continue;
+    }
+
+    return null;
+  }
+
+  const filter = normalizeDevGrantRandomItemFilter(filterInput);
+
+  return filter ? { amount, filter } : null;
 }
 
 function parseDevHealAmount(raw: string | undefined): number | null | undefined {

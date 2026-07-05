@@ -309,7 +309,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_add_random_item",
     icon: "🎲",
-    description: "додати випадкові манатки локально",
+    description: "додати випадкові манатки локально, можна slot=tool або tag=twohand",
     includeInMenu: false,
     devOnly: "grant"
   },
