@@ -137,6 +137,33 @@ describe("equipment presenter", () => {
     expect(text).toContain("перезарядка 3");
   });
 
+  it("distinguishes borrowed gear actions and docs-only service perks in equipment", () => {
+    const staff = items.find((item) => item.id === "item.set.asclepius.staff");
+    const cloak = items.find((item) => item.id === "item.set.yeger-shadow.cloak");
+    expect(staff).toBeDefined();
+    expect(cloak).toBeDefined();
+    if (!staff || !cloak) {
+      throw new Error("Expected Mantok ability grant items.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        { slot: "weapon", item: { itemId: staff.id, content: staff } },
+        { slot: "chest", item: { itemId: cloak.id, content: cloak } },
+        { slot: "head", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("Дія: <b>⚕️ Інструкція Асклепія</b>");
+    expect(text).toContain("позичена, не рідна");
+    expect(text).toContain("Перк: <b>🧥 Чужа єгерська справа</b> (без бойової кнопки)");
+  });
+
   it("shows the offhand as occupied by a twohand main-hand item", () => {
     const text = presentEquipment({
       state: "ready",

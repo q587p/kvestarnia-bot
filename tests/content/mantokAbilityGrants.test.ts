@@ -3,10 +3,17 @@ import { makeFightGearActionCallbackData } from "../../src/bot/callbacks/fightCa
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
 import { items, monsterLoot } from "../../src/content";
 import {
+  findMantokAbilityGrantByKey,
   mantokAbilityGrantDefinitions,
   mantokAbilityGrantItemContents,
-  mantokAbilityGrantLootAdditions
+  mantokAbilityGrantLootAdditions,
+  type MantokAbilityGrantDefinition
 } from "../../src/content/mantokAbilityGrants";
+import { getCombatClassAbilityProfile } from "../../src/domain/combat";
+
+type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
+  combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
+};
 
 describe("Mantok ability grant registry", () => {
   it("uses stable compact collision-free keys instead of item ordering", () => {
@@ -77,4 +84,56 @@ describe("Mantok ability grant registry", () => {
     expect(cloak?.description).toContain("аптечок");
     expect(cloak?.description).toContain("дощечок");
   });
+
+  it("keeps borrowed gear actions weaker than the native actions they echo", () => {
+    const borrowedPairs = [
+      { key: "harpcp", nativeClassId: "class.bard" },
+      { key: "ascstf", nativeClassId: "class.priest" }
+    ] as const;
+
+    for (const pair of borrowedPairs) {
+      const grant = findMantokAbilityGrantByKey(pair.key);
+      const native = getCombatClassAbilityProfile(pair.nativeClassId);
+
+      expect(grant?.combat?.kind).toBe("borrowed-player-ability");
+      expect(grant?.combat?.profile.source).toBe("equipment");
+      expect(grant?.combat?.profile.action).toBe("gear");
+      expect(grant?.combat?.profile.tags ?? []).toContain("borrowed");
+      expect(native).toBeDefined();
+      if (!grant?.combat || !native) {
+        throw new Error(`Expected borrowed gear and native profile for ${pair.key}.`);
+      }
+
+      expect(grant.combat.profile.manaCost).toBeGreaterThan(native.manaCost);
+      expect(grant.combat.profile.cooldownOwnActions).toBeGreaterThan(native.cooldownOwnActions);
+      expect(grant.combat.profile.multiplier).toBeLessThanOrEqual(native.multiplier);
+      if (native.healAmount !== undefined) {
+        expect(grant.combat.profile.healAmount ?? 0).toBeLessThan(native.healAmount);
+      }
+    }
+  });
+
+  it("keeps bleed grants small and gear-action scoped", () => {
+    const grants: readonly MantokAbilityGrantDefinition[] = mantokAbilityGrantDefinitions;
+    const bleedGrants = grants.filter(hasCombatBleedGrant);
+
+    expect(bleedGrants.length).toBeGreaterThan(0);
+    for (const grant of bleedGrants) {
+      expect(grant.kind).toBe("combat-action");
+      expect(grant.combat.profile.action).toBe("gear");
+      expect(grant.combat.profile.source).toBe("equipment");
+      expect(grant.combat.bleed.damagePerActivation).toBeLessThanOrEqual(1);
+      expect(grant.combat.bleed.remainingHeroActivations).toBeLessThanOrEqual(3);
+    }
+  });
 });
+
+function hasCombatBleedGrant(
+  grant: MantokAbilityGrantDefinition
+): grant is CombatMantokAbilityGrantDefinition & {
+  combat: CombatMantokAbilityGrantDefinition["combat"] & {
+    bleed: NonNullable<CombatMantokAbilityGrantDefinition["combat"]["bleed"]>;
+  };
+} {
+  return Boolean(grant.combat?.bleed);
+}

@@ -479,6 +479,24 @@ describe("item detail presenter", () => {
     expect(text).toContain("перезарядка 3 ходи");
   });
 
+  it("distinguishes borrowed gear actions and service perks on item detail pages", () => {
+    const staff = items.find((item) => item.id === "item.set.asclepius.staff");
+    const cloak = items.find((item) => item.id === "item.set.yeger-shadow.cloak");
+    expect(staff).toBeDefined();
+    expect(cloak).toBeDefined();
+    if (!staff || !cloak) {
+      throw new Error("Expected Mantok ability grant items.");
+    }
+
+    const staffText = presentOwnedItemDetail(itemSummary({ itemId: staff.id, content: staff }));
+    const cloakText = presentOwnedItemDetail(itemSummary({ itemId: cloak.id, content: cloak }));
+
+    expect(staffText).toContain("Дія спорядження: <b>⚕️ Інструкція Асклепія</b>");
+    expect(staffText).toContain("Позичена від: Жрець; не рахується рідною дією.");
+    expect(cloakText).toContain("Перк спорядження: <b>🧥 Чужа єгерська справа</b>");
+    expect(cloakText).toContain("Зараз це службова позначка без бойової кнопки.");
+  });
+
   it("does not reveal details for missing characters or unowned items", () => {
     expect(presentItemDetail({ state: "no-character" })).toContain("/start");
     expect(presentItemDetail({ state: "not-owned" })).toContain("не знайшлося");

@@ -139,6 +139,12 @@ describe("fight callback data", () => {
       error: "invalid-action"
     });
     expect(
+      parseFightCallbackData("v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:3:gear")
+    ).toEqual({
+      ok: false,
+      error: "invalid-action"
+    });
+    expect(
       parseFightCallbackData("v1:fight:gear:123e4567-e89b-12d3-a456-426614174000:3:bad_key")
     ).toEqual({
       ok: false,

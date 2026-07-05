@@ -4,6 +4,8 @@ import { err, ok, type Result } from "../../shared/result";
 import type { PlaceCallback } from "./placeCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
+type FightTurnAction = Exclude<PlayerCombatActionType, "gear">;
+
 export type FightCallbackError =
   | "invalid-version"
   | "invalid-prefix"
@@ -20,7 +22,7 @@ export type FightCallback =
       type: "turn";
       sessionId: string;
       turn: number;
-      action: PlayerCombatActionType;
+      action: FightTurnAction;
     }
   | {
       type: "item";
@@ -57,7 +59,7 @@ const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
 const PASSAGE_PREFIX = "v1:fight:pass";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
-const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "race", "flee"]);
+const turnActions = new Set<FightTurnAction>(["attack", "defend", "skill", "race", "flee"]);
 const passageActions = new Set<Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">>([
   "deep-left",
   "deep-straight",
@@ -74,7 +76,7 @@ export function makeFightCallbackData(action: CombatProbeAction): string {
 export function makeFightTurnCallbackData(input: {
   sessionId: string;
   turn: number;
-  action: PlayerCombatActionType;
+  action: FightTurnAction;
 }): string {
   return `${TURN_PREFIX}:${input.sessionId}:${input.turn}:${input.action}`;
 }
@@ -158,7 +160,7 @@ export function parseFightCallbackData(
       return err("invalid-turn");
     }
 
-    if (!turnActions.has(action as PlayerCombatActionType)) {
+    if (!turnActions.has(action as FightTurnAction)) {
       return err("invalid-action");
     }
 
@@ -166,7 +168,7 @@ export function parseFightCallbackData(
       type: "turn",
       sessionId,
       turn,
-      action: action as PlayerCombatActionType
+      action: action as FightTurnAction
     });
   }
 
