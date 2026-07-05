@@ -194,17 +194,16 @@ describe("tavern game presenter", () => {
     expect(presentTavernGameActionResult({ state: "stale" })).toContain("Стара кнопка від старих костей");
   });
 
-  it("explains create cooldown without implying an open table exists", () => {
+  it("does not present legacy create cooldown as an active pause", () => {
     const text = presentTavernGameActionResult({
       state: "cooldown",
       availableAt: new Date("2026-07-02T10:03:01.000Z"),
       now: new Date("2026-07-02T10:00:00.000Z")
     });
 
-    expect(text).toContain("Новий стіл ще на паузі.");
-    expect(text).toContain("обмеження на створення нових столів");
-    expect(text).toContain("не ознака, що десь уже відкрита партія");
-    expect(text).toContain("Спробуйте ще раз за 4 хвилини.");
+    expect(text).toContain("Стіл уже можна відкривати без паузи.");
+    expect(text).not.toContain("Новий стіл ще на паузі.");
+    expect(text).not.toContain("Спробуйте ще раз за");
   });
 
   it("does not suggest a real midnight self-play mode for Tavlei", () => {

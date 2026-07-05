@@ -407,7 +407,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_reset_tavern_games",
     icon: "🎲",
-    description: "скинути cooldown створення столів локально",
+    description: "перевірити, що столи без паузи локально",
     includeInMenu: false,
     devOnly: "grant"
   },

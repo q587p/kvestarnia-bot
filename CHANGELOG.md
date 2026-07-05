@@ -15,7 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added deciding quick-poker rounds for exact equal evaluated hands, capped at three repeated draw rounds before a safe stake refund and terminal close.
 - Added `📜 Табличні кості`: solo 13-turn scorecard mode with up to three rolls per turn, selected-dice rerolls, 13 once-only boxes, preview scores for unused boxes, simplified full-house/poker rules and the upper-section `63+` bonus.
 - Added compact `❔ Правила` copy for both dice-poker modes and compact callback payloads for create/toggle/reroll/score/cancel actions.
-- Added local `/dev_reset_tavern_games` with the dice icon to reset the table-creation cooldown for QA; player-facing command icon uniqueness still excludes dev-only commands.
+- Added local `/dev_reset_tavern_games` with the dice icon as a no-op compatibility QA check after table-create cooldown removal; player-facing command icon uniqueness still excludes dev-only commands.
 - Added real social Dice Poker tables on the existing tavern-game session storage: `⚡ Швидкі кості` opens a two-player duel table, `📜 Табличні кості` opens a 2–8 player scorecard table, and `🪞 Допельґанґер` remains an explicit fallback opponent.
 - Added a separate Shynok `🪞 Допельґанґер` table-games branch that lets players choose quick dice, scorecard dice or Tavlei against him before choosing a stake.
 
@@ -33,6 +33,8 @@ This project follows a simple pre-1.0 versioning policy:
 - `🪞 Допельґанґер` fallback now follows the in-world schedule: from 23:00 until 07:00 Kyiv time he is available for Dice Poker in Shynok, while daytime keeps him in the Fighting Corner and hides the Shynok fallback buttons.
 - Public Dice Poker stake pickers now use compact horizontal public-table stake rows; Doppelganger stake selection lives under his separate branch.
 - Tavlei against the Doppelganger uses a single player stake in escrow: win returns it, draw refunds it, loss leaves it on the table, and replay/expiry settlement stays one-time.
+- Completed table-game result cards now offer `🔁 Зіграти ще`: social games open a new same-stake table and privately invite previous opponents, while Doppelganger games start the matching fallback path directly.
+- Removed the recent-create table cooldown; players can create another table immediately after the previous stake session closes, while the one-active-stake-session guard remains.
 
 ### Fixed
 - Old incompatible active Kosti tables are hidden from the open-table hub and old decision/resolve callbacks fail closed through the existing safe refund/stale path with friendly Ukrainian copy.
@@ -43,7 +45,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Deferred
 - Turn-based duel tournaments, tournament day/week/month reward claims and broader casino/economy changes remain deferred to `0.2.27+` or later.
-- Dedicated deep-link invite buttons for Dice Poker/Tavlei remain a follow-up polish item; open social tables are visible through the existing tavern games hub and join callbacks in this release.
+- Dedicated generic deep-link invite buttons outside the rematch flow remain a follow-up polish item; open social tables are visible through the existing tavern games hub and join callbacks in this release.
 
 ## [0.2.25] - 12026-07-05 - Class Noncombat Priest and Rogue Techniques
 

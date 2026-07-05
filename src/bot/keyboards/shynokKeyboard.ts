@@ -54,6 +54,7 @@ import {
   makeShynokGameCreateCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokGameLeaderboardCallbackData,
+  makeShynokGameRematchCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
   makeShynokGamesCallbackData,
@@ -241,6 +242,13 @@ export function buildBackToDicePokerKeyboard(token: string): InlineKeyboard {
     .text("↩ До ігор", makeShynokGamesCallbackData());
 }
 
+export function buildShynokGameRematchInviteKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("✅ Сісти за стіл", makeShynokGameJoinCallbackData(token))
+    .row()
+    .text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
 export function buildShynokGameSessionKeyboard(result: {
   state: string;
   session?: {
@@ -262,6 +270,11 @@ export function buildShynokGameSessionKeyboard(result: {
   );
   const viewerIsCreator = viewer?.characterId === result.session.creatorCharacterId;
   const table = isDicePokerTableState(result.session.result) ? result.session.result : null;
+  if (result.session.status === "completed") {
+    keyboard.text("🔁 Зіграти ще", makeShynokGameRematchCallbackData(result.session.token)).row();
+    return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
+  }
+
   if (
     result.state !== "not-cancellable" &&
     (result.session.gameKey === "tavlei" || table?.phase === "waiting") &&
@@ -338,12 +351,15 @@ export function buildShynokDrinkResultKeyboard(options: ShynokNavigationOptions 
 export function buildShynokDicePokerKeyboard(
   token: string,
   state: DicePokerState,
-  options: { allowCancel?: boolean } = {}
+  options: { allowCancel?: boolean; allowRematch?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const allowCancel = options.allowCancel ?? true;
 
   if (state.phase === "terminal") {
+    if (options.allowRematch) {
+      keyboard.text("🔁 Зіграти ще", makeShynokGameRematchCallbackData(token)).row();
+    }
     return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
   }
 

@@ -521,32 +521,26 @@ describe("PrismaTavernGameRepository integration", () => {
     await expect(characterGold("character-scorecard-refresh")).resolves.toBe(10);
   });
 
-  it("resets recent tavern game create cooldown without touching stakes", async () => {
+  it("allows another table immediately after the previous table closes", async () => {
     const token = "12345678-1234-4234-9234-000000000590";
-    await seedCharacter({ telegramUserId: 590n, characterId: "character-create-cooldown", name: "Стільник", gold: 10 });
+    const secondToken = "12345678-1234-4234-9234-000000000599";
+    await seedCharacter({ telegramUserId: 590n, characterId: "character-create-cooldown", name: "Стільник", gold: 20 });
     const created = await repository.createForTelegramUser(590n, {
       ...createInput("tavlei", token),
-      cooldownMs: 0
-    });
-    expect(created.state).toBe("created");
-    await expect(characterGold("character-create-cooldown")).resolves.toBe(7);
-
-    const reset = await repository.resetCreateCooldownForTelegramUser(590n, {
-      now: now(),
       cooldownMs: 120_000
     });
-    const openedAt = await prisma.tavernGameSession.findUnique({
-      where: { token },
-      select: { openedAt: true, stakeGold: true, potGold: true }
+    expect(created.state).toBe("created");
+    await expect(characterGold("character-create-cooldown")).resolves.toBe(17);
+
+    const cancelled = await repository.cancelForTelegramUser(590n, token, now());
+    const second = await repository.createForTelegramUser(590n, {
+      ...createInput("tavlei", secondToken),
+      cooldownMs: 120_000
     });
 
-    expect(reset).toEqual({ state: "reset", updated: 1 });
-    expect(openedAt).toEqual({
-      openedAt: new Date("2026-07-02T09:57:59.000Z"),
-      stakeGold: 3,
-      potGold: 3
-    });
-    await expect(characterGold("character-create-cooldown")).resolves.toBe(7);
+    expect(cancelled.state).toBe("cancelled");
+    expect(second.state).toBe("created");
+    await expect(characterGold("character-create-cooldown")).resolves.toBe(17);
   });
 
   function now(): Date {

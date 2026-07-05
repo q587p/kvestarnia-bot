@@ -20,6 +20,7 @@ import {
   makeShynokGameCreateCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokGameLeaderboardCallbackData,
+  makeShynokGameRematchCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
   makeShynokGamesCallbackData,
@@ -124,6 +125,10 @@ describe("shynokCallbackData", () => {
       ok: true,
       value: { type: "game-join", token }
     });
+    expect(parseShynokCallbackData(makeShynokGameRematchCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-rematch", token }
+    });
     expect(parseShynokCallbackData(makeShynokGameCancelCallbackData(token))).toEqual({
       ok: true,
       value: { type: "game-cancel", token }
@@ -148,6 +153,8 @@ describe("shynokCallbackData", () => {
     expect(Buffer.byteLength(makeShynokDoppelgangerModeCallbackData("scorecard"), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(makeShynokTavleiDoppelgangerCreateCallbackData(93), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokGameRematchCallbackData(token), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 

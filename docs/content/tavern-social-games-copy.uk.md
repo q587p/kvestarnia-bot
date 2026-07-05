@@ -84,6 +84,19 @@ Player-facing copy for Tavern Social Games. Keep these texts Ukrainian. Avoid ra
 Ця кнопка вже не діє, але стіл не постраждав.
 ```
 
+## Rematch copy
+
+```text
+🔁 Реванш?
+
+{creatorName} відкрив новий стіл після вашої партії.
+```
+
+```text
+🔁 Зіграти ще
+✅ Сісти за стіл
+```
+
 ## Tavlei rules short
 
 ```text

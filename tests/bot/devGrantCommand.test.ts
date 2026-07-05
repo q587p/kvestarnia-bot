@@ -83,7 +83,7 @@ describe("dev grant commands", () => {
     expect(String(yegerFirstDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи» доведено до 5/5");
     expect(String(yegerSecondDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи 2.0» доведено до 17/17");
     expect(String(tavernGameResetCalls.at(-1)?.payload.text)).toContain(
-      "🎲 Cooldown створення столів скинуто локально"
+      "🎲 Столи вже без паузи"
     );
   });
 

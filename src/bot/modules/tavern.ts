@@ -84,6 +84,7 @@ buildShynokDicePokerStakeKeyboard,
 buildShynokDoppelgangerMenuKeyboard,
 buildShynokDoppelgangerStakeKeyboard,
 buildShynokGameHubKeyboard,
+buildShynokGameRematchInviteKeyboard,
 buildShynokGameRulesKeyboard,
 buildShynokGameSessionKeyboard,
 buildShynokKostiDecisionKeyboard,
@@ -127,6 +128,7 @@ import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
 import { presentParticipants } from "../presenters/presencePresenter";
+import { escapeHtml } from "../presenters/telegramHtml";
 import {
 presentBardPerformanceAudienceNotification,
 presentBardPerformancePerformerFeedback,
@@ -463,6 +465,7 @@ async function handleShynokCallback(
     action.type === "game-dice-poker-roll" ||
     action.type === "game-dice-poker-score" ||
     action.type === "game-dice-poker-cancel" ||
+    action.type === "game-rematch" ||
     action.type === "game-join" ||
     action.type === "game-cancel" ||
     action.type === "game-tavlei-decision" ||
@@ -478,6 +481,10 @@ async function handleShynokCallback(
       achievementNotifications?: Array<{
         telegramUserId: bigint;
         unlocks: Parameters<typeof presentAchievementUnlockNotification>[0];
+      }>;
+      rematchInvitees?: Array<{
+        telegramUserId: bigint;
+        displayName: string;
       }>;
     };
 
@@ -512,6 +519,8 @@ async function handleShynokCallback(
       );
     } else if (action.type === "game-dice-poker-cancel") {
       result = await services.tavernGames.cancelDicePokerForTelegramUser(telegramUserId, action.token);
+    } else if (action.type === "game-rematch") {
+      result = await services.tavernGames.createRematchForTelegramUser(telegramUserId, action.token);
     } else if (action.type === "game-join") {
       result = await services.tavernGames.joinByTokenForTelegramUser(telegramUserId, action.token);
     } else if (action.type === "game-cancel") {
@@ -547,6 +556,7 @@ async function handleShynokCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTavernGameActionKeyboard(result, telegramUserId, shynokNavigationOptions)
     });
+    await notifyTavernGameRematchInvitees(ctx, result, telegramUserId);
     await notifyTavernGameParticipants(ctx, result, telegramUserId);
     await notifyTavernGameAchievements(ctx, result);
     return;
@@ -803,7 +813,10 @@ export function buildTavernGameActionKeyboard(result: {
     ? (table.phase === "playing" && isDicePokerState(participant?.decision) ? participant.decision : null)
     : result.dicePoker ?? (isDicePokerState(result.session?.result) ? result.session.result : null);
   if (result.session && dicePoker) {
-    return buildShynokDicePokerKeyboard(result.session.token, dicePoker, { allowCancel: !table });
+    return buildShynokDicePokerKeyboard(result.session.token, dicePoker, {
+      allowCancel: !table,
+      allowRematch: result.session.status === "completed" && dicePoker.phase === "terminal"
+    });
   }
   if (table) {
     return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId, ...options });
@@ -921,6 +934,52 @@ function presentTavernGameParticipantUpdate(
   return presentTavernGameActionResult({ ...result, viewerTelegramUserId });
 }
 
+async function notifyTavernGameRematchInvitees(
+  ctx: Context,
+  result: Parameters<typeof presentTavernGameActionResult>[0] & {
+    rematchInvitees?: Array<{
+      telegramUserId: bigint;
+      displayName: string;
+    }>;
+  },
+  actorTelegramUserId: bigint
+): Promise<void> {
+  if (result.state !== "created" || !result.session || !result.rematchInvitees?.length) {
+    return;
+  }
+
+  const session = result.session;
+
+  await Promise.allSettled(result.rematchInvitees
+    .filter((invitee) => invitee.telegramUserId !== actorTelegramUserId)
+    .map((invitee) =>
+      ctx.api.sendMessage(
+        Number(invitee.telegramUserId),
+        presentTavernGameRematchInvite(session),
+        {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildShynokGameRematchInviteKeyboard(session.token)
+        }
+      )
+    ));
+}
+
+function presentTavernGameRematchInvite(
+  session: Parameters<typeof presentTavernGameActionResult>[0]["session"]
+): string {
+  if (!session) {
+    return "🔁 Реванш уже на столі.";
+  }
+
+  return [
+    "🔁 Реванш?",
+    "",
+    `${escapeHtml(session.creator.name)} відкрив новий стіл після вашої партії.`,
+    "",
+    presentTavernGameSession(session)
+  ].join("\n");
+}
+
 async function notifyBardPerformanceAudience(
   ctx: Context,
   performerName: string,
@@ -1031,7 +1090,7 @@ function registerTavernGamesDevResetHandler(bot: Bot, services: BotServices): vo
       return;
     }
 
-    await ctx.reply(`🎲 Cooldown створення столів скинуто локально. Оновлено столів: ${result.updated}.`);
+    await ctx.reply(`🎲 Столи вже без паузи. Скидати нічого; оновлено столів: ${result.updated}.`);
   });
 }
 

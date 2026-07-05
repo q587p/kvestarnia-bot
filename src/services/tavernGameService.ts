@@ -67,14 +67,12 @@ export type TavernGameHubResult =
       openTables: TavernGameSessionRecord[];
     };
 
-type TavernGameCreateCooldownServiceResult = Extract<TavernGameCreateResult, { state: "cooldown" }> & {
-  now: Date;
-};
+export interface TavernGameRematchInvite {
+  telegramUserId: bigint;
+  displayName: string;
+}
 
-export type TavernGameCreateServiceResult =
-  | TavernGameFeatureResult
-  | Exclude<TavernGameCreateResult, { state: "cooldown" }>
-  | TavernGameCreateCooldownServiceResult;
+export type TavernGameCreateServiceResult = TavernGameFeatureResult | TavernGameCreateResult;
 export type TavernGameJoinServiceResult = TavernGameFeatureResult | TavernGameJoinResult;
 export type TavernGameDecisionServiceResult =
   | TavernGameFeatureResult
@@ -84,9 +82,16 @@ export type TavernGameResolveServiceResult = TavernGameFeatureResult | TavernGam
 export type TavernGameCancelServiceResult = TavernGameFeatureResult | TavernGameCancelResult;
 export type DicePokerServiceResult =
   | TavernGameFeatureResult
-  | Exclude<TavernGameCreateResult, { state: "cooldown" }>
-  | TavernGameCreateCooldownServiceResult
+  | TavernGameCreateResult
   | (DicePokerActionResult & TavernGameAchievementPayload);
+export type TavernGameRematchServiceResult = (
+  | TavernGameCreateServiceResult
+  | DicePokerServiceResult
+  | { state: "stale"; session: TavernGameSessionRecord }
+  | { state: "not-participant"; session: TavernGameSessionRecord }
+) & {
+  rematchInvitees?: TavernGameRematchInvite[];
+};
 
 export type TavernGameDevResetResult =
   | { state: "disabled" }
@@ -145,10 +150,8 @@ export class TavernGameService {
       return { state: "disabled" };
     }
 
-    return this.repository.resetCreateCooldownForTelegramUser(telegramUserId, {
-      now: this.now(),
-      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000
-    });
+    const character = await this.repository.findCharacterByTelegramUser(telegramUserId);
+    return character ? { state: "reset", updated: 0 } : { state: "no-character" };
   }
 
   async getHub(telegramUserId?: bigint): Promise<TavernGameHubResult> {
@@ -218,11 +221,11 @@ export class TavernGameService {
       maxStake: this.config.tavernGameMaxStake,
       joinExpiresAt: new Date(now.getTime() + TAVERN_GAME_JOIN_TTL_MS),
       decisionExpiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS),
-      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
+      cooldownMs: 0,
       now
     });
 
-    return result.state === "cooldown" ? { ...result, now } : result;
+    return result;
   }
 
   async createDicePokerForTelegramUser(
@@ -248,7 +251,7 @@ export class TavernGameService {
       joinExpiresAt: new Date(now.getTime() + TAVERN_GAME_JOIN_TTL_MS),
       decisionExpiresAt: null,
       status: "open",
-      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
+      cooldownMs: 0,
       now,
       state: tableState,
       participantState: createDicePokerParticipantState(tableState, seed, `${telegramUserId}`)
@@ -261,7 +264,7 @@ export class TavernGameService {
       }
     }
 
-    return result.state === "cooldown" ? { ...result, now } : result;
+    return result;
   }
 
   async createDicePokerWithDoppelgangerForTelegramUser(
@@ -287,7 +290,7 @@ export class TavernGameService {
       stakeGold: Math.trunc(stakeGold),
       maxStake: this.config.tavernGameMaxStake,
       expiresAt: getDicePokerExpiresAt(now, mode),
-      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
+      cooldownMs: 0,
       now,
       state: mode === "quick" ? startQuickDicePoker(seed) : startScorecardDicePoker(seed)
     });
@@ -299,7 +302,7 @@ export class TavernGameService {
       }
     }
 
-    return result.state === "cooldown" ? { ...result, now } : result;
+    return result;
   }
 
   async createTavleiWithDoppelgangerForTelegramUser(
@@ -322,7 +325,7 @@ export class TavernGameService {
       stakeGold: Math.trunc(stakeGold),
       maxStake: this.config.tavernGameMaxStake,
       expiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS),
-      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
+      cooldownMs: 0,
       now,
       state: { kind: "tavlei_doppelganger", opponent: "doppelganger" }
     });
@@ -334,7 +337,50 @@ export class TavernGameService {
       }
     }
 
-    return result.state === "cooldown" ? { ...result, now } : result;
+    return result;
+  }
+
+  async createRematchForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<TavernGameRematchServiceResult> {
+    const previous = await this.repository.getByToken(token, this.now());
+    if (!previous) {
+      return { state: "not-found" };
+    }
+
+    const participant = previous.participants.find((row) => row.telegramUserId === telegramUserId);
+    if (!participant) {
+      return { state: "not-participant", session: previous };
+    }
+    if (previous.status !== "completed") {
+      return { state: "stale", session: previous };
+    }
+
+    if (isDicePokerState(previous.result)) {
+      return this.createDicePokerWithDoppelgangerForTelegramUser(
+        telegramUserId,
+        previous.result.mode,
+        previous.stakeGold
+      );
+    }
+    if (isDicePokerTableState(previous.result)) {
+      const result = await this.createDicePokerForTelegramUser(
+        telegramUserId,
+        previous.result.mode,
+        previous.stakeGold
+      );
+      return withRematchInvitees(result, previous, telegramUserId);
+    }
+    if (previous.gameKey === "tavlei" && isDoppelgangerTavleiResolution(previous.result)) {
+      return this.createTavleiWithDoppelgangerForTelegramUser(telegramUserId, previous.stakeGold);
+    }
+    if (previous.gameKey === "tavlei") {
+      const result = await this.createForTelegramUser(telegramUserId, "tavlei", previous.stakeGold);
+      return withRematchInvitees(result, previous, telegramUserId);
+    }
+
+    return { state: "stale", session: previous };
   }
 
   async joinByTokenForTelegramUser(
@@ -908,6 +954,35 @@ export function listTavernGameStakeOptions(maxStake: number): number[] {
 export type PresentedKostiStyle = KostiStyle;
 export type PresentedKostiSign = KostiSign;
 export type PresentedTavleiTactic = TavleiTactic;
+
+function withRematchInvitees<T extends TavernGameCreateServiceResult | DicePokerServiceResult>(
+  result: T,
+  previous: TavernGameSessionRecord,
+  actorTelegramUserId: bigint
+): T & { rematchInvitees?: TavernGameRematchInvite[] } {
+  if (result.state !== "created") {
+    return result;
+  }
+
+  const invitees = previous.participants
+    .filter((participant) => participant.telegramUserId !== actorTelegramUserId)
+    .map((participant) => ({
+      telegramUserId: participant.telegramUserId,
+      displayName: participant.displayName
+    }));
+
+  return invitees.length > 0 ? { ...result, rematchInvitees: invitees } : result;
+}
+
+function isDoppelgangerTavleiResolution(input: unknown): boolean {
+  return Boolean(
+    input &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    (input as { gameKey?: unknown; opponentKind?: unknown }).gameKey === "tavlei" &&
+    (input as { opponentKind?: unknown }).opponentKind === "doppelganger"
+  );
+}
 
 function buildLeaderboard(
   records: TavernGameSessionRecord[],

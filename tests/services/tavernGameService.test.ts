@@ -83,25 +83,10 @@ describe("TavernGameService", () => {
       gameKey: "tavlei",
       stakeGold: 3,
       maxStake: 13,
-      cooldownMs: 42_000,
+      cooldownMs: 0,
       now
     });
     expect(repository.lastCreateInput?.joinExpiresAt.toISOString()).toBe("2026-07-02T10:13:00.000Z");
-  });
-
-  it("returns the request time with create cooldown results", async () => {
-    const availableAt = new Date("2026-07-02T10:03:00.000Z");
-    const repository = new FakeTavernGameRepository({
-      createResult: { state: "cooldown", availableAt }
-    });
-    const service = new TavernGameService(repository, config({
-      tavernGamesEnabled: true,
-      tavernGameTavleiEnabled: true
-    }), () => now);
-
-    const result = await service.createForTelegramUser(42n, "tavlei", 3);
-
-    expect(result).toEqual({ state: "cooldown", availableAt, now });
   });
 
   it("blocks disabled per-game create before repository mutation", async () => {
@@ -148,7 +133,7 @@ describe("TavernGameService", () => {
     expect(repository.lastDicePokerCreateInput).toMatchObject({
       stakeGold: 13,
       maxStake: 23,
-      cooldownMs: 42_000,
+      cooldownMs: 0,
       status: "open",
       decisionExpiresAt: null,
       now
@@ -248,7 +233,7 @@ describe("TavernGameService", () => {
     expect(result.state).toBe("created");
     expect(repository.lastTavleiDoppelgangerCreateInput).toMatchObject({
       stakeGold: 13,
-      cooldownMs: 42_000,
+      cooldownMs: 0,
       now: night,
       state: { kind: "tavlei_doppelganger", opponent: "doppelganger" }
     });
@@ -476,8 +461,9 @@ describe("TavernGameService", () => {
     expect(repository.completeDicePokerCalls).toBe(0);
   });
 
-  it("resets tavern game creation cooldown for local QA through the repository", async () => {
+  it("keeps the legacy tavern game dev reset as a no-op after cooldown removal", async () => {
     const repository = new FakeTavernGameRepository({
+      character: { ...session().creator, gold: 42 },
       resetCreateCooldownResult: { state: "reset", updated: 2 }
     });
     const service = new TavernGameService(repository, config({
@@ -489,11 +475,85 @@ describe("TavernGameService", () => {
 
     const result = await service.resetCreateCooldownForDev(42n);
 
-    expect(result).toEqual({ state: "reset", updated: 2 });
-    expect(repository.lastResetCreateCooldownInput).toEqual({
-      now,
-      cooldownMs: 120_000
+    expect(result).toEqual({ state: "reset", updated: 0 });
+    expect(repository.lastResetCreateCooldownInput).toBeNull();
+  });
+
+  it("creates a rematch table from a completed social dice poker table and returns invitees", async () => {
+    const previous = session({
+      gameKey: "kosti",
+      status: "completed",
+      stakeGold: 13,
+      token: "12345678-1234-4234-9234-000000000430",
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: {
+        kind: "dice_poker_table",
+        mode: "quick",
+        phase: "terminal",
+        playerCap: 2,
+        drawRound: 1,
+        outcomes: {
+          "character-1": "win",
+          "character-2": "loss"
+        }
+      },
+      participants: [
+        participant("character-1", 42n, "Перша", { status: "completed" }),
+        participant("character-2", 43n, "Другий", { status: "completed" })
+      ]
     });
+    const repository = new FakeTavernGameRepository({ tokenSession: previous });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    const result = await service.createRematchForTelegramUser(42n, previous.token);
+
+    expect(result.state).toBe("created");
+    expect(repository.lastDicePokerCreateInput).toMatchObject({
+      mode: "quick",
+      stakeGold: 13,
+      status: "open",
+      cooldownMs: 0
+    });
+    expect(result.rematchInvitees).toEqual([{ telegramUserId: 43n, displayName: "Другий" }]);
+  });
+
+  it("starts a Doppelganger rematch without invitees", async () => {
+    const previousState = {
+      ...startQuickDicePoker("doppel-rematch"),
+      phase: "terminal" as const,
+      outcome: "loss" as const,
+      playerHand: { rank: "high" as const, tieBreak: [6, 5, 4, 3, 2] },
+      opponentHand: { rank: "pair" as const, tieBreak: [6, 5, 4, 3] },
+      reason: "Пара сильніша."
+    };
+    const previous = session({
+      gameKey: "kosti",
+      status: "completed",
+      stakeGold: 5,
+      token: "12345678-1234-4234-9234-000000000431",
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: previousState,
+      participants: [participant("character-1", 42n, "Тест", { status: "completed" })]
+    });
+    const night = new Date("2026-07-02T20:00:00.000Z");
+    const repository = new FakeTavernGameRepository({ tokenSession: previous });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => night);
+
+    const result = await service.createRematchForTelegramUser(42n, previous.token);
+
+    expect(result.state).toBe("created");
+    expect(repository.lastDicePokerCreateInput).toMatchObject({
+      mode: "quick",
+      stakeGold: 5,
+      cooldownMs: 0
+    });
+    expect(result).not.toHaveProperty("rematchInvitees");
   });
 
   it("builds day week and month leaderboards from completed tables", async () => {

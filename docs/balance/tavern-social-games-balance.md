@@ -17,7 +17,6 @@ TAVERN_GAMES_ENABLED=false
 TAVERN_GAME_TAVLEI_ENABLED=false
 TAVERN_GAME_KOSTI_ENABLED=false
 TAVERN_GAME_MAX_STAKE=93
-TAVERN_GAME_CREATE_COOLDOWN_SEC=60
 ```
 
 Start disabled by default unless the repo has a different feature flag release convention.
@@ -49,7 +48,7 @@ currently enforced runtime env.
 
 ### Phase 3: polish
 
-- Add more result templates, rematch, feed polish, and optional social reactions.
+- Add more result templates, feed polish, generic invite links, and optional social reactions.
 
 ## Abuse risks and mitigations
 
@@ -61,7 +60,6 @@ Mitigations:
 
 - max stake;
 - one active stake session per character;
-- create cooldown;
 - daily net win cap or at least audit event;
 - repeated pair audit for multiplayer games;
 - optional cap on net transfer between the same pair over 24 hours.

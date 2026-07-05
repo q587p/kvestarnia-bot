@@ -189,22 +189,6 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
         return { state: "active-session", session: mapSession(live) };
       }
 
-      const cooldownAfter = new Date(input.now.getTime() - input.cooldownMs);
-      const recent = await tx.tavernGameSession.findFirst({
-        where: {
-          creatorCharacterId: character.id,
-          openedAt: { gt: cooldownAfter }
-        },
-        orderBy: { openedAt: "desc" },
-        select: { openedAt: true }
-      });
-      if (recent) {
-        return {
-          state: "cooldown",
-          availableAt: new Date(recent.openedAt.getTime() + input.cooldownMs)
-        };
-      }
-
       const spent = await tx.character.updateMany({
         where: {
           id: character.id,
@@ -301,22 +285,6 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
         return { state: "active-session", session: mapSession(live) };
       }
 
-      const cooldownAfter = new Date(input.now.getTime() - input.cooldownMs);
-      const recent = await tx.tavernGameSession.findFirst({
-        where: {
-          creatorCharacterId: character.id,
-          openedAt: { gt: cooldownAfter }
-        },
-        orderBy: { openedAt: "desc" },
-        select: { openedAt: true }
-      });
-      if (recent) {
-        return {
-          state: "cooldown",
-          availableAt: new Date(recent.openedAt.getTime() + input.cooldownMs)
-        };
-      }
-
       const spent = await tx.character.updateMany({
         where: {
           id: character.id,
@@ -410,22 +378,6 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
       const live = await findLiveMembershipSession(tx, character.id);
       if (live) {
         return { state: "active-session", session: mapSession(live) };
-      }
-
-      const cooldownAfter = new Date(input.now.getTime() - input.cooldownMs);
-      const recent = await tx.tavernGameSession.findFirst({
-        where: {
-          creatorCharacterId: character.id,
-          openedAt: { gt: cooldownAfter }
-        },
-        orderBy: { openedAt: "desc" },
-        select: { openedAt: true }
-      });
-      if (recent) {
-        return {
-          state: "cooldown",
-          availableAt: new Date(recent.openedAt.getTime() + input.cooldownMs)
-        };
       }
 
       const spent = await tx.character.updateMany({

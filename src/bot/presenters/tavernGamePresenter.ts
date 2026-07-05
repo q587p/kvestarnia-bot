@@ -235,7 +235,7 @@ export function presentTavernGameActionResult(result: {
         ? ["Ти вже сидиш за іншим ставковим столом.", "", presentTavernGameSession(result.session)].join("\n")
         : "Ти вже сидиш за іншим ставковим столом.";
     case "cooldown":
-      return presentCreateCooldown(result.availableAt, result.now);
+      return "Стіл уже можна відкривати без паузи. Оновіть ігри й спробуйте ще раз.";
     case "created":
       return result.session ? presentTavernGameSession(result.session) : "Стіл відкрито.";
     case "joined":
@@ -796,21 +796,6 @@ function presentBlockReason(reason: string | undefined): string {
   return "Зараз не до шинкових ігор.";
 }
 
-function presentCreateCooldown(availableAt: Date | undefined, now: Date | undefined): string {
-  const lines = [
-    "Новий стіл ще на паузі.",
-    "Ви вже створювали стіл зовсім недавно. Це обмеження на створення нових столів, а не ознака, що десь уже відкрита партія."
-  ];
-
-  if (availableAt && now) {
-    lines.push(`Спробуйте ще раз за ${formatCooldown(availableAt, now)}.`);
-  } else {
-    lines.push("Спробуйте ще раз трохи згодом.");
-  }
-
-  return lines.join("\n");
-}
-
 function gameLabel(gameKey: TavernGameKey): string {
   return gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
 }
@@ -827,13 +812,6 @@ function kostiHandLabel(label: string): string {
     high: "старша кістка"
   };
   return labels[label] ?? "рука";
-}
-
-function formatCooldown(availableAt: Date, now: Date): string {
-  const remainingMs = Math.max(0, availableAt.getTime() - now.getTime());
-  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
-
-  return `${minutes} ${pluralize(minutes, "хвилину", "хвилини", "хвилин")}`;
 }
 
 function pluralize(count: number, one: string, few: string, many: string): string {

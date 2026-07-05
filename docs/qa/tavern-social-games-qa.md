@@ -103,10 +103,13 @@
 22. Let unresolved Tavlei vs Doppelganger expire and verify a single escrow refund.
 23. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
 24. Verify `🏆 Рейтинг` counts quick win/loss/draw, Tavlei vs Doppelganger and high scorecard completion.
-25. Verify open social Dice Poker table counts in `🎲 Ігри за столом`; dedicated invite/deep-link buttons remain backlog.
-26. Use `/dev_reset_tavern_games` locally and verify it resets only the table-create cooldown.
-27. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
-28. Try insufficient gold.
-29. Try create/join/decision while under combat lock.
-30. Run the repo's local checks, at minimum `npm run check` if available.
-31. Inspect DB rows for terminal statuses and no orphan escrow.
+25. Press `🔁 Зіграти ще` from a completed social table and verify a new same-stake table opens for the actor while the previous opponent receives a private join invite.
+26. Press duplicate rematch callbacks and verify there is no duplicate table or duplicate invite while the actor has an active stake session.
+27. Press `🔁 Зіграти ще` from a completed Doppelganger game and verify the same fallback path starts directly without inviting another player.
+28. Create a table, close or finish it, then immediately create another table; verify there is no recent-create cooldown blocker.
+29. Verify open social Dice Poker table counts in `🎲 Ігри за столом`; generic invite/deep-link buttons outside rematch remain backlog.
+30. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
+31. Try insufficient gold.
+32. Try create/join/decision while under combat lock.
+33. Run the repo's local checks, at minimum `npm run check` if available.
+34. Inspect DB rows for terminal statuses and no orphan escrow.

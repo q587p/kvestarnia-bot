@@ -52,7 +52,8 @@ describe("Shynok game keyboards", () => {
     }, { viewerTelegramUserId: 1001n });
 
     expect(flatInlineButtonTexts(openKeyboard)).toEqual(["▶️ Почати партію", "↩ До ігор"]);
-    expect(flatInlineButtonTexts(completedKeyboard)).toEqual(["↩ До ігор"]);
+    expect(flatInlineButtonTexts(completedKeyboard)).toEqual(["🔁 Зіграти ще", "↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(completedKeyboard)).toContain("v1:sh:grm:kosti-token");
   });
 
   it("labels Kosti table buttons with seven seats", () => {
@@ -149,6 +150,31 @@ describe("Shynok game keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toContain(
       "v1:sh:gpr:12345678-1234-4234-9234-123456789abc"
+    );
+  });
+
+  it("offers a rematch from terminal dice poker cards", () => {
+    const state = {
+      ...startQuickDicePoker("keyboard-rematch"),
+      phase: "terminal" as const,
+      outcome: "win" as const,
+      playerHand: {
+        rank: "poker" as const,
+        tieBreak: [6]
+      },
+      opponentHand: {
+        rank: "high" as const,
+        tieBreak: [5, 4, 3, 2, 1]
+      },
+      reason: "Покер сильніший."
+    };
+    const keyboard = buildShynokDicePokerKeyboard("12345678-1234-4234-9234-123456789abc", state, {
+      allowRematch: true
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🔁 Зіграти ще", "↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(
+      "v1:sh:grm:12345678-1234-4234-9234-123456789abc"
     );
   });
 

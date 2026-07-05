@@ -62,6 +62,7 @@ export type ShynokCallback =
   | { type: "game-dice-poker-roll"; token: string }
   | { type: "game-dice-poker-score"; token: string; category: DicePokerScoreCategory }
   | { type: "game-dice-poker-cancel"; token: string }
+  | { type: "game-rematch"; token: string }
   | { type: "game-join"; token: string }
   | { type: "game-cancel"; token: string }
   | { type: "game-tavlei-decision"; token: string; tactic: TavleiTactic }
@@ -218,6 +219,10 @@ export function makeShynokDicePokerScoreCallbackData(token: string, category: Di
 
 export function makeShynokDicePokerCancelCallbackData(token: string): string {
   return assertData(`${PREFIX}:gdc:${token}`);
+}
+
+export function makeShynokGameRematchCallbackData(token: string): string {
+  return assertData(`${PREFIX}:grm:${token}`);
 }
 
 export function makeShynokGameJoinCallbackData(token: string): string {
@@ -439,6 +444,9 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   }
   if (action === "gdc" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-dice-poker-cancel", token: first ?? "" } };
+  }
+  if (action === "grm" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-rematch", token: first ?? "" } };
   }
   if (action === "gj" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-join", token: first ?? "" } };
