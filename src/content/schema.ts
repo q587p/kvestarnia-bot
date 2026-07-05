@@ -79,6 +79,24 @@ export const itemEffectSchema = z.object({
   message: "Item effect must contain at least one supported bonus."
 });
 
+export const itemEquipmentRequirementsSchema = z.object({
+  minLevel: z.number().int().min(1).optional(),
+  classIds: z.array(contentIdSchema).optional(),
+  raceIds: z.array(contentIdSchema).optional(),
+  titleLabels: z.array(z.string().min(1)).optional(),
+  titleBucketIds: z.array(z.string().regex(/^[a-z]+(?:_[a-z0-9]+)*$/)).optional()
+}).strict().refine(
+  (requirements) =>
+    requirements.minLevel !== undefined ||
+    (requirements.classIds?.length ?? 0) > 0 ||
+    (requirements.raceIds?.length ?? 0) > 0 ||
+    (requirements.titleLabels?.length ?? 0) > 0 ||
+    (requirements.titleBucketIds?.length ?? 0) > 0,
+  {
+    message: "Equipment requirements must declare at least one gate."
+  }
+);
+
 export const itemUseEffectSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("heal-hp"),
@@ -97,6 +115,7 @@ export const itemSchema = z.object({
   rarity: itemRaritySchema,
   slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"]),
   equipmentSlot: equipmentSlotSchema.optional(),
+  equipmentRequirements: itemEquipmentRequirementsSchema.optional(),
   goldValue: z.number().int().min(0).optional(),
   priceless: z.boolean().optional(),
   effect: itemEffectSchema.optional(),
@@ -134,6 +153,13 @@ export const itemSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Only equippable items can declare an equipment slot."
+    });
+  }
+
+  if (item.equipmentRequirements && !isEquippableCategory) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Only equippable items can declare equipment requirements."
     });
   }
 
@@ -187,6 +213,7 @@ export type ClassContent = z.infer<typeof classSchema>;
 export type Pronoun = z.infer<typeof pronounSchema>;
 export type MonsterContent = z.infer<typeof monsterSchema>;
 export type ItemEffectContent = z.infer<typeof itemEffectSchema>;
+export type ItemEquipmentRequirementsContent = z.infer<typeof itemEquipmentRequirementsSchema>;
 export type EquipmentSlotContent = z.infer<typeof equipmentSlotSchema>;
 export type ItemTagContent = z.infer<typeof itemTagSchema>;
 export type ItemUseEffectContent = z.infer<typeof itemUseEffectSchema>;

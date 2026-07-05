@@ -222,6 +222,14 @@ describe("loot engine", () => {
     }
   });
 
+  it("keeps restricted authored Mantok coverage loot reachable as social trade candidates", () => {
+    const candidates = getAllContentLootCandidateIds();
+
+    expect(candidates).toContain("item.mantok.coverage.class.ranger.twohand-bow");
+    expect(candidates).toContain("item.mantok.coverage.race.long-ear-cloak");
+    expect(candidates).toContain("item.mantok.coverage.path.ranger-long-bow");
+  });
+
   it("uses expansion candidates only when a character profile is supplied", () => {
     const withoutProfile = rollMonsterLoot({
       monsterId: "monster.common-only",
@@ -285,4 +293,14 @@ function item(id: string, rarity: ItemContent["rarity"]): ItemContent {
     slot: "junk",
     goldValue: 1
   };
+}
+
+function getAllContentLootCandidateIds(): string[] {
+  return Object.keys(contentMonsterLoot).flatMap((monsterId) =>
+    getLootCandidates({
+      monsterId,
+      monsterLoot: contentMonsterLoot,
+      items: contentItems
+    }).map((candidate) => candidate.item.id)
+  );
 }

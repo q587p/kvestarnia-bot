@@ -231,6 +231,54 @@ describe("DevGrantService", () => {
     });
   });
 
+  it("filters random item grants by canonical equipment slot and hand tag for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addRandomItems(42n, 2, { equipmentSlot: "tool" })).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 2,
+      itemGrants: [
+        {
+          itemId: "item.mantok.coverage.universal.measuring-spoon",
+          quantity: 2
+        }
+      ]
+    });
+
+    await expect(service.addRandomItems(42n, 1, { tag: "twohand" })).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 1,
+      itemGrants: [
+        {
+          itemId: "item.mantok.coverage.universal.receipt-spear",
+          quantity: 1
+        }
+      ]
+    });
+
+    expect(repository.calls).toContain(
+      "items:42:item.mantok.coverage.universal.measuring-spoon:1,item.mantok.coverage.universal.measuring-spoon:1"
+    );
+    expect(repository.calls).toContain("items:42:item.mantok.coverage.universal.receipt-spear:1");
+  });
+
+  it("returns a non-mutating result when a valid random item filter has no candidates", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addRandomItems(42n, 1, { equipmentSlot: "tool", tag: "twohand" })).resolves.toEqual({
+      state: "no-matching-items",
+      filter: {
+        equipmentSlot: "tool",
+        tag: "twohand"
+      }
+    });
+    expect(repository.calls).toEqual([]);
+  });
+
   it("adds responsible panic bandages directly for local QA", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));

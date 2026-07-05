@@ -1,11 +1,15 @@
 import { items } from "../content";
+import { classes } from "../content/classes";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import {
   checkLootExpansionEquipRequirement,
+  findLootExpansionTitleBucketName,
   getLootExpansionEquipRequirementDetails,
   isLootExpansionItemId,
-  type LootExpansionEquipCheck,
-  type LootExpansionEquipRequirementDetails
+  normalizeLootExpansionTitleIds,
+  type LootExpansionEquipCheck
 } from "../content/lootExpansionV1";
+import { activeRaces } from "../content/races";
 import type { ItemContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type {
@@ -25,6 +29,20 @@ import type { AchievementService, AchievementUnlock } from "./achievementService
 export type { EquipmentSlot };
 export { equipmentSlots };
 
+export type EquipmentRequirementReason = LootExpansionEquipCheck["reasons"][number];
+
+export interface EquipmentRequirementDetails {
+  minLevel: number;
+  classes: readonly string[];
+  races: readonly string[];
+  titles: readonly string[];
+}
+
+export interface EquipmentRequirementCheck {
+  canEquip: boolean;
+  reasons: EquipmentRequirementReason[];
+}
+
 export type EquipmentResult =
   | { state: "no-character" }
   | { state: "ready"; slots: EquipmentSlotSummary[] };
@@ -35,8 +53,8 @@ export type ItemEquipPreviewResult =
   | { state: "not-equippable" }
   | {
       state: "requirements-not-met";
-      reasons: LootExpansionEquipCheck["reasons"];
-      requirements: LootExpansionEquipRequirementDetails | null;
+      reasons: EquipmentRequirementReason[];
+      requirements: EquipmentRequirementDetails | null;
       item: EquipmentItemSummary;
       slot: EquipmentSlot;
       currentItem: EquipmentItemSummary | null;
@@ -59,7 +77,7 @@ export type ItemEquipPreviewResult =
       state: "can-equip";
       item: EquipmentItemSummary;
       slot: EquipmentSlot;
-      requirements: LootExpansionEquipRequirementDetails | null;
+      requirements: EquipmentRequirementDetails | null;
       currentItem: EquipmentItemSummary | null;
     };
 
@@ -69,8 +87,8 @@ export type EquipItemResult =
   | { state: "not-equippable" }
   | {
       state: "requirements-not-met";
-      reasons: LootExpansionEquipCheck["reasons"];
-      requirements: LootExpansionEquipRequirementDetails | null;
+      reasons: EquipmentRequirementReason[];
+      requirements: EquipmentRequirementDetails | null;
       item: EquipmentItemSummary;
     }
   | { state: "unsupported-slot" }
@@ -236,10 +254,12 @@ export class EquipmentService {
       };
     }
 
-    if (isLootExpansionItemId(itemId)) {
-      const requirements = getLootExpansionEquipRequirementDetails(itemId);
-      const equipCheck = await this.checkLootExpansionEquipRequirementForTelegramUser(
+    const requirements = getEquipmentRequirementDetails(content, itemId);
+
+    if (requirements) {
+      const equipCheck = await this.checkEquipmentRequirementForTelegramUser(
         telegramUserId,
+        content,
         itemId
       );
 
@@ -271,7 +291,7 @@ export class EquipmentService {
       state: "can-equip",
       item,
       slot,
-      requirements: null,
+      requirements,
       currentItem
     };
   }
@@ -369,9 +389,12 @@ export class EquipmentService {
       };
     }
 
-    if (isLootExpansionItemId(itemId)) {
-      const equipCheck = await this.checkLootExpansionEquipRequirementForTelegramUser(
+    const requirements = getEquipmentRequirementDetails(content, itemId);
+
+    if (requirements) {
+      const equipCheck = await this.checkEquipmentRequirementForTelegramUser(
         telegramUserId,
+        content,
         itemId
       );
 
@@ -383,7 +406,7 @@ export class EquipmentService {
         return {
           state: "requirements-not-met",
           reasons: equipCheck.reasons,
-          requirements: getLootExpansionEquipRequirementDetails(itemId),
+          requirements,
           item
         };
       }
@@ -531,10 +554,94 @@ export class EquipmentService {
     );
   }
 
+  private async checkEquipmentRequirementForTelegramUser(
+    telegramUserId: bigint,
+    item: ItemContent,
+    itemId: string
+  ): Promise<EquipmentRequirementCheck | null> {
+    if (isLootExpansionItemId(itemId)) {
+      return this.checkLootExpansionEquipRequirementForTelegramUser(telegramUserId, itemId);
+    }
+
+    const requirement = item.equipmentRequirements;
+
+    if (!requirement) {
+      return {
+        canEquip: true,
+        reasons: []
+      };
+    }
+
+    if (!this.characters) {
+      return {
+        canEquip: true,
+        reasons: []
+      };
+    }
+
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return null;
+    }
+
+    const summary = summarizeCharacter(character);
+    const reasons: EquipmentRequirementReason[] = [];
+    const minLevel = requirement.minLevel ?? 1;
+    const classIds = requirement.classIds ?? [];
+    const raceIds = requirement.raceIds ?? [];
+    const titleLabels = requirement.titleLabels ?? [];
+    const titleBucketIds = requirement.titleBucketIds ?? [];
+    const activeTitleLabel = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
+    const titleIds = normalizeLootExpansionTitleIds({
+      level: summary.level,
+      classId: summary.classId,
+      raceId: summary.raceId,
+      title: summary.title
+    });
+
+    if (activeTitleLabel) {
+      for (const titleId of normalizeLootExpansionTitleIds({
+        level: summary.level,
+        classId: summary.classId,
+        raceId: summary.raceId,
+        title: activeTitleLabel
+      })) {
+        titleIds.add(titleId);
+      }
+    }
+
+    if (summary.level < minLevel) {
+      reasons.push("min-level");
+    }
+
+    if (classIds.length > 0 && !classIds.includes(summary.classId)) {
+      reasons.push("class");
+    }
+
+    if (raceIds.length > 0 && !raceIds.includes(summary.raceId)) {
+      reasons.push("race");
+    }
+
+    if (
+      (titleLabels.length > 0 || titleBucketIds.length > 0) &&
+      !titleLabels.includes(summary.title) &&
+      (!activeTitleLabel || !titleLabels.includes(activeTitleLabel)) &&
+      !titleBucketIds.some((titleId) => titleBucketMatchesProfile(titleId, titleIds))
+    ) {
+      reasons.push("title");
+    }
+
+    return {
+      canEquip: reasons.length === 0,
+      reasons
+    };
+  }
+
   private async checkLootExpansionEquipRequirementForTelegramUser(
     telegramUserId: bigint,
     itemId: string
-  ): Promise<LootExpansionEquipCheck | null> {
+  ): Promise<EquipmentRequirementCheck | null> {
     if (!this.characters) {
       return {
         canEquip: true,
@@ -557,6 +664,35 @@ export class EquipmentService {
       title: summary.title
     });
   }
+}
+
+function titleBucketMatchesProfile(titleBucketId: string, titleIds: ReadonlySet<string>): boolean {
+  return titleBucketId === "common_title" || titleIds.has(titleBucketId);
+}
+
+function getEquipmentRequirementDetails(
+  item: ItemContent,
+  itemId: string
+): EquipmentRequirementDetails | null {
+  if (isLootExpansionItemId(itemId)) {
+    return getLootExpansionEquipRequirementDetails(itemId);
+  }
+
+  const requirement = item.equipmentRequirements;
+
+  if (!requirement) {
+    return null;
+  }
+
+  return {
+    minLevel: requirement.minLevel ?? 1,
+    classes: (requirement.classIds ?? []).map((id) => findClassName(id)),
+    races: (requirement.raceIds ?? []).map((id) => findRaceName(id)),
+    titles: [
+      ...(requirement.titleLabels ?? []),
+      ...(requirement.titleBucketIds ?? []).map((id) => findLootExpansionTitleBucketName(id))
+    ]
+  };
 }
 
 export function mapItemToEquipmentSlot(item: ItemContent): EquipmentSlot | null {
@@ -784,6 +920,14 @@ function findRowForSlot(
 
 function findKnownItem(row: CharacterItemRecord): ItemContent | null {
   return items.find((item) => item.id === row.itemId) ?? null;
+}
+
+function findClassName(classId: string): string {
+  return classes.find((candidate) => candidate.id === classId)?.name ?? classId;
+}
+
+function findRaceName(raceId: string): string {
+  return activeRaces.find((candidate) => candidate.id === raceId)?.name ?? raceId;
 }
 
 function findItemContentForEquipment(itemId: string): ItemContent {

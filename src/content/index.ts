@@ -73,6 +73,7 @@ export { activeRaces, races } from "./races";
 export {
   classSchema,
   contentIdSchema,
+  itemEquipmentRequirementsSchema,
   itemTagSchema,
   itemSchema,
   itemUseEffectSchema,
@@ -81,4 +82,9 @@ export {
   raceSchema,
   statBlockSchema
 } from "./schema";
-export type { ItemTagContent, ItemUseEffectContent, Pronoun } from "./schema";
+export type {
+  ItemEquipmentRequirementsContent,
+  ItemTagContent,
+  ItemUseEffectContent,
+  Pronoun
+} from "./schema";

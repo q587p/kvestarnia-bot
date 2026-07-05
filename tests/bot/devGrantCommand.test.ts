@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import type {
   DevGrantItemsResult,
+  DevGrantRandomItemFilter,
   DevGrantResult
 } from "../../src/services/devGrantService";
 
@@ -12,6 +13,9 @@ describe("dev grant commands", () => {
     const explicitLevelCalls = await captureMessageCalls("/dev_add_level 3", devGrant);
     const xpCalls = await captureMessageCalls("/dev_add_xp 7", devGrant);
     const itemCalls = await captureMessageCalls("/dev_add_random_item", devGrant);
+    const toolItemCalls = await captureMessageCalls("/dev_add_random_item slot=tool", devGrant);
+    const taggedItemCalls = await captureMessageCalls("/dev_add_random_item 3 tag=twohand", devGrant);
+    const combinedItemCalls = await captureMessageCalls("/dev_add_random_item 2 slot=weapon tag=twohand", devGrant);
     const defaultBandageCalls = await captureMessageCalls("/dev_add_bandage", devGrant);
     const explicitBandageCalls = await captureMessageCalls("/dev_add_bandage 5", devGrant);
     const defaultDenseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage", devGrant);
@@ -40,7 +44,13 @@ describe("dev grant commands", () => {
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 3);
     expect(devGrant.addXp).toHaveBeenCalledWith(42n, 7);
-    expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1);
+    expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1, {});
+    expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1, { equipmentSlot: "tool" });
+    expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 3, { tag: "twohand" });
+    expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 2, {
+      equipmentSlot: "weapon",
+      tag: "twohand"
+    });
     expect(devGrant.addBandages).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addBandages).toHaveBeenCalledWith(42n, 5);
     expect(devGrant.addDenseBandages).toHaveBeenCalledWith(42n, 1);
@@ -64,6 +74,9 @@ describe("dev grant commands", () => {
     expect(String(explicitLevelCalls.at(-1)?.payload.text)).toContain("додано 3 рівні");
     expect(String(xpCalls.at(-1)?.payload.text)).toContain("додано 7 XP");
     expect(String(itemCalls.at(-1)?.payload.text)).toContain("додано 1 манатку");
+    expect(String(toolItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання");
+    expect(String(taggedItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання ×3");
+    expect(String(combinedItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання ×2");
     expect(String(defaultBandageCalls.at(-1)?.payload.text)).toContain("Бинт відповідальної паніки");
     expect(String(explicitBandageCalls.at(-1)?.payload.text)).toContain("Бинт відповідальної паніки ×5");
     expect(String(defaultDenseBandageCalls.at(-1)?.payload.text)).toContain("Щільний бинт");
@@ -105,6 +118,10 @@ describe("dev grant commands", () => {
     const bandageCalls = await captureMessageCalls("/dev_add_bandage 0", devGrant);
     const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 0", devGrant);
     const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 0", devGrant);
+    const invalidRandomSlotCalls = await captureMessageCalls("/dev_add_random_item slot=helmet", devGrant);
+    const invalidRandomTagCalls = await captureMessageCalls("/dev_add_random_item tag=helmet", devGrant);
+    const invalidRandomStoryTagCalls = await captureMessageCalls("/dev_add_random_item tag=story", devGrant);
+    const invalidRandomDuplicateAmountCalls = await captureMessageCalls("/dev_add_random_item 1 2", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 0", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 0", devGrant);
 
@@ -113,6 +130,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addBandages).not.toHaveBeenCalled();
     expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
     expect(devGrant.addFieldKits).not.toHaveBeenCalled();
+    expect(devGrant.addRandomItems).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
     expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(String(levelCalls.at(-1)?.payload.text)).toContain(
@@ -130,6 +148,12 @@ describe("dev grant commands", () => {
     expect(String(fieldKitCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_add_field_kit [додатне ціле число]."
     );
+    expect(String(invalidRandomSlotCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_add_random_item [додатне ціле число]"
+    );
+    expect(String(invalidRandomTagCalls.at(-1)?.payload.text)).toContain("tag=twohand|offhand");
+    expect(String(invalidRandomStoryTagCalls.at(-1)?.payload.text)).toContain("tag=twohand|offhand");
+    expect(String(invalidRandomDuplicateAmountCalls.at(-1)?.payload.text)).toContain("slot=weapon");
     expect(String(healCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_heal [додатне ціле число HP]."
     );
@@ -165,6 +189,7 @@ describe("dev grant commands", () => {
     const calls = await captureMessageCalls("/dev_add_xp 7", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 7", devGrant);
     const bandageCalls = await captureMessageCalls("/dev_add_bandage 5", devGrant);
+    const randomItemCalls = await captureMessageCalls("/dev_add_random_item slot=tool", devGrant);
     const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 2", devGrant);
     const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 3", devGrant);
     const yegerLineCalls = await captureMessageCalls("/dev_add_yeger_line 4", devGrant);
@@ -187,6 +212,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addXp).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
     expect(devGrant.addBandages).not.toHaveBeenCalled();
+    expect(devGrant.addRandomItems).not.toHaveBeenCalled();
     expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
     expect(devGrant.addFieldKits).not.toHaveBeenCalled();
     expect(devGrant.addYegerLines).not.toHaveBeenCalled();
@@ -203,6 +229,7 @@ describe("dev grant commands", () => {
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(bandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(randomItemCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(denseBandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(fieldKitCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerLineCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -310,7 +337,11 @@ function fakeDevGrantService(input: {
     typeof vi.fn<(telegramUserId: bigint, amount?: number) => Promise<DevGrantResult>>
   >;
   addRandomItems: ReturnType<
-    typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
+    typeof vi.fn<(
+      telegramUserId: bigint,
+      amount: number,
+      filter?: DevGrantRandomItemFilter
+    ) => Promise<DevGrantItemsResult>>
   >;
   addBandages: ReturnType<
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>

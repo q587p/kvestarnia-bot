@@ -157,6 +157,8 @@ const CANONICAL_TITLE_ENTRIES = [
 
 const LIVE_TITLE_IDS = new Set(CANONICAL_TITLE_ENTRIES.map((entry) => entry.id));
 
+export const lootExpansionTitleBuckets = CANONICAL_TITLE_ENTRIES;
+
 const CLASS_ID_ALIASES: Record<string, string> = {
   warrior: "warrior",
   mage: "mage",
@@ -759,6 +761,10 @@ function normalizeBaseItem(base: RawLootExpansionBaseItem): RawLootExpansionBase
   };
 }
 
+export function findLootExpansionTitleBucketName(id: string): string {
+  return findLootExpansionTitleName(id);
+}
+
 function normalizeBaseItemName(base: RawLootExpansionBaseItem): string {
   if (base.id === "a013") {
     return base.name_uk.replace(/^Носки/u, "Шкарпетки");
@@ -859,6 +865,7 @@ function buildItemContent(
   const slot = mapLootExpansionSlot(base);
   const equipmentSlot = mapLootExpansionEquipmentSlot(base);
   const effect = mapLootExpansionEffect(base, enhancement, slot);
+  const tags = mapLootExpansionTags(base);
 
   return {
     id: getLootExpansionItemId(base.id, enhancement),
@@ -868,7 +875,8 @@ function buildItemContent(
     slot,
     ...(equipmentSlot ? { equipmentSlot } : {}),
     goldValue: priceCoins,
-    ...(effect ? { effect } : {})
+    ...(effect ? { effect } : {}),
+    ...(tags ? { tags } : {})
   };
 }
 
@@ -920,6 +928,14 @@ function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent
   }
 
   if (base.category === "armor") {
+    if (isLootExpansionOffhandGear(base)) {
+      return "offhand";
+    }
+
+    if (isLootExpansionHeadGear(base)) {
+      return "head";
+    }
+
     if (isLootExpansionLegGear(base)) {
       return "legs";
     }
@@ -928,6 +944,10 @@ function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent
   }
 
   if (base.category === "accessory") {
+    if (isLootExpansionToolLikeGear(base)) {
+      return "tool";
+    }
+
     return "accessory";
   }
 
@@ -938,8 +958,113 @@ function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent
   return null;
 }
 
-function isLootExpansionLegGear(base: Pick<LootExpansionBaseItem, "category" | "slot">): boolean {
-  return base.category === "armor" && (base.slot === "feet" || base.slot === "legs");
+function mapLootExpansionTags(base: LootExpansionBaseItem): ItemContent["tags"] | undefined {
+  const tags: NonNullable<ItemContent["tags"]> = [];
+
+  if (isLootExpansionOffhandGear(base) || isLootExpansionOffhandWeapon(base)) {
+    tags.push("offhand");
+  }
+
+  if (isLootExpansionTwohandWeapon(base)) {
+    tags.push("twohand");
+  }
+
+  return tags.length > 0 ? tags : undefined;
+}
+
+function isLootExpansionHeadGear(
+  base: Pick<LootExpansionBaseItem, "category" | "slot" | "name_uk" | "tags">
+): boolean {
+  if (base.category !== "armor") {
+    return false;
+  }
+
+  const text = getLootExpansionHeuristicText(base);
+
+  return (
+    base.slot === "head" ||
+    base.slot === "face" ||
+    /шап|шолом|капелюх|каптур|картуз|маск|обруч|корон/i.test(text)
+  );
+}
+
+function isLootExpansionLegGear(
+  base: Pick<LootExpansionBaseItem, "category" | "slot" | "name_uk" | "tags">
+): boolean {
+  if (base.category !== "armor") {
+    return false;
+  }
+
+  const text = getLootExpansionHeuristicText(base);
+
+  return (
+    base.slot === "feet" ||
+    base.slot === "legs" ||
+    /чоб|шкарп|понож|штани|наколін|greave|boot|pants/i.test(text)
+  );
+}
+
+function isLootExpansionOffhandGear(
+  base: Pick<LootExpansionBaseItem, "category" | "slot" | "name_uk" | "tags">
+): boolean {
+  const slot = String(base.slot);
+  const text = getLootExpansionHeuristicText(base, { includeEffects: false });
+
+  return (
+    (base.category === "armor" || base.category === "accessory") &&
+    (slot === "offhand" ||
+      slot === "shield" ||
+      /shield|buckler|guard|щит|баклер|заслін|прикрит/i.test(text))
+  );
+}
+
+function isLootExpansionOffhandWeapon(
+  base: Pick<LootExpansionBaseItem, "category" | "slot" | "name_uk" | "tags">
+): boolean {
+  const text = getLootExpansionHeuristicText(base);
+
+  return (
+    base.category === "weapon" &&
+    !isLootExpansionTwohandWeapon(base) &&
+    /tiny|light|thrown|dagger|knife|parry|кинджал|ніж|метальн|парир/i.test(text)
+  );
+}
+
+function isLootExpansionTwohandWeapon(
+  base: Pick<LootExpansionBaseItem, "category" | "slot" | "name_uk" | "tags">
+): boolean {
+  const text = getLootExpansionHeuristicText(base);
+
+  return (
+    base.category === "weapon" &&
+    /heavy|reach|bow|crossbow|spear|staff|long|лук|арбалет|спис|посох|довг|дворуч/i.test(text)
+  );
+}
+
+function isLootExpansionToolLikeGear(
+  base: Pick<LootExpansionBaseItem, "category" | "slot" | "name_uk" | "tags" | "effect_ids">
+): boolean {
+  if (base.category !== "accessory" && base.category !== "tool") {
+    return false;
+  }
+
+  const text = getLootExpansionHeuristicText(base);
+
+  return /\bmap\b|\bkit\b|\bkey\b|\blantern\b|\bwhistle\b|\bchalk\b|\btool\b|\binstrument\b|мап|набір|ключ|ліхтар|свист|крейд|інструмент|ложк/i.test(text);
+}
+
+function getLootExpansionHeuristicText(
+  base: Pick<LootExpansionBaseItem, "slot" | "name_uk" | "tags"> & Partial<Pick<LootExpansionBaseItem, "effect_ids">>,
+  options: { includeEffects?: boolean } = {}
+): string {
+  return [
+    base.slot,
+    base.name_uk,
+    ...(base.tags as readonly string[]),
+    ...(options.includeEffects === false ? [] : (base.effect_ids ?? []))
+  ]
+    .join(" ")
+    .toLocaleLowerCase("uk-UA");
 }
 
 function mapLootExpansionEffect(
