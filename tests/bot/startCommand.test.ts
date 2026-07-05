@@ -4,6 +4,7 @@ import {
   buildExistingCharacterReplyOptions,
   sendTavernGameJoinFromStartPayload
 } from "../../src/bot/commands/startCommand";
+import { startDicePokerTable, startQuickDicePoker } from "../../src/domain/dicePoker";
 import type { OnboardingService } from "../../src/services/onboardingService";
 import type { TavernGameService } from "../../src/services/tavernGameService";
 
@@ -47,6 +48,57 @@ describe("start command", () => {
       expect.objectContaining({ parse_mode: "HTML" })
     );
     expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:sh:gt:${session.token}:`);
+  });
+
+  it("sends existing participants viewer-specific controls when a game deep-link join starts quick dice", async () => {
+    const creatorDice = startQuickDicePoker("start-command-creator");
+    const joinerDice = startQuickDicePoker("start-command-joiner");
+    const session = tavernGameSession({
+      gameKey: "kosti",
+      rulesVersion: "dice-poker-v1",
+      status: "ready",
+      result: {
+        ...startDicePokerTable("quick"),
+        phase: "playing" as const
+      },
+      participants: [
+        tavernGameParticipant(93n, "character-creator", "Kyjivan BooksDragon", "joined", creatorDice),
+        tavernGameParticipant(42n, "character-joiner", "Shannar de Kassal", "joined", joinerDice)
+      ]
+    });
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "started",
+      session,
+      resolution: null
+    });
+    const reply = vi.fn().mockResolvedValue(undefined);
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+
+    await sendTavernGameJoinFromStartPayload(
+      { reply, api: { sendMessage } } as unknown as Context,
+      { start: vi.fn() } as unknown as OnboardingService,
+      { joinByTokenForTelegramUser } as unknown as TavernGameService,
+      { telegramUserId: 42n, displayName: "Shannar de Kassal" },
+      session.token,
+      { botUsername: "kvestarnia_test_bot" }
+    );
+
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(42n, session.token);
+    expect(reply).toHaveBeenCalledWith(
+      expect.stringContaining("Твої кості:"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(sendMessage).toHaveBeenCalledWith(
+      93,
+      expect.stringContaining("Партія почалась."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    const existingPlayerText = String(sendMessage.mock.calls[0]?.[1]);
+    const existingPlayerKeyboard = JSON.stringify(sendMessage.mock.calls[0]?.[2]);
+    expect(existingPlayerText).toContain("Твої кості:");
+    expect(existingPlayerText).not.toContain("Чекаємо другого гравця");
+    expect(existingPlayerKeyboard).toContain(`v1:sh:gpr:${session.token}`);
+    expect(existingPlayerKeyboard).toContain(`v1:sh:gdt:${session.token}:`);
   });
 });
 
