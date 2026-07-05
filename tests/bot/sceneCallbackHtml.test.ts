@@ -1933,9 +1933,9 @@ describe("scene callback HTML options", () => {
       { confirmTwohand: false }
     );
     expect(getEquipmentForTelegramUser).not.toHaveBeenCalled();
-    expect(text).toContain("Екіпіровано: Пательня переконання.");
-    expect(text).toContain("Попередня манатка зі слота");
-    expect(text).toContain("лишилася в торбі: Стара пательня.");
+    expect(text).toContain("Екіпіровано: <b>Пательня переконання</b>.");
+    expect(text).toContain("Попередня манатка зі слота <i>Основна рука</i> лишилася в торбі:");
+    expect(text).toContain("Стара пательня.");
     expect(keyboard).toContain("v1:item:inventory");
     expect(keyboard).toContain("v1:equip:view");
   });
@@ -2009,7 +2009,7 @@ describe("scene callback HTML options", () => {
 
     expect(equipItemForTelegramUser).toHaveBeenCalledTimes(2);
     expect(edits).toHaveLength(2);
-    expect(edits.every((edit) => String(edit.payload.text).includes("Екіпіровано: Пательня переконання."))).toBe(true);
+    expect(edits.every((edit) => String(edit.payload.text).includes("Екіпіровано: <b>Пательня переконання</b>."))).toBe(true);
     expect(achievementMessages).toHaveLength(1);
   });
 

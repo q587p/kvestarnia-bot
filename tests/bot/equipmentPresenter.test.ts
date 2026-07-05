@@ -343,6 +343,49 @@ describe("equipment presenter", () => {
     expect(text).not.toContain("відповідний титул");
   });
 
+  it("formats successful equipment callbacks as readable lines", () => {
+    const text = presentEquipItemResult({
+      state: "equipped",
+      slot: "weapon",
+      item: {
+        itemId: "item.ability.last-page-rapier",
+        content: {
+          id: "item.ability.last-page-rapier",
+          name: "Рапіра останньої сторінки",
+          description: "Ставить фінальну крапку.",
+          rarity: "epic",
+          slot: "weapon",
+          goldValue: 158,
+          effect: {
+            charisma: 1,
+            luck: 1,
+            weaponDamage: 4
+          }
+        }
+      },
+      replacedItem: {
+        itemId: "item.set.red-line.left-dagger",
+        content: {
+          id: "item.set.red-line.left-dagger",
+          name: "Кинджал червоного рядка",
+          description: "Ріже правки.",
+          rarity: "epic",
+          slot: "weapon",
+          goldValue: 120
+        }
+      },
+      slots: [],
+      achievementUnlocks: []
+    });
+
+    expect(text).toBe([
+      "Екіпіровано: <b>Рапіра останньої сторінки</b>.",
+      "Ефект: +1 Харизми · +1 Вдачі · +4 до удару.",
+      "Попередня манатка зі слота <i>Основна рука</i> лишилася в торбі:",
+      "Кинджал червоного рядка."
+    ].join("\n"));
+  });
+
   it("explains slot-denied equip callback results", () => {
     const text = presentEquipItemResult({
       state: "slot-not-allowed",

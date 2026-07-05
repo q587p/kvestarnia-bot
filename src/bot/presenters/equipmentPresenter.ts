@@ -97,15 +97,28 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   }
 
   const effect = presentItemEffect(result.item.content.effect);
-  const effectText = effect ? ` Ефект: ${effect}.` : " Бойового ефекту не виявлено.";
-  const replacementText = result.replacedItem
-    ? ` Попередня манатка зі слота «${presentEquipmentSlotLabel(result.slot)}» лишилася в торбі: ${plainTextForCallback(result.replacedItem.content.name)}.`
-    : ` Слот: ${presentEquipmentSlotLabel(result.slot)}.`;
-  const clearedHandText = result.clearedHandItem
-    ? ` Конфліктна рука звільнилася: ${plainTextForCallback(result.clearedHandItem.content.name)} лишилася в торбі.`
-    : "";
+  const lines = [
+    `Екіпіровано: <b>${presentCallbackHtmlText(result.item.content.name)}</b>.`,
+    effect ? `Ефект: ${effect}.` : "Бойового ефекту не виявлено."
+  ];
 
-  return `Екіпіровано: ${plainTextForCallback(result.item.content.name)}.${effectText}${replacementText}${clearedHandText}`;
+  if (result.replacedItem) {
+    lines.push(
+      `Попередня манатка зі слота <i>${presentEquipmentSlotLabel(result.slot)}</i> лишилася в торбі:`,
+      `${presentCallbackHtmlText(result.replacedItem.content.name)}.`
+    );
+  } else {
+    lines.push(`Слот: <i>${presentEquipmentSlotLabel(result.slot)}</i>.`);
+  }
+
+  if (result.clearedHandItem) {
+    lines.push(
+      "Конфліктна рука звільнилася:",
+      `${presentCallbackHtmlText(result.clearedHandItem.content.name)} лишилася в торбі.`
+    );
+  }
+
+  return lines.join("\n");
 }
 
 export function presentUnequipSlotResult(result: UnequipSlotResult): string {
@@ -298,4 +311,8 @@ function plainTextForCallback(value: string): string {
     .replace(/>/g, "›")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function presentCallbackHtmlText(value: string): string {
+  return escapeHtml(plainTextForCallback(value));
 }
