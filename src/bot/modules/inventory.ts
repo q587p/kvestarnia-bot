@@ -31,6 +31,12 @@ import { registerEquipmentCommand,sendEquipment } from "../commands/equipmentCom
 import { registerInventoryCommand,sendInventory } from "../commands/inventoryCommand";
 import { playerFromContext } from "../context";
 import {
+getInventoryPagePromptPlaceholder,
+parseInventoryPageNumber,
+parseInventoryPagePrompt,
+presentInventoryPagePrompt
+} from "../inventoryPagePrompt";
+import {
 buildEquipItemResultKeyboard,
 buildEquipmentKeyboard,
 buildItemCraftPreviewKeyboard,
@@ -106,6 +112,14 @@ export function registerInventoryBotModule(
     await guardActivePassageSearchCommand(ctx, services, next);
   });
 
+  bot.on("message:text", async (ctx, next) => {
+    if (await handleInventoryPageReply(ctx, services)) {
+      return;
+    }
+
+    await next();
+  });
+
   registerInventoryCommand(bot, services.inventory, services.equipment);
   registerEquipmentCommand(bot, services.equipment);
 
@@ -145,6 +159,20 @@ async function handleItemCallback(
     return;
   }
 
+  if (action.type === "page-prompt") {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Напишіть номер сторінки у відповідь на підказку.",
+      show_alert: false
+    });
+    await ctx.reply(presentInventoryPagePrompt(action.filter, action.totalPages), {
+      reply_markup: {
+        force_reply: true,
+        input_field_placeholder: getInventoryPagePromptPlaceholder(action.totalPages)
+      }
+    });
+    return;
+  }
+
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
@@ -168,6 +196,10 @@ async function handleItemCallback(
     equipment.state === "ready"
       ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
       : null;
+  const equippedItemIds =
+    equipment.state === "ready"
+      ? [...new Set(equipment.slots.flatMap((slot) => (slot.item ? [slot.item.itemId] : [])))]
+      : [];
   const itemUse = result.state === "found"
     ? services.itemUse.getAvailability(result.item.content)
     : null;
@@ -186,7 +218,8 @@ async function handleItemCallback(
       equippedSlot,
       equipPreview,
       itemUse,
-      combatUseAvailable: Boolean(combatUse?.action)
+      combatUseAvailable: Boolean(combatUse?.action),
+      equippedItemIds
     }),
     {
       ...HTML_MESSAGE_OPTIONS,
@@ -198,6 +231,27 @@ async function handleItemCallback(
       })
     }
   );
+}
+
+async function handleInventoryPageReply(
+  ctx: Context,
+  services: BotServices
+): Promise<boolean> {
+  const prompt = parseInventoryPagePrompt(ctx.message?.reply_to_message?.text);
+
+  if (!prompt) {
+    return false;
+  }
+
+  const pageNumber = parseInventoryPageNumber(ctx.message?.text, prompt.totalPages);
+
+  if (pageNumber === null) {
+    await ctx.reply(`Введіть число від 1 до ${prompt.totalPages}.`);
+    return true;
+  }
+
+  await sendInventory(ctx, services.inventory, "reply", pageNumber - 1, prompt.filter, services.equipment);
+  return true;
 }
 
 async function getCombatUseStateForItem(

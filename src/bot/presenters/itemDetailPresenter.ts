@@ -1,4 +1,5 @@
 import type { ItemContent } from "../../content/schema";
+import { getMantokSetProgressForItem } from "../../domain/equipment/mantokSetBonuses";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import {
   isEquippableItem,
@@ -22,6 +23,7 @@ export interface ItemDetailOptions {
   equipPreview?: ItemEquipPreviewResult | null;
   itemUse?: ItemUseAvailability | null;
   combatUseAvailable?: boolean;
+  equippedItemIds?: readonly string[];
 }
 
 export function presentItemDetail(
@@ -57,6 +59,7 @@ export function presentOwnedItemDetail(
     ...(effectLine ? [effectLine] : []),
     "",
     `<i>${escapeHtml(content.description)}</i>`,
+    ...presentMantokSetDetailLines(content.id, options.equippedItemIds ?? []),
     "",
     ...presentItemUseLine(options.itemUse ?? null, options.combatUseAvailable === true),
     ...(options.itemUse ? [""] : []),
@@ -64,6 +67,47 @@ export function presentOwnedItemDetail(
     "",
     presentItemFlavor(content)
   ].join("\n");
+}
+
+function presentMantokSetDetailLines(
+  itemId: string,
+  equippedItemIds: readonly string[]
+): string[] {
+  const progress = getMantokSetProgressForItem(itemId, equippedItemIds);
+
+  if (!progress) {
+    return [];
+  }
+
+  return [
+    "",
+    `Комплект: <b>${escapeHtml(progress.set.name)}</b>`,
+    `Зараз вдягнено: <b>${progress.equippedPieces.length}/${progress.set.pieces.length}</b>`,
+    ...presentMantokSetActiveBonusLines(progress.activeBonuses),
+    ...(progress.nextBonus ? [presentMantokSetNextBonusLine(progress.nextBonus)] : [])
+  ];
+}
+
+function presentMantokSetActiveBonusLines(
+  bonuses: NonNullable<ReturnType<typeof getMantokSetProgressForItem>>["activeBonuses"]
+): string[] {
+  if (bonuses.length === 0) {
+    return ["Активно: <i>ще жоден поріг не зібрано</i>"];
+  }
+
+  return bonuses.map((bonus) => {
+    const effect = presentItemEffect(bonus.effect) ?? "без видимого ефекту";
+
+    return `Активно: ${escapeHtml(bonus.name)} <i>(${effect})</i>`;
+  });
+}
+
+function presentMantokSetNextBonusLine(
+  bonus: NonNullable<ReturnType<typeof getMantokSetProgressForItem>>["nextBonus"] & {}
+): string {
+  const effect = presentItemEffect(bonus.effect) ?? "без видимого ефекту";
+
+  return `Далі: ${bonus.pieces} частини — ${escapeHtml(bonus.name)} <i>(${effect})</i>`;
 }
 
 function presentItemUseLine(

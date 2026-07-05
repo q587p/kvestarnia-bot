@@ -4,6 +4,18 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.28 — Mantok Set Synergies Foundation smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Seed or win both red-line daggers, equip them in main/offhand, then verify `/equipment` shows `Парні кинджали червоного рядка: 2/2` and the active `Подвійна редактура` stat bonus.
+2. Open either dagger detail from `🎒 Манатки`; verify the description includes the static `1/2` or `2/2` set-piece sentence plus the live equipped progress block.
+3. Seed two, three and four pieces of `Бочковий панцир старшого Брата`; verify `/equipment` advances through `2/4`, `3/4` and `4/4` with active and next stat thresholds.
+4. Unequip or replace one set piece and verify active bonuses drop immediately on `/equipment` and item detail.
+5. Equip pieces from two different sets and verify both sets appear without mixing progress.
+6. Win fights against configured higher-level source monsters if convenient; verify set pieces can appear as possible item rewards and existing trophies/coverage drops still remain possible.
+7. Open `📖 Перекази` -> `🎒 Манатки` and verify the current lore mentions set-like manatky without promising future gear actions.
+
 ## 0.2.26 — Mantok Equipment Slot Coverage smoke
 
 Manual Telegram QA status for the implementation pass: not run.

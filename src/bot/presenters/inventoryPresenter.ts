@@ -32,6 +32,10 @@ export function presentInventory(
   }
 
   if (result.state === "empty") {
+    if (filter) {
+      return presentEmptyFilteredInventory(filter, options);
+    }
+
     return [
       "🎒 Манатки",
       "Манатки ще не завелися.",
@@ -45,15 +49,7 @@ export function presentInventory(
   const totalPages = getInventoryTotalPages(result, filter, options);
 
   if (filter && filteredItems.length === 0) {
-    return [
-      presentInventoryFilterHeading(filter),
-      "",
-      presentInventoryFilterDescription(filter),
-      "",
-      ...(isInventoryEquipmentSlotFilter(filter) ? [...presentCurrentSlotItem(options.currentSlotItem ?? null), ""] : []),
-      presentEmptyFilterLine(filter),
-      "Корчмар каже: «Це не вирок. Це привід вибити щось дивніше»."
-    ].join("\n");
+    return presentEmptyFilteredInventory(filter, options);
   }
 
   return [
@@ -166,6 +162,21 @@ function presentEmptyFilterLine(filter: Exclude<InventoryFilter, null>): string 
   }
 
   return "У торбі поки немає разових манаток.";
+}
+
+function presentEmptyFilteredInventory(
+  filter: Exclude<InventoryFilter, null>,
+  options: InventoryPresenterOptions = {}
+): string {
+  return [
+    presentInventoryFilterHeading(filter),
+    "",
+    presentInventoryFilterDescription(filter),
+    "",
+    ...(isInventoryEquipmentSlotFilter(filter) ? [...presentCurrentSlotItem(options.currentSlotItem ?? null), ""] : []),
+    presentEmptyFilterLine(filter),
+    "Корчмар каже: «Це не вирок. Це привід вибити щось дивніше»."
+  ].join("\n");
 }
 
 function presentSlotFilterTitle(slot: EquipmentSlot): string {

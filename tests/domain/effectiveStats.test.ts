@@ -226,6 +226,111 @@ describe("buildEffectiveCharacterStats", () => {
       }
     });
   });
+
+  it("applies active Mantok set stat bonuses once through equipment effects", () => {
+    const result = buildEffectiveCharacterStats(
+      input({
+        level: 1,
+        equipment: [
+          {
+            itemId: "item.set.red-line.left-dagger",
+            itemName: "Кинджал червоного рядка",
+            effect: {
+              weaponDamage: 4,
+              dexterity: 1
+            }
+          },
+          {
+            itemId: "item.set.red-line.margin-dagger",
+            itemName: "Кинджал червоного поля",
+            effect: {
+              weaponDamage: 3,
+              luck: 1
+            }
+          }
+        ]
+      })
+    );
+
+    const setContribution = result.equipmentEffects.contributions.find(
+      (entry) => entry.itemId === "mantok-set.red-line-duel:2"
+    );
+
+    expect(result.equipmentEffects.weaponDamage).toBe(7);
+    expect(result.equipmentEffects.stats.dexterity).toBe(2);
+    expect(result.equipmentEffects.stats.luck).toBe(1);
+    expect(setContribution?.itemName).toBe("Парні кинджали червоного рядка: Подвійна редактура");
+    expect(setContribution?.effect.dexterity).toBe(1);
+    expect(result.stats.dexterity).toBe(storedStats.dexterity + 2);
+  });
+
+  it("does not apply Mantok set bonuses below active thresholds", () => {
+    const result = buildEffectiveCharacterStats(
+      input({
+        level: 1,
+        equipment: [
+          {
+            itemId: "item.set.red-line.left-dagger",
+            itemName: "Кинджал червоного рядка",
+            effect: {
+              weaponDamage: 4,
+              dexterity: 1
+            }
+          }
+        ]
+      })
+    );
+
+    expect(result.equipmentEffects).toMatchObject({
+      weaponDamage: 4,
+      stats: {
+        dexterity: 1
+      }
+    });
+    expect(result.equipmentEffects.contributions.map((entry) => entry.itemId)).not.toContain(
+      "mantok-set.red-line-duel:2"
+    );
+  });
+
+  it("applies Mantok set threshold contributions once for duplicate visual twohand occupancy", () => {
+    const result = buildEffectiveCharacterStats(
+      input({
+        level: 1,
+        equipment: [
+          {
+            itemId: "item.set.yeger-shadow.longbow",
+            itemName: "Лук останньої зарубки",
+            effect: {
+              weaponDamage: 4,
+              dexterity: 1
+            }
+          },
+          {
+            itemId: "item.set.yeger-shadow.longbow",
+            itemName: "Лук останньої зарубки",
+            effect: {
+              weaponDamage: 4,
+              dexterity: 1
+            }
+          },
+          {
+            itemId: "item.set.yeger-shadow.hood",
+            itemName: "Каптур тихого сліду",
+            effect: {
+              resist: 1
+            }
+          }
+        ]
+      })
+    );
+
+    const setContributionIds = result.equipmentEffects.contributions
+      .map((entry) => entry.itemId)
+      .filter((itemId) => itemId.startsWith("mantok-set.yeger-shadow-path"));
+
+    expect(setContributionIds).toEqual(["mantok-set.yeger-shadow-path:2"]);
+    expect(result.equipmentEffects.stats.luck).toBe(1);
+  });
 });
 
 function input(

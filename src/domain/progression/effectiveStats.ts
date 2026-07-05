@@ -2,6 +2,7 @@ import { races } from "../../content/races";
 import type { ItemEffectContent } from "../../content/schema";
 import { buildPathStatBonus, type CharacterPath } from "../characters/path";
 import type { CharacterStats, StatKey } from "../characters/starterStats";
+import { getActiveMantokSetBonusContributions } from "../equipment/mantokSetBonuses";
 
 export interface EffectiveCharacterStatsInput {
   level: number;
@@ -151,30 +152,46 @@ export function buildEquipmentEffectSummary(
   sources: EquipmentEffectSource[]
 ): EquipmentEffectSummary {
   const summary = createEmptyEquipmentEffectSummary();
+  const equippedItemIds = sources.map((source) => source.itemId);
 
   for (const source of sources) {
     if (!source.effect) {
       continue;
     }
 
-    summary.contributions.push({
+    addEquipmentEffectContribution(summary, {
       itemId: source.itemId,
       itemName: source.itemName,
       effect: source.effect
     });
-    summary.hpMax += source.effect.hpMax ?? 0;
-    summary.manaMax += source.effect.manaMax ?? 0;
-    summary.armor += source.effect.armor ?? 0;
-    summary.resist += source.effect.resist ?? 0;
-    summary.weaponDamage += source.effect.weaponDamage ?? 0;
-    summary.spellPower += source.effect.spellPower ?? 0;
+  }
 
-    for (const stat of statKeys) {
-      summary.stats[stat] += source.effect[stat] ?? 0;
-    }
+  for (const { set, bonus } of getActiveMantokSetBonusContributions(equippedItemIds)) {
+    addEquipmentEffectContribution(summary, {
+      itemId: `${set.id}:${bonus.pieces}`,
+      itemName: `${set.name}: ${bonus.name}`,
+      effect: bonus.effect
+    });
   }
 
   return summary;
+}
+
+function addEquipmentEffectContribution(
+  summary: EquipmentEffectSummary,
+  contribution: EquipmentEffectContribution
+): void {
+  summary.contributions.push(contribution);
+  summary.hpMax += contribution.effect.hpMax ?? 0;
+  summary.manaMax += contribution.effect.manaMax ?? 0;
+  summary.armor += contribution.effect.armor ?? 0;
+  summary.resist += contribution.effect.resist ?? 0;
+  summary.weaponDamage += contribution.effect.weaponDamage ?? 0;
+  summary.spellPower += contribution.effect.spellPower ?? 0;
+
+  for (const stat of statKeys) {
+    summary.stats[stat] += contribution.effect[stat] ?? 0;
+  }
 }
 
 export function createEmptyEquipmentEffectSummary(): EquipmentEffectSummary {

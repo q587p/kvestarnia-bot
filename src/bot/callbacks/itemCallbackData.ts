@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+import { items } from "../../content/items";
 import { contentIdSchema } from "../../content/schema";
 import {
   ONE_USE_INVENTORY_FILTER,
@@ -11,10 +13,50 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 const ITEM_PREFIX = "v1:item";
 const EQUIPMENT_PREFIX = "v1:equip";
+const { itemCallbackKeyById, itemIdByCallbackKey } = buildItemCallbackKeyMaps(
+  items.map((item) => item.id)
+);
+
+export type ItemCallbackKeyMaps = {
+  itemCallbackKeyById: ReadonlyMap<string, string>;
+  itemIdByCallbackKey: ReadonlyMap<string, string>;
+};
+
+export function buildItemCallbackKeyMaps(
+  itemIds: readonly string[],
+  options: { makeKey?: (itemId: string) => string } = {}
+): ItemCallbackKeyMaps {
+  const makeKey = options.makeKey ?? makeStableItemCallbackKey;
+  const itemCallbackKeyById = new Map<string, string>();
+  const itemIdByCallbackKey = new Map<string, string>();
+
+  for (const itemId of itemIds) {
+    if (itemCallbackKeyById.has(itemId)) {
+      throw new Error(`Duplicate item callback id: ${itemId}`);
+    }
+
+    const key = makeKey(itemId);
+    const existingItemId = itemIdByCallbackKey.get(key);
+
+    if (existingItemId && existingItemId !== itemId) {
+      throw new Error(`Item callback key collision: ${key} maps both ${existingItemId} and ${itemId}`);
+    }
+
+    itemCallbackKeyById.set(itemId, key);
+    itemIdByCallbackKey.set(key, itemId);
+  }
+
+  return { itemCallbackKeyById, itemIdByCallbackKey };
+}
+
+export function makeStableItemCallbackKey(itemId: string): string {
+  return createHash("sha256").update(itemId).digest("hex").slice(0, 12);
+}
 
 export type ItemCallback =
   | { type: "detail"; itemId: string; page: number; filter: InventoryFilter }
-  | { type: "inventory"; page: number; filter: InventoryFilter };
+  | { type: "inventory"; page: number; filter: InventoryFilter }
+  | { type: "page-prompt"; totalPages: number; filter: InventoryFilter };
 export type EquipmentCallback =
   | { type: "view" }
   | { type: "equip-item"; itemId: string; targetSlot: EquipmentSlot | null; confirmTwohand: boolean }
@@ -28,8 +70,19 @@ export function makeItemDetailCallbackData(
   const safePage = normalizePage(page);
   const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
   const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
+  const legacyData = `${ITEM_PREFIX}:detail:${itemId}${filterSuffix}${pageSuffix}`;
 
-  return assertCallbackData(`${ITEM_PREFIX}:detail:${itemId}${filterSuffix}${pageSuffix}`);
+  if (!isTooLong(legacyData)) {
+    return legacyData;
+  }
+
+  const compactItemKey = itemCallbackKeyById.get(itemId);
+
+  if (compactItemKey) {
+    return assertCallbackData(`${ITEM_PREFIX}:d:${compactItemKey}${filterSuffix}${pageSuffix}`);
+  }
+
+  return assertCallbackData(legacyData);
 }
 
 export function makeInventoryCallbackData(page = 0, filter: InventoryFilter = null): string {
@@ -38,6 +91,16 @@ export function makeInventoryCallbackData(page = 0, filter: InventoryFilter = nu
   const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
 
   return assertCallbackData(`${ITEM_PREFIX}:inventory${filterSuffix}${pageSuffix}`);
+}
+
+export function makeInventoryPagePromptCallbackData(
+  totalPages: number,
+  filter: InventoryFilter = null
+): string {
+  const safeTotalPages = Math.max(1, Math.floor(Number.isFinite(totalPages) ? totalPages : 1));
+  const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
+
+  return assertCallbackData(`${ITEM_PREFIX}:page${filterSuffix}:${safeTotalPages}`);
 }
 
 export function parseItemCallbackData(data: string | undefined): ParseItemCallbackResult {
@@ -83,6 +146,47 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
     };
   }
 
+  if (action === "page") {
+    const parsed = parseInventoryPagePromptRest(rest);
+
+    if (!parsed) {
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      value: {
+        type: "page-prompt",
+        totalPages: parsed.totalPages,
+        filter: parsed.filter
+      }
+    };
+  }
+
+  if (action === "d") {
+    if (rest.length < 1 || rest.length > 4) {
+      return { ok: false };
+    }
+
+    const [itemKey, ...tail] = rest;
+    const itemId = itemKey ? itemIdByCallbackKey.get(itemKey) : undefined;
+    const parsed = parseInventoryRest(tail);
+
+    if (!itemId || !parsed) {
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      value: {
+        type: "detail",
+        itemId,
+        page: parsed.page,
+        filter: parsed.filter
+      }
+    };
+  }
+
   if (action !== "detail" || rest.length < 1 || rest.length > 4) {
     return { ok: false };
   }
@@ -120,8 +224,19 @@ export function makeEquipItemCallbackData(
 ): string {
   const targetSuffix = targetSlot ? `:s:${slotToCode(targetSlot)}` : "";
   const confirmSuffix = options.confirmTwohand === true ? ":c:2h" : "";
+  const legacyData = `${EQUIPMENT_PREFIX}:item:${itemId}${targetSuffix}${confirmSuffix}`;
 
-  return assertCallbackData(`${EQUIPMENT_PREFIX}:item:${itemId}${targetSuffix}${confirmSuffix}`);
+  if (!isTooLong(legacyData)) {
+    return legacyData;
+  }
+
+  const compactItemKey = itemCallbackKeyById.get(itemId);
+
+  if (compactItemKey) {
+    return assertCallbackData(`${EQUIPMENT_PREFIX}:i:${compactItemKey}${targetSuffix}${confirmSuffix}`);
+  }
+
+  return assertCallbackData(legacyData);
 }
 
 export function makeUnequipSlotCallbackData(slot: EquipmentSlot): string {
@@ -150,6 +265,30 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
 
   if (version !== "v1" || scope !== "equip" || (rest.length !== 1 && rest.length !== 3 && rest.length !== 5)) {
     return { ok: false };
+  }
+
+  if (action === "i") {
+    const itemKey = rest[0];
+    const itemId = itemKey ? itemIdByCallbackKey.get(itemKey) : undefined;
+    const hasSlot = rest.length >= 3;
+    const targetSlot = hasSlot && rest[1] === "s"
+      ? codeToSlot(rest[2])
+      : null;
+    const confirmTwohand = rest.length === 5 && rest[3] === "c" && rest[4] === "2h";
+
+    if (!itemId || (hasSlot && !targetSlot) || (rest.length === 5 && !confirmTwohand)) {
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId,
+        targetSlot,
+        confirmTwohand
+      }
+    };
   }
 
   if (action === "item") {
@@ -235,6 +374,27 @@ function parseInventoryRest(rest: string[]): { page: number; filter: InventoryFi
     const page = parsePage(rest[2]);
 
     return page === null ? null : { page, filter };
+  }
+
+  return null;
+}
+
+function parseInventoryPagePromptRest(rest: string[]): { totalPages: number; filter: InventoryFilter } | null {
+  if (rest.length === 1) {
+    const totalPages = parsePage(rest[0]);
+
+    return totalPages === null || totalPages < 1 ? null : { totalPages, filter: null };
+  }
+
+  if (rest.length === 3) {
+    const filter = callbackPartToFilter(rest[0], rest[1]);
+    const totalPages = parsePage(rest[2]);
+
+    if (!filter || totalPages === null || totalPages < 1) {
+      return null;
+    }
+
+    return { totalPages, filter };
   }
 
   return null;

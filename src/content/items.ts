@@ -1,6 +1,7 @@
 import type { ItemContent } from "./schema";
 import { lootExpansionV1ItemContents } from "./lootExpansionV1";
 import { mantokEquipmentCoverageItems } from "./mantokEquipmentCoverage";
+import { mantokSetItemContents } from "./mantokSetItems";
 import { monsterLootItemAdditions } from "./monsterLootItems";
 import { monsterTrophyItemAdditions } from "./monsterTrophyCoverage";
 
@@ -268,6 +269,7 @@ export const items = [
     priceless: true
   },
   ...mantokEquipmentCoverageItems,
+  ...mantokSetItemContents,
   ...monsterLootItemAdditions,
   ...monsterTrophyItemAdditions,
   ...lootExpansionV1ItemContents

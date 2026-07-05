@@ -3,6 +3,7 @@ import {
   makeEquipItemCallbackData,
   makeEquipmentCallbackData,
   makeInventoryCallbackData,
+  makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData,
   makeUnequipSlotCallbackData
 } from "../callbacks/itemCallbackData";
@@ -93,7 +94,7 @@ export function buildInventoryKeyboard(
       keyboard.text("◀️ Назад", makeInventoryCallbackData(safePage - 1, filter));
     }
 
-    keyboard.text(`${safePage + 1}/${totalPages}`, makeInventoryCallbackData(safePage, filter));
+    keyboard.text(`${safePage + 1}/${totalPages}`, makeInventoryPagePromptCallbackData(totalPages, filter));
 
     if (safePage < totalPages - 1) {
       keyboard.text("Далі ▶️", makeInventoryCallbackData(safePage + 1, filter));

@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildItemCallbackKeyMaps,
   makeEquipItemCallbackData,
   makeEquipmentCallbackData,
   makeInventoryCallbackData,
+  makeInventoryPagePromptCallbackData,
+  makeStableItemCallbackKey,
   makeItemDetailCallbackData,
   makeUnequipSlotCallbackData,
   parseEquipmentCallbackData,
   parseItemCallbackData
 } from "../../src/bot/callbacks/itemCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
+import { items } from "../../src/content";
 
 describe("item and equipment callback data", () => {
   it("parses valid item detail callbacks", () => {
@@ -56,6 +60,69 @@ describe("item and equipment callback data", () => {
         filter: "one-use"
       }
     });
+  });
+
+  it("uses compact detail callbacks for long known item ids", () => {
+    const data = makeItemDetailCallbackData(
+      "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+      12,
+      "tool"
+    );
+
+    expect(data).toMatch(/^v1:item:d:/);
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseItemCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+        page: 12,
+        filter: "tool"
+      }
+    });
+  });
+
+  it("builds compact item callback keys from stable item ids, not array order", () => {
+    const itemIds = [
+      "item.alpha-stability-proof",
+      "item.beta-stability-proof",
+      "item.mantok.coverage.universal.lantern-of-suspicious-corners"
+    ];
+    const originalOrderMaps = buildItemCallbackKeyMaps(itemIds);
+    const reversedOrderMaps = buildItemCallbackKeyMaps([...itemIds].reverse());
+
+    for (const itemId of itemIds) {
+      const key = originalOrderMaps.itemCallbackKeyById.get(itemId);
+
+      expect(key).toBe(makeStableItemCallbackKey(itemId));
+      expect(reversedOrderMaps.itemCallbackKeyById.get(itemId)).toBe(key);
+      expect(originalOrderMaps.itemIdByCallbackKey.get(key ?? "")).toBe(itemId);
+      expect(reversedOrderMaps.itemIdByCallbackKey.get(key ?? "")).toBe(itemId);
+    }
+  });
+
+  it("fails loudly when compact item callback keys collide", () => {
+    expect(() => buildItemCallbackKeyMaps(
+      ["item.collision-one", "item.collision-two"],
+      { makeKey: () => "same-key" }
+    )).toThrow("Item callback key collision");
+  });
+
+  it("keeps item detail callbacks within Telegram limits for all content items", () => {
+    for (const item of items) {
+      const data = makeItemDetailCallbackData(item.id, 999, "offhand");
+
+      expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+      expect(parseItemCallbackData(data)).toEqual({
+        ok: true,
+        value: {
+          type: "detail",
+          itemId: item.id,
+          page: 999,
+          filter: "offhand"
+        }
+      });
+    }
   });
 
   it("parses inventory and equipment navigation callbacks", () => {
@@ -107,6 +174,16 @@ describe("item and equipment callback data", () => {
         filter: "one-use"
       }
     });
+    expect(parseItemCallbackData(makeInventoryPagePromptCallbackData(25, "offhand"))).toEqual({
+      ok: true,
+      value: {
+        type: "page-prompt",
+        totalPages: 25,
+        filter: "offhand"
+      }
+    });
+    expect(makeInventoryPagePromptCallbackData(4, "offhand")).toBe("v1:item:page:s:o:4");
+    expect(makeInventoryPagePromptCallbackData(25)).toBe("v1:item:page:25");
     expect(parseEquipmentCallbackData(makeEquipmentCallbackData())).toEqual({
       ok: true,
       value: {
@@ -147,6 +224,43 @@ describe("item and equipment callback data", () => {
     });
   });
 
+  it("uses compact equip callbacks for long known item ids", () => {
+    const data = makeEquipItemCallbackData(
+      "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+      "tool",
+      { confirmTwohand: true }
+    );
+
+    expect(data).toMatch(/^v1:equip:i:/);
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseEquipmentCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+        targetSlot: "tool",
+        confirmTwohand: true
+      }
+    });
+  });
+
+  it("keeps equip callbacks within Telegram limits for all content items", () => {
+    for (const item of items) {
+      const data = makeEquipItemCallbackData(item.id, "offhand", { confirmTwohand: true });
+
+      expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+      expect(parseEquipmentCallbackData(data)).toEqual({
+        ok: true,
+        value: {
+          type: "equip-item",
+          itemId: item.id,
+          targetSlot: "offhand",
+          confirmTwohand: true
+        }
+      });
+    }
+  });
+
   it("parses target-slot equip callbacks", () => {
     const equipOffhand = makeEquipItemCallbackData("item.pan-of-persuasion", "offhand");
 
@@ -181,17 +295,39 @@ describe("item and equipment callback data", () => {
   });
 
   it("rejects invalid item and equipment callbacks", () => {
+    const compactDetailKey = makeItemDetailCallbackData(
+      "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+      12,
+      "tool"
+    ).split(":")[3];
+    const compactEquipKey = makeEquipItemCallbackData(
+      "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+      "tool",
+      { confirmTwohand: true }
+    ).split(":")[3];
+
     expect(parseItemCallbackData("v1:item:detail:<b>oops</b>").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:extra").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:nope").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:d:unknown").ok).toBe(false);
+    expect(parseItemCallbackData(`v1:item:d:${compactDetailKey}:s:boots`).ok).toBe(false);
+    expect(parseItemCallbackData(`v1:item:d:${compactDetailKey}:s:t:nope`).ok).toBe(false);
+    expect(parseItemCallbackData(`v1:item:d:${compactDetailKey}:s:t:1:extra`).ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:1:extra").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:page:0").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:page:s:boots:4").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:page:s:o:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:s:boots").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:f:rare").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:detail:item.wet-hero-ticket:s:boots").ok).toBe(false);
     expect(parseItemCallbackData("v1:equip:view").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:wear:item.pan-of-persuasion").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:item:<b>oops</b>").ok).toBe(false);
+    expect(parseEquipmentCallbackData("v1:equip:i:unknown").ok).toBe(false);
+    expect(parseEquipmentCallbackData(`v1:equip:i:${compactEquipKey}:s:boots`).ok).toBe(false);
+    expect(parseEquipmentCallbackData(`v1:equip:i:${compactEquipKey}:s:t:c:nope`).ok).toBe(false);
+    expect(parseEquipmentCallbackData(`v1:equip:i:${compactEquipKey}:s:t:c:2h:extra`).ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:item:item.pan-of-persuasion:s:boots").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:item:item.pan-of-persuasion:s:w:c:nope").ok).toBe(false);
     expect(parseEquipmentCallbackData("v1:equip:clear:boots").ok).toBe(false);

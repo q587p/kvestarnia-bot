@@ -21,6 +21,15 @@ describe("inventory presenter", () => {
     expect(text.length).toBeLessThan(180);
   });
 
+  it("shows a slot empty-state when an empty inventory is opened through a slot filter", () => {
+    const text = presentInventory({ state: "empty" }, 0, "head");
+
+    expect(text).toContain("🎩 <b>Манатки-шоломи</b>");
+    expect(text).toContain("Вдягнено: <i>нічого</i>");
+    expect(text).toContain("У торбі поки немає манаток для цього гачка.");
+    expect(text).not.toContain("Манатки ще не завелися.");
+  });
+
   it("shows a compact inventory summary without item descriptions", () => {
     const result: InventoryResult = {
       state: "found",

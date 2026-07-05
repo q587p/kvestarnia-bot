@@ -27,7 +27,11 @@ import {
   makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
-import { makeEquipItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
+import {
+  makeEquipItemCallbackData,
+  makeInventoryCallbackData,
+  makeInventoryPagePromptCallbackData
+} from "../../src/bot/callbacks/itemCallbackData";
 import { makeItemUsePreviewCallbackData } from "../../src/bot/callbacks/itemUseCallbackData";
 import {
   makeLevelBarterAutoCallbackData,
@@ -61,6 +65,7 @@ import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { startQuickDicePoker } from "../../src/domain/dicePoker";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
+import { presentInventoryPagePrompt } from "../../src/bot/inventoryPagePrompt";
 
 type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAction"]>[0];
 type RecordPersistentFightMessageReferenceMock = (
@@ -3993,10 +3998,14 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
-  it("lets inventory callbacks through during an active persistent fight", async () => {
+  it.each([
+    ["general inventory", makeInventoryCallbackData(), "🎒 Манатки"],
+    ["slot-filtered inventory", makeInventoryCallbackData(0, "head"), "🎩 <b>Манатки-шоломи</b>"],
+    ["paginated slot-filtered inventory", makeInventoryCallbackData(1, "offhand"), "✋ <b>Манатки для другої руки</b>"]
+  ])("lets %s callbacks through during an active persistent fight", async (_name, callbackData, expectedText) => {
     let inventoryCalls = 0;
     const calls = await captureApiCalls(
-      "v1:item:inventory",
+      callbackData,
       servicesWith({
         fight: activeFightServiceThatShouldNotBeChecked(),
         inventory: {
@@ -4013,8 +4022,89 @@ describe("scene callback HTML options", () => {
     const edit = calls.find((call) => call.method === "editMessageText");
 
     expect(inventoryCalls).toBe(1);
-    expect(String(edit?.payload.text)).toContain("🎒 Манатки");
+    expect(String(edit?.payload.text)).toContain(expectedText);
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("opens and paginates slot-filtered inventory callbacks with compatible equipment items", async () => {
+    const offhandItems = Array.from({ length: 9 }, (_, index) => ({
+      id: `character-item-offhand-${index}`,
+      itemId: `item.test-offhand-${index}`,
+      quantity: 1,
+      content: {
+        id: `item.test-offhand-${index}`,
+        name: `Тестова друга рука ${index + 1}`,
+        description: "Тестова манатка для другої руки.",
+        rarity: "common" as const,
+        slot: "weapon" as const,
+        equipmentSlot: "offhand" as const,
+        tags: ["offhand"],
+        goldValue: 1
+      }
+    }));
+    const getCompatibleItemIdsForSlotForTelegramUser = vi.fn((_telegramUserId: bigint, slot: string) =>
+      Promise.resolve(slot === "offhand" ? new Set(offhandItems.map((item) => item.itemId)) : new Set<string>())
+    );
+    const services = servicesWith({
+      inventory: {
+        listForTelegramUser: () =>
+          Promise.resolve({
+            state: "found" as const,
+            character,
+            totalGoldValue: 9,
+            items: offhandItems
+          })
+      },
+      equipment: {
+        getEquipmentForTelegramUser: () =>
+          Promise.resolve({
+            state: "ready" as const,
+            slots: [
+              { slot: "weapon" as const, item: null },
+              { slot: "offhand" as const, item: null },
+              { slot: "head" as const, item: null },
+              { slot: "chest" as const, item: null },
+              { slot: "legs" as const, item: null },
+              { slot: "accessory" as const, item: null },
+              { slot: "tool" as const, item: null }
+            ]
+          }),
+        getCompatibleItemIdsForSlotForTelegramUser
+      }
+    });
+
+    const firstPageCalls = await captureApiCalls(makeInventoryCallbackData(0, "offhand"), services);
+    const firstPageEdit = firstPageCalls.find((call) => call.method === "editMessageText");
+
+    expect(getCompatibleItemIdsForSlotForTelegramUser).toHaveBeenCalledWith(42n, "offhand");
+    expect(String(firstPageEdit?.payload.text)).toContain("✋ <b>Манатки для другої руки</b>");
+    expect(String(firstPageEdit?.payload.text)).toContain("Сторінка <b>1/2</b>");
+    expect(JSON.stringify(firstPageEdit?.payload.reply_markup)).toContain(makeInventoryCallbackData(1, "offhand"));
+    expect(JSON.stringify(firstPageEdit?.payload.reply_markup)).toContain(makeInventoryPagePromptCallbackData(2, "offhand"));
+
+    const secondPageCalls = await captureApiCalls(makeInventoryCallbackData(1, "offhand"), services);
+    const secondPageEdit = secondPageCalls.find((call) => call.method === "editMessageText");
+
+    expect(String(secondPageEdit?.payload.text)).toContain("✋ <b>Манатки для другої руки</b>");
+    expect(String(secondPageEdit?.payload.text)).toContain("Сторінка <b>2/2</b>");
+    expect(JSON.stringify(secondPageEdit?.payload.reply_markup)).toContain(makeInventoryCallbackData(0, "offhand"));
+
+    const promptCalls = await captureApiCalls(makeInventoryPagePromptCallbackData(2, "offhand"), services);
+    const promptMessage = promptCalls.find((call) => call.method === "sendMessage");
+
+    expect(String(promptMessage?.payload.text)).toBe(presentInventoryPagePrompt("offhand", 2));
+    expect(promptMessage?.payload.reply_markup).toMatchObject({
+      force_reply: true,
+      input_field_placeholder: "1-2"
+    });
+
+    const replyCalls = await captureTextApiCalls("2", services, {
+      replyToText: presentInventoryPagePrompt("offhand", 2)
+    });
+    const replyMessage = replyCalls.find((call) => call.method === "sendMessage");
+
+    expect(String(replyMessage?.payload.text)).toContain("✋ <b>Манатки для другої руки</b>");
+    expect(String(replyMessage?.payload.text)).toContain("Сторінка <b>2/2</b>");
   });
 
   it.each([
@@ -7026,7 +7116,7 @@ async function captureRepeatedApiCalls(
 async function captureTextApiCalls(
   text: string,
   services: BotServices,
-  options: { asCommand?: boolean; messageResults?: boolean } = {}
+  options: { asCommand?: boolean; messageResults?: boolean; replyToText?: string } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
@@ -7087,6 +7177,26 @@ async function captureTextApiCalls(
         first_name: "Тест"
       },
       text,
+      ...(options.replyToText
+        ? {
+            reply_to_message: {
+              message_id: 9,
+              date: 0,
+              chat: {
+                id: 42,
+                type: "private" as const,
+                first_name: "Тест"
+              },
+              from: {
+                id: 123456,
+                is_bot: true,
+                first_name: "Квестарня",
+                username: "kvestarnia_bot"
+              },
+              text: options.replyToText
+            }
+          }
+        : {}),
       ...(options.asCommand
         ? {
             entities: [
