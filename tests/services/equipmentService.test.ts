@@ -209,6 +209,100 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("enforces authored class requirements in preview and equip", async () => {
+    const service = createService({
+      inventoryRows: [buildItem({ itemId: "item.mantok.coverage-twohand-rake" })],
+      character: buildCharacter({ classId: "class.mage" })
+    });
+
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.mantok.coverage-twohand-rake")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["class"],
+      requirements: {
+        classes: ["Воїн"]
+      }
+    });
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.mantok.coverage-twohand-rake")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["class"],
+      item: {
+        itemId: "item.mantok.coverage-twohand-rake"
+      }
+    });
+  });
+
+  it("enforces authored race requirements in preview and equip", async () => {
+    const blocked = createService({
+      inventoryRows: [buildItem({ itemId: "item.mantok.coverage-politeness-lid" })],
+      character: buildCharacter({ raceId: "race.human-ish", classId: "class.mage" })
+    });
+    const allowed = createService({
+      inventoryRows: [buildItem({ itemId: "item.mantok.coverage-politeness-lid" })],
+      character: buildCharacter({ raceId: "race.dwarf", classId: "class.mage" })
+    });
+
+    await expect(
+      blocked.previewItemEquipForTelegramUser(telegramUserId, "item.mantok.coverage-politeness-lid")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["race"],
+      requirements: {
+        races: ["Гном"]
+      },
+      slot: "offhand"
+    });
+    await expect(
+      blocked.equipItemForTelegramUser(telegramUserId, "item.mantok.coverage-politeness-lid")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["race"]
+    });
+    await expect(
+      allowed.equipItemForTelegramUser(telegramUserId, "item.mantok.coverage-politeness-lid")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "offhand"
+    });
+  });
+
+  it("enforces authored title requirements in preview and equip", async () => {
+    const blocked = createService({
+      inventoryRows: [buildItem({ itemId: "item.mantok.coverage-knee-clerk" })],
+      character: buildCharacter({ raceId: "race.human-ish", classId: "class.warrior" })
+    });
+    const allowed = createService({
+      inventoryRows: [buildItem({ itemId: "item.mantok.coverage-knee-clerk" })],
+      character: buildCharacter({ raceId: "race.dwarf", classId: "class.warrior" })
+    });
+
+    await expect(
+      blocked.previewItemEquipForTelegramUser(telegramUserId, "item.mantok.coverage-knee-clerk")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["title"],
+      requirements: {
+        titles: ["Молотковий Аргумент", "Молоткова Аргументація", "Молоткові Аргументи"]
+      },
+      slot: "legs"
+    });
+    await expect(
+      blocked.equipItemForTelegramUser(telegramUserId, "item.mantok.coverage-knee-clerk")
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["title"]
+    });
+    await expect(
+      allowed.equipItemForTelegramUser(telegramUserId, "item.mantok.coverage-knee-clerk")
+    ).resolves.toMatchObject({
+      state: "equipped",
+      slot: "legs"
+    });
+  });
+
   it("rejects unowned items", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.wet-hero-ticket" })]

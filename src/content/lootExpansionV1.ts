@@ -859,6 +859,7 @@ function buildItemContent(
   const slot = mapLootExpansionSlot(base);
   const equipmentSlot = mapLootExpansionEquipmentSlot(base);
   const effect = mapLootExpansionEffect(base, enhancement, slot);
+  const tags = mapLootExpansionTags(base);
 
   return {
     id: getLootExpansionItemId(base.id, enhancement),
@@ -868,7 +869,8 @@ function buildItemContent(
     slot,
     ...(equipmentSlot ? { equipmentSlot } : {}),
     goldValue: priceCoins,
-    ...(effect ? { effect } : {})
+    ...(effect ? { effect } : {}),
+    ...(tags ? { tags } : {})
   };
 }
 
@@ -920,6 +922,14 @@ function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent
   }
 
   if (base.category === "armor") {
+    if (isLootExpansionOffhandGear(base)) {
+      return "offhand";
+    }
+
+    if (isLootExpansionHeadGear(base)) {
+      return "head";
+    }
+
     if (isLootExpansionLegGear(base)) {
       return "legs";
     }
@@ -938,8 +948,61 @@ function mapLootExpansionEquipmentSlot(base: LootExpansionBaseItem): ItemContent
   return null;
 }
 
+function mapLootExpansionTags(base: LootExpansionBaseItem): ItemContent["tags"] | undefined {
+  const tags: NonNullable<ItemContent["tags"]> = [];
+
+  if (isLootExpansionOffhandGear(base) || isLootExpansionOffhandWeapon(base)) {
+    tags.push("offhand");
+  }
+
+  if (isLootExpansionTwohandWeapon(base)) {
+    tags.push("twohand");
+  }
+
+  return tags.length > 0 ? tags : undefined;
+}
+
+function isLootExpansionHeadGear(base: Pick<LootExpansionBaseItem, "category" | "slot">): boolean {
+  return base.category === "armor" && (base.slot === "head" || base.slot === "face");
+}
+
 function isLootExpansionLegGear(base: Pick<LootExpansionBaseItem, "category" | "slot">): boolean {
   return base.category === "armor" && (base.slot === "feet" || base.slot === "legs");
+}
+
+function isLootExpansionOffhandGear(
+  base: Pick<LootExpansionBaseItem, "category" | "slot" | "tags">
+): boolean {
+  const slot = String(base.slot);
+  const tags = base.tags as readonly string[];
+
+  return (
+    (base.category === "armor" || base.category === "accessory") &&
+    (slot === "offhand" ||
+      slot === "shield" ||
+      tags.includes("shield") ||
+      tags.includes("buckler"))
+  );
+}
+
+function isLootExpansionOffhandWeapon(
+  base: Pick<LootExpansionBaseItem, "category" | "tags">
+): boolean {
+  const tags = base.tags as readonly string[];
+
+  return (
+    base.category === "weapon" &&
+    !isLootExpansionTwohandWeapon(base) &&
+    (tags.includes("tiny") || tags.includes("light") || tags.includes("thrown"))
+  );
+}
+
+function isLootExpansionTwohandWeapon(
+  base: Pick<LootExpansionBaseItem, "category" | "tags">
+): boolean {
+  const tags = base.tags as readonly string[];
+
+  return base.category === "weapon" && (tags.includes("heavy") || tags.includes("reach"));
 }
 
 function mapLootExpansionEffect(
