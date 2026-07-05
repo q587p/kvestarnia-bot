@@ -2,8 +2,10 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   compareQuickHands,
   DICE_POKER_RULES_VERSION,
+  DICE_POKER_QUICK_SOCIAL_TTL_MS,
   isDicePokerState,
   isDicePokerTableState,
+  resolveQuickPlayerHand,
   startQuickDicePoker,
   startScorecardDicePoker,
   type DicePokerMode,
@@ -451,7 +453,7 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
   async joinByTokenForTelegramUser(
     telegramUserId: bigint,
     token: string,
-    input: { now: Date; decisionExpiresAt: Date }
+    input: { now: Date; decisionExpiresAt: Date; quickStartExpiresAt: Date }
   ): Promise<TavernGameJoinResult> {
     return this.prisma.$transaction(async (tx): Promise<TavernGameJoinResult> => {
       await expireTokenIfNeededTx(tx, token, input.now);
@@ -535,6 +537,7 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
         ? session.resultJson
         : null;
       const shouldStartDicePokerQuick = tableState?.mode === "quick" && nextCount >= tableState.playerCap;
+      const shouldArmDicePokerQuickStart = tableState?.mode === "quick" && nextCount >= KOSTI_MIN_PLAYERS;
       const quickTableState = shouldStartDicePokerQuick ? tableState : null;
       await tx.tavernGameSession.update({
         where: { id: session.id },
@@ -546,6 +549,9 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
                 resultJson: toDicePokerTableJson(quickTableState, "playing"),
                 decisionExpiresAt: input.decisionExpiresAt
               }
+            : {}),
+          ...(shouldArmDicePokerQuickStart && !quickTableState
+            ? { decisionExpiresAt: input.quickStartExpiresAt }
             : {}),
           ...(session.gameKey === "tavlei" && nextCount === 2
             ? { status: "ready", decisionExpiresAt: input.decisionExpiresAt }
@@ -691,15 +697,10 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
           return { state: "not-ready", session: mapSession(session) };
         }
 
-        const ready = await tx.tavernGameSession.update({
-          where: { id: session.id },
-          data: {
-            status: "ready",
-            resultJson: toDicePokerTableJson(table, "playing"),
-            decisionExpiresAt: getDicePokerDecisionExpiresAt(now, table.mode)
-          },
-          include: tavernGameSessionInclude
-        });
+        const ready = await startDicePokerTableTx(tx, session, now);
+        if (!ready) {
+          return { state: "not-ready", session: mapSession(session) };
+        }
         return {
           state: "started",
           session: mapSession(ready),
@@ -1019,6 +1020,7 @@ async function expireDueTx(tx: TxClient, now: Date, limit = 23): Promise<number>
     where: {
       OR: [
         { status: "open", joinExpiresAt: { lte: now } },
+        { status: "open", decisionExpiresAt: { lte: now } },
         { status: "ready", decisionExpiresAt: { lte: now } }
       ]
     },
@@ -1031,7 +1033,11 @@ async function expireDueTx(tx: TxClient, now: Date, limit = 23): Promise<number>
   });
 
   for (const row of rows) {
-    if (isDicePokerRow(row)) {
+    if (isDueQuickDicePokerStart(row, now)) {
+      await startDicePokerTableTx(tx, row, now);
+    } else if (isDueQuickDicePokerRound(row, now)) {
+      await completeDueQuickDicePokerRoundTx(tx, row, now);
+    } else if (isDicePokerRow(row)) {
       await refundSessionTx(tx, row, "expired_refund", now, {
         kind: "dice_poker_expired"
       });
@@ -1052,6 +1058,16 @@ async function expireDueTx(tx: TxClient, now: Date, limit = 23): Promise<number>
 async function expireTokenIfNeededTx(tx: TxClient, token: string, now: Date): Promise<void> {
   const row = await findSessionByToken(tx, token);
   if (!row || isTerminal(row.status)) {
+    return;
+  }
+  if (
+    isDueQuickDicePokerStart(row, now)
+  ) {
+    await startDicePokerTableTx(tx, row, now);
+    return;
+  }
+  if (isDueQuickDicePokerRound(row, now)) {
+    await completeDueQuickDicePokerRoundTx(tx, row, now);
     return;
   }
   if (
@@ -1088,6 +1104,97 @@ async function expireTokenIfNeededTx(tx: TxClient, token: string, now: Date): Pr
   if (row.status === "ready" && row.decisionExpiresAt && row.decisionExpiresAt <= now) {
     await resolveSessionTx(tx, row, now);
   }
+}
+
+function isDueQuickDicePokerStart(row: TavernGameSessionRow, now: Date): boolean {
+  return isDicePokerRow(row) &&
+    row.status === "open" &&
+    row.decisionExpiresAt !== null &&
+    row.decisionExpiresAt <= now &&
+    isDicePokerTableState(row.resultJson) &&
+    row.resultJson.mode === "quick" &&
+    row.resultJson.phase === "waiting" &&
+    countLiveParticipants(row) >= KOSTI_MIN_PLAYERS;
+}
+
+function isDueQuickDicePokerRound(row: TavernGameSessionRow, now: Date): boolean {
+  return isDicePokerRow(row) &&
+    row.status === "ready" &&
+    row.decisionExpiresAt !== null &&
+    row.decisionExpiresAt <= now &&
+    isDicePokerTableState(row.resultJson) &&
+    row.resultJson.mode === "quick" &&
+    row.resultJson.phase === "playing";
+}
+
+async function startDicePokerTableTx(
+  tx: TxClient,
+  row: TavernGameSessionRow,
+  now: Date
+): Promise<TavernGameSessionRow | null> {
+  if (!isDicePokerRow(row) || !isDicePokerTableState(row.resultJson) || row.resultJson.phase !== "waiting") {
+    return null;
+  }
+  if (countLiveParticipants(row) < KOSTI_MIN_PLAYERS) {
+    return null;
+  }
+
+  return tx.tavernGameSession.update({
+    where: { id: row.id },
+    data: {
+      status: "ready",
+      resultJson: toDicePokerTableJson(row.resultJson, "playing"),
+      decisionExpiresAt: getDicePokerDecisionExpiresAt(now, row.resultJson.mode)
+    },
+    include: tavernGameSessionInclude
+  });
+}
+
+async function completeDueQuickDicePokerRoundTx(
+  tx: TxClient,
+  row: TavernGameSessionRow,
+  now: Date
+): Promise<TavernGameSessionRow | null> {
+  if (
+    !isDicePokerRow(row) ||
+    !isDicePokerTableState(row.resultJson) ||
+    row.resultJson.mode !== "quick" ||
+    row.resultJson.phase !== "playing"
+  ) {
+    return null;
+  }
+
+  const live = row.participants.filter((participant) => isJoinedStatus(participant.status));
+  for (const participant of live) {
+    if (isDicePokerState(participant.decisionJson) && participant.decisionJson.mode === "quick") {
+      if (participant.decisionJson.phase === "terminal") {
+        continue;
+      }
+      const terminal = resolveQuickPlayerHand(
+        participant.decisionJson,
+        row.seed,
+        `${participant.telegramUserId}`,
+        0
+      );
+      await tx.tavernGameParticipant.update({
+        where: { id: participant.id },
+        data: {
+          status: "decided",
+          decisionJson: terminal as unknown as Prisma.InputJsonValue,
+          decidedAt: now
+        }
+      });
+      continue;
+    }
+
+    return refundSessionTx(tx, row, "failed_safe_refund", now, {
+      kind: "failed_safe_refund",
+      reason: "malformed quick dice poker participant state"
+    });
+  }
+
+  const updated = await findSessionById(tx, row.id);
+  return updated ? maybeCompleteDicePokerTableTx(tx, updated, now) : null;
 }
 
 async function resolveSessionTx(
@@ -1740,7 +1847,7 @@ function getMinimumParticipants(gameKey: string): number {
 }
 
 function getDicePokerDecisionExpiresAt(now: Date, mode: DicePokerMode): Date {
-  return new Date(now.getTime() + (mode === "scorecard" ? 93 * 60_000 : 5 * 60_000));
+  return new Date(now.getTime() + (mode === "scorecard" ? 93 * 60_000 : DICE_POKER_QUICK_SOCIAL_TTL_MS));
 }
 
 function countLiveParticipants(row: TavernGameSessionRow): number {

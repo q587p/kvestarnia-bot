@@ -189,6 +189,46 @@ describe("tavern game presenter", () => {
     expect(text).toContain("https://t.me/kvestarnia_bot?start=game_12345678-1234-4234-9234-123456789abc");
   });
 
+  it("explains quick dice waiting tables after the second player joins", () => {
+    const text = presentTavernGameSession(session({
+      status: "open",
+      completedAt: null,
+      stakeGold: 13,
+      potGold: 26,
+      result: {
+        kind: "dice_poker_table",
+        mode: "quick",
+        phase: "waiting",
+        playerCap: 8,
+        drawRound: 1
+      },
+      participants: [
+        participant({
+          status: "joined",
+          stakeGold: 13,
+          payoutGold: 0,
+          displayName: "Kyjivan BooksDragon"
+        }),
+        participant({
+          id: "participant-2",
+          characterId: "character-2",
+          telegramUserId: 43n,
+          status: "joined",
+          stakeGold: 13,
+          payoutGold: 0,
+          displayName: "Shannar de Kassal"
+        })
+      ]
+    }));
+
+    expect(text).toContain("⚡ Швидкі кості");
+    expect(text).toContain("Місця: 2/8");
+    expect(text).toContain("Ставка: <b>13 зол.</b> · банк: <b>26 зол.</b>");
+    expect(text).toContain("За столом уже можна грати.");
+    expect(text).toContain("потім швидкі кості стартують самі.");
+    expect(text).not.toContain("Чекаємо другого гравця");
+  });
+
   it("keeps compact rules for both dice poker modes", () => {
     const text = presentDicePokerRules();
 

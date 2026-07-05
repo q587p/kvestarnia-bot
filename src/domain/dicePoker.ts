@@ -4,6 +4,7 @@ export const DICE_POKER_DICE_COUNT = 5;
 export const DICE_POKER_MAX_DRAW_ROUNDS = 3;
 export const DICE_POKER_QUICK_PLAYER_CAP = 8;
 export const DICE_POKER_SCORECARD_PLAYER_CAP = 8;
+export const DICE_POKER_QUICK_SOCIAL_TTL_MS = 3 * 60_000;
 
 export type DicePokerMode = "quick" | "scorecard";
 

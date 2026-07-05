@@ -204,7 +204,7 @@ export interface TavernGameRepository {
   joinByTokenForTelegramUser(
     telegramUserId: bigint,
     token: string,
-    input: { now: Date; decisionExpiresAt: Date }
+    input: { now: Date; decisionExpiresAt: Date; quickStartExpiresAt: Date }
   ): Promise<TavernGameJoinResult>;
   submitDecisionForTelegramUser(
     telegramUserId: bigint,

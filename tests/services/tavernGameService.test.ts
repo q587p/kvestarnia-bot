@@ -6,6 +6,7 @@ import type {
 } from "../../src/db/repositories/tavernGameRepository";
 import { DICE_POKER_SCORECARD_TTL_MS, TavernGameService } from "../../src/services/tavernGameService";
 import {
+  DICE_POKER_QUICK_SOCIAL_TTL_MS,
   DICE_POKER_RULES_VERSION,
   DICE_POKER_SCORE_CATEGORIES,
   DICE_POKER_SCORECARD_PLAYER_CAP,
@@ -205,10 +206,25 @@ describe("TavernGameService", () => {
       stakeGold: 13,
       now: night
     });
+    expect(repository.lastDicePokerCreateInput?.expiresAt.toISOString()).toBe("2026-07-02T20:03:00.000Z");
     expect(repository.lastDicePokerCreateInput?.state).toMatchObject({
       kind: "dice_poker",
       mode: "quick"
     });
+  });
+
+  it("passes a three-minute quick social start deadline on table joins", async () => {
+    const repository = new FakeTavernGameRepository();
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    await service.joinByTokenForTelegramUser(42n, "12345678-1234-4234-9234-000000000777");
+
+    expect(repository.lastJoinInput?.decisionExpiresAt.toISOString()).toBe("2026-07-02T10:05:00.000Z");
+    expect(repository.lastJoinInput?.quickStartExpiresAt.toISOString()).toBe("2026-07-02T10:03:00.000Z");
+    expect(DICE_POKER_QUICK_SOCIAL_TTL_MS).toBe(3 * 60_000);
   });
 
   it("blocks daytime Doppelganger Tavlei before reserving a stake", async () => {
@@ -897,6 +913,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
   lastCreateInput: Parameters<TavernGameRepository["createForTelegramUser"]>[1] | null = null;
   lastDicePokerCreateInput: Parameters<TavernGameRepository["createDicePokerForTelegramUser"]>[1] | null = null;
   lastTavleiDoppelgangerCreateInput: Parameters<TavernGameRepository["createTavleiDoppelgangerForTelegramUser"]>[1] | null = null;
+  lastJoinInput: Parameters<TavernGameRepository["joinByTokenForTelegramUser"]>[2] | null = null;
   lastCompleteInput: Parameters<TavernGameRepository["completeDicePokerForTelegramUser"]>[2] | null = null;
   lastSaveInput: {
     state: DicePokerState;
@@ -985,8 +1002,13 @@ class FakeTavernGameRepository implements TavernGameRepository {
     });
   }
 
-  joinByTokenForTelegramUser(): ReturnType<TavernGameRepository["joinByTokenForTelegramUser"]> {
+  joinByTokenForTelegramUser(
+    _telegramUserId: bigint,
+    _token: string,
+    input: Parameters<TavernGameRepository["joinByTokenForTelegramUser"]>[2]
+  ): ReturnType<TavernGameRepository["joinByTokenForTelegramUser"]> {
     this.joinCalls += 1;
+    this.lastJoinInput = input;
     return Promise.resolve({ state: "joined", session: session() });
   }
 

@@ -4,6 +4,7 @@ import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import {
   DICE_POKER_RULES_VERSION,
+  DICE_POKER_QUICK_SOCIAL_TTL_MS,
   getStoredDicePokerState,
   isDicePokerState,
   isDicePokerTableState,
@@ -411,7 +412,8 @@ export class TavernGameService {
 
     return this.repository.joinByTokenForTelegramUser(telegramUserId, token, {
       now,
-      decisionExpiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS)
+      decisionExpiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS),
+      quickStartExpiresAt: new Date(now.getTime() + DICE_POKER_QUICK_SOCIAL_TTL_MS)
     });
   }
 
@@ -1240,7 +1242,7 @@ function parseStoredDicePokerOutcome(input: unknown): "win" | "draw" | "loss" | 
 }
 
 function getDicePokerExpiresAt(now: Date, mode: DicePokerMode): Date {
-  return new Date(now.getTime() + (mode === "scorecard" ? DICE_POKER_SCORECARD_TTL_MS : TAVERN_GAME_DECISION_TTL_MS));
+  return new Date(now.getTime() + (mode === "scorecard" ? DICE_POKER_SCORECARD_TTL_MS : DICE_POKER_QUICK_SOCIAL_TTL_MS));
 }
 
 function getDicePokerRefreshExpiresAt(now: Date, state: DicePokerState): Date | undefined {

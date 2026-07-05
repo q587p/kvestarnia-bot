@@ -147,8 +147,14 @@ describe("Shynok game keyboards", () => {
     expect(flatInlineButtonCallbacks(completedKeyboard)).toContain("v1:sh:grm:kosti-token");
   });
 
-  it("labels Kosti table buttons with seven seats", () => {
-    expect(formatShynokOpenTableButtonLabel("kosti", 6, 5)).toBe("🎲 Кості · 6/7 · 5 зол.");
+  it("labels Dice Poker table buttons with eight seats", () => {
+    expect(formatShynokOpenTableButtonLabel("kosti", 6, 5, {
+      kind: "dice_poker_table",
+      mode: "quick",
+      phase: "waiting",
+      playerCap: 8,
+      drawRound: 1
+    })).toBe("⚡ Швидкі кості · 6/8 · 5 зол.");
   });
 
   it("asks for the dice mode before showing stakes", () => {

@@ -422,6 +422,104 @@ describe("PrismaTavernGameRepository integration", () => {
     expect((goldA ?? 0) + (goldB ?? 0) + (goldC ?? 0)).toBe(30);
   });
 
+  it("starts a social quick dice poker table three minutes after the second player joins", async () => {
+    const token = "12345678-1234-4234-9234-000000000598";
+    const base = now();
+    await seedCharacter({ telegramUserId: 598n, characterId: "character-social-quick-start-a", name: "Перший таймер", gold: 10 });
+    await seedCharacter({ telegramUserId: 599n, characterId: "character-social-quick-start-b", name: "Другий таймер", gold: 10 });
+    const table = startDicePokerTable("quick");
+
+    const created = await repository.createDicePokerForTelegramUser(598n, {
+      mode: "quick",
+      token,
+      seed: "social-quick-auto-start",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(base.getTime() + 13 * 60_000),
+      joinExpiresAt: new Date(base.getTime() + 13 * 60_000),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: 0,
+      now: base,
+      state: table,
+      participantState: startQuickDicePoker("social-quick-auto-start:participant:a")
+    });
+    const joined = await repository.joinByTokenForTelegramUser(599n, token, joinInput(base));
+
+    expect(created.state).toBe("created");
+    expect(joined.state).toBe("joined");
+    await expect(repository.expireDue(new Date(base.getTime() + 3 * 60_000 - 1))).resolves.toBe(0);
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, decisionExpiresAt: true, resultJson: true }
+    })).resolves.toMatchObject({
+      status: "open",
+      decisionExpiresAt: new Date(base.getTime() + 3 * 60_000),
+      resultJson: { kind: "dice_poker_table", mode: "quick", phase: "waiting" }
+    });
+
+    await expect(repository.expireDue(new Date(base.getTime() + 3 * 60_000 + 1))).resolves.toBe(1);
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, decisionExpiresAt: true, resultJson: true }
+    })).resolves.toMatchObject({
+      status: "ready",
+      decisionExpiresAt: new Date(base.getTime() + 6 * 60_000 + 1),
+      resultJson: { kind: "dice_poker_table", mode: "quick", phase: "playing" }
+    });
+  });
+
+  it("auto-finishes an unresolved social quick dice poker round after three minutes", async () => {
+    const token = "12345678-1234-4234-9234-000000000600";
+    const base = now();
+    const startAt = new Date(base.getTime() + 3 * 60_000 + 1);
+    const finishAt = new Date(startAt.getTime() + 3 * 60_000 + 1);
+    await seedCharacter({ telegramUserId: 600n, characterId: "character-social-quick-finish-a", name: "Перший фініш", gold: 10 });
+    await seedCharacter({ telegramUserId: 601n, characterId: "character-social-quick-finish-b", name: "Другий фініш", gold: 10 });
+    const table = startDicePokerTable("quick");
+
+    await repository.createDicePokerForTelegramUser(600n, {
+      mode: "quick",
+      token,
+      seed: "social-quick-auto-finish",
+      stakeGold: 3,
+      maxStake: 25,
+      expiresAt: new Date(base.getTime() + 13 * 60_000),
+      joinExpiresAt: new Date(base.getTime() + 13 * 60_000),
+      decisionExpiresAt: null,
+      status: "open",
+      cooldownMs: 0,
+      now: base,
+      state: table,
+      participantState: startQuickDicePoker("social-quick-auto-finish:participant:a")
+    });
+    await repository.joinByTokenForTelegramUser(601n, token, joinInput(base));
+    await expect(repository.expireDue(startAt)).resolves.toBe(1);
+
+    await expect(repository.expireDue(finishAt)).resolves.toBe(1);
+
+    const completed = await prisma.tavernGameSession.findUniqueOrThrow({
+      where: { token },
+      select: { status: true, resultJson: true }
+    });
+    expect(completed.status).toBe("completed");
+    expect(completed.resultJson).toMatchObject({
+      kind: "dice_poker_table",
+      mode: "quick",
+      phase: "terminal"
+    });
+    const participants = await prisma.tavernGameParticipant.findMany({
+      where: { session: { token } },
+      select: { status: true, activeStakeKey: true, resultJson: true }
+    });
+    expect(participants).toHaveLength(2);
+    expect(participants.every((participant) => participant.activeStakeKey === null)).toBe(true);
+    expect(participants.every((participant) => participant.resultJson !== null)).toBe(true);
+    const goldA = await characterGold("character-social-quick-finish-a");
+    const goldB = await characterGold("character-social-quick-finish-b");
+    expect((goldA ?? 0) + (goldB ?? 0)).toBe(20);
+  });
+
   it("refunds expired social scorecard dice poker tables on stale token actions without legacy resolution", async () => {
     const token = "12345678-1234-4234-9234-000000000593";
     await seedCharacter({ telegramUserId: 593n, characterId: "character-social-score-a", name: "Перший лист", gold: 10 });
@@ -674,7 +772,8 @@ describe("PrismaTavernGameRepository integration", () => {
   function joinInput(base = now()) {
     return {
       now: base,
-      decisionExpiresAt: new Date(base.getTime() + 5 * 60_000)
+      decisionExpiresAt: new Date(base.getTime() + 5 * 60_000),
+      quickStartExpiresAt: new Date(base.getTime() + 3 * 60_000)
     };
   }
 
