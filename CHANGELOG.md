@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Updated `📖 Перекази` manatky lore to mention that some manatky recognize set relatives and push stats more confidently together.
 - Documented the foundation balance posture and deferred ability/status/service ideas from the reference package for later slices.
+- Tightened equipment slot-filter inventory QA: filtered empty bags now show the slot-specific empty card, and route tests cover slot-filter callbacks plus paginated offhand lists.
 
 ### Deferred
 - Gear-action buttons, bleed/burn/status runtime, borrowed class/race actions, Yeger disguise/service perks, shops, markets, crafting and broad combat rebalance remain deferred.
