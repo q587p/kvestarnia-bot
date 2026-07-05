@@ -9,6 +9,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   type PresenceService
 } from "../../services/presenceService";
+import { isTrainingDoppelgangerAtShynok } from "../../domain/trainingDoppelganger";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import {
   buildTrainingDoppelgangerKeyboard,
@@ -18,6 +19,7 @@ import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
   presentTrainingDoppelganger,
+  presentTrainingDoppelgangerAtShynok,
   presentTrainingDoppelgangerAnotherFight,
   presentTrainingDoppelgangerCooldown,
   presentTrainingDoppelgangerStartChoice,
@@ -34,6 +36,7 @@ type ReplyOptions = Parameters<Context["reply"]>[1];
 export interface TrainingDoppelgangerCommandOptions {
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
+  now?: () => Date;
 }
 
 export function registerTrainingDoppelgangerCommand(
@@ -83,6 +86,11 @@ export async function sendTrainingDoppelganger(
       await sendText(ctx, mode, presentKorchmaQuestGate(), "enter-korchma");
       return;
     }
+  }
+
+  if (isTrainingDoppelgangerAtShynok(options.now?.() ?? new Date())) {
+    await sendText(ctx, mode, presentTrainingDoppelgangerAtShynok(), "training");
+    return;
   }
 
   const result = options.startMode

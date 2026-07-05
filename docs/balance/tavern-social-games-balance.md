@@ -17,7 +17,6 @@ TAVERN_GAMES_ENABLED=false
 TAVERN_GAME_TAVLEI_ENABLED=false
 TAVERN_GAME_KOSTI_ENABLED=false
 TAVERN_GAME_MAX_STAKE=93
-TAVERN_GAME_CREATE_COOLDOWN_SEC=60
 ```
 
 Start disabled by default unless the repo has a different feature flag release convention.
@@ -40,30 +39,43 @@ currently enforced runtime env.
 - Watch repeated pair transfers and refund rate.
 - Avoid reward-bearing leaderboards or streak rewards; read-only win/draw/loss rating is acceptable only as public history, not as power progression.
 
-### Phase 2: Kosti
+### Phase 2: Dice Poker Kosti
 
-- Enable Kosti after table timeouts and multi-player payouts are stable.
+- Enable Dice Poker after table timeouts and replay-safe payout/refund paths are stable.
 - Keep the same or lower max stake.
-- Verify pot conservation in production logs.
+- Verify escrow conservation in production logs: stake reserved once, terminal payout/refund once, active stake key cleared once.
+- Old style/sign Kosti rows from before `dice-poker-v1` should be refunded or closed safely when touched; do not attempt to continue old state under the new rules.
 
 ### Phase 3: polish
 
-- Add more result templates, rematch, feed polish, and optional social reactions.
+- Add more result templates, feed polish, optional social reactions and richer same-pair audit views. Basic invite links for open Tavlei and Dice Poker tables shipped in `0.2.26` and do not change stake math.
 
 ## Abuse risks and mitigations
 
 ### Gold transfer between accounts
 
-Risk: players can use table games as direct transfers.
+Risk: multiplayer table games can be used as direct transfers. In `0.2.26`, social Dice Poker joins Tavlei as a real player-to-player stake surface; Doppelganger fallback games use one player stake only, so their main risk is repeated low-friction stake churn rather than direct transfer.
 
 Mitigations:
 
 - max stake;
 - one active stake session per character;
-- create cooldown;
 - daily net win cap or at least audit event;
-- repeated pair audit;
+- repeated pair audit for multiplayer games;
 - optional cap on net transfer between the same pair over 24 hours.
+
+### Dice Poker reward loops
+
+Risk: draws, stale callbacks, expiry, cancel or Telegram duplicate callbacks can duplicate payouts or avoid losses.
+
+Mitigations:
+
+- reserve stake at session start through the existing active stake key;
+- settle only through terminal session status changes;
+- quick exact draws create deciding rounds, capped at three before refund;
+- scorecard no-selection reroll callbacks do not consume rolls;
+- completed/cancelled/expired sessions clear the active stake key;
+- replayed completion callbacks return closed/stale state without mutating gold.
 
 ### Double spend / race conditions
 
@@ -108,7 +120,7 @@ Mitigations:
 - One character has at most one active stake session, enforced by the active stake key.
 - A session reaches exactly one terminal state.
 - Terminal sessions never mutate payouts again.
-- `sum(payouts) == pot` for completed sessions.
+- `sum(real-player payouts) <= pot` for completed single-stake Doppelganger fallback sessions and `sum(payouts) == pot` for completed multiplayer stake-pot sessions.
 - `sum(refunds) == reserved pot` for refunded sessions.
 - Ledger/audit totals match the gold mutations.
 - Stale callbacks return friendly text, not an exception.

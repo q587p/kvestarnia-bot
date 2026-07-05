@@ -204,11 +204,15 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
 }
 
 export function buildKorchmaFightingCornerKeyboard(
-  options: { questMarkers?: QuestMarkerInput | null } = {}
+  options: { questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean } = {}
 ): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("🥊 Потренуватися", makeTrainingDoppelgangerCallbackData())
-    .row()
+  const keyboard = new InlineKeyboard();
+
+  if (options.trainingDoppelgangerAvailable !== false) {
+    keyboard.text("🥊 Потренуватися", makeTrainingDoppelgangerCallbackData()).row();
+  }
+
+  return keyboard
     .text("⚡ Миттєва дуель", makeDuelNewCallbackData())
     .row()
     .text("♟️ Покрокова дуель", makeDuelNewTurnBasedCallbackData())

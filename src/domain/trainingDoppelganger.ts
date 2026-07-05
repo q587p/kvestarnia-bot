@@ -18,11 +18,16 @@ import type { RandomSource } from "../shared/random";
 
 export const TRAINING_DOPPELGANGER_MONSTER_ID = "monster.training-doppelganger";
 export const TRAINING_DOPPELGANGER_MIN_LEVEL = 3;
+export const TRAINING_DOPPELGANGER_SHYNOK_START_HOUR = 23;
+export const TRAINING_DOPPELGANGER_SHYNOK_END_HOUR = 7;
+const TRAINING_DOPPELGANGER_SCHEDULE_TIME_ZONE = "Europe/Kyiv";
 
 export interface TrainingDoppelgangerXpReward {
   xp: number;
   gold: 0;
 }
+
+export type TrainingDoppelgangerLocation = "fighting-corner" | "shynok";
 
 export type TrainingDoppelgangerSpawnMode =
   | "COPY_TARGET"
@@ -224,6 +229,18 @@ export function isTrainingDoppelgangerMonsterId(monsterId: string): boolean {
   return monsterId === TRAINING_DOPPELGANGER_MONSTER_ID;
 }
 
+export function getTrainingDoppelgangerLocationAt(now: Date): TrainingDoppelgangerLocation {
+  const hour = getKyivHour(now);
+
+  return hour >= TRAINING_DOPPELGANGER_SHYNOK_START_HOUR || hour < TRAINING_DOPPELGANGER_SHYNOK_END_HOUR
+    ? "shynok"
+    : "fighting-corner";
+}
+
+export function isTrainingDoppelgangerAtShynok(now: Date): boolean {
+  return getTrainingDoppelgangerLocationAt(now) === "shynok";
+}
+
 function getLuckBonusChance(luck: number): number {
   return clamp(0.12 + Math.max(0, Math.floor(luck)) * 0.035, 0.12, 0.55);
 }
@@ -267,6 +284,16 @@ function getChampionPeriodFromSpawnMode(
   }
 
   return null;
+}
+
+function getKyivHour(now: Date): number {
+  const hour = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TRAINING_DOPPELGANGER_SCHEDULE_TIME_ZONE,
+    hour: "2-digit",
+    hourCycle: "h23"
+  }).format(now);
+
+  return Number.parseInt(hour, 10);
 }
 
 function buildRandomDoppelgangerCharacter(

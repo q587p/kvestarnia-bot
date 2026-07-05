@@ -357,7 +357,7 @@ describe("online command", () => {
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:nd:open");
   });
 
-  it("shows Kosti open table capacity as seven near the Shynok", async () => {
+  it("shows quick dice open table capacity near the Shynok", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {
       from: {
@@ -399,14 +399,85 @@ describe("online command", () => {
             token: "123e4567-e89b-12d3-a456-426614174007",
             gameKey: "kosti",
             stakeGold: 5,
-            participantNames: ["Kyjivan BooksDragon", "Shannar de Kassal"]
+            participantNames: ["Kyjivan BooksDragon"],
+            result: {
+              kind: "dice_poker_table",
+              mode: "quick",
+              phase: "waiting",
+              playerCap: 8,
+              drawRound: 1
+            }
           })]
         })
       }
     });
 
-    expect(replies[0]?.text).toContain("— 🎲 Кості · 2/7 · ставка 5 зол. · тримає Kyjivan BooksDragon");
-    expect(inlineButtonTexts(replies[0]?.options)).toEqual(["🎲 Кості · 2/7 · 5 зол."]);
+    expect(replies[0]?.text).toContain("— ⚡ Швидкі кості · 1/8 · ставка 5 зол. · тримає Kyjivan BooksDragon");
+    expect(inlineButtonTexts(replies[0]?.options)).toEqual(["⚡ Швидкі кості · 1/8 · 5 зол."]);
+  });
+
+  it("shows active Doppelganger table games nearby without join buttons", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: PRESENCE_LOCATION_KORCHMA_BAR,
+            name: "Шинок",
+            people: {
+              active: [{ telegramUserId: 42n, name: "Тестовий Герой", status: "active" }],
+              idle: [],
+              total: 1
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+
+    await sendOnline(ctx, presenceService, {
+      tavernGames: {
+        getHub: vi.fn().mockResolvedValue({
+          state: "ready",
+          maxStake: 25,
+          tavleiEnabled: true,
+          kostiEnabled: true,
+          openTables: [makeTavernGameSession({
+            token: "123e4567-e89b-12d3-a456-426614174093",
+            gameKey: "kosti",
+            status: "ready",
+            stakeGold: 13,
+            participantNames: ["Shannar de Kassal"],
+            result: {
+              kind: "dice_poker",
+              mode: "quick",
+              phase: "quick-reroll",
+              drawRound: 1,
+              playerDice: [1, 2, 3, 4, 5],
+              opponentDice: [2, 2, 3, 4, 6],
+              selectedMask: 0
+            }
+          })]
+        })
+      }
+    });
+
+    expect(replies[0]?.text).toContain("🎲 За ігровим столом: 1 пригодник");
+    expect(replies[0]?.text).toContain("— ⚡ Швидкі кості з Допельґанґером · ставка 13 зол. · грає Shannar de Kassal");
+    expect(replies[0]?.text).toContain("Ці столи вже зайняті; підсісти не вийде.");
+    expect(inlineButtonCallbacks(replies[0]?.options).some((callback) => callback.includes("v1:sh:gj:"))).toBe(false);
   });
 
   it("does not show the Bard performance button to non-Bards nearby", async () => {
@@ -591,8 +662,11 @@ function makePartyCharacter(
 function makeTavernGameSession(options: {
   token: string;
   gameKey: TavernGameSessionRecord["gameKey"];
+  status?: TavernGameSessionRecord["status"];
   stakeGold: number;
   participantNames: string[];
+  rulesVersion?: string;
+  result?: unknown;
 }): TavernGameSessionRecord {
   const now = new Date("2026-07-02T10:00:00.000Z");
   const creator = makeTavernGameCharacter("character-game-creator", 93n, options.participantNames[0] ?? "Гравець");
@@ -601,13 +675,13 @@ function makeTavernGameSession(options: {
     id: `game-${options.token}`,
     token: options.token,
     gameKey: options.gameKey,
-    status: "open",
+    status: options.status ?? "open",
     creatorCharacterId: creator.id,
     stakeGold: options.stakeGold,
     potGold: options.stakeGold * options.participantNames.length,
     seed: "seed",
-    rulesVersion: "test",
-    result: null,
+    rulesVersion: options.rulesVersion ?? "test",
+    result: options.result ?? null,
     openedAt: now,
     joinExpiresAt: new Date("2026-07-02T10:13:00.000Z"),
     decisionExpiresAt: new Date("2026-07-02T10:18:00.000Z"),

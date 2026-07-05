@@ -5,6 +5,11 @@ import {
   type ShynokDrinkKey
 } from "../../domain/shynokDrinks";
 import {
+  DICE_POKER_SCORE_CATEGORIES,
+  type DicePokerScoreCategory,
+  type DicePokerMode
+} from "../../domain/dicePoker";
+import {
   isKostiSign,
   isKostiStyle,
   isTavernGameKey,
@@ -45,7 +50,23 @@ export type ShynokCallback =
   | { type: "game-leaderboard" }
   | { type: "game-rules"; gameKey: TavernGameKey }
   | { type: "game-create"; gameKey: TavernGameKey; stakeGold: number }
+  | { type: "game-doppelganger-menu" }
+  | { type: "game-doppelganger-mode"; gameKey: "quick" | "scorecard" | "tavlei" }
+  | { type: "game-dice-poker-mode"; mode: DicePokerMode }
+  | { type: "game-dice-poker-create"; mode: DicePokerMode; stakeGold: number }
+  | { type: "game-dice-poker-doppelganger-create"; mode: DicePokerMode; stakeGold: number }
+  | { type: "game-tavlei-doppelganger-create"; stakeGold: number }
+  | { type: "game-dice-poker-rules"; token?: string }
+  | { type: "game-dice-poker-view"; token: string }
+  | { type: "game-dice-poker-toggle"; token: string; index: number }
+  | { type: "game-dice-poker-roll"; token: string }
+  | { type: "game-dice-poker-score"; token: string; category: DicePokerScoreCategory }
+  | { type: "game-dice-poker-cancel"; token: string }
+  | { type: "game-rematch"; token: string }
+  | { type: "game-share"; token: string }
+  | { type: "game-invite"; token: string; templateIndex: number }
   | { type: "game-join"; token: string }
+  | { type: "game-readiness"; token: string; readiness: "ready" | "waiting" }
   | { type: "game-cancel"; token: string }
   | { type: "game-tavlei-decision"; token: string; tactic: TavleiTactic }
   | { type: "game-kosti-decision"; token: string; style: KostiStyle; sign: KostiSign }
@@ -155,8 +176,72 @@ export function makeShynokGameCreateCallbackData(gameKey: TavernGameKey, stakeGo
   return assertData(`${PREFIX}:gc:${encodeGameKey(gameKey)}:${stakeGold}`);
 }
 
+export function makeShynokDoppelgangerMenuCallbackData(): string {
+  return assertData(`${PREFIX}:gdm`);
+}
+
+export function makeShynokDoppelgangerModeCallbackData(gameKey: "quick" | "scorecard" | "tavlei"): string {
+  return assertData(`${PREFIX}:gdo:${encodeDoppelgangerGameKey(gameKey)}`);
+}
+
+export function makeShynokDicePokerCreateCallbackData(mode: DicePokerMode, stakeGold: number): string {
+  return assertData(`${PREFIX}:${mode === "quick" ? "gqc" : "gsc"}:${stakeGold}`);
+}
+
+export function makeShynokDicePokerDoppelgangerCreateCallbackData(mode: DicePokerMode, stakeGold: number): string {
+  return assertData(`${PREFIX}:${mode === "quick" ? "gqn" : "gsn"}:${stakeGold}`);
+}
+
+export function makeShynokTavleiDoppelgangerCreateCallbackData(stakeGold: number): string {
+  return assertData(`${PREFIX}:gtn:${stakeGold}`);
+}
+
+export function makeShynokDicePokerModeCallbackData(mode: DicePokerMode): string {
+  return assertData(`${PREFIX}:${mode === "quick" ? "gqm" : "gsm"}`);
+}
+
+export function makeShynokDicePokerRulesCallbackData(token?: string): string {
+  return assertData(token ? `${PREFIX}:gpr:${token}` : `${PREFIX}:gpr`);
+}
+
+export function makeShynokDicePokerViewCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gdv:${token}`);
+}
+
+export function makeShynokDicePokerToggleCallbackData(token: string, index: number): string {
+  return assertData(`${PREFIX}:gdt:${token}:${index}`);
+}
+
+export function makeShynokDicePokerRollCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gdr:${token}`);
+}
+
+export function makeShynokDicePokerScoreCallbackData(token: string, category: DicePokerScoreCategory): string {
+  return assertData(`${PREFIX}:gds:${token}:${encodeDicePokerCategory(category)}`);
+}
+
+export function makeShynokDicePokerCancelCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gdc:${token}`);
+}
+
+export function makeShynokGameRematchCallbackData(token: string): string {
+  return assertData(`${PREFIX}:grm:${token}`);
+}
+
+export function makeShynokGameShareCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gsh:${token}`);
+}
+
+export function makeShynokGameInviteRotateCallbackData(token: string, templateIndex: number): string {
+  return assertData(`${PREFIX}:gin:${token}:${templateIndex.toString(36)}`);
+}
+
 export function makeShynokGameJoinCallbackData(token: string): string {
   return assertData(`${PREFIX}:gj:${token}`);
+}
+
+export function makeShynokGameReadinessCallbackData(token: string, readiness: "ready" | "waiting"): string {
+  return assertData(`${PREFIX}:grd:${token}:${readiness === "ready" ? "r" : "w"}`);
 }
 
 export function makeShynokGameCancelCallbackData(token: string): string {
@@ -290,6 +375,15 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   if (action === "gl" && first === undefined) {
     return { ok: true, value: { type: "game-leaderboard" } };
   }
+  if (action === "gdm" && first === undefined) {
+    return { ok: true, value: { type: "game-doppelganger-menu" } };
+  }
+  if (action === "gdo" && first && decodeDoppelgangerGameKey(first) && second === undefined) {
+    return {
+      ok: true,
+      value: { type: "game-doppelganger-mode", gameKey: decodeDoppelgangerGameKey(first)! }
+    };
+  }
   if (action === "gr" && first && decodeGameKey(first) && second === undefined) {
     return { ok: true, value: { type: "game-rules", gameKey: decodeGameKey(first)! } };
   }
@@ -299,8 +393,97 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
       value: { type: "game-create", gameKey: decodeGameKey(first)!, stakeGold: Number(second) }
     };
   }
+  if ((action === "gqc" || action === "gsc") && isSafeStake(first) && second === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-create",
+        mode: action === "gqc" ? "quick" : "scorecard",
+        stakeGold: Number(first)
+      }
+    };
+  }
+  if ((action === "gqn" || action === "gsn") && isSafeStake(first) && second === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-doppelganger-create",
+        mode: action === "gqn" ? "quick" : "scorecard",
+        stakeGold: Number(first)
+      }
+    };
+  }
+  if (action === "gtn" && isSafeStake(first) && second === undefined) {
+    return { ok: true, value: { type: "game-tavlei-doppelganger-create", stakeGold: Number(first) } };
+  }
+  if ((action === "gqm" || action === "gsm") && first === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-mode",
+        mode: action === "gqm" ? "quick" : "scorecard"
+      }
+    };
+  }
+  if (action === "gpr" && first === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-rules" } };
+  }
+  if (action === "gpr" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-rules", token: first ?? "" } };
+  }
+  if (action === "gdv" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-view", token: first ?? "" } };
+  }
+  if (action === "gdt" && isToken(first) && isDiceIndex(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-toggle",
+        token: first ?? "",
+        index: Number(second)
+      }
+    };
+  }
+  if (action === "gdr" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-roll", token: first ?? "" } };
+  }
+  if (action === "gds" && isToken(first) && second && decodeDicePokerCategory(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-dice-poker-score",
+        token: first ?? "",
+        category: decodeDicePokerCategory(second)!
+      }
+    };
+  }
+  if (action === "gdc" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-dice-poker-cancel", token: first ?? "" } };
+  }
+  if (action === "grm" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-rematch", token: first ?? "" } };
+  }
+  if (action === "gsh" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-share", token: first ?? "" } };
+  }
+  if (action === "gin" && isToken(first) && isSafeTemplateIndex(second) && third === undefined) {
+    return {
+      ok: true,
+      value: { type: "game-invite", token: first ?? "", templateIndex: Number.parseInt(second ?? "0", 36) }
+    };
+  }
   if (action === "gj" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-join", token: first ?? "" } };
+  }
+  if (action === "grd" && isToken(first) && isReadiness(second) && third === undefined) {
+    return {
+      ok: true,
+      value: {
+        type: "game-readiness",
+        token: first ?? "",
+        readiness: second === "r" ? "ready" : "waiting"
+      }
+    };
   }
   if (action === "gx" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-cancel", token: first ?? "" } };
@@ -363,8 +546,20 @@ function isSafeIndex(value: string | undefined): boolean {
   return value !== undefined && /^\d{1,3}$/.test(value) && Number.isSafeInteger(Number(value));
 }
 
+function isSafeTemplateIndex(value: string | undefined): boolean {
+  return value !== undefined && /^[0-9a-z]{1,2}$/.test(value);
+}
+
 function isSafeStake(value: string | undefined): boolean {
   return value !== undefined && /^\d{1,3}$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) >= 1;
+}
+
+function isReadiness(value: string | undefined): value is "r" | "w" {
+  return value === "r" || value === "w";
+}
+
+function isDiceIndex(value: string | undefined): boolean {
+  return value !== undefined && /^[0-4]$/.test(value);
 }
 
 function isTier(value: string | undefined): value is "simple" | "fine" {
@@ -382,6 +577,24 @@ function encodeGameKey(gameKey: TavernGameKey): string {
 function decodeGameKey(value: string): TavernGameKey | null {
   const decoded = value === "t" ? "tavlei" : value === "k" ? "kosti" : value;
   return isTavernGameKey(decoded) ? decoded : null;
+}
+
+function encodeDoppelgangerGameKey(gameKey: "quick" | "scorecard" | "tavlei"): string {
+  return {
+    quick: "q",
+    scorecard: "s",
+    tavlei: "t"
+  }[gameKey];
+}
+
+function decodeDoppelgangerGameKey(value: string): "quick" | "scorecard" | "tavlei" | null {
+  if (value === "q") {
+    return "quick";
+  }
+  if (value === "s") {
+    return "scorecard";
+  }
+  return value === "t" ? "tavlei" : null;
 }
 
 function encodeTavleiTactic(tactic: TavleiTactic): string {
@@ -447,4 +660,43 @@ function decodeKostiSign(value: string): KostiSign | null {
   };
   const decoded = codes[value] ?? value;
   return isKostiSign(decoded) ? decoded : null;
+}
+
+function encodeDicePokerCategory(category: DicePokerScoreCategory): string {
+  const codes: Record<DicePokerScoreCategory, string> = {
+    ones: "o",
+    twos: "t",
+    threes: "h",
+    fours: "f",
+    fives: "v",
+    sixes: "x",
+    triple: "tr",
+    four_kind: "fk",
+    full_house: "fh",
+    small_straight: "ss",
+    large_straight: "ls",
+    poker: "p",
+    chance: "c"
+  };
+  return codes[category];
+}
+
+function decodeDicePokerCategory(value: string): DicePokerScoreCategory | null {
+  const codes: Record<string, DicePokerScoreCategory> = {
+    o: "ones",
+    t: "twos",
+    h: "threes",
+    f: "fours",
+    v: "fives",
+    x: "sixes",
+    tr: "triple",
+    fk: "four_kind",
+    fh: "full_house",
+    ss: "small_straight",
+    ls: "large_straight",
+    p: "poker",
+    c: "chance"
+  };
+  const decoded = codes[value] ?? value;
+  return (DICE_POKER_SCORE_CATEGORIES as readonly string[]).includes(decoded) ? decoded as DicePokerScoreCategory : null;
 }

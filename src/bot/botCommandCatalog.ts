@@ -405,6 +405,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_reset_tavern_games",
+    icon: "🎲",
+    description: "перевірити, що столи без паузи локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_passage_search",
     icon: "🔎",
     description: "скинути пошук у проходах локально",

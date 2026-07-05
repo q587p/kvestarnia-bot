@@ -20,6 +20,16 @@ export function presentTrainingDoppelgangerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Допельґанґер не копіює порожні анкети.";
 }
 
+export function presentTrainingDoppelgangerAtShynok(): string {
+  return [
+    "🥊 <b>Бійцівський куток</b>",
+    "",
+    "Сумлінного Допельґанґера зараз тут немає. У Шинку підозріло дзвенять кості.",
+    "",
+    "Тренування з ним тут поки не починаються. Спробуйте зазирнути до 🎲 Кості й покер."
+  ].join("\n");
+}
+
 export function presentTrainingDoppelgangerNeedsRest(
   result: Extract<TrainingDoppelgangerLookupResult, { state: "needs-rest" }>
 ): string {

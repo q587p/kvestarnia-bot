@@ -332,6 +332,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_yeger_first_done" ||
     command === "dev_yeger_second_done" ||
     command === "dev_reset_bard_performance" ||
+    command === "dev_reset_tavern_games" ||
     command === "dev_reset_passage_search" ||
     command === "dev_reset_doppelganger"
   ) {

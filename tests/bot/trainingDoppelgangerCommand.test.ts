@@ -50,6 +50,33 @@ describe("training doppelganger command", () => {
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:tavern:raid");
   });
 
+  it("sends the doppelganger to Shynok at night instead of starting training", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const service = new FakeTrainingDoppelgangerService({
+      state: "ready",
+      character: character(),
+      choices: []
+    });
+
+    await sendTrainingDoppelganger(
+      makeContext(replies),
+      service as unknown as TrainingDoppelgangerService,
+      "reply",
+      {
+        presence: fakePresence(),
+        requireKorchmaInterior: true,
+        now: () => new Date("2026-07-02T20:00:00.000Z")
+      }
+    );
+
+    expect(service.calls).toBe(0);
+    expect(replies[0]?.text).toContain("зараз тут немає");
+    expect(replies[0]?.text).toContain("🎲 Кості й покер");
+    expect(replies[0]?.text).not.toContain("після 23:00");
+    expect(replies[0]?.text).not.toContain("до 07:00");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:place:fighting-corner");
+  });
+
   it("marks active training at the fighting corner", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = capturingPresence();
@@ -67,7 +94,8 @@ describe("training doppelganger command", () => {
       {
         presence,
         requireKorchmaInterior: true,
-        startMode: "copy-target"
+        startMode: "copy-target",
+        now: () => new Date("2026-07-02T10:00:00.000Z")
       }
     );
 
@@ -115,7 +143,8 @@ describe("training doppelganger command", () => {
       "reply",
       {
         presence,
-        requireKorchmaInterior: true
+        requireKorchmaInterior: true,
+        now: () => new Date("2026-07-02T10:00:00.000Z")
       }
     );
 
@@ -147,7 +176,8 @@ describe("training doppelganger command", () => {
       "reply",
       {
         presence,
-        requireKorchmaInterior: true
+        requireKorchmaInterior: true,
+        now: () => new Date("2026-07-02T10:00:00.000Z")
       }
     );
 

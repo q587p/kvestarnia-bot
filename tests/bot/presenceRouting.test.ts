@@ -228,6 +228,7 @@ describe("presence routing", () => {
     ["dev_yeger_first_done", {}],
     ["dev_yeger_second_done", {}],
     ["dev_reset_bard_performance", {}],
+    ["dev_reset_tavern_games", {}],
     ["dev_help", {}]
   ])("routes command /%s", (command, expected) => {
     expect(getCommandPresenceContext(command)).toEqual(expected);

@@ -6,8 +6,10 @@ import {
 } from "../../src/bot/botCommandCatalog";
 
 describe("bot command catalog", () => {
-  it("uses a unique icon for every command", () => {
-    const icons = botCommandCatalog.map((entry) => entry.icon);
+  it("uses a unique icon for player-facing commands", () => {
+    const icons = botCommandCatalog
+      .filter((entry) => !entry.devOnly)
+      .map((entry) => entry.icon);
 
     expect(new Set(icons).size).toBe(icons.length);
   });
@@ -83,6 +85,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_yeger_first_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_yeger_second_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_reset_tavern_games")).toBe(false);
   });
 
   it("lists /chronicles in help without adding it to the side menu", () => {
@@ -181,7 +184,8 @@ describe("bot command catalog", () => {
       "dev_reset_rogue",
       "dev_yeger_first_done",
       "dev_yeger_second_done",
-      "dev_reset_bard_performance"
+      "dev_reset_bard_performance",
+      "dev_reset_tavern_games"
     ]) {
       expect(
         getHelpCommandEntries({ includeDevReset: true, includeDevGrant: false })

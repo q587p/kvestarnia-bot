@@ -2,6 +2,8 @@
 
 Base context: `main@0.2.20`.
 
+Historical note: this prompt produced the `0.2.21` table-games foundation. Its Kosti style/sign design was superseded by `0.2.26` Dice Poker Rework; use the current task/design docs for new Kosti work.
+
 This is the next version task after `0.2.20` landed in `main`. Use the repo versioning skill and current repository rules to determine the exact next version and changelog/update location.
 
 ## Goal

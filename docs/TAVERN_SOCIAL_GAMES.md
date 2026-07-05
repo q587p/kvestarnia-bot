@@ -59,33 +59,16 @@ Implementation guardrails:
 
 ### Kosti
 
-Kosti is the louder table: more players, more luck, more claims that the dice
-were "almost certainly listening".
+Kosti is the louder dice surface. As of `0.2.26`, the live direction is Dice
+Poker under `🎲 Кості й покер`; the older 2-7 player style/sign table idea is
+historical and should not be revived without a new product decision.
 
 Future MVP shape:
 
-- 2-7 players;
-- equal stake, if wagers are enabled for the slice;
-- open lobby with timeout;
-- one style and one sign choice per participant;
-- 5d6 deterministic roll per participant from session seed;
-- main winner for the main pool;
-- optional sign-pool split for fulfilled signs;
-- safe refund on expiry or failed resolve.
-
-Suggested styles from the archive:
-
-- `Тримати руку`;
-- `Гнати банк`;
-- `Ловити знак`.
-
-Suggested signs:
-
-- `Дві пари`;
-- `Трійня`;
-- `Висока рука`;
-- `Шлях`;
-- `Вежа`.
+- quick Dice Poker against a tavern opponent;
+- 13-turn scorecard Dice Poker;
+- optional later social tournament wrapper only after the base rules stay clear;
+- safe refund on expiry, cancel, draw cap or stale legacy callbacks.
 
 Implementation guardrails:
 
@@ -143,7 +126,7 @@ ever added.
 2. **Core table engine.** Add the session model, migration, escrow helpers,
    expiry/refund path and resolver interface behind a feature flag.
 3. **Tavlei.** Ship one 1v1 game using the shared engine.
-4. **Kosti.** Add the 2-7 player dice table once the engine is proven.
+4. **Kosti.** Dice Poker is the live Kosti direction after `0.2.26`; future work should add tournaments/reactions around it, not restore the old style/sign grid by default.
 5. **Polish.** Add more result templates, recent tavern activity, telemetry,
    caps and manual QA cleanup.
 
@@ -155,8 +138,8 @@ Kosti unless a future product decision changes the order.
 - `Байки біля вогню`: low-stakes story prompts for 2-5 players.
 - `Суперечка на славу`: argument style checks for small social recognition.
 - `Спір на силу`: arm-wrestling or similar stat-flavored quick checks.
-- `Корчемний турнір`: periodic bracket or table event with cosmetic/social
-  recognition, not combat power.
+- `Корчемний турнір`: periodic dice-poker/table event with cosmetic/social
+  recognition, not combat power; deferred to `0.2.27+`.
 - `Карти мандрівника`: defer because cards pull the design toward collection,
   deck balance and a larger tutorial.
 
@@ -164,10 +147,10 @@ Kosti unless a future product decision changes the order.
 
 At minimum, future implementation needs:
 
-- resolver unit tests for Tavlei tactic matchups and Kosti dice ranking/signs;
+- resolver unit tests for Tavlei tactic matchups and Dice Poker hand/scorecard rules;
 - economy tests for insufficient gold, duplicate joins, double resolve,
   expiry refund and failed-resolve refund;
 - integration tests for create, join, decision, cancel, expiry and stale
   callback flows;
 - concurrency tests for last-seat joins and resolve/refund races;
-- manual Telegram QA with two users for Tavlei and three users for Kosti.
+- manual Telegram QA for two-user Tavlei and solo/NPC Dice Poker.

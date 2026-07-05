@@ -1,5 +1,11 @@
 import type { CharacterRecord } from "./characterRepository";
-import type { TavernGameDecision, TavernGameKey, TavernGameResolution } from "../../domain/tavernGames";
+import type { DicePokerMode, DicePokerState, DicePokerStoredState } from "../../domain/dicePoker";
+import type {
+  TavernGameDecision,
+  TavernGameKey,
+  TavernGameResolution,
+  TavleiDoppelgangerState
+} from "../../domain/tavernGames";
 
 export type TavernGameSessionStatus =
   | "open"
@@ -76,7 +82,11 @@ export interface TavernGameLeaderboard {
   month: TavernGameLeaderboardEntry[];
 }
 
-export type TavernGameGateReason = "wrong-place" | "active-combat" | "pending-raid";
+export type TavernGameGateReason =
+  | "wrong-place"
+  | "active-combat"
+  | "pending-raid"
+  | "doppelganger-at-fighting-corner";
 
 export type TavernGameCreateResult =
   | { state: "no-character" }
@@ -97,7 +107,8 @@ export type TavernGameJoinResult =
   | { state: "already-joined"; session: TavernGameSessionRecord }
   | { state: "insufficient-gold"; character: CharacterRecord; session: TavernGameSessionRecord }
   | { state: "active-session"; session: TavernGameSessionRecord }
-  | { state: "joined"; session: TavernGameSessionRecord };
+  | { state: "joined"; session: TavernGameSessionRecord }
+  | { state: "started"; session: TavernGameSessionRecord };
 
 export type TavernGameDecisionResult =
   | { state: "no-character" }
@@ -118,7 +129,20 @@ export type TavernGameResolveResult =
   | { state: "closed"; session: TavernGameSessionRecord }
   | { state: "failed-refund"; session: TavernGameSessionRecord }
   | { state: "resolved"; session: TavernGameSessionRecord; resolution: TavernGameResolution }
+  | { state: "started"; session: TavernGameSessionRecord; resolution: null }
   | { state: "replayed"; session: TavernGameSessionRecord; resolution: TavernGameResolution | null };
+
+export type TavernGameReadiness = "ready" | "waiting";
+
+export type TavernGameReadinessResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "not-participant"; session: TavernGameSessionRecord }
+  | { state: "closed"; session: TavernGameSessionRecord }
+  | { state: "not-waiting"; session: TavernGameSessionRecord }
+  | { state: "already-set"; session: TavernGameSessionRecord }
+  | { state: "updated"; session: TavernGameSessionRecord }
+  | { state: "started"; session: TavernGameSessionRecord; resolution: null };
 
 export type TavernGameCancelResult =
   | { state: "no-character" }
@@ -127,7 +151,19 @@ export type TavernGameCancelResult =
   | { state: "not-cancellable"; session: TavernGameSessionRecord }
   | { state: "cancelled"; session: TavernGameSessionRecord };
 
+export type DicePokerActionResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | { state: "blocked"; reason: TavernGameGateReason }
+  | { state: "not-participant"; session: TavernGameSessionRecord }
+  | { state: "closed"; session: TavernGameSessionRecord }
+  | { state: "stale"; session: TavernGameSessionRecord }
+  | { state: "saved"; session: TavernGameSessionRecord; dicePoker: DicePokerState }
+  | { state: "completed"; session: TavernGameSessionRecord; dicePoker: DicePokerState }
+  | { state: "cancelled"; session: TavernGameSessionRecord };
+
 export interface TavernGameRepository {
+  findCharacterByTelegramUser(telegramUserId: bigint): Promise<CharacterRecord | null>;
   listOpen(now: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
   listCompletedSince(since: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
   peekByToken(token: string): Promise<TavernGameSessionRecord | null>;
@@ -146,10 +182,41 @@ export interface TavernGameRepository {
       now: Date;
     }
   ): Promise<TavernGameCreateResult>;
+  createDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      mode: DicePokerMode;
+      token: string;
+      seed: string;
+      stakeGold: number;
+      maxStake: number;
+      expiresAt: Date;
+      cooldownMs: number;
+      now: Date;
+      state: DicePokerStoredState;
+      participantState?: DicePokerState;
+      status?: "open" | "ready";
+      joinExpiresAt?: Date;
+      decisionExpiresAt?: Date | null;
+    }
+  ): Promise<TavernGameCreateResult>;
+  createTavleiDoppelgangerForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      seed: string;
+      stakeGold: number;
+      maxStake: number;
+      expiresAt: Date;
+      cooldownMs: number;
+      now: Date;
+      state: TavleiDoppelgangerState;
+    }
+  ): Promise<TavernGameCreateResult>;
   joinByTokenForTelegramUser(
     telegramUserId: bigint,
     token: string,
-    input: { now: Date; decisionExpiresAt: Date }
+    input: { now: Date; decisionExpiresAt: Date; quickStartExpiresAt: Date }
   ): Promise<TavernGameJoinResult>;
   submitDecisionForTelegramUser(
     telegramUserId: bigint,
@@ -162,6 +229,46 @@ export interface TavernGameRepository {
     token: string,
     now: Date
   ): Promise<TavernGameResolveResult>;
+  setReadinessForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    readiness: TavernGameReadiness,
+    input: { now: Date }
+  ): Promise<TavernGameReadinessResult>;
+  saveDicePokerStateForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    state: DicePokerState,
+    now: Date,
+    expiresAt?: Date
+  ): Promise<DicePokerActionResult>;
+  completeDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    input: {
+      state: DicePokerState;
+      outcome: "win" | "loss" | "draw";
+      payoutGold: number;
+      refundedGold: number;
+      now: Date;
+    }
+  ): Promise<DicePokerActionResult>;
+  cancelDicePokerForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    now: Date
+  ): Promise<DicePokerActionResult>;
+  saveDicePokerParticipantStateForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    state: DicePokerState,
+    now: Date,
+    expiresAt?: Date
+  ): Promise<DicePokerActionResult>;
+  resetCreateCooldownForTelegramUser(
+    telegramUserId: bigint,
+    input: { now: Date; cooldownMs: number }
+  ): Promise<{ state: "no-character" } | { state: "reset"; updated: number }>;
   cancelForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<TavernGameCancelResult>;
   refundDisabledByToken(token: string, now: Date): Promise<TavernGameSessionRecord | null>;
   expireDue(now: Date, limit?: number): Promise<number>;

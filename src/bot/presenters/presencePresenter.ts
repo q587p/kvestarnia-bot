@@ -8,7 +8,12 @@ import type {
 } from "../../services/presenceService";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { TavernGameSessionRecord } from "../../db/repositories/tavernGameRepository";
-import { KOSTI_PLAYER_CAP, TAVLEI_PLAYER_CAP } from "../../domain/tavernGames";
+import {
+  KOSTI_PLAYER_CAP,
+  TAVLEI_DOPPELGANGER_RULES_VERSION,
+  TAVLEI_PLAYER_CAP
+} from "../../domain/tavernGames";
+import { isDicePokerState, isDicePokerTableState } from "../../domain/dicePoker";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
   PRESENCE_ADVENTURE_HUNT_BOARD,
@@ -185,19 +190,58 @@ function presentRecruitingParties(sessions: readonly PartySessionRecord[]): stri
 function presentOpenTavernGameTables(sessions: readonly TavernGameSessionRecord[]): string[] {
   const visible = sessions.slice(0, 8);
   const participantCount = visible.reduce((sum, session) => sum + session.participants.length, 0);
+  const joinableCount = visible.filter(isJoinableTavernGameSession).length;
 
   return [
     `🎲 За ігровим столом: ${participantCount} ${pluralize(participantCount, "пригодник", "пригодники", "пригодників")}`,
     ...visible.map(presentOpenTavernGameTable),
-    "Кнопки нижче підсадять до відкритого столу."
+    joinableCount > 0
+      ? "Кнопки нижче підсадять до відкритого столу."
+      : "Ці столи вже зайняті; підсісти не вийде."
   ];
 }
 
 function presentOpenTavernGameTable(session: TavernGameSessionRecord): string {
-  const cap = session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP;
-  const label = session.gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
+  const fallback = presentDoppelgangerOpenTavernGameTable(session);
+  if (fallback) {
+    return fallback;
+  }
+
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  const cap = table?.playerCap ?? (session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP);
+  const label = table?.mode === "quick"
+    ? "⚡ Швидкі кості"
+    : table?.mode === "scorecard"
+      ? "📜 Табличні кості"
+      : session.gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
 
   return `— ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
+}
+
+function presentDoppelgangerOpenTavernGameTable(session: TavernGameSessionRecord): string | null {
+  if (isDicePokerState(session.result)) {
+    const label = session.result.mode === "quick" ? "⚡ Швидкі кості" : "📜 Табличні кості";
+    return `— ${label} з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+  }
+
+  if (session.rulesVersion === TAVLEI_DOPPELGANGER_RULES_VERSION) {
+    return `— ♟ Тавлеї з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+  }
+
+  return null;
+}
+
+function isJoinableTavernGameSession(session: TavernGameSessionRecord): boolean {
+  if (session.status !== "open") {
+    return false;
+  }
+
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  if (table) {
+    return table.phase === "waiting" && session.participants.length < table.playerCap;
+  }
+
+  return session.gameKey === "tavlei" && session.participants.length < TAVLEI_PLAYER_CAP;
 }
 
 function presentActivityName(activity: PresenceActivitySnapshot): string {
