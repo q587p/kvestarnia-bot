@@ -186,9 +186,7 @@ export async function sendTavernGameJoinFromStartPayload(
   if (result.state === "blocked" && result.reason === "wrong-place" && options.presence) {
     await options.presence.markAction({
       user: player,
-      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
-      currentRaidId: null,
-      currentAdventureId: null
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR
     });
     result = await tavernGames.joinByTokenForTelegramUser(player.telegramUserId, token);
   }
