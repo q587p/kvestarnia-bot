@@ -291,6 +291,46 @@ describe("buildEffectiveCharacterStats", () => {
       "mantok-set.red-line-duel:2"
     );
   });
+
+  it("applies Mantok set threshold contributions once for duplicate visual twohand occupancy", () => {
+    const result = buildEffectiveCharacterStats(
+      input({
+        level: 1,
+        equipment: [
+          {
+            itemId: "item.set.yeger-shadow.longbow",
+            itemName: "Лук останньої зарубки",
+            effect: {
+              weaponDamage: 4,
+              dexterity: 1
+            }
+          },
+          {
+            itemId: "item.set.yeger-shadow.longbow",
+            itemName: "Лук останньої зарубки",
+            effect: {
+              weaponDamage: 4,
+              dexterity: 1
+            }
+          },
+          {
+            itemId: "item.set.yeger-shadow.hood",
+            itemName: "Каптур тихого сліду",
+            effect: {
+              resist: 1
+            }
+          }
+        ]
+      })
+    );
+
+    const setContributionIds = result.equipmentEffects.contributions
+      .map((entry) => entry.itemId)
+      .filter((itemId) => itemId.startsWith("mantok-set.yeger-shadow-path"));
+
+    expect(setContributionIds).toEqual(["mantok-set.yeger-shadow-path:2"]);
+    expect(result.equipmentEffects.stats.luck).toBe(1);
+  });
 });
 
 function input(

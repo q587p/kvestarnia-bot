@@ -4,7 +4,7 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
-## 0.2.x — Mantok Set Synergies Foundation smoke
+## 0.2.28 — Mantok Set Synergies Foundation smoke
 
 Manual Telegram QA status for the implementation pass: not run.
 

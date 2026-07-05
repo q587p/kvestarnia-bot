@@ -3,6 +3,7 @@ import {
   presentEquipItemResult,
   presentEquipment
 } from "../../src/bot/presenters/equipmentPresenter";
+import { mantokSetItemContents } from "../../src/content/mantokSetItems";
 import type {
   EquipmentResult,
   EquipItemResult
@@ -154,6 +155,48 @@ describe("equipment presenter", () => {
     });
 
     expect(text).toContain("✋ <b>Друга рука</b>: Дворучна мітла протоколу <i>(дворучна)</i>");
+  });
+
+  it("does not count twohand visual offhand occupancy as an extra set piece", () => {
+    const hood = getMantokSetTestItem("item.set.yeger-shadow.hood");
+    const longbow = getMantokSetTestItem("item.set.yeger-shadow.longbow");
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        {
+          slot: "weapon",
+          item: {
+            itemId: longbow.id,
+            content: longbow
+          }
+        },
+        {
+          slot: "offhand",
+          occupiedByTwohand: true,
+          item: {
+            itemId: longbow.id,
+            content: longbow
+          }
+        },
+        {
+          slot: "head",
+          item: {
+            itemId: hood.id,
+            content: hood
+          }
+        },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null }
+      ]
+    });
+
+    expect(text).toContain("✋ <b>Друга рука</b>: Лук останньої зарубки <i>(дворучна)</i>");
+    expect(text).toContain("<b>Єгерська тіньова стежка</b>: 2/4");
+    expect(text).toContain("Активно: Стежка бачить раніше");
+    expect(text).toContain("Далі: 3 частини — Не-Єгерський допуск");
+    expect(text).not.toContain("<b>Єгерська тіньова стежка</b>: 3/4");
   });
 
   it("escapes owned item names in slots", () => {
@@ -351,6 +394,16 @@ function emptyEquipment(): EquipmentResult {
       { slot: "tool", item: null }
     ]
   };
+}
+
+function getMantokSetTestItem(itemId: string) {
+  const item = mantokSetItemContents.find((candidate) => candidate.id === itemId);
+
+  if (!item) {
+    throw new Error(`Missing test item: ${itemId}`);
+  }
+
+  return item;
 }
 
 function foundEquipment(): EquipmentResult {

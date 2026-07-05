@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.x] - 12026-07-05 - Mantok Set Synergies Foundation
+## [0.2.28] - 12026-07-05 - Mantok Set Synergies Foundation
 
 ### Added
 - Added 13 authored Mantok equipment set families with 47 set-piece items, covering paired weapons, armor families and cross-slot kits.

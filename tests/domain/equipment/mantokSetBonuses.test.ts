@@ -69,4 +69,20 @@ describe("mantok set bonuses", () => {
     expect(replaced).toMatchObject({ armor: 1, hpMax: 2, resist: 1 });
     expect(removed).toEqual({});
   });
+
+  it("does not count duplicate equipped item ids as extra set pieces", () => {
+    const summaries = getActiveMantokSets([
+      "item.set.yeger-shadow.longbow",
+      "item.set.yeger-shadow.longbow",
+      "item.set.yeger-shadow.hood"
+    ]);
+    const summary = summaries.find((candidate) => candidate.set.id === "mantok-set.yeger-shadow-path");
+
+    expect(summary?.equippedPieces.map((piece) => piece.itemId)).toEqual([
+      "item.set.yeger-shadow.hood",
+      "item.set.yeger-shadow.longbow"
+    ]);
+    expect(summary?.activeBonuses.map((bonus) => bonus.pieces)).toEqual([2]);
+    expect(summary?.nextBonus?.pieces).toBe(3);
+  });
 });
