@@ -371,10 +371,16 @@ async function handleShynokCallback(
       return;
     }
 
+    const hub = await services.tavernGames.getHub(telegramUserId);
+
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(
       ctx,
-      presentDoppelgangerStakeMenu(action.gameKey, services.tavernGames.getMaxStake()),
+      presentDoppelgangerStakeMenu(
+        action.gameKey,
+        services.tavernGames.getMaxStake(),
+        hub.state === "ready" ? hub.character?.gold : undefined
+      ),
       {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildShynokDoppelgangerStakeKeyboard(action.gameKey, services.tavernGames.getMaxStake())
