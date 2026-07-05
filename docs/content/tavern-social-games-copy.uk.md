@@ -267,6 +267,18 @@ Player-facing copy for Tavern Social Games. Keep these texts Ukrainian. Avoid ra
 старша кістка
 ```
 
+## Kosti active reroll template
+
+```text
+⚡ Швидкі кості
+
+Твої кості: {playerDice} — {playerHand}.
+Вибрано для перекиду: {selectedDice}.
+
+Обери кості для одного перекиду або лиши кидок як є.
+Ставка: {stake} зол.
+```
+
 ## Kosti result template
 
 ```text
