@@ -72,6 +72,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_heal")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_restore_mana")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_random_item")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_item")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_dense_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_field_kit")).toBe(false);
@@ -172,6 +173,7 @@ describe("bot command catalog", () => {
       "dev_heal",
       "dev_restore_mana",
       "dev_add_random_item",
+      "dev_add_item",
       "dev_add_bandage",
       "dev_add_dense_bandage",
       "dev_add_field_kit",

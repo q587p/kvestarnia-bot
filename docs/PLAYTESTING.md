@@ -33,7 +33,7 @@ Manual Telegram QA status for the implementation pass: not run.
 
 Manual Telegram QA status for the implementation pass: not run.
 
-1. Seed or grant one authored coverage item for every slot and open `🎒 Манатки` slot filters. Locally, use `/dev_add_random_item slot=weapon`, `/dev_add_random_item slot=offhand`, `/dev_add_random_item slot=head`, `/dev_add_random_item slot=chest`, `/dev_add_random_item slot=legs`, `/dev_add_random_item slot=accessory`, `/dev_add_random_item slot=tool`, `/dev_add_random_item tag=twohand` and `/dev_add_random_item tag=offhand` as needed.
+1. Seed or grant one authored coverage item for every slot and open `🎒 Манатки` slot filters. Locally, use `/dev_add_random_item slot=weapon`, `/dev_add_random_item slot=offhand`, `/dev_add_random_item slot=head`, `/dev_add_random_item slot=chest`, `/dev_add_random_item slot=legs`, `/dev_add_random_item slot=accessory`, `/dev_add_random_item slot=tool`, `/dev_add_random_item tag=twohand` and `/dev_add_random_item tag=offhand` as needed; use `/dev_add_item itemId=<item.id>` when exact authored QA items are required.
 2. Equip universal weapon, offhand, head, chest, legs, accessory and tool manatky.
 3. Equip a two-handed bow and verify the offhand slot is occupied/cleared according to existing twohand confirmation rules.
 4. Try an offhand shield and an offhand dagger on a non-warrior and verify explicit offhand items are allowed.

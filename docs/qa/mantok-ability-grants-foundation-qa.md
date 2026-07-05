@@ -2,7 +2,7 @@
 
 Manual Telegram QA status for the implementation pass: not run.
 
-1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character.
+1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
 2. Start a persistent fight and verify the gear-action button appears only for frozen eligible grants.
 3. Use `🛡 Контраргумент`; verify it spends a turn, applies protection and does not create a class/race action.
 4. Use `🩸 Червоний рядок` or `🖋 Остання сторінка`; verify bleed appears, ticks visibly and can finish combat without an extra status-kill response.

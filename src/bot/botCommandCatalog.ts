@@ -314,6 +314,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_add_item",
+    icon: "🧾",
+    description: "додати конкретну манатку локально через itemId=...",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_add_bandage",
     icon: "🧻",
     description: "додати бинти локально",

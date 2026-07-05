@@ -10,6 +10,10 @@ export function presentDevGrantNoCharacter(): string {
 }
 
 export function presentDevGrantInvalidAmount(command: string): string {
+  if (command === "dev_add_item") {
+    return "Формат: /dev_add_item [додатне ціле число] itemId=<item.id>. Наприклад: /dev_add_item itemId=item.ability.last-page-rapier.";
+  }
+
   if (command === "dev_add_random_item") {
     return "Формат: /dev_add_random_item [додатне ціле число] [slot=weapon|offhand|head|chest|legs|accessory|tool] [tag=twohand|offhand]. Без числа корчмар підставить 1.";
   }
@@ -32,6 +36,14 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
 
   if (result.state === "no-character") {
     return presentDevGrantNoCharacter();
+  }
+
+  if (result.state === "unknown-item") {
+    return [
+      "🧪 Dev: корчмар не знайшов такої манатки в каталозі.",
+      "",
+      `itemId: ${result.itemId}`
+    ].join("\n");
   }
 
   if (result.state === "no-matching-items") {
