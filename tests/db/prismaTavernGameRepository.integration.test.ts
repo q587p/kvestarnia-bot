@@ -292,6 +292,34 @@ describe("PrismaTavernGameRepository integration", () => {
     await expect(characterGold("character-tavlei-doppel")).resolves.toBe(goldAfterResolution);
   });
 
+  it("lists ready Dice Poker against the Doppelganger as a visible table", async () => {
+    const token = "12345678-1234-4234-9234-000000000619";
+    await seedCharacter({ telegramUserId: 619n, characterId: "character-dice-doppel", name: "Дзеркальний", gold: 20 });
+
+    const created = await repository.createDicePokerForTelegramUser(619n, {
+      mode: "quick",
+      token,
+      seed: "dice-doppelganger-visible",
+      stakeGold: 13,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 5 * 60_000),
+      cooldownMs: 0,
+      now: now(),
+      state: startQuickDicePoker("dice-doppelganger-visible")
+    });
+
+    expect(created.state).toBe("created");
+
+    const visible = await repository.listOpen(now());
+
+    expect(visible.map((session) => session.token)).toContain(token);
+    expect(visible.find((session) => session.token === token)).toMatchObject({
+      status: "ready",
+      gameKey: "kosti",
+      stakeGold: 13
+    });
+  });
+
   it("settles a social quick dice poker table for two real participants once", async () => {
     const token = "12345678-1234-4234-9234-000000000591";
     await seedCharacter({ telegramUserId: 591n, characterId: "character-social-quick-a", name: "Перший", gold: 10 });

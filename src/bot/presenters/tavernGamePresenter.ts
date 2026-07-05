@@ -1,6 +1,7 @@
 import {
   KOSTI_PLAYER_CAP,
   TAVLEI_DOPPELGANGER_CHARACTER_ID,
+  TAVLEI_DOPPELGANGER_RULES_VERSION,
   TAVLEI_PLAYER_CAP,
   type TavernGameResolution,
   type TavernGameKey
@@ -55,7 +56,7 @@ export function presentTavernGameHub(result: TavernGameHubResult): string {
       "Можеш першим розкласти тавлеї або покликати людей на кості."
     );
   } else {
-    lines.push("Відкриті столи:");
+    lines.push("Столи зараз:");
     lines.push(...result.openTables.slice(0, 8).map(presentOpenTableLine));
   }
 
@@ -405,10 +406,27 @@ function presentTavernGameResolution(resolution: TavernGameResolution): string {
 }
 
 function presentOpenTableLine(session: TavernGameSessionRecord): string {
+  const fallback = presentDoppelgangerOpenTableLine(session);
+  if (fallback) {
+    return fallback;
+  }
+
   const table = isDicePokerTableState(session.result) ? session.result : null;
   const cap = table?.playerCap ?? (session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP);
   const label = table ? dicePokerTableTitle(table.mode) : gameLabel(session.gameKey);
   return `• ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
+}
+
+function presentDoppelgangerOpenTableLine(session: TavernGameSessionRecord): string | null {
+  if (isDicePokerState(session.result)) {
+    return `• ${dicePokerTableTitle(session.result.mode)} з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+  }
+
+  if (session.rulesVersion === TAVLEI_DOPPELGANGER_RULES_VERSION) {
+    return `• ♟ Тавлеї з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+  }
+
+  return null;
 }
 
 function presentDoppelgangerTavleiResolution(

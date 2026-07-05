@@ -108,10 +108,20 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     await this.expireDue(now);
     const rows = await this.prisma.tavernGameSession.findMany({
       where: {
-        status: "open",
-        joinExpiresAt: {
-          gt: now
-        }
+        OR: [
+          {
+            status: "open",
+            joinExpiresAt: {
+              gt: now
+            }
+          },
+          {
+            status: "ready",
+            decisionExpiresAt: {
+              gt: now
+            }
+          }
+        ]
       },
       include: tavernGameSessionInclude,
       orderBy: [

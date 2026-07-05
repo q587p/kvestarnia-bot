@@ -21,7 +21,10 @@ import {
   makeShynokBardPerformanceStartCallbackData,
   makeShynokGameJoinCallbackData
 } from "../callbacks/shynokCallbackData";
-import { formatShynokOpenTableButtonLabel } from "../keyboards/shynokKeyboard";
+import {
+  canJoinTavernGameSession,
+  formatShynokOpenTableButtonLabel
+} from "../keyboards/shynokKeyboard";
 import { presentOnline } from "../presenters/presencePresenter";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -103,10 +106,10 @@ async function buildNearbyActionsKeyboard(
     hasActions = true;
   }
 
-  for (const table of openTavernGameTables) {
+  for (const table of openTavernGameTables.filter(canJoinTavernGameSession)) {
     keyboard
       .text(
-        formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold),
+        formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold, table.result),
         makeShynokGameJoinCallbackData(table.token)
       )
       .row();

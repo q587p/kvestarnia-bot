@@ -35,6 +35,41 @@ describe("tavern game presenter", () => {
     expect(text).toContain("🪞 Допельґанґер уже сів окремо");
   });
 
+  it("shows active Doppelganger games in the table-games hub", () => {
+    const text = presentTavernGameHub({
+      state: "ready",
+      maxStake: 93,
+      tavleiEnabled: true,
+      kostiEnabled: true,
+      doppelgangerAvailable: true,
+      character: { gold: 42 },
+      openTables: [
+        session({
+          status: "ready",
+          gameKey: "kosti",
+          stakeGold: 13,
+          creator: {
+            ...session().creator,
+            name: "Shannar de Kassal"
+          },
+          result: startQuickDicePoker("hub-doppelganger"),
+          participants: [participant({
+            displayName: "Shannar de Kassal",
+            character: {
+              ...participant().character,
+              name: "Shannar de Kassal"
+            }
+          })]
+        })
+      ]
+    });
+
+    expect(text).toContain("Столи зараз:");
+    expect(text).toContain("• ⚡ Швидкі кості з Допельґанґером · ставка 13 зол. · грає Shannar de Kassal");
+    expect(text).not.toContain("1/7");
+    expect(text).not.toContain("Поки що ніхто не тримає стіл.");
+  });
+
   it("describes Doppelganger game and stake menus compactly", () => {
     expect(presentDoppelgangerGameMenu(93)).toContain("Оберіть гру з Допельґанґером");
     expect(presentDoppelgangerStakeMenu("tavlei", 93)).toContain("♟ Тавлеї з Допельґанґером");

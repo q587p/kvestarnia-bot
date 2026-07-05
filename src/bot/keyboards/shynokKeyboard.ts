@@ -142,7 +142,7 @@ export function buildShynokGameHubKeyboard(
     keyboard.text("🪞 Допельґанґер", makeShynokDoppelgangerMenuCallbackData()).row();
   }
 
-  for (const table of result.openTables.slice(0, 8)) {
+  for (const table of result.openTables.filter(canJoinTavernGameSession).slice(0, 8)) {
     keyboard
       .text(
         formatShynokOpenTableButtonLabel(table.gameKey, table.participants.length, table.stakeGold, table.result),
@@ -627,7 +627,7 @@ function canInviteToTavernGameSession(session: {
   return session.gameKey === "tavlei" && session.participants.length < TAVLEI_PLAYER_CAP;
 }
 
-function canJoinTavernGameSession(session: {
+export function canJoinTavernGameSession(session: {
   gameKey: TavernGameKey;
   status: string;
   participants: Array<unknown>;

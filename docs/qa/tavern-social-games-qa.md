@@ -63,6 +63,7 @@
 - Open and ready Tavlei table cards separate title, players, bank and next action with blank lines, and show seated character names in bold with active cosmetic titles.
 - Invite-link join failures for non-participants keep the table retry path visible: insufficient-gold responses show `✅ Сісти за стіл`, not creator-only invite buttons.
 - `🪞 Допельґанґер` is available in Shynok from 23:00 until 07:00 Kyiv time, opens a separate game choice, and supports quick dice, scorecard dice and Tavlei.
+- Active games against `🪞 Допельґанґер` appear in `🎲 Ігри за столом` and `👀 Хто поруч` as occupied tables without join buttons.
 - Quick Dice Poker with `🪞 Допельґанґер` shows both final hands plus the reason.
 - Tavlei with `🪞 Допельґанґер` shows tactic choices, settles after the player choice and records the result without a second participant row.
 - Dice Poker rules opened from an active game can return to that same active game.
@@ -100,24 +101,25 @@
 15. From 23:00 until 07:00 Kyiv time, open `🪞 Допельґанґер`; verify it offers quick dice, scorecard dice and Tavlei before stake choice.
 16. Start quick dice with `🪞 Допельґанґер`; verify win/loss/draw/refund-cap result copy, blank-line spacing and exact stake behavior.
 17. Start Tavlei with `🪞 Допельґанґер`; choose a tactic, verify win/draw/loss stake behavior and rating result.
-18. Outside 23:00-07:00 Kyiv time, verify Shynok hides the `🪞 Допельґанґер` branch, `/spar` works from the fighting corner and stale direct fallback callbacks do not reserve a stake.
-19. At 23:00-07:00 Kyiv time, verify the fighting corner hides `🥊 Потренуватися` and `/spar` says the Doppelganger went to Shynok.
-20. Open rules from the active game and return to the same active game.
-21. Start `📜 Табличні кості` as a social table; join from at least one more account, press `▶️ Почати партію`, and verify every account receives its own scorecard state and controls.
-22. Reroll selected dice twice, score boxes and verify used boxes disappear.
-23. Keep a scorecard session open past the quick-poker window, press a valid scorecard action and verify the game continues.
-24. Let an unstarted scorecard table pass its join window, press stale join/resolve callbacks and verify one Dice Poker escrow refund with no legacy Kosti result.
-25. Let a started scorecard session pass its longer deadline and verify a single escrow refund.
-26. Let unresolved Tavlei vs Doppelganger expire and verify a single escrow refund.
-27. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
-28. Verify `🏆 Рейтинг` counts quick win/loss/draw, Tavlei vs Doppelganger and high scorecard completion.
-29. Press `🔁 Зіграти ще` from a completed social table and verify a new same-stake table opens for the actor while the previous opponent receives a private join invite.
-30. Press duplicate rematch callbacks and verify there is no duplicate table or duplicate invite while the actor has an active stake session.
-31. Press `🔁 Зіграти ще` from a completed Doppelganger game and verify the same fallback path starts directly without inviting another player.
-32. Create a table, close or finish it, then immediately create another table; verify there is no recent-create cooldown blocker.
-33. Verify open social Dice Poker table counts in `🎲 Ігри за столом`.
-34. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
-35. Try insufficient gold.
-36. Try create/join/decision while under combat lock.
-37. Run the repo's local checks, at minimum `npm run check` if available.
-38. Inspect DB rows for terminal statuses and no orphan escrow.
+18. While a game with `🪞 Допельґанґер` is active, verify it appears in `🎲 Ігри за столом` and `👀 Хто поруч` as an occupied table and does not show `✅ Сісти за стіл`.
+19. Outside 23:00-07:00 Kyiv time, verify Shynok hides the `🪞 Допельґанґер` branch, `/spar` works from the fighting corner and stale direct fallback callbacks do not reserve a stake.
+20. At 23:00-07:00 Kyiv time, verify the fighting corner hides `🥊 Потренуватися` and `/spar` says the Doppelganger went to Shynok.
+21. Open rules from the active game and return to the same active game.
+22. Start `📜 Табличні кості` as a social table; join from at least one more account, press `▶️ Почати партію`, and verify every account receives its own scorecard state and controls.
+23. Reroll selected dice twice, score boxes and verify used boxes disappear.
+24. Keep a scorecard session open past the quick-poker window, press a valid scorecard action and verify the game continues.
+25. Let an unstarted scorecard table pass its join window, press stale join/resolve callbacks and verify one Dice Poker escrow refund with no legacy Kosti result.
+26. Let a started scorecard session pass its longer deadline and verify a single escrow refund.
+27. Let unresolved Tavlei vs Doppelganger expire and verify a single escrow refund.
+28. Finish all 13 scorecard turns or use local setup to drive a terminal scorecard.
+29. Verify `🏆 Рейтинг` counts quick win/loss/draw, Tavlei vs Doppelganger and high scorecard completion.
+30. Press `🔁 Зіграти ще` from a completed social table and verify a new same-stake table opens for the actor while the previous opponent receives a private join invite.
+31. Press duplicate rematch callbacks and verify there is no duplicate table or duplicate invite while the actor has an active stake session.
+32. Press `🔁 Зіграти ще` from a completed Doppelganger game and verify the same fallback path starts directly without inviting another player.
+33. Create a table, close or finish it, then immediately create another table; verify there is no recent-create cooldown blocker.
+34. Verify open social Dice Poker table counts in `🎲 Ігри за столом`.
+35. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
+36. Try insufficient gold.
+37. Try create/join/decision while under combat lock.
+38. Run the repo's local checks, at minimum `npm run check` if available.
+39. Inspect DB rows for terminal statuses and no orphan escrow.

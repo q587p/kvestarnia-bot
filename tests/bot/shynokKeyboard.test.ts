@@ -178,6 +178,33 @@ describe("Shynok game keyboards", () => {
     ]);
   });
 
+  it("counts active Doppelganger tables without showing a join button", () => {
+    const keyboard = buildShynokGameHubKeyboard({
+      state: "ready",
+      maxStake: 93,
+      tavleiEnabled: true,
+      kostiEnabled: true,
+      doppelgangerAvailable: true,
+      openTables: [{
+        token: "12345678-1234-4234-9234-123456789abc",
+        gameKey: "kosti",
+        status: "ready",
+        creatorCharacterId: "character-creator",
+        participants: [{ characterId: "character-creator", status: "joined", telegramUserId: 1001n }],
+        result: startQuickDicePoker("keyboard-doppelganger-table")
+      } as never]
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "🏆 Рейтинг",
+      "♟ Тавлеї",
+      "🎲 Кості",
+      "🪞 Допельґанґер",
+      "↩ Назад"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.includes(":gj:"))).toBe(false);
+  });
+
   it("hides the Doppelganger branch while he is in the fighting corner", () => {
     expect(flatInlineButtonTexts(buildShynokGameHubKeyboard({
       state: "ready",
