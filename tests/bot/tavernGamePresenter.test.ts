@@ -259,6 +259,71 @@ describe("tavern game presenter", () => {
     expect(secondText).toContain("Твої кості: 6 6 5 4 3");
   });
 
+  it("renders terminal social quick table results with spaced titled rows", () => {
+    const tableSession = session({
+      status: "completed",
+      stakeGold: 13,
+      potGold: 26,
+      result: {
+        kind: "dice_poker_table",
+        mode: "quick",
+        phase: "terminal",
+        playerCap: 2,
+        drawRound: 1,
+        outcomes: {
+          "character-1": "win",
+          "character-2": "loss"
+        }
+      },
+      participants: [
+        participant({
+          characterId: "character-1",
+          telegramUserId: 1001n,
+          displayName: "Shannar de Kassal",
+          stakeGold: 13,
+          payoutGold: 26,
+          character: {
+            ...participant().character,
+            id: "character-1",
+            telegramUserId: 1001n,
+            name: "Shannar de Kassal",
+            activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+          }
+        }),
+        participant({
+          id: "participant-2",
+          characterId: "character-2",
+          telegramUserId: 2002n,
+          displayName: "Kyjivan BooksDragon",
+          stakeGold: 13,
+          payoutGold: 0,
+          character: {
+            ...participant().character,
+            id: "character-2",
+            telegramUserId: 2002n,
+            name: "Kyjivan BooksDragon",
+            activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+          }
+        })
+      ]
+    });
+
+    const text = presentTavernGameActionResult({
+      state: "completed",
+      session: tableSession,
+      dicePoker: startQuickDicePoker("terminal-social-result"),
+      viewerTelegramUserId: 2002n
+    });
+
+    expect(text).toBe([
+      "⚡ Швидкі кості",
+      "",
+      "<b>Shannar de Kassal</b> (<i>«Табуретник»</i>): 🏆 перемога · виплата <b>26 зол.</b>",
+      "",
+      "<b>Kyjivan BooksDragon</b> (<i>«Перший писар»</i>): 💀 поразка"
+    ].join("\n"));
+  });
+
   it("renders social scorecard starts with the viewer's own scorecard", () => {
     const firstState = {
       ...startScorecardDicePoker("scorecard-social-first"),

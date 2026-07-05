@@ -827,8 +827,14 @@ export function buildTavernGameActionKeyboard(result: {
 } = {}) {
   const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
   const table = isDicePokerTableState(result.session?.result) ? result.session.result : null;
+  const tableIsClosed = result.state === "closed" ||
+    result.state === "stale" ||
+    result.session?.status === "completed" ||
+    table?.phase === "terminal";
   const dicePoker = table
-    ? (table.phase === "playing" && isDicePokerState(participant?.decision) ? participant.decision : null)
+    ? (!tableIsClosed && table.phase === "playing" && isDicePokerState(participant?.decision)
+        ? participant.decision
+        : null)
     : result.dicePoker ?? (isDicePokerState(result.session?.result) ? result.session.result : null);
   if (result.session && dicePoker) {
     return buildShynokDicePokerKeyboard(result.session.token, dicePoker, {

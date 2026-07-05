@@ -43,6 +43,7 @@ import {
 } from "../../src/bot/callbacks/remortCallbackData";
 import {
   makeShynokBarrelRoundPreviewCallbackData,
+  makeShynokDicePokerRollCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokKostiDecisionCallbackData,
   makeShynokRoundConfirmCallbackData
@@ -58,6 +59,7 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
+import { startQuickDicePoker } from "../../src/domain/dicePoker";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
 
 type MarkPresenceInput = Parameters<NonNullable<BotServices["presence"]>["markAction"]>[0];
@@ -3184,6 +3186,84 @@ describe("scene callback HTML options", () => {
     expect(notification?.payload.text).toContain("За столом: <b>Kyjivan BooksDragon</b>, <b>Shannar de Kassal</b>");
     expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gk:12345678-1234-4234-9234-123456789abc");
     expect(JSON.stringify(notification?.payload.reply_markup)).toContain("v1:sh:gm");
+  });
+
+  it("notifies other quick dice participants with the terminal table result", async () => {
+    const token = "12345678-1234-4234-9234-123456789abc";
+    const firstPlayer = tavernGameParticipant(93n, "character-creator", "Shannar de Kassal", "completed", {
+      ...startQuickDicePoker("quick-social-creator"),
+      phase: "terminal"
+    });
+    const secondPlayer = tavernGameParticipant(42n, "character-joiner", "Kyjivan BooksDragon", "completed", {
+      ...startQuickDicePoker("quick-social-joiner"),
+      phase: "terminal"
+    });
+    const session = tavernGameSession({
+      gameKey: "kosti",
+      status: "completed",
+      stakeGold: 13,
+      potGold: 26,
+      rulesVersion: "dice-poker-v1",
+      result: {
+        kind: "dice_poker_table",
+        mode: "quick",
+        phase: "terminal",
+        playerCap: 2,
+        drawRound: 1,
+        outcomes: {
+          "character-creator": "win",
+          "character-joiner": "loss"
+        }
+      },
+      participants: [
+        {
+          ...firstPlayer,
+          stakeGold: 13,
+          payoutGold: 26,
+          character: {
+            ...firstPlayer.character,
+            activeCosmeticTitleGrantId: "cosmetic-title.level-two-stool"
+          }
+        },
+        {
+          ...secondPlayer,
+          stakeGold: 13,
+          payoutGold: 0,
+          character: {
+            ...secondPlayer.character,
+            activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk"
+          }
+        }
+      ]
+    });
+
+    const calls = await captureApiCalls(
+      makeShynokDicePokerRollCallbackData(token),
+      servicesWith({
+        shynok: {},
+        tavernGames: {
+          rollDicePokerForTelegramUser: () => Promise.resolve({
+            state: "completed",
+            session,
+            dicePoker: secondPlayer.decision
+          })
+        } as never
+      })
+    );
+
+    const notification = calls.find((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 93
+    );
+    const keyboard = JSON.stringify(notification?.payload.reply_markup);
+
+    expect(notification?.payload.text).toContain("⚡ Швидкі кості");
+    expect(notification?.payload.text).toContain(
+      "<b>Shannar de Kassal</b> (<i>«Табуретник»</i>): 🏆 перемога · виплата <b>26 зол.</b>\n\n<b>Kyjivan BooksDragon</b>"
+    );
+    expect(keyboard).toContain("v1:sh:grm:12345678-1234-4234-9234-123456789abc");
+    expect(keyboard).not.toContain(":gdr:");
+    expect(keyboard).not.toContain(":gdt:");
+    expect(keyboard).not.toContain(":gds:");
   });
 
   it("opens the pressed location label when the persistent reply keyboard is stale", async () => {

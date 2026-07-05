@@ -288,6 +288,49 @@ describe("Shynok game keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual(["↩ До ігор"]);
     expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.includes(":gk:"))).toBe(false);
   });
+
+  it("does not show stale dice poker reroll controls for closed social tables", () => {
+    const keyboard = buildTavernGameActionKeyboard({
+      state: "closed",
+      session: {
+        token: "12345678-1234-4234-9234-123456789abc",
+        gameKey: "kosti",
+        status: "completed",
+        creatorCharacterId: "character-creator",
+        result: {
+          kind: "dice_poker_table",
+          mode: "quick",
+          phase: "terminal",
+          playerCap: 2,
+          drawRound: 1,
+          outcomes: {
+            "character-creator": "loss",
+            "character-guest": "win"
+          }
+        },
+        participants: [
+          {
+            characterId: "character-creator",
+            status: "decided",
+            telegramUserId: 1001n,
+            decision: startQuickDicePoker("stale-quick-table")
+          },
+          {
+            characterId: "character-guest",
+            status: "completed",
+            telegramUserId: 2002n,
+            decision: null
+          }
+        ]
+      }
+    }, 1001n);
+    const callbacks = flatInlineButtonCallbacks(keyboard);
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🔁 Зіграти ще", "↩ До ігор"]);
+    expect(callbacks.some((callback) => callback.includes(":gdr:"))).toBe(false);
+    expect(callbacks.some((callback) => callback.includes(":gdt:"))).toBe(false);
+    expect(callbacks.some((callback) => callback.includes(":gds:"))).toBe(false);
+  });
 });
 
 function tavleiSession(overrides: { status?: string; participantCount?: number; token?: string } = {}) {

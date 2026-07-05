@@ -191,6 +191,7 @@ export function presentTavernGameActionResult(result: {
   if (result.resolution) {
     return presentTavernGameResolution(result.resolution);
   }
+  const table = isDicePokerTableState(result.session?.result) ? result.session.result : null;
   const dicePoker = result.dicePoker ?? getSessionDicePoker(result.session, result.viewerTelegramUserId);
   if (dicePoker && ["created", "started", "saved", "completed", "active-session"].includes(result.state)) {
     if (result.session && isDicePokerTableState(result.session.result)) {
@@ -198,7 +199,10 @@ export function presentTavernGameActionResult(result: {
     }
     return presentDicePokerState(result.session, dicePoker, result.state);
   }
-  if (result.session && isDicePokerTableState(result.session.result) && ["created", "joined", "started", "saved", "replayed", "active-session"].includes(result.state)) {
+  if (result.session && table?.phase === "terminal") {
+    return presentDicePokerTableSession(result.session);
+  }
+  if (result.session && table && ["created", "joined", "started", "saved", "replayed", "active-session"].includes(result.state)) {
     return presentDicePokerTableSession(result.session);
   }
 
@@ -600,16 +604,17 @@ function presentDicePokerTableResults(
   outcomes: Record<string, string>,
   totals?: Record<string, number>
 ): string[] {
-  return session.participants.map((participant) => {
+  return session.participants.flatMap((participant, index) => {
     const outcome = outcomes[participant.characterId] ?? "draw";
     const score = totals?.[participant.characterId];
     const result = outcome === "win" ? "🏆 перемога" : outcome === "loss" ? "💀 поразка" : "🤝 нічия";
     const money = participant.payoutGold > 0
-      ? ` · виплата ${participant.payoutGold} зол.`
+      ? ` · виплата <b>${participant.payoutGold} зол.</b>`
       : participant.refundedGold > 0
-        ? ` · повернено ${participant.refundedGold} зол.`
+        ? ` · повернено <b>${participant.refundedGold} зол.</b>`
         : "";
-    return `${escapeHtml(participant.displayName)}${score !== undefined ? ` · ${score} очк.` : ""}: ${result}${money}`;
+    const line = `${presentTavernGameParticipantName(participant)}${score !== undefined ? ` · ${score} очк.` : ""}: ${result}${money}`;
+    return index === 0 ? [line] : ["", line];
   });
 }
 
