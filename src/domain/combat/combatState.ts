@@ -15,7 +15,7 @@ import type { MonsterContextSnapshotV1 } from "./monsterContext";
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
 export const PLAYER_ABILITY_FUMBLE_CYCLE_USES = 93;
-export type CombatActionType = "attack" | "defend" | "skill" | "race" | "flee" | "skip" | "item";
+export type CombatActionType = "attack" | "defend" | "skill" | "race" | "gear" | "flee" | "skip" | "item";
 export type PlayerCombatActionType = Exclude<CombatActionType, "skip" | "item">;
 export type CombatDamageKind = "physical" | "spell" | "social" | "trick";
 export type CombatTimeoutMode = "auto-attack" | "auto-defend" | "skip";
@@ -191,6 +191,8 @@ export interface CombatState {
   barks?: CombatBarkStateV1;
   analytics?: CombatAnalyticsStateV1;
   drinkModifiers?: DrinkCombatModifiers;
+  equipmentAbilities?: CombatEquipmentAbilityState;
+  enemyStatuses?: CombatEnemyStatusesState;
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
@@ -329,6 +331,27 @@ export interface CombatTurnSummary {
   enemyActions?: CombatEnemyTurnSummary[];
   enemyPressureSkips?: CombatEnemyPressureSkipSummary[];
   debugTrace?: CombatDebugTrace;
+}
+
+export interface CombatEquipmentAbilityState {
+  version: 1;
+  grantIds: string[];
+}
+
+export interface CombatEnemyStatusesState {
+  version: 1;
+  enemies: Record<string, CombatEnemyStatusState>;
+}
+
+export interface CombatEnemyStatusState {
+  bleed?: CombatBleedStatus;
+}
+
+export interface CombatBleedStatus {
+  sourceAbilityId: string;
+  damagePerActivation: number;
+  remainingHeroActivations: number;
+  refreshedAtTurn: number;
 }
 
 export interface CombatEnemyAbilityResult {
@@ -483,6 +506,10 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.barks ? { barks: cloneCombatBarkState(state.barks) } : {}),
     ...(state.analytics ? { analytics: cloneCombatAnalyticsState(state.analytics) } : {}),
     ...(state.drinkModifiers ? { drinkModifiers: { ...state.drinkModifiers } } : {}),
+    ...(state.equipmentAbilities
+      ? { equipmentAbilities: cloneEquipmentAbilityState(state.equipmentAbilities) }
+      : {}),
+    ...(state.enemyStatuses ? { enemyStatuses: cloneEnemyStatusesState(state.enemyStatuses) } : {}),
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(state.lastTurn
       ? {
@@ -842,6 +869,27 @@ export function clonePlayerAbilityFumblesState(
       Object.entries(state.abilities).map(([abilityId, entry]) => [
         abilityId,
         { ...entry }
+      ])
+    )
+  };
+}
+
+function cloneEquipmentAbilityState(state: CombatEquipmentAbilityState): CombatEquipmentAbilityState {
+  return {
+    version: 1,
+    grantIds: [...state.grantIds]
+  };
+}
+
+function cloneEnemyStatusesState(state: CombatEnemyStatusesState): CombatEnemyStatusesState {
+  return {
+    version: 1,
+    enemies: Object.fromEntries(
+      Object.entries(state.enemies).map(([enemyId, status]) => [
+        enemyId,
+        {
+          ...(status.bleed ? { bleed: { ...status.bleed } } : {})
+        }
       ])
     )
   };

@@ -50,7 +50,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 
 Active task:
 
-- [0.2.28-mantok-set-synergies-foundation.md](0.2.28-mantok-set-synergies-foundation.md) — Mantok equipment set-synergy foundation on top of shipped slot coverage.
+- [0.2.29-mantok-ability-grants-foundation.md](0.2.29-mantok-ability-grants-foundation.md) — Mantok ability-grant foundation with persistent PvE gear actions, compact callbacks, visible bleed and additive high-level loot.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -89,6 +89,7 @@ Active task:
 - [0.2.26-mantok-equipment-slot-coverage.md](0.2.26-mantok-equipment-slot-coverage.md) — authored mantok equipment-slot coverage, identity equip gates and generated logical slot/tag materialization without touching shops, rewards, sinks, Prisma schema or dice/Shynok work.
 - [0.2.27-dice-poker-rework.md](0.2.27-dice-poker-rework.md) — replacement for confusing `🎲 Кості` with quick dice poker, 13-turn scorecard poker, compact rules, legacy Kosti refund handling and replay-safe bounded stake settlement.
 - [0.2.28-mantok-set-synergies-foundation.md](0.2.28-mantok-set-synergies-foundation.md) — active Mantok set-synergy foundation with 13 stat-only set families, live set progress and additive high-level monster loot.
+- [0.2.29-mantok-ability-grants-foundation.md](0.2.29-mantok-ability-grants-foundation.md) — active Mantok ability-grant foundation with frozen gear-action buttons, stable compact callbacks, visible bleed and weaker borrowed equipment actions.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-dice-poker-rework.md](0.2.x-dice-poker-rework.md) — archived draft activated as [0.2.27-dice-poker-rework.md](0.2.27-dice-poker-rework.md).
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.

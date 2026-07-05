@@ -235,7 +235,8 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
       (fightCallback.ok &&
         (fightCallback.value.type === "passage" ||
           fightCallback.value.type === "turn" ||
-          fightCallback.value.type === "item")) ||
+          fightCallback.value.type === "item" ||
+          fightCallback.value.type === "gear")) ||
       (yegerCallback.ok && suppressYegerCornerMovementNotice(yegerCallback.value.type));
 
     const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);

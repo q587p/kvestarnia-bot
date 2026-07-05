@@ -1,5 +1,6 @@
 import type { ItemContent } from "./schema";
 import { lootExpansionV1ItemContents } from "./lootExpansionV1";
+import { mantokAbilityGrantItemContents } from "./mantokAbilityGrants";
 import { mantokEquipmentCoverageItems } from "./mantokEquipmentCoverage";
 import { mantokSetItemContents } from "./mantokSetItems";
 import { monsterLootItemAdditions } from "./monsterLootItems";
@@ -270,6 +271,7 @@ export const items = [
   },
   ...mantokEquipmentCoverageItems,
   ...mantokSetItemContents,
+  ...mantokAbilityGrantItemContents,
   ...monsterLootItemAdditions,
   ...monsterTrophyItemAdditions,
   ...lootExpansionV1ItemContents

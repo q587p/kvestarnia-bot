@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { items, monsterLoot } from "../content";
+import {
+  findMantokAbilityGrantByKey,
+  getCombatMantokAbilityGrantsForEquippedItems,
+  items,
+  mantokAbilityGrantDefinitions,
+  monsterLoot
+} from "../content";
 import { findMonsterAbility } from "../content/monsterAbilities";
 import { findPlayerAbility, findRaceAbility } from "../content/playerAbilities";
 import { monsters } from "../content/monsters";
@@ -48,6 +54,7 @@ import {
   recordCombatTimeout,
   resetCombatTimeout,
   resolveCombatItemTurn,
+  resolveCombatGearTurn,
   resolveCombatTurn,
   resolveMonsterContext,
   startCombat,
@@ -1825,6 +1832,16 @@ export class FightService {
       version: 1
     };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
+    const equipmentGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
+      itemIds: getEquippedItemIdsFromSummary(characterSummary),
+      characterLevel: characterSummary.level
+    }).map((grant) => grant.id);
+    if (equipmentGrantIds.length > 0) {
+      state.equipmentAbilities = {
+        version: 1,
+        grantIds: equipmentGrantIds
+      };
+    }
     const shouldAttachThreat = (threatDecision.enemyCount === 2 && !options.enemyCount) ||
       (options.enemyCount === 2 && options.devBypassAvailability && devThreatSecondEnemyLevelBonus > 0);
     if (shouldAttachThreat) {
@@ -2070,7 +2087,7 @@ export class FightService {
 
   async resolvePersistentFightTurn(
     telegramUserId: bigint,
-    input: { sessionId: string; turn: number; action: CombatActionType }
+    input: { sessionId: string; turn: number; action: CombatActionType; grantKey?: string }
   ): Promise<PersistentFightTurnResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -2276,14 +2293,45 @@ export class FightService {
       };
     }
 
-    const resolved = resolveCombatTurn({
+    const grant = input.action === "gear" && input.grantKey
+      ? findMantokAbilityGrantByKey(input.grantKey)
+      : null;
+    if (input.action === "gear" && (!grant?.combat || !currentSession.state.equipmentAbilities?.grantIds.includes(grant.id))) {
+      return {
+        state: "stale-turn",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    const commonTurnInput = {
       state: currentSession.state,
-      action: input.action,
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
       rng: this.rng
-    });
+    };
+    const resolved = grant?.combat
+      ? resolveCombatGearTurn({
+          ...commonTurnInput,
+          ability: {
+            profile: grant.combat.profile,
+            ...(grant.combat.bleed
+              ? {
+                  bleed: {
+                    sourceAbilityId: grant.combat.profile.id,
+                    ...grant.combat.bleed
+                  }
+                }
+              : {})
+          }
+        })
+      : resolveCombatTurn({
+          ...commonTurnInput,
+          action: input.action
+        });
 
     if (!resolved.ok && resolved.reason !== "not-enough-mana" && resolved.reason !== "skill-on-cooldown") {
       return {
@@ -4525,6 +4573,14 @@ function buildHeroCombatStats(
   };
 }
 
+function getEquippedItemIdsFromSummary(character: CharacterSummary): string[] {
+  return Array.from(new Set(
+    (character.equipmentEffects?.contributions ?? [])
+      .map((contribution) => contribution.itemId)
+      .filter((itemId) => items.some((item) => item.id === itemId))
+  ));
+}
+
 function isSettlementCompletionSuccess(outcome: SettlementCompletionFlowResult["outcome"]): boolean {
   return outcome === "completed" || outcome === "already-completed";
 }
@@ -5219,6 +5275,17 @@ export interface CombatSkillDisplay {
 }
 
 export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillDisplay {
+  const gearGrant = mantokAbilityGrantDefinitions.find((grant) =>
+    "combat" in grant && grant.combat?.profile.id === skillId
+  );
+  if (gearGrant) {
+    const [icon, ...nameParts] = gearGrant.label.split(" ");
+    return {
+      icon: icon ?? "🎛",
+      name: nameParts.join(" ") || gearGrant.label
+    };
+  }
+
   const playerAbility = findPlayerAbility(skillId);
   if (playerAbility) {
     const [icon, ...nameParts] = playerAbility.label.split(" ");

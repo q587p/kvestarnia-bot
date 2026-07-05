@@ -3,6 +3,7 @@ import {
   presentEquipItemResult,
   presentEquipment
 } from "../../src/bot/presenters/equipmentPresenter";
+import { items } from "../../src/content";
 import { mantokSetItemContents } from "../../src/content/mantokSetItems";
 import type {
   EquipmentResult,
@@ -109,6 +110,31 @@ describe("equipment presenter", () => {
     expect(text).toContain("<b>Бочковий панцир старшого Брата</b>: 2/4");
     expect(text).toContain("Активно: Обруч не питає <i>(+2 HP · +1 до захисту)</i>");
     expect(text).toContain("Далі: 3 частини — Бочка тримає форму <i>(+1 до опору)</i>");
+  });
+
+  it("shows Mantok granted gear actions in equipped slots", () => {
+    const dagger = items.find((item) => item.id === "item.set.red-line.left-dagger");
+    expect(dagger).toBeDefined();
+    if (!dagger) {
+      throw new Error("Expected red-line dagger content.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        { slot: "weapon", item: { itemId: dagger.id, content: dagger } },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("Дія: <b>🩸 Червоний рядок</b>");
+    expect(text).toContain("1 мани");
+    expect(text).toContain("перезарядка 3");
   });
 
   it("shows the offhand as occupied by a twohand main-hand item", () => {

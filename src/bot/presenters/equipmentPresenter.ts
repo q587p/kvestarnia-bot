@@ -8,6 +8,7 @@ import type {
   UnequipSlotResult
 } from "../../services/equipmentService";
 import type { ItemEffectContent } from "../../content/schema";
+import { findMantokAbilityGrantByItemId } from "../../content";
 import { getActiveMantokSets } from "../../domain/equipment/mantokSetBonuses";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -137,11 +138,32 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
 
     return [
       `${slot.icon} <b>${slot.label}</b>: ${name}`,
-      `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`
+      `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`,
+      ...presentMantokAbilityGrantSlotLines(equipped.content.id)
     ].join("\n");
   }
 
   return `${slot.icon} <b>${slot.label}</b>: <i>${slot.emptyText}</i>`;
+}
+
+function presentMantokAbilityGrantSlotLines(itemId: string): string[] {
+  const grant = findMantokAbilityGrantByItemId(itemId);
+  if (!grant) {
+    return [];
+  }
+
+  if (grant.combat) {
+    const cost = grant.combat.profile.manaCost > 0
+      ? `${grant.combat.profile.manaCost} мани`
+      : "без мани";
+    const borrowed = grant.borrowedFrom ? "; позичена, не рідна" : "";
+
+    return [
+      `Дія: <b>${escapeHtml(grant.label)}</b> (${cost}, перезарядка ${grant.combat.profile.cooldownOwnActions}${borrowed})`
+    ];
+  }
+
+  return [`Перк: <b>${escapeHtml(grant.label)}</b> (без бойової кнопки)`];
 }
 
 function presentMantokSetSummaryLines(slots: EquipmentSlotSummary[]): string[] {

@@ -29,6 +29,12 @@ export type FightCallback =
       itemKey: string;
     }
   | {
+      type: "gear";
+      sessionId: string;
+      turn: number;
+      grantKey: string;
+    }
+  | {
       type: "view";
       sessionId: string;
     }
@@ -46,6 +52,7 @@ export type FightCallback =
 const MIMIC_PREFIX = "v1:fight:mimic";
 const TURN_PREFIX = "v1:fight:turn";
 const ITEM_PREFIX = "v1:fight:item";
+const GEAR_PREFIX = "v1:fight:gear";
 const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
 const PASSAGE_PREFIX = "v1:fight:pass";
@@ -78,6 +85,14 @@ export function makeFightItemUseCallbackData(input: {
   itemKey: string;
 }): string {
   return `${ITEM_PREFIX}:${input.sessionId}:${input.turn}:${input.itemKey}`;
+}
+
+export function makeFightGearActionCallbackData(input: {
+  sessionId: string;
+  turn: number;
+  grantKey: string;
+}): string {
+  return `${GEAR_PREFIX}:${input.sessionId}:${input.turn}:${input.grantKey}`;
 }
 
 export function makeFightViewCallbackData(sessionId: string): string {
@@ -181,6 +196,35 @@ export function parseFightCallbackData(
       sessionId,
       turn,
       itemKey
+    });
+  }
+
+  if (data.startsWith(`${GEAR_PREFIX}:`)) {
+    const [, section, scene, sessionId, turnRaw, grantKey, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "gear" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    const turn = Number(turnRaw);
+
+    if (!Number.isInteger(turn) || turn < 1) {
+      return err("invalid-turn");
+    }
+
+    if (!grantKey || !combatItemKeyPattern.test(grantKey)) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "gear",
+      sessionId,
+      turn,
+      grantKey
     });
   }
 

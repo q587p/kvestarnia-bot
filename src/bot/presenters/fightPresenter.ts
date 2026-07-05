@@ -4,6 +4,7 @@ import {
   findThreatEscalationLine,
   getCombatActionAvailability,
   getCombatClassAbilityProfile,
+  getCombatGearActionAvailability,
   getCombatRaceAbilityProfile,
   getTerminalCombatTurnLogEventId,
   normalizeCombatEnemies,
@@ -12,7 +13,7 @@ import {
   type CombatTurnSummary
 } from "../../domain/combat";
 import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
-import { items } from "../../content";
+import { getCombatMantokAbilityGrantsByIds, items } from "../../content";
 import type {
   FightLookupResult,
   FightResult,
@@ -471,8 +472,13 @@ function presentActiveFightEffectNotices(
         : []
     )
     .map((notice) => `🧷 Ефект триває: ${escapeHtml(trimTerminalPunctuation(notice))}.`);
+  const bleedNotices = Object.values(state.enemyStatuses?.enemies ?? {})
+    .flatMap((status) => status.bleed ? [status.bleed] : [])
+    .map((bleed) =>
+      `🩸 Кровотеча триває: ${bleed.damagePerActivation} шкоди, ще ${bleed.remainingHeroActivations} активац.`
+    );
 
-  return Array.from(new Set(notices));
+  return Array.from(new Set([...notices, ...bleedNotices]));
 }
 
 function presentJournalEnemyHpRows(
@@ -1250,7 +1256,7 @@ function presentTurnSummary(
   }
 
   const action =
-    summary.action === "skill" || summary.action === "race"
+    summary.action === "skill" || summary.action === "race" || summary.action === "gear"
       ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
@@ -1593,6 +1599,20 @@ function presentUnavailableAbilityNotices(
 
   if (availability.race.available === false && availability.race.reason === "not-enough-mana" && availability.race.ability) {
     notices.push(presentNotEnoughManaAbility(getCombatRaceAbilityProfile(character.raceId) ?? availability.race.ability, state.hero.mana));
+  }
+
+  const gearGrants = getCombatMantokAbilityGrantsByIds({
+    grantIds: state.equipmentAbilities?.grantIds ?? [],
+    characterLevel: character.level
+  });
+  for (const grant of gearGrants) {
+    if (!grant.combat) {
+      continue;
+    }
+    const gearAvailability = getCombatGearActionAvailability(state, grant.combat.profile);
+    if (gearAvailability.available === false && gearAvailability.reason === "not-enough-mana") {
+      notices.push(presentNotEnoughManaAbility(grant.combat.profile, state.hero.mana));
+    }
   }
 
   return notices;

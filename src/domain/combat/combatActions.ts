@@ -7,7 +7,7 @@ import {
 } from "../../content/playerAbilities";
 import type { CombatActionType, CombatDamageKind, PlayerCombatActionType } from "./combatState";
 
-export type CombatAbilitySource = "basic" | "class" | "race" | "signature" | "monster";
+export type CombatAbilitySource = "basic" | "class" | "race" | "equipment" | "signature" | "monster";
 export type CombatTargetScope =
   | "self"
   | "single-enemy"
@@ -32,7 +32,7 @@ export interface CombatSkillProfile {
   id: string;
   legacyCooldownIds?: readonly string[];
   source?: CombatAbilitySource;
-  action?: Extract<PlayerCombatActionType, "skill" | "race">;
+  action?: Extract<PlayerCombatActionType, "skill" | "race" | "gear">;
   label?: string;
   description?: string;
   primaryTargetScope?: CombatTargetScope;
@@ -184,6 +184,10 @@ export function getCombatAbilityForAction(
 
   if (action === "race") {
     return getRaceCombatAbility(raceId) ?? getBasicCombatAbility("defend");
+  }
+
+  if (action === "gear") {
+    return getBasicCombatAbility("attack");
   }
 
   return getBasicCombatAbility(action);

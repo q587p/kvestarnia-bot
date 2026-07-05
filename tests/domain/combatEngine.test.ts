@@ -15,6 +15,7 @@ import {
   rollFleeSuccess,
   rollMonsterDamage,
   rollSkillAttack,
+  resolveCombatGearTurn,
   resolveCombatItemTurn,
   resolveCombatTurn,
   startCombat,
@@ -23,6 +24,7 @@ import {
   type CombatState,
   type MonsterCombatStats
 } from "../../src/domain/combat";
+import { findMantokAbilityGrantByKey } from "../../src/content";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import { FakeRandomSource } from "../../src/shared/random";
 
@@ -2485,6 +2487,93 @@ describe("combat domain engine", () => {
     expect(result.summary.heroEffectDamage).toBe(3);
     expect(result.summary.monsterDamage).toBeGreaterThanOrEqual(3);
     expect(result.state.lastTurn?.heroEffectDamage).toBe(3);
+  });
+
+  it("resolves gear actions with separate cooldowns and mana gates", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    expect(grant?.combat).toBeDefined();
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+
+    const first = resolveCombatGearTurn({
+      state: startCombat({ hero: { ...warrior, level: 10, manaCurrent: 3 }, monster }),
+      ability: {
+        profile: grant.combat.profile,
+        bleed: {
+          sourceAbilityId: grant.combat.profile.id,
+          ...grant.combat.bleed!
+        }
+      },
+      hero: { ...warrior, level: 10 },
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected gear turn to resolve.");
+    }
+    expect(first.summary.action).toBe("gear");
+    expect(first.summary.abilitySource).toBe("equipment");
+    expect(first.summary.skillId).toBe("gear.red-line-dagger");
+    expect(first.state.cooldowns?.skill).toBeUndefined();
+    expect(first.state.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 3
+    });
+
+    const blocked = resolveCombatGearTurn({
+      state: first.state,
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 10 },
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toBe("skill-on-cooldown");
+  });
+
+  it("lets gear bleed settle combat without an extra monster response", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    expect(grant?.combat?.bleed).toBeDefined();
+    if (!grant?.combat?.bleed) {
+      throw new Error("Expected red-line dagger bleed grant.");
+    }
+    const lowHpMonster = { ...monster, hpMax: 2, attack: 10 };
+
+    const result = resolveCombatGearTurn({
+      state: startCombat({
+        hero: { ...warrior, level: 10, manaCurrent: 3 },
+        monster: lowHpMonster
+      }),
+      ability: {
+        profile: {
+          ...grant.combat.profile,
+          baseDamage: 0,
+          multiplier: 0.1
+        },
+        bleed: {
+          sourceAbilityId: grant.combat.profile.id,
+          damagePerActivation: 1,
+          remainingHeroActivations: 3
+        }
+      },
+      hero: { ...warrior, level: 10 },
+      monster: lowHpMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected gear bleed turn to resolve.");
+    }
+    expect(result.state.status).toBe("won");
+    expect(result.summary.heroEffectDamage).toBe(1);
+    expect(result.summary.monsterDamage).toBe(1);
+    expect(result.state.hero.hp).toBe(result.state.hero.hpMax);
+    expect(result.state.enemyStatuses).toBeUndefined();
   });
 });
 

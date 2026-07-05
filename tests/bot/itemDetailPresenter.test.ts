@@ -3,6 +3,7 @@ import {
   presentItemDetail,
   presentOwnedItemDetail
 } from "../../src/bot/presenters/itemDetailPresenter";
+import { items } from "../../src/content";
 import type { InventoryItemSummary } from "../../src/services/inventoryService";
 
 describe("item detail presenter", () => {
@@ -461,6 +462,21 @@ describe("item detail presenter", () => {
     expect(text).toContain("Опис із &lt;script&gt; і &amp; знаком.");
     expect(text).not.toContain("<script>");
     expect(text).not.toContain("<b>Пательня & форма</b>");
+  });
+
+  it("shows Mantok ability grants on item detail pages", () => {
+    const content = items.find((item) => item.id === "item.set.red-line.left-dagger");
+    expect(content).toBeDefined();
+    if (!content) {
+      throw new Error("Expected red-line dagger content.");
+    }
+
+    const text = presentOwnedItemDetail(itemSummary({ itemId: content.id, content }));
+
+    expect(text).toContain("Дія спорядження: <b>🩸 Червоний рядок</b>");
+    expect(text).toContain("рівень 10+");
+    expect(text).toContain("1 мани");
+    expect(text).toContain("перезарядка 3 ходи");
   });
 
   it("does not reveal details for missing characters or unowned items", () => {

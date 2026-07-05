@@ -540,7 +540,7 @@ async function handleFightCallback(
     return;
   }
 
-  if (callback.type === "turn" || callback.type === "item") {
+  if (callback.type === "turn" || callback.type === "item" || callback.type === "gear") {
     const yegerBefore = await getYegerProgressSnapshot(services.yeger, telegramUserId);
     const result = callback.type === "turn"
       ? await services.fight.resolvePersistentFightTurn(telegramUserId, {
@@ -548,6 +548,13 @@ async function handleFightCallback(
           turn: callback.turn,
           action: callback.action
         })
+      : callback.type === "gear"
+        ? await services.fight.resolvePersistentFightTurn(telegramUserId, {
+            sessionId: callback.sessionId,
+            turn: callback.turn,
+            action: "gear",
+            grantKey: callback.grantKey
+          })
       : await services.fight.resolvePersistentFightItemTurn(telegramUserId, {
           sessionId: callback.sessionId,
           turn: callback.turn,

@@ -1,4 +1,5 @@
 import type { ItemContent } from "../../content/schema";
+import { findMantokAbilityGrantByItemId } from "../../content";
 import { getMantokSetProgressForItem } from "../../domain/equipment/mantokSetBonuses";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import {
@@ -60,6 +61,7 @@ export function presentOwnedItemDetail(
     "",
     `<i>${escapeHtml(content.description)}</i>`,
     ...presentMantokSetDetailLines(content.id, options.equippedItemIds ?? []),
+    ...presentMantokAbilityGrantDetailLines(content.id),
     "",
     ...presentItemUseLine(options.itemUse ?? null, options.combatUseAvailable === true),
     ...(options.itemUse ? [""] : []),
@@ -67,6 +69,34 @@ export function presentOwnedItemDetail(
     "",
     presentItemFlavor(content)
   ].join("\n");
+}
+
+function presentMantokAbilityGrantDetailLines(itemId: string): string[] {
+  const grant = findMantokAbilityGrantByItemId(itemId);
+  if (!grant) {
+    return [];
+  }
+
+  if (grant.combat) {
+    const cost = grant.combat.profile.manaCost > 0
+      ? `${grant.combat.profile.manaCost} мани`
+      : "без мани";
+    const borrowed = grant.borrowedFrom
+      ? ` Позичена від: ${escapeHtml(grant.borrowedFrom)}; не рахується рідною дією.`
+      : "";
+
+    return [
+      "",
+      `Дія спорядження: <b>${escapeHtml(grant.label)}</b> — ${escapeHtml(grant.description)}`,
+      `Умови: рівень ${grant.minLevel}+, ${cost}, перезарядка ${grant.combat.profile.cooldownOwnActions} ходи.${borrowed}`
+    ];
+  }
+
+  return [
+    "",
+    `Перк спорядження: <b>${escapeHtml(grant.label)}</b> — ${escapeHtml(grant.description)}`,
+    "Зараз це службова позначка без бойової кнопки."
+  ];
 }
 
 function presentMantokSetDetailLines(

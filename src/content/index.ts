@@ -39,6 +39,16 @@ export {
 } from "./characterOptions";
 export { items } from "./items";
 export {
+  findMantokAbilityGrantByItemId,
+  findMantokAbilityGrantByKey,
+  getCombatMantokAbilityGrantsByIds,
+  getCombatMantokAbilityGrantsForEquippedItems,
+  mantokAbilityGrantDefinitions,
+  mantokAbilityGrantItemContents,
+  mantokAbilityGrantLootAdditions
+} from "./mantokAbilityGrants";
+export type { MantokAbilityGrantDefinition } from "./mantokAbilityGrants";
+export {
   getLoreCategory,
   getLoreEntriesForCategory,
   getLoreEntriesForGroup,

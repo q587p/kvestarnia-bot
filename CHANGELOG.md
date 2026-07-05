@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.29] - 12026-07-06 - Mantok Ability Grants Foundation
+
+### Added
+- Added a data-driven Mantok ability-grant registry with stable compact gear-action keys, uniqueness validation and additive high-level monster loot for the first authored grant set.
+- Added the first epic/soulbound ability manatky in the level `9..13` band, including one new rapier item and grant metadata for existing Mantok set pieces.
+- Added persistent PvE gear-action callbacks and fight buttons that freeze grant ids at combat start, spend mana/cooldowns through the combat engine and reject stale or un-frozen callbacks without advancing combat.
+- Added equipment-sourced combat profiles for reinforced defense, small bleed strikes and weaker borrowed class/race-style actions that do not count as native class or race actions.
+- Added a narrow visible bleed status family that ticks during committed hero activations and can settle combat without an extra monster response when the status itself defeats the final enemy.
+- Added item-detail and equipment-surface summaries for granted actions and service-perk markers.
+- Added focused registry, callback, combat-engine and presenter tests for compact keys, collision safety, cooldown/mana behavior, bleed settlement and visible grant copy.
+
+### Changed
+- Active fight keyboards can now show eligible gear actions after native attack/defend/class/race controls while preserving existing combat item and class/race cooldown behavior.
+- Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
+- Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
+
+### Deferred
+- The Yeger cloak ordinary-bandage service perk is represented as a narrow documented service marker only; no Yeger board, dense-bandage, field-kit or service runtime change ships in this slice.
+- PvP/duel gear actions, generated ability loot, hidden procs, free extra turns, shops, markets, crafting and ability-granting set bonuses remain deferred.
+
 ## [0.2.28] - 12026-07-06 - Mantok Set Synergies Foundation
 
 ### Added
