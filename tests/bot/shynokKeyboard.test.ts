@@ -9,7 +9,7 @@ import {
   buildShynokGameSessionKeyboard,
   formatShynokOpenTableButtonLabel
 } from "../../src/bot/keyboards/shynokKeyboard";
-import { buildTavernGameActionKeyboard } from "../../src/bot/modules/tavern";
+import { buildTavernGameActionKeyboard } from "../../src/bot/tavernGameNotifications";
 import { startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("Shynok game keyboards", () => {
@@ -104,6 +104,32 @@ describe("Shynok game keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual(["✅ Сісти за стіл", "↩ До ігор"]);
     expect(flatInlineButtonCallbacks(keyboard)).toContain(`v1:sh:gj:${token}`);
     expect(flatInlineButtonCallbacks(keyboard)).not.toContain(`v1:sh:gsh:${token}`);
+  });
+
+  it("hides invite actions from seated non-creators on open tables", () => {
+    const token = "12345678-1234-4234-9234-123456789abc";
+    const keyboard = buildShynokGameSessionKeyboard({
+      state: "joined",
+      session: kostiSession({
+        status: "open",
+        token,
+        participantCount: 2,
+        result: {
+          kind: "dice_poker_table",
+          mode: "scorecard",
+          phase: "waiting",
+          playerCap: 8,
+          drawRound: 1
+        }
+      })
+    }, {
+      viewerTelegramUserId: 2002n,
+      inviteUrl: `https://t.me/kvestarnia_bot?start=game_${token}`
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(keyboard)).not.toContain(`v1:sh:gsh:${token}`);
+    expect(flatInlineButtonUrls(keyboard)).toEqual([]);
   });
 
   it("shows Kosti resolve only while the table is still open or ready", () => {

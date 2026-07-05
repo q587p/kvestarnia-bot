@@ -48,6 +48,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Completed Dice Poker games against `🪞 Допельґанґер` now replay their stored result and `🔁 Зіграти ще` starts the same fallback game instead of falling into old Kosti stale-copy.
 - `🏆 Рейтинг` now counts `🪞 Допельґанґер` as a visible table-games opponent for Dice Poker and Tavlei fallback wins, draws and losses.
 - Invite-link join failures now show `✅ Сісти за стіл` for non-participants on still-open tables instead of creator-only invite buttons, so a player can sell manatky for gold and retry the same table.
+- `/start game_...` deep-link joins now notify already seated table participants just like inline Shynok joins, including viewer-specific quick Dice Poker controls and ready Tavlei tactic controls.
+- Invite-card view/rotate callbacks are now passive and creator-only: stale invite previews do not expire/refund/resolve the table, and seated non-creators no longer see or rotate invite controls.
+- `🔁 Зіграти ще` on completed Doppelganger games now has explicit day/night behavior: it starts the fallback rematch only while the Doppelganger is in Shynok and otherwise shows the existing clear blocked message without reserving a stake.
 - Open and ready Tavlei table cards now separate title, players, bank and next action with blank lines, and render seated character names in bold with active cosmetic titles.
 
 ### Deferred

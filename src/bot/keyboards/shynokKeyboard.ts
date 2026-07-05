@@ -293,7 +293,7 @@ export function buildShynokGameSessionKeyboard(result: {
   if (!viewer && canJoinTavernGameSession(result.session)) {
     keyboard.text("✅ Сісти за стіл", makeShynokGameJoinCallbackData(result.session.token)).row();
   }
-  if (viewer && canInviteToTavernGameSession(result.session) && options.inviteUrl) {
+  if (viewerIsCreator && canInviteToTavernGameSession(result.session) && options.inviteUrl) {
     keyboard.text("📣 Запрошення до столу", makeShynokGameShareCallbackData(result.session.token)).row();
     keyboard.url("🔗 Запросити до столу", buildTelegramShareUrl(options.inviteUrl)).row();
   }

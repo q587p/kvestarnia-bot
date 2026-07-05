@@ -4,6 +4,7 @@ import type { OnboardingService } from "../../services/onboardingService";
 import type { PartyBossService } from "../../services/partyBossService";
 import type { PartySessionService } from "../../services/partySessionService";
 import type { TavernGameService } from "../../services/tavernGameService";
+import type { TelegramUserProfile } from "../../db/repositories/userRepository";
 import { playerFromContext } from "../context";
 import {
   buildDuelAcceptConfirmationKeyboard,
@@ -23,7 +24,11 @@ import { presentSupportThanks } from "../presenters/supportPresenter";
 import { presentTavernGameActionResult } from "../presenters/tavernGamePresenter";
 import { parseStartPayload } from "../startPayload";
 import { sendPartyJoinFromStartPayload } from "./partySessionCommand";
-import { buildTavernGameActionKeyboard, buildTavernGameInviteUrl } from "../modules/tavern";
+import {
+  buildTavernGameActionKeyboard,
+  buildTavernGameInviteUrl,
+  notifyTavernGameParticipants
+} from "../tavernGameNotifications";
 
 export interface StartCommandOptions {
   duel?: DuelChallengeService;
@@ -66,30 +71,14 @@ export function registerStartCommand(
     }
 
     if (payload.type === "tavern-game" && options.tavernGames) {
-      const result = await options.tavernGames.joinByTokenForTelegramUser(player.telegramUserId, payload.token);
-      if (result.state === "no-character") {
-        await onboardingService.start(player);
-        await ctx.reply(presentTavernGameActionResult(result), {
-          parse_mode: "HTML",
-          reply_markup: buildGenderKeyboard()
-        });
-        return;
-      }
-
-      const inviteUrl = "session" in result
-        ? buildTavernGameInviteUrl(options.botUsername, result.session.token)
-        : null;
-      await ctx.reply(presentTavernGameActionResult({
-        ...result,
-        viewerTelegramUserId: player.telegramUserId
-      }), {
-        parse_mode: "HTML",
-        ...("session" in result
-          ? {
-              reply_markup: buildTavernGameActionKeyboard(result, player.telegramUserId, { inviteUrl })
-            }
-          : {})
-      });
+      await sendTavernGameJoinFromStartPayload(
+        ctx,
+        onboardingService,
+        options.tavernGames,
+        player,
+        payload.token,
+        { botUsername: options.botUsername }
+      );
       return;
     }
 
@@ -174,6 +163,43 @@ export function registerStartCommand(
       parse_mode: "HTML" as const,
       reply_markup: buildGenderKeyboard()
     });
+  });
+}
+
+export async function sendTavernGameJoinFromStartPayload(
+  ctx: Context,
+  onboardingService: OnboardingService,
+  tavernGames: TavernGameService,
+  player: TelegramUserProfile,
+  token: string,
+  options: { botUsername?: string | undefined } = {}
+): Promise<void> {
+  const result = await tavernGames.joinByTokenForTelegramUser(player.telegramUserId, token);
+  if (result.state === "no-character") {
+    await onboardingService.start(player);
+    await ctx.reply(presentTavernGameActionResult(result), {
+      parse_mode: "HTML",
+      reply_markup: buildGenderKeyboard()
+    });
+    return;
+  }
+
+  const inviteUrl = "session" in result
+    ? buildTavernGameInviteUrl(options.botUsername, result.session.token)
+    : null;
+  await ctx.reply(presentTavernGameActionResult({
+    ...result,
+    viewerTelegramUserId: player.telegramUserId
+  }), {
+    parse_mode: "HTML",
+    ...("session" in result
+      ? {
+          reply_markup: buildTavernGameActionKeyboard(result, player.telegramUserId, { inviteUrl })
+        }
+      : {})
+  });
+  await notifyTavernGameParticipants(ctx, result, player.telegramUserId, {
+    botUsername: options.botUsername
   });
 }
 

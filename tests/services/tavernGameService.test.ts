@@ -283,20 +283,24 @@ describe("TavernGameService", () => {
     expect(repository.joinCalls).toBe(0);
   });
 
-  it("allows invite views for participants on open Tavlei and Dice Poker tables", async () => {
+  it("allows invite views for creators on open Tavlei and Dice Poker tables", async () => {
     const player = participant("character-creator", 42n, "Тест", { status: "joined" });
     const tavlei = session({
       token: "12345678-1234-4234-9234-000000000431",
       gameKey: "tavlei",
       status: "open",
+      creatorCharacterId: player.characterId,
+      joinExpiresAt: new Date(now.getTime() + 60_000),
       participants: [player]
     });
     const scorecard = session({
       token: "12345678-1234-4234-9234-000000000432",
       gameKey: "kosti",
       status: "open",
+      creatorCharacterId: player.characterId,
       rulesVersion: DICE_POKER_RULES_VERSION,
       result: startDicePokerTable("scorecard"),
+      joinExpiresAt: new Date(now.getTime() + 60_000),
       participants: [player]
     });
     const tavleiService = new TavernGameService(new FakeTavernGameRepository({ tokenSession: tavlei }), config({
@@ -324,6 +328,7 @@ describe("TavernGameService", () => {
       token: "12345678-1234-4234-9234-000000000433",
       gameKey: "kosti",
       status: "open",
+      creatorCharacterId: player.characterId,
       rulesVersion: DICE_POKER_RULES_VERSION,
       result: startDicePokerTable("quick"),
       participants: [player]
@@ -350,6 +355,56 @@ describe("TavernGameService", () => {
       state: "stale",
       session: playing
     });
+  });
+
+  it("does not expose invite views to seated non-creators", async () => {
+    const creator = participant("character-creator", 42n, "Тест", { status: "joined" });
+    const joiner = participant("character-joiner", 43n, "Другий", { status: "joined" });
+    const waiting = session({
+      token: "12345678-1234-4234-9234-000000000435",
+      gameKey: "kosti",
+      status: "open",
+      creatorCharacterId: creator.characterId,
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: startDicePokerTable("scorecard"),
+      participants: [creator, joiner]
+    });
+    const service = new TavernGameService(new FakeTavernGameRepository({ tokenSession: waiting }), config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    expect(await service.getInviteViewForTelegramUser(43n, waiting.token)).toEqual({
+      state: "not-creator",
+      session: waiting
+    });
+  });
+
+  it("keeps expired invite preview passive without refunding or expiring the table", async () => {
+    const player = participant("character-creator", 42n, "Тест", { status: "joined" });
+    const waiting = session({
+      token: "12345678-1234-4234-9234-000000000436",
+      gameKey: "kosti",
+      status: "open",
+      creatorCharacterId: player.characterId,
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: startDicePokerTable("quick"),
+      joinExpiresAt: new Date(now.getTime() - 1000),
+      participants: [player]
+    });
+    const repository = new FakeTavernGameRepository({ tokenSession: waiting });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    expect(await service.getInviteViewForTelegramUser(42n, waiting.token)).toEqual({
+      state: "stale",
+      session: waiting
+    });
+    expect(repository.peekCalls).toBe(1);
+    expect(repository.getByTokenCalls).toBe(0);
+    expect(repository.refundDisabledCalls).toBe(0);
   });
 
   it("refunds an old incompatible active Kosti session before starting dice poker", async () => {
@@ -634,6 +689,42 @@ describe("TavernGameService", () => {
     expect(result).not.toHaveProperty("rematchInvitees");
   });
 
+  it("blocks a daytime Doppelganger rematch without reserving a stake", async () => {
+    const previousState = {
+      ...startQuickDicePoker("doppel-rematch-day"),
+      phase: "terminal" as const,
+      outcome: "win" as const,
+      playerHand: { rank: "pair" as const, tieBreak: [6, 5, 4, 3] },
+      opponentHand: { rank: "high" as const, tieBreak: [6, 5, 4, 3, 2] },
+      reason: "Пара сильніша."
+    };
+    const previous = session({
+      gameKey: "kosti",
+      status: "completed",
+      stakeGold: 5,
+      token: "12345678-1234-4234-9234-000000000432",
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: {
+        kind: "dice_poker",
+        outcome: "win",
+        state: previousState
+      },
+      participants: [participant("character-1", 42n, "Тест", { status: "completed" })]
+    });
+    const day = new Date("2026-07-02T10:00:00.000Z");
+    const repository = new FakeTavernGameRepository({ tokenSession: previous });
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => day);
+
+    const result = await service.createRematchForTelegramUser(42n, previous.token);
+
+    expect(result).toEqual({ state: "blocked", reason: "doppelganger-at-fighting-corner" });
+    expect(repository.lastDicePokerCreateInput).toBeNull();
+    expect(result).not.toHaveProperty("rematchInvitees");
+  });
+
   it("builds day week and month leaderboards from completed tables", async () => {
     const alice = participant("character-a", 101n, "Аля");
     const bob = participant("character-b", 102n, "Боб");
@@ -796,6 +887,8 @@ function config(overrides: Partial<ConstructorParameters<typeof TavernGameServic
 
 class FakeTavernGameRepository implements TavernGameRepository {
   listOpenCalls = 0;
+  peekCalls = 0;
+  getByTokenCalls = 0;
   joinCalls = 0;
   refundDisabledCalls = 0;
   submitDecisionCalls = 0;
@@ -841,10 +934,12 @@ class FakeTavernGameRepository implements TavernGameRepository {
   }
 
   peekByToken(): Promise<TavernGameSessionRecord | null> {
+    this.peekCalls += 1;
     return Promise.resolve(this.options.tokenSession ?? null);
   }
 
   getByToken(): Promise<TavernGameSessionRecord | null> {
+    this.getByTokenCalls += 1;
     return Promise.resolve(this.options.tokenSession ?? null);
   }
 

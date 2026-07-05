@@ -100,6 +100,7 @@ export type TavernGameInviteViewResult =
   | TavernGameFeatureResult
   | { state: "not-found" }
   | { state: "not-participant"; session: TavernGameSessionRecord }
+  | { state: "not-creator"; session: TavernGameSessionRecord }
   | { state: "stale"; session: TavernGameSessionRecord }
   | { state: "ready"; session: TavernGameSessionRecord };
 
@@ -419,24 +420,27 @@ export class TavernGameService {
     token: string
   ): Promise<TavernGameInviteViewResult> {
     const now = this.now();
-    const tokenGate = await this.refundIfTokenGameDisabled(token, now);
-    if (tokenGate) {
-      return tokenGate;
-    }
-    const stale = await this.refundOldKostiTable(token, now);
-    if (stale) {
-      return stale;
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
     }
 
-    const session = await this.repository.getByToken(token, now);
+    const session = await this.repository.peekByToken(token);
     if (!session) {
       return { state: "not-found" };
     }
-    if (!session.participants.some((participant) => participant.telegramUserId === telegramUserId)) {
-      return { state: "not-participant", session };
+    if (!this.isGameEnabled(session.gameKey)) {
+      return { state: "game-disabled", gameKey: session.gameKey };
     }
 
-    return isInviteableTavernGameSession(session)
+    const participant = session.participants.find((row) => row.telegramUserId === telegramUserId);
+    if (!participant) {
+      return { state: "not-participant", session };
+    }
+    if (participant.characterId !== session.creatorCharacterId) {
+      return { state: "not-creator", session };
+    }
+
+    return isInviteableTavernGameSession(session) && session.joinExpiresAt > now
       ? { state: "ready", session }
       : { state: "stale", session };
   }

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaTavernGameRepository } from "../../src/db/repositories/prismaTavernGameRepository";
+import { TavernGameService } from "../../src/services/tavernGameService";
 import {
   evaluateQuickHand,
   isDicePokerState,
@@ -446,6 +447,58 @@ describe("PrismaTavernGameRepository integration", () => {
       { status: "left_refunded", refundedGold: 3, activeStakeKey: null },
       { status: "left_refunded", refundedGold: 3, activeStakeKey: null }
     ]);
+  });
+
+  it("keeps invite preview passive after join-window expiry without mutating status or gold", async () => {
+    const token = "12345678-1234-4234-9234-000000000436";
+    await seedCharacter({ telegramUserId: 436n, characterId: "character-passive-invite", name: "Запрошувач", gold: 10 });
+
+    const created = await repository.createDicePokerForTelegramUser(436n, {
+      mode: "quick",
+      token,
+      seed: "passive-invite-expired",
+      stakeGold: 1,
+      maxStake: 93,
+      expiresAt: new Date(now().getTime() + 5 * 60_000),
+      joinExpiresAt: new Date(now().getTime() - 1000),
+      decisionExpiresAt: null,
+      cooldownMs: 0,
+      now: now(),
+      status: "open",
+      state: startDicePokerTable("quick")
+    });
+    expect(created.state).toBe("created");
+    const service = new TavernGameService(repository, {
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true,
+      tavernGameKostiEnabled: true,
+      tavernGameMaxStake: 93,
+      tavernGameCreateCooldownSec: 0
+    }, now);
+
+    const preview = await service.getInviteViewForTelegramUser(436n, token);
+
+    expect(preview.state).toBe("stale");
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, resultJson: true }
+    })).resolves.toEqual({
+      status: "open",
+      resultJson: {
+        kind: "dice_poker_table",
+        mode: "quick",
+        phase: "waiting",
+        playerCap: 2,
+        drawRound: 1
+      }
+    });
+    await expect(characterGold("character-passive-invite")).resolves.toBe(9);
+    const participant = await prisma.tavernGameParticipant.findFirst({
+      where: { characterId: "character-passive-invite" },
+      select: { refundedGold: true, activeStakeKey: true }
+    });
+    expect(participant?.refundedGold).toBe(0);
+    expect(participant?.activeStakeKey).toBeTypeOf("string");
   });
 
   it("starts a social scorecard dice poker table explicitly for participant notifications", async () => {
