@@ -6,7 +6,7 @@ import { startDicePokerTable, startQuickDicePoker } from "../../src/domain/diceP
 const TOKEN = "12345678-1234-4234-9234-123456789abc";
 
 describe("tavern game notifications", () => {
-  it("sends the creator viewer-specific quick dice controls after a deep-link auto-start", async () => {
+  it("sends the creator viewer-specific quick dice controls after a table starts", async () => {
     const creatorDice = startQuickDicePoker("creator-deep-link-start");
     const joinerDice = startQuickDicePoker("joiner-deep-link-start");
     const sendMessage = vi.fn().mockResolvedValue({});

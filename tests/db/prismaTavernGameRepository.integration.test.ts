@@ -321,10 +321,11 @@ describe("PrismaTavernGameRepository integration", () => {
     });
   });
 
-  it("settles a social quick dice poker table for two real participants once", async () => {
+  it("settles a social quick dice poker table for three real participants once", async () => {
     const token = "12345678-1234-4234-9234-000000000591";
     await seedCharacter({ telegramUserId: 591n, characterId: "character-social-quick-a", name: "Перший", gold: 10 });
     await seedCharacter({ telegramUserId: 592n, characterId: "character-social-quick-b", name: "Другий", gold: 10 });
+    await seedCharacter({ telegramUserId: 593n, characterId: "character-social-quick-c", name: "Третій", gold: 10 });
     const table = startDicePokerTable("quick");
 
     const created = await repository.createDicePokerForTelegramUser(591n, {
@@ -343,17 +344,30 @@ describe("PrismaTavernGameRepository integration", () => {
       participantState: startQuickDicePoker("social-quick:participant:a")
     });
     const joined = await repository.joinByTokenForTelegramUser(592n, token, joinInput());
+    const joinedThird = await repository.joinByTokenForTelegramUser(593n, token, joinInput());
+    const started = await repository.resolveKostiForTelegramUser(591n, token, now());
 
     expect(created.state).toBe("created");
-    expect(joined.state).toBe("started");
-    expect(joined.state === "started" ? joined.session.status : null).toBe("ready");
+    expect(joined.state).toBe("joined");
+    expect(joinedThird.state).toBe("joined");
+    expect(started.state).toBe("started");
+    expect(started.state === "started" ? started.session.status : null).toBe("ready");
     await expect(characterGold("character-social-quick-a")).resolves.toBe(7);
     await expect(characterGold("character-social-quick-b")).resolves.toBe(7);
+    await expect(characterGold("character-social-quick-c")).resolves.toBe(7);
 
     const ready = await repository.peekByToken(token);
     const first = ready?.participants.find((participant) => participant.characterId === "character-social-quick-a");
     const second = ready?.participants.find((participant) => participant.characterId === "character-social-quick-b");
-    if (!first || !second || !isDicePokerState(first.decision) || !isDicePokerState(second.decision)) {
+    const third = ready?.participants.find((participant) => participant.characterId === "character-social-quick-c");
+    if (
+      !first ||
+      !second ||
+      !third ||
+      !isDicePokerState(first.decision) ||
+      !isDicePokerState(second.decision) ||
+      !isDicePokerState(third.decision)
+    ) {
       throw new Error("Expected social quick participant states.");
     }
 
@@ -369,6 +383,12 @@ describe("PrismaTavernGameRepository integration", () => {
       resolveQuickPlayerHand(second.decision, "social-quick:b", "b"),
       now()
     );
+    const thirdSaved = await repository.saveDicePokerParticipantStateForTelegramUser(
+      593n,
+      token,
+      resolveQuickPlayerHand(third.decision, "social-quick:c", "c"),
+      now()
+    );
     const replay = await repository.saveDicePokerParticipantStateForTelegramUser(
       592n,
       token,
@@ -377,7 +397,8 @@ describe("PrismaTavernGameRepository integration", () => {
     );
 
     expect(firstSaved.state).toBe("saved");
-    expect(secondSaved.state).toBe("completed");
+    expect(secondSaved.state).toBe("saved");
+    expect(thirdSaved.state).toBe("completed");
     expect(replay.state).toBe("closed");
     const completed = await prisma.tavernGameSession.findUniqueOrThrow({
       where: { token },
@@ -389,9 +410,16 @@ describe("PrismaTavernGameRepository integration", () => {
       mode: "quick",
       phase: "terminal"
     });
+    const outcomes = completed.resultJson as { outcomes?: Record<string, string> };
+    expect(Object.keys(outcomes.outcomes ?? {}).sort()).toEqual([
+      "character-social-quick-a",
+      "character-social-quick-b",
+      "character-social-quick-c"
+    ]);
     const goldA = await characterGold("character-social-quick-a");
     const goldB = await characterGold("character-social-quick-b");
-    expect((goldA ?? 0) + (goldB ?? 0)).toBe(20);
+    const goldC = await characterGold("character-social-quick-c");
+    expect((goldA ?? 0) + (goldB ?? 0) + (goldC ?? 0)).toBe(30);
   });
 
   it("refunds expired social scorecard dice poker tables on stale token actions without legacy resolution", async () => {
@@ -488,7 +516,7 @@ describe("PrismaTavernGameRepository integration", () => {
         kind: "dice_poker_table",
         mode: "quick",
         phase: "waiting",
-        playerCap: 2,
+        playerCap: 8,
         drawRound: 1
       }
     });

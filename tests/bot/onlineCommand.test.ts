@@ -404,7 +404,7 @@ describe("online command", () => {
               kind: "dice_poker_table",
               mode: "quick",
               phase: "waiting",
-              playerCap: 2,
+              playerCap: 8,
               drawRound: 1
             }
           })]
@@ -412,8 +412,8 @@ describe("online command", () => {
       }
     });
 
-    expect(replies[0]?.text).toContain("— ⚡ Швидкі кості · 1/2 · ставка 5 зол. · тримає Kyjivan BooksDragon");
-    expect(inlineButtonTexts(replies[0]?.options)).toEqual(["⚡ Швидкі кості · 1/2 · 5 зол."]);
+    expect(replies[0]?.text).toContain("— ⚡ Швидкі кості · 1/8 · ставка 5 зол. · тримає Kyjivan BooksDragon");
+    expect(inlineButtonTexts(replies[0]?.options)).toEqual(["⚡ Швидкі кості · 1/8 · 5 зол."]);
   });
 
   it("shows active Doppelganger table games nearby without join buttons", async () => {

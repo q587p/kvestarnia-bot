@@ -267,7 +267,7 @@ describe("tavern game presenter", () => {
         kind: "dice_poker_table",
         mode: "quick",
         phase: "playing",
-        playerCap: 2,
+        playerCap: 8,
         drawRound: 1
       },
       participants: [
@@ -303,7 +303,7 @@ describe("tavern game presenter", () => {
         kind: "dice_poker_table",
         mode: "quick",
         phase: "terminal",
-        playerCap: 2,
+        playerCap: 8,
         drawRound: 1,
         outcomes: {
           "character-1": "win",

@@ -3208,7 +3208,7 @@ describe("scene callback HTML options", () => {
         kind: "dice_poker_table",
         mode: "quick",
         phase: "terminal",
-        playerCap: 2,
+        playerCap: 8,
         drawRound: 1,
         outcomes: {
           "character-creator": "win",

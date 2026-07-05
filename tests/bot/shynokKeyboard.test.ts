@@ -60,7 +60,7 @@ describe("Shynok game keyboards", () => {
           kind: "dice_poker_table",
           mode: "quick",
           phase: "waiting",
-          playerCap: 2,
+          playerCap: 8,
           drawRound: 1
         }
       })
@@ -92,7 +92,7 @@ describe("Shynok game keyboards", () => {
           kind: "dice_poker_table",
           mode: "quick",
           phase: "waiting",
-          playerCap: 2,
+          playerCap: 8,
           drawRound: 1
         }
       })
@@ -368,7 +368,7 @@ describe("Shynok game keyboards", () => {
           kind: "dice_poker_table",
           mode: "quick",
           phase: "playing",
-          playerCap: 2,
+          playerCap: 8,
           drawRound: 1
         },
         participants: [
@@ -395,10 +395,10 @@ describe("Shynok game keyboards", () => {
         status: "completed",
         creatorCharacterId: "character-creator",
         result: {
-          kind: "dice_poker_table",
-          mode: "quick",
-          phase: "terminal",
-          playerCap: 2,
+            kind: "dice_poker_table",
+            mode: "quick",
+            phase: "terminal",
+            playerCap: 8,
           drawRound: 1,
           outcomes: {
             "character-creator": "loss",

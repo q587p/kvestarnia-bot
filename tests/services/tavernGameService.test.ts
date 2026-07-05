@@ -147,7 +147,7 @@ describe("TavernGameService", () => {
       kind: "dice_poker_table",
       mode: "quick",
       phase: "waiting",
-      playerCap: 2
+      playerCap: 8
     });
     expect(repository.lastDicePokerCreateInput?.participantState).toMatchObject({
       kind: "dice_poker",
@@ -619,7 +619,7 @@ describe("TavernGameService", () => {
         kind: "dice_poker_table",
         mode: "quick",
         phase: "terminal",
-        playerCap: 2,
+        playerCap: 8,
         drawRound: 1,
         outcomes: {
           "character-1": "win",

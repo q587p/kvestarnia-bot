@@ -1397,16 +1397,22 @@ async function maybeCompleteDicePokerTableTx(
       return null;
     }
 
-    const [first, second] = hands;
-    if (!first?.state || !second?.state) {
+    const bestHand = hands.reduce((best, current) =>
+      current.state && best.state && compareQuickHands(current.state.playerHand, best.state.playerHand) > 0
+        ? current
+        : best
+    );
+    if (!bestHand.state) {
       return null;
     }
-    const comparison = compareQuickHands(first.state.playerHand, second.state.playerHand);
-    const outcomes = comparison === 0
+    const winners = hands.filter((entry) =>
+      entry.state && bestHand.state && compareQuickHands(entry.state.playerHand, bestHand.state.playerHand) === 0
+    );
+    const outcomes = winners.length !== 1
       ? new Map(live.map((participant) => [participant.characterId, "draw" as const]))
       : new Map(live.map((participant) => [
           participant.characterId,
-          participant.characterId === (comparison > 0 ? first.participant.characterId : second.participant.characterId)
+          participant.characterId === winners[0]?.participant.characterId
             ? "win" as const
             : "loss" as const
         ]));

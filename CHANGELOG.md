@@ -16,7 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `📜 Табличні кості`: solo 13-turn scorecard mode with up to three rolls per turn, selected-dice rerolls, 13 once-only boxes, preview scores for unused boxes, simplified full-house/poker rules and the upper-section `63+` bonus.
 - Added compact `❔ Правила` copy for both dice-poker modes and compact callback payloads for create/toggle/reroll/score/cancel actions.
 - Added local `/dev_reset_tavern_games` with the dice icon as a no-op compatibility QA check after table-create cooldown removal; player-facing command icon uniqueness still excludes dev-only commands.
-- Added real social Dice Poker tables on the existing tavern-game session storage: `⚡ Швидкі кості` opens a two-player duel table, `📜 Табличні кості` opens a 2–8 player scorecard table, and `🪞 Допельґанґер` remains an explicit fallback opponent.
+- Added real social Dice Poker tables on the existing tavern-game session storage: `⚡ Швидкі кості` and `📜 Табличні кості` both open 2–8 player tables, and `🪞 Допельґанґер` remains an explicit fallback opponent.
 - Added a separate Shynok `🪞 Допельґанґер` table-games branch that lets players choose quick dice, scorecard dice or Tavlei against him before choosing a stake.
 - Added invite controls to waiting Tavlei, quick-dice and scorecard-dice tables: creators can generate rotating Ukrainian invite cards and share `/start game_...` deep links that join the same table.
 
