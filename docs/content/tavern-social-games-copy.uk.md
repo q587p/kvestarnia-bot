@@ -9,6 +9,7 @@ Player-facing copy for Tavern Social Games. Keep these texts Ukrainian. Avoid ra
 🪵 Відкриті столи
 ♟ Тавлеї
 🎲 Кості
+🪞 Допельґанґер
 📜 Правила шинку
 ↩ Назад
 ```
@@ -20,7 +21,14 @@ Player-facing copy for Tavern Social Games. Keep these texts Ukrainian. Avoid ra
 
 У кутку шинку стукають фішки, гримлять кості й хтось уже шепоче, що сьогодні рука добра.
 
-Обери стіл або створи свій.
+Найбільша ставка зараз: {maxStake} зол.
+У тебе зараз: {gold} зол.
+
+🪞 Допельґанґер уже сів окремо: можна зіграти з ним у швидкі кості, табличні кості або тавлеї.
+```
+
+```text
+🪞 Допельґанґер зараз у бійцівському кутку. До ігор за столом він приходить після 23:00.
 ```
 
 ## Open tables empty state
@@ -186,6 +194,7 @@ Player-facing copy for Tavern Social Games. Keep these texts Ukrainian. Avoid ra
 ```text
 ⚡ Швидкі кості
 📜 Табличні кості
+♟ Тавлеї з Допельґанґером
 ❔ Правила
 🎲 Перекинути вибране
 🎲 Лишити як є

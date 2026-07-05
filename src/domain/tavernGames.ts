@@ -1,4 +1,7 @@
 export const TAVERN_GAME_RULES_VERSION = "tavern-games-v1";
+export const TAVLEI_DOPPELGANGER_RULES_VERSION = "tavlei-doppelganger-v1";
+export const TAVLEI_DOPPELGANGER_CHARACTER_ID = "__doppelganger__";
+export const TAVLEI_DOPPELGANGER_NAME = "Сумлінний Допельґанґер";
 
 export const TAVERN_GAME_KEYS = ["tavlei", "kosti"] as const;
 export type TavernGameKey = typeof TAVERN_GAME_KEYS[number];
@@ -34,6 +37,11 @@ export interface TavernGamePlayer {
   decision?: unknown;
 }
 
+export interface TavleiDoppelgangerState {
+  kind: "tavlei_doppelganger";
+  opponent: "doppelganger";
+}
+
 export type TavernGameDecision =
   | { gameKey: "tavlei"; tactic: TavleiTactic }
   | { gameKey: "kosti"; style: KostiStyle; sign: KostiSign };
@@ -55,6 +63,7 @@ export type TavernGameResolution =
       winnerName: string;
       loserName: string;
       narrativeKey: string;
+      opponentKind?: "doppelganger";
     }
   | {
       gameKey: "tavlei";
@@ -68,6 +77,7 @@ export type TavernGameResolution =
         name: string;
         tactic: TavleiTactic;
       }>;
+      opponentKind?: "doppelganger";
     }
   | {
       gameKey: "kosti";
@@ -114,6 +124,10 @@ export function isTavernGameKey(value: string): value is TavernGameKey {
 
 export function isTavleiTactic(value: string): value is TavleiTactic {
   return (TAVLEI_TACTICS as readonly string[]).includes(value);
+}
+
+export function isTavleiDoppelgangerState(value: unknown): value is TavleiDoppelgangerState {
+  return isRecord(value) && value.kind === "tavlei_doppelganger" && value.opponent === "doppelganger";
 }
 
 export function isKostiStyle(value: string): value is KostiStyle {
@@ -229,6 +243,72 @@ export function resolveTavlei(input: {
     narrativeKey: `${winner === left ? leftDecision.tactic : rightDecision.tactic}:${
       winner === left ? rightDecision.tactic : leftDecision.tactic
     }`
+  };
+}
+
+export function resolveTavleiDoppelganger(input: {
+  seed: string;
+  stakeGold: number;
+  player: TavernGamePlayer;
+}): Extract<TavernGameResolution, { gameKey: "tavlei" }> {
+  const playerDecision = parseTavernGameDecision("tavlei", input.player.decision);
+  const opponentTactic = TAVLEI_TACTICS[hashString(`${input.seed}:doppelganger:tactic`) % TAVLEI_TACTICS.length]!;
+  const opponent: TavernGamePlayer = {
+    participantId: "doppelganger",
+    characterId: TAVLEI_DOPPELGANGER_CHARACTER_ID,
+    name: TAVLEI_DOPPELGANGER_NAME,
+    level: input.player.level,
+    stats: input.player.stats,
+    stakeGold: 0,
+    decision: { gameKey: "tavlei", tactic: opponentTactic }
+  };
+  const playerScore = scoreTavlei(input.seed, input.player, playerDecision.tactic, opponentTactic);
+  const opponentScore = scoreTavlei(input.seed, opponent, opponentTactic, playerDecision.tactic);
+  const players = [
+    {
+      participantId: input.player.participantId,
+      characterId: input.player.characterId,
+      name: input.player.name,
+      tactic: playerDecision.tactic
+    },
+    {
+      participantId: opponent.participantId,
+      characterId: opponent.characterId,
+      name: opponent.name,
+      tactic: opponentTactic
+    }
+  ];
+
+  if (Math.abs(playerScore - opponentScore) <= 1) {
+    return {
+      gameKey: "tavlei",
+      outcome: "draw",
+      potGold: input.stakeGold,
+      payouts: {},
+      refunds: { [input.player.characterId]: input.stakeGold },
+      players,
+      opponentKind: "doppelganger"
+    };
+  }
+
+  const playerWon = playerScore > opponentScore;
+  const winner = playerWon ? input.player : opponent;
+  const loser = playerWon ? opponent : input.player;
+
+  return {
+    gameKey: "tavlei",
+    outcome: "win",
+    potGold: input.stakeGold,
+    payouts: { [winner.characterId]: input.stakeGold },
+    refunds: {},
+    players,
+    winnerCharacterId: winner.characterId,
+    winnerName: winner.name,
+    loserName: loser.name,
+    narrativeKey: `${playerWon ? playerDecision.tactic : opponentTactic}:${
+      playerWon ? opponentTactic : playerDecision.tactic
+    }`,
+    opponentKind: "doppelganger"
   };
 }
 

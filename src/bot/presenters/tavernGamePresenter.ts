@@ -1,4 +1,10 @@
-import { KOSTI_PLAYER_CAP, TAVLEI_PLAYER_CAP, type TavernGameResolution, type TavernGameKey } from "../../domain/tavernGames";
+import {
+  KOSTI_PLAYER_CAP,
+  TAVLEI_DOPPELGANGER_CHARACTER_ID,
+  TAVLEI_PLAYER_CAP,
+  type TavernGameResolution,
+  type TavernGameKey
+} from "../../domain/tavernGames";
 import {
   DICE_POKER_SCORE_CATEGORIES,
   evaluateQuickHand,
@@ -34,8 +40,13 @@ export function presentTavernGameHub(result: TavernGameHubResult): string {
     "У кутку шинку стукають фішки, гримлять кості й хтось уже шепоче, що сьогодні рука добра.",
     "",
     `Найбільша ставка зараз: <b>${result.maxStake} зол.</b>`,
+    result.character ? `У тебе зараз: <b>${result.character.gold} зол.</b>` : null,
+    "",
+    result.doppelgangerAvailable
+      ? "🪞 Допельґанґер уже сів окремо: можна зіграти з ним у швидкі кості, табличні кості або тавлеї."
+      : "🪞 Допельґанґер зараз у бійцівському кутку. До ігор за столом він приходить після 23:00.",
     ""
-  ];
+  ].filter((line): line is string => line !== null);
 
   if (result.openTables.length === 0) {
     lines.push(
@@ -79,11 +90,8 @@ export function presentTavernGameRules(gameKey: TavernGameKey, maxStake: number)
 
 export function presentDicePokerStakeMenu(
   mode: "quick" | "scorecard",
-  maxStake: number,
-  options: { doppelgangerAvailable?: boolean } = {}
+  maxStake: number
 ): string {
-  const doppelgangerAvailable = options.doppelgangerAvailable ?? true;
-
   return [
     mode === "quick" ? "⚡ Швидкі кості" : "📜 Табличні кості",
     "",
@@ -91,9 +99,36 @@ export function presentDicePokerStakeMenu(
       ? "Коротка дуель: один кидок, один перекид, далі сильніша комбінація бере партію."
       : "Таблична партія на 13 ходів: кидаєте кості, перекидаєте до двох разів і вписуєте рахунок у клітинки.",
     "",
-    doppelgangerAvailable
-      ? "Оберіть ставку: 👥 відкриє стіл для інших гравців, 🪞 посадить Допельґанґера."
-      : "Оберіть ставку для столу. Допельґанґер зараз у бійцівському кутку.",
+    "Оберіть ставку для відкритого столу з іншими гравцями.",
+    `Межа ставки зараз: <b>${maxStake} зол.</b>`
+  ].join("\n");
+}
+
+export function presentDoppelgangerGameMenu(maxStake: number): string {
+  return [
+    "🪞 Допельґанґер за столом",
+    "",
+    "Він сидить окремо, дивиться чесно і все одно трохи дзеркально.",
+    "",
+    "Оберіть гру з Допельґанґером. Ставку корчма спитає наступним кроком.",
+    `Межа ставки зараз: <b>${maxStake} зол.</b>`
+  ].join("\n");
+}
+
+export function presentDoppelgangerStakeMenu(
+  gameKey: "quick" | "scorecard" | "tavlei",
+  maxStake: number
+): string {
+  const title = gameKey === "quick"
+    ? "⚡ Швидкі кості з Допельґанґером"
+    : gameKey === "scorecard"
+      ? "📜 Табличні кості з Допельґанґером"
+      : "♟ Тавлеї з Допельґанґером";
+
+  return [
+    title,
+    "",
+    "Оберіть ставку для партії з Допельґанґером.",
     `Межа ставки зараз: <b>${maxStake} зол.</b>`
   ].join("\n");
 }
@@ -258,6 +293,9 @@ export function presentTavernGameSession(session: TavernGameSessionRecord): stri
 
 function presentTavernGameResolution(resolution: TavernGameResolution): string {
   if (resolution.gameKey === "tavlei") {
+    if (resolution.opponentKind === "doppelganger") {
+      return presentDoppelgangerTavleiResolution(resolution);
+    }
     if (resolution.outcome === "draw") {
       return [
         "♟ Тавлеї завершено.",
@@ -305,6 +343,38 @@ function presentOpenTableLine(session: TavernGameSessionRecord): string {
   const cap = table?.playerCap ?? (session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP);
   const label = table ? dicePokerTableTitle(table.mode) : gameLabel(session.gameKey);
   return `• ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
+}
+
+function presentDoppelgangerTavleiResolution(
+  resolution: Extract<TavernGameResolution, { gameKey: "tavlei" }>
+): string {
+  const player = resolution.players.find((entry) => entry.characterId !== TAVLEI_DOPPELGANGER_CHARACTER_ID);
+  const stakeGold = player ? resolution.refunds[player.characterId] ?? resolution.payouts[player.characterId] ?? resolution.potGold : resolution.potGold;
+
+  if (resolution.outcome === "draw") {
+    return [
+      "♟ Тавлеї з Допельґанґером завершено.",
+      "",
+      "Партія подивилась у дзеркало й не знайшла переконливішого боку.",
+      "",
+      "🤝 Нічия.",
+      `💰 Ставку повернено: <b>${stakeGold} зол.</b>`
+    ].join("\n");
+  }
+
+  const playerWon = player?.characterId === resolution.winnerCharacterId;
+  return [
+    "♟ Тавлеї з Допельґанґером завершено.",
+    "",
+    playerWon
+      ? "Допельґанґер визнав хід, але попросив не називати це навчанням."
+      : "Допельґанґер забрав партію тихо, як відбиття, що першим помітило помилку.",
+    "",
+    playerWon ? "🏆 Перемога." : "💀 Поразка.",
+    playerWon
+      ? `💰 Виплата: <b>${stakeGold} зол.</b>`
+      : `💸 Ставка програна: <b>${stakeGold} зол.</b>`
+  ].join("\n");
 }
 
 function presentDicePokerState(

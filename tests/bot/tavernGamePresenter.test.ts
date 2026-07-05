@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { TavernGameSessionRecord } from "../../src/db/repositories/tavernGameRepository";
 import {
+  presentDoppelgangerGameMenu,
+  presentDoppelgangerStakeMenu,
   presentDicePokerRules,
   presentTavernGameActionResult,
+  presentTavernGameHub,
   presentTavernGameLeaderboard,
   presentTavernGameRules
 } from "../../src/bot/presenters/tavernGamePresenter";
@@ -14,6 +17,27 @@ import {
 } from "../../src/domain/dicePoker";
 
 describe("tavern game presenter", () => {
+  it("shows player gold and the Doppelganger branch on the table-games hub", () => {
+    const text = presentTavernGameHub({
+      state: "ready",
+      maxStake: 93,
+      tavleiEnabled: true,
+      kostiEnabled: true,
+      doppelgangerAvailable: true,
+      character: { gold: 42 },
+      openTables: []
+    });
+
+    expect(text).toContain("Найбільша ставка зараз: <b>93 зол.</b>");
+    expect(text).toContain("У тебе зараз: <b>42 зол.</b>");
+    expect(text).toContain("🪞 Допельґанґер уже сів окремо");
+  });
+
+  it("describes Doppelganger game and stake menus compactly", () => {
+    expect(presentDoppelgangerGameMenu(93)).toContain("Оберіть гру з Допельґанґером");
+    expect(presentDoppelgangerStakeMenu("tavlei", 93)).toContain("♟ Тавлеї з Допельґанґером");
+  });
+
   it("describes Kosti as clear dice poker modes", () => {
     const text = presentTavernGameRules("kosti", 25);
 
@@ -215,6 +239,47 @@ describe("tavern game presenter", () => {
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не дограв");
     expect(text).toContain("1. Нестор — 11 перемог, 12 нічиїх, 14 поразок");
     expect(text).not.toContain("<b>Дара</b>");
+  });
+
+  it("renders Tavlei against the Doppelganger without pretending the fallback opponent receives a payout", () => {
+    const text = presentTavernGameActionResult({
+      state: "resolved",
+      session: session({
+        gameKey: "tavlei",
+        participants: [participant({ payoutGold: 0, refundedGold: 0, stakeGold: 13 })]
+      }),
+      resolution: {
+        gameKey: "tavlei",
+        outcome: "win",
+        opponentKind: "doppelganger",
+        potGold: 13,
+        payouts: { "__doppelganger__": 13 },
+        refunds: {},
+        players: [
+          {
+            participantId: "participant-1",
+            characterId: "character-1",
+            name: "Тест",
+            tactic: "quiet_trap"
+          },
+          {
+            participantId: "doppelganger",
+            characterId: "__doppelganger__",
+            name: "Сумлінний Допельґанґер",
+            tactic: "sharp_opening"
+          }
+        ],
+        winnerCharacterId: "__doppelganger__",
+        winnerName: "Сумлінний Допельґанґер",
+        loserName: "Тест",
+        narrativeKey: "sharp_opening:quiet_trap"
+      }
+    });
+
+    expect(text).toContain("♟ Тавлеї з Допельґанґером завершено.");
+    expect(text).toContain("💀 Поразка.");
+    expect(text).toContain("💸 Ставка програна: <b>13 зол.</b>");
+    expect(text).not.toContain("Виграш");
   });
 });
 

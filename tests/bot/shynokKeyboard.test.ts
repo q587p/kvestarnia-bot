@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildShynokDicePokerKeyboard,
   buildShynokDicePokerStakeKeyboard,
+  buildShynokDoppelgangerMenuKeyboard,
+  buildShynokDoppelgangerStakeKeyboard,
+  buildShynokGameHubKeyboard,
   buildShynokGameRulesKeyboard,
   buildShynokGameSessionKeyboard,
   formatShynokOpenTableButtonLabel
@@ -74,16 +77,51 @@ describe("Shynok game keyboards", () => {
     ]);
     expect(inlineButtonRows(buildShynokDicePokerStakeKeyboard("quick", 23))).toEqual([
       ["👥 1", "👥 5", "👥 13", "👥 23"],
-      ["🪞 1", "🪞 5", "🪞 13", "🪞 23"],
       ["❔ Правила"],
       ["↩ До костей"]
     ]);
   });
 
-  it("hides the Doppelganger stake buttons while he is in the fighting corner", () => {
-    expect(inlineButtonRows(buildShynokDicePokerStakeKeyboard("quick", 13, {
-      doppelgangerAvailable: false
+  it("shows the Doppelganger as a separate table-games branch", () => {
+    expect(flatInlineButtonTexts(buildShynokGameHubKeyboard({
+      state: "ready",
+      maxStake: 93,
+      tavleiEnabled: true,
+      kostiEnabled: true,
+      doppelgangerAvailable: true,
+      openTables: []
     }))).toEqual([
+      "🏆 Рейтинг",
+      "♟ Тавлеї",
+      "🎲 Кості",
+      "🪞 Допельґанґер",
+      "↩ Назад"
+    ]);
+    expect(inlineButtonRows(buildShynokDoppelgangerMenuKeyboard({
+      tavleiEnabled: true,
+      kostiEnabled: true
+    }))).toEqual([
+      ["⚡ Швидкі кості"],
+      ["📜 Табличні кості"],
+      ["♟ Тавлеї"],
+      ["↩ До ігор"]
+    ]);
+    expect(inlineButtonRows(buildShynokDoppelgangerStakeKeyboard("tavlei", 13))).toEqual([
+      ["1", "5", "13"],
+      ["↩ До Допельґанґера"]
+    ]);
+  });
+
+  it("hides the Doppelganger branch while he is in the fighting corner", () => {
+    expect(flatInlineButtonTexts(buildShynokGameHubKeyboard({
+      state: "ready",
+      maxStake: 93,
+      tavleiEnabled: true,
+      kostiEnabled: true,
+      doppelgangerAvailable: false,
+      openTables: []
+    }))).not.toContain("🪞 Допельґанґер");
+    expect(inlineButtonRows(buildShynokDicePokerStakeKeyboard("quick", 13))).toEqual([
       ["👥 1", "👥 5", "👥 13"],
       ["❔ Правила"],
       ["↩ До костей"]

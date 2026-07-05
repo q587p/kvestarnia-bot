@@ -55,7 +55,7 @@ currently enforced runtime env.
 
 ### Gold transfer between accounts
 
-Risk: multiplayer table games can be used as direct transfers; Dice Poker is solo/NPC in `0.2.26`, so the primary risk is repeated low-friction stake churn rather than direct player-to-player transfer.
+Risk: multiplayer table games can be used as direct transfers. In `0.2.26`, social Dice Poker joins Tavlei as a real player-to-player stake surface; Doppelganger fallback games use one player stake only, so their main risk is repeated low-friction stake churn rather than direct transfer.
 
 Mitigations:
 
@@ -122,7 +122,7 @@ Mitigations:
 - One character has at most one active stake session, enforced by the active stake key.
 - A session reaches exactly one terminal state.
 - Terminal sessions never mutate payouts again.
-- `sum(payouts) <= pot` for completed solo/NPC Dice Poker sessions and `sum(payouts) == pot` for completed multiplayer stake-pot sessions.
+- `sum(real-player payouts) <= pot` for completed single-stake Doppelganger fallback sessions and `sum(payouts) == pot` for completed multiplayer stake-pot sessions.
 - `sum(refunds) == reserved pot` for refunded sessions.
 - Ledger/audit totals match the gold mutations.
 - Stale callbacks return friendly text, not an exception.

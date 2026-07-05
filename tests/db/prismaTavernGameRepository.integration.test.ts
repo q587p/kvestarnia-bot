@@ -242,6 +242,56 @@ describe("PrismaTavernGameRepository integration", () => {
     })).resolves.toEqual([{ payoutGold: 3, refundedGold: 0, activeStakeKey: null }]);
   });
 
+  it("settles Tavlei against the Doppelganger once without a second participant row", async () => {
+    const token = "12345678-1234-4234-9234-000000000618";
+    await seedCharacter({ telegramUserId: 618n, characterId: "character-tavlei-doppel", name: "Дзеркальник", gold: 20 });
+
+    const created = await repository.createTavleiDoppelgangerForTelegramUser(618n, {
+      token,
+      seed: "tavlei-doppelganger-integration",
+      stakeGold: 13,
+      maxStake: 25,
+      expiresAt: new Date(now().getTime() + 5 * 60_000),
+      cooldownMs: 0,
+      now: now(),
+      state: { kind: "tavlei_doppelganger", opponent: "doppelganger" }
+    });
+    expect(created.state).toBe("created");
+    await expect(characterGold("character-tavlei-doppel")).resolves.toBe(7);
+
+    const resolved = await repository.submitDecisionForTelegramUser(618n, token, {
+      gameKey: "tavlei",
+      tactic: "quiet_trap"
+    }, now());
+    const replay = await repository.submitDecisionForTelegramUser(618n, token, {
+      gameKey: "tavlei",
+      tactic: "quiet_trap"
+    }, now());
+
+    expect(resolved.state).toBe("resolved");
+    expect(replay.state).toBe("replayed");
+    await expect(prisma.tavernGameSession.findUnique({
+      where: { token },
+      select: { status: true, resultJson: true }
+    })).resolves.toMatchObject({
+      status: "completed",
+      resultJson: {
+        gameKey: "tavlei",
+        opponentKind: "doppelganger",
+        potGold: 13
+      }
+    });
+    await expect(prisma.tavernGameParticipant.count({
+      where: { session: { token } }
+    })).resolves.toBe(1);
+    const goldAfterResolution = await characterGold("character-tavlei-doppel");
+    await repository.submitDecisionForTelegramUser(618n, token, {
+      gameKey: "tavlei",
+      tactic: "quiet_trap"
+    }, now());
+    await expect(characterGold("character-tavlei-doppel")).resolves.toBe(goldAfterResolution);
+  });
+
   it("settles a social quick dice poker table for two real participants once", async () => {
     const token = "12345678-1234-4234-9234-000000000591";
     await seedCharacter({ telegramUserId: 591n, characterId: "character-social-quick-a", name: "Перший", gold: 10 });

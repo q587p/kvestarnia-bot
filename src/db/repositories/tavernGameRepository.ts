@@ -1,6 +1,11 @@
 import type { CharacterRecord } from "./characterRepository";
 import type { DicePokerMode, DicePokerState, DicePokerStoredState } from "../../domain/dicePoker";
-import type { TavernGameDecision, TavernGameKey, TavernGameResolution } from "../../domain/tavernGames";
+import type {
+  TavernGameDecision,
+  TavernGameKey,
+  TavernGameResolution,
+  TavleiDoppelgangerState
+} from "../../domain/tavernGames";
 
 export type TavernGameSessionStatus =
   | "open"
@@ -146,6 +151,7 @@ export type DicePokerActionResult =
   | { state: "cancelled"; session: TavernGameSessionRecord };
 
 export interface TavernGameRepository {
+  findCharacterByTelegramUser(telegramUserId: bigint): Promise<CharacterRecord | null>;
   listOpen(now: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
   listCompletedSince(since: Date, limit?: number): Promise<TavernGameSessionRecord[]>;
   peekByToken(token: string): Promise<TavernGameSessionRecord | null>;
@@ -180,6 +186,19 @@ export interface TavernGameRepository {
       status?: "open" | "ready";
       joinExpiresAt?: Date;
       decisionExpiresAt?: Date | null;
+    }
+  ): Promise<TavernGameCreateResult>;
+  createTavleiDoppelgangerForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      seed: string;
+      stakeGold: number;
+      maxStake: number;
+      expiresAt: Date;
+      cooldownMs: number;
+      now: Date;
+      state: TavleiDoppelgangerState;
     }
   ): Promise<TavernGameCreateResult>;
   joinByTokenForTelegramUser(

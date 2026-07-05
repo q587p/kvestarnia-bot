@@ -48,6 +48,8 @@ import {
   makeShynokDicePokerViewCallbackData,
   makeShynokDicePokerScoreCallbackData,
   makeShynokDicePokerToggleCallbackData,
+  makeShynokDoppelgangerMenuCallbackData,
+  makeShynokDoppelgangerModeCallbackData,
   makeShynokGameCancelCallbackData,
   makeShynokGameCreateCallbackData,
   makeShynokGameJoinCallbackData,
@@ -56,6 +58,7 @@ import {
   makeShynokGameRulesCallbackData,
   makeShynokGamesCallbackData,
   makeShynokKostiDecisionCallbackData,
+  makeShynokTavleiDoppelgangerCreateCallbackData,
   makeShynokBardPerformanceApplaudCallbackData,
   makeShynokBardPerformanceDeclineCallbackData,
   makeShynokBardPerformanceStartCallbackData,
@@ -132,6 +135,9 @@ export function buildShynokGameHubKeyboard(
   if (result.kostiEnabled) {
     keyboard.text("🎲 Кості", makeShynokGameRulesCallbackData("kosti")).row();
   }
+  if (result.doppelgangerAvailable && (result.tavleiEnabled || result.kostiEnabled)) {
+    keyboard.text("🪞 Допельґанґер", makeShynokDoppelgangerMenuCallbackData()).row();
+  }
 
   for (const table of result.openTables.slice(0, 8)) {
     keyboard
@@ -169,11 +175,9 @@ export function buildShynokGameRulesKeyboard(gameKey: TavernGameKey, maxStake: n
 
 export function buildShynokDicePokerStakeKeyboard(
   mode: "quick" | "scorecard",
-  maxStake: number,
-  options: { doppelgangerAvailable?: boolean } = {}
+  maxStake: number
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
-  const doppelgangerAvailable = options.doppelgangerAvailable ?? true;
   const stakes = listTavernGameStakeOptions(maxStake);
 
   for (const stake of stakes) {
@@ -181,17 +185,49 @@ export function buildShynokDicePokerStakeKeyboard(
   }
   keyboard.row();
 
-  if (doppelgangerAvailable) {
-    for (const stake of stakes) {
-      keyboard.text(`🪞 ${stake}`, makeShynokDicePokerDoppelgangerCreateCallbackData(mode, stake));
-    }
-    keyboard.row();
-  }
-
   return keyboard
     .text("❔ Правила", makeShynokDicePokerRulesCallbackData())
     .row()
     .text("↩ До костей", makeShynokGameRulesCallbackData("kosti"));
+}
+
+export function buildShynokDoppelgangerMenuKeyboard(options: {
+  tavleiEnabled: boolean;
+  kostiEnabled: boolean;
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (options.kostiEnabled) {
+    keyboard
+      .text("⚡ Швидкі кості", makeShynokDoppelgangerModeCallbackData("quick"))
+      .row()
+      .text("📜 Табличні кості", makeShynokDoppelgangerModeCallbackData("scorecard"))
+      .row();
+  }
+  if (options.tavleiEnabled) {
+    keyboard.text("♟ Тавлеї", makeShynokDoppelgangerModeCallbackData("tavlei")).row();
+  }
+
+  return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildShynokDoppelgangerStakeKeyboard(
+  gameKey: "quick" | "scorecard" | "tavlei",
+  maxStake: number
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const stake of listTavernGameStakeOptions(maxStake)) {
+    if (gameKey === "tavlei") {
+      keyboard.text(`${stake}`, makeShynokTavleiDoppelgangerCreateCallbackData(stake));
+    } else {
+      keyboard.text(`${stake}`, makeShynokDicePokerDoppelgangerCreateCallbackData(gameKey, stake));
+    }
+  }
+
+  return keyboard
+    .row()
+    .text("↩ До Допельґанґера", makeShynokDoppelgangerMenuCallbackData());
 }
 
 export function buildBackToShynokGamesKeyboard(): InlineKeyboard {

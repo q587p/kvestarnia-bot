@@ -81,6 +81,8 @@ buildShynokDrinkPreviewKeyboard,
 buildShynokDrinkResultKeyboard,
 buildShynokDicePokerKeyboard,
 buildShynokDicePokerStakeKeyboard,
+buildShynokDoppelgangerMenuKeyboard,
+buildShynokDoppelgangerStakeKeyboard,
 buildShynokGameHubKeyboard,
 buildShynokGameRulesKeyboard,
 buildShynokGameSessionKeyboard,
@@ -144,6 +146,8 @@ presentShynokSaleSelection
 } from "../presenters/shynokPresenter";
 import {
 presentTavernGameActionResult,
+presentDoppelgangerGameMenu,
+presentDoppelgangerStakeMenu,
 presentDicePokerRules,
 presentDicePokerStakeMenu,
 presentTavernGameHub,
@@ -305,12 +309,69 @@ async function handleShynokCallback(
       return;
     }
 
-    const result = await services.tavernGames.getHub();
+    const result = await services.tavernGames.getHub(telegramUserId);
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
     await safeEditMessageText(ctx, presentTavernGameHub(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildShynokGameHubKeyboard(result, shynokNavigationOptions)
     });
+    return;
+  }
+
+  if (action.type === "game-doppelganger-menu") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+    if (!services.tavernGames.isDoppelgangerAtShynok()) {
+      await safeAnswerCallbackQuery(ctx, { show_alert: true });
+      await safeEditMessageText(ctx, presentTavernGameActionResult({
+        state: "blocked",
+        reason: "doppelganger-at-fighting-corner"
+      }), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildBackToShynokGamesKeyboard()
+      });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentDoppelgangerGameMenu(services.tavernGames.getMaxStake()), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildShynokDoppelgangerMenuKeyboard({
+        tavleiEnabled: services.tavernGames.isTavleiEnabled(),
+        kostiEnabled: services.tavernGames.isKostiEnabled()
+      })
+    });
+    return;
+  }
+
+  if (action.type === "game-doppelganger-mode") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+    if (!services.tavernGames.isDoppelgangerAtShynok()) {
+      await safeAnswerCallbackQuery(ctx, { show_alert: true });
+      await safeEditMessageText(ctx, presentTavernGameActionResult({
+        state: "blocked",
+        reason: "doppelganger-at-fighting-corner"
+      }), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildBackToShynokGamesKeyboard()
+      });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(
+      ctx,
+      presentDoppelgangerStakeMenu(action.gameKey, services.tavernGames.getMaxStake()),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildShynokDoppelgangerStakeKeyboard(action.gameKey, services.tavernGames.getMaxStake())
+      }
+    );
     return;
   }
 
@@ -385,14 +446,9 @@ async function handleShynokCallback(
     }
 
     await safeAnswerCallbackQuery(ctx);
-    const doppelgangerAvailable = services.tavernGames.isDoppelgangerAtShynok();
-    await safeEditMessageText(ctx, presentDicePokerStakeMenu(action.mode, services.tavernGames.getMaxStake(), {
-      doppelgangerAvailable
-    }), {
+    await safeEditMessageText(ctx, presentDicePokerStakeMenu(action.mode, services.tavernGames.getMaxStake()), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokDicePokerStakeKeyboard(action.mode, services.tavernGames.getMaxStake(), {
-        doppelgangerAvailable
-      })
+      reply_markup: buildShynokDicePokerStakeKeyboard(action.mode, services.tavernGames.getMaxStake())
     });
     return;
   }
@@ -401,6 +457,7 @@ async function handleShynokCallback(
     action.type === "game-create" ||
     action.type === "game-dice-poker-create" ||
     action.type === "game-dice-poker-doppelganger-create" ||
+    action.type === "game-tavlei-doppelganger-create" ||
     action.type === "game-dice-poker-view" ||
     action.type === "game-dice-poker-toggle" ||
     action.type === "game-dice-poker-roll" ||
@@ -434,6 +491,11 @@ async function handleShynokCallback(
       result = await services.tavernGames.createDicePokerWithDoppelgangerForTelegramUser(
         telegramUserId,
         action.mode,
+        action.stakeGold
+      );
+    } else if (action.type === "game-tavlei-doppelganger-create") {
+      result = await services.tavernGames.createTavleiWithDoppelgangerForTelegramUser(
+        telegramUserId,
         action.stakeGold
       );
     } else if (action.type === "game-dice-poker-view") {

@@ -62,6 +62,8 @@ export type TavernGameHubResult =
       maxStake: number;
       tavleiEnabled: boolean;
       kostiEnabled: boolean;
+      doppelgangerAvailable: boolean;
+      character?: { gold: number };
       openTables: TavernGameSessionRecord[];
     };
 
@@ -149,13 +151,16 @@ export class TavernGameService {
     });
   }
 
-  async getHub(): Promise<TavernGameHubResult> {
+  async getHub(telegramUserId?: bigint): Promise<TavernGameHubResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
 
     const now = this.now();
-    const openTables = await this.repository.listOpen(now);
+    const [openTables, character] = await Promise.all([
+      this.repository.listOpen(now),
+      telegramUserId === undefined ? Promise.resolve(null) : this.repository.findCharacterByTelegramUser(telegramUserId)
+    ]);
     const enabledOpenTables = openTables.filter((session) =>
       this.isGameEnabled(session.gameKey) &&
       !(session.gameKey === "kosti" && session.rulesVersion !== DICE_POKER_RULES_VERSION)
@@ -166,6 +171,8 @@ export class TavernGameService {
       maxStake: this.config.tavernGameMaxStake,
       tavleiEnabled: this.isTavleiEnabled(),
       kostiEnabled: this.isKostiEnabled(),
+      doppelgangerAvailable: this.isDoppelgangerAtShynok(),
+      ...(character ? { character: { gold: character.gold } } : {}),
       openTables: enabledOpenTables
     };
   }
@@ -283,6 +290,41 @@ export class TavernGameService {
       cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
       now,
       state: mode === "quick" ? startQuickDicePoker(seed) : startScorecardDicePoker(seed)
+    });
+
+    if (result.state === "active-session" && result.session.gameKey === "kosti") {
+      const stale = await this.refundOldKostiTable(result.session.token, now);
+      if (stale) {
+        return stale;
+      }
+    }
+
+    return result.state === "cooldown" ? { ...result, now } : result;
+  }
+
+  async createTavleiWithDoppelgangerForTelegramUser(
+    telegramUserId: bigint,
+    stakeGold: number
+  ): Promise<TavernGameCreateServiceResult> {
+    const gate = this.requireGame("tavlei");
+    if (gate) {
+      return gate;
+    }
+
+    const now = this.now();
+    if (!isTrainingDoppelgangerAtShynok(now)) {
+      return { state: "blocked", reason: "doppelganger-at-fighting-corner" };
+    }
+
+    const result = await this.repository.createTavleiDoppelgangerForTelegramUser(telegramUserId, {
+      token: randomUUID(),
+      seed: `tavlei:doppelganger:${randomUUID()}`,
+      stakeGold: Math.trunc(stakeGold),
+      maxStake: this.config.tavernGameMaxStake,
+      expiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS),
+      cooldownMs: this.config.tavernGameCreateCooldownSec * 1000,
+      now,
+      state: { kind: "tavlei_doppelganger", opponent: "doppelganger" }
     });
 
     if (result.state === "active-session" && result.session.gameKey === "kosti") {

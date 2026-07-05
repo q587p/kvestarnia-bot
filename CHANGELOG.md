@@ -17,9 +17,11 @@ This project follows a simple pre-1.0 versioning policy:
 - Added compact `❔ Правила` copy for both dice-poker modes and compact callback payloads for create/toggle/reroll/score/cancel actions.
 - Added local `/dev_reset_tavern_games` with the dice icon to reset the table-creation cooldown for QA; player-facing command icon uniqueness still excludes dev-only commands.
 - Added real social Dice Poker tables on the existing tavern-game session storage: `⚡ Швидкі кості` opens a two-player duel table, `📜 Табличні кості` opens a 2–8 player scorecard table, and `🪞 Допельґанґер` remains an explicit fallback opponent.
+- Added a separate Shynok `🪞 Допельґанґер` table-games branch that lets players choose quick dice, scorecard dice or Tavlei against him before choosing a stake.
 
 ### Changed
 - Replaced the old cryptic Kosti style/sign rule menu with `🎲 Кості й покер`, showing quick/scorecard mode choice first and stake choice only after a mode is selected.
+- `🎲 Ігри за столом` now shows the player's current gold and a short Doppelganger availability paragraph.
 - Routed legacy `game-create` Kosti callbacks to quick dice poker for compatibility, while new keyboards no longer emit old Kosti style/sign choices.
 - Kept Dice Poker on the existing tavern-game escrow model with `rulesVersion = dice-poker-v1`, `gameKey = kosti`, one active stake session per character and no Prisma schema migration.
 - Bounded the economy: stake is reserved at session start; quick wins and high scorecard completions can pay back escrow; draws, draw-cap refunds, cancellation and expiry return reserved stake only; terminal sessions clear active stake keys and replayed completion callbacks do not pay again.
@@ -29,7 +31,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Quick result cards use spaced combat-like win/loss/draw markers and print the exact stake payout/loss/refund amount.
 - Social Dice Poker stores per-participant dice/scorecard state in participant decisions, settles a shared pot once all active players finish, refunds tied tables safely and records all participant outcomes for the leaderboard.
 - `🪞 Допельґанґер` fallback now follows the in-world schedule: from 23:00 until 07:00 Kyiv time he is available for Dice Poker in Shynok, while daytime keeps him in the Fighting Corner and hides the Shynok fallback buttons.
-- Dice Poker stake pickers now use compact horizontal stake rows instead of repeating long table/opponent labels for every stake.
+- Public Dice Poker stake pickers now use compact horizontal public-table stake rows; Doppelganger stake selection lives under his separate branch.
+- Tavlei against the Doppelganger uses a single player stake in escrow: win returns it, draw refunds it, loss leaves it on the table, and replay/expiry settlement stays one-time.
 
 ### Fixed
 - Old incompatible active Kosti tables are hidden from the open-table hub and old decision/resolve callbacks fail closed through the existing safe refund/stale path with friendly Ukrainian copy.

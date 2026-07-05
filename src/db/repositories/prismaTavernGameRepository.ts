@@ -19,12 +19,16 @@ import {
   KOSTI_PLAYER_CAP,
   parseTavernGameDecision,
   resolveTavernGame,
+  resolveTavleiDoppelganger,
   TAVERN_GAME_RULES_VERSION,
+  TAVLEI_DOPPELGANGER_RULES_VERSION,
+  isTavleiDoppelgangerState,
   TAVLEI_PLAYER_CAP,
   type TavernGameDecision,
   type TavernGameKey,
   type TavernGamePlayer,
-  type TavernGameResolution
+  type TavernGameResolution,
+  type TavleiDoppelgangerState
 } from "../../domain/tavernGames";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import type {
@@ -94,6 +98,11 @@ const tavernGameSessionInclude = {
 
 export class PrismaTavernGameRepository implements TavernGameRepository {
   constructor(private readonly prisma: PrismaClient) {}
+
+  async findCharacterByTelegramUser(telegramUserId: bigint): Promise<TavernGameCharacterSnapshot | null> {
+    const row = await findCharacterByTelegramUser(this.prisma, telegramUserId);
+    return row ? mapCharacter(row) : null;
+  }
 
   async listOpen(now: Date, limit = 13): Promise<TavernGameSessionRecord[]> {
     await this.expireDue(now);
@@ -369,6 +378,114 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
     });
   }
 
+  async createTavleiDoppelgangerForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      seed: string;
+      stakeGold: number;
+      maxStake: number;
+      expiresAt: Date;
+      cooldownMs: number;
+      now: Date;
+      state: TavleiDoppelgangerState;
+    }
+  ): Promise<TavernGameCreateResult> {
+    if (input.stakeGold < 1 || input.stakeGold > input.maxStake) {
+      return { state: "invalid-stake", maxStake: input.maxStake };
+    }
+
+    return this.prisma.$transaction(async (tx): Promise<TavernGameCreateResult> => {
+      await expireDueTx(tx, input.now);
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const blocked = getGateReason(character);
+      if (blocked) {
+        return { state: "blocked", reason: blocked };
+      }
+
+      const live = await findLiveMembershipSession(tx, character.id);
+      if (live) {
+        return { state: "active-session", session: mapSession(live) };
+      }
+
+      const cooldownAfter = new Date(input.now.getTime() - input.cooldownMs);
+      const recent = await tx.tavernGameSession.findFirst({
+        where: {
+          creatorCharacterId: character.id,
+          openedAt: { gt: cooldownAfter }
+        },
+        orderBy: { openedAt: "desc" },
+        select: { openedAt: true }
+      });
+      if (recent) {
+        return {
+          state: "cooldown",
+          availableAt: new Date(recent.openedAt.getTime() + input.cooldownMs)
+        };
+      }
+
+      const spent = await tx.character.updateMany({
+        where: {
+          id: character.id,
+          gold: { gte: input.stakeGold }
+        },
+        data: {
+          gold: { decrement: input.stakeGold }
+        }
+      });
+      if (spent.count !== 1) {
+        return {
+          state: "insufficient-gold",
+          character: mapCharacter(character),
+          stakeGold: input.stakeGold
+        };
+      }
+
+      const session = await tx.tavernGameSession.create({
+        data: {
+          token: input.token,
+          gameKey: "tavlei",
+          status: "ready",
+          creatorCharacterId: character.id,
+          stakeGold: input.stakeGold,
+          potGold: input.stakeGold,
+          seed: input.seed,
+          rulesVersion: TAVLEI_DOPPELGANGER_RULES_VERSION,
+          resultJson: input.state as unknown as Prisma.InputJsonValue,
+          openedAt: input.now,
+          joinExpiresAt: input.expiresAt,
+          decisionExpiresAt: input.expiresAt,
+          participants: {
+            create: {
+              characterId: character.id,
+              telegramUserId,
+              displayName: character.name,
+              remortCount: getIncludedRemortCount(character),
+              status: "joined",
+              stakeGold: input.stakeGold,
+              activeStakeKey: activeStakeKey(character.id),
+              joinedAt: input.now
+            }
+          }
+        },
+        include: tavernGameSessionInclude
+      });
+
+      return { state: "created", session: mapSession(session) };
+    }).catch(async (error: unknown): Promise<TavernGameCreateResult> => {
+      if (!isUniqueConflict(error)) {
+        throw error;
+      }
+      const character = await findCharacterByTelegramUser(this.prisma, telegramUserId);
+      const live = character ? await findLiveMembershipSession(this.prisma, character.id) : null;
+      return live ? { state: "active-session", session: mapSession(live) } : { state: "no-character" };
+    });
+  }
+
   async joinByTokenForTelegramUser(
     telegramUserId: bigint,
     token: string,
@@ -543,6 +660,20 @@ export class PrismaTavernGameRepository implements TavernGameRepository {
       const updated = await findSessionByToken(tx, token);
       if (!updated) {
         return { state: "not-found" };
+      }
+      if (isTavleiDoppelgangerRow(updated)) {
+        const resolved = await resolveTavleiDoppelgangerSessionTx(tx, updated, now);
+        if (resolved.state === "failed-refund") {
+          return {
+            state: "failed-refund",
+            session: mapSession(resolved.session)
+          };
+        }
+        return {
+          state: "resolved",
+          session: mapSession(resolved.session),
+          resolution: resolved.resolution
+        };
       }
       if (shouldResolveAfterDecision(updated)) {
         const resolved = await resolveSessionTx(tx, updated, now);
@@ -942,6 +1073,10 @@ async function expireDueTx(tx: TxClient, now: Date, limit = 23): Promise<number>
       await refundSessionTx(tx, row, "expired_refund", now, {
         kind: "dice_poker_expired"
       });
+    } else if (isTavleiDoppelgangerRow(row)) {
+      await refundSessionTx(tx, row, "expired_refund", now, {
+        kind: "tavlei_doppelganger_expired"
+      });
     } else if (row.status === "open" && countLiveParticipants(row) < getMinimumParticipants(row.gameKey)) {
       await refundSessionTx(tx, row, "expired_refund", now);
     } else {
@@ -966,6 +1101,17 @@ async function expireTokenIfNeededTx(tx: TxClient, token: string, now: Date): Pr
   ) {
     await refundSessionTx(tx, row, "expired_refund", now, {
       kind: "dice_poker_expired"
+    });
+    return;
+  }
+  if (
+    isTavleiDoppelgangerRow(row) &&
+    row.status === "ready" &&
+    row.decisionExpiresAt !== null &&
+    row.decisionExpiresAt <= now
+  ) {
+    await refundSessionTx(tx, row, "expired_refund", now, {
+      kind: "tavlei_doppelganger_expired"
     });
     return;
   }
@@ -1052,6 +1198,80 @@ async function resolveSessionTx(
       }
     });
   }
+
+  const completed = await tx.tavernGameSession.update({
+    where: { id: row.id },
+    data: {
+      status: "completed",
+      resultJson: resolution,
+      completedAt: now
+    },
+    include: tavernGameSessionInclude
+  });
+
+  return { state: "resolved", session: completed, resolution };
+}
+
+async function resolveTavleiDoppelgangerSessionTx(
+  tx: TxClient,
+  row: TavernGameSessionRow,
+  now: Date
+): Promise<ResolveSessionTxResult> {
+  const claimed = await tx.tavernGameSession.updateMany({
+    where: {
+      id: row.id,
+      status: "ready",
+      rulesVersion: TAVLEI_DOPPELGANGER_RULES_VERSION
+    },
+    data: {
+      status: "resolving"
+    }
+  });
+
+  if (claimed.count !== 1) {
+    const replay = await findSessionById(tx, row.id);
+    const resolution = replay ? parseResolution(replay.resultJson) : null;
+    if (replay && resolution) {
+      return { state: "resolved", session: replay, resolution };
+    }
+    throw new Error("Tavlei Doppelganger resolution race lost without replay.");
+  }
+
+  const participant = row.participants.find((entry) => isJoinedStatus(entry.status));
+  if (!participant) {
+    const refunded = await refundSessionTx(tx, row, "failed_safe_refund", now, {
+      kind: "failed_safe_refund",
+      reason: "missing player for Tavlei Doppelganger"
+    });
+    return { state: "failed-refund", session: refunded };
+  }
+
+  const resolution = resolveTavleiDoppelganger({
+    seed: row.seed,
+    stakeGold: row.stakeGold,
+    player: toResolverPlayer(participant, "tavlei")
+  });
+
+  const payoutGold = resolution.payouts[participant.characterId] ?? 0;
+  const refundedGold = resolution.refunds[participant.characterId] ?? 0;
+  const returnedGold = payoutGold + refundedGold;
+  if (returnedGold > 0) {
+    await tx.character.update({
+      where: { id: participant.characterId },
+      data: { gold: { increment: returnedGold } }
+    });
+  }
+  await tx.tavernGameParticipant.update({
+    where: { id: participant.id },
+    data: {
+      status: refundedGold > 0 ? "left_refunded" : "completed",
+      payoutGold,
+      refundedGold,
+      resultJson: resolution,
+      activeStakeKey: null,
+      completedAt: now
+    }
+  });
 
   const completed = await tx.tavernGameSession.update({
     where: { id: row.id },
@@ -1539,6 +1759,12 @@ function toDicePokerTableJson(
 
 function isDicePokerRow(row: TavernGameSessionRow): boolean {
   return row.gameKey === "kosti" && row.rulesVersion === DICE_POKER_RULES_VERSION;
+}
+
+function isTavleiDoppelgangerRow(row: TavernGameSessionRow): boolean {
+  return row.gameKey === "tavlei" &&
+    row.rulesVersion === TAVLEI_DOPPELGANGER_RULES_VERSION &&
+    isTavleiDoppelgangerState(row.resultJson);
 }
 
 function getMinimumParticipants(gameKey: string): number {

@@ -12,6 +12,8 @@ import {
   makeShynokDicePokerScoreCallbackData,
   makeShynokDicePokerToggleCallbackData,
   makeShynokDicePokerViewCallbackData,
+  makeShynokDoppelgangerMenuCallbackData,
+  makeShynokDoppelgangerModeCallbackData,
   makeShynokDrinkConfirmCallbackData,
   makeShynokDrinkPreviewCallbackData,
   makeShynokGameCancelCallbackData,
@@ -26,6 +28,7 @@ import {
   makeShynokRoundReplacementConfirmCallbackData,
   makeShynokSaleAddCallbackData,
   makeShynokSaleConfirmCallbackData,
+  makeShynokTavleiDoppelgangerCreateCallbackData,
   makeShynokTavleiDecisionCallbackData,
   parseShynokCallbackData
 } from "../../src/bot/callbacks/shynokCallbackData";
@@ -105,6 +108,18 @@ describe("shynokCallbackData", () => {
       ok: true,
       value: { type: "game-create", gameKey: "tavlei", stakeGold: 13 }
     });
+    expect(parseShynokCallbackData(makeShynokDoppelgangerMenuCallbackData())).toEqual({
+      ok: true,
+      value: { type: "game-doppelganger-menu" }
+    });
+    expect(parseShynokCallbackData(makeShynokDoppelgangerModeCallbackData("tavlei"))).toEqual({
+      ok: true,
+      value: { type: "game-doppelganger-mode", gameKey: "tavlei" }
+    });
+    expect(parseShynokCallbackData(makeShynokTavleiDoppelgangerCreateCallbackData(13))).toEqual({
+      ok: true,
+      value: { type: "game-tavlei-doppelganger-create", stakeGold: 13 }
+    });
     expect(parseShynokCallbackData(makeShynokGameJoinCallbackData(token))).toEqual({
       ok: true,
       value: { type: "game-join", token }
@@ -129,6 +144,10 @@ describe("shynokCallbackData", () => {
 
   it("keeps combined Kosti decision callbacks below Telegram limits", () => {
     expect(Buffer.byteLength(makeShynokKostiDecisionCallbackData(token, "sign_hunter", "straight"), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokDoppelgangerModeCallbackData("scorecard"), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokTavleiDoppelgangerCreateCallbackData(93), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
@@ -196,6 +215,8 @@ describe("shynokCallbackData", () => {
 
   it("rejects invalid tavern social game callbacks", () => {
     expect(parseShynokCallbackData("v1:sh:gc:x:3").ok).toBe(false);
+    expect(parseShynokCallbackData("v1:sh:gdo:x").ok).toBe(false);
+    expect(parseShynokCallbackData("v1:sh:gtn:0").ok).toBe(false);
     expect(parseShynokCallbackData(`v1:sh:gt:${token}:bad`).ok).toBe(false);
     expect(parseShynokCallbackData(`v1:sh:gk:${token}:st:bad`).ok).toBe(false);
     expect(parseShynokCallbackData(`v1:sh:gdt:${token}:5`).ok).toBe(false);

@@ -4,6 +4,8 @@ import {
   rankKostiHand,
   resolveKosti,
   resolveTavlei,
+  resolveTavleiDoppelganger,
+  TAVLEI_DOPPELGANGER_CHARACTER_ID,
   type TavernGamePlayer
 } from "../../src/domain/tavernGames";
 
@@ -40,6 +42,24 @@ describe("tavernGames", () => {
 
     expect(result).toBeDefined();
     expect(result?.refunds).toEqual({ left: 3, right: 3 });
+  });
+
+  it("resolves Tavlei against the Doppelganger without minting more than the player's stake", () => {
+    const input = {
+      seed: "tavlei-doppelganger-fixed",
+      stakeGold: 13,
+      player: player("left", { decision: { gameKey: "tavlei", tactic: "quiet_trap" } })
+    } as const;
+
+    const first = resolveTavleiDoppelganger(input);
+    const replay = resolveTavleiDoppelganger(input);
+    const returned = (first.payouts.left ?? 0) + (first.refunds.left ?? 0);
+
+    expect(replay).toEqual(first);
+    expect(first.opponentKind).toBe("doppelganger");
+    expect(first.potGold).toBe(13);
+    expect(first.players.map((entry) => entry.characterId)).toContain(TAVLEI_DOPPELGANGER_CHARACTER_ID);
+    expect(returned).toBeLessThanOrEqual(13);
   });
 
   it("ranks Kosti hands and detects signs", () => {

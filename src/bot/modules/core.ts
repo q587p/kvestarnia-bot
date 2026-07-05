@@ -25,6 +25,7 @@ import { registerPlannedCommands } from "../commands/plannedCommand";
 import { registerSupportCommand } from "../commands/supportCommand";
 import { sendTavern } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
+import { telegramUserIdFromContext } from "../context";
 import { buildShynokGameHubKeyboard } from "../keyboards/shynokKeyboard";
 import { presentHelp } from "../presenters/helpPresenter";
 import { presentTavernGameHub } from "../presenters/tavernGamePresenter";
@@ -64,7 +65,8 @@ export function registerCoreBotModule(
   registerVersionCommand(bot);
   registerPlannedCommands(bot);
   bot.command("games", async (ctx) => {
-    const result = await services.tavernGames?.getHub() ?? { state: "disabled" as const };
+    const telegramUserId = telegramUserIdFromContext(ctx.from) ?? undefined;
+    const result = await services.tavernGames?.getHub(telegramUserId) ?? { state: "disabled" as const };
 
     await ctx.reply(presentTavernGameHub(result), {
       parse_mode: "HTML",

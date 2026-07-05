@@ -28,19 +28,24 @@ describe("TavernGameService", () => {
   });
 
   it("lists open tables when global and per-game flags are enabled", async () => {
-    const repository = new FakeTavernGameRepository({ openTables: [session()] });
+    const repository = new FakeTavernGameRepository({
+      openTables: [session()],
+      character: { ...session().creator, gold: 42 }
+    });
     const service = new TavernGameService(repository, config({
       tavernGamesEnabled: true,
       tavernGameTavleiEnabled: true
     }), () => now);
 
-    const result = await service.getHub();
+    const result = await service.getHub(42n);
 
     expect(result).toMatchObject({
       state: "ready",
       maxStake: 93,
       tavleiEnabled: true,
-      kostiEnabled: false
+      kostiEnabled: false,
+      doppelgangerAvailable: false,
+      character: { gold: 42 }
     });
     expect(result.state === "ready" ? result.openTables : []).toHaveLength(1);
   });
@@ -214,6 +219,40 @@ describe("TavernGameService", () => {
       kind: "dice_poker",
       mode: "quick"
     });
+  });
+
+  it("blocks daytime Doppelganger Tavlei before reserving a stake", async () => {
+    const repository = new FakeTavernGameRepository();
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true
+    }), () => now);
+
+    const result = await service.createTavleiWithDoppelgangerForTelegramUser(42n, 13);
+
+    expect(result).toEqual({ state: "blocked", reason: "doppelganger-at-fighting-corner" });
+    expect(repository.lastTavleiDoppelgangerCreateInput).toBeNull();
+  });
+
+  it("allows Doppelganger Tavlei at night in Shynok", async () => {
+    const repository = new FakeTavernGameRepository();
+    const night = new Date("2026-07-02T20:00:00.000Z");
+    const service = new TavernGameService(repository, config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true,
+      tavernGameCreateCooldownSec: 42
+    }), () => night);
+
+    const result = await service.createTavleiWithDoppelgangerForTelegramUser(42n, 13);
+
+    expect(result.state).toBe("created");
+    expect(repository.lastTavleiDoppelgangerCreateInput).toMatchObject({
+      stakeGold: 13,
+      cooldownMs: 42_000,
+      now: night,
+      state: { kind: "tavlei_doppelganger", opponent: "doppelganger" }
+    });
+    expect(repository.lastTavleiDoppelgangerCreateInput?.expiresAt.toISOString()).toBe("2026-07-02T20:05:00.000Z");
   });
 
   it("refunds old incompatible Kosti sessions before legacy decisions", async () => {
@@ -587,6 +626,7 @@ class FakeTavernGameRepository implements TavernGameRepository {
   completeDicePokerCalls = 0;
   lastCreateInput: Parameters<TavernGameRepository["createForTelegramUser"]>[1] | null = null;
   lastDicePokerCreateInput: Parameters<TavernGameRepository["createDicePokerForTelegramUser"]>[1] | null = null;
+  lastTavleiDoppelgangerCreateInput: Parameters<TavernGameRepository["createTavleiDoppelgangerForTelegramUser"]>[1] | null = null;
   lastCompleteInput: Parameters<TavernGameRepository["completeDicePokerForTelegramUser"]>[2] | null = null;
   lastSaveInput: {
     state: DicePokerState;
@@ -599,10 +639,15 @@ class FakeTavernGameRepository implements TavernGameRepository {
     openTables?: TavernGameSessionRecord[];
     completedTables?: TavernGameSessionRecord[];
     tokenSession?: TavernGameSessionRecord;
+    character?: TavernGameSessionRecord["creator"];
     createResult?: Awaited<ReturnType<TavernGameRepository["createForTelegramUser"]>>;
     dicePokerActionResult?: DicePokerActionResult;
     resetCreateCooldownResult?: Awaited<ReturnType<TavernGameRepository["resetCreateCooldownForTelegramUser"]>>;
   } = {}) {}
+
+  findCharacterByTelegramUser(): ReturnType<TavernGameRepository["findCharacterByTelegramUser"]> {
+    return Promise.resolve(this.options.character ?? null);
+  }
 
   listOpen(): Promise<TavernGameSessionRecord[]> {
     this.listOpenCalls += 1;
@@ -645,6 +690,23 @@ class FakeTavernGameRepository implements TavernGameRepository {
         gameKey: "kosti",
         status: "ready",
         rulesVersion: DICE_POKER_RULES_VERSION,
+        seed: input.seed,
+        result: input.state
+      })
+    });
+  }
+
+  createTavleiDoppelgangerForTelegramUser(
+    _telegramUserId: bigint,
+    input: Parameters<TavernGameRepository["createTavleiDoppelgangerForTelegramUser"]>[1]
+  ): ReturnType<TavernGameRepository["createTavleiDoppelgangerForTelegramUser"]> {
+    this.lastTavleiDoppelgangerCreateInput = input;
+    return Promise.resolve(this.options.createResult ?? {
+      state: "created",
+      session: session({
+        gameKey: "tavlei",
+        status: "ready",
+        rulesVersion: "tavlei-doppelganger-v1",
         seed: input.seed,
         result: input.state
       })

@@ -50,9 +50,12 @@ export type ShynokCallback =
   | { type: "game-leaderboard" }
   | { type: "game-rules"; gameKey: TavernGameKey }
   | { type: "game-create"; gameKey: TavernGameKey; stakeGold: number }
+  | { type: "game-doppelganger-menu" }
+  | { type: "game-doppelganger-mode"; gameKey: "quick" | "scorecard" | "tavlei" }
   | { type: "game-dice-poker-mode"; mode: DicePokerMode }
   | { type: "game-dice-poker-create"; mode: DicePokerMode; stakeGold: number }
   | { type: "game-dice-poker-doppelganger-create"; mode: DicePokerMode; stakeGold: number }
+  | { type: "game-tavlei-doppelganger-create"; stakeGold: number }
   | { type: "game-dice-poker-rules"; token?: string }
   | { type: "game-dice-poker-view"; token: string }
   | { type: "game-dice-poker-toggle"; token: string; index: number }
@@ -169,12 +172,24 @@ export function makeShynokGameCreateCallbackData(gameKey: TavernGameKey, stakeGo
   return assertData(`${PREFIX}:gc:${encodeGameKey(gameKey)}:${stakeGold}`);
 }
 
+export function makeShynokDoppelgangerMenuCallbackData(): string {
+  return assertData(`${PREFIX}:gdm`);
+}
+
+export function makeShynokDoppelgangerModeCallbackData(gameKey: "quick" | "scorecard" | "tavlei"): string {
+  return assertData(`${PREFIX}:gdo:${encodeDoppelgangerGameKey(gameKey)}`);
+}
+
 export function makeShynokDicePokerCreateCallbackData(mode: DicePokerMode, stakeGold: number): string {
   return assertData(`${PREFIX}:${mode === "quick" ? "gqc" : "gsc"}:${stakeGold}`);
 }
 
 export function makeShynokDicePokerDoppelgangerCreateCallbackData(mode: DicePokerMode, stakeGold: number): string {
   return assertData(`${PREFIX}:${mode === "quick" ? "gqn" : "gsn"}:${stakeGold}`);
+}
+
+export function makeShynokTavleiDoppelgangerCreateCallbackData(stakeGold: number): string {
+  return assertData(`${PREFIX}:gtn:${stakeGold}`);
 }
 
 export function makeShynokDicePokerModeCallbackData(mode: DicePokerMode): string {
@@ -340,6 +355,15 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   if (action === "gl" && first === undefined) {
     return { ok: true, value: { type: "game-leaderboard" } };
   }
+  if (action === "gdm" && first === undefined) {
+    return { ok: true, value: { type: "game-doppelganger-menu" } };
+  }
+  if (action === "gdo" && first && decodeDoppelgangerGameKey(first) && second === undefined) {
+    return {
+      ok: true,
+      value: { type: "game-doppelganger-mode", gameKey: decodeDoppelgangerGameKey(first)! }
+    };
+  }
   if (action === "gr" && first && decodeGameKey(first) && second === undefined) {
     return { ok: true, value: { type: "game-rules", gameKey: decodeGameKey(first)! } };
   }
@@ -368,6 +392,9 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
         stakeGold: Number(first)
       }
     };
+  }
+  if (action === "gtn" && isSafeStake(first) && second === undefined) {
+    return { ok: true, value: { type: "game-tavlei-doppelganger-create", stakeGold: Number(first) } };
   }
   if ((action === "gqm" || action === "gsm") && first === undefined) {
     return {
@@ -500,6 +527,24 @@ function encodeGameKey(gameKey: TavernGameKey): string {
 function decodeGameKey(value: string): TavernGameKey | null {
   const decoded = value === "t" ? "tavlei" : value === "k" ? "kosti" : value;
   return isTavernGameKey(decoded) ? decoded : null;
+}
+
+function encodeDoppelgangerGameKey(gameKey: "quick" | "scorecard" | "tavlei"): string {
+  return {
+    quick: "q",
+    scorecard: "s",
+    tavlei: "t"
+  }[gameKey];
+}
+
+function decodeDoppelgangerGameKey(value: string): "quick" | "scorecard" | "tavlei" | null {
+  if (value === "q") {
+    return "quick";
+  }
+  if (value === "s") {
+    return "scorecard";
+  }
+  return value === "t" ? "tavlei" : null;
 }
 
 function encodeTavleiTactic(tactic: TavleiTactic): string {
