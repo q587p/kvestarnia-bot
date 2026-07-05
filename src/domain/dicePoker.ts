@@ -450,6 +450,17 @@ export function isDicePokerState(value: unknown): value is DicePokerState {
   return isRecord(value) && value.kind === "dice_poker" && (value.mode === "quick" || value.mode === "scorecard");
 }
 
+export function getStoredDicePokerState(value: unknown): DicePokerState | null {
+  if (isDicePokerState(value)) {
+    return value;
+  }
+  if (!isRecord(value) || value.kind !== "dice_poker") {
+    return null;
+  }
+
+  return isDicePokerState(value.state) ? value.state : null;
+}
+
 export function resolveQuickPlayerHand(
   state: DicePokerQuickRoundState,
   seed: string,

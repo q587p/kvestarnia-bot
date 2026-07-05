@@ -270,6 +270,50 @@ describe("Shynok game keyboards", () => {
     );
   });
 
+  it("offers a rematch from stored terminal Doppelganger Dice Poker cards", () => {
+    const state = {
+      ...startQuickDicePoker("keyboard-stored-rematch"),
+      phase: "terminal" as const,
+      outcome: "loss" as const,
+      playerHand: {
+        rank: "high" as const,
+        tieBreak: [6, 5, 4, 3, 2]
+      },
+      opponentHand: {
+        rank: "pair" as const,
+        tieBreak: [6, 5, 4, 3]
+      },
+      reason: "Пара сильніша."
+    };
+    const keyboard = buildTavernGameActionKeyboard({
+      state: "stale",
+      session: {
+        token: "12345678-1234-4234-9234-123456789abc",
+        gameKey: "kosti",
+        status: "completed",
+        creatorCharacterId: "character-creator",
+        result: {
+          kind: "dice_poker",
+          outcome: "loss",
+          state
+        },
+        participants: [
+          {
+            characterId: "character-creator",
+            status: "completed",
+            telegramUserId: 1001n,
+            decision: null
+          }
+        ]
+      }
+    }, 1001n);
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🔁 Зіграти ще", "↩ До ігор"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(
+      "v1:sh:grm:12345678-1234-4234-9234-123456789abc"
+    );
+  });
+
   it("shows scorecard scoring choices with preview values", () => {
     const state = {
       ...startScorecardDicePoker("keyboard-scorecard"),

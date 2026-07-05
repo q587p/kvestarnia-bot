@@ -4,6 +4,7 @@ import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import {
   DICE_POKER_RULES_VERSION,
+  getStoredDicePokerState,
   isDicePokerState,
   isDicePokerTableState,
   resolveQuickDicePokerRound,
@@ -364,10 +365,11 @@ export class TavernGameService {
       return { state: "stale", session: previous };
     }
 
-    if (isDicePokerState(previous.result)) {
+    const previousDicePokerState = getStoredDicePokerState(previous.result);
+    if (previousDicePokerState) {
       return this.createDicePokerWithDoppelgangerForTelegramUser(
         telegramUserId,
-        previous.result.mode,
+        previousDicePokerState.mode,
         previous.stakeGold
       );
     }

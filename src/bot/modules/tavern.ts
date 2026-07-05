@@ -172,7 +172,12 @@ presentTavernRoundResult
 import { presentBigBarrelApproachNotice } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
-import { isDicePokerState, isDicePokerTableState, type DicePokerState } from "../../domain/dicePoker";
+import {
+  getStoredDicePokerState,
+  isDicePokerState,
+  isDicePokerTableState,
+  type DicePokerState
+} from "../../domain/dicePoker";
 
 import { barrelRaidCompletionScheduler } from "./barrelRaidCompletionScheduler";
 import { sendLevelUpCelebration } from "./levelUp";
@@ -835,7 +840,7 @@ export function buildTavernGameActionKeyboard(result: {
     ? (!tableIsClosed && table.phase === "playing" && isDicePokerState(participant?.decision)
         ? participant.decision
         : null)
-    : result.dicePoker ?? (isDicePokerState(result.session?.result) ? result.session.result : null);
+    : result.dicePoker ?? getStoredDicePokerState(result.session?.result);
   if (result.session && dicePoker) {
     return buildShynokDicePokerKeyboard(result.session.token, dicePoker, {
       allowCancel: !table,

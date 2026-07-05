@@ -400,6 +400,39 @@ describe("tavern game presenter", () => {
     expect(presentTavernGameActionResult({ state: "stale" })).toContain("Стара кнопка від старих костей");
   });
 
+  it("replays stored terminal Dice Poker cards instead of legacy stale copy", () => {
+    const state: DicePokerState = {
+      kind: "dice_poker",
+      mode: "quick",
+      phase: "terminal",
+      outcome: "loss",
+      drawRound: 1,
+      playerDice: [1, 2, 3, 4, 6],
+      opponentDice: [6, 6, 3, 2, 1],
+      playerHand: evaluateQuickHand([1, 2, 3, 4, 6]),
+      opponentHand: evaluateQuickHand([6, 6, 3, 2, 1]),
+      reason: "Пара сильніша."
+    };
+
+    const text = presentTavernGameActionResult({
+      state: "stale",
+      session: session({
+        status: "completed",
+        result: {
+          kind: "dice_poker",
+          outcome: "loss",
+          state
+        },
+        participants: [participant({ payoutGold: 0, refundedGold: 0, stakeGold: 5 })]
+      })
+    });
+
+    expect(text).toContain("⚡ Швидкі кості");
+    expect(text).toContain("Кості Допельґанґера");
+    expect(text).toContain("💸 Ставка програна: <b>5 зол.</b>");
+    expect(text).not.toContain("Стара кнопка від старих костей");
+  });
+
   it("does not present legacy create cooldown as an active pause", () => {
     const text = presentTavernGameActionResult({
       state: "cooldown",

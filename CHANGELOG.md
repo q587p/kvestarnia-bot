@@ -45,6 +45,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Stale, terminal, expired and duplicate dice-poker callbacks do not grant duplicate rewards or remove extra gold.
 - Completed social Dice Poker result cards now notify other seated participants with the terminal table result, active titles and safe rematch/back controls instead of leaving old waiting cards or stale reroll buttons.
 - Active games against `🪞 Допельґанґер` now count in `🎲 Ігри за столом` and appear in `👀 Хто поруч` as occupied tables without exposing join buttons.
+- Completed Dice Poker games against `🪞 Допельґанґер` now replay their stored result and `🔁 Зіграти ще` starts the same fallback game instead of falling into old Kosti stale-copy.
 - Invite-link join failures now show `✅ Сісти за стіл` for non-participants on still-open tables instead of creator-only invite buttons, so a player can sell manatky for gold and retry the same table.
 - Open and ready Tavlei table cards now separate title, players, bank and next action with blank lines, and render seated character names in bold with active cosmetic titles.
 

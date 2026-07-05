@@ -64,6 +64,7 @@
 - Invite-link join failures for non-participants keep the table retry path visible: insufficient-gold responses show `✅ Сісти за стіл`, not creator-only invite buttons.
 - `🪞 Допельґанґер` is available in Shynok from 23:00 until 07:00 Kyiv time, opens a separate game choice, and supports quick dice, scorecard dice and Tavlei.
 - Active games against `🪞 Допельґанґер` appear in `🎲 Ігри за столом` and `👀 Хто поруч` as occupied tables without join buttons.
+- Completed Dice Poker games against `🪞 Допельґанґер` replay their stored result and `🔁 Зіграти ще` starts the same fallback game without old Kosti stale-copy.
 - Quick Dice Poker with `🪞 Допельґанґер` shows both final hands plus the reason.
 - Tavlei with `🪞 Допельґанґер` shows tactic choices, settles after the player choice and records the result without a second participant row.
 - Dice Poker rules opened from an active game can return to that same active game.
@@ -115,11 +116,12 @@
 29. Verify `🏆 Рейтинг` counts quick win/loss/draw, Tavlei vs Doppelganger and high scorecard completion.
 30. Press `🔁 Зіграти ще` from a completed social table and verify a new same-stake table opens for the actor while the previous opponent receives a private join invite.
 31. Press duplicate rematch callbacks and verify there is no duplicate table or duplicate invite while the actor has an active stake session.
-32. Press `🔁 Зіграти ще` from a completed Doppelganger game and verify the same fallback path starts directly without inviting another player.
-33. Create a table, close or finish it, then immediately create another table; verify there is no recent-create cooldown blocker.
-34. Verify open social Dice Poker table counts in `🎲 Ігри за столом`.
-35. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
-36. Try insufficient gold.
-37. Try create/join/decision while under combat lock.
-38. Run the repo's local checks, at minimum `npm run check` if available.
-39. Inspect DB rows for terminal statuses and no orphan escrow.
+32. Press `🔁 Зіграти ще` from a completed Doppelganger game and verify the same fallback path starts directly without inviting another player or showing old Kosti stale-copy.
+33. Replay the completed Doppelganger result card and verify it still shows the Dice Poker result.
+34. Create a table, close or finish it, then immediately create another table; verify there is no recent-create cooldown blocker.
+35. Verify open social Dice Poker table counts in `🎲 Ігри за столом`.
+36. Press stale old Kosti join/decision/resolve buttons and stale dice-poker buttons after completion/expiry.
+37. Try insufficient gold.
+38. Try create/join/decision while under combat lock.
+39. Run the repo's local checks, at minimum `npm run check` if available.
+40. Inspect DB rows for terminal statuses and no orphan escrow.

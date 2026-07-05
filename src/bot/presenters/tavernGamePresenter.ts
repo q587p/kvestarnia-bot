@@ -9,6 +9,7 @@ import {
 import {
   DICE_POKER_SCORE_CATEGORIES,
   evaluateQuickHand,
+  getStoredDicePokerState,
   isDicePokerState,
   isDicePokerTableState,
   previewScorecardScores,
@@ -194,7 +195,7 @@ export function presentTavernGameActionResult(result: {
   }
   const table = isDicePokerTableState(result.session?.result) ? result.session.result : null;
   const dicePoker = result.dicePoker ?? getSessionDicePoker(result.session, result.viewerTelegramUserId);
-  if (dicePoker && ["created", "started", "saved", "completed", "active-session"].includes(result.state)) {
+  if (dicePoker && ["created", "started", "saved", "completed", "active-session", "stale", "closed"].includes(result.state)) {
     if (result.session && isDicePokerTableState(result.session.result)) {
       return presentDicePokerTableState(result.session, dicePoker, result.state);
     }
@@ -815,8 +816,9 @@ function getSessionDicePoker(
   if (!session) {
     return null;
   }
-  if (isDicePokerState(session.result)) {
-    return session.result;
+  const sessionState = getStoredDicePokerState(session.result);
+  if (sessionState) {
+    return sessionState;
   }
   if (viewerTelegramUserId !== undefined && isDicePokerTableState(session.result)) {
     const participant = session.participants.find((row) =>

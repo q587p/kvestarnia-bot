@@ -590,7 +590,7 @@ describe("TavernGameService", () => {
     expect(result.rematchInvitees).toEqual([{ telegramUserId: 43n, displayName: "Другий" }]);
   });
 
-  it("starts a Doppelganger rematch without invitees", async () => {
+  it("starts a Doppelganger rematch from stored terminal Dice Poker result without invitees", async () => {
     const previousState = {
       ...startQuickDicePoker("doppel-rematch"),
       phase: "terminal" as const,
@@ -605,7 +605,11 @@ describe("TavernGameService", () => {
       stakeGold: 5,
       token: "12345678-1234-4234-9234-000000000431",
       rulesVersion: DICE_POKER_RULES_VERSION,
-      result: previousState,
+      result: {
+        kind: "dice_poker",
+        outcome: "loss",
+        state: previousState
+      },
       participants: [participant("character-1", 42n, "Тест", { status: "completed" })]
     });
     const night = new Date("2026-07-02T20:00:00.000Z");
