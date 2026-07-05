@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { items } from "../../content/items";
 import { contentIdSchema } from "../../content/schema";
 import {
@@ -12,13 +13,45 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 const ITEM_PREFIX = "v1:item";
 const EQUIPMENT_PREFIX = "v1:equip";
-const compactItemCallbackIds = items.map((item) => item.id);
-const itemCallbackKeyById = new Map(
-  compactItemCallbackIds.map((itemId, index) => [itemId, index.toString(36)])
+const { itemCallbackKeyById, itemIdByCallbackKey } = buildItemCallbackKeyMaps(
+  items.map((item) => item.id)
 );
-const itemIdByCallbackKey = new Map(
-  compactItemCallbackIds.map((itemId, index) => [index.toString(36), itemId])
-);
+
+export type ItemCallbackKeyMaps = {
+  itemCallbackKeyById: ReadonlyMap<string, string>;
+  itemIdByCallbackKey: ReadonlyMap<string, string>;
+};
+
+export function buildItemCallbackKeyMaps(
+  itemIds: readonly string[],
+  options: { makeKey?: (itemId: string) => string } = {}
+): ItemCallbackKeyMaps {
+  const makeKey = options.makeKey ?? makeStableItemCallbackKey;
+  const itemCallbackKeyById = new Map<string, string>();
+  const itemIdByCallbackKey = new Map<string, string>();
+
+  for (const itemId of itemIds) {
+    if (itemCallbackKeyById.has(itemId)) {
+      throw new Error(`Duplicate item callback id: ${itemId}`);
+    }
+
+    const key = makeKey(itemId);
+    const existingItemId = itemIdByCallbackKey.get(key);
+
+    if (existingItemId && existingItemId !== itemId) {
+      throw new Error(`Item callback key collision: ${key} maps both ${existingItemId} and ${itemId}`);
+    }
+
+    itemCallbackKeyById.set(itemId, key);
+    itemIdByCallbackKey.set(key, itemId);
+  }
+
+  return { itemCallbackKeyById, itemIdByCallbackKey };
+}
+
+export function makeStableItemCallbackKey(itemId: string): string {
+  return createHash("sha256").update(itemId).digest("hex").slice(0, 12);
+}
 
 export type ItemCallback =
   | { type: "detail"; itemId: string; page: number; filter: InventoryFilter }

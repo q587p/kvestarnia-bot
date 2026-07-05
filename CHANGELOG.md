@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.28] - 12026-07-05 - Mantok Set Synergies Foundation
+## [0.2.28] - 12026-07-06 - Mantok Set Synergies Foundation
 
 ### Added
 - Added 13 authored Mantok equipment set families with 47 set-piece items, covering paired weapons, armor families and cross-slot kits.
@@ -24,7 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Changed inventory pagination counter buttons like `1/4` into page-number prompts, so players can reply with a target page instead of pressing a no-op current-page callback.
 
 ### Fixed
-- Kept inventory item-detail and equip callback payloads within Telegram's 64-byte limit for long authored Mantok/coverage item ids by using compact catalog keys when needed.
+- Kept inventory item-detail and equip callback payloads within Telegram's 64-byte limit for long authored Mantok/coverage item ids by using stable deterministic compact catalog keys when needed, with collision detection during callback map construction.
 
 ### Deferred
 - Gear-action buttons, bleed/burn/status runtime, borrowed class/race actions, Yeger disguise/service perks, shops, markets, crafting and broad combat rebalance remain deferred.
