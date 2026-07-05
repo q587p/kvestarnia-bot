@@ -3258,8 +3258,9 @@ describe("scene callback HTML options", () => {
 
     expect(notification?.payload.text).toContain("⚡ Швидкі кості");
     expect(notification?.payload.text).toContain(
-      "<b>Shannar de Kassal</b> (<i>«Табуретник»</i>): 🏆 перемога · виплата <b>26 зол.</b>\n\n<b>Kyjivan BooksDragon</b>"
+      "<b>Shannar de Kassal</b> (<i>«Табуретник»</i>): 3 2 1 6 5 — Старша кістка 6.\n🏆 перемога · виплата <b>26 зол.</b>\n\n<b>Kyjivan BooksDragon</b> (<i>«Перший писар»</i>): 2 3 6 1 4 — Старша кістка 6.\n💀 поразка"
     );
+    expect(notification?.payload.text).toContain("Причина: старші значення в комбінації «Старша кістка» вирішили партію.");
     expect(keyboard).toContain("v1:sh:grm:12345678-1234-4234-9234-123456789abc");
     expect(keyboard).not.toContain(":gdr:");
     expect(keyboard).not.toContain(":gdt:");

@@ -792,7 +792,7 @@ function presentQuickDicePokerTableReason(
   }
 
   const comparison = compareQuickHands(winner.state.playerHand, strongestOpponent.state.playerHand);
-  const why = comparison === 0
+  const why = comparison === 0 || winner.state.playerHand.rank === strongestOpponent.state.playerHand.rank
     ? `старші значення в комбінації «${quickRankLabel(winner.state.playerHand.rank)}» вирішили партію`
     : `${quickRankSubjectLabel(winner.state.playerHand.rank)} сильніша за ${quickRankObjectLabel(strongestOpponent.state.playerHand.rank)}`;
 
