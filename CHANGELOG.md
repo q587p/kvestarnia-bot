@@ -14,17 +14,20 @@ This project follows a simple pre-1.0 versioning policy:
 - Added exact coverage tests for slot counts `18/16/14/12/12/15/14`, slot spread `6`, and at least two class-, race- and title/path-bucket-restricted items for every current class, active race and Loot Expansion v1 title bucket.
 - Added authored class/race/title-bucket equip-gate coverage for Mantok items, including explicit rejection/pass tests for preview and equip.
 - Added `docs/balance/mantok-equipment-slot-coverage.md` and a `0.2.26` manual QA checklist for the coverage slice.
-- Added local `/dev_add_random_item [count] slot=... tag=...` filters for equipment-slot and hand-tag QA without adding coverage items to shops or reward tables.
+- Added local `/dev_add_random_item [count] slot=... tag=...` filters for equipment-slot and hand-tag QA.
+- Added weighted monster-loot coverage for every authored Mantok coverage item, making them reachable through existing fight/Yeger reward paths while preserving candidate-based drops.
 
 ### Changed
 - Equip preview/equip now enforces authored coverage class, race and title-bucket requirements alongside generated Loot Expansion v1 gates.
+- Restricted authored Mantok coverage gear can still drop for mismatched characters as social trade/gift material; class/race/title requirements remain enforced at equip preview/equip time.
+- Bestiary monster details now describe possible loot broadly instead of calling every reachable candidate a trophy.
 - Generated Loot Expansion v1 materialization now uses slot/name/tag heuristics for head-like armor, leg/boot/pants gear, shield/buckler offhand gear, tool-like accessories and logical `offhand`/`twohand` hand tags.
 - Bumped package metadata to `0.2.26` and updated the compact Codex context for the shipped Mantok coverage slice.
 
 ### Unchanged
 - No Prisma schema or migration changes.
 - No generated Loot Expansion v1 source-pack edits; existing `item.loot-v1-*` ids and generated counts stay stable.
-- No shop, reward table, Mantok Chest, Shynok sale, transfer, remort, item-instance, one-use consumable or combat formula changes.
+- No shop, Mantok Chest, Shynok sale, transfer, remort, item-instance, one-use consumable or combat formula changes.
 - No new achievements; existing equipment-slot achievements become more reachable through the broader catalog.
 
 ## [0.2.25] - 12026-07-05 - Class Noncombat Priest and Rogue Techniques

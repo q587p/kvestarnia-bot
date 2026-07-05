@@ -34,6 +34,9 @@ The spread is `18 - 12 = 6`, below the requested ceiling of ten.
 - Universal coverage gear uses common prices around starter-equipment scale but stays above the existing very-cheap trophy guard.
 - Class/race gear uses mostly uncommon rarity and small stat packages tied to identity.
 - Title/path gear uses rare rarity and slightly higher prices, but remains narrow and gated by title-bucket matching.
+- Monster loot integration uses a small explicit coverage weight beside existing monster/trophy candidates, so authored gear becomes reachable without turning any single item into a guaranteed drop.
+- Restricted coverage gear can still drop for mismatched characters as social trade/gift material; the restriction remains enforced only when previewing or equipping the item.
+- Existing reward settlement, idempotency and replay paths are reused; the change broadens candidate pools rather than adding a new reward faucet.
 - Two-handed weapons are tagged `twohand` so they use the existing offhand conflict/confirmation model.
 - Shields, bucklers, parrying daggers and second-hand utilities use `offhand` metadata/tags instead of pretending to be generic chest armor.
 - Tool coverage items are `slot: "accessory"` plus `equipmentSlot: "tool"`, matching the current item schema while using the canonical equipment slot.
@@ -55,4 +58,4 @@ These rules avoid hand-editing the generated source pack and keep future regener
 
 - Equip restrictions for authored coverage items are runtime checks, not extra fields in `ItemContent`, so item detail copy should continue using the existing requirement presentation path.
 - Title/path matching uses the same broad keyword-bucket style as Loot Expansion v1; when titles become fully normalized persisted ids, these buckets should switch from text inference to ids.
-- Reward tables are not expanded in this patch. A follow-up can decide where each coverage family enters loot, shops, Yeger boards, Mantok Chest or quest rewards.
+- Coverage manatky now enter monster loot and existing fight/Yeger reward paths. A later economy pass can still decide whether shops, Mantok Chest, quest-specific rewards or other curated sources should carry smaller themed subsets.

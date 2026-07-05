@@ -16,6 +16,8 @@ Manual Telegram QA status for the implementation pass: not run.
 6. Try a race-restricted item on a wrong race and verify the rejection names the race requirement.
 7. Try a title/path item with a matching and non-matching active title.
 8. Verify old generated hats/helmets/scarves, boots/greaves/pants, shields and tools appear under the expected slot filters.
+9. Win several normal fights and hourly Yeger contracts, then verify authored coverage manatky can appear as item rewards, including gear that may be useful to another class/race/title later through social item exchange.
+10. Open `📖 Бестіарій` records for monsters with coverage loot and verify the possible-loot notes list the new manatky as possible finds, not guaranteed drops.
 
 ## 0.2.24 — Mantok Balance Audit smoke
 

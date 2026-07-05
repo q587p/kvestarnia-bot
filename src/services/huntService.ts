@@ -8,7 +8,7 @@ import type {
 } from "../db/repositories/huntContractRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { HUNT_MIN_LEVEL, meetsActivityLevel } from "../domain/progression/activityGates";
-import { getMonsterLootEntryItemId } from "../domain/loot/lootEngine";
+import { getLootCandidates, getMonsterLootEntryItemId } from "../domain/loot/lootEngine";
 import { systemClock, type Clock } from "../shared/time";
 import { HUNT_BOARD_CONTRACT_KEY } from "./dailyActionKeys";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
@@ -392,7 +392,7 @@ export function buildHuntContractToken(
   characterId: string,
   monster: Pick<MonsterContent, "id" | "level" | "tags">
 ): string {
-  const lootIds = [...(monsterLoot[monster.id as keyof typeof monsterLoot] ?? [])]
+  const lootIds = [...(monsterLoot[monster.id] ?? [])]
     .map(getMonsterLootEntryItemId)
     .sort();
   const tags = [...monster.tags].sort();
@@ -432,9 +432,11 @@ function buildHuntItemGrants(
     return [];
   }
 
-  const lootIds = (monsterLoot[contract.monster.id as keyof typeof monsterLoot] ?? []).map(
-    getMonsterLootEntryItemId
-  );
+  const lootIds = getLootCandidates({
+    monsterId: contract.monster.id,
+    monsterLoot,
+    items
+  }).map((candidate) => candidate.item.id);
 
   if (lootIds.length === 0) {
     return [];
