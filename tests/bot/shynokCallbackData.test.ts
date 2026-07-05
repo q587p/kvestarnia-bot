@@ -18,11 +18,13 @@ import {
   makeShynokDrinkPreviewCallbackData,
   makeShynokGameCancelCallbackData,
   makeShynokGameCreateCallbackData,
+  makeShynokGameInviteRotateCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokGameLeaderboardCallbackData,
   makeShynokGameRematchCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
+  makeShynokGameShareCallbackData,
   makeShynokGamesCallbackData,
   makeShynokKostiDecisionCallbackData,
   makeShynokRoundConfirmCallbackData,
@@ -129,6 +131,14 @@ describe("shynokCallbackData", () => {
       ok: true,
       value: { type: "game-rematch", token }
     });
+    expect(parseShynokCallbackData(makeShynokGameShareCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "game-share", token }
+    });
+    expect(parseShynokCallbackData(makeShynokGameInviteRotateCallbackData(token, 13))).toEqual({
+      ok: true,
+      value: { type: "game-invite", token, templateIndex: 13 }
+    });
     expect(parseShynokCallbackData(makeShynokGameCancelCallbackData(token))).toEqual({
       ok: true,
       value: { type: "game-cancel", token }
@@ -155,6 +165,10 @@ describe("shynokCallbackData", () => {
     expect(Buffer.byteLength(makeShynokTavleiDoppelgangerCreateCallbackData(93), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(makeShynokGameRematchCallbackData(token), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokGameShareCallbackData(token), "utf8"))
+      .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(makeShynokGameInviteRotateCallbackData(token, 93), "utf8"))
       .toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 

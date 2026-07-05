@@ -20,6 +20,7 @@ import {
   type DicePokerTableState
 } from "../domain/dicePoker";
 import {
+  TAVLEI_PLAYER_CAP,
   isKostiSign,
   isKostiStyle,
   isTavleiTactic,
@@ -92,6 +93,12 @@ export type TavernGameRematchServiceResult = (
 ) & {
   rematchInvitees?: TavernGameRematchInvite[];
 };
+export type TavernGameInviteViewResult =
+  | TavernGameFeatureResult
+  | { state: "not-found" }
+  | { state: "not-participant"; session: TavernGameSessionRecord }
+  | { state: "stale"; session: TavernGameSessionRecord }
+  | { state: "ready"; session: TavernGameSessionRecord };
 
 export type TavernGameDevResetResult =
   | { state: "disabled" }
@@ -401,6 +408,33 @@ export class TavernGameService {
       now,
       decisionExpiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS)
     });
+  }
+
+  async getInviteViewForTelegramUser(
+    telegramUserId: bigint,
+    token: string
+  ): Promise<TavernGameInviteViewResult> {
+    const now = this.now();
+    const tokenGate = await this.refundIfTokenGameDisabled(token, now);
+    if (tokenGate) {
+      return tokenGate;
+    }
+    const stale = await this.refundOldKostiTable(token, now);
+    if (stale) {
+      return stale;
+    }
+
+    const session = await this.repository.getByToken(token, now);
+    if (!session) {
+      return { state: "not-found" };
+    }
+    if (!session.participants.some((participant) => participant.telegramUserId === telegramUserId)) {
+      return { state: "not-participant", session };
+    }
+
+    return isInviteableTavernGameSession(session)
+      ? { state: "ready", session }
+      : { state: "stale", session };
   }
 
   async submitTavleiDecisionForTelegramUser(
@@ -982,6 +1016,19 @@ function isDoppelgangerTavleiResolution(input: unknown): boolean {
     (input as { gameKey?: unknown; opponentKind?: unknown }).gameKey === "tavlei" &&
     (input as { opponentKind?: unknown }).opponentKind === "doppelganger"
   );
+}
+
+function isInviteableTavernGameSession(session: TavernGameSessionRecord): boolean {
+  if (session.status !== "open") {
+    return false;
+  }
+
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  if (table) {
+    return table.phase === "waiting" && session.participants.length < table.playerCap;
+  }
+
+  return session.gameKey === "tavlei" && session.participants.length < TAVLEI_PLAYER_CAP;
 }
 
 function buildLeaderboard(

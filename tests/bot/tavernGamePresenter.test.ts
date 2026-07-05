@@ -4,6 +4,7 @@ import {
   presentDoppelgangerGameMenu,
   presentDoppelgangerStakeMenu,
   presentDicePokerRules,
+  presentTavernGameInviteShare,
   presentTavernGameActionResult,
   presentTavernGameHub,
   presentTavernGameLeaderboard,
@@ -46,6 +47,32 @@ describe("tavern game presenter", () => {
     expect(text).toContain("📜 Табличні кості");
     expect(text).toContain("Ставку корчма спитає наступним кроком");
     expect(text).not.toContain("від двох до семи гравців");
+  });
+
+  it("renders compact invite cards for open table games", () => {
+    const tableSession = session({
+      status: "open",
+      completedAt: null,
+      result: {
+        kind: "dice_poker_table",
+        mode: "scorecard",
+        phase: "waiting",
+        playerCap: 8,
+        drawRound: 1
+      }
+    });
+    const text = presentTavernGameInviteShare(
+      tableSession,
+      "https://t.me/kvestarnia_bot?start=game_12345678-1234-4234-9234-123456789abc",
+      { templateIndex: 0 }
+    );
+
+    expect(text).toContain("<b>🎲 Стіл у шинку шукає гравців</b>");
+    expect(text).toContain("Кличе: <b>Тест</b>");
+    expect(text).toContain("Гра: 📜 Табличні кості");
+    expect(text).toContain("Місця: 1/8");
+    expect(text).toContain("Ставка: <b>3 зол.</b>");
+    expect(text).toContain("https://t.me/kvestarnia_bot?start=game_12345678-1234-4234-9234-123456789abc");
   });
 
   it("keeps compact rules for both dice poker modes", () => {

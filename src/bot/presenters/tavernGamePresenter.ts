@@ -291,6 +291,56 @@ export function presentTavernGameSession(session: TavernGameSessionRecord): stri
   return lines.join("\n");
 }
 
+export function presentTavernGameInviteShare(
+  session: TavernGameSessionRecord,
+  inviteUrl: string,
+  options: { templateIndex: number }
+): string {
+  const template = TAVERN_GAME_INVITE_TEMPLATES[normalizeTavernGameInviteTemplateIndex(options.templateIndex)] ??
+    TAVERN_GAME_INVITE_TEMPLATES[0];
+
+  if (!template) {
+    throw new Error("Tavern game invite templates must not be empty.");
+  }
+
+  return [
+    `<b>${template.header}</b>`,
+    "",
+    ...template.body.flatMap((line) => [line, ""]).slice(0, -1),
+    "",
+    `Кличе: ${presentCharacterDisplayName(session.creator)}`,
+    `Гра: ${tavernGameInviteGameLabel(session)}`,
+    `Місця: ${session.participants.length}/${tavernGamePlayerCap(session)}`,
+    `Ставка: <b>${session.stakeGold} зол.</b>`,
+    "",
+    escapeHtml(inviteUrl)
+  ].join("\n");
+}
+
+export function getInitialTavernGameInviteTemplateIndex(token: string): number {
+  return stableIndex(token, TAVERN_GAME_INVITE_TEMPLATES.length);
+}
+
+export function getNextTavernGameInviteTemplateIndex(token: string, currentIndex: number): number {
+  const current = normalizeTavernGameInviteTemplateIndex(currentIndex);
+
+  if (TAVERN_GAME_INVITE_TEMPLATES.length <= 1) {
+    return current;
+  }
+
+  const offset = stableIndex(`${token}:step`, TAVERN_GAME_INVITE_TEMPLATES.length - 1) + 1;
+
+  return (current + offset) % TAVERN_GAME_INVITE_TEMPLATES.length;
+}
+
+export function normalizeTavernGameInviteTemplateIndex(value: number): number {
+  if (!Number.isInteger(value) || value < 0 || value >= TAVERN_GAME_INVITE_TEMPLATES.length) {
+    return 0;
+  }
+
+  return value;
+}
+
 function presentTavernGameResolution(resolution: TavernGameResolution): string {
   if (resolution.gameKey === "tavlei") {
     if (resolution.opponentKind === "doppelganger") {
@@ -800,6 +850,27 @@ function gameLabel(gameKey: TavernGameKey): string {
   return gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
 }
 
+function tavernGameInviteGameLabel(session: TavernGameSessionRecord): string {
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  if (table?.mode === "quick") {
+    return "⚡ Швидкі кості";
+  }
+  if (table?.mode === "scorecard") {
+    return "📜 Табличні кості";
+  }
+
+  return session.gameKey === "tavlei" ? "♟ Тавлеї" : "🎲 Кості";
+}
+
+function tavernGamePlayerCap(session: TavernGameSessionRecord): number {
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  if (table) {
+    return table.playerCap;
+  }
+
+  return session.gameKey === "tavlei" ? TAVLEI_PLAYER_CAP : KOSTI_PLAYER_CAP;
+}
+
 function kostiHandLabel(label: string): string {
   const labels: Record<string, string> = {
     five_kind: "пʼятірня",
@@ -827,4 +898,53 @@ function pluralize(count: number, one: string, few: string, many: string): strin
   }
 
   return many;
+}
+
+export const TAVERN_GAME_INVITE_TEMPLATES = [
+  {
+    id: "dice-need-witness",
+    header: "🎲 Стіл у шинку шукає гравців",
+    body: [
+      "Кості вже стукають по столу, а фішки роблять вигляд, що вони тут головні.",
+      "Заходьте за посиланням і сідайте, поки корчма не записала це як соло-театр."
+    ]
+  },
+  {
+    id: "honest-table",
+    header: "♟ У шинку відкритий стіл",
+    body: [
+      "Ставка внесена, місце чекає, правила не кусаються. Принаймні не першими.",
+      "Переходьте за посиланням і заберіть вільний стілець із-під погляду корчми."
+    ]
+  },
+  {
+    id: "quiet-challenge",
+    header: "⚡ Партія просить другого голосу",
+    body: [
+      "Один пригодник уже сидить за столом і підозріло впевнено дивиться на кості.",
+      "Якщо це звучить як виклик, то так, корчма саме цього й домагалася."
+    ]
+  },
+  {
+    id: "chalk-awaits",
+    header: "📜 Крейда готова рахувати",
+    body: [
+      "На столі є відкрита партія, а вільне місце ще не встигло вигадати відмовку.",
+      "Переходьте за посиланням, сідайте й дайте фішкам роботу."
+    ]
+  }
+] as const;
+
+function stableIndex(seed: string, modulo: number): number {
+  if (modulo <= 0) {
+    return 0;
+  }
+
+  let hash = 2166136261;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return Math.abs(hash) % modulo;
 }

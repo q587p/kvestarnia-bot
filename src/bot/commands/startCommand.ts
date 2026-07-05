@@ -3,6 +3,7 @@ import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { OnboardingService } from "../../services/onboardingService";
 import type { PartyBossService } from "../../services/partyBossService";
 import type { PartySessionService } from "../../services/partySessionService";
+import type { TavernGameService } from "../../services/tavernGameService";
 import { playerFromContext } from "../context";
 import {
   buildDuelAcceptConfirmationKeyboard,
@@ -19,13 +20,16 @@ import { presentDuelAccept, presentDuelView, presentTurnBasedDuel } from "../pre
 import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
 import { presentSupportThanks } from "../presenters/supportPresenter";
+import { presentTavernGameActionResult } from "../presenters/tavernGamePresenter";
 import { parseStartPayload } from "../startPayload";
 import { sendPartyJoinFromStartPayload } from "./partySessionCommand";
+import { buildTavernGameActionKeyboard, buildTavernGameInviteUrl } from "../modules/tavern";
 
 export interface StartCommandOptions {
   duel?: DuelChallengeService;
   partyBoss?: PartyBossService;
   partySessions?: PartySessionService;
+  tavernGames?: TavernGameService;
   botUsername?: string | undefined;
   duelBotUsername?: string | undefined;
 }
@@ -59,6 +63,34 @@ export function registerStartCommand(
       })) {
         return;
       }
+    }
+
+    if (payload.type === "tavern-game" && options.tavernGames) {
+      const result = await options.tavernGames.joinByTokenForTelegramUser(player.telegramUserId, payload.token);
+      if (result.state === "no-character") {
+        await onboardingService.start(player);
+        await ctx.reply(presentTavernGameActionResult(result), {
+          parse_mode: "HTML",
+          reply_markup: buildGenderKeyboard()
+        });
+        return;
+      }
+
+      const inviteUrl = "session" in result
+        ? buildTavernGameInviteUrl(options.botUsername, result.session.token)
+        : null;
+      await ctx.reply(presentTavernGameActionResult({
+        ...result,
+        viewerTelegramUserId: player.telegramUserId
+      }), {
+        parse_mode: "HTML",
+        ...("session" in result
+          ? {
+              reply_markup: buildTavernGameActionKeyboard(result, player.telegramUserId, { inviteUrl })
+            }
+          : {})
+      });
+      return;
     }
 
     if (payload.type === "duel" && options.duel) {

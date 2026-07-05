@@ -18,6 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added local `/dev_reset_tavern_games` with the dice icon as a no-op compatibility QA check after table-create cooldown removal; player-facing command icon uniqueness still excludes dev-only commands.
 - Added real social Dice Poker tables on the existing tavern-game session storage: `⚡ Швидкі кості` opens a two-player duel table, `📜 Табличні кості` opens a 2–8 player scorecard table, and `🪞 Допельґанґер` remains an explicit fallback opponent.
 - Added a separate Shynok `🪞 Допельґанґер` table-games branch that lets players choose quick dice, scorecard dice or Tavlei against him before choosing a stake.
+- Added invite controls to waiting Tavlei, quick-dice and scorecard-dice tables: creators can generate rotating Ukrainian invite cards and share `/start game_...` deep links that join the same table.
 
 ### Changed
 - Replaced the old cryptic Kosti style/sign rule menu with `🎲 Кості й покер`, showing quick/scorecard mode choice first and stake choice only after a mode is selected.
@@ -45,7 +46,6 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Deferred
 - Turn-based duel tournaments, tournament day/week/month reward claims and broader casino/economy changes remain deferred to `0.2.27+` or later.
-- Dedicated generic deep-link invite buttons outside the rematch flow remain a follow-up polish item; open social tables are visible through the existing tavern games hub and join callbacks in this release.
 
 ## [0.2.25] - 12026-07-05 - Class Noncombat Priest and Rogue Techniques
 

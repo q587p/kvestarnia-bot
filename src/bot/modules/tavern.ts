@@ -84,6 +84,7 @@ buildShynokDicePokerStakeKeyboard,
 buildShynokDoppelgangerMenuKeyboard,
 buildShynokDoppelgangerStakeKeyboard,
 buildShynokGameHubKeyboard,
+buildShynokGameInviteShareKeyboard,
 buildShynokGameRematchInviteKeyboard,
 buildShynokGameRulesKeyboard,
 buildShynokGameSessionKeyboard,
@@ -153,9 +154,12 @@ presentDoppelgangerStakeMenu,
 presentDicePokerRules,
 presentDicePokerStakeMenu,
 presentTavernGameHub,
+presentTavernGameInviteShare,
 presentTavernGameLeaderboard,
 presentTavernGameRules,
-presentTavernGameSession
+presentTavernGameSession,
+getInitialTavernGameInviteTemplateIndex,
+getNextTavernGameInviteTemplateIndex
 } from "../presenters/tavernGamePresenter";
 import {
 presentKorchmaDeepLevelLocked,
@@ -221,7 +225,9 @@ export function registerTavernBotModule(
   }
 
   registerParsedCallbackRoute(bot, /^v1:sh:/, parseShynokCallbackData, async (ctx, action) => {
-    await handleShynokCallback(ctx, action, services);
+    await handleShynokCallback(ctx, action, services, {
+      botUsername: options.botUsername
+    });
   });
 
   registerParsedCallbackRoute(bot, /^v1:tavern:/, parseTavernCallbackData, async (ctx, action) => {
@@ -265,7 +271,8 @@ async function handleLatestEventsCallback(
 async function handleShynokCallback(
   ctx: Context,
   action: ShynokCallback,
-  services: BotServices
+  services: BotServices,
+  options: { botUsername?: string | undefined } = {}
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -455,6 +462,11 @@ async function handleShynokCallback(
     return;
   }
 
+  if (action.type === "game-share" || action.type === "game-invite") {
+    await handleTavernGameInviteShare(ctx, action, services, telegramUserId, options);
+    return;
+  }
+
   if (
     action.type === "game-create" ||
     action.type === "game-dice-poker-create" ||
@@ -554,10 +566,13 @@ async function handleShynokCallback(
     });
     await safeEditMessageText(ctx, presentTavernGameActionResult({ ...result, viewerTelegramUserId: telegramUserId }), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTavernGameActionKeyboard(result, telegramUserId, shynokNavigationOptions)
+      reply_markup: buildTavernGameActionKeyboard(result, telegramUserId, {
+        ...shynokNavigationOptions,
+        inviteUrl: result.session ? buildTavernGameInviteUrl(options.botUsername, result.session.token) : null
+      })
     });
     await notifyTavernGameRematchInvitees(ctx, result, telegramUserId);
-    await notifyTavernGameParticipants(ctx, result, telegramUserId);
+    await notifyTavernGameParticipants(ctx, result, telegramUserId, options);
     await notifyTavernGameAchievements(ctx, result);
     return;
   }
@@ -806,7 +821,10 @@ export function buildTavernGameActionKeyboard(result: {
       characterId: string;
     }>;
   };
-}, telegramUserId: bigint, options: { questMarkers?: QuestMarkerInput | null } = {}) {
+}, telegramUserId: bigint, options: {
+  questMarkers?: QuestMarkerInput | null;
+  inviteUrl?: string | null | undefined;
+} = {}) {
   const participant = result.session?.participants.find((row) => row.telegramUserId === telegramUserId);
   const table = isDicePokerTableState(result.session?.result) ? result.session.result : null;
   const dicePoker = table
@@ -840,10 +858,19 @@ export function buildTavernGameActionKeyboard(result: {
   return buildShynokGameSessionKeyboard(result, { viewerTelegramUserId: telegramUserId, ...options });
 }
 
+export function buildTavernGameInviteUrl(botUsername: string | undefined, token: string): string | null {
+  if (!botUsername) {
+    return null;
+  }
+
+  return `https://t.me/${botUsername}?start=game_${token}`;
+}
+
 async function notifyTavernGameParticipants(
   ctx: Context,
   result: Parameters<typeof presentTavernGameActionResult>[0],
-  actorTelegramUserId: bigint
+  actorTelegramUserId: bigint,
+  options: { botUsername?: string | undefined } = {}
 ): Promise<void> {
   if (!shouldNotifyTavernGameParticipants(result)) {
     return;
@@ -868,7 +895,9 @@ async function notifyTavernGameParticipants(
       presentTavernGameParticipantUpdate(result, participant.telegramUserId),
       {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildTavernGameActionKeyboard(result, participant.telegramUserId)
+        reply_markup: buildTavernGameActionKeyboard(result, participant.telegramUserId, {
+          inviteUrl: buildTavernGameInviteUrl(options.botUsername, session.token)
+        })
       }
     )
   ));
@@ -932,6 +961,48 @@ function presentTavernGameParticipantUpdate(
   }
 
   return presentTavernGameActionResult({ ...result, viewerTelegramUserId });
+}
+
+async function handleTavernGameInviteShare(
+  ctx: Context,
+  action: Extract<ShynokCallback, { type: "game-share" | "game-invite" }>,
+  services: BotServices,
+  telegramUserId: bigint,
+  options: { botUsername?: string | undefined } = {}
+): Promise<void> {
+  if (!services.tavernGames) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  const result = await services.tavernGames.getInviteViewForTelegramUser(telegramUserId, action.token);
+  if (result.state !== "ready") {
+    await safeAnswerCallbackQuery(ctx, { text: "Цей стіл уже не редагує запрошення." });
+    return;
+  }
+
+  const inviteUrl = buildTavernGameInviteUrl(options.botUsername, result.session.token);
+  if (!inviteUrl) {
+    await safeAnswerCallbackQuery(ctx, { text: "Посилання ще не зібралося: бот не знає свій username." });
+    return;
+  }
+
+  const templateIndex = action.type === "game-share"
+    ? getInitialTavernGameInviteTemplateIndex(result.session.token)
+    : getNextTavernGameInviteTemplateIndex(result.session.token, action.templateIndex);
+  const text = presentTavernGameInviteShare(result.session, inviteUrl, { templateIndex });
+  const replyOptions = {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildShynokGameInviteShareKeyboard(result.session.token, templateIndex)
+  };
+
+  await safeAnswerCallbackQuery(ctx);
+  if (action.type === "game-share") {
+    await ctx.reply(text, replyOptions);
+    return;
+  }
+
+  await safeEditMessageText(ctx, text, replyOptions);
 }
 
 async function notifyTavernGameRematchInvitees(

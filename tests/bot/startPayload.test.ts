@@ -43,6 +43,15 @@ describe("start payload parser", () => {
       raw: "party_short",
       safe: true
     });
+    expect(parseStartPayload("game_12345678-1234-4234-9234-123456789abc")).toEqual({
+      type: "tavern-game",
+      token: "12345678-1234-4234-9234-123456789abc"
+    });
+    expect(parseStartPayload("game_not-a-table")).toEqual({
+      type: "unknown",
+      raw: "game_not-a-table",
+      safe: true
+    });
   });
 
   it("marks long or invalid payloads unsafe without throwing", () => {

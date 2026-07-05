@@ -41,6 +41,45 @@ describe("Shynok game keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual(["↩ До ігор"]);
   });
 
+  it("offers invite actions on open Tavlei and Dice Poker tables", () => {
+    const token = "12345678-1234-4234-9234-123456789abc";
+    const tavleiKeyboard = buildShynokGameSessionKeyboard({
+      state: "created",
+      session: tavleiSession({ token })
+    }, {
+      viewerTelegramUserId: 1001n,
+      inviteUrl: `https://t.me/kvestarnia_bot?start=game_${token}`
+    });
+    const diceKeyboard = buildShynokGameSessionKeyboard({
+      state: "created",
+      session: kostiSession({
+        status: "open",
+        token,
+        participantCount: 1,
+        result: {
+          kind: "dice_poker_table",
+          mode: "quick",
+          phase: "waiting",
+          playerCap: 2,
+          drawRound: 1
+        }
+      })
+    }, {
+      viewerTelegramUserId: 1001n,
+      inviteUrl: `https://t.me/kvestarnia_bot?start=game_${token}`
+    });
+
+    expect(flatInlineButtonTexts(tavleiKeyboard)).toEqual([
+      "✖ Скасувати",
+      "📣 Запрошення до столу",
+      "🔗 Запросити до столу",
+      "↩ До ігор"
+    ]);
+    expect(flatInlineButtonCallbacks(tavleiKeyboard)).toContain(`v1:sh:gsh:${token}`);
+    expect(flatInlineButtonUrls(tavleiKeyboard)[0]).toContain(encodeURIComponent(`game_${token}`));
+    expect(flatInlineButtonTexts(diceKeyboard)).toContain("📣 Запрошення до столу");
+  });
+
   it("shows Kosti resolve only while the table is still open or ready", () => {
     const openKeyboard = buildShynokGameSessionKeyboard({
       state: "joined",
@@ -225,14 +264,14 @@ describe("Shynok game keyboards", () => {
   });
 });
 
-function tavleiSession(overrides: { status?: string; participantCount?: number } = {}) {
+function tavleiSession(overrides: { status?: string; participantCount?: number; token?: string } = {}) {
   const participants = [
     { characterId: "character-creator", status: "joined", telegramUserId: 1001n },
     { characterId: "character-guest", status: "joined", telegramUserId: 2002n }
   ].slice(0, overrides.participantCount ?? 1);
 
   return {
-    token: "tavlei-token",
+    token: overrides.token ?? "tavlei-token",
     gameKey: "tavlei" as const,
     status: overrides.status ?? "open",
     creatorCharacterId: "character-creator",
@@ -240,16 +279,24 @@ function tavleiSession(overrides: { status?: string; participantCount?: number }
   };
 }
 
-function kostiSession(overrides: { status: string }) {
+function kostiSession(overrides: {
+  status: string;
+  token?: string;
+  participantCount?: number;
+  result?: unknown;
+}) {
+  const participants = [
+    { characterId: "character-creator", status: "decided", telegramUserId: 1001n },
+    { characterId: "character-guest", status: "decided", telegramUserId: 2002n }
+  ].slice(0, overrides.participantCount ?? 2);
+
   return {
-    token: "kosti-token",
+    token: overrides.token ?? "kosti-token",
     gameKey: "kosti" as const,
     status: overrides.status,
     creatorCharacterId: "character-creator",
-    participants: [
-      { characterId: "character-creator", status: "decided", telegramUserId: 1001n },
-      { characterId: "character-guest", status: "decided", telegramUserId: 2002n }
-    ]
+    participants,
+    result: overrides.result
   };
 }
 
@@ -265,4 +312,10 @@ function flatInlineButtonCallbacks(
   keyboard: { inline_keyboard: { callback_data?: string }[][] }
 ): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.callback_data ?? "");
+}
+
+function flatInlineButtonUrls(
+  keyboard: { inline_keyboard: { url?: string }[][] }
+): string[] {
+  return keyboard.inline_keyboard.flat().map((button) => button.url).filter(Boolean) as string[];
 }

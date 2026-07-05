@@ -52,11 +52,13 @@ import {
   makeShynokDoppelgangerModeCallbackData,
   makeShynokGameCancelCallbackData,
   makeShynokGameCreateCallbackData,
+  makeShynokGameInviteRotateCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokGameLeaderboardCallbackData,
   makeShynokGameRematchCallbackData,
   makeShynokGameResolveCallbackData,
   makeShynokGameRulesCallbackData,
+  makeShynokGameShareCallbackData,
   makeShynokGamesCallbackData,
   makeShynokKostiDecisionCallbackData,
   makeShynokTavleiDoppelgangerCreateCallbackData,
@@ -259,7 +261,11 @@ export function buildShynokGameSessionKeyboard(result: {
     participants: Array<{ characterId: string; status: string; telegramUserId?: bigint }>;
     result?: unknown;
   };
-}, options: { viewerTelegramUserId?: bigint; questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
+}, options: {
+  viewerTelegramUserId?: bigint;
+  questMarkers?: QuestMarkerInput | null;
+  inviteUrl?: string | null | undefined;
+} = {}): InlineKeyboard {
   if (!result.session) {
     return buildBackToShynokKeyboard(options);
   }
@@ -284,6 +290,10 @@ export function buildShynokGameSessionKeyboard(result: {
   ) {
     keyboard.text("✖ Скасувати", makeShynokGameCancelCallbackData(result.session.token)).row();
   }
+  if (canInviteToTavernGameSession(result.session) && options.inviteUrl) {
+    keyboard.text("📣 Запрошення до столу", makeShynokGameShareCallbackData(result.session.token)).row();
+    keyboard.url("🔗 Запросити до столу", buildTelegramShareUrl(options.inviteUrl)).row();
+  }
   if (
     result.session.gameKey === "kosti" &&
     (result.session.status === "open" || result.session.status === "ready") &&
@@ -295,6 +305,13 @@ export function buildShynokGameSessionKeyboard(result: {
   }
 
   return keyboard.text("↩ До ігор", makeShynokGamesCallbackData());
+}
+
+export function buildShynokGameInviteShareKeyboard(token: string, templateIndex: number): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "🎲 Інший текст",
+    makeShynokGameInviteRotateCallbackData(token, templateIndex)
+  );
 }
 
 export function buildShynokTavleiDecisionKeyboard(token: string): InlineKeyboard {
@@ -587,6 +604,30 @@ export function formatShynokOpenTableButtonLabel(
       ? "📜 Табличні кості"
       : gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
   return `${label} · ${participantCount}/${cap} · ${stakeGold} зол.`;
+}
+
+function canInviteToTavernGameSession(session: {
+  gameKey: TavernGameKey;
+  status: string;
+  participants: Array<unknown>;
+  result?: unknown;
+}): boolean {
+  if (session.status !== "open") {
+    return false;
+  }
+
+  const table = isDicePokerTableState(session.result) ? session.result : null;
+  if (table) {
+    return table.phase === "waiting" && session.participants.length < table.playerCap;
+  }
+
+  return session.gameKey === "tavlei" && session.participants.length < TAVLEI_PLAYER_CAP;
+}
+
+function buildTelegramShareUrl(inviteUrl: string): string {
+  const text = "Квестарня кличе за стіл у шинку.";
+
+  return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
 }
 
 function tavleiTacticButtonLabel(tactic: (typeof TAVLEI_TACTICS)[number]): string {

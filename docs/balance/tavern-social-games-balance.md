@@ -48,7 +48,7 @@ currently enforced runtime env.
 
 ### Phase 3: polish
 
-- Add more result templates, feed polish, generic invite links, and optional social reactions.
+- Add more result templates, feed polish, optional social reactions and richer same-pair audit views. Basic invite links for open Tavlei and Dice Poker tables shipped in `0.2.26` and do not change stake math.
 
 ## Abuse risks and mitigations
 

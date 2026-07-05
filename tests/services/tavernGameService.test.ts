@@ -9,6 +9,7 @@ import {
   DICE_POKER_RULES_VERSION,
   DICE_POKER_SCORE_CATEGORIES,
   DICE_POKER_SCORECARD_PLAYER_CAP,
+  startDicePokerTable,
   startQuickDicePoker,
   startScorecardDicePoker,
   type DicePokerScoreCategory,
@@ -276,6 +277,75 @@ describe("TavernGameService", () => {
     expect(result).toEqual({ state: "game-disabled-refunded", gameKey: "kosti", session: existing });
     expect(repository.refundDisabledCalls).toBe(1);
     expect(repository.joinCalls).toBe(0);
+  });
+
+  it("allows invite views for participants on open Tavlei and Dice Poker tables", async () => {
+    const player = participant("character-creator", 42n, "Тест", { status: "joined" });
+    const tavlei = session({
+      token: "12345678-1234-4234-9234-000000000431",
+      gameKey: "tavlei",
+      status: "open",
+      participants: [player]
+    });
+    const scorecard = session({
+      token: "12345678-1234-4234-9234-000000000432",
+      gameKey: "kosti",
+      status: "open",
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: startDicePokerTable("scorecard"),
+      participants: [player]
+    });
+    const tavleiService = new TavernGameService(new FakeTavernGameRepository({ tokenSession: tavlei }), config({
+      tavernGamesEnabled: true,
+      tavernGameTavleiEnabled: true
+    }), () => now);
+    const scorecardService = new TavernGameService(new FakeTavernGameRepository({ tokenSession: scorecard }), config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    expect(await tavleiService.getInviteViewForTelegramUser(42n, tavlei.token)).toEqual({
+      state: "ready",
+      session: tavlei
+    });
+    expect(await scorecardService.getInviteViewForTelegramUser(42n, scorecard.token)).toEqual({
+      state: "ready",
+      session: scorecard
+    });
+  });
+
+  it("does not expose invite views to outsiders or already-started tables", async () => {
+    const player = participant("character-creator", 42n, "Тест", { status: "joined" });
+    const waiting = session({
+      token: "12345678-1234-4234-9234-000000000433",
+      gameKey: "kosti",
+      status: "open",
+      rulesVersion: DICE_POKER_RULES_VERSION,
+      result: startDicePokerTable("quick"),
+      participants: [player]
+    });
+    const playing = session({
+      ...waiting,
+      token: "12345678-1234-4234-9234-000000000434",
+      result: { ...startDicePokerTable("quick"), phase: "playing" as const }
+    });
+    const outsiderService = new TavernGameService(new FakeTavernGameRepository({ tokenSession: waiting }), config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+    const playingService = new TavernGameService(new FakeTavernGameRepository({ tokenSession: playing }), config({
+      tavernGamesEnabled: true,
+      tavernGameKostiEnabled: true
+    }), () => now);
+
+    expect(await outsiderService.getInviteViewForTelegramUser(43n, waiting.token)).toEqual({
+      state: "not-participant",
+      session: waiting
+    });
+    expect(await playingService.getInviteViewForTelegramUser(42n, playing.token)).toEqual({
+      state: "stale",
+      session: playing
+    });
   });
 
   it("refunds an old incompatible active Kosti session before starting dice poker", async () => {

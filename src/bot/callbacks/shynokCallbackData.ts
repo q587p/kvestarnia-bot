@@ -63,6 +63,8 @@ export type ShynokCallback =
   | { type: "game-dice-poker-score"; token: string; category: DicePokerScoreCategory }
   | { type: "game-dice-poker-cancel"; token: string }
   | { type: "game-rematch"; token: string }
+  | { type: "game-share"; token: string }
+  | { type: "game-invite"; token: string; templateIndex: number }
   | { type: "game-join"; token: string }
   | { type: "game-cancel"; token: string }
   | { type: "game-tavlei-decision"; token: string; tactic: TavleiTactic }
@@ -223,6 +225,14 @@ export function makeShynokDicePokerCancelCallbackData(token: string): string {
 
 export function makeShynokGameRematchCallbackData(token: string): string {
   return assertData(`${PREFIX}:grm:${token}`);
+}
+
+export function makeShynokGameShareCallbackData(token: string): string {
+  return assertData(`${PREFIX}:gsh:${token}`);
+}
+
+export function makeShynokGameInviteRotateCallbackData(token: string, templateIndex: number): string {
+  return assertData(`${PREFIX}:gin:${token}:${templateIndex.toString(36)}`);
 }
 
 export function makeShynokGameJoinCallbackData(token: string): string {
@@ -448,6 +458,15 @@ export function parseShynokCallbackData(data: string | undefined): ParseShynokCa
   if (action === "grm" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-rematch", token: first ?? "" } };
   }
+  if (action === "gsh" && isToken(first) && second === undefined) {
+    return { ok: true, value: { type: "game-share", token: first ?? "" } };
+  }
+  if (action === "gin" && isToken(first) && isSafeTemplateIndex(second) && third === undefined) {
+    return {
+      ok: true,
+      value: { type: "game-invite", token: first ?? "", templateIndex: Number.parseInt(second ?? "0", 36) }
+    };
+  }
   if (action === "gj" && isToken(first) && second === undefined) {
     return { ok: true, value: { type: "game-join", token: first ?? "" } };
   }
@@ -510,6 +529,10 @@ function isReplacementGuard(value: string | undefined): boolean {
 
 function isSafeIndex(value: string | undefined): boolean {
   return value !== undefined && /^\d{1,3}$/.test(value) && Number.isSafeInteger(Number(value));
+}
+
+function isSafeTemplateIndex(value: string | undefined): boolean {
+  return value !== undefined && /^[0-9a-z]{1,2}$/.test(value);
 }
 
 function isSafeStake(value: string | undefined): boolean {
