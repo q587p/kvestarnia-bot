@@ -456,6 +456,72 @@ describe("tavern game presenter", () => {
     ].join("\n"));
   });
 
+  it("derives missing quick terminal hand details from dice", () => {
+    const tableSession = session({
+      status: "completed",
+      stakeGold: 13,
+      potGold: 26,
+      result: {
+        kind: "dice_poker_table",
+        mode: "quick",
+        phase: "terminal",
+        playerCap: 8,
+        drawRound: 1,
+        outcomes: {
+          "character-1": "win",
+          "character-2": "loss"
+        }
+      },
+      participants: [
+        participant({
+          characterId: "character-1",
+          telegramUserId: 1001n,
+          displayName: "Shannar de Kassal",
+          stakeGold: 13,
+          payoutGold: 26,
+          decision: {
+            kind: "dice_poker",
+            mode: "quick",
+            phase: "terminal",
+            outcome: "draw",
+            drawRound: 1,
+            playerDice: [3, 3, 3, 6, 1],
+            opponentDice: [],
+            reason: "Кидок записано."
+          } as unknown as DicePokerState
+        }),
+        participant({
+          id: "participant-2",
+          characterId: "character-2",
+          telegramUserId: 2002n,
+          displayName: "Kyjivan BooksDragon",
+          stakeGold: 13,
+          payoutGold: 0,
+          decision: {
+            kind: "dice_poker",
+            mode: "quick",
+            phase: "terminal",
+            outcome: "draw",
+            drawRound: 1,
+            playerDice: [5, 5, 4, 4, 2],
+            opponentDice: [],
+            reason: "Кидок записано."
+          } as unknown as DicePokerState
+        })
+      ]
+    });
+
+    const text = presentTavernGameActionResult({
+      state: "completed",
+      session: tableSession,
+      viewerTelegramUserId: 2002n
+    });
+
+    expect(text).toContain("3 3 3 6 1 — Трійка трійок.");
+    expect(text).toContain("5 5 4 4 2 — Дві пари: пʼятірки й четвірки.");
+    expect(text).toContain("Причина: трійка сильніша за дві пари.");
+  });
+
   it("renders terminal social scorecard results with spaced titled blocks", () => {
     const tableSession = session({
       status: "completed",

@@ -721,7 +721,55 @@ function getParticipantQuickTerminalState(
 }
 
 function asQuickTerminalState(input: unknown): QuickTerminalState | null {
-  return isDicePokerState(input) && input.mode === "quick" && input.phase === "terminal" ? input : null;
+  if (!isDicePokerState(input) || input.mode !== "quick" || input.phase !== "terminal") {
+    return null;
+  }
+
+  const record = input as Partial<QuickTerminalState>;
+  if (!isDicePokerDice(record.playerDice)) {
+    return null;
+  }
+
+  const playerHand = isQuickHand(record.playerHand) ? record.playerHand : evaluateQuickHand(record.playerDice);
+  const opponentDice = isDicePokerDice(record.opponentDice) ? record.opponentDice : [];
+  const opponentHand = isQuickHand(record.opponentHand) ? record.opponentHand : playerHand;
+
+  return {
+    ...input,
+    playerDice: record.playerDice,
+    opponentDice,
+    playerHand,
+    opponentHand
+  };
+}
+
+function isDicePokerDice(input: unknown): input is number[] {
+  return Array.isArray(input)
+    && input.length === 5
+    && input.every((die) => Number.isInteger(die) && die >= 1 && die <= 6);
+}
+
+function isQuickHand(input: unknown): input is DicePokerQuickHand {
+  if (!input || typeof input !== "object") {
+    return false;
+  }
+  const hand = input as Partial<DicePokerQuickHand>;
+  return isQuickRank(hand.rank)
+    && typeof hand.rankValue === "number"
+    && Array.isArray(hand.tieBreak)
+    && hand.tieBreak.every((value) => Number.isInteger(value) && value >= 1 && value <= 6);
+}
+
+function isQuickRank(input: unknown): input is DicePokerQuickRank {
+  return input === "poker"
+    || input === "four_kind"
+    || input === "full_house"
+    || input === "large_straight"
+    || input === "small_straight"
+    || input === "triple"
+    || input === "two_pairs"
+    || input === "pair"
+    || input === "high";
 }
 
 function presentQuickDicePokerTableReason(
