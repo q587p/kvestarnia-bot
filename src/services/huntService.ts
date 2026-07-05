@@ -8,7 +8,11 @@ import type {
 } from "../db/repositories/huntContractRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { HUNT_MIN_LEVEL, meetsActivityLevel } from "../domain/progression/activityGates";
-import { getMonsterLootEntryItemId } from "../domain/loot/lootEngine";
+import {
+  getLootCandidates,
+  type LootCandidate,
+  type MonsterLootEntry
+} from "../domain/loot/lootEngine";
 import { systemClock, type Clock } from "../shared/time";
 import { HUNT_BOARD_CONTRACT_KEY } from "./dailyActionKeys";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
@@ -392,20 +396,28 @@ export function buildHuntContractToken(
   characterId: string,
   monster: Pick<MonsterContent, "id" | "level" | "tags">
 ): string {
-  const lootIds = [...(monsterLoot[monster.id as keyof typeof monsterLoot] ?? [])]
-    .map(getMonsterLootEntryItemId)
+  const lootFingerprints = [...(monsterLoot[monster.id] ?? [])]
+    .map(getMonsterLootEntryFingerprint)
     .sort();
   const tags = [...monster.tags].sort();
   const contentFingerprint = [
     monster.id,
     `level=${monster.level}`,
     `tags=${tags.join(",")}`,
-    `loot=${lootIds.join(",")}`
+    `loot=${lootFingerprints.join(",")}`
   ].join("|");
 
   return stableHash(`hunt:${localPeriodId}:${characterId}:${contentFingerprint}`)
     .toString(36)
     .padStart(7, "0");
+}
+
+function getMonsterLootEntryFingerprint(entry: MonsterLootEntry): string {
+  if (typeof entry === "string") {
+    return `${entry}:1`;
+  }
+
+  return `${entry.itemId}:${entry.weight ?? 1}`;
 }
 
 export function buildHuntRewardAmounts(
@@ -432,22 +444,55 @@ function buildHuntItemGrants(
     return [];
   }
 
-  const lootIds = (monsterLoot[contract.monster.id as keyof typeof monsterLoot] ?? []).map(
-    getMonsterLootEntryItemId
-  );
+  const lootCandidates = getLootCandidates({
+    monsterId: contract.monster.id,
+    monsterLoot,
+    items
+  });
 
-  if (lootIds.length === 0) {
+  if (lootCandidates.length === 0) {
     return [];
   }
 
   const seed = `${contract.localPeriodId}:${characterId}:${contract.monster.id}:${action}:loot`;
-  const itemId = lootIds[stableHash(seed) % lootIds.length];
+  const itemId = selectWeightedHuntLootCandidate(lootCandidates, seed)?.item.id;
 
   if (!itemId || !items.some((item) => item.id === itemId)) {
     return [];
   }
 
   return [{ itemId, quantity: 1 }];
+}
+
+export function selectWeightedHuntLootCandidate(
+  candidates: readonly LootCandidate[],
+  seed: string
+): LootCandidate | undefined {
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  const totalWeight = candidates.reduce(
+    (sum, candidate) => sum + Math.max(0, candidate.weight ?? 1),
+    0
+  );
+
+  if (totalWeight <= 0) {
+    return candidates[0];
+  }
+
+  const target = (stableHash(seed) / 2 ** 32) * totalWeight;
+  let cursor = 0;
+
+  for (const candidate of candidates) {
+    cursor += Math.max(0, candidate.weight ?? 1);
+
+    if (target < cursor) {
+      return candidate;
+    }
+  }
+
+  return candidates.at(-1);
 }
 
 function buildRewardReplay(record: HuntContractRecord): HuntRewardReplay | undefined {

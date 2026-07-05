@@ -10,6 +10,12 @@ import {
   MONSTER_TROPHY_TARGET_SHARE,
   monsterTrophyLoot
 } from "../../src/content/monsterTrophyCoverage";
+import { equipmentSlots } from "../../src/content/equipmentSlots";
+import { mantokEquipmentCoverageItems } from "../../src/content/mantokEquipmentCoverage";
+import {
+  MANTOK_EQUIPMENT_COVERAGE_LOOT_WEIGHT,
+  mantokEquipmentCoverageLoot
+} from "../../src/content/mantokEquipmentCoverageLoot";
 import { getLootCandidates, getMonsterLootEntryItemId } from "../../src/domain/loot/lootEngine";
 
 const forbiddenPlayerFacingPatterns = [
@@ -218,6 +224,39 @@ describe("monster flavor content", () => {
 
         expect(itemIds.has(itemId), `missing loot item ${itemId} for ${monster.id}`).toBe(true);
       }
+    }
+  });
+
+  it("adds every authored Mantok equipment coverage item to monster loot without orphan monsters", () => {
+    const monsterIds = new Set(monsters.map((monster) => monster.id));
+    const coverageItemIds = new Set(mantokEquipmentCoverageItems.map((item) => item.id));
+    const coverageLootEntries = Object.entries(mantokEquipmentCoverageLoot).flatMap(
+      ([monsterId, entries]) => entries.map((entry) => ({ monsterId, entry }))
+    );
+    const coverageLootItemIds = new Set(coverageLootEntries.map(({ entry }) => entry.itemId));
+    const runtimeCoverageItemIds = new Set(
+      Object.values(monsterLoot)
+        .flatMap((entries) => entries.map(getMonsterLootEntryItemId))
+        .filter((itemId) => coverageItemIds.has(itemId))
+    );
+
+    expect(coverageLootEntries).toHaveLength(mantokEquipmentCoverageItems.length);
+    expect(coverageLootItemIds.size).toBe(mantokEquipmentCoverageItems.length);
+    expect(runtimeCoverageItemIds).toEqual(coverageItemIds);
+
+    for (const { monsterId, entry } of coverageLootEntries) {
+      expect(monsterIds.has(monsterId), `orphan coverage loot monster ${monsterId}`).toBe(true);
+      expect(coverageItemIds.has(entry.itemId), `unknown coverage loot item ${entry.itemId}`).toBe(
+        true
+      );
+      expect(entry.weight).toBe(MANTOK_EQUIPMENT_COVERAGE_LOOT_WEIGHT);
+    }
+
+    for (const slot of equipmentSlots) {
+      expect(
+        coverageLootEntries.some(({ entry }) => entry.equipmentSlot === slot),
+        `missing coverage loot slot ${slot}`
+      ).toBe(true);
     }
   });
 

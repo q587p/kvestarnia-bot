@@ -4,6 +4,21 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.26 — Mantok Equipment Slot Coverage smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Seed or grant one authored coverage item for every slot and open `🎒 Манатки` slot filters. Locally, use `/dev_add_random_item slot=weapon`, `/dev_add_random_item slot=offhand`, `/dev_add_random_item slot=head`, `/dev_add_random_item slot=chest`, `/dev_add_random_item slot=legs`, `/dev_add_random_item slot=accessory`, `/dev_add_random_item slot=tool`, `/dev_add_random_item tag=twohand` and `/dev_add_random_item tag=offhand` as needed.
+2. Equip universal weapon, offhand, head, chest, legs, accessory and tool manatky.
+3. Equip a two-handed bow and verify the offhand slot is occupied/cleared according to existing twohand confirmation rules.
+4. Try an offhand shield and an offhand dagger on a non-warrior and verify explicit offhand items are allowed.
+5. Try a class-restricted item on a wrong class and verify the rejection names the class requirement.
+6. Try a race-restricted item on a wrong race and verify the rejection names the race requirement.
+7. Try a title/path item with a matching and non-matching active title.
+8. Verify old generated hats/helmets/scarves, boots/greaves/pants, shields and tools appear under the expected slot filters.
+9. Win several normal fights and hourly Yeger contracts, then verify authored coverage manatky can appear as item rewards, including gear that may be useful to another class/race/title later through social item exchange.
+10. Open `📖 Бестіарій` records for monsters with coverage loot and verify the possible-loot notes list the new manatky as possible finds, not guaranteed drops.
+
 ## 0.2.24 — Mantok Balance Audit smoke
 
 Manual Telegram QA status for the implementation pass: not run.

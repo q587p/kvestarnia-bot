@@ -265,13 +265,13 @@ function presentKnownTrophies(trophyNames: string[]): string[] {
   if (trophyNames.length === 0) {
     return [
       "",
-      "Відомі трофеї: поки тільки підозри й легкий сором у журналіста."
+      "Відома здобич: поки тільки підозри й легкий сором у журналіста."
     ];
   }
 
   return [
     "",
-    "Можливі трофеї за нотатками, не обіцянка:",
+    "Можлива здобич за нотатками, не обіцянка:",
     ...trophyNames.map((name) => `— <i>${escapeHtml(name)}</i>`)
   ];
 }

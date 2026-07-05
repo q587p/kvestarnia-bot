@@ -1,5 +1,6 @@
 import type { ItemContent } from "./schema";
 import { lootExpansionV1ItemContents } from "./lootExpansionV1";
+import { mantokEquipmentCoverageItems } from "./mantokEquipmentCoverage";
 import { monsterLootItemAdditions } from "./monsterLootItems";
 import { monsterTrophyItemAdditions } from "./monsterTrophyCoverage";
 
@@ -266,6 +267,7 @@ export const items = [
     slot: "cosmetic",
     priceless: true
   },
+  ...mantokEquipmentCoverageItems,
   ...monsterLootItemAdditions,
   ...monsterTrophyItemAdditions,
   ...lootExpansionV1ItemContents

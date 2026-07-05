@@ -1,6 +1,7 @@
 import type { CharacterFlavorSelector } from "./characterFlavor";
 import type { CharacterPath } from "../domain/characters/path";
 import type { Pronoun } from "./schema";
+import { mantokEquipmentCoverageLoot } from "./mantokEquipmentCoverageLoot";
 import { monsterTrophyLoot } from "./monsterTrophyCoverage";
 
 export type MonsterFlavorPlacement = "monster.start" | "monster.action" | "monster.outcome" | "monster.loot-note";
@@ -135,7 +136,14 @@ function hashString(value: string): number {
   return hash >>> 0;
 }
 
-export const monsterLoot = {
+type MonsterLootContentEntry =
+  | string
+  | {
+      itemId: string;
+      weight?: number;
+    };
+
+const baseMonsterLoot = {
   "monster.mimic-shawarma": [
     "item.suspicious-shawarma-wrapper",
     "item.receipt-of-formal-suspicion",
@@ -251,8 +259,23 @@ export const monsterLoot = {
   "monster.quiet-catastrophe-clerk": [
     "item.calm-apocalypse-memo"
   ],
-  ...monsterTrophyLoot
 } as const;
+
+export const monsterLoot = mergeMonsterLoot(baseMonsterLoot, monsterTrophyLoot, mantokEquipmentCoverageLoot);
+
+function mergeMonsterLoot(
+  ...sources: ReadonlyArray<Readonly<Record<string, readonly MonsterLootContentEntry[]>>>
+): Record<string, readonly MonsterLootContentEntry[]> {
+  const merged = new Map<string, MonsterLootContentEntry[]>();
+
+  for (const source of sources) {
+    for (const [monsterId, entries] of Object.entries(source)) {
+      merged.set(monsterId, [...(merged.get(monsterId) ?? []), ...entries]);
+    }
+  }
+
+  return Object.fromEntries(merged.entries());
+}
 
 export const monsterFlavorLines: MonsterFlavorLine[] = [
   {

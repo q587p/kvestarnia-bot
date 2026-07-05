@@ -19,7 +19,7 @@ import type {
 } from "../../src/db/repositories/huntContractRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { items, monsterLoot, monsters } from "../../src/content";
-import { getMonsterLootEntryItemId } from "../../src/domain/loot/lootEngine";
+import { getLootCandidates, getMonsterLootEntryItemId } from "../../src/domain/loot/lootEngine";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import type { MonsterContent } from "../../src/content/schema";
 import {
@@ -27,6 +27,7 @@ import {
   buildHuntContractToken,
   HUNT_BOARD_CONTRACT_KEY,
   HuntService,
+  selectWeightedHuntLootCandidate,
   selectHuntMonster,
   toKyivHourPeriodId
 } from "../../src/services/huntService";
@@ -187,6 +188,31 @@ describe("HuntService", () => {
     });
   });
 
+  it("selects deterministic hunt reward loot with candidate weights", () => {
+    const lightItem = items.find((item) => item.id === "item.monster-pocket-lint");
+    const heavyItem = items.find((item) => item.id === "item.monster-field-note-scrap");
+
+    if (!lightItem || !heavyItem) {
+      throw new Error("Expected stable monster fallback loot items.");
+    }
+
+    const candidates = [
+      { item: lightItem, rarity: lightItem.rarity, weight: 0.35 },
+      { item: heavyItem, rarity: heavyItem.rarity, weight: 3.5 }
+    ] as const;
+    const selections = Array.from({ length: 200 }, (_, index) =>
+      selectWeightedHuntLootCandidate(candidates, `weighted-hunt-${index}`)?.item.id
+    );
+    const lightCount = selections.filter((itemId) => itemId === lightItem.id).length;
+    const heavyCount = selections.filter((itemId) => itemId === heavyItem.id).length;
+
+    expect(selectWeightedHuntLootCandidate(candidates, "weighted-hunt-42")).toEqual(
+      selectWeightedHuntLootCandidate(candidates, "weighted-hunt-42")
+    );
+    expect(lightCount).toBeGreaterThan(0);
+    expect(heavyCount).toBeGreaterThan(lightCount * 4);
+  });
+
   it("creates one posted contract row when the hunt board opens", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId);
@@ -272,6 +298,63 @@ describe("HuntService", () => {
       });
       expect(repeated.reward?.itemGrants).toEqual(completed.reward.itemGrants);
     }
+  });
+
+  it("stores and replays weighted monster loot grants from persisted hunt contracts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const huntContracts = new FakeHuntContractRepository(characters);
+    const persistedMonster = monsters.find(
+      (monster) => monster.id === "monster.stamp-doorkeeper-skeleton"
+    );
+
+    if (!persistedMonster) {
+      throw new Error("Expected stable weighted Mantok coverage hunt monster.");
+    }
+
+    const candidates = getLootCandidates({
+      monsterId: persistedMonster.id,
+      monsterLoot,
+      items
+    });
+    const candidateIds = new Set(candidates.map((candidate) => candidate.item.id));
+
+    expect(candidates.some((candidate) => candidate.weight !== undefined)).toBe(true);
+    expect([...candidateIds].some((itemId) => itemId.startsWith("item.mantok.coverage."))).toBe(true);
+
+    await huntContracts.putRecord(telegramUserId, {
+      localPeriodId: "2026-06-14T00",
+      monsterId: persistedMonster.id,
+      contractToken: buildHuntContractToken("2026-06-14T00", "character-42", persistedMonster)
+    });
+    const service = new HuntService(characters, dailyActions, huntContracts, fixedClock);
+
+    const completed = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      buildHuntContractToken("2026-06-14T00", "character-42", persistedMonster),
+      "strike"
+    );
+    const repeated = await service.completeHuntContract(
+      telegramUserId,
+      "2026-06-14T00",
+      buildHuntContractToken("2026-06-14T00", "character-42", persistedMonster),
+      "trick"
+    );
+
+    expect(completed.state).toBe("completed");
+    expect(repeated.state).toBe("already-completed");
+    if (completed.state === "completed" && repeated.state === "already-completed") {
+      expect(completed.reward.itemGrants).toHaveLength(1);
+      expect(candidateIds.has(completed.reward.itemGrants[0]?.itemId ?? "")).toBe(true);
+      expect(repeated.reward?.itemGrants).toEqual(completed.reward.itemGrants);
+    }
+    expect(huntContracts.allRecords[0]?.rewardItems).toEqual(
+      completed.state === "completed"
+        ? completed.reward.itemGrants.map(({ itemId, quantity }) => ({ itemId, quantity }))
+        : null
+    );
   });
 
   it("does not complete the current hunt from a stale hour callback", async () => {
@@ -391,13 +474,37 @@ describe("HuntService", () => {
       "character-42",
       { ...skeleton, level: 3 }
     );
-    const skeletonLoot = monsterLoot["monster.stamp-doorkeeper-skeleton"] as string[];
+    const skeletonLoot = monsterLoot["monster.stamp-doorkeeper-skeleton"] as Array<
+      string | { itemId: string; weight?: number }
+    >;
     const originalLoot = [...skeletonLoot];
     let changedLootList = "";
+    let changedLootWeight = "";
 
     try {
       skeletonLoot.push("item.test-only-paperclip");
       changedLootList = buildHuntContractToken(
+        "2026-06-14T00",
+        "character-42",
+        skeleton
+      );
+    } finally {
+      skeletonLoot.splice(0, skeletonLoot.length, ...originalLoot);
+    }
+
+    const weightedEntryIndex = skeletonLoot.findIndex((entry) => typeof entry !== "string");
+    const weightedEntry = skeletonLoot[weightedEntryIndex];
+
+    if (weightedEntryIndex < 0 || typeof weightedEntry === "string") {
+      throw new Error("Expected weighted Mantok coverage loot on the skeleton.");
+    }
+
+    try {
+      skeletonLoot[weightedEntryIndex] = {
+        ...weightedEntry,
+        weight: (weightedEntry.weight ?? 1) + 0.13
+      };
+      changedLootWeight = buildHuntContractToken(
         "2026-06-14T00",
         "character-42",
         skeleton
@@ -411,6 +518,7 @@ describe("HuntService", () => {
     expect(changedMonster).not.toBe(first);
     expect(changedLevel).not.toBe(first);
     expect(changedLootList).not.toBe(first);
+    expect(changedLootWeight).not.toBe(first);
   });
 
   it("keeps monster loot references valid and value-bearing", () => {

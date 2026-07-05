@@ -10,6 +10,10 @@ export function presentDevGrantNoCharacter(): string {
 }
 
 export function presentDevGrantInvalidAmount(command: string): string {
+  if (command === "dev_add_random_item") {
+    return "Формат: /dev_add_random_item [додатне ціле число] [slot=weapon|offhand|head|chest|legs|accessory|tool] [tag=twohand|offhand]. Без числа корчмар підставить 1.";
+  }
+
   if (command === "dev_heal") {
     return "Формат: /dev_heal [додатне ціле число HP]. Без числа корчмар лікує до максимуму.";
   }
@@ -28,6 +32,19 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
 
   if (result.state === "no-character") {
     return presentDevGrantNoCharacter();
+  }
+
+  if (result.state === "no-matching-items") {
+    const filterLines = [
+      result.filter.equipmentSlot ? `slot=${result.filter.equipmentSlot}` : null,
+      result.filter.tag ? `tag=${result.filter.tag}` : null
+    ].filter((line): line is string => Boolean(line));
+
+    return [
+      "🧪 Dev: корчмар порився в торбі, але під такий фільтр нічого не знайшов.",
+      "",
+      filterLines.length > 0 ? `Фільтр: ${filterLines.join(" ")}` : "Фільтр: без уточнень"
+    ].join("\n");
   }
 
   if (result.kind === "level") {

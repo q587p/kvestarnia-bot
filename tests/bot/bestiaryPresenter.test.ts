@@ -57,7 +57,7 @@ describe("bestiary presenter", () => {
     expect(text).toContain("Рівень: 2");
     expect(text).toContain("Польова нотатка");
     expect(text).toContain("Кістки не забираємо. Забираємо те, чим вони заважали.");
-    expect(text).toContain("Можливі трофеї за нотатками, не обіцянка");
+    expect(text).toContain("Можлива здобич за нотатками, не обіцянка");
     expect(text).toContain("<i>Штемпельна подушка останнього попередження</i>");
   });
 
@@ -79,15 +79,15 @@ describe("bestiary presenter", () => {
     expect(text).toContain("Перенос календаря зламався об стіну. Стіна не винна.");
   });
 
-  it("renders monster trophy hints from reachable runtime loot candidates", () => {
+  it("renders monster loot hints from reachable runtime loot candidates", () => {
     for (const monster of monsters) {
       const text = presentBestiaryMonster(monster.id);
       const candidateNames = getLootCandidates({ monsterId: monster.id, monsterLoot, items })
         .map((candidate) => candidate.item.name);
 
       expect(candidateNames.length, `missing candidates for ${monster.id}`).toBeGreaterThan(0);
-      expect(text).toContain("Можливі трофеї за нотатками, не обіцянка");
-      expect(text).not.toContain("Відомі трофеї: поки тільки підозри");
+      expect(text).toContain("Можлива здобич за нотатками, не обіцянка");
+      expect(text).not.toContain("Відома здобич: поки тільки підозри");
 
       for (const name of candidateNames) {
         expect(text, `missing Bestiary trophy hint ${name} for ${monster.id}`).toContain(name);
