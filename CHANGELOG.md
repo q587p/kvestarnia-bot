@@ -23,6 +23,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Tightened equipment slot-filter inventory QA: filtered empty bags now show the slot-specific empty card, and route tests cover slot-filter callbacks plus paginated offhand lists.
 - Changed inventory pagination counter buttons like `1/4` into page-number prompts, so players can reply with a target page instead of pressing a no-op current-page callback.
 
+### Fixed
+- Kept inventory item-detail and equip callback payloads within Telegram's 64-byte limit for long authored Mantok/coverage item ids by using compact catalog keys when needed.
+
 ### Deferred
 - Gear-action buttons, bleed/burn/status runtime, borrowed class/race actions, Yeger disguise/service perks, shops, markets, crafting and broad combat rebalance remain deferred.
 

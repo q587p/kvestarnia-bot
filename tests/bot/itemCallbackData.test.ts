@@ -10,6 +10,7 @@ import {
   parseItemCallbackData
 } from "../../src/bot/callbacks/itemCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
+import { items } from "../../src/content";
 
 describe("item and equipment callback data", () => {
   it("parses valid item detail callbacks", () => {
@@ -57,6 +58,43 @@ describe("item and equipment callback data", () => {
         filter: "one-use"
       }
     });
+  });
+
+  it("uses compact detail callbacks for long known item ids", () => {
+    const data = makeItemDetailCallbackData(
+      "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+      12,
+      "tool"
+    );
+
+    expect(data).toMatch(/^v1:item:d:/);
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseItemCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+        page: 12,
+        filter: "tool"
+      }
+    });
+  });
+
+  it("keeps item detail callbacks within Telegram limits for all content items", () => {
+    for (const item of items) {
+      const data = makeItemDetailCallbackData(item.id, 999, "offhand");
+
+      expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+      expect(parseItemCallbackData(data)).toEqual({
+        ok: true,
+        value: {
+          type: "detail",
+          itemId: item.id,
+          page: 999,
+          filter: "offhand"
+        }
+      });
+    }
   });
 
   it("parses inventory and equipment navigation callbacks", () => {
@@ -156,6 +194,43 @@ describe("item and equipment callback data", () => {
         slot: "tool"
       }
     });
+  });
+
+  it("uses compact equip callbacks for long known item ids", () => {
+    const data = makeEquipItemCallbackData(
+      "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+      "tool",
+      { confirmTwohand: true }
+    );
+
+    expect(data).toMatch(/^v1:equip:i:/);
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(parseEquipmentCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+        targetSlot: "tool",
+        confirmTwohand: true
+      }
+    });
+  });
+
+  it("keeps equip callbacks within Telegram limits for all content items", () => {
+    for (const item of items) {
+      const data = makeEquipItemCallbackData(item.id, "offhand", { confirmTwohand: true });
+
+      expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+      expect(parseEquipmentCallbackData(data)).toEqual({
+        ok: true,
+        value: {
+          type: "equip-item",
+          itemId: item.id,
+          targetSlot: "offhand",
+          confirmTwohand: true
+        }
+      });
+    }
   });
 
   it("parses target-slot equip callbacks", () => {

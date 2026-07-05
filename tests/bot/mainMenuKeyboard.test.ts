@@ -1760,6 +1760,44 @@ describe("main menu and scene keyboards", () => {
         )
       )
     ).toEqual(["v1:equip:view", "v1:item:inventory", "v1:item:detail:item.pan-of-persuasion:s:w"]);
+    const longCallbackItemKeyboard = buildInventoryKeyboard(
+      {
+        state: "found",
+        totalGoldValue: 0,
+        items: [
+          {
+            id: "character-item-long-tool",
+            itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+            quantity: 1,
+            content: {
+              id: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
+              name: "Ліхтар підозрілих кутків",
+              description: "Світить туди, де інвентар робить вигляд, що все гаразд.",
+              rarity: "common",
+              slot: "accessory",
+              equipmentSlot: "tool",
+              goldValue: 23,
+              effect: { luck: 1 }
+            }
+          }
+        ]
+      },
+      12,
+      "tool"
+    );
+    const longCallbackItemCallbacks = flatInlineButtonCallbacks(longCallbackItemKeyboard);
+
+    expect(flatInlineButtonTexts(longCallbackItemKeyboard)).toEqual([
+      "🛡️ Спорядження",
+      "🎒 Усі манатки",
+      "🔎 Ліхтар підозрілих кутків"
+    ]);
+    expect(longCallbackItemCallbacks).toEqual([
+      "v1:equip:view",
+      "v1:item:inventory",
+      expect.stringMatching(/^v1:item:d:[a-z0-9]+:s:t$/)
+    ]);
+    expect(longCallbackItemCallbacks.every((callback) => Buffer.byteLength(callback, "utf8") <= 64)).toBe(true);
     expect(flatInlineButtonTexts(buildItemDetailKeyboard({ state: "not-owned" }))).toEqual([
       "⬅️ До манаток",
       "🛡️ Спорядження"
