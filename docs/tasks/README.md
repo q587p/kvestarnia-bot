@@ -52,6 +52,10 @@ Active task:
 
 - [0.2.30-mantok-ability-grants-foundation.md](0.2.30-mantok-ability-grants-foundation.md) — Mantok ability-grant foundation with persistent PvE gear actions, compact callbacks, visible bleed and additive high-level loot.
 
+Near-term next tasks:
+
+- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow polish, bugfix and QA-hardening pass after the current release candidate; no new major systems unless the task is explicitly re-scoped.
+
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
 - [0.1.22-monster-abilities-ai.md](0.1.22-monster-abilities-ai.md) — typed monster ability catalogs, frozen monster loadouts and pure monster AI.
