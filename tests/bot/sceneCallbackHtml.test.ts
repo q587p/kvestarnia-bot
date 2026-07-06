@@ -64,6 +64,7 @@ import {
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
+import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { startQuickDicePoker } from "../../src/domain/dicePoker";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
@@ -1093,7 +1094,7 @@ describe("scene callback HTML options", () => {
     });
     const turnInForTelegramUser = vi.fn(() =>
       Promise.resolve(
-        currentLocationId === "location.korchma.quest-table"
+        currentLocationId === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
           ? {
               state: "completed" as const,
               character: { ...character, level: 2 },
@@ -1130,9 +1131,14 @@ describe("scene callback HTML options", () => {
     );
 
     expect(turnInForTelegramUser).toHaveBeenCalledTimes(1);
-    expect(markAction.mock.calls.some(([input]) =>
-      "locationId" in input && input.locationId === "location.korchma.quest-table"
-    )).toBe(false);
+    const turnInOrder = turnInForTelegramUser.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY;
+    const questTableMarkOrders = markAction.mock.calls.flatMap(([input], index) =>
+      "locationId" in input && input.locationId === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+        ? [markAction.mock.invocationCallOrder[index] ?? Number.POSITIVE_INFINITY]
+        : []
+    );
+    expect(questTableMarkOrders.filter((order) => order < turnInOrder)).toEqual([]);
+    expect(questTableMarkOrders).toHaveLength(0);
     const edit = calls.find((call) => call.method === "editMessageText");
     expect(edit?.payload.text).toContain("звітувати треба біля столу");
     expect(edit?.payload.text).not.toContain("+6 XP");

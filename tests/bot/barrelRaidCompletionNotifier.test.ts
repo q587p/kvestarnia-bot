@@ -459,6 +459,7 @@ describe("barrel raid completion notifier", () => {
         availableAt: new Date("2026-06-13T10:30:00.000Z")
       })
     ]);
+    const barrelBeerTutorialService = barrelTutorialProgressService();
     const scheduler = createBarrelRaidCompletionScheduler({
       maxAttempts: 1,
       logger: { error: vi.fn() }
@@ -470,11 +471,14 @@ describe("barrel raid completion notifier", () => {
       tavernRaidService: {
         completeFridayBarrelRaid
       },
+      barrelBeerTutorialService,
       notifications
     });
     await vi.advanceTimersByTimeAsync(0);
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(barrelBeerTutorialService.markVisitedBarrelForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(barrelBeerTutorialService.markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledTimes(1);
     expect(notifications.get("notification-1")?.status).toBe("pending");
     expect(notifications.get("notification-1")?.rewardClaimedAt).toEqual(
       new Date("2026-06-13T10:30:00.000Z")
@@ -491,11 +495,14 @@ describe("barrel raid completion notifier", () => {
       tavernRaidService: {
         completeFridayBarrelRaid
       },
+      barrelBeerTutorialService,
       notifications
     });
     await vi.advanceTimersByTimeAsync(0);
 
     expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(2);
+    expect(barrelBeerTutorialService.markVisitedBarrelForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(barrelBeerTutorialService.markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledTimes(2);
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[1]?.[1]).toContain("Рейд завершено");
     expect(notifications.get("notification-1")?.status).toBe("sent");
