@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   makeRemortClassCallbackData,
   makeRemortConfirmCallbackData,
+  makeRemortItemPageCallbackData,
   makeRemortItemCallbackData,
   makeRemortOpenCallbackData,
+  makeRemortPageCallbackData,
   makeRemortPronounCallbackData,
   makeRemortRaceCallbackData,
   parseRemortCallbackData
@@ -34,6 +36,14 @@ describe("remort callback data", () => {
       ok: true,
       value: { type: "item", token, itemKey }
     });
+    expect(parseRemortCallbackData(makeRemortItemPageCallbackData(token, itemKey, 2))).toEqual({
+      ok: true,
+      value: { type: "item", token, itemKey, page: 2 }
+    });
+    expect(parseRemortCallbackData(makeRemortPageCallbackData(token, 2))).toEqual({
+      ok: true,
+      value: { type: "page", token, page: 2 }
+    });
     expect(parseRemortCallbackData(makeRemortConfirmCallbackData(token))).toEqual({
       ok: true,
       value: { type: "confirm", token }
@@ -54,6 +64,18 @@ describe("remort callback data", () => {
       ok: false,
       error: "invalid"
     });
+    expect(parseRemortCallbackData("v1:rm:pg:0123456789abcdef:-1")).toEqual({
+      ok: false,
+      error: "invalid"
+    });
+    expect(parseRemortCallbackData("v1:rm:it:0123456789abcdef:a1b2c3d4e5f6:page")).toEqual({
+      ok: false,
+      error: "invalid"
+    });
+    expect(parseRemortCallbackData("v1:rm:pg:0123456789abcdef:1:extra")).toEqual({
+      ok: false,
+      error: "invalid"
+    });
   });
 
   it("keeps generated callback data within Telegram limit", () => {
@@ -63,6 +85,8 @@ describe("remort callback data", () => {
       makeRemortRaceCallbackData(token, "intellectual-orc"),
       makeRemortClassCallbackData(token, "bureaucramancer"),
       makeRemortItemCallbackData(token, itemKey),
+      makeRemortItemPageCallbackData(token, itemKey, 587),
+      makeRemortPageCallbackData(token, 587),
       makeRemortConfirmCallbackData(token)
     ];
 
