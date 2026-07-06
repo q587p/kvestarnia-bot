@@ -2186,6 +2186,53 @@ describe("FightService", () => {
     expect(sessions.updateCount).toBe(2);
   });
 
+  it("resolves an equipped gear action in an ordinary two-enemy persistent fight", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "weapon", itemId: "item.set.red-line.left-dagger" })]
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.99]),
+      equipment
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId, {
+      enemyCount: 2,
+      devBypassAvailability: true
+    });
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(2);
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "gear",
+        skillId: "gear.red-line-dagger",
+        abilitySource: "equipment"
+      });
+      expect(normalizeCombatEnemies(result.session.state!)).toHaveLength(2);
+    }
+    expect(sessions.updateCount).toBe(1);
+  });
+
   it("rejects a newly equipped gear callback when the equipment refresh loses the active-turn race", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });

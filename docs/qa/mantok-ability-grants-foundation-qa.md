@@ -2,6 +2,12 @@
 
 Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons staying visible while unusable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
 
+Manual evidence still required before merge:
+
+- Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and does not create a second effect.
+- Pending: turn-based duel stale gear callback refreshes/replays the current card without advancing the duel.
+- Pending: ordinary two-enemy persistent fight gear action applies the effect, keeps the multi-enemy state readable, and writes the combat journal row.
+
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
    - Combat-action QA ids:
      - `item.set.barrel-brother.shield` — level `9+`.

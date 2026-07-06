@@ -327,6 +327,10 @@ export async function handleDuelCallback(
     await answerCallback(
       result.state === "wrong-turn"
         ? { text: "Зараз не ваш хід." }
+        : result.state === "not-enough-mana"
+          ? { text: "Не вистачає мани для цієї дії спорядження." }
+        : result.state === "skill-on-cooldown"
+          ? { text: "Дія спорядження ще відсапується." }
         : result.state === "stale"
           ? { text: "Цей хід уже змінився. Показую актуальний запис." }
           : result.state === "already-acted"

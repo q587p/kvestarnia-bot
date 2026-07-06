@@ -188,6 +188,8 @@ export type TurnBasedDuelTurnResult =
   | { state: "not-found" }
   | { state: "not-participant"; session: DuelCombatSessionRecord }
   | { state: "already-acted"; session: DuelCombatSessionRecord }
+  | { state: "not-enough-mana"; session: DuelCombatSessionRecord }
+  | { state: "skill-on-cooldown"; session: DuelCombatSessionRecord }
   | { state: "wrong-turn"; session: DuelCombatSessionRecord }
   | { state: "stale"; session: DuelCombatSessionRecord }
   | { state: "updated"; session: DuelCombatSessionRecord };
@@ -745,7 +747,11 @@ export class DuelChallengeService {
           ? "already-acted"
           : resolved.reason === "not-participant"
             ? "not-participant"
-            : "wrong-turn",
+            : resolved.reason === "not-enough-mana"
+              ? "not-enough-mana"
+              : resolved.reason === "skill-on-cooldown"
+                ? "skill-on-cooldown"
+                : "wrong-turn",
         session
       };
     }

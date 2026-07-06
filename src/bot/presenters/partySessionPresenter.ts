@@ -455,6 +455,9 @@ export function presentPartyBoss(
     viewerCharacterId: session.status === "active" ? viewer?.characterId ?? null : null,
     targetedCharacterIds
   }));
+  if (session.status === "active" && big) {
+    lines.push("🎒 Рейдовий протокол запечатав вдягнені манатки: у бою можна лише використати одноразові.");
+  }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null));
   }

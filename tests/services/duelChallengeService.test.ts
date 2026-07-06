@@ -1266,6 +1266,160 @@ describe("DuelChallengeService", () => {
     expect(world.turnUpdateAttempts).toBe(0);
   });
 
+  it("treats stale turn-based duel gear callbacks as stale without advancing the duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, {
+      level: 10,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version + 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "stale" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
+  it("reports turn-based duel gear callbacks blocked by mana without mutating the duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      manaCurrent: 0,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, {
+      level: 10,
+      manaCurrent: 0,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "not-enough-mana" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
+  it("reports turn-based duel gear callbacks blocked by cooldown without mutating the duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorSide =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId
+        ? "challenger"
+        : "target";
+    const actorTelegramId = actorSide === "challenger" ? 1n : 2n;
+    const stored = world.sessions.get(accepted.session.id);
+
+    if (!stored) {
+      throw new Error("Expected stored turn-based session");
+    }
+
+    stored.state.participants[actorSide].cooldowns = {
+      abilities: {
+        "gear.red-line-dagger": {
+          id: "gear.red-line-dagger",
+          remainingTurns: 2
+        }
+      }
+    };
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "skill-on-cooldown" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
   it("keeps equipped gear grants out of quick duel resolution", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, {

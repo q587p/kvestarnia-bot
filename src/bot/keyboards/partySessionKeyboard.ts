@@ -149,7 +149,7 @@ export function buildPartyBossKeyboard(
       })
     );
 
-    if (options.includeCombatItems !== false) {
+    if (options.includeCombatItems === true) {
       keyboard
         .text("🎒 Одноразові манатки", makePartyBossItemsMenuCallbackData(session.partyInviteToken, session.turn))
         .row();

@@ -32,6 +32,7 @@ describe("party session keyboard", () => {
     const session = makeBossSession();
 
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true,
       includeDevTimeout: true
     }))).toEqual([
       "🗡️ Вдарити",
@@ -42,7 +43,9 @@ describe("party session keyboard", () => {
       "⏱️ Dev: добити хід",
       "🔎 Оновити"
     ]);
-    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true
+    }))).toContain("v1:party:bm:partyABC12:1");
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bi:");
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, null))).toEqual([
       "🔎 Оновити"
@@ -52,18 +55,14 @@ describe("party session keyboard", () => {
   it("hides the party boss one-use shortcut when no useful combat items are available", () => {
     const session = makeBossSession();
 
-    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
-      includeCombatItems: false
-    }))).toEqual([
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
       "🗡️ Вдарити",
       "🛡 Захищатися",
       "🪓 Силовий замах",
       "🧰 Практична імпровізація",
       "🔎 Оновити"
     ]);
-    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
-      includeCombatItems: false
-    }))).not.toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bm:partyABC12:1");
   });
 
   it("shows party boss gear actions from equipment grants", () => {
@@ -172,7 +171,6 @@ describe("party session keyboard", () => {
       "🗡️ Вдарити",
       "🛡 Захищатися",
       "🧰 Практична імпровізація",
-      "🎒 Одноразові манатки",
       "🔎 Оновити"
     ]);
   });
