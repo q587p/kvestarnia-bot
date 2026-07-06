@@ -6,6 +6,7 @@ import { PublicActivityEventPublisher } from "../services/publicActivityEventPub
 import { AchievementService } from "../services/achievementService";
 import { AdventureService } from "../services/adventureService";
 import { BardPerformanceService } from "../services/bardPerformanceService";
+import { BarrelBeerTutorialService } from "../services/barrelBeerTutorialService";
 import { CellarErrandService } from "../services/cellarErrandService";
 import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import { ClassNoncombatService } from "../services/classNoncombatService";
@@ -89,6 +90,13 @@ export function createServices(
       publicActivityEvents
     ),
     bardPerformance: new BardPerformanceService(repositories.bardPerformances),
+    barrelBeerTutorial: new BarrelBeerTutorialService(
+      repositories.characters,
+      repositories.dailyActions,
+      repositories.shynok,
+      undefined,
+      achievements
+    ),
     barrelRaidNotifications: repositories.barrelRaidNotifications,
     cellarErrand: new CellarErrandService(repositories.cooldowns, undefined, repositories.equipment),
     cellarGrownup: new CellarGrownupQuestService(

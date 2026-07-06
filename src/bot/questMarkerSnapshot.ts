@@ -5,8 +5,13 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   telegramUserId: bigint,
   services: Pick<
     BotServices,
-    "adventure" | "cellarErrand" | "cellarGrownup" | "dailyKorchmaRound" | "fight" | "yeger"
-  >
+    | "adventure"
+    | "cellarErrand"
+    | "cellarGrownup"
+    | "dailyKorchmaRound"
+    | "fight"
+    | "yeger"
+  > & Partial<Pick<BotServices, "barrelBeerTutorial">>
 ): Promise<QuestMarkerInput | null> {
   if (
     typeof services.adventure?.getAdventureOfferForTelegramUser !== "function" ||
@@ -25,6 +30,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     problemQuest,
     yeger,
     cellar,
+    barrelBeerTutorial,
     dailyKorchmaRound
   ] = await Promise.all([
     typeof services.adventure?.getAdventureOfferForTelegramUser === "function"
@@ -45,6 +51,9 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     typeof services.cellarErrand?.getForTelegramUser === "function"
       ? services.cellarErrand.getForTelegramUser(telegramUserId)
       : Promise.resolve(null),
+    typeof services.barrelBeerTutorial?.getForTelegramUser === "function"
+      ? services.barrelBeerTutorial.getForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
     services.dailyKorchmaRound
       ? services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
       : Promise.resolve(null)
@@ -62,6 +71,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     problemQuest,
     yeger,
     cellar,
+    barrelBeerTutorial,
     dailyKorchmaRound,
     cellarGrownup
   ].map(getCharacterLevel).find((level) => level !== undefined);
@@ -78,6 +88,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     ...(problemQuest && problemQuest.state !== "no-character" ? { problemQuest: problemQuest.progress } : {}),
     ...(yeger && yeger.state !== "no-character" ? { yeger } : {}),
     ...(cellar && cellar.state !== "no-character" ? { cellar } : {}),
+    ...(barrelBeerTutorial && barrelBeerTutorial.state !== "no-character" ? { barrelBeerTutorial } : {}),
     ...(dailyKorchmaRound && dailyKorchmaRound.state !== "no-character" ? { dailyKorchmaRound } : {}),
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"
       ? { cellarGrownup }

@@ -34,6 +34,7 @@ export const achievementTriggerTypes = [
   "starter.mimic-shawarma.completed",
   "starter.mimic-shawarma.probe.completed",
   "cellar.mouse.completed",
+  "quest.barrel-beer-tutorial.completed",
   "daily.korchma-round.completed",
   "adventure.choice.strong-success",
   "mantok.chest.completed",
@@ -638,6 +639,17 @@ export const achievements = [
     sortOrder: 65.2,
     status: "enabled",
     trigger: { type: "cellar.mouse.completed", threshold: 1 }
+  },
+  {
+    id: "achievement.quest.barrel-beer-tutorial",
+    category: "quests",
+    title: "Туди, звідти і з кухлем",
+    description: "завершити першу бочкову справу з пивом і повернутися до столу, доки піна ще має юридичну силу.",
+    hidden: false,
+    lockedDescription: "завершити справу «Бочка, або Туди і звідти».",
+    sortOrder: 65.25,
+    status: "enabled",
+    trigger: { type: "quest.barrel-beer-tutorial.completed", threshold: 1 }
   },
   {
     id: "achievement.quest.daily-korchma-round",

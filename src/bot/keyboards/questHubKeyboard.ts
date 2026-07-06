@@ -1,5 +1,9 @@
 import { InlineKeyboard } from "grammy";
 import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../services/adventureService";
+import {
+  BARREL_BEER_TUTORIAL_TITLE,
+  type BarrelBeerTutorialLookupResult
+} from "../../services/barrelBeerTutorialService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
@@ -26,7 +30,8 @@ import {
 import {
   decorateButtonLabel,
   mergeQuestMarkers,
-  resolveQuestMarkerForTarget
+  resolveQuestMarkerForTarget,
+  type QuestMarkerTarget
 } from "./questButtonMarkers";
 
 export interface QuestHubKeyboardInput {
@@ -37,6 +42,7 @@ export interface QuestHubKeyboardInput {
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
   problemQuest?: ProblemQuestProgress;
+  barrelBeerTutorial?: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }>;
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
@@ -138,6 +144,8 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
     keyboard.row();
   }
 
+  addBarrelBeerTutorialButton(keyboard, input);
+
   if (
     input.dailyKorchmaRound?.state === "not-issued" ||
     input.dailyKorchmaRound?.state === "ready" ||
@@ -206,6 +214,65 @@ function addQuestReferenceButtons(
   }
 
   keyboard.row();
+}
+
+function addBarrelBeerTutorialButton(
+  keyboard: InlineKeyboard,
+  input: QuestHubKeyboardInput
+): void {
+  const quest = input.barrelBeerTutorial;
+
+  if (!quest || quest.state === "level-locked" || quest.state === "completed") {
+    return;
+  }
+
+  if (quest.state === "available") {
+    keyboard.text(
+      decorateButtonLabel(`🛢️ ${BARREL_BEER_TUTORIAL_TITLE}`, resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial")),
+      makeQuestCallbackData("barrel-tutorial")
+    ).row();
+    return;
+  }
+
+  if (quest.state === "turn-in-ready") {
+    keyboard.text(
+      decorateButtonLabel("✅ Здати Бочку", resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial")),
+      makeQuestCallbackData("barrel-tutorial-turn-in")
+    ).row();
+    return;
+  }
+
+  const target = getBarrelBeerTutorialTarget(quest);
+  keyboard.text(
+    decorateButtonLabel(target.label, resolveQuestMarkerForTarget(input, target.markerTarget)),
+    target.callbackData
+  ).row();
+}
+
+function getBarrelBeerTutorialTarget(
+  quest: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" | "level-locked" | "available" | "completed" }>
+): { label: string; callbackData: string; markerTarget: QuestMarkerTarget } {
+  if (!quest.progress.visitedBarrel || !quest.progress.raidCompleted) {
+    return {
+      label: "🛢️ До Бочки",
+      callbackData: makePlaceCallbackData("barrel"),
+      markerTarget: "location.korchma.barrel"
+    };
+  }
+
+  if (!quest.progress.beerAction || !quest.progress.beerDrunk || !quest.progress.activeBeer) {
+    return {
+      label: "🍻 До шинку",
+      callbackData: makePlaceCallbackData("bar"),
+      markerTarget: "location.korchma.bar"
+    };
+  }
+
+  return {
+    label: "📋 До столу",
+    callbackData: makePlaceCallbackData("quest-table"),
+    markerTarget: "location.korchma.quest-table"
+  };
 }
 
 function canOpenBestiary(input: QuestHubKeyboardInput): boolean {
@@ -284,6 +351,9 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.yeger.state === "turn-in-ready" ||
     input.cellar.state === "ready" ||
     (input.cellar.state === "level-retired" && input.cellarGrownup?.state !== "completed") ||
+    input.barrelBeerTutorial?.state === "available" ||
+    input.barrelBeerTutorial?.state === "in-progress" ||
+    input.barrelBeerTutorial?.state === "turn-in-ready" ||
     input.dailyKorchmaRound?.state === "not-issued" ||
     input.dailyKorchmaRound?.state === "ready" ||
     input.dailyKorchmaRound?.state === "turn-in-ready"

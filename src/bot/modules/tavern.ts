@@ -20,7 +20,7 @@ PRESENCE_LOCATION_KORCHMA_YARD,
 PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
-import type { ShynokRoundConfirmResult } from "../../services/shynokService";
+import type { PresentedShynokDrinkState, ShynokRoundConfirmResult } from "../../services/shynokService";
 import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
@@ -667,6 +667,9 @@ async function handleShynokCallback(
 
   if (action.type === "drink-confirm") {
     const result = await services.shynok.confirmSelfDrinkOrderForTelegramUser(telegramUserId, action.token);
+    if (result.state === "completed" && isBeerDrinkState(result.drink)) {
+      await services.barrelBeerTutorial?.markBeerDrunkForTelegramUser(telegramUserId);
+    }
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Налито.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
@@ -701,6 +704,9 @@ async function handleShynokCallback(
       action.token,
       action.tier
     );
+    if (result.state === "completed") {
+      await services.barrelBeerTutorial?.markBeerActionForTelegramUser(telegramUserId);
+    }
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Кухлі поставлено.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
@@ -729,6 +735,9 @@ async function handleShynokCallback(
           : "confirm-replacement",
       action.type === "round-replace-confirm" ? action.replacementGuard : undefined
     );
+    if (result.state === "accepted" && isBeerDrinkState(result.drink)) {
+      await services.barrelBeerTutorial?.markBeerDrunkForTelegramUser(telegramUserId);
+    }
     await safeAnswerCallbackQuery(ctx, result.state === "accepted"
       ? { text: "Кухоль ваш.", show_alert: false }
       : {
@@ -1141,6 +1150,7 @@ async function handlePlaceCallback(
 
   if (action === "barrel") {
     await sendBarrelPlaceMovementNotice(ctx, telegramUserId, services);
+    await services.barrelBeerTutorial?.markVisitedBarrelForTelegramUser(telegramUserId);
     if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_BARREL, services)) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
@@ -1558,8 +1568,14 @@ async function handleTavernCallback(
   }
 
   if (result.state === "completed") {
+    await services.barrelBeerTutorial?.markVisitedBarrelForTelegramUser(telegramUserId);
+    await services.barrelBeerTutorial?.markBarrelRaidCompletedForTelegramUser(telegramUserId);
     await sendLevelUpCelebration(ctx, result);
   }
+}
+
+function isBeerDrinkState(drink: PresentedShynokDrinkState | null): boolean {
+  return drink?.key === "drink.simple-beer" || drink?.key === "drink.fine-beer";
 }
 
 async function handleCellarCallback(

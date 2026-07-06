@@ -68,6 +68,10 @@ buildDailyKorchmaRoundSceneKeyboard,
 buildDailyKorchmaRoundStepKeyboard
 } from "../keyboards/dailyKorchmaRoundKeyboard";
 import {
+buildBarrelBeerTutorialCompletedKeyboard,
+buildBarrelBeerTutorialKeyboard
+} from "../keyboards/barrelBeerTutorialKeyboard";
+import {
 buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
 import {
@@ -104,6 +108,10 @@ presentDailyKorchmaRoundClaim,
 presentDailyKorchmaRoundScene,
 presentDailyKorchmaRoundStep
 } from "../presenters/dailyKorchmaRoundPresenter";
+import {
+presentBarrelBeerTutorialAccept,
+presentBarrelBeerTutorialTurnIn
+} from "../presenters/barrelBeerTutorialPresenter";
 import {
 presentFightLevelRetired,
 presentFightMonsterRest,
@@ -313,6 +321,63 @@ async function handleQuestCallback(
       "edit",
       action === "archive" ? "archive" : "active"
     );
+    return;
+  }
+
+  if (action === "barrel-tutorial" || action === "barrel-tutorial-turn-in") {
+    if (!telegramUserId) {
+      await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+
+    if (action === "barrel-tutorial") {
+      const result = await services.barrelBeerTutorial.acceptForTelegramUser(telegramUserId);
+
+      await safeEditMessageText(ctx, presentBarrelBeerTutorialAccept(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup:
+          result.state === "accepted" || result.state === "already-accepted"
+            ? buildBarrelBeerTutorialKeyboard(result)
+            : buildBarrelBeerTutorialCompletedKeyboard()
+      });
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
+
+    const result = await services.barrelBeerTutorial.turnInForTelegramUser(telegramUserId);
+    const replyMarkup =
+      result.state === "completed" ||
+      result.state === "already-completed" ||
+      result.state === "no-character" ||
+      result.state === "level-locked"
+        ? buildBarrelBeerTutorialCompletedKeyboard()
+        : buildBarrelBeerTutorialKeyboard(result);
+
+    await safeEditMessageText(ctx, presentBarrelBeerTutorialTurnIn(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: replyMarkup
+    });
+
+    if (result.state === "completed" && result.levelChange) {
+      await sendLevelUpCelebration(ctx, {
+        character: result.character,
+        levelChange: result.levelChange
+      });
+    }
+    const achievementText = result.state === "completed"
+      ? presentAchievementUnlockNotification(result.achievementUnlocks)
+      : null;
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
+
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 
