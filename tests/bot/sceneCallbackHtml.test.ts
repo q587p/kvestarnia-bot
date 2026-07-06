@@ -1093,6 +1093,34 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makePlaceCallbackData("quest-table"));
   });
 
+  it("renders Barrel tutorial accept stipend with an HTML received label", async () => {
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("barrel-tutorial"),
+      servicesWith({
+        barrelBeerTutorial: {
+          acceptForTelegramUser: () =>
+            Promise.resolve({
+              state: "accepted" as const,
+              character: { ...character, level: 2 },
+              progress: {
+                ...barrelBeerTutorialProgress(false, "location.korchma.quest-table"),
+                accepted: true,
+                stipendGranted: true
+              },
+              stipendGold: 39
+            })
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(getParseMode(edit?.payload)).toBe("HTML");
+    expect(edit?.payload.text).toContain("записку гномськими рунами");
+    expect(edit?.payload.text).toContain("Потрібен зломщик");
+    expect(edit?.payload.text).not.toContain("маленький аванс — 39 золота");
+    expect(edit?.payload.text).toContain("<i>Отримано:</i>\n+39 золота");
+  });
+
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {
     const calls = await captureApiCalls(
       makeAdventureApproachCallbackData({
