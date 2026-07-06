@@ -21,6 +21,6 @@ Manual Telegram QA status for the implementation pass: partial local smoke found
 5. Use the borrowed Bard/Priest/Bureaucramancer/Varenyk/Drantohor/Molfar-style actions; verify they feel weaker than native class/race actions, consume mana/cooldown normally and reject blocked presses without advancing combat.
 6. Replay an old gear callback after the turn advances; verify it is stale and does not spend mana, tick cooldowns, advance RNG or let the monster respond.
 7. Equip duplicate copies if locally possible; verify only one grant is active.
-8. Open item detail and `/equipment`; verify granted action/perk summaries are visible and readable.
+8. Open item detail, `/equipment` and `/hero`; verify granted action/perk summaries are visible and readable, including the aggregate `Дія спорядження` row on equipment and character cards.
 9. Verify `Єгерський плащ чужої справи` does not expose dense bandages, field kits or Yeger boards.
 10. Win fights against configured source monsters and verify new grants can appear without removing existing trophy/coverage/set drops.

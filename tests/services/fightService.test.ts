@@ -2069,6 +2069,40 @@ describe("FightService", () => {
     );
   });
 
+  it("includes the barrel shield gear action when a level nine fight starts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      level: 9,
+      xp: 1000,
+      manaCurrent: 20,
+      manaMax: 20
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "offhand", itemId: "item.set.barrel-brother.shield" })]
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1]),
+      equipment
+    });
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    expect(started.session.state?.equipmentAbilities?.grantIds).toContain(
+      "mantok-ability.barrel-counter-shield"
+    );
+  });
+
   it("refreshes newly equipped gear actions when an active fight overview is rendered", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 13, xp: 1000, manaCurrent: 34, manaMax: 34 });

@@ -133,6 +133,8 @@ describe("equipment presenter", () => {
     });
 
     expect(text).toContain("Дія: <b>🩸 Червоний рядок</b>");
+    expect(text).toContain("✨ <b>Дія спорядження</b>");
+    expect(text).toContain("<b>🩸 Червоний рядок</b> <i>(1 мани, перезарядка 3)</i>");
     expect(text).toContain("1 мани");
     expect(text).toContain("перезарядка 3");
   });
@@ -196,6 +198,9 @@ describe("equipment presenter", () => {
     expect(text).toContain("Дія: <b>⚕️ Інструкція Асклепія</b>");
     expect(text).toContain("позичена, не рідна");
     expect(text).toContain("Перк: <b>🧥 Чужа єгерська справа</b> (без бойової кнопки)");
+    expect(text).toContain("✨ <b>Дія спорядження</b>");
+    expect(text).toContain("<b>⚕️ Інструкція Асклепія</b> <i>(5 мани, перезарядка 4; позичена, не рідна)</i>");
+    expect(text).not.toContain("<b>🧥 Чужа єгерська справа</b> <i>(");
   });
 
   it("shows the offhand as occupied by a twohand main-hand item", () => {

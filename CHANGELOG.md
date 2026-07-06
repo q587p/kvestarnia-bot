@@ -15,12 +15,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Added persistent PvE gear-action callbacks and fight buttons that seed grant ids at combat start, refresh current eligible gear actions during the active turn, spend mana/cooldowns through the combat engine and reject stale or currently unavailable callbacks without advancing combat.
 - Added equipment-sourced combat profiles for reinforced defense, small bleed strikes and weaker borrowed class/race-style actions that do not count as native class or race actions.
 - Added a narrow visible bleed status family that ticks during committed hero activations and can settle combat without an extra monster response when the status itself defeats the final enemy.
-- Added item-detail and equipment-surface summaries for granted actions and service-perk markers.
+- Added item-detail, equipment-surface and hero-card summaries for granted actions and service-perk markers.
 - Added focused registry, callback, combat-engine and presenter tests for compact keys, collision safety, cooldown/mana behavior, bleed settlement and visible grant copy.
 
 ### Changed
 - Active fight keyboards can now show eligible gear actions after native attack/defend/class/race controls while preserving existing combat item and class/race cooldown behavior.
 - Active fight keyboards now reflect mid-fight equipment changes for the current turn: newly equipped grant manatky can add gear buttons, and removed grant manatky stop working, without refilling stored combat HP/mana or granting an extra turn.
+- Equipment and hero cards now show aggregate `Дія спорядження` lines so granted actions are visible on the character doll, not only inside individual item detail cards.
 - Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
 - Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
 

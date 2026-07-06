@@ -81,7 +81,7 @@ describe("health server", () => {
     expect(text).toContain("Манатки навчилися натискати кнопки");
     expect(text).toContain("частина рідкісних манаток тепер може давати окрему дію спорядження");
     expect(text).toContain("позичені трюки лишаються саме трюками спорядження");
-    expect(text).toContain("картки манаток і спорядження пояснюють");
+    expect(text).toContain("картки манаток, спорядження і персонажа пояснюють");
     expect(text).toContain("Це не крамниця, не крафт");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");

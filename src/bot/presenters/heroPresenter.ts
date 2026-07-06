@@ -1,4 +1,5 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
+import type { CharacterEquipmentAbilityActionSummary } from "../../domain/characters/characterSummary";
 import {
   buildLevelGrowthBonus,
   createEmptyEquipmentEffectSummary
@@ -51,6 +52,11 @@ export function presentHero(
   const equipmentLines = presentHeroEquipmentEffectLines(
     summary.equipmentEffects ?? createEmptyEquipmentEffectSummary()
   );
+  const equipmentActionLine = presentHeroEquipmentActionLine(summary.equipmentAbilityActions ?? []);
+  const equipmentSummaryLines = [
+    ...equipmentLines,
+    ...(equipmentActionLine ? [equipmentActionLine] : [])
+  ];
   const resourceRecoveryLines = presentResourceRecovery(summary);
   const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
   const activePriestBlessingLine = presentActivePriestBlessing(options.activePriestBlessing ?? null);
@@ -76,13 +82,23 @@ export function presentHero(
     ...(resourceRecoveryLines.length > 0 || activeStatusLines.length > 0 ? [""] : []),
     `Сили ${summary.stats.strength} · Спритн. ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
     `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`,
-    ...(equipmentLines.length > 0 ? ["", ...equipmentLines] : []),
+    ...(equipmentSummaryLines.length > 0 ? ["", ...equipmentSummaryLines] : []),
     "",
     goldLine,
     "",
     `Зараз пригодник тут: <b>${escapeHtml(getLocationName(summary.currentLocationId ?? ""))}</b>.`,
     ...starterHint
   ].join("\n");
+}
+
+function presentHeroEquipmentActionLine(
+  actions: readonly CharacterEquipmentAbilityActionSummary[]
+): string | null {
+  if (actions.length === 0) {
+    return null;
+  }
+
+  return `✨ Дія спорядження: ${actions.map((action) => `<b>${escapeHtml(action.label)}</b>`).join(" · ")}`;
 }
 
 function presentRemortLines(summary: CharacterSummary): string[] {

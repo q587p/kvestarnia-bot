@@ -1237,6 +1237,25 @@ describe("main menu and scene keyboards", () => {
     );
   });
 
+  it("shows the barrel shield gear action on persistent fight keyboards", () => {
+    const session = {
+      ...persistentFightSession(),
+      state: {
+        ...persistentFightSession().state!,
+        equipmentAbilities: {
+          version: 1 as const,
+          grantIds: ["mantok-ability.barrel-counter-shield"]
+        }
+      }
+    };
+    const keyboard = buildPersistentFightKeyboard(session, { ...character, level: 9 });
+
+    expect(flatInlineButtonTexts(keyboard)).toContain("🛡 Контраргумент");
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(
+      "v1:fight:gear:123e4567-e89b-12d3-a456-426614174000:4:bcshield"
+    );
+  });
+
   it("adds journal navigation only on persistent fight results", () => {
     const session = {
       ...persistentFightSession(),

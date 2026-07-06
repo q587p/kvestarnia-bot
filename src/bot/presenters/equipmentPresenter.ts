@@ -9,6 +9,7 @@ import type {
 } from "../../services/equipmentService";
 import type { ItemEffectContent } from "../../content/schema";
 import { findMantokAbilityGrantByItemId } from "../../content";
+import type { MantokAbilityGrantDefinition } from "../../content";
 import { getActiveMantokSets } from "../../domain/equipment/mantokSetBonuses";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -52,6 +53,7 @@ export function presentEquipment(result: EquipmentResult): string {
     "<i>Манатки нарешті штовхають циферки. Корчма робить вигляд, що так і планувала.</i>",
     "",
     ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots))),
+    ...presentMantokAbilityActionSummaryLines(result.slots),
     ...presentMantokSetSummaryLines(result.slots)
   ].join("\n");
 }
@@ -182,10 +184,31 @@ function presentMantokAbilityGrantSlotLines(itemId: string): string[] {
   return [`Перк: <b>${escapeHtml(grant.label)}</b> (без бойової кнопки)`];
 }
 
-function presentMantokSetSummaryLines(slots: EquipmentSlotSummary[]): string[] {
-  const equippedItemIds = [
-    ...new Set(slots.flatMap((slot) => (slot.item ? [slot.item.itemId] : [])))
+function presentMantokAbilityActionSummaryLines(slots: EquipmentSlotSummary[]): string[] {
+  const grants = getEquippedCombatMantokAbilityGrants(slots);
+
+  if (grants.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    "",
+    "✨ <b>Дія спорядження</b>",
+    "",
+    ...grants.map((grant) => {
+      const cost = grant.combat.profile.manaCost > 0
+        ? `${grant.combat.profile.manaCost} мани`
+        : "без мани";
+      const borrowed = grant.borrowedFrom ? "; позичена, не рідна" : "";
+
+      return `<b>${escapeHtml(grant.label)}</b> <i>(${cost}, перезарядка ${grant.combat.profile.cooldownOwnActions}${borrowed})</i>`;
+    })
   ];
+}
+
+function presentMantokSetSummaryLines(slots: EquipmentSlotSummary[]): string[] {
+  const equippedItemIds = getEquippedUniqueItemIds(slots);
   const summaries = getActiveMantokSets(equippedItemIds);
 
   if (summaries.length === 0) {
@@ -259,6 +282,26 @@ function presentSlotDeniedEquipResult(
     `Не екіпірується в слот <i>${presentEquipmentSlotLabel(slot)}</i>: <b>${presentCallbackHtmlText(itemName)}</b>.`,
     `${capitalizeFirst(presentSlotDeniedReason(reason, slot))}.`
   ].join("\n");
+}
+
+type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
+  combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
+};
+
+function getEquippedCombatMantokAbilityGrants(
+  slots: EquipmentSlotSummary[]
+): CombatMantokAbilityGrantDefinition[] {
+  return getEquippedUniqueItemIds(slots).flatMap((itemId) => {
+    const grant = findMantokAbilityGrantByItemId(itemId);
+
+    return grant?.combat ? [grant as CombatMantokAbilityGrantDefinition] : [];
+  });
+}
+
+function getEquippedUniqueItemIds(slots: EquipmentSlotSummary[]): string[] {
+  return [
+    ...new Set(slots.flatMap((slot) => (slot.item && !slot.occupiedByTwohand ? [slot.item.itemId] : [])))
+  ];
 }
 
 function capitalizeFirst(value: string): string {
