@@ -273,6 +273,44 @@ describe("BarrelBeerTutorialService", () => {
     });
   });
 
+  it("keeps Barrel route progress scoped to the current remort life", async () => {
+    const world = createWorld({ level: 2 });
+
+    await acceptAndFinishRoute(world);
+    await expect(world.service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "in-progress",
+      progress: {
+        accepted: true,
+        visitedBarrel: true,
+        raidCompleted: true
+      }
+    });
+
+    world.character.remortCount = 1;
+    world.character.level = 3;
+    await world.service.markVisitedBarrelForTelegramUser(telegramUserId);
+    await world.service.markBarrelRaidCompletedForTelegramUser(telegramUserId);
+
+    await expect(world.service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "available",
+      progress: {
+        accepted: false,
+        visitedBarrel: false,
+        raidCompleted: false
+      }
+    });
+
+    await world.service.acceptForTelegramUser(telegramUserId);
+    await expect(world.service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "in-progress",
+      progress: {
+        accepted: true,
+        visitedBarrel: false,
+        raidCompleted: false
+      }
+    });
+  });
+
   it("uses small level-scaled XP instead of a fixed 50 XP reward", () => {
     expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 2, xp: getLevelStartXp(2) }))).toBe(6);
     expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 3, xp: getLevelStartXp(3) }))).toBe(8);

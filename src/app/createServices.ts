@@ -76,6 +76,13 @@ export function createServices(
     repositories.roundPurchases,
     repositories.cooldowns
   );
+  const barrelBeerTutorial = new BarrelBeerTutorialService(
+    repositories.characters,
+    repositories.dailyActions,
+    repositories.shynok,
+    undefined,
+    achievements
+  );
 
   return {
     activityEvents,
@@ -90,13 +97,7 @@ export function createServices(
       publicActivityEvents
     ),
     bardPerformance: new BardPerformanceService(repositories.bardPerformances),
-    barrelBeerTutorial: new BarrelBeerTutorialService(
-      repositories.characters,
-      repositories.dailyActions,
-      repositories.shynok,
-      undefined,
-      achievements
-    ),
+    barrelBeerTutorial,
     barrelRaidNotifications: repositories.barrelRaidNotifications,
     cellarErrand: new CellarErrandService(repositories.cooldowns, undefined, repositories.equipment),
     cellarGrownup: new CellarGrownupQuestService(
@@ -175,7 +176,7 @@ export function createServices(
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction
-    }, undefined, achievements, publicActivityEvents, repositories.inventory),
+    }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||

@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.29] - 12026-07-06 - Newbie Barrel Beer Tutorial
+## [0.2.29] - 12026-07-07 - Newbie Barrel Beer Tutorial
 
 ### Added
 - Added the one-time level 2-5 newbie quest `Бочка, або Туди і звідти` at the quest table without replacing the existing `Льохова справа` option.
@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Barrel tutorial turn-in now validates the character's existing location before any quest-table presence refresh, so stale direct callbacks cannot complete the quest from elsewhere.
 - Quest markers can now point toward the Barrel tutorial's next step: quest table, Barrel or Shynok, depending on current progress.
 - Scheduled pending Barrel raid completion notifications and local `/dev_raid_stop` now also mark the Barrel tutorial visit and beginner-raid progress, matching the ordinary raid completion callback for manual QA and timer-based raid completions.
+- Fresh Big Barrel Brother victory settlements now also mark the Barrel tutorial visit and raid progress for matching participants, so remorted level 3-5 characters are not blocked when the Barrel escalates from the beginner solo raid; terminal replays and remort-mismatched settlements without a fresh Barrel success event do not mark tutorial progress.
 - Bumped package metadata to `0.2.29`.
 
 ### Balance
