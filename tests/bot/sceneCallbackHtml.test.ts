@@ -6763,7 +6763,7 @@ describe("scene callback HTML options", () => {
     expect(barrelBeerTutorial.markBeerDrunkForTelegramUser).toHaveBeenCalledWith(42n);
     expect(barrelBeerTutorial.turnInForTelegramUser).toHaveBeenCalledWith(42n);
     expect(String(finalEdit?.payload.text)).toContain("Здається, Бочка тепер запамʼятала тебе");
-    expect(String(finalEdit?.payload.text)).toContain("+6 XP");
+    expect(String(finalEdit?.payload.text)).toContain("<i>Отримано:</i>\n+6 XP");
     expect(String(finalEdit?.payload.text)).toContain("Перстень Пивовладдя");
   });
 

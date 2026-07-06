@@ -139,6 +139,7 @@ export function presentBarrelBeerTutorialTurnIn(
     "",
     "Під запискою лишився маленький перстень. Не схоже, що він зробить тебе невидимим, але після Бочки й так не всіх хочеться бачити.",
     "",
+    "<i>Отримано:</i>",
     `+${result.reward.xp} XP`,
     ...rewardLines
   ].join("\n");
