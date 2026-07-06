@@ -411,6 +411,58 @@ describe("turn-based duel domain", () => {
     });
   });
 
+  it("applies borrowed equipment support effects in turn-based duels", () => {
+    const grant = findMantokAbilityGrantByKey("ascstf");
+    if (!grant?.combat) {
+      throw new Error("Expected Asclepius staff combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 11,
+        hpCurrent: 10,
+        hpMax: 30,
+        manaCurrent: 10,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) {
+      throw new Error("Expected borrowed support gear action to queue.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected borrowed support gear round to resolve.");
+    }
+
+    expect(resolved.round.actions[0]).toMatchObject({
+      actorCharacterId: "challenger",
+      action: "gear",
+      skillId: "gear.asclepius-instruction",
+      healing: 4,
+      guard: 1
+    });
+    expect(resolved.state.participants.challenger.hp).toBe(14);
+  });
+
   it("applies support-only class action effects in turn-based duel summaries", () => {
     const state = startTurnBasedDuel({
       challenger: makeDuelist({

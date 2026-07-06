@@ -14,15 +14,15 @@ Manual Telegram QA status for the implementation pass: partial local smoke found
      - `item.set.border-map.compass` — level `12+`.
      - `item.set.fog-knot.amulet` — level `11+`.
    - Service-perk-only QA id: `item.set.yeger-shadow.cloak` — level `12+`; it should show copy but no combat button.
-2. Start a persistent fight and verify the gear-action button appears for currently equipped, level-eligible grants only when current mana/cooldown state allows pressing it.
+2. Start one-enemy and two-enemy persistent fights and verify the gear-action button appears for currently equipped, level-eligible grants only when current mana/cooldown state allows pressing it.
 2b. Leave and reopen the active fight card on a later turn, including in a two-enemy persistent fight; verify available gear-action buttons and bleed ticks survive the stored session JSON reload.
 2a. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
-3. Use `🛡 Контраргумент`; verify it spends a turn, applies protection and does not create a class/race action.
-4. Use `🩸 Червоний рядок` or `🖋 Остання сторінка`; verify bleed appears, ticks visibly and can finish combat without an extra status-kill response.
-5. Use the borrowed Bard/Priest/Bureaucramancer/Varenyk/Drantohor/Molfar-style actions; verify they feel weaker than native class/race actions, consume mana/cooldown normally, hide while blocked, and return after enough real player turns clear the gate.
+3. Use `🛡 Контраргумент`; verify it spends a turn, applies protection, writes the protection effect on the fight card and in the relevant journal/replay, and does not create a class/race action.
+4. Use `🩸 Червоний рядок` or `🖋 Остання сторінка`; verify bleed appears, ticks visibly in single- and multi-enemy fights, writes to `📜 Журнал бою`, and can finish combat without an extra status-kill response.
+5. Use the borrowed Bard/Priest/Bureaucramancer/Varenyk/Drantohor/Molfar-style actions; verify they feel weaker than native class/race actions, apply damage/support, write the effect on the card and in the relevant journal/replay, consume mana/cooldown normally, hide while blocked, and return after enough real player turns clear the gate.
 6. Replay an old gear callback after the turn advances; verify it is stale and does not spend mana, tick cooldowns, advance RNG or let the monster respond.
-7. Start a Big Barrel Brother raid with an equipped eligible grant manatka; verify the gear button appears on the raid card, pressing it queues/resolves normally during the active raid, and the one-use shortcut is hidden when no useful one-use manatky are available.
-8. Start a turn-based duel with an equipped eligible grant manatka; verify the gear button appears, pressing it queues/resolves during the active duel, and stale repeated gear callbacks do not advance the duel.
+7. Start a Big Barrel Brother raid with an equipped eligible grant manatka; verify the gear button appears on the raid card, pressing it queues/resolves normally during the active raid, applies damage/support before boss retaliation, writes the effect to the active card and `📜 Журнал`, and the one-use shortcut is hidden when no useful one-use manatky are available.
+8. Start a turn-based duel with an equipped eligible grant manatka; verify the gear button appears, pressing it queues/resolves during the active duel, writes damage/support to the stored round replay, and stale repeated gear callbacks do not advance the duel.
 9. Equip duplicate copies if locally possible; verify only one grant is active.
 10. Open item detail, `/equipment` and `/hero`; verify granted action/perk summaries are visible and readable, including the aggregate `Дія спорядження` row on equipment and character cards.
 11. Verify `Єгерський плащ чужої справи` does not expose dense bandages, field kits or Yeger boards.

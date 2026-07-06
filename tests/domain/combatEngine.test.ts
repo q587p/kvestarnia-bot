@@ -2682,9 +2682,16 @@ describe("combat domain engine", () => {
       skillId: "gear.asclepius-instruction",
       abilitySource: "equipment",
       heroHealing: 4,
+      allyResults: [{
+        targetId: "self",
+        label: "Ви",
+        healing: 4,
+        guard: 1
+      }],
       manaSpent: 5
     });
     expect(result.state.hero.mana).toBe(3);
+    expect(result.state.guard).toEqual({ consecutiveDefends: 1, abilityDamageReduction: 1 });
     expect(result.state.cooldowns?.skill).toBeUndefined();
     expect(result.state.cooldowns?.abilities?.["gear.asclepius-instruction"]).toBeDefined();
   });

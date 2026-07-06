@@ -114,6 +114,7 @@ export interface PartyBossParticipantActionSummary {
   itemId?: string;
   itemName?: string;
   healing?: number;
+  guard?: number;
   hpAfter?: number;
 }
 
@@ -321,6 +322,9 @@ export function resolvePartyBossRound(input: {
     });
 
     participant.resources = result.actorState;
+    const support = action === "gear" && isCommittedPartyBossAbilityOutcome(result.summary.actorOutcome) && !result.summary.fumble
+      ? applyPartyBossGearSupport(participant, committed?.gearAbility?.profile)
+      : {};
     tickPartyBossCombatItemCooldowns(participant);
     next.boss.hp = Math.max(0, result.defenderState.hp);
     participant.contribution.damageDealt += result.summary.actorDamage;
@@ -338,7 +342,8 @@ export function resolvePartyBossRound(input: {
       outcome: result.summary.actorOutcome,
       damage: result.summary.actorDamage,
       manaSpent: result.summary.manaSpent,
-      ...(result.summary.skillId ? { skillId: result.summary.skillId } : {})
+      ...(result.summary.skillId ? { skillId: result.summary.skillId } : {}),
+      ...support
     });
   }
 
@@ -635,7 +640,8 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
     const rawDamage = Math.max(1, state.boss.attack - Math.floor((participant.combatStats.armor ?? 0) / 2));
     const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
     const focusMultiplier = big && !broadBigRetaliation ? 2.23 : 1;
-    const damage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
+    const guardedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
+    const damage = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
 
@@ -651,6 +657,44 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
   }
 
   return retaliations;
+}
+
+function applyPartyBossGearSupport(
+  participant: PartyBossParticipantState,
+  ability: CombatGearAbilityInput["profile"] | undefined
+): { healing?: number; guard?: number; hpAfter?: number } {
+  const healing = ability?.healAmount && ability.healAmount > 0
+    ? applyPartyBossHealing(participant.resources, ability.healAmount)
+    : 0;
+  const guard = ability?.guardReduction && ability.guardReduction > 0
+    ? Math.floor(ability.guardReduction)
+    : 0;
+
+  if (guard > 0) {
+    participant.resources.guard = {
+      consecutiveDefends: 1,
+      abilityDamageReduction: Math.max(1, guard)
+    };
+  }
+
+  return {
+    ...(healing > 0 ? { healing, hpAfter: participant.resources.hp } : {}),
+    ...(guard > 0 ? { guard } : {})
+  };
+}
+
+function applyPartyBossHealing(
+  resources: CombatActorResourceState,
+  amount: number
+): number {
+  const before = resources.hp;
+  resources.hp = Math.min(resources.hpMax, resources.hp + Math.max(0, Math.floor(amount)));
+
+  return resources.hp - before;
+}
+
+function isCommittedPartyBossAbilityOutcome(outcome: ActorCombatActionSummary["actorOutcome"]): boolean {
+  return outcome !== "not-enough-mana" && outcome !== "skill-on-cooldown";
 }
 
 export function getPartyBossRetaliationPlan(state: PartyBossState): PartyBossRetaliationPlan {

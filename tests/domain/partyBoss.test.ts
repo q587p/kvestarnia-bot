@@ -140,6 +140,103 @@ describe("party boss reducer", () => {
     });
   });
 
+  it("applies equipment guard effects before party boss retaliation", () => {
+    const grant = findMantokAbilityGrantByKey("bcshield");
+    if (!grant?.combat) {
+      throw new Error("Expected barrel shield combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-guard",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 9,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-guard",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      skillId: "gear.barrel-counter-shield",
+      guard: 2
+    });
+    expect(result.round.bossRetaliations[0]).toMatchObject({
+      characterId: "character-1",
+      damage: 6,
+      hpAfter: 24
+    });
+    expect(result.state.participants[0]?.resources.guard).toEqual({
+      consecutiveDefends: 1,
+      abilityDamageReduction: 2
+    });
+  });
+
+  it("applies borrowed equipment healing and guard in party boss rounds", () => {
+    const grant = findMantokAbilityGrantByKey("ascstf");
+    if (!grant?.combat) {
+      throw new Error("Expected Asclepius staff combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-support",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 11,
+          hp: 30,
+          hpCurrent: 12,
+          mana: 12,
+          manaCurrent: 8,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-support",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      skillId: "gear.asclepius-instruction",
+      healing: 4,
+      guard: 1,
+      hpAfter: 16
+    });
+    expect(result.state.participants[0]?.resources.guard).toEqual({
+      consecutiveDefends: 1,
+      abilityDamageReduction: 1
+    });
+  });
+
   it("keeps already submitted same-round actions when an earlier actor drops the boss", () => {
     const state = createPartyBossState({
       partySessionId: "party-simultaneous-finish",

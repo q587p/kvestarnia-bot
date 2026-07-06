@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Active fight keyboards can now show currently available gear actions after native attack/defend/class/race controls while preserving existing combat item and class/race cooldown behavior.
 - Active fight keyboards now reflect mid-fight equipment changes for the current turn: newly equipped grant manatky can add gear buttons, and removed grant manatky stop working, without refilling stored combat HP/mana or granting an extra turn.
 - Equipment and hero cards now show aggregate `Дія спорядження` lines so granted actions are visible on the character doll, not only inside individual item detail cards.
+- Shared combat action/effect presenter helpers now format gear-action skill labels and support-effect rows for ordinary fights, Big Barrel Brother raids and turn-based duels instead of hand-rolling the same copy in each surface.
 - Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
 - Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
 
@@ -31,6 +32,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel Brother raid and turn-based duel gear-action callbacks now bypass the same active-combat redirect and resolve through the existing combat action engine instead of becoming dead visible buttons.
 - Big Barrel Brother active cards now hide the `🎒 Одноразові манатки` shortcut when the participant has no currently useful one-use combat items; stale item-menu callbacks still return the empty-menu explanation without spending a turn.
 - Hidden gear-action buttons while mana or cooldown gates block the action in persistent PvE, Big Barrel Brother raids and turn-based duels; the active fight text still shows cooldown/mana blockers, and the buttons return after real player turns clear the gate.
+- Big Barrel Brother gear actions now apply their equipment support effects before boss retaliation, so shield and borrowed heal/guard actions reduce the incoming hit or restore HP instead of only starting cooldown; raid active cards and journal pages now show those support effects.
+- Turn-based duel gear-action result cards now render readable Ukrainian equipment-action names and support effects in stored round replays.
 - Refreshed eligible gear-action buttons on active fight overview cards as well as direct fight views and callbacks, so returning to an already active fight after changing equipment shows the current manatka actions.
 - Preserved gear-action grant ids and bleed statuses when active persistent PvE fights reload from stored session JSON, so multi-enemy and later-turn fight cards keep the same equipment buttons and status ticks as freshly started fights.
 - Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.

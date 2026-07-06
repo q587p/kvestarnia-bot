@@ -31,6 +31,7 @@ import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
+import { presentCombatSupportEffectLine } from "./combatActionPresenter";
 
 export interface QuestProgressAfterFightEntry {
   title: string;
@@ -1677,14 +1678,13 @@ function presentAllyAbilityResults(summary: CombatTurnSummary): string[] {
 
   return results.length > 0
     ? results.map((entry) => {
-        const parts = [
-          entry.healing ? `HP підросли на ${entry.healing}` : "",
-          entry.guard ? "захист став міцнішим" : ""
-        ].filter(Boolean);
-
-        return parts.length > 0 ? `Підтримка: ${parts.join(", ")}.` : "";
+        return presentCombatSupportEffectLine(entry, {
+          separator: ", ",
+          showGuardAmount: false,
+          guardWithoutAmountText: "захист став міцнішим"
+        });
       }).filter(Boolean)
-    : [`Підтримка: HP підросли на ${summary.heroHealing}.`];
+    : [presentCombatSupportEffectLine({ healing: summary.heroHealing ?? 0 })];
 }
 
 function trimTerminalPunctuation(text: string): string {

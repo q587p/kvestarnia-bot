@@ -25,6 +25,7 @@ import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
+import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -1017,6 +1018,7 @@ function presentPartyBossActionLine(
   }
 
   const subject = presentPartyBossActionSubject(action, name, isViewer);
+  const support = presentPartyBossActionSupport(action);
 
   switch (action.outcome) {
     case "miss":
@@ -1029,21 +1031,31 @@ function presentPartyBossActionLine(
       return `${subject} зривається критично.`;
     case "critical-hit":
       return action.damage > 0
-        ? `${subject} критично влучає на ${action.damage} шкоди.`
-        : `${subject} критично спрацьовує без прямої шкоди.`;
+        ? `${subject} критично влучає на ${action.damage} шкоди.${support}`
+        : `${subject} критично спрацьовує без прямої шкоди.${support}`;
     case "won":
       return action.damage > 0
-        ? `${subject} влучає на ${action.damage} шкоди й добиває боса.`
-        : `${subject} ставить фінальну крапку без прямої шкоди.`;
+        ? `${subject} влучає на ${action.damage} шкоди й добиває боса.${support}`
+        : `${subject} ставить фінальну крапку без прямої шкоди.${support}`;
     case "hit":
       return action.damage > 0
-        ? `${subject} влучає на ${action.damage} шкоди.`
-        : `${subject} спрацьовує без прямої шкоди.`;
+        ? `${subject} влучає на ${action.damage} шкоди.${support}`
+        : `${subject} спрацьовує без прямої шкоди.${support}`;
     default:
       return action.damage > 0
-        ? `${subject} влучає на ${action.damage} шкоди.`
-        : `${subject} спрацьовує без прямої шкоди.`;
+        ? `${subject} влучає на ${action.damage} шкоди.${support}`
+        : `${subject} спрацьовує без прямої шкоди.${support}`;
   }
+}
+
+function presentPartyBossActionSupport(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
+): string {
+  const line = presentCombatSupportEffectLine(action, {
+    healingPrefix: "HP відновлено на"
+  });
+
+  return line ? ` ${line}` : "";
 }
 
 function presentPartyBossItemHealing(
@@ -1065,9 +1077,14 @@ function presentPartyBossActionSubject(
   name: string,
   isViewer: boolean
 ): string {
-  if (action.action === "skill" || action.action === "race") {
-    const skill = getCombatSkillDisplay(action.skillId);
-    const skillLabel = `${skill.icon} <i>${escapeHtml(skill.name)}</i>`;
+  if (action.action === "skill" || action.action === "race" || action.action === "gear") {
+    const skillLabel = presentCombatSkillHtml(action.skillId);
+
+    if (action.action === "gear") {
+      return isViewer
+        ? `Ваша дія спорядження ${skillLabel}`
+        : `${name} застосовує ${skillLabel}`;
+    }
 
     return isViewer
       ? `Ваше вміння ${skillLabel}`

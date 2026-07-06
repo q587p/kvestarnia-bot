@@ -120,6 +120,7 @@ After closing a versioned task:
 16. Do not break existing migrations. Schema changes require a new migration.
 17. Game calculations must be deterministic and testable; combat/domain logic must not depend on Telegram API.
 18. Telegram messages should stay short: one mobile screen, buttons for actions, details on demand.
+18a. Combat behavior changes must be checked across every shipped combat surface they can affect: ordinary single-enemy fights, ordinary multi-enemy fights, Big Barrel/raid fights, turn-based duels, and each mode's stored journal/result replay. Prefer shared domain or presenter helpers for common action/effect/cooldown text so future combat changes do not need separate hand patches in every mode.
 19. Within one message or keyboard, prefer distinct icons for distinct actions/places/states. Do not reuse a location/surface icon for a quest row or action shown in the same UI; for example, the quest table and Korchmar quest rows need different icons. Reusing icons is acceptable for similar navigation such as back buttons or pagination.
 20. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs.
 21. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
