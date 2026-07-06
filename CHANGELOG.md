@@ -7,6 +7,27 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.30] - 12026-07-06 - Item Upgrades / Charkokovalnia
+
+### Added
+- Added the Чароковальня item-upgrade foundation: eligible equipment can move from `+0` to `+5` one level at a time, with deterministic cost/chance calculation, luck influence, pity after failures and a hard no-break/no-downgrade/no-delete failure contract.
+- Added persistent item enhancement storage on `CharacterItem`, item-upgrade pity rows and Plusoslav order rows for higher-level NPC upgrade preparation.
+- Added `Іскрокамінь` as a stackable tradeable material and a small monster-reward replacement slot where ordinary bandage-style material drops become either bandages or Iskrokamin, not both.
+- Added the `🔧 Чароковальня` Korchma hall entry, compact stable item callback keys, upgrade preview/order/attempt/result cards and stale-level callback rejection.
+- Added Mage-style self upgrade attempts through `Іскровий підкрут`, spending mana and using the weaker self-upgrade chance table.
+- Added rewardless item-upgrade achievements for first Iskrokamin, first success/failure, donor use, `+5`, set-item upgrade and completed Plusoslav order.
+- Added local dev helpers for QA: `/dev_add_iskrokamin`, `/dev_set_item_plus`, `/dev_set_upgrade_pity`, `/dev_complete_upgrade_order` and `/dev_cancel_upgrade_order`.
+- Added focused domain and callback tests for upgrade chance/costs, cap behavior, donor discounts and compact collision-free item callback keys.
+
+### Changed
+- Item detail, equipment cards and effective stat summaries now show and apply visible `+N` enhancement bonuses for upgraded gear.
+- Persistent fight wins can advance active Plusoslav upgrade orders without changing combat settlement formulas.
+- Transfer eligibility inherits the existing manatka gift/postal rules for Iskrokamin through the `tradeable` item tag.
+
+### Deferred
+- True per-copy item instances remain deferred; this slice stores enhancement level on the current character/item row and treats same-template donor use through stack quantity.
+- Shops, market, crafting recipes, broad combat formulas and generated upgrade loot remain deferred.
+
 ## [0.2.29] - 12026-07-06 - Mantok Ability Grants Foundation
 
 ### Added

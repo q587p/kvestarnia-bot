@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
+import { makeItemUpgradeMenuCallbackData } from "../callbacks/itemUpgradeCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makeLoreMenuCallbackData } from "../callbacks/loreBoardCallbackData";
@@ -193,6 +194,8 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
       ),
       makePlaceCallbackData("cellar")
     )
+    .row()
+    .text("🔧 Чароковальня", makeItemUpgradeMenuCallbackData())
     .row()
     .text("🚪 Надвір", makePlaceCallbackData("front"));
 

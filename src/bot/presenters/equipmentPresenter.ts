@@ -10,6 +10,7 @@ import type {
 import type { ItemEffectContent } from "../../content/schema";
 import { findMantokAbilityGrantByItemId } from "../../content";
 import { getActiveMantokSets } from "../../domain/equipment/mantokSetBonuses";
+import { applyItemEnhancementEffect, getItemDisplayNameWithEnhancement } from "../../domain/itemUpgrades";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
 
@@ -96,9 +97,15 @@ export function presentEquipItemResult(result: EquipItemResult): string {
     ].join(" ");
   }
 
-  const effect = presentItemEffect(result.item.content.effect);
+  const enhancedEffect = applyItemEnhancementEffect(
+    result.item.content.effect,
+    result.item.content,
+    result.item.enhancementLevel
+  );
+  const effect = presentItemEffect(enhancedEffect);
+  const itemName = getItemDisplayNameWithEnhancement(result.item.content, result.item.enhancementLevel);
   const lines = [
-    `Екіпіровано: <b>${presentCallbackHtmlText(result.item.content.name)}</b>.`,
+    `Екіпіровано: <b>${presentCallbackHtmlText(itemName)}</b>.`,
     effect ? `Ефект: ${effect}.` : "Бойового ефекту не виявлено."
   ];
 
@@ -144,10 +151,16 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
   const equipped = slotSummary?.item;
 
   if (equipped) {
-    const effect = presentItemEffect(equipped.content.effect);
+    const enhancedEffect = applyItemEnhancementEffect(
+      equipped.content.effect,
+      equipped.content,
+      equipped.enhancementLevel
+    );
+    const effect = presentItemEffect(enhancedEffect);
+    const displayName = getItemDisplayNameWithEnhancement(equipped.content, equipped.enhancementLevel);
     const name = slotSummary?.occupiedByTwohand
-      ? `${escapeHtml(equipped.content.name)} <i>(дворучна)</i>`
-      : escapeHtml(equipped.content.name);
+      ? `${escapeHtml(displayName)} <i>(дворучна)</i>`
+      : escapeHtml(displayName);
 
     return [
       `${slot.icon} <b>${slot.label}</b>: ${name}`,

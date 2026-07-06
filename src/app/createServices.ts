@@ -21,6 +21,7 @@ import { HeroService } from "../services/heroService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
 import { ItemCraftService } from "../services/itemCraftService";
+import { ItemUpgradeService } from "../services/itemUpgradeService";
 import { ItemUseService } from "../services/itemUseService";
 import { ItemTransferService } from "../services/itemTransferService";
 import { LevelBarterService } from "../services/levelBarterService";
@@ -53,6 +54,7 @@ export function createServices(
   const activityEvents = new ActivityEventService(repositories.activityEvents);
   const publicActivityEvents = new PublicActivityEventPublisher(activityEvents);
   const achievements = new AchievementService(repositories.achievements);
+  const itemUpgrades = new ItemUpgradeService(repositories.itemUpgrades, undefined, undefined, achievements);
   const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
     repositories.combatBalanceAnalytics,
     { enabled: config.combatBalanceAnalyticsEnabled }
@@ -66,7 +68,8 @@ export function createServices(
     pendingPassageEncounters: repositories.pendingPassageEncounters,
     shynok: repositories.shynok,
     achievements,
-    activityEvents: publicActivityEvents
+    activityEvents: publicActivityEvents,
+    itemUpgrades
   });
   const presence = new PresenceService(repositories.presence);
   const tavern = new TavernRaidService(
@@ -122,7 +125,8 @@ export function createServices(
       config.nodeEnv,
       config.devGrantCommandsEnabled,
       undefined,
-      achievements
+      achievements,
+      itemUpgrades
     ),
     devReset: new DevResetService(repositories.characters, config.nodeEnv),
     duel: new DuelChallengeService(
@@ -156,6 +160,7 @@ export function createServices(
     ),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
+    itemUpgrades,
     itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),

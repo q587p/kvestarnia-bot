@@ -28,6 +28,7 @@ describe("PrismaEquipmentRepository integration", () => {
 
   beforeEach(async () => {
     await prisma.characterEquipment.deleteMany();
+    await prisma.characterItem.deleteMany();
     await prisma.character.deleteMany();
     await prisma.user.deleteMany();
     await seedCharacter();
@@ -245,6 +246,17 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "characters_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
+    `CREATE TABLE "character_items" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "character_id" TEXT NOT NULL,
+      "item_id" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      "enhancement_level" INTEGER NOT NULL DEFAULT 0,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "character_items_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "character_items_character_id_item_id_key" ON "character_items"("character_id", "item_id")`,
     `CREATE TABLE "character_equipment" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "character_id" TEXT NOT NULL,

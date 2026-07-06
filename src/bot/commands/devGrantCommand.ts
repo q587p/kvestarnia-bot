@@ -6,6 +6,7 @@ import {
   type DevGrantResult,
   type DevGrantService
 } from "../../services/devGrantService";
+import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
 import { playerFromContext } from "../context";
 import {
   presentDevGrantDisabled,
@@ -25,11 +26,16 @@ type DevGrantCommand =
   | "dev_add_xp"
   | "dev_add_gold"
   | "dev_add_item"
+  | "dev_add_iskrokamin"
   | "dev_add_random_item"
   | "dev_add_bandage"
   | "dev_add_dense_bandage"
   | "dev_add_field_kit"
   | "dev_add_yeger_line"
+  | "dev_set_item_plus"
+  | "dev_set_upgrade_pity"
+  | "dev_complete_upgrade_order"
+  | "dev_cancel_upgrade_order"
   | "dev_heal"
   | "dev_restore_mana";
 type DevGrantContext = Context & { match?: string };
@@ -76,6 +82,31 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
       "dev_add_bandage",
       (telegramUserId, amount) => devGrantService.addBandages(telegramUserId, amount)
     );
+  });
+
+  bot.command("dev_add_iskrokamin", async (ctx) => {
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_iskrokamin",
+      (telegramUserId, amount) => devGrantService.addItemById(telegramUserId, ISKROKAMIN_ITEM_ID, amount)
+    );
+  });
+
+  bot.command("dev_set_item_plus", async (ctx) => {
+    await handleDevSetItemPlusCommand(ctx, devGrantService);
+  });
+
+  bot.command("dev_set_upgrade_pity", async (ctx) => {
+    await handleDevSetUpgradePityCommand(ctx, devGrantService);
+  });
+
+  bot.command("dev_complete_upgrade_order", async (ctx) => {
+    await handleDevUpgradeOrdersCommand(ctx, devGrantService, "complete");
+  });
+
+  bot.command("dev_cancel_upgrade_order", async (ctx) => {
+    await handleDevUpgradeOrdersCommand(ctx, devGrantService, "cancel");
   });
 
   bot.command("dev_add_dense_bandage", async (ctx) => {
@@ -232,6 +263,83 @@ async function handleDevAddItemCommand(
     parsed.amount
   );
 
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevSetItemPlusCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const parsed = parseDevItemPlusInput(ctx.match);
+  if (!parsed) {
+    await ctx.reply(presentDevGrantInvalidAmount("dev_set_item_plus"));
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.setItemUpgradeLevel(telegramUserId, parsed.itemId, parsed.level);
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevSetUpgradePityCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const parsed = parseDevUpgradePityInput(ctx.match);
+  if (!parsed) {
+    await ctx.reply(presentDevGrantInvalidAmount("dev_set_upgrade_pity"));
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.setItemUpgradePity(
+    telegramUserId,
+    parsed.itemId,
+    parsed.targetLevel,
+    parsed.failureCount
+  );
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevUpgradeOrdersCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService,
+  action: "complete" | "cancel"
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = action === "complete"
+    ? await devGrantService.completeItemUpgradeOrders(telegramUserId)
+    : await devGrantService.cancelItemUpgradeOrders(telegramUserId);
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
@@ -506,6 +614,59 @@ function parseDevAddItemGrantInput(raw: string | undefined): {
   }
 
   return itemId ? { amount, itemId } : null;
+}
+
+function parseDevItemPlusInput(raw: string | undefined): { itemId: string; level: number } | null {
+  const tokens = raw?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const itemId = findTokenValue(tokens, "itemId");
+  const level = parseSmallInteger(findTokenValue(tokens, "level"));
+
+  if (!itemId || level === null || level < 0 || level > 5) {
+    return null;
+  }
+
+  return { itemId, level };
+}
+
+function parseDevUpgradePityInput(raw: string | undefined): {
+  itemId: string;
+  targetLevel: number;
+  failureCount: number;
+} | null {
+  const tokens = raw?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const itemId = findTokenValue(tokens, "itemId");
+  const targetLevel = parseSmallInteger(findTokenValue(tokens, "target"));
+  const failureCount = parseSmallInteger(findTokenValue(tokens, "failures"));
+
+  if (
+    !itemId ||
+    targetLevel === null ||
+    targetLevel < 1 ||
+    targetLevel > 5 ||
+    failureCount === null ||
+    failureCount < 0 ||
+    failureCount > 5
+  ) {
+    return null;
+  }
+
+  return { itemId, targetLevel, failureCount };
+}
+
+function findTokenValue(tokens: readonly string[], key: string): string | undefined {
+  const normalizedKey = key.toLowerCase();
+  const prefix = `${normalizedKey}=`;
+  return tokens.find((token) => token.toLowerCase().startsWith(prefix))?.slice(prefix.length);
+}
+
+function parseSmallInteger(value: string | undefined): number | null {
+  if (!value || !/^\d+$/.test(value)) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function parseDevRandomItemGrantInput(raw: string | undefined): {

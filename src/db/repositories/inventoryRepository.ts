@@ -3,6 +3,7 @@ export interface CharacterItemRecord {
   characterId: string;
   itemId: string;
   quantity: number;
+  enhancementLevel?: number;
   createdAt: Date;
   updatedAt: Date;
 }

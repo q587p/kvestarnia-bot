@@ -8,6 +8,15 @@ import { monsterTrophyItemAdditions } from "./monsterTrophyCoverage";
 
 export const items = [
   {
+    id: "item.iskrokamin",
+    name: "Іскрокамінь",
+    description: "Кристал, який дуже хоче стати частиною зброї, але поки просто світиться й засуджує.",
+    rarity: "common",
+    slot: "material",
+    goldValue: 13,
+    tags: ["tradeable", "upgrade_material", "crystal", "arcane"]
+  },
+  {
     id: "item.pan-of-persuasion",
     name: "Пательня переконання",
     description: "Важкий аргумент для легких суперечок.",

@@ -31,7 +31,7 @@ describe("achievement definitions", () => {
     const enabled = achievements.filter((definition) => definition.status === "enabled");
     const disabled = achievements.filter((definition) => definition.status === "disabled");
 
-    expect(enabled).toHaveLength(132);
+    expect(enabled).toHaveLength(139);
     expect(disabled).toHaveLength(12);
   });
 

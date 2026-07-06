@@ -8,7 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.2.29`.
+- Current package version in this repository snapshot: `0.2.30`.
 
 ## Language split
 
@@ -104,6 +104,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `0.2.27` Dice Poker Rework: the existing Shynok `🎲 Кості` entry point now opens `🎲 Кості й покер` with mode-first buttons `⚡ Швидкі кості`, `📜 Табличні кості` and compact `❔ Правила`; public-table stakes appear only after choosing a mode. New `rulesVersion = dice-poker-v1` sessions reuse existing tavern-game escrow rows with `gameKey = kosti`; social quick and scorecard modes both open 2-8 player tables, show per-player readiness, start when all seated players are ready, auto-start/auto-finish quick tables on short windows, and settle one shared pot replay-safely. `🪞 Допельґанґер` is a night Shynok fallback for quick dice, scorecard dice and Tavlei; daytime keeps him in the Fighting Corner. Invite links move outside-location users into Shynok before retrying the same token, passive invite previews stay creator-only, and rematches, leaderboard rows, old-Kosti refund/stale paths, scorecard deadlines and no-cooldown table creation are handled in the active PR; tournaments and tournament reward claims remain `0.2.28+` backlog.
 - `0.2.28` Mantok Set Synergies Foundation: this release candidate adds 13 authored stat-only Mantok set families, live item/equipment set progress, effective-stat set contributions and additive level `9..13` set-piece loot; gear actions, statuses, Yeger/economy perks, shops, crafting, Prisma/schema changes and broad combat rebalance remain deferred.
 - `0.2.29` Mantok Ability Grants Foundation: selected epic/soulbound level `9..13` manatky now grant persistent PvE gear actions from frozen combat-start grant ids; callbacks use stable compact keys, action profiles use `source: equipment`, borrowed actions are weaker/non-native, bleed is tiny visible refresh-only status damage, and the Yeger cloak is service-marker metadata only with no dense-bandage/field-kit/Yeger-board runtime unlock.
+- `docs/tasks/0.2.30-item-upgrades-charkokovalnia.md` — Charkokovalnia item-upgrade foundation: eligible equipment can move `+0..+5` with deterministic costs/chances, luck, pity, optional donors, no break/delete/downgrade failures and visible item/equipment/effective-stat `+N` presentation. `Іскрокамінь` is a stackable tradeable material from a small one-of bandage/material monster reward slot; higher NPC upgrade orders mature through combat wins; Mage-style `Іскровий підкрут` self-upgrades spend mana with weaker odds. This slice stores enhancement on existing `(characterId,itemId)` inventory rows, not true item instances; shops, crafting recipes, generated upgraded loot and broad combat rebalance remain deferred. Local QA helpers include `/dev_add_iskrokamin`, `/dev_set_item_plus`, `/dev_set_upgrade_pity`, `/dev_complete_upgrade_order` and `/dev_cancel_upgrade_order`.
 
 ## Code map
 

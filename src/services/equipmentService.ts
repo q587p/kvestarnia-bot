@@ -123,6 +123,7 @@ export type UnequipSlotResult =
 export interface EquipmentItemSummary {
   itemId: string;
   content: ItemContent;
+  enhancementLevel?: number;
 }
 
 export interface EquipmentSlotSummary {
@@ -719,11 +720,11 @@ export function isEquippableItem(item: ItemContent): boolean {
   return mapItemToEquipmentSlot(item) !== null;
 }
 
-export function getEquippedItemContents(rows: CharacterEquipmentRecord[]): ItemContent[] {
+export function getEquippedItemContents(rows: CharacterEquipmentRecord[]): Array<ItemContent & { enhancementLevel?: number }> {
   return rows.flatMap((row) => {
     const content = items.find((item) => item.id === row.itemId);
 
-    return content ? [content] : [];
+    return content ? [{ ...content, enhancementLevel: row.enhancementLevel ?? 0 }] : [];
   });
 }
 
@@ -740,7 +741,8 @@ function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
           slot,
           item: {
             itemId: mainHand.itemId,
-            content: mainHandContent
+            content: mainHandContent,
+            enhancementLevel: mainHand.enhancementLevel ?? 0
           },
           occupiedByTwohand: true
         };
@@ -760,7 +762,8 @@ function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
       slot,
       item: {
         itemId: row.itemId,
-        content
+        content,
+        enhancementLevel: row.enhancementLevel ?? 0
       }
     };
   });

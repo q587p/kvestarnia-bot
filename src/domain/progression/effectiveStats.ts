@@ -43,6 +43,7 @@ export interface EquipmentEffectSource {
   itemId: string;
   itemName: string;
   effect?: ItemEffectContent;
+  enhancementLevel?: number;
 }
 
 export interface EquipmentEffectContribution {
@@ -161,7 +162,9 @@ export function buildEquipmentEffectSummary(
 
     addEquipmentEffectContribution(summary, {
       itemId: source.itemId,
-      itemName: source.itemName,
+      itemName: source.enhancementLevel && source.enhancementLevel > 0
+        ? `${source.itemName} +${source.enhancementLevel}`
+        : source.itemName,
       effect: source.effect
     });
   }

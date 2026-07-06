@@ -78,7 +78,7 @@ import {
   selectPersistentFightMonsterLevel,
   THIRTEEN_SMALL_PROBLEMS_QUEST_KEY
 } from "../../src/services/fightService";
-import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
+import { BANDAGE_ITEM_ID, ISKROKAMIN_ITEM_ID } from "../../src/services/itemGrant";
 import {
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
@@ -88,6 +88,15 @@ import {
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 
 const telegramUserId = 42n;
+const recoveryMaterialItemIds = new Set([BANDAGE_ITEM_ID, ISKROKAMIN_ITEM_ID]);
+
+function isPrimaryLootGrant(grant: { itemId: string }): boolean {
+  return !recoveryMaterialItemIds.has(grant.itemId);
+}
+
+function isRecoveryMaterialGrant(grant: { itemId: string }): boolean {
+  return recoveryMaterialItemIds.has(grant.itemId);
+}
 
 describe("FightService", () => {
   it("returns no-character when user has no character", async () => {
@@ -2440,14 +2449,10 @@ describe("FightService", () => {
       expect(typeof result.fightReward?.reward.xp).toBe("number");
       expect(typeof result.fightReward?.reward.gold).toBe("number");
       expect(
-        result.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+        result.fightReward?.reward.itemGrants.filter(isPrimaryLootGrant)
           .length
       ).toBeLessThanOrEqual(1);
-      expect(result.fightReward?.reward.itemGrants).toContainEqual({
-        itemId: BANDAGE_ITEM_ID,
-        name: "Бинт відповідальної паніки",
-        quantity: 1
-      });
+      expect(result.fightReward?.reward.itemGrants.some(isRecoveryMaterialGrant)).toBe(true);
       expect(result.questProgress).toMatchObject({
         wins: 1,
         target: 13,
@@ -3281,13 +3286,9 @@ describe("FightService", () => {
 
     expect(recovered.fightReward?.reward.gold).toBe(0);
     expect(
-      recovered.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+      recovered.fightReward?.reward.itemGrants.filter(isPrimaryLootGrant)
     ).toHaveLength(1);
-    expect(recovered.fightReward?.reward.itemGrants).toContainEqual({
-      itemId: BANDAGE_ITEM_ID,
-      name: "Бинт відповідальної паніки",
-      quantity: 1
-    });
+    expect(recovered.fightReward?.reward.itemGrants.some(isRecoveryMaterialGrant)).toBe(true);
 
     const replayed = await service.resolvePersistentFightTurn(telegramUserId, {
       sessionId: wonSession.id,
@@ -3339,13 +3340,9 @@ describe("FightService", () => {
     }
     expect(recovered.fightReward?.reward.gold).toBe(0);
     expect(
-      recovered.fightReward?.reward.itemGrants.filter((grant) => grant.itemId !== BANDAGE_ITEM_ID)
+      recovered.fightReward?.reward.itemGrants.filter(isPrimaryLootGrant)
     ).toEqual([]);
-    expect(recovered.fightReward?.reward.itemGrants).toContainEqual({
-      itemId: BANDAGE_ITEM_ID,
-      name: "Бинт відповідальної паніки",
-      quantity: 1
-    });
+    expect(recovered.fightReward?.reward.itemGrants.some(isRecoveryMaterialGrant)).toBe(true);
   });
 
   it("scales recovered persistent fight rewards by stored difficulty", async () => {

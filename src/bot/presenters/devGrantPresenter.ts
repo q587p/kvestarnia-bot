@@ -18,6 +18,14 @@ export function presentDevGrantInvalidAmount(command: string): string {
     return "Формат: /dev_add_random_item [додатне ціле число] [slot=weapon|offhand|head|chest|legs|accessory|tool] [tag=twohand|offhand]. Без числа корчмар підставить 1.";
   }
 
+  if (command === "dev_set_item_plus") {
+    return "Формат: /dev_set_item_plus itemId=<item.id> level=0..5.";
+  }
+
+  if (command === "dev_set_upgrade_pity") {
+    return "Формат: /dev_set_upgrade_pity itemId=<item.id> target=1..5 failures=0..5.";
+  }
+
   if (command === "dev_heal") {
     return "Формат: /dev_heal [додатне ціле число HP]. Без числа корчмар лікує до максимуму.";
   }
@@ -101,6 +109,31 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       "",
       `Мана: ${result.character.manaCurrent}/${result.character.manaMax}`
     ].join("\n");
+  }
+
+  if (result.kind === "item-upgrade-level") {
+    return [
+      "🧪 Dev: рівень підсилення виставлено.",
+      "",
+      `itemId: ${result.itemId}`,
+      `+${result.level}`
+    ].join("\n");
+  }
+
+  if (result.kind === "item-upgrade-pity") {
+    return [
+      "🧪 Dev: жаль-лічильник Чароковальні виставлено.",
+      "",
+      `itemId: ${result.itemId}`,
+      `Ціль: +${result.targetLevel}`,
+      `Провали: ${result.failureCount}`
+    ].join("\n");
+  }
+
+  if (result.kind === "item-upgrade-orders") {
+    return result.status === "ready"
+      ? `🧪 Dev: замовлення Чароковальні готові. Змінено: ${result.changed}.`
+      : `🧪 Dev: замовлення Чароковальні скасовано. Змінено: ${result.changed}.`;
   }
 
   if (result.kind === "yeger-bandage-cooldown") {

@@ -20,6 +20,7 @@ export interface InventoryItemSummary {
   id: string;
   itemId: string;
   quantity: number;
+  enhancementLevel: number;
   content: ItemContent;
 }
 
@@ -110,6 +111,7 @@ function enrichItem(row: CharacterItemRecord): InventoryItemSummary {
     id: row.id,
     itemId: row.itemId,
     quantity: row.quantity,
+    enhancementLevel: row.enhancementLevel ?? 0,
     content
   };
 }

@@ -19,6 +19,7 @@ import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquip
 import { PrismaHuntContractRepository } from "../../src/db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "../../src/db/repositories/prismaInventoryRepository";
 import { PrismaItemTransferRepository } from "../../src/db/repositories/prismaItemTransferRepository";
+import { PrismaItemUpgradeRepository } from "../../src/db/repositories/prismaItemUpgradeRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "../../src/db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaLevelBarterRepository } from "../../src/db/repositories/prismaLevelBarterRepository";
 import { PrismaLevelMilestoneRepository } from "../../src/db/repositories/prismaLevelMilestoneRepository";
@@ -46,6 +47,7 @@ import { HeroService } from "../../src/services/heroService";
 import { HuntService } from "../../src/services/huntService";
 import { InventoryService } from "../../src/services/inventoryService";
 import { ItemTransferService } from "../../src/services/itemTransferService";
+import { ItemUpgradeService } from "../../src/services/itemUpgradeService";
 import { LevelBarterService } from "../../src/services/levelBarterService";
 import { LevelMilestoneService } from "../../src/services/levelMilestoneService";
 import { MantokChestService } from "../../src/services/mantokChestService";
@@ -80,6 +82,7 @@ describe("application factory wiring", () => {
     expect(repositories.huntContracts).toBeInstanceOf(PrismaHuntContractRepository);
     expect(repositories.inventory).toBeInstanceOf(PrismaInventoryRepository);
     expect(repositories.itemTransfers).toBeInstanceOf(PrismaItemTransferRepository);
+    expect(repositories.itemUpgrades).toBeInstanceOf(PrismaItemUpgradeRepository);
     expect(repositories.levelBarter).toBeInstanceOf(PrismaLevelBarterRepository);
     expect(repositories.levelMilestones).toBeInstanceOf(PrismaLevelMilestoneRepository);
     expect(repositories.mantokChestRuns).toBeInstanceOf(PrismaMantokChestRepository);
@@ -113,6 +116,7 @@ describe("application factory wiring", () => {
     expect(services.hunt).toBeInstanceOf(HuntService);
     expect(services.inventory).toBeInstanceOf(InventoryService);
     expect(services.itemTransfers).toBeInstanceOf(ItemTransferService);
+    expect(services.itemUpgrades).toBeInstanceOf(ItemUpgradeService);
     expect(services.levelBarter).toBeInstanceOf(LevelBarterService);
     expect(services.levelMilestones).toBeInstanceOf(LevelMilestoneService);
     expect(services.mantokChest).toBeInstanceOf(MantokChestService);
@@ -141,8 +145,12 @@ describe("application factory wiring", () => {
         pendingPassageEncounters: repositories.pendingPassageEncounters,
         shynok: repositories.shynok,
         achievements,
-        activityEvents: publicActivityEvents
+        activityEvents: publicActivityEvents,
+        itemUpgrades
       });
+    `));
+    expect(source).toContain(compact(`
+      const itemUpgrades = new ItemUpgradeService(repositories.itemUpgrades, undefined, undefined, achievements);
     `));
     expect(source).toContain(compact(`
       adventure: new AdventureService(

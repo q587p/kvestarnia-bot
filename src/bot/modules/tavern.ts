@@ -27,6 +27,11 @@ import { registerParsedCallbackRoute } from "../callbackRoute";
 import { parseCellarCallbackData,type CellarCallback } from "../callbacks/cellarCallbackData";
 import { parseMemorialCallbackData,type MemorialCallback } from "../callbacks/memorialCallbackData";
 import { parseLatestEventsCallbackData,type LatestEventsCallback } from "../callbacks/latestEventsCallbackData";
+import {
+parseItemUpgradeCallbackData,
+resolveItemUpgradeCallbackKey,
+type ItemUpgradeCallback
+} from "../callbacks/itemUpgradeCallbackData";
 import { parsePlaceCallbackData,type PlaceCallback } from "../callbacks/placeCallbackData";
 import { parseShynokCallbackData,type ShynokCallback } from "../callbacks/shynokCallbackData";
 import { parseTavernCallbackData,type TavernCallback } from "../callbacks/tavernCallbackData";
@@ -93,6 +98,11 @@ buildShynokRoundResultKeyboard,
 buildShynokSaleSelectionKeyboard
 } from "../keyboards/shynokKeyboard";
 import {
+buildItemUpgradeMenuKeyboard,
+buildItemUpgradePreviewKeyboard,
+buildItemUpgradeResultKeyboard
+} from "../keyboards/itemUpgradeKeyboard";
+import {
 buildBackToKorchmaHallKeyboard,
 buildBackToTavernRaidKeyboard,
 buildKorchmaBarKeyboard,
@@ -123,6 +133,12 @@ presentDevGrantNoCharacter
 import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
+import {
+presentItemUpgradeAttemptResult,
+presentItemUpgradeMenu,
+presentItemUpgradeOrderResult,
+presentItemUpgradePreview
+} from "../presenters/itemUpgradePresenter";
 import { presentParticipants } from "../presenters/presencePresenter";
 import { escapeHtml } from "../presenters/telegramHtml";
 import {
@@ -249,9 +265,103 @@ export function registerTavernBotModule(
     await handleLatestEventsCallback(ctx, action, services);
   });
 
+  registerParsedCallbackRoute(bot, /^v1:upg:/, parseItemUpgradeCallbackData, async (ctx, action) => {
+    await handleItemUpgradeCallback(ctx, action, services);
+  });
+
   registerParsedCallbackRoute(bot, /^v[12]:cellar:/, parseCellarCallbackData, async (ctx, action) => {
     await handleCellarCallback(ctx, action, services);
   });
+}
+
+async function handleItemUpgradeCallback(
+  ctx: Context,
+  action: ItemUpgradeCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId || !services.itemUpgrades) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
+  if (action.type === "menu") {
+    const result = await services.itemUpgrades.listForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentItemUpgradeMenu(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradeMenuKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "attempt-order") {
+    const result = await services.itemUpgrades.attemptForTelegramUser(
+      telegramUserId,
+      "",
+      "npc",
+      null,
+      action.token
+    );
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "attempted" || !result.success });
+    await safeEditMessageText(ctx, presentItemUpgradeAttemptResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradeResultKeyboard()
+    });
+    await sendAchievementUnlocksIfAny(ctx, result.achievementUnlocks);
+    return;
+  }
+
+  const itemId = resolveItemUpgradeCallbackKey(action.itemKey);
+  if (!itemId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+  const donorItemId = action.donorItemKey ? resolveItemUpgradeCallbackKey(action.donorItemKey) : null;
+  if (action.donorItemKey && !donorItemId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (action.type === "preview") {
+    const result = await services.itemUpgrades.previewForTelegramUser(telegramUserId, itemId, action.method, donorItemId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentItemUpgradePreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradePreviewKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "order") {
+    const result = await services.itemUpgrades.createNpcOrderForTelegramUser(telegramUserId, itemId, donorItemId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "created" });
+    await safeEditMessageText(ctx, presentItemUpgradeOrderResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradeResultKeyboard()
+    });
+    return;
+  }
+
+  const result = await services.itemUpgrades.attemptForTelegramUser(
+    telegramUserId,
+    itemId,
+    action.method,
+    donorItemId,
+    undefined,
+    action.fromLevel
+  );
+  await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "attempted" || !result.success });
+  await safeEditMessageText(ctx, presentItemUpgradeAttemptResult(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildItemUpgradeResultKeyboard()
+  });
+  await sendAchievementUnlocksIfAny(ctx, result.achievementUnlocks);
 }
 
 async function handleLatestEventsCallback(
@@ -833,6 +943,20 @@ async function notifyTavernGameAchievements(
       ? ctx.api.sendMessage(Number(notification.telegramUserId), text, HTML_MESSAGE_OPTIONS)
       : Promise.resolve(undefined);
   }));
+}
+
+async function sendAchievementUnlocksIfAny(
+  ctx: Context,
+  unlocks: Parameters<typeof presentAchievementUnlockNotification>[0] | undefined
+): Promise<void> {
+  if (!unlocks || unlocks.length === 0) {
+    return;
+  }
+
+  const text = presentAchievementUnlockNotification(unlocks);
+  if (text) {
+    await ctx.reply(text, HTML_MESSAGE_OPTIONS);
+  }
 }
 
 async function handleTavernGameInviteShare(

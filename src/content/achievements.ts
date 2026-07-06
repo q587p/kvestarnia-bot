@@ -73,6 +73,13 @@ export const achievementTriggerTypes = [
   "adventure.choice.complication",
   "combat.threat-escalated",
   "combat.threat-pressure",
+  "item-upgrade.iskrokamin-received",
+  "item-upgrade.succeeded",
+  "item-upgrade.failed",
+  "item-upgrade.donor-used",
+  "item-upgrade.level-5",
+  "item-upgrade.set-item",
+  "item-upgrade.order-completed",
   "future"
 ] as const;
 
@@ -1707,6 +1714,83 @@ export const achievements = [
     sortOrder: 188,
     status: "enabled",
     trigger: { type: "combat.persistent.zero-gold-item-win", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.first-iskrokamin",
+    category: "gear",
+    title: "Камінь теж має амбіції",
+    description: "уперше отримати Іскрокамінь і почути, як торба стала трохи самовпевненіша.",
+    hidden: false,
+    lockedDescription: "уперше отримати Іскрокамінь.",
+    sortOrder: 190,
+    status: "enabled",
+    trigger: { type: "item-upgrade.iskrokamin-received", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.first-success",
+    category: "gear",
+    title: "Плюс один до характеру",
+    description: "уперше успішно підсилити манатку й не питати, чому вона дивиться зверхньо.",
+    hidden: false,
+    lockedDescription: "уперше успішно підсилити манатку.",
+    sortOrder: 191,
+    status: "enabled",
+    trigger: { type: "item-upgrade.succeeded", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.first-failure",
+    category: "gear",
+    title: "Ковадло сказало «ні»",
+    description: "уперше провалити підсилення без втрати манатки, лише з новим досвідом для обліку.",
+    hidden: false,
+    lockedDescription: "уперше провалити підсилення.",
+    sortOrder: 192,
+    status: "enabled",
+    trigger: { type: "item-upgrade.failed", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.donor-used",
+    category: "gear",
+    title: "Друга манатка пішла радником",
+    description: "підсилити манатку з донором і зробити вигляд, що донор сам запропонувався.",
+    hidden: false,
+    lockedDescription: "використати донорську манатку для підсилення.",
+    sortOrder: 193,
+    status: "enabled",
+    trigger: { type: "item-upgrade.donor-used", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.level-5",
+    category: "gear",
+    title: "Пʼять плюсів дивляться згори",
+    description: "підсилити манатку до +5 і дати Плюсославу привід підписати ковадло.",
+    hidden: false,
+    lockedDescription: "підсилити манатку до +5.",
+    sortOrder: 194,
+    status: "enabled",
+    trigger: { type: "item-upgrade.level-5", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.set-item",
+    category: "gear",
+    title: "Сет не розсипався від плюсів",
+    description: "підсилити сетову манатку й лишити її в родинному альбомі бонусів.",
+    hidden: false,
+    lockedDescription: "підсилити сетову манатку.",
+    sortOrder: 195,
+    status: "enabled",
+    trigger: { type: "item-upgrade.set-item", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.order-completed",
+    category: "gear",
+    title: "Замовлення пережило бій",
+    description: "виконати бойове замовлення Плюсослава й повернутися до ковадла з доказами.",
+    hidden: false,
+    lockedDescription: "виконати замовлення Чароковальні після боїв.",
+    sortOrder: 196,
+    status: "enabled",
+    trigger: { type: "item-upgrade.order-completed", threshold: 1 }
   },
   {
     id: "achievement.remort.first-memory",

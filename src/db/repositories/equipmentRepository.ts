@@ -11,6 +11,7 @@ export interface CharacterEquipmentRecord {
   characterId: string;
   slot: EquipmentSlot;
   itemId: string;
+  enhancementLevel?: number;
   createdAt: Date;
   updatedAt: Date;
 }

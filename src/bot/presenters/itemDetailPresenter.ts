@@ -1,5 +1,6 @@
 import type { ItemContent } from "../../content/schema";
 import { findMantokAbilityGrantByItemId } from "../../content";
+import { applyItemEnhancementEffect, getItemDisplayNameWithEnhancement } from "../../domain/itemUpgrades";
 import { getMantokSetProgressForItem } from "../../domain/equipment/mantokSetBonuses";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import {
@@ -48,10 +49,12 @@ export function presentOwnedItemDetail(
 ): string {
   const content = item.content;
   const quantity = Math.max(1, Math.floor(item.quantity));
-  const effectLine = presentItemEffectLine(content);
+  const displayName = getItemDisplayNameWithEnhancement(content, item.enhancementLevel);
+  const enhancedEffect = applyItemEnhancementEffect(content.effect, content, item.enhancementLevel);
+  const effectLine = presentItemEffectLine({ ...content, ...(enhancedEffect ? { effect: enhancedEffect } : {}) });
 
   return [
-    `🔎 <b>${escapeHtml(content.name)}</b>`,
+    `🔎 <b>${escapeHtml(displayName)}</b>`,
     "",
     `Рідкість: <b>${presentRarity(content.rarity)}</b>`,
     `Категорія: <b>${presentItemCategory(content)}</b>`,
@@ -306,6 +309,7 @@ export function presentItemSlot(slot: ItemContent["slot"]): string {
     armor: "обладунок",
     accessory: "аксесуар",
     consumable: "витратна манатка",
+    material: "матеріял",
     cosmetic: "косметика",
     junk: "трофей / смішний доказ"
   };

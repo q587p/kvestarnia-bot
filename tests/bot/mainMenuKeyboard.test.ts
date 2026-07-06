@@ -338,6 +338,7 @@ describe("main menu and scene keyboards", () => {
       "🍻 Шинок",
       "📰 Дошка корчми",
       "🐭 Льох",
+      "🔧 Чароковальня",
       "🚪 Надвір",
       "🪜 Спуск до Низу"
     ]);
@@ -348,6 +349,7 @@ describe("main menu and scene keyboards", () => {
       "v1:place:bar",
       "v1:place:news-corner",
       "v1:place:cellar",
+      "v1:upg:m",
       "v1:place:front",
       "v1:place:deep"
     ]);
@@ -359,6 +361,7 @@ describe("main menu and scene keyboards", () => {
       "🍻 Шинок",
       "📰 Дошка корчми",
       "🐭 Льох",
+      "🔧 Чароковальня",
       "🚪 Надвір",
       "🪜 Спуск до Низу"
     ]);
@@ -370,6 +373,7 @@ describe("main menu and scene keyboards", () => {
       "v1:place:bar",
       "v1:place:news-corner",
       "v1:place:cellar",
+      "v1:upg:m",
       "v1:place:front",
       "v1:place:deep"
     ]);
@@ -389,6 +393,7 @@ describe("main menu and scene keyboards", () => {
       ["🥊 Бійцівський куток", "📋 Стіл зі справами"],
       ["🛢️ Бочка", "🍻 Шинок"],
       ["📰 Дошка корчми", "🐭 Льох"],
+      ["🔧 Чароковальня"],
       ["🚪 Надвір", "🪜 Спуск до Низу"]
     ]);
     expect(

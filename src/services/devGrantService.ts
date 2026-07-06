@@ -13,6 +13,7 @@ import {
 } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { AchievementService, type AchievementUnlock } from "./achievementService";
+import type { ItemUpgradeService } from "./itemUpgradeService";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
 import {
   YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
@@ -93,6 +94,28 @@ export type DevGrantResult =
     }
   | {
       state: "updated";
+      kind: "item-upgrade-level";
+      character: CharacterRecord;
+      itemId: string;
+      level: number;
+    }
+  | {
+      state: "updated";
+      kind: "item-upgrade-pity";
+      character: CharacterRecord;
+      itemId: string;
+      targetLevel: number;
+      failureCount: number;
+    }
+  | {
+      state: "updated";
+      kind: "item-upgrade-orders";
+      character: CharacterRecord;
+      changed: number;
+      status: "ready" | "canceled";
+    }
+  | {
+      state: "updated";
       kind: "yeger-bandage-day";
       character: CharacterRecord;
       deleted: number;
@@ -146,7 +169,8 @@ export class DevGrantService {
     private readonly nodeEnv: string,
     private readonly enabledFlag: boolean,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly itemUpgrades?: ItemUpgradeService
   ) {}
 
   isEnabled(): boolean {
@@ -288,6 +312,97 @@ export class DevGrantService {
         itemGrants: result.itemGrants
       })
     };
+  }
+
+  async setItemUpgradeLevel(
+    telegramUserId: bigint,
+    itemId: string,
+    level: number
+  ): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.itemUpgrades?.setItemEnhancementForTelegramUser(
+      telegramUserId,
+      itemId,
+      level
+    );
+
+    return result
+      ? {
+          state: "updated",
+          kind: "item-upgrade-level",
+          character: result.character,
+          itemId: result.item.itemId,
+          level: result.item.enhancementLevel
+        }
+      : { state: "no-character" };
+  }
+
+  async setItemUpgradePity(
+    telegramUserId: bigint,
+    itemId: string,
+    targetLevel: number,
+    failureCount: number
+  ): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.itemUpgrades?.setPityForTelegramUser(
+      telegramUserId,
+      itemId,
+      targetLevel,
+      failureCount
+    );
+
+    return result
+      ? {
+          state: "updated",
+          kind: "item-upgrade-pity",
+          character: result.character,
+          itemId,
+          targetLevel,
+          failureCount: result.failureCount
+        }
+      : { state: "no-character" };
+  }
+
+  async completeItemUpgradeOrders(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.itemUpgrades?.completeOrdersForTelegramUser(telegramUserId);
+
+    return result
+      ? {
+          state: "updated",
+          kind: "item-upgrade-orders",
+          character: result.character,
+          changed: result.completed,
+          status: "ready"
+        }
+      : { state: "no-character" };
+  }
+
+  async cancelItemUpgradeOrders(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.itemUpgrades?.cancelOrdersForTelegramUser(telegramUserId);
+
+    return result
+      ? {
+          state: "updated",
+          kind: "item-upgrade-orders",
+          character: result.character,
+          changed: result.canceled,
+          status: "canceled"
+        }
+      : { state: "no-character" };
   }
 
   async addItemById(

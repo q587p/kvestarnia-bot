@@ -723,6 +723,13 @@ function getRecalculationProgress(
     case "adventure.choice.complication":
     case "combat.threat-escalated":
     case "combat.threat-pressure":
+    case "item-upgrade.iskrokamin-received":
+    case "item-upgrade.succeeded":
+    case "item-upgrade.failed":
+    case "item-upgrade.donor-used":
+    case "item-upgrade.level-5":
+    case "item-upgrade.set-item":
+    case "item-upgrade.order-completed":
       return snapshot.activityDates[definition.trigger.type]?.length ?? 0;
     case "future":
     default:
@@ -830,6 +837,13 @@ function getRecalculationOccurredAt(
     case "adventure.choice.complication":
     case "combat.threat-escalated":
     case "combat.threat-pressure":
+    case "item-upgrade.iskrokamin-received":
+    case "item-upgrade.succeeded":
+    case "item-upgrade.failed":
+    case "item-upgrade.donor-used":
+    case "item-upgrade.level-5":
+    case "item-upgrade.set-item":
+    case "item-upgrade.order-completed":
       return getThresholdDate(getActivityDates(definition, snapshot), threshold) ?? fallback;
     case "future":
     default:
@@ -930,6 +944,13 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "adventure.choice.complication":
     case "combat.threat-escalated":
     case "combat.threat-pressure":
+    case "item-upgrade.iskrokamin-received":
+    case "item-upgrade.succeeded":
+    case "item-upgrade.failed":
+    case "item-upgrade.donor-used":
+    case "item-upgrade.level-5":
+    case "item-upgrade.set-item":
+    case "item-upgrade.order-completed":
       return true;
     default:
       return false;

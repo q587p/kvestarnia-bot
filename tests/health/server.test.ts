@@ -78,11 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Манатки навчилися натискати кнопки");
-    expect(text).toContain("частина рідкісних манаток тепер може давати окрему дію спорядження");
-    expect(text).toContain("позичені трюки лишаються саме трюками спорядження");
-    expect(text).toContain("картки манаток і спорядження пояснюють");
-    expect(text).toContain("Це не крамниця, не крафт");
+    expect(text).toContain("Плюсослав відкрив Чароковальню");
+    expect(text).toContain("частину спорядження можна підсилювати від +0 до +5");
+    expect(text).toContain("невдала спроба не ламає, не знищує й не понижує манатку");
+    expect(text).toContain("Іскрокамені можуть траплятися як маленька бойова знахідка");
+    expect(text).toContain("Це не крамниця й не великий крафт");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

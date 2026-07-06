@@ -328,6 +328,41 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_add_iskrokamin",
+    icon: "💎",
+    description: "додати Іскрокамені локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_set_item_plus",
+    icon: "🔧",
+    description: "виставити +N манатки локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_set_upgrade_pity",
+    icon: "🧾",
+    description: "виставити жаль-лічильник Чароковальні локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_complete_upgrade_order",
+    icon: "✅",
+    description: "зробити замовлення Чароковальні готовими локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_cancel_upgrade_order",
+    icon: "🧹",
+    description: "скасувати замовлення Чароковальні локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_add_dense_bandage",
     icon: "🧵",
     description: "додати щільні бинти локально",

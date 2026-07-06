@@ -110,6 +110,7 @@ import {
 import {
   BANDAGE_ITEM_ID,
   enrichRewardItemGrants,
+  ISKROKAMIN_ITEM_ID,
   PAN_OF_PERSUASION_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   starterEquipmentGrant,
@@ -133,6 +134,7 @@ import {
   type ProblemQuestStageRecord
 } from "./fight/problemQuest";
 import type { AchievementService, AchievementSimpleEventType, AchievementUnlock } from "./achievementService";
+import type { ItemUpgradeService } from "./itemUpgradeService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
@@ -538,6 +540,7 @@ export interface FightServiceDependencies {
   shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
   achievements?: AchievementService;
   activityEvents?: PublicActivityEventPublisher;
+  itemUpgrades?: Pick<ItemUpgradeService, "recordFightCompletedForCharacter">;
 }
 
 export class FightService {
@@ -552,6 +555,7 @@ export class FightService {
   private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
   private readonly achievements: AchievementService | undefined;
   private readonly activityEvents: PublicActivityEventPublisher | undefined;
+  private readonly itemUpgrades: Pick<ItemUpgradeService, "recordFightCompletedForCharacter"> | undefined;
 
   constructor({
     characters,
@@ -564,7 +568,8 @@ export class FightService {
     pendingPassageEncounters,
     shynok,
     achievements,
-    activityEvents
+    activityEvents,
+    itemUpgrades
   }: FightServiceDependencies) {
     this.characters = characters;
     this.dailyActions = dailyActions;
@@ -577,6 +582,7 @@ export class FightService {
     this.shynok = shynok;
     this.achievements = achievements;
     this.activityEvents = activityEvents;
+    this.itemUpgrades = itemUpgrades;
   }
 
   private async advanceExpiredPersistentTurn(
@@ -3343,9 +3349,22 @@ export class FightService {
           sourceId: input.sourceId
         }))
       );
+      if (input.itemIds.includes(ISKROKAMIN_ITEM_ID)) {
+        unlocks.push(
+          ...(await this.achievements.trackEventSafely({
+            type: "item-upgrade.iskrokamin-received",
+            characterId: input.characterId,
+            occurredAt,
+            sourceId: input.sourceId
+          }))
+        );
+      }
     }
 
     if (input.combatOutcome) {
+      if (input.combatOutcome === "won") {
+        await this.itemUpgrades?.recordFightCompletedForCharacter(input.characterId);
+      }
       unlocks.push(
         ...(await this.achievements.trackEventSafely({
           type: "combat.finished",
@@ -4311,7 +4330,12 @@ function buildPersistentFightReward(
   });
 
   if (bandageQuantity > 0) {
-    itemGrants.push({ itemId: BANDAGE_ITEM_ID, quantity: bandageQuantity });
+    const sparkDrop = rng.nextFloat() < buildIskrokaminReplacementChance(character.stats.luck);
+    itemGrants.push(
+      sparkDrop
+        ? { itemId: ISKROKAMIN_ITEM_ID, quantity: Math.max(1, Math.ceil(bandageQuantity / 2)) }
+        : { itemId: BANDAGE_ITEM_ID, quantity: bandageQuantity }
+    );
   }
 
   return {
@@ -4319,6 +4343,10 @@ function buildPersistentFightReward(
     gold,
     itemGrants
   };
+}
+
+function buildIskrokaminReplacementChance(luck: number): number {
+  return Math.max(0.08, Math.min(0.23, 0.12 + Math.max(0, luck - 10) * 0.005));
 }
 
 function buildPersistentFightLossXp(

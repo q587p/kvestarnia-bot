@@ -3,6 +3,10 @@ import { getComboTitle, getPronounLabel, isPronoun } from "../../content/charact
 import { races } from "../../content/races";
 import type { ItemContent, Pronoun } from "../../content/schema";
 import {
+  applyItemEnhancementEffect,
+  getItemDisplayNameWithEnhancement
+} from "../itemUpgrades";
+import {
   buildEffectiveCharacterStats,
   type EquipmentEffectSummary,
   type LevelBonus
@@ -60,7 +64,7 @@ export interface CharacterSummaryInput {
 }
 
 export interface CharacterSummaryOptions {
-  equippedItems?: ItemContent[];
+  equippedItems?: Array<ItemContent & { enhancementLevel?: number }>;
   resourceRecovery?: ResourceRecoveryEstimate;
   remortCount?: number;
 }
@@ -88,11 +92,17 @@ export function summarizeCharacter(
     manaCurrent: input.manaCurrent,
     manaMax: input.manaMax,
     stats: parseStats(input.statsJson),
-    equipment: (options.equippedItems ?? []).map((item) => ({
-      itemId: item.id,
-      itemName: item.name,
-      ...(item.effect ? { effect: item.effect } : {})
-    }))
+    equipment: (options.equippedItems ?? []).map((item) => {
+      const effect = item.effect
+        ? applyItemEnhancementEffect(item.effect, item, item.enhancementLevel)
+        : undefined;
+
+      return {
+        itemId: item.id,
+        itemName: getItemDisplayNameWithEnhancement(item, item.enhancementLevel),
+        ...(effect ? { effect } : {})
+      };
+    })
   });
 
   return {
