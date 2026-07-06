@@ -9,6 +9,7 @@ import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloComb
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import type { AdventureService } from "../../src/services/adventureService";
+import type { BarrelBeerTutorialService } from "../../src/services/barrelBeerTutorialService";
 import type { CellarErrandService } from "../../src/services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
@@ -228,6 +229,63 @@ describe("quest hub command", () => {
       "📦 Архів",
       "🍺 До зали ⚠️"
     ]);
+  });
+
+  it("keeps the Barrel beer tutorial out of the active list below level two", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        barrelBeerTutorial: barrelBeerTutorialService(levelOneCharacter),
+        fight: readyFightService(levelOneCharacter),
+        yeger: readyYegerService(levelOneCharacter),
+        cellarErrand: readyCellarService(levelOneCharacter),
+        dailyKorchmaRound: lockedDailyKorchmaRoundService(levelOneCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).not.toContain("Бочка, або Туди і звідти");
+  });
+
+  it("shows the Barrel beer tutorial at level two next to cellar content", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelTwoCharacter = characterAtLevel(2);
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelTwoCharacter),
+        barrelBeerTutorial: barrelBeerTutorialService(levelTwoCharacter),
+        fight: readyFightService(levelTwoCharacter),
+        yeger: readyYegerService(levelTwoCharacter),
+        cellarErrand: readyCellarService(levelTwoCharacter),
+        dailyKorchmaRound: lockedDailyKorchmaRoundService(levelTwoCharacter)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🛢️ <i>Бочка, або Туди і звідти</i>");
+    expect(replies[0]?.text).toContain("Новачкам — 39 золота на дорогу до Бочки");
+    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons).toEqual(expect.arrayContaining([
+      {
+        text: "🛢️ Бочка, або Туди і звідти ⚠️",
+        callback_data: makeQuestCallbackData("barrel-tutorial")
+      },
+      {
+        text: "🧹 У льох ⚠️",
+        callback_data: makeQuestCallbackData("cellar")
+      }
+    ]));
   });
 
   it("keeps completed daily Korchma round out of the active list and in the archive", async () => {
@@ -1306,6 +1364,7 @@ class CapturingPresenceService {
 
 function servicesWith(overrides: {
   adventure?: AdventureService;
+  barrelBeerTutorial?: BarrelBeerTutorialService;
   cellarErrand?: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
   dailyKorchmaRound?: DailyKorchmaRoundService;
@@ -1318,6 +1377,9 @@ function servicesWith(overrides: {
     adventure:
       overrides.adventure ??
       readyAdventureService(character),
+    barrelBeerTutorial:
+      overrides.barrelBeerTutorial ??
+      completedBarrelBeerTutorialService(character),
     cellarErrand:
       overrides.cellarErrand ??
       readyCellarService(character),
@@ -1394,6 +1456,61 @@ function completedDailyKorchmaRoundService(summary: CharacterSummary): DailyKorc
         }
       })
   } as unknown as DailyKorchmaRoundService;
+}
+
+function barrelBeerTutorialService(summary: CharacterSummary): BarrelBeerTutorialService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve(
+        summary.level < 2
+          ? {
+              state: "level-locked",
+              character: summary,
+              requiredLevel: 2
+            }
+          : summary.level > 5
+            ? {
+                state: "level-retired",
+                character: summary,
+                maxLevel: 5,
+                progress: barrelBeerTutorialProgress(false)
+              }
+          : {
+              state: "available",
+              character: summary,
+              progress: barrelBeerTutorialProgress(false)
+            }
+      )
+  } as unknown as BarrelBeerTutorialService;
+}
+
+function completedBarrelBeerTutorialService(summary: CharacterSummary): BarrelBeerTutorialService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "completed",
+        character: summary,
+        progress: barrelBeerTutorialProgress(true),
+        reward: {
+          xp: 6,
+          gold: 0,
+          itemGrants: []
+        }
+      })
+  } as unknown as BarrelBeerTutorialService;
+}
+
+function barrelBeerTutorialProgress(done: boolean) {
+  return {
+    accepted: done,
+    stipendGranted: done,
+    visitedBarrel: done,
+    raidCompleted: done,
+    beerRoundOffered: done,
+    beerDrunk: done,
+    activeBeer: done,
+    currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+  };
 }
 
 function completedCellarGrownupService(summary: CharacterSummary): CellarGrownupQuestService {

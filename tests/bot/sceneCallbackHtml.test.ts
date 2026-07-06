@@ -48,6 +48,7 @@ import {
 import {
   makeShynokBarrelRoundPreviewCallbackData,
   makeShynokDicePokerRollCallbackData,
+  makeShynokDrinkConfirmCallbackData,
   makeShynokDoppelgangerModeCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokKostiDecisionCallbackData,
@@ -63,6 +64,7 @@ import {
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
+import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { startQuickDicePoker } from "../../src/domain/dicePoker";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
@@ -273,6 +275,50 @@ describe("scene callback HTML options", () => {
       parse_mode: "HTML"
     });
     expect(String(edit?.payload.text)).toMatch(/<b>|<i>/);
+  });
+
+  it("marks Barrel tutorial raid progress before building the raid result quest markers", async () => {
+    const markBarrelRaidCompletedForTelegramUser = vi.fn(() => Promise.resolve());
+    const getBarrelBeerTutorial = vi.fn(() =>
+      Promise.resolve({
+        state: "in-progress" as const,
+        character,
+        progress: barrelBeerTutorialProgress(true, "location.korchma.barrel")
+      })
+    );
+
+    await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern: {
+          advanceFridayBarrelRaid: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character: { ...character, level: 2 },
+              reward: {
+                xp: 7,
+                gold: 5,
+                localDate: "12026-06-12",
+                itemGrants: []
+              },
+              levelChange: noLevelChange
+            })
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        barrelBeerTutorial: {
+          markVisitedBarrelForTelegramUser: () => Promise.resolve(),
+          markBarrelRaidCompletedForTelegramUser,
+          getForTelegramUser: getBarrelBeerTutorial
+        }
+      })
+    );
+
+    expect(markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getBarrelBeerTutorial).toHaveBeenCalled();
+    const markOrder = markBarrelRaidCompletedForTelegramUser.mock.invocationCallOrder[0] ?? 0;
+    const markerSnapshotOrder = getBarrelBeerTutorial.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY;
+    expect(markOrder).toBeLessThan(markerSnapshotOrder);
   });
 
   it("routes starter authored method callbacks to the mimic-shawarma completion path", async () => {
@@ -1035,6 +1081,97 @@ describe("scene callback HTML options", () => {
     expect(String(messages[1]?.payload.text)).toContain("🐭 Льохова справа");
     expect(String(messages[2]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
     expect(movementMessages).toHaveLength(1);
+  });
+
+  it("does not move the player to the quest table before Barrel tutorial turn-in validation", async () => {
+    let currentLocationId = "location.korchma.bar";
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      if ("locationId" in input) {
+        currentLocationId = input.locationId;
+      }
+
+      return Promise.resolve();
+    });
+    const turnInForTelegramUser = vi.fn(() =>
+      Promise.resolve(
+        currentLocationId === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+          ? {
+              state: "completed" as const,
+              character: { ...character, level: 2 },
+              progress: barrelBeerTutorialProgress(true, currentLocationId),
+              reward: { xp: 6, gold: 0, itemGrants: [] },
+              levelChange: null,
+              achievementUnlocks: []
+            }
+          : {
+              state: "wrong-location" as const,
+              character: { ...character, level: 2 },
+              progress: barrelBeerTutorialProgress(true, currentLocationId)
+            }
+      )
+    );
+
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("barrel-tutorial-turn-in"),
+      servicesWith({
+        barrelBeerTutorial: {
+          turnInForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: currentLocationId,
+              locationName: "Шинок",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+
+    expect(turnInForTelegramUser).toHaveBeenCalledTimes(1);
+    const turnInOrder = turnInForTelegramUser.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY;
+    const questTableMarkOrders = markAction.mock.calls.flatMap(([input], index) =>
+      "locationId" in input && input.locationId === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+        ? [markAction.mock.invocationCallOrder[index] ?? Number.POSITIVE_INFINITY]
+        : []
+    );
+    expect(questTableMarkOrders.filter((order) => order < turnInOrder)).toEqual([]);
+    expect(questTableMarkOrders).toHaveLength(0);
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(edit?.payload.text).toContain("звітувати треба біля столу");
+    expect(edit?.payload.text).not.toContain("+6 XP");
+    expect(edit?.payload.text).not.toContain("Перстень Пивовладдя");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makePlaceCallbackData("quest-table"));
+  });
+
+  it("renders Barrel tutorial accept stipend with an HTML received label", async () => {
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("barrel-tutorial"),
+      servicesWith({
+        barrelBeerTutorial: {
+          acceptForTelegramUser: () =>
+            Promise.resolve({
+              state: "accepted" as const,
+              character: { ...character, level: 2 },
+              progress: {
+                ...barrelBeerTutorialProgress(false, "location.korchma.quest-table"),
+                accepted: true,
+                stipendGranted: true
+              },
+              stipendGold: 39
+            })
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(getParseMode(edit?.payload)).toBe("HTML");
+    expect(edit?.payload.text).toContain("записку гномськими рунами");
+    expect(edit?.payload.text).toContain("Потрібен зломщик");
+    expect(edit?.payload.text).not.toContain("маленький аванс — 39 золота");
+    expect(edit?.payload.text).toContain("<i>Отримано:</i>\n+39 золота");
   });
 
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {
@@ -3057,6 +3194,62 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:sh:rc:simple:12345678-1234-4234-9234-123456789abc");
   });
 
+  it("refreshes quest markers after a Shynok beer drink completes Barrel tutorial drink progress", async () => {
+    let drinkMarked = false;
+    const markBeerDrunkForTelegramUser = vi.fn(() => {
+      drinkMarked = true;
+      return Promise.resolve();
+    });
+    const getBarrelBeerTutorial = vi.fn(() =>
+      Promise.resolve({
+        state: drinkMarked ? "turn-in-ready" as const : "in-progress" as const,
+        character: { ...character, level: 2 },
+        progress: {
+          ...barrelBeerTutorialProgress(true, "location.korchma.bar"),
+          beerDrunk: drinkMarked,
+          activeBeer: drinkMarked
+        }
+      })
+    );
+
+    const calls = await captureApiCalls(
+      makeShynokDrinkConfirmCallbackData("12345678-1234-4234-9234-123456789abc"),
+      servicesWith({
+        shynok: {
+          confirmSelfDrinkOrderForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              drink: {
+                key: "drink.simple-beer" as const,
+                name: "Просте пиво",
+                emoji: "🍺",
+                priceGold: 13,
+                durationMinutes: 23,
+                recoveryMultiplierBp: 12300,
+                accuracyPenaltyPp: 5,
+                phase: "timed" as const,
+                startedAt: new Date("2026-06-24T11:00:00.000Z"),
+                expiresAt: new Date("2026-06-24T11:23:00.000Z")
+              },
+              spentGold: 13
+            })
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        barrelBeerTutorial: {
+          markBeerDrunkForTelegramUser,
+          getForTelegramUser: getBarrelBeerTutorial
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(markBeerDrunkForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getBarrelBeerTutorial).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ До зали ✅");
+  });
+
   it("notifies round recipients when a Shynok round is placed", async () => {
     const calls = await captureApiCalls(
       makeShynokRoundConfirmCallbackData("simple", "12345678-1234-4234-9234-123456789abc"),
@@ -3122,6 +3315,41 @@ describe("scene callback HTML options", () => {
     );
 
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("marks the legacy Tavern beer round path as Barrel tutorial round progress", async () => {
+    const markBeerRoundOfferedForTelegramUser = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("round-simple"),
+      servicesWith({
+        tavern: {
+          buyRoundForTelegramUser: () =>
+            Promise.resolve({
+              state: "simple-round" as const,
+              character,
+              spentGold: 10,
+              remainingGold: 32,
+              leaderboard: { day: [], week: [], month: [] },
+              becameLeader: []
+            })
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        barrelBeerTutorial: {
+          markBeerRoundOfferedForTelegramUser,
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "in-progress" as const,
+              character: { ...character, level: 2 },
+              progress: barrelBeerTutorialProgress(true, "location.korchma.bar")
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(markBeerRoundOfferedForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("Всім простого пива");
   });
 
   it("shows player gold on the Doppelganger stake picker callback", async () => {
@@ -6326,6 +6554,219 @@ describe("scene callback HTML options", () => {
     expect(String(notification?.payload.text)).toContain("<b>+25 XP\n+10 золота</b>");
   });
 
+  it("completes the Barrel beer tutorial through scheduled raid completion and beer callbacks", async () => {
+    vi.useFakeTimers();
+
+    const progress = {
+      accepted: false,
+      stipendGranted: false,
+      visitedBarrel: false,
+      raidCompleted: false,
+      beerRoundOffered: false,
+      beerDrunk: false,
+      activeBeer: false,
+      currentLocationId: "location.korchma.quest_table"
+    };
+    const barrelBeerTutorial = {
+      acceptForTelegramUser: vi.fn(() => {
+        progress.accepted = true;
+        progress.stipendGranted = true;
+
+        return Promise.resolve({
+          state: "accepted" as const,
+          character: { ...character, level: 2, gold: 39 },
+          stipendGold: 39,
+          progress: { ...progress }
+        });
+      }),
+      getForTelegramUser: vi.fn(() =>
+        Promise.resolve({
+          state: progress.accepted && progress.visitedBarrel && progress.raidCompleted &&
+            progress.beerRoundOffered && progress.beerDrunk && progress.activeBeer
+            ? "turn-in-ready" as const
+            : progress.accepted
+              ? "in-progress" as const
+              : "available" as const,
+          character: { ...character, level: 2 },
+          progress: { ...progress }
+        })
+      ),
+      markVisitedBarrelForTelegramUser: vi.fn(() => {
+        if (progress.accepted) {
+          progress.visitedBarrel = true;
+          progress.currentLocationId = "location.korchma.barrel";
+        }
+
+        return Promise.resolve();
+      }),
+      markBarrelRaidCompletedForTelegramUser: vi.fn(() => {
+        if (progress.accepted && progress.visitedBarrel) {
+          progress.raidCompleted = true;
+        }
+
+        return Promise.resolve();
+      }),
+      markBeerRoundOfferedForTelegramUser: vi.fn(() => {
+        if (progress.accepted && progress.visitedBarrel && progress.raidCompleted) {
+          progress.beerRoundOffered = true;
+        }
+
+        return Promise.resolve();
+      }),
+      markBeerDrunkForTelegramUser: vi.fn(() => {
+        if (progress.accepted) {
+          progress.beerDrunk = true;
+          progress.activeBeer = true;
+        }
+
+        return Promise.resolve();
+      }),
+      turnInForTelegramUser: vi.fn(() => {
+        if (progress.currentLocationId !== "location.korchma.quest_table") {
+          return Promise.resolve({
+            state: "wrong-location" as const,
+            character: { ...character, level: 2 },
+            progress: { ...progress }
+          });
+        }
+
+        if (
+          !progress.accepted ||
+          !progress.visitedBarrel ||
+          !progress.raidCompleted ||
+          !progress.beerRoundOffered ||
+          !progress.beerDrunk
+        ) {
+          return Promise.resolve({
+            state: "missing-progress" as const,
+            character: { ...character, level: 2 },
+            progress: { ...progress }
+          });
+        }
+
+        return Promise.resolve({
+          state: "completed" as const,
+          character: { ...character, level: 2, xp: 6 },
+          reward: {
+            xp: 6,
+            gold: 0,
+            itemGrants: [{
+              itemId: "item.persten-pyvovladdia",
+              name: "Перстень Пивовладдя",
+              quantity: 1
+            }]
+          },
+          levelChange: noLevelChange,
+          progress: { ...progress },
+          achievementUnlocks: []
+        });
+      })
+    };
+    const services = servicesWith({
+      presence: {
+        markAction: (input: MarkPresenceInput) => {
+          if ("locationId" in input) {
+            progress.currentLocationId = input.locationId;
+          }
+
+          return Promise.resolve();
+        },
+        getRaidParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getAdventureParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getCurrentPlaceForTelegramUser: () =>
+          Promise.resolve({
+            state: "ready",
+            locationId: progress.currentLocationId,
+            locationName: "Стіл зі справами",
+            insideKorchma: true
+          }),
+        getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      tavern: {
+        advanceFridayBarrelRaid: () =>
+          Promise.resolve({
+            state: "pending-started" as const,
+            character: { ...character, level: 2 },
+            availableAt: new Date("2026-06-13T10:31:00.000Z"),
+            now: new Date("2026-06-13T10:30:00.000Z"),
+            periodId: "2026-06-13T10:23"
+          }),
+        completeFridayBarrelRaid: () =>
+          Promise.resolve({
+            state: "completed" as const,
+            character: { ...character, level: 2 },
+            reward: {
+              xp: 25,
+              gold: 10,
+              localDate: "2026-06-13T10:23",
+              itemGrants: []
+            },
+            levelChange: noLevelChange
+          }),
+        getActivePendingFridayBarrelRaidForTelegramUser: () =>
+          Promise.resolve({ state: "none" as const })
+      },
+      shynok: {
+        confirmRoundOrderForTelegramUser: () =>
+          Promise.resolve({
+            state: "completed" as const,
+            character: { ...character, level: 2 },
+            tier: "simple" as const,
+            priceGold: 26,
+            recipientCount: 0,
+            recipients: [],
+            leaderboard: { day: [], week: [], month: [] }
+          }),
+        confirmSelfDrinkOrderForTelegramUser: () =>
+          Promise.resolve({
+            state: "completed" as const,
+            character: { ...character, level: 2 },
+            drink: {
+              key: "drink.simple-beer" as const,
+              name: "Просте пиво",
+              emoji: "🍺",
+              priceGold: 13,
+              durationMinutes: 23,
+              recoveryMultiplierBp: 12300,
+              accuracyPenaltyPp: 5,
+              phase: "timed" as const,
+              startedAt: new Date("2026-06-13T10:32:00.000Z"),
+              expiresAt: new Date("2026-06-13T10:55:00.000Z")
+            },
+            spentGold: 13
+          })
+      },
+      fight: questMarkerFightService(),
+      yeger: questMarkerYegerService(),
+      barrelBeerTutorial
+    });
+
+    await captureApiCalls(makeQuestCallbackData("barrel-tutorial"), services);
+    await captureApiCalls(makeTavernCallbackData("raid"), services);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await captureApiCalls(
+      makeShynokRoundConfirmCallbackData("simple", "12345678-1234-4234-9234-123456789abc"),
+      services
+    );
+    await captureApiCalls(
+      makeShynokDrinkConfirmCallbackData("12345678-1234-4234-9234-123456789abc"),
+      services
+    );
+    await captureApiCalls(makePlaceCallbackData("quest-table"), services);
+    const turnInCalls = await captureApiCalls(makeQuestCallbackData("barrel-tutorial-turn-in"), services);
+    const finalEdit = turnInCalls.find((call) => call.method === "editMessageText");
+
+    expect(barrelBeerTutorial.markVisitedBarrelForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(barrelBeerTutorial.markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(barrelBeerTutorial.markBeerRoundOfferedForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(barrelBeerTutorial.markBeerDrunkForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(barrelBeerTutorial.turnInForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(String(finalEdit?.payload.text)).toContain("Здається, Бочка тепер запамʼятала тебе");
+    expect(String(finalEdit?.payload.text)).toContain("<i>Отримано:</i>\n+6 XP");
+    expect(String(finalEdit?.payload.text)).toContain("Перстень Пивовладдя");
+  });
+
   it("does not send a barrel raid timer notification after manual completion claims the reward", async () => {
     vi.useFakeTimers();
 
@@ -6951,6 +7392,34 @@ function tavernGameCharacter(telegramUserId: bigint, id: string, name: string) {
     activeCosmeticTitleGrantId: null,
     statsJson: {},
     remortCount: 0
+  };
+}
+
+function barrelBeerTutorialProgress(done: boolean, currentLocationId: string) {
+  return {
+    accepted: done,
+    stipendGranted: done,
+    visitedBarrel: done,
+    raidCompleted: done,
+    beerRoundOffered: done,
+    beerDrunk: done,
+    activeBeer: done,
+    currentLocationId
+  };
+}
+
+function questMarkerFightService() {
+  return {
+    getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+    completeMimicShawarma: () => Promise.resolve({ state: "no-character" as const }),
+    getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+    getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+  };
+}
+
+function questMarkerYegerService() {
+  return {
+    getForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
   };
 }
 

@@ -1,4 +1,5 @@
 import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../services/adventureService";
+import type { BarrelBeerTutorialLookupResult } from "../../services/barrelBeerTutorialService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
@@ -44,6 +45,7 @@ export type QuestMarkerTarget =
   | "quest.yeger"
   | "quest.cellar"
   | "quest.cellar-grownup"
+  | "quest.barrel-beer-tutorial"
   | "quest.daily-korchma-round";
 
 export interface QuestMarkerInput {
@@ -55,6 +57,7 @@ export interface QuestMarkerInput {
   yeger?: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar?: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
+  barrelBeerTutorial?: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }>;
   dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
 }
 
@@ -105,6 +108,8 @@ export function resolveQuestMarkerForTarget(
       return input.cellar?.state === "ready" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
     case "quest.cellar-grownup":
       return getCellarGrownupMarker(input.cellarGrownup);
+    case "quest.barrel-beer-tutorial":
+      return getBarrelBeerTutorialMarker(input.barrelBeerTutorial);
     case "quest.daily-korchma-round":
       return getDailyKorchmaRoundMarker(input.dailyKorchmaRound);
     case "location.korchma.quest-table":
@@ -116,15 +121,20 @@ export function resolveQuestMarkerForTarget(
         resolveQuestMarkerForTarget(input, "quest.yeger"),
         resolveQuestMarkerForTarget(input, "quest.cellar"),
         resolveQuestMarkerForTarget(input, "quest.cellar-grownup"),
+        resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial"),
         resolveQuestMarkerForTarget(input, "quest.daily-korchma-round")
       ]);
     case "location.korchma.bar":
       return mergeQuestMarkers([
         resolveQuestMarkerForTarget(input, "quest.problem"),
+        getBarrelBeerTutorialBarMarker(input.barrelBeerTutorial),
         input.cellarGrownup?.state === "bottle-obtained" ? QuestMarker.CAN_TURN_IN : QuestMarker.NONE
       ]);
     case "location.korchma.barrel":
-      return input.yeger?.state === "offered" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
+      return mergeQuestMarkers([
+        input.yeger?.state === "offered" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE,
+        getBarrelBeerTutorialBarrelMarker(input.barrelBeerTutorial)
+      ]);
     case "location.korchma.cellar":
       return mergeQuestMarkers([
         resolveQuestMarkerForTarget(input, "quest.cellar"),
@@ -235,6 +245,57 @@ function getDailyKorchmaRoundMarker(
   }
 
   return QuestMarker.NONE;
+}
+
+function getBarrelBeerTutorialMarker(
+  quest: QuestMarkerInput["barrelBeerTutorial"]
+): QuestMarker {
+  if (quest?.state === "turn-in-ready") {
+    return QuestMarker.CAN_TURN_IN;
+  }
+
+  if (
+    quest?.state === "in-progress" &&
+    quest.progress.visitedBarrel &&
+    quest.progress.raidCompleted &&
+    quest.progress.beerRoundOffered &&
+    quest.progress.beerDrunk &&
+    quest.progress.activeBeer
+  ) {
+    return QuestMarker.CAN_TURN_IN;
+  }
+
+  if (quest?.state === "available") {
+    return QuestMarker.CAN_ACCEPT;
+  }
+
+  return QuestMarker.NONE;
+}
+
+function getBarrelBeerTutorialBarrelMarker(
+  quest: QuestMarkerInput["barrelBeerTutorial"]
+): QuestMarker {
+  if (quest?.state !== "in-progress") {
+    return QuestMarker.NONE;
+  }
+
+  return !quest.progress.visitedBarrel || !quest.progress.raidCompleted
+    ? QuestMarker.CAN_ACCEPT
+    : QuestMarker.NONE;
+}
+
+function getBarrelBeerTutorialBarMarker(
+  quest: QuestMarkerInput["barrelBeerTutorial"]
+): QuestMarker {
+  if (quest?.state !== "in-progress") {
+    return QuestMarker.NONE;
+  }
+
+  return quest.progress.visitedBarrel &&
+    quest.progress.raidCompleted &&
+    (!quest.progress.beerRoundOffered || !quest.progress.beerDrunk || !quest.progress.activeBeer)
+    ? QuestMarker.CAN_ACCEPT
+    : QuestMarker.NONE;
 }
 
 function canOpenAdventure(input: QuestMarkerInput): boolean {

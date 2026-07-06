@@ -8,6 +8,7 @@ export function resumeBotNotifications(bot: Bot, services: BotServices): void {
       bot,
       now: new Date(),
       tavernRaidService: services.tavern,
+      barrelBeerTutorialService: services.barrelBeerTutorial,
       notifications: services.barrelRaidNotifications
     }).catch((error) => {
       console.error("Квестарня: бочкові нотифікації після старту не відновились.", error);

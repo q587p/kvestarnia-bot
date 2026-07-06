@@ -98,6 +98,7 @@ describe("content tables", () => {
         "item.stamp-of-minor-authority",
         "item.apron-of-foam-resistance",
         "item.cork-ring-of-serious-business",
+        "item.persten-pyvovladdia",
         "item.wet-hero-ticket",
         "item.cheese-of-procedural-doubt",
         "item.bristle-of-basement-order",
@@ -119,7 +120,8 @@ describe("content tables", () => {
       expect.arrayContaining([
         "item.stamp-of-minor-authority",
         "item.apron-of-foam-resistance",
-        "item.cork-ring-of-serious-business"
+        "item.cork-ring-of-serious-business",
+        "item.persten-pyvovladdia"
       ])
     );
     expect(items.find((item) => item.id === "item.pan-of-persuasion")).toMatchObject({
@@ -144,6 +146,11 @@ describe("content tables", () => {
         luck: 1
       }
     });
+    expect(items.find((item) => item.id === "item.persten-pyvovladdia")).toMatchObject({
+      effect: {
+        luck: 1
+      }
+    });
   });
 
   it("declares canonical equipment slots for starter equipment", () => {
@@ -162,6 +169,13 @@ describe("content tables", () => {
     expect(items.find((item) => item.id === "item.cork-ring-of-serious-business")).toMatchObject({
       slot: "accessory",
       equipmentSlot: "accessory"
+    });
+    expect(items.find((item) => item.id === "item.persten-pyvovladdia")).toMatchObject({
+      slot: "accessory",
+      equipmentSlot: "accessory",
+      equipmentRequirements: {
+        minLevel: 2
+      }
     });
   });
 

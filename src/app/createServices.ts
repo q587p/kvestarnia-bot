@@ -6,6 +6,7 @@ import { PublicActivityEventPublisher } from "../services/publicActivityEventPub
 import { AchievementService } from "../services/achievementService";
 import { AdventureService } from "../services/adventureService";
 import { BardPerformanceService } from "../services/bardPerformanceService";
+import { BarrelBeerTutorialService } from "../services/barrelBeerTutorialService";
 import { CellarErrandService } from "../services/cellarErrandService";
 import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import { ClassNoncombatService } from "../services/classNoncombatService";
@@ -75,6 +76,13 @@ export function createServices(
     repositories.roundPurchases,
     repositories.cooldowns
   );
+  const barrelBeerTutorial = new BarrelBeerTutorialService(
+    repositories.characters,
+    repositories.dailyActions,
+    repositories.shynok,
+    undefined,
+    achievements
+  );
 
   return {
     activityEvents,
@@ -89,6 +97,7 @@ export function createServices(
       publicActivityEvents
     ),
     bardPerformance: new BardPerformanceService(repositories.bardPerformances),
+    barrelBeerTutorial,
     barrelRaidNotifications: repositories.barrelRaidNotifications,
     cellarErrand: new CellarErrandService(repositories.cooldowns, undefined, repositories.equipment),
     cellarGrownup: new CellarGrownupQuestService(
@@ -167,7 +176,7 @@ export function createServices(
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction
-    }, undefined, achievements, publicActivityEvents, repositories.inventory),
+    }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||

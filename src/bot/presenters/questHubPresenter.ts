@@ -1,5 +1,9 @@
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../services/adventureService";
+import {
+  BARREL_BEER_TUTORIAL_TITLE,
+  type BarrelBeerTutorialLookupResult
+} from "../../services/barrelBeerTutorialService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
@@ -26,6 +30,7 @@ export interface QuestHubSnapshot {
   starterFight?: Exclude<FightLookupResult, { state: "no-character" }>;
   problemQuest: ProblemQuestProgress;
   problemQuestArchive: ProblemQuestProgress[];
+  barrelBeerTutorial?: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }>;
   yeger: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
@@ -402,6 +407,46 @@ function presentDailyKorchmaRoundRow(
     : `${title} — ${completed}/2 дрібниць чекають ревізії здорового глузду.`;
 }
 
+function presentBarrelBeerTutorialRow(
+  quest: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }> | undefined
+): string | null {
+  if (!quest || quest.state === "completed") {
+    return null;
+  }
+
+  const title = `🛢️ <i>${BARREL_BEER_TUTORIAL_TITLE}</i>`;
+
+  if (quest.state === "level-locked" || quest.state === "level-retired") {
+    return null;
+  }
+
+  if (quest.state === "available") {
+    return `${title} — На столі лежить записка з круглим слідом від кухля: «Новачкам — 39 золота на дорогу до Бочки. Повернутися з піною в голові, але на своїх ногах».`;
+  }
+
+  if (quest.state === "turn-in-ready") {
+    return `${title} — піна ще тримається; стіл чекає повернення героя з Бочки.`;
+  }
+
+  if (!quest.progress.visitedBarrel) {
+    return `${title} — Бочка сама себе не знайде. Шукай місце, де наливають голосніше, ніж радять.`;
+  }
+
+  if (!quest.progress.raidCompleted) {
+    return `${title} — ти вже біля Бочки. Для початку пройди місцевий новачковий соло-рейд.`;
+  }
+
+  if (!quest.progress.beerRoundOffered || !quest.progress.beerDrunk) {
+    return `${title} — рейд позаду. Тепер вистав пива й не забудь випити свій кухоль.`;
+  }
+
+  if (!quest.progress.activeBeer) {
+    return `${title} — пивна відвага вивітрилася. Випий пива й повертайся до столу, поки ефект діє.`;
+  }
+
+  return `${title} — піна ще тримається. Повертайся до столу, доки ефект пива не вивітрився.`;
+}
+
 function hasGrownupBottle(
   cellarGrownup:
     | Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
@@ -449,6 +494,7 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
     presentActiveFightRow(snapshot.character, snapshot.fight),
     presentActiveYegerRow(snapshot.yeger),
     presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup),
+    presentBarrelBeerTutorialRow(snapshot.barrelBeerTutorial),
     snapshot.dailyKorchmaRound?.state === "completed"
       ? null
       : presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
@@ -473,6 +519,9 @@ function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
     starterFightArchiveRow ? null : presentFightArchiveRow(snapshot.character, snapshot.fight),
     ...presentYegerArchiveRows(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup),
+    snapshot.barrelBeerTutorial?.state === "completed"
+      ? `🛢️ <i>${BARREL_BEER_TUTORIAL_TITLE}</i> — виконано; Бочка тепер робить вигляд, що так і планувала.`
+      : null,
     snapshot.dailyKorchmaRound?.state === "completed"
       ? presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
       : null
@@ -532,6 +581,9 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
     snapshot.yeger.state === "turn-in-ready" ||
     snapshot.cellar.state === "ready" ||
     (snapshot.cellar.state === "level-retired" && snapshot.cellarGrownup?.state !== "completed") ||
+    snapshot.barrelBeerTutorial?.state === "available" ||
+    snapshot.barrelBeerTutorial?.state === "in-progress" ||
+    snapshot.barrelBeerTutorial?.state === "turn-in-ready" ||
     snapshot.dailyKorchmaRound?.state === "ready" ||
     snapshot.dailyKorchmaRound?.state === "turn-in-ready"
   );

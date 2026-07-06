@@ -20,7 +20,7 @@ PRESENCE_LOCATION_KORCHMA_YARD,
 PRESENCE_RAID_FRIDAY_BARREL
 } from "../../services/presenceService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
-import type { ShynokRoundConfirmResult } from "../../services/shynokService";
+import type { PresentedShynokDrinkState, ShynokRoundConfirmResult } from "../../services/shynokService";
 import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
@@ -667,12 +667,20 @@ async function handleShynokCallback(
 
   if (action.type === "drink-confirm") {
     const result = await services.shynok.confirmSelfDrinkOrderForTelegramUser(telegramUserId, action.token);
+    let drinkResultNavigationOptions = shynokNavigationOptions;
+    if (result.state === "completed" && isBeerDrinkState(result.drink)) {
+      await services.barrelBeerTutorial?.markBeerDrunkForTelegramUser(telegramUserId);
+      const updatedQuestMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+      drinkResultNavigationOptions = {
+        ...(updatedQuestMarkers ? { questMarkers: updatedQuestMarkers } : {})
+      };
+    }
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Налито.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
     await safeEditMessageText(ctx, presentShynokDrinkConfirmResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokDrinkResultKeyboard(shynokNavigationOptions)
+      reply_markup: buildShynokDrinkResultKeyboard(drinkResultNavigationOptions)
     });
     return;
   }
@@ -701,6 +709,14 @@ async function handleShynokCallback(
       action.token,
       action.tier
     );
+    let roundResultNavigationOptions = shynokNavigationOptions;
+    if (result.state === "completed") {
+      await services.barrelBeerTutorial?.markBeerRoundOfferedForTelegramUser(telegramUserId);
+      const updatedQuestMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+      roundResultNavigationOptions = {
+        ...(updatedQuestMarkers ? { questMarkers: updatedQuestMarkers } : {})
+      };
+    }
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Кухлі поставлено.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
@@ -709,7 +725,7 @@ async function handleShynokCallback(
     }
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundResultKeyboard(result, shynokNavigationOptions)
+      reply_markup: buildShynokRoundResultKeyboard(result, roundResultNavigationOptions)
     });
     return;
   }
@@ -729,6 +745,16 @@ async function handleShynokCallback(
           : "confirm-replacement",
       action.type === "round-replace-confirm" ? action.replacementGuard : undefined
     );
+    if (result.state === "accepted" && isBeerDrinkState(result.drink)) {
+      await services.barrelBeerTutorial?.markBeerDrunkForTelegramUser(telegramUserId);
+    }
+    let roundOfferNavigationOptions = shynokNavigationOptions;
+    if (result.state === "accepted" && isBeerDrinkState(result.drink)) {
+      const updatedQuestMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+      roundOfferNavigationOptions = {
+        ...(updatedQuestMarkers ? { questMarkers: updatedQuestMarkers } : {})
+      };
+    }
     await safeAnswerCallbackQuery(ctx, result.state === "accepted"
       ? { text: "Кухоль ваш.", show_alert: false }
       : {
@@ -739,7 +765,7 @@ async function handleShynokCallback(
         });
     await safeEditMessageText(ctx, presentShynokRoundOfferResponse(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildShynokRoundOfferResponseKeyboard(result, shynokNavigationOptions)
+      reply_markup: buildShynokRoundOfferResponseKeyboard(result, roundOfferNavigationOptions)
     });
     return;
   }
@@ -1141,6 +1167,7 @@ async function handlePlaceCallback(
 
   if (action === "barrel") {
     await sendBarrelPlaceMovementNotice(ctx, telegramUserId, services);
+    await services.barrelBeerTutorial?.markVisitedBarrelForTelegramUser(telegramUserId);
     if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_BARREL, services)) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
@@ -1487,11 +1514,19 @@ async function handleTavernCallback(
       return;
     }
 
+    if (result.state === "simple-round" || result.state === "fine-round") {
+      await services.barrelBeerTutorial?.markBeerRoundOfferedForTelegramUser(telegramUserId);
+    }
+    const roundResultQuestMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+
     await safeAnswerCallbackQuery(ctx);
     const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
     await safeEditMessageText(ctx, presentTavernRoundResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildKorchmaRoundResultKeyboard(result, tavernGameOptions)
+      reply_markup: buildKorchmaRoundResultKeyboard(result, {
+        ...tavernGameOptions,
+        ...(roundResultQuestMarkers ? { questMarkers: roundResultQuestMarkers } : {})
+      })
     });
     return;
   }
@@ -1517,6 +1552,11 @@ async function handleTavernCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentTavernNoCharacter());
     return;
+  }
+
+  if (result.state === "completed") {
+    await services.barrelBeerTutorial?.markVisitedBarrelForTelegramUser(telegramUserId);
+    await services.barrelBeerTutorial?.markBarrelRaidCompletedForTelegramUser(telegramUserId);
   }
 
   const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
@@ -1548,6 +1588,7 @@ async function handleTavernCallback(
       availableAt: result.availableAt,
       now: result.now,
       tavernRaidService,
+      barrelBeerTutorialService: services.barrelBeerTutorial,
       ...(services.barrelRaidNotifications && notification
         ? {
             notifications: services.barrelRaidNotifications,
@@ -1560,6 +1601,10 @@ async function handleTavernCallback(
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);
   }
+}
+
+function isBeerDrinkState(drink: PresentedShynokDrinkState | null): boolean {
+  return drink?.key === "drink.simple-beer" || drink?.key === "drink.fine-beer";
 }
 
 async function handleCellarCallback(
