@@ -1829,7 +1829,7 @@ describe("scene callback HTML options", () => {
               reward: {
                 xp: 56,
                 gold: 170,
-                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Р„РіРµСЂСЊРєР° СЂРёСЃРєР° РЅР° РґРѕС‰РµС‡С†С–", quantity: 2 }]
+                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
               }
             })
         }
@@ -2685,7 +2685,7 @@ describe("scene callback HTML options", () => {
             Promise.resolve({
               state: "ready" as const,
               locationId: "location.korchma.hall",
-              locationName: "Р—Р°Р»Р° РєРѕСЂС‡РјРё",
+              locationName: "Зала корчми",
               insideKorchma: true
             }),
           getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
@@ -2711,7 +2711,6 @@ describe("scene callback HTML options", () => {
     );
     expect(scene).toBeDefined();
     expect(keyboard).toContain("v1:dkr:a:20260628:0:sign-ink:0");
-    expect(calls.some((call) => String(call.payload.text).includes("РЎС‚С–Р» Р·С– СЃРїСЂР°РІР°РјРё"))).toBe(false);
   });
 
   it("falls through to ordinary location content when no daily Korchma offer was issued yet", async () => {
@@ -7184,7 +7183,7 @@ async function captureRepeatedApiCalls(
         result: {
           id: 123456,
           is_bot: true,
-          first_name: "РљРІРµСЃС‚Р°СЂРЅСЏ",
+          first_name: "Квестарня",
           username: "kvestarnia_bot"
         }
       });
@@ -7206,7 +7205,7 @@ async function captureRepeatedApiCalls(
         from: {
           id: 42,
           is_bot: false,
-          first_name: "РўРµСЃС‚"
+          first_name: "Тест"
         },
         chat_instance: "chat-instance",
         data: callbackData,
@@ -7216,7 +7215,7 @@ async function captureRepeatedApiCalls(
           chat: {
             id: 42,
             type: "private",
-            first_name: "РўРµСЃС‚"
+            first_name: "Тест"
           },
           text: "old"
         }

@@ -6,19 +6,21 @@
 
 ## 0.2.29 — Mantok Ability Grants Foundation smoke
 
-Manual Telegram QA status for the implementation pass: not run.
+Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons staying visible while unusable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
 
 1. Seed or win each ability-granting manatka from the `9..13` band and equip it on a level-appropriate character.
-2. Start persistent one-enemy and two-enemy fights and verify currently available gear-action buttons appear after the normal fight controls.
+2. Start persistent one-enemy and two-enemy fights and verify currently usable gear-action buttons appear after the normal fight controls, while cooldown/mana-blocked gear actions stay in text but not on the keyboard.
 3. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
 4. Use the shield, bleed and borrowed-action buttons; verify each spends the current turn, applies its damage/support effect, writes the effect on the fight card and in `📜 Журнал бою`, spends mana when required and starts only its own gear cooldown.
-4a. After a gear action starts cooldown, verify its button disappears while the fight card still shows the cooldown line, then take enough ordinary player turns and verify the button returns and can trigger again.
-5. Replay a stale gear callback after the turn advances and verify no mana, cooldown, RNG or monster response changes.
-6. Verify bleed appears visibly, ticks during committed hero activations in single- and multi-enemy fights and can finish combat without an extra status-kill response.
-7. Start a Big Barrel Brother raid and a turn-based duel with an eligible gear-action manatka; verify the button appears only while usable, resolves during active combat, applies damage/support, and writes the effect to the active card plus the raid journal or duel stored round replay.
-8. Open item detail, `/equipment` and `/hero`; verify granted actions and the Yeger cloak service marker are explained compactly, including aggregate `Дія спорядження` rows.
-9. Verify `Єгерський плащ чужої справи` does not unlock dense bandages, field kits or Yeger boards.
-10. Win fights against configured source monsters if convenient; verify grant manatky can appear without removing existing trophy/coverage/set loot.
+5. After a gear action starts cooldown, verify its button disappears while the fight card still shows the cooldown line, then take enough ordinary player turns and verify the button returns and can trigger again.
+6. Replay a stale gear callback after the turn advances and verify no mana, cooldown, RNG or monster response changes.
+7. Verify bleed appears visibly, ticks during committed hero activations in single- and multi-enemy fights and can finish combat without an extra status-kill response.
+8. Start a Big Barrel Brother raid with an eligible gear-action manatka; verify the button appears only while usable, resolves during active combat, applies damage/support before boss retaliation, writes the effect to the active card plus `📜 Журнал`, and duplicate/stale/missing-grant gear callbacks do not double-apply effects.
+9. In the Big Barrel raid, verify active-combat redirects preserve refresh, item menu, item-use and gear shortcuts, and the one-use shortcut is hidden when no useful one-use manatky are available.
+10. Start a turn-based duel with an eligible gear-action manatka; verify the button appears only while usable, resolves during active combat, writes damage/support to the stored round replay, stale/missing-grant callbacks do not advance the duel, and quick duels stay instant without gear actions.
+11. Open item detail, `/equipment` and `/hero`; verify granted actions and the Yeger cloak service marker are explained compactly, including aggregate `Дія спорядження` rows.
+12. Verify `Єгерський плащ чужої справи` does not unlock dense bandages, field kits or Yeger boards.
+13. Win fights against configured source monsters if convenient; verify grant manatky can appear without removing existing trophy/coverage/set loot.
 
 ## 0.2.28 — Mantok Set Synergies Foundation smoke
 

@@ -242,9 +242,9 @@ export async function handlePartySessionCallback(
       callback.grantKey
     );
     await safeAnswerCallbackQuery(ctx, result.state === "updated"
-      ? { text: "Р’РёР±С–СЂ РѕРЅРѕРІР»РµРЅРѕ." }
+      ? { text: "Вибір оновлено." }
       : result.state === "duplicate"
-        ? { text: "Р”С–СЋ РІР¶Рµ Р·Р°РїРёСЃР°РЅРѕ." }
+        ? { text: "Дію вже записано." }
         : undefined);
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
@@ -265,11 +265,11 @@ export async function handlePartySessionCallback(
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: result.session.status === "active"
           ? big
-            ? "РҐС–Рґ РѕРЅРѕРІР»РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РЅРѕРІРёР№ СЃС‚Р°РЅ СЂРµР№РґСѓ."
-            : "РҐС–Рґ РѕРЅРѕРІР»РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РЅРѕРІРёР№ СЃС‚Р°РЅ С‚РµСЃС‚РѕРІРѕРіРѕ Р±РѕСЋ."
+            ? "Хід оновлено. Показую новий стан рейду."
+            : "Хід оновлено. Показую новий стан тестового бою."
           : big
-            ? "Р РµР№Рґ Р·Р°РІРµСЂС€РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РїС–РґСЃСѓРјРѕРє."
-            : "РўРµСЃС‚РѕРІРёР№ Р±С–Р№ Р·Р°РІРµСЂС€РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РїС–РґСЃСѓРјРѕРє."
+            ? "Рейд завершено. Показую підсумок."
+            : "Тестовий бій завершено. Показую підсумок."
       });
     }
     return;

@@ -98,7 +98,7 @@ describe("party boss reducer", () => {
       partySessionId: "party-gear",
       now: new Date("2026-06-30T10:00:00.000Z"),
       participants: [
-        participant("character-1", "РџРµСЂС€Р°", {
+        participant("character-1", "Перша", {
           level: 10,
           dexterity: 14,
           equipmentAbilityGrantIds: [grant.id]
@@ -137,6 +137,100 @@ describe("party boss reducer", () => {
     expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
       id: "gear.red-line-dagger",
       remainingTurns: 3
+    });
+  });
+
+  it("records party boss gear actions without effects when mana is missing", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-no-mana",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 10,
+          manaCurrent: 0,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-no-mana",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      outcome: "not-enough-mana",
+      damage: 0,
+      manaSpent: 0
+    });
+    expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toBeUndefined();
+  });
+
+  it("records party boss gear actions without effects while equipment cooldown is active", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-cooldown",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 10,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+    state.participants[0]!.resources.cooldowns = {
+      abilities: {
+        [grant.combat.profile.id]: {
+          id: grant.combat.profile.id,
+          remainingTurns: 2
+        }
+      }
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-cooldown",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      outcome: "skill-on-cooldown",
+      damage: 0,
+      manaSpent: 0
+    });
+    expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 2
     });
   });
 

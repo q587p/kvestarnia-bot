@@ -411,6 +411,83 @@ describe("turn-based duel domain", () => {
     });
   });
 
+  it("rejects turn-based gear actions without enough mana", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 10,
+        manaCurrent: 0,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const result = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "not-enough-mana",
+      state
+    });
+    expect(state.pendingActions).toBeUndefined();
+  });
+
+  it("rejects turn-based gear actions while their equipment cooldown is active", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 10,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+    state.participants.challenger.cooldowns = {
+      abilities: {
+        [grant.combat.profile.id]: {
+          id: grant.combat.profile.id,
+          remainingTurns: 2
+        }
+      }
+    };
+
+    const result = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "skill-on-cooldown",
+      state
+    });
+    expect(state.pendingActions).toBeUndefined();
+  });
+
   it("applies borrowed equipment support effects in turn-based duels", () => {
     const grant = findMantokAbilityGrantByKey("ascstf");
     if (!grant?.combat) {

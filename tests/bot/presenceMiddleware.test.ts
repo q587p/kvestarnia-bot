@@ -11,6 +11,7 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import {
+  makePartyBossGearActionCallbackData,
   makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartySessionViewCallbackData
@@ -489,6 +490,39 @@ describe("presence middleware", () => {
     )));
 
     expect(listCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, boss.partyInviteToken, boss.turn);
+  });
+
+  it("lets party boss gear callbacks bypass the active combat lock", async () => {
+    const presence = new CapturingPresenceService();
+    const boss = activePartyBossSession();
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({
+      state: "queued" as const,
+      session: boss
+    });
+    const bot = createTestBot(presence, {
+      partySessions: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false
+      } as NonNullable<BotServices["partySessions"]>,
+      partyBoss: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        getActiveForTelegramUser: () => {
+          throw new Error("party gear action should not be intercepted by the combat lock");
+        },
+        submitGearForTelegramUser,
+        hasCombatItemsForTelegramUser: () => Promise.resolve(false)
+      } as unknown as NonNullable<BotServices["partyBoss"]>
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makePartyBossGearActionCallbackData({
+      token: boss.partyInviteToken,
+      turn: boss.turn,
+      grantKey: "rldagr"
+    })));
+
+    expect(submitGearForTelegramUser).toHaveBeenCalledWith(42n, boss.partyInviteToken, boss.turn, "rldagr");
   });
 
   it("keeps active training combat presence instead of stamping blocked tavern destination", async () => {

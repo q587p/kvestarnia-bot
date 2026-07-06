@@ -1229,6 +1229,69 @@ describe("DuelChallengeService", () => {
     );
   });
 
+  it("treats turn-based duel gear callbacks without the equipped grant as stale", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { level: 10 });
+    world.addCharacter(2n, { level: 10 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "stale" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
+  it("keeps equipped gear grants out of quick duel resolution", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, { level: 10 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    expect(accepted.state).toBe("resolved");
+    expect(world.sessions.size).toBe(0);
+    expect(world.challenges.get(created.challenge.inviteToken)?.mode).toBe("quick");
+  });
+
   it("reports the challenger when their active combat lease blocks turn-based start", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, { name: "Зайнятий Автор" });

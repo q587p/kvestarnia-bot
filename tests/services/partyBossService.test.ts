@@ -151,6 +151,41 @@ describe("PartyBossService achievements", () => {
     expect(call?.[5]?.gearAbility?.profile.id).toBe("gear.red-line-dagger");
   });
 
+  it("treats party-boss gear callbacks without the equipped grant as stale", async () => {
+    const session = makeSessionWithParticipant();
+    const submitActionForTelegramUser = vi.fn<PartyBossRepository["submitActionForTelegramUser"]>();
+    const repository = {
+      findByPartyInviteToken: vi.fn<PartyBossRepository["findByPartyInviteToken"]>().mockResolvedValue(session),
+      submitActionForTelegramUser
+    } as unknown as PartyBossRepository;
+    const service = new PartyBossService(repository, { enabled: true });
+
+    const result = await service.submitGearForTelegramUser(123n, "token-1", 1, "rldagr");
+
+    expect(result).toEqual({ state: "stale", session });
+    expect(submitActionForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("passes duplicate party-boss gear actions through without creating a second effect", async () => {
+    const session = makeSessionWithParticipant({
+      equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"]
+    });
+    const result: PartyBossActionResult = {
+      state: "duplicate",
+      session
+    };
+    const submitActionForTelegramUser =
+      vi.fn<PartyBossRepository["submitActionForTelegramUser"]>().mockResolvedValue(result);
+    const repository = {
+      findByPartyInviteToken: vi.fn<PartyBossRepository["findByPartyInviteToken"]>().mockResolvedValue(session),
+      submitActionForTelegramUser
+    } as unknown as PartyBossRepository;
+    const service = new PartyBossService(repository, { enabled: true });
+
+    await expect(service.submitGearForTelegramUser(123n, "token-1", 1, "rldagr")).resolves.toEqual(result);
+    expect(submitActionForTelegramUser).toHaveBeenCalledTimes(1);
+  });
+
   it("lists owned useful one-use combat items for the active party boss participant", async () => {
     const occurredAt = new Date("2026-07-01T19:00:00.000Z");
     const session = makeSessionWithParticipant({
