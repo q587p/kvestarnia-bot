@@ -1,7 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
-import { getCombatActionAvailability, getCombatGearActionAvailability, getTerminalCombatTurnLogEventId } from "../../domain/combat";
+import { getCombatActionAvailability, getTerminalCombatTurnLogEventId } from "../../domain/combat";
 import { getCombatMantokAbilityGrantsByIds } from "../../content";
 import {
   getPersistentFightRaceAbilityLabel,
@@ -102,7 +102,7 @@ export function buildPersistentFightKeyboard(
     ? getCombatMantokAbilityGrantsByIds({
         grantIds: session.state.equipmentAbilities?.grantIds ?? [],
         characterLevel: character.level
-      }).filter((grant) => grant.combat && getCombatGearActionAvailability(session.state!, grant.combat.profile).available)
+      })
     : [];
 
   for (const [index, grant] of gearGrants.entries()) {

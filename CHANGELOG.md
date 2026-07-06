@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
 
 ### Fixed
+- Kept frozen persistent PvE gear-action buttons visible even when mana or cooldown gates block the action, so the callback gate can explain the blocker without advancing combat.
 - Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.
 
 ### Deferred

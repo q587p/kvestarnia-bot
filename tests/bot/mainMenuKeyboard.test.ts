@@ -1212,7 +1212,7 @@ describe("main menu and scene keyboards", () => {
     }, character))).toEqual(["v1:place:quest-table"]);
   });
 
-  it("hides unavailable persistent gear action buttons while the fight card explains the blocker", () => {
+  it("keeps unavailable persistent gear action buttons so the callback gate can explain the blocker", () => {
     const session = {
       ...persistentFightSession(),
       state: {
@@ -1231,8 +1231,10 @@ describe("main menu and scene keyboards", () => {
     };
     const keyboard = buildPersistentFightKeyboard(session, { ...character, level: 10 });
 
-    expect(flatInlineButtonTexts(keyboard)).not.toContain("🩸 Червоний рядок");
-    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:fight:gear:"))).toBe(false);
+    expect(flatInlineButtonTexts(keyboard)).toContain("🩸 Червоний рядок");
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(
+      "v1:fight:gear:123e4567-e89b-12d3-a456-426614174000:4:rldagr"
+    );
   });
 
   it("adds journal navigation only on persistent fight results", () => {
