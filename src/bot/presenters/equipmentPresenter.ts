@@ -70,14 +70,16 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   }
 
   if (result.state === "requirements-not-met") {
-    const itemName = plainTextForCallback(result.item.content.name);
+    const itemName = presentCallbackHtmlText(result.item.content.name);
     const reasons = presentEquipRequirementReasons(result.reasons, result.requirements);
 
     return [
-      `Ще не екіпірується: ${itemName}.`,
+      `Ще не екіпірується: <b>${itemName}</b>.`,
+      "",
       reasons ? `Потрібно: ${reasons}.` : "Корчмар ще звіряє правила цієї манатки.",
+      "",
       "Це правило манатки, не помилка героя."
-    ].join(" ");
+    ].join("\n");
   }
 
   if (result.state === "unsupported-slot") {
@@ -90,10 +92,11 @@ export function presentEquipItemResult(result: EquipItemResult): string {
 
   if (result.state === "twohand-confirm-required") {
     return [
-      `Дворучна примірка: ${plainTextForCallback(result.item.content.name)} займе обидві руки.`,
-      `Звільниться: ${plainTextForCallback(result.clearedHandItem.content.name)}.`,
+      `Дворучна примірка: <b>${presentCallbackHtmlText(result.item.content.name)}</b> займе обидві руки.`,
+      `Звільниться: <b>${presentCallbackHtmlText(result.clearedHandItem.content.name)}</b>.`,
+      "",
       "Підтвердити?"
-    ].join(" ");
+    ].join("\n");
   }
 
   const effect = presentItemEffect(result.item.content.effect);
@@ -105,16 +108,16 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   if (result.replacedItem) {
     lines.push(
       `\nПопередня манатка зі слота <i>${presentEquipmentSlotLabel(result.slot)}</i> лишилася в торбі:`,
-      `${presentCallbackHtmlText(result.replacedItem.content.name)}.`
+      `<b>${presentCallbackHtmlText(result.replacedItem.content.name)}</b>.`
     );
   } else {
-    lines.push(`Слот: <i>${presentEquipmentSlotLabel(result.slot)}</i>.`);
+    lines.push(`\nСлот: <i>${presentEquipmentSlotLabel(result.slot)}</i>.`);
   }
 
   if (result.clearedHandItem) {
     lines.push(
       "\nКонфліктна рука звільнилася:",
-      `${presentCallbackHtmlText(result.clearedHandItem.content.name)} лишилася в торбі.`
+      `<b>${presentCallbackHtmlText(result.clearedHandItem.content.name)}</b> лишилася в торбі.`
     );
   }
 
@@ -253,9 +256,9 @@ function presentSlotDeniedEquipResult(
   reason: EquipmentSlotDeniedReason
 ): string {
   return [
-    `Не екіпірується в слот «${presentEquipmentSlotLabel(slot)}»: ${plainTextForCallback(itemName)}.`,
+    `Не екіпірується в слот <i>${presentEquipmentSlotLabel(slot)}</i>: <b>${presentCallbackHtmlText(itemName)}</b>.`,
     `${capitalizeFirst(presentSlotDeniedReason(reason, slot))}.`
-  ].join(" ");
+  ].join("\n");
 }
 
 function capitalizeFirst(value: string): string {

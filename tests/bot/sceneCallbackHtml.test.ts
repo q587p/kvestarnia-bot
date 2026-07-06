@@ -1874,8 +1874,10 @@ describe("scene callback HTML options", () => {
     expect(edit?.payload).toMatchObject({
       parse_mode: "HTML"
     });
-    expect(String(edit?.payload.text)).toContain("Ще не екіпірується: Жетон Боргоманта +3.");
-    expect(String(edit?.payload.text)).toContain("Потрібно: вищий рівень, сумісний клас.");
+    expect(String(edit?.payload.text)).toContain("Ще не екіпірується: <b>Жетон Боргоманта +3</b>.");
+    expect(String(edit?.payload.text)).toContain(
+      "<b>Жетон Боргоманта +3</b>.\n\nПотрібно: вищий рівень, сумісний клас."
+    );
     expect(String(edit?.payload.text)).toContain("Це правило манатки, не помилка героя.");
   });
 
@@ -1937,7 +1939,7 @@ describe("scene callback HTML options", () => {
     expect(getEquipmentForTelegramUser).not.toHaveBeenCalled();
     expect(text).toContain("Екіпіровано: <b>Пательня переконання</b>.");
     expect(text).toContain("Попередня манатка зі слота <i>Основна рука</i> лишилася в торбі:");
-    expect(text).toContain("Стара пательня.");
+    expect(text).toContain("<b>Стара пательня</b>.");
     expect(keyboard).toContain("v1:item:inventory");
     expect(keyboard).toContain("v1:equip:view");
   });
