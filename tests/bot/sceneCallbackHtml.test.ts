@@ -48,6 +48,7 @@ import {
 import {
   makeShynokBarrelRoundPreviewCallbackData,
   makeShynokDicePokerRollCallbackData,
+  makeShynokDrinkConfirmCallbackData,
   makeShynokDoppelgangerModeCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokKostiDecisionCallbackData,
@@ -273,6 +274,50 @@ describe("scene callback HTML options", () => {
       parse_mode: "HTML"
     });
     expect(String(edit?.payload.text)).toMatch(/<b>|<i>/);
+  });
+
+  it("marks Barrel tutorial raid progress before building the raid result quest markers", async () => {
+    const markBarrelRaidCompletedForTelegramUser = vi.fn(() => Promise.resolve());
+    const getBarrelBeerTutorial = vi.fn(() =>
+      Promise.resolve({
+        state: "in-progress" as const,
+        character,
+        progress: barrelBeerTutorialProgress(true, "location.korchma.barrel")
+      })
+    );
+
+    await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern: {
+          advanceFridayBarrelRaid: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character: { ...character, level: 2 },
+              reward: {
+                xp: 7,
+                gold: 5,
+                localDate: "12026-06-12",
+                itemGrants: []
+              },
+              levelChange: noLevelChange
+            })
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        barrelBeerTutorial: {
+          markVisitedBarrelForTelegramUser: () => Promise.resolve(),
+          markBarrelRaidCompletedForTelegramUser,
+          getForTelegramUser: getBarrelBeerTutorial
+        }
+      })
+    );
+
+    expect(markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getBarrelBeerTutorial).toHaveBeenCalled();
+    const markOrder = markBarrelRaidCompletedForTelegramUser.mock.invocationCallOrder[0] ?? 0;
+    const markerSnapshotOrder = getBarrelBeerTutorial.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY;
+    expect(markOrder).toBeLessThan(markerSnapshotOrder);
   });
 
   it("routes starter authored method callbacks to the mimic-shawarma completion path", async () => {
@@ -1090,6 +1135,8 @@ describe("scene callback HTML options", () => {
     )).toBe(false);
     const edit = calls.find((call) => call.method === "editMessageText");
     expect(edit?.payload.text).toContain("звітувати треба біля столу");
+    expect(edit?.payload.text).not.toContain("+6 XP");
+    expect(edit?.payload.text).not.toContain("Перстень Пивовладдя");
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makePlaceCallbackData("quest-table"));
   });
 
@@ -3141,6 +3188,62 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:sh:rc:simple:12345678-1234-4234-9234-123456789abc");
   });
 
+  it("refreshes quest markers after a Shynok beer drink completes Barrel tutorial drink progress", async () => {
+    let drinkMarked = false;
+    const markBeerDrunkForTelegramUser = vi.fn(() => {
+      drinkMarked = true;
+      return Promise.resolve();
+    });
+    const getBarrelBeerTutorial = vi.fn(() =>
+      Promise.resolve({
+        state: drinkMarked ? "turn-in-ready" as const : "in-progress" as const,
+        character: { ...character, level: 2 },
+        progress: {
+          ...barrelBeerTutorialProgress(true, "location.korchma.bar"),
+          beerDrunk: drinkMarked,
+          activeBeer: drinkMarked
+        }
+      })
+    );
+
+    const calls = await captureApiCalls(
+      makeShynokDrinkConfirmCallbackData("12345678-1234-4234-9234-123456789abc"),
+      servicesWith({
+        shynok: {
+          confirmSelfDrinkOrderForTelegramUser: () =>
+            Promise.resolve({
+              state: "completed" as const,
+              character,
+              drink: {
+                key: "drink.simple-beer" as const,
+                name: "Просте пиво",
+                emoji: "🍺",
+                priceGold: 13,
+                durationMinutes: 23,
+                recoveryMultiplierBp: 12300,
+                accuracyPenaltyPp: 5,
+                phase: "timed" as const,
+                startedAt: new Date("2026-06-24T11:00:00.000Z"),
+                expiresAt: new Date("2026-06-24T11:23:00.000Z")
+              },
+              spentGold: 13
+            })
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        barrelBeerTutorial: {
+          markBeerDrunkForTelegramUser,
+          getForTelegramUser: getBarrelBeerTutorial
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(markBeerDrunkForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getBarrelBeerTutorial).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ До зали ✅");
+  });
+
   it("notifies round recipients when a Shynok round is placed", async () => {
     const calls = await captureApiCalls(
       makeShynokRoundConfirmCallbackData("simple", "12345678-1234-4234-9234-123456789abc"),
@@ -3206,6 +3309,41 @@ describe("scene callback HTML options", () => {
     );
 
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("marks the legacy Tavern beer round path as Barrel tutorial round progress", async () => {
+    const markBeerRoundOfferedForTelegramUser = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("round-simple"),
+      servicesWith({
+        tavern: {
+          buyRoundForTelegramUser: () =>
+            Promise.resolve({
+              state: "simple-round" as const,
+              character,
+              spentGold: 10,
+              remainingGold: 32,
+              leaderboard: { day: [], week: [], month: [] },
+              becameLeader: []
+            })
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        barrelBeerTutorial: {
+          markBeerRoundOfferedForTelegramUser,
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "in-progress" as const,
+              character: { ...character, level: 2 },
+              progress: barrelBeerTutorialProgress(true, "location.korchma.bar")
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(markBeerRoundOfferedForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("Всім простого пива");
   });
 
   it("shows player gold on the Doppelganger stake picker callback", async () => {
@@ -7048,6 +7186,21 @@ function barrelBeerTutorialProgress(done: boolean, currentLocationId: string) {
     beerDrunk: done,
     activeBeer: done,
     currentLocationId
+  };
+}
+
+function questMarkerFightService() {
+  return {
+    getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+    completeMimicShawarma: () => Promise.resolve({ state: "no-character" as const }),
+    getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
+    getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+  };
+}
+
+function questMarkerYegerService() {
+  return {
+    getForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
   };
 }
 

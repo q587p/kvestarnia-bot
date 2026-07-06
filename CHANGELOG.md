@@ -18,7 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused service, callback-data, content, callback-route and quest-hub tests for level gating, stipend no-farm behavior, required route progress, mandatory post-raid beer round, active-beer turn-in, expired-beer retry and one-time XP/item reward.
 
 ### Changed
-- Wired the existing Barrel place callback, solo Barrel raid completion, Shynok self-beer confirmation, Shynok round purchase and round acceptance flows into reusable quest progress hooks; self-drinks and accepted offers only satisfy the drink retry step, while buying a round satisfies the mandatory round step.
+- Wired the existing Barrel place callback, solo Barrel raid completion, Shynok self-beer confirmation, Shynok round purchase, legacy Tavern round purchase and round acceptance flows into reusable quest progress hooks; self-drinks and accepted offers only satisfy the drink retry step, while buying a round satisfies the mandatory round step.
 - Barrel tutorial turn-in now validates the character's existing location before any quest-table presence refresh, so stale direct callbacks cannot complete the quest from elsewhere.
 - Quest markers can now point toward the Barrel tutorial's next step: quest table, Barrel or Shynok, depending on current progress.
 - Bumped package metadata to `0.2.29`.
