@@ -1202,9 +1202,14 @@ function presentTurnSummary(
   }
 
   if (summary.heroOutcome === "defended") {
+    const defenseLine =
+      summary.action === "skill" || summary.action === "race" || summary.action === "gear"
+        ? `${presentSkillAction(summary.skillId)} спрацьовує: ви стали в захист, ворогові важче влучити, а удар буде слабшим.`
+        : "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.";
+
     return withMonsterBark(summary, [
       ...heading,
-      "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
+      defenseLine,
       heroEffectResponse,
       withEnemyPressureSkips(
         enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",

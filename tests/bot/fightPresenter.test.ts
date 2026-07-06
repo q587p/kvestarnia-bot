@@ -1379,6 +1379,83 @@ describe("fight presenter", () => {
     expect(text).toContain("🧷 Ефект триває: кровотеча 1 шкоди, ще 2 активац.");
   });
 
+  it("names defensive gear actions on active fight cards and journal pages", () => {
+    const session = persistentSession({
+      turn: 2,
+      cooldowns: {
+        abilities: {
+          "gear.barrel-counter-shield": {
+            id: "gear.barrel-counter-shield",
+            remainingTurns: 3
+          }
+        }
+      },
+      lastTurn: {
+        action: "gear",
+        heroOutcome: "defended",
+        heroDamage: 0,
+        monsterDamage: 1,
+        manaSpent: 0,
+        critical: false,
+        skillId: "gear.barrel-counter-shield",
+        abilitySource: "equipment"
+      },
+      turnLog: [{
+        turn: 1,
+        summary: {
+          action: "gear",
+          heroOutcome: "defended",
+          heroDamage: 0,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          skillId: "gear.barrel-counter-shield",
+          abilitySource: "equipment"
+        },
+        cooldowns: {
+          abilities: {
+            "gear.barrel-counter-shield": {
+              id: "gear.barrel-counter-shield",
+              remainingTurns: 3
+            }
+          }
+        },
+        hero: {
+          hp: 23,
+          mana: 12
+        },
+        monster: {
+          hp: 18
+        }
+      }]
+    });
+    const fight = {
+      state: "persistent-active" as const,
+      character: { ...character, level: 9 },
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    };
+
+    const card = presentPersistentFight(fight);
+    const journal = presentPersistentFightJournal({
+      ...fight,
+      state: "found",
+      fightReward: null
+    }, 0);
+
+    expect(card).toContain("Вміння 🛡 <i>Бочковий контраргумент</i> спрацьовує");
+    expect(card).toContain("🫁 🛡 Бочковий контраргумент відсапується: ще 3 ходи.");
+    expect(journal).toContain("Вміння 🛡 <i>Бочковий контраргумент</i> спрацьовує");
+    expect(journal).toContain("🫁 🛡 Бочковий контраргумент відсапується: ще 3 ходи.");
+  });
+
   it("shows item-use failures without replaying the previous real turn", () => {
     const text = presentPersistentFightTurn({
       state: "item-unavailable",

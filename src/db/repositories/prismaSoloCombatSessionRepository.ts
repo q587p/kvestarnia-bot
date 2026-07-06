@@ -2548,6 +2548,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const monsterOutcome = parseTurnOutcome(value.monsterOutcome);
   const heroDamage = intOrNull(value.heroDamage);
   const monsterDamage = intOrNull(value.monsterDamage);
+  const heroEffectDamage = intOrNull(value.heroEffectDamage);
   const manaSpent = intOrNull(value.manaSpent);
   const heroCounterDamage = intOrNull(value.heroCounterDamage);
   const heroHealing = intOrNull(value.heroHealing);
@@ -2583,6 +2584,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(monsterOutcome ? { monsterOutcome } : {}),
     heroDamage,
     monsterDamage,
+    ...(heroEffectDamage !== null ? { heroEffectDamage } : {}),
     manaSpent,
     critical: value.critical,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
@@ -2835,7 +2837,14 @@ function parseTurnLogMonster(value: unknown): CombatTurnLogEntry["monster"] | nu
 }
 
 function parseCombatAction(value: unknown): CombatActionType | null {
-  return value === "attack" || value === "defend" || value === "skill" || value === "race" || value === "flee" || value === "skip" || value === "item"
+  return value === "attack" ||
+    value === "defend" ||
+    value === "skill" ||
+    value === "race" ||
+    value === "gear" ||
+    value === "flee" ||
+    value === "skip" ||
+    value === "item"
     ? value
     : null;
 }
@@ -2885,6 +2894,7 @@ function parseAbilitySource(value: unknown): CombatTurnSummary["abilitySource"] 
   return value === "basic" ||
     value === "class" ||
     value === "race" ||
+    value === "equipment" ||
     value === "signature" ||
     value === "monster"
     ? value
