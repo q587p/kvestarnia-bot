@@ -2035,7 +2035,41 @@ describe("FightService", () => {
     }
   });
 
-  it("does not add newly equipped gear actions to an active persistent fight", async () => {
+  it("includes the last-page rapier gear action when a level thirteen fight starts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, {
+      level: 13,
+      xp: 1000,
+      manaCurrent: 34,
+      manaMax: 34
+    });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "weapon", itemId: "item.ability.last-page-rapier" })]
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1]),
+      equipment
+    });
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    expect(started.session.state?.equipmentAbilities?.grantIds).toContain(
+      "mantok-ability.last-page-rapier"
+    );
+  });
+
+  it("adds newly equipped gear actions to an active persistent fight while the turn is current", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -2046,7 +2080,7 @@ describe("FightService", () => {
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      rng: new FakeRandomSource([0.1]),
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99]),
       equipment
     });
     const started = await service.getFightForTelegramUser(telegramUserId);
@@ -2054,6 +2088,7 @@ describe("FightService", () => {
     if (started.state !== "persistent-active") {
       return;
     }
+    sessions.setMonsterHp(started.session.id, 80);
     expect(started.session.state?.equipmentAbilities).toBeUndefined();
 
     equipment.setSnapshot({
@@ -2068,15 +2103,62 @@ describe("FightService", () => {
       grantKey: "rldagr"
     });
 
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.turn).toBe(2);
+      expect(result.session.state?.lastTurn).toMatchObject({
+        action: "gear",
+        skillId: "gear.red-line-dagger",
+        abilitySource: "equipment"
+      });
+      expect(result.session.state?.equipmentAbilities?.grantIds).toContain("mantok-ability.red-line-dagger");
+    }
+    expect(sessions.updateCount).toBe(2);
+  });
+
+  it("rejects a newly equipped gear callback when the equipment refresh loses the active-turn race", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({ characterId: "character-42", equipment: [] });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99]),
+      equipment
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+
+    equipment.setSnapshot({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "weapon", itemId: "item.set.red-line.left-dagger" })]
+    });
+    sessions.rejectNextActiveTurnUpdate = true;
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
     expect(result.state).toBe("stale-turn");
     if (result.state === "stale-turn") {
       expect(result.session.state?.turn).toBe(1);
       expect(result.session.state?.equipmentAbilities).toBeUndefined();
     }
     expect(sessions.updateCount).toBe(0);
+    expect(sessions.staleActiveTurnUpdateCount).toBe(1);
   });
 
-  it("keeps combat-start gear actions available after the item is unequipped", async () => {
+  it("removes active gear actions after the item is unequipped mid-fight", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -2110,15 +2192,10 @@ describe("FightService", () => {
       grantKey: "rldagr"
     });
 
-    expect(result.state).toBe("updated");
-    if (result.state === "updated") {
-      expect(result.session.state?.turn).toBe(2);
-      expect(result.session.state?.lastTurn).toMatchObject({
-        action: "gear",
-        skillId: "gear.red-line-dagger",
-        abilitySource: "equipment"
-      });
-      expect(result.session.state?.equipmentAbilities?.grantIds).toContain("mantok-ability.red-line-dagger");
+    expect(result.state).toBe("stale-turn");
+    if (result.state === "stale-turn") {
+      expect(result.session.state?.turn).toBe(1);
+      expect(result.session.state?.equipmentAbilities).toBeUndefined();
     }
     expect(sessions.updateCount).toBe(1);
   });

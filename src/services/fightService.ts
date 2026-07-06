@@ -1519,7 +1519,8 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character);
+    const characterSummary = resourceAware.character;
 
     if (!this.combatSessions) {
       return {
@@ -1541,18 +1542,24 @@ export class FightService {
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const monster = findPersistentFightMonster(session);
+    const refreshedSession = await this.refreshActiveEquipmentAbilitiesForSession(
+      telegramUserId,
+      session,
+      characterSummary.level,
+      resourceAware.equippedItemIds
+    );
 
     return {
       state: "found",
       character: characterSummary,
-      session,
+      session: refreshedSession,
       monster,
       questProgress,
-      fightReward: session.status === "active"
+      fightReward: refreshedSession.status === "active"
         ? null
         : await this.getOrRecoverPersistentFightReward(
             telegramUserId,
-            session,
+            refreshedSession,
             monster,
             characterSummary
           )
@@ -1621,9 +1628,10 @@ export class FightService {
 
     if (leasedSession.state === "session") {
       const activeSession = leasedSession.session;
-      const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+      const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
         syncResources: false
       });
+      const characterSummary = resourceAware.character;
 
       if (isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
         return {
@@ -1721,10 +1729,17 @@ export class FightService {
           };
         }
 
+        const equipmentRefreshedSession = await this.refreshActiveEquipmentAbilitiesForSession(
+          telegramUserId,
+          refreshedSession,
+          characterSummary.level,
+          resourceAware.equippedItemIds
+        );
+
         return {
           state: "persistent-active",
           character: characterSummary,
-          session: refreshedSession,
+          session: equipmentRefreshedSession,
           monster,
           questProgress
         };
@@ -1833,7 +1848,7 @@ export class FightService {
     };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
     const equipmentGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
-      itemIds: getEquippedItemIdsFromSummary(characterSummary),
+      itemIds: resourceAware.equippedItemIds,
       characterLevel: characterSummary.level
     }).map((grant) => grant.id);
     if (equipmentGrantIds.length > 0) {
@@ -1957,7 +1972,8 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character);
+    const characterSummary = resourceAware.character;
 
     const existingFight = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
@@ -2095,7 +2111,8 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character);
+    const characterSummary = resourceAware.character;
 
     if (!this.combatSessions) {
       return {
@@ -2242,9 +2259,42 @@ export class FightService {
       };
     }
 
-    const currentSession = deadlineSession;
+    let currentSession = deadlineSession;
 
     if (!currentSession.state) {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          currentSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (currentSession.state.turn !== input.turn) {
+      return {
+        state: "stale-turn",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    currentSession = await this.refreshActiveEquipmentAbilitiesForSession(
+      telegramUserId,
+      currentSession,
+      characterSummary.level,
+      resourceAware.equippedItemIds
+    );
+
+    if (currentSession.status !== "active" || currentSession.state?.status !== "active") {
       return {
         state: "terminal",
         character: characterSummary,
@@ -3398,8 +3448,13 @@ export class FightService {
     telegramUserId: bigint,
     character: CharacterRecord,
     options: { syncResources?: boolean } = {}
-  ): Promise<{ character: CharacterSummary; recoveryNotice?: ResourceRecoveryNotice }> {
+  ): Promise<{
+    character: CharacterSummary;
+    equippedItemIds: string[];
+    recoveryNotice?: ResourceRecoveryNotice;
+  }> {
     const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
+    const equippedItemIds = equipmentSnapshot?.equipment.map((row) => row.itemId) ?? [];
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
 
     if (options.syncResources) {
@@ -3419,6 +3474,7 @@ export class FightService {
 
       return {
         character: resourceAware.character,
+        equippedItemIds,
         ...(resourceAware.recoveryNotice
           ? { recoveryNotice: resourceAware.recoveryNotice }
           : {})
@@ -3428,8 +3484,52 @@ export class FightService {
     return {
       character: summarizeCharacter(character, {
         equippedItems
-      })
+      }),
+      equippedItemIds
     };
+  }
+
+  private async refreshActiveEquipmentAbilitiesForSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    characterLevel: number,
+    equippedItemIds: readonly string[]
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions || session.status !== "active" || session.state?.status !== "active") {
+      return session;
+    }
+
+    const grantIds = getCombatMantokAbilityGrantsForEquippedItems({
+      itemIds: equippedItemIds,
+      characterLevel
+    }).map((grant) => grant.id);
+    const currentGrantIds = session.state.equipmentAbilities?.grantIds ?? [];
+
+    if (sameStringList(currentGrantIds, grantIds)) {
+      return session;
+    }
+
+    const state = cloneCombatState(session.state);
+
+    if (grantIds.length > 0) {
+      state.equipmentAbilities = {
+        version: 1,
+        grantIds
+      };
+    } else {
+      delete state.equipmentAbilities;
+    }
+
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state,
+      status: state.status
+    });
+
+    if (updated) {
+      return updated;
+    }
+
+    return await this.combatSessions.findByIdForTelegramUserId(telegramUserId, session.id) ?? session;
   }
 
   private async findLeasedSoloCombatSessionForTelegramUser(
@@ -4509,6 +4609,10 @@ function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansio
   return "trash_mob";
 }
 
+function sameStringList(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function buildPersistentFightRewardReplay(
   session: SoloCombatSessionRecord
 ): PersistentFightReward | null {
@@ -4571,14 +4675,6 @@ function buildHeroCombatStats(
     weaponDamage: equipment.weaponDamage,
     spellPower: equipment.spellPower
   };
-}
-
-function getEquippedItemIdsFromSummary(character: CharacterSummary): string[] {
-  return Array.from(new Set(
-    (character.equipmentEffects?.contributions ?? [])
-      .map((contribution) => contribution.itemId)
-      .filter((itemId) => items.some((item) => item.id === itemId))
-  ));
 }
 
 function isSettlementCompletionSuccess(outcome: SettlementCompletionFlowResult["outcome"]): boolean {

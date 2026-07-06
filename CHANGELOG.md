@@ -12,7 +12,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added a data-driven Mantok ability-grant registry with stable compact gear-action keys, uniqueness validation and additive high-level monster loot for the first authored grant set.
 - Added the first epic/soulbound ability manatky in the level `9..13` band, including one new rapier item and grant metadata for existing Mantok set pieces.
-- Added persistent PvE gear-action callbacks and fight buttons that freeze grant ids at combat start, spend mana/cooldowns through the combat engine and reject stale or un-frozen callbacks without advancing combat.
+- Added persistent PvE gear-action callbacks and fight buttons that seed grant ids at combat start, refresh current eligible gear actions during the active turn, spend mana/cooldowns through the combat engine and reject stale or currently unavailable callbacks without advancing combat.
 - Added equipment-sourced combat profiles for reinforced defense, small bleed strikes and weaker borrowed class/race-style actions that do not count as native class or race actions.
 - Added a narrow visible bleed status family that ticks during committed hero activations and can settle combat without an extra monster response when the status itself defeats the final enemy.
 - Added item-detail and equipment-surface summaries for granted actions and service-perk markers.
@@ -20,11 +20,12 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Active fight keyboards can now show eligible gear actions after native attack/defend/class/race controls while preserving existing combat item and class/race cooldown behavior.
+- Active fight keyboards now reflect mid-fight equipment changes for the current turn: newly equipped grant manatky can add gear buttons, and removed grant manatky stop working, without refilling stored combat HP/mana or granting an extra turn.
 - Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
 - Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
 
 ### Fixed
-- Kept frozen persistent PvE gear-action buttons visible even when mana or cooldown gates block the action, so the callback gate can explain the blocker without advancing combat.
+- Kept eligible persistent PvE gear-action buttons visible even when mana or cooldown gates block the action, so the callback gate can explain the blocker without advancing combat.
 - Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.
 
 ### Deferred

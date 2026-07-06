@@ -10,12 +10,13 @@ Manual Telegram QA status for the implementation pass: not run.
 
 1. Seed or win each ability-granting manatka from the `9..13` band and equip it on a level-appropriate character.
 2. Start a persistent fight and verify eligible gear-action buttons appear after the normal fight controls.
-3. Use the shield, bleed and borrowed-action buttons; verify each spends the current turn, spends mana when required and starts only its own gear cooldown.
-4. Replay a stale gear callback after the turn advances and verify no mana, cooldown, RNG or monster response changes.
-5. Verify bleed appears visibly, ticks during committed hero activations and can finish combat without an extra status-kill response.
-6. Open item detail and `/equipment`; verify granted actions and the Yeger cloak service marker are explained compactly.
-7. Verify `Єгерський плащ чужої справи` does not unlock dense bandages, field kits or Yeger boards.
-8. Win fights against configured source monsters if convenient; verify grant manatky can appear without removing existing trophy/coverage/set loot.
+3. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
+4. Use the shield, bleed and borrowed-action buttons; verify each spends the current turn, spends mana when required and starts only its own gear cooldown.
+5. Replay a stale gear callback after the turn advances and verify no mana, cooldown, RNG or monster response changes.
+6. Verify bleed appears visibly, ticks during committed hero activations and can finish combat without an extra status-kill response.
+7. Open item detail and `/equipment`; verify granted actions and the Yeger cloak service marker are explained compactly.
+8. Verify `Єгерський плащ чужої справи` does not unlock dense bandages, field kits or Yeger boards.
+9. Win fights against configured source monsters if convenient; verify grant manatky can appear without removing existing trophy/coverage/set loot.
 
 ## 0.2.28 — Mantok Set Synergies Foundation smoke
 
