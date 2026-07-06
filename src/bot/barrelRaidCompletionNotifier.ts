@@ -3,6 +3,7 @@ import type {
   BarrelRaidNotificationRecord,
   BarrelRaidNotificationRepository
 } from "../db/repositories/barrelRaidNotificationRepository";
+import type { BarrelBeerTutorialService } from "../services/barrelBeerTutorialService";
 import type { TavernRaidResult, TavernRaidService } from "../services/tavernRaidService";
 import { buildTavernResultKeyboard } from "./keyboards/tavernKeyboard";
 import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
@@ -30,6 +31,10 @@ export interface BarrelRaidCompletionScheduleInput {
   availableAt: Date;
   now: Date;
   tavernRaidService: Pick<TavernRaidService, "completeFridayBarrelRaid">;
+  barrelBeerTutorialService?: Pick<
+    BarrelBeerTutorialService,
+    "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
+  >;
   notifications?: BarrelRaidNotificationRepository;
   notificationId?: string;
 }
@@ -40,6 +45,10 @@ export interface BarrelRaidCompletionScheduler {
     bot: Bot;
     now: Date;
     tavernRaidService: Pick<TavernRaidService, "completeFridayBarrelRaid">;
+    barrelBeerTutorialService?: Pick<
+      BarrelBeerTutorialService,
+      "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
+    >;
     notifications: BarrelRaidNotificationRepository;
   }): Promise<number>;
   pendingCount(): number;
@@ -146,6 +155,11 @@ export function createBarrelRaidCompletionScheduler(
     notification: BarrelRaidNotificationRecord | null
   ): Promise<void> {
     try {
+      await input.barrelBeerTutorialService?.markVisitedBarrelForTelegramUser(input.telegramUserId);
+      await input.barrelBeerTutorialService?.markBarrelRaidCompletedForTelegramUser(
+        input.telegramUserId
+      );
+
       await input.bot.api.sendMessage(chatId, presentTavernRaidResult(completed), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildTavernResultKeyboard(completed.state)
@@ -223,6 +237,9 @@ export function createBarrelRaidCompletionScheduler(
           availableAt: notification.availableAt,
           now: input.now,
           tavernRaidService: input.tavernRaidService,
+          ...(input.barrelBeerTutorialService
+            ? { barrelBeerTutorialService: input.barrelBeerTutorialService }
+            : {}),
           notifications: input.notifications,
           notificationId: notification.id
         });

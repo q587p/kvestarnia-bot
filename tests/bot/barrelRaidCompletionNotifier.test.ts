@@ -9,6 +9,7 @@ import type {
   BarrelRaidNotificationRepository
 } from "../../src/db/repositories/barrelRaidNotificationRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import type { BarrelBeerTutorialService } from "../../src/services/barrelBeerTutorialService";
 import type { TavernRaidResult, TavernRaidService } from "../../src/services/tavernRaidService";
 
 interface SendMessageOptions {
@@ -27,8 +28,12 @@ describe("barrel raid completion notifier", () => {
     vi.useFakeTimers();
     const sendMessage = vi.fn(() => Promise.resolve(true));
     const completeFridayBarrelRaid = vi.fn(() => Promise.resolve(completedResult()));
+    const barrelBeerTutorialService = barrelTutorialProgressService();
     const scheduler = createBarrelRaidCompletionScheduler();
-    const input = scheduleInput(sendMessage, completeFridayBarrelRaid);
+    const input = {
+      ...scheduleInput(sendMessage, completeFridayBarrelRaid),
+      barrelBeerTutorialService
+    };
 
     expect(scheduler.schedule(input)).toBe(true);
     expect(scheduler.schedule(input)).toBe(false);
@@ -39,6 +44,8 @@ describe("barrel raid completion notifier", () => {
 
     expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
     expect(completeFridayBarrelRaid).toHaveBeenCalledWith(42n, "2026-06-13T10:23");
+    expect(barrelBeerTutorialService.markVisitedBarrelForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(barrelBeerTutorialService.markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(42n);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Рейд завершено");
@@ -99,12 +106,18 @@ describe("barrel raid completion notifier", () => {
     vi.useFakeTimers();
     const sendMessage = vi.fn(() => Promise.resolve(true));
     const completeFridayBarrelRaid = vi.fn(() => Promise.resolve(result));
+    const barrelBeerTutorialService = barrelTutorialProgressService();
     const scheduler = createBarrelRaidCompletionScheduler();
 
-    scheduler.schedule(scheduleInput(sendMessage, completeFridayBarrelRaid));
+    scheduler.schedule({
+      ...scheduleInput(sendMessage, completeFridayBarrelRaid),
+      barrelBeerTutorialService
+    });
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(completeFridayBarrelRaid).toHaveBeenCalledTimes(1);
+    expect(barrelBeerTutorialService.markVisitedBarrelForTelegramUser).not.toHaveBeenCalled();
+    expect(barrelBeerTutorialService.markBarrelRaidCompletedForTelegramUser).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
     expect(scheduler.pendingCount()).toBe(0);
   });
@@ -609,6 +622,16 @@ function botWithSendMessage(sendMessage: ReturnType<typeof vi.fn>): Bot {
       sendMessage
     }
   } as unknown as Bot;
+}
+
+function barrelTutorialProgressService(): Pick<
+  BarrelBeerTutorialService,
+  "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
+> {
+  return {
+    markVisitedBarrelForTelegramUser: vi.fn(() => Promise.resolve()),
+    markBarrelRaidCompletedForTelegramUser: vi.fn(() => Promise.resolve())
+  };
 }
 
 function notificationRecord(

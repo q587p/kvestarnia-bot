@@ -1588,6 +1588,7 @@ async function handleTavernCallback(
       availableAt: result.availableAt,
       now: result.now,
       tavernRaidService,
+      barrelBeerTutorialService: services.barrelBeerTutorial,
       ...(services.barrelRaidNotifications && notification
         ? {
             notifications: services.barrelRaidNotifications,
