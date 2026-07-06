@@ -151,6 +151,10 @@ export class RemortService {
     return this.buildView(telegramUserId, draft.token);
   }
 
+  async viewDraftForTelegramUser(telegramUserId: bigint, token: string): Promise<RemortViewResult> {
+    return this.buildView(telegramUserId, token);
+  }
+
   async selectPronoun(
     telegramUserId: bigint,
     token: string,
