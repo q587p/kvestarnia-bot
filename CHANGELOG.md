@@ -26,6 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Kept eligible persistent PvE gear-action buttons visible even when mana or cooldown gates block the action, so the callback gate can explain the blocker without advancing combat.
+- Refreshed eligible gear-action buttons on active fight overview cards as well as direct fight views and callbacks, so returning to an already active fight after changing equipment shows the current manatka actions.
 - Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.
 
 ### Deferred

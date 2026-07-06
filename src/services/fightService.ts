@@ -1369,10 +1369,36 @@ export class FightService {
       };
     }
 
-    if (refreshedSession.state.hero.hp <= 0) {
+    const equipmentRefreshedSession = await this.refreshActiveEquipmentAbilitiesForSession(
+      telegramUserId,
+      refreshedSession,
+      characterSummary.level,
+      resourceAware.equippedItemIds
+    );
+
+    if (
+      equipmentRefreshedSession.status !== "active" ||
+      equipmentRefreshedSession.state?.status !== "active"
+    ) {
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: equipmentRefreshedSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          equipmentRefreshedSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (equipmentRefreshedSession.state.hero.hp <= 0) {
       const terminalSession = await this.terminalizeZeroHpActiveSession(
         telegramUserId,
-        refreshedSession
+        equipmentRefreshedSession
       );
       const fightReward = await this.getOrRecoverPersistentFightReward(
         telegramUserId,
@@ -1395,7 +1421,7 @@ export class FightService {
     return {
       state: "persistent-active",
       character: characterSummary,
-      session: refreshedSession,
+      session: equipmentRefreshedSession,
       monster,
       questProgress
     };

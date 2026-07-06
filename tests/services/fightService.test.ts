@@ -2069,6 +2069,42 @@ describe("FightService", () => {
     );
   });
 
+  it("refreshes newly equipped gear actions when an active fight overview is rendered", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 13, xp: 1000, manaCurrent: 34, manaMax: 34 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({ characterId: "character-42", equipment: [] });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1]),
+      equipment
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    expect(started.session.state?.equipmentAbilities).toBeUndefined();
+
+    equipment.setSnapshot({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "weapon", itemId: "item.ability.last-page-rapier" })]
+    });
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview.state).toBe("persistent-active");
+    if (overview.state === "persistent-active") {
+      expect(overview.session.state?.equipmentAbilities?.grantIds).toContain(
+        "mantok-ability.last-page-rapier"
+      );
+    }
+  });
+
   it("adds newly equipped gear actions to an active persistent fight while the turn is current", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });
