@@ -99,6 +99,7 @@ Near-term next tasks:
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
+- [0.2.x-kharakternyk-ward-signs.md](0.2.x-kharakternyk-ward-signs.md) — draft future `class.kharakternyk` Big Barrel ward-sign support slice; docs-only until explicitly activated.
 - [0.2.x-lore-board.md](0.2.x-lore-board.md) — draft future `Дошка корчми` / news-corner `📖 Перекази` section backed by current Kvestarnia canon seed content; docs-only until explicitly activated.
 - [0.2.x-dense-bandage-field-kit.md](0.2.x-dense-bandage-field-kit.md) — archived draft activated as [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md).
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
