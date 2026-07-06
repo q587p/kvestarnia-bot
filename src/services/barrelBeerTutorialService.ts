@@ -6,6 +6,7 @@ import type {
 } from "../db/repositories/dailyActionRepository";
 import type { ShynokRepository } from "../db/repositories/shynokRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { getLevelStartXp } from "../domain/progression/level";
 import type { ShynokDrinkKey } from "../domain/shynokDrinks";
 import { systemClock, type Clock } from "../shared/time";
 import {
@@ -23,13 +24,13 @@ import type { AchievementService, AchievementUnlock } from "./achievementService
 export const BARREL_BEER_TUTORIAL_ID = "barrel_or_there_and_back";
 export const BARREL_BEER_TUTORIAL_TITLE = "Бочка, або Туди і звідти";
 export const BARREL_BEER_TUTORIAL_REQUIRED_LEVEL = 2;
+export const BARREL_BEER_TUTORIAL_MAX_LEVEL = 5;
 export const BARREL_BEER_TUTORIAL_STIPEND_GOLD = 39;
-export const BARREL_BEER_TUTORIAL_REWARD_XP = 50;
 
 const ACCEPTED_KEY = "quest.barrel-beer-tutorial.accepted";
 const VISITED_BARREL_KEY = "quest.barrel-beer-tutorial.visited-barrel";
 const RAID_COMPLETED_KEY = "quest.barrel-beer-tutorial.raid-completed";
-const BEER_ACTION_KEY = "quest.barrel-beer-tutorial.beer-action";
+const BEER_ROUND_OFFERED_KEY = "quest.barrel-beer-tutorial.beer-action";
 const BEER_DRUNK_KEY = "quest.barrel-beer-tutorial.beer-drunk";
 const COMPLETED_KEY = "quest.barrel-beer-tutorial.completed";
 
@@ -43,7 +44,7 @@ export interface BarrelBeerTutorialProgress {
   stipendGranted: boolean;
   visitedBarrel: boolean;
   raidCompleted: boolean;
-  beerAction: boolean;
+  beerRoundOffered: boolean;
   beerDrunk: boolean;
   activeBeer: boolean;
   currentLocationId: string | null;
@@ -52,6 +53,7 @@ export interface BarrelBeerTutorialProgress {
 export type BarrelBeerTutorialLookupResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number; progress: BarrelBeerTutorialProgress }
   | { state: "available"; character: CharacterSummary; progress: BarrelBeerTutorialProgress }
   | {
       state: "in-progress" | "turn-in-ready";
@@ -68,6 +70,7 @@ export type BarrelBeerTutorialLookupResult =
 export type BarrelBeerTutorialAcceptResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number; progress: BarrelBeerTutorialProgress }
   | {
       state: "accepted" | "already-accepted";
       character: CharacterSummary;
@@ -84,6 +87,7 @@ export type BarrelBeerTutorialAcceptResult =
 export type BarrelBeerTutorialTurnInResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "level-retired"; character: CharacterSummary; maxLevel: number; progress: BarrelBeerTutorialProgress }
   | { state: "not-started"; character: CharacterSummary; progress: BarrelBeerTutorialProgress }
   | { state: "missing-progress"; character: CharacterSummary; progress: BarrelBeerTutorialProgress }
   | { state: "beer-expired"; character: CharacterSummary; progress: BarrelBeerTutorialProgress }
@@ -131,6 +135,17 @@ export class BarrelBeerTutorialService {
 
     const character = summarizeCharacter(context.character);
 
+    if (context.completed) {
+      return {
+        state: "completed",
+        character,
+        progress: context.progress,
+        reward: buildReward(context.character, enrichRewardItemGrants([
+          starterEquipmentGrant(PERSTEN_PYVOVLADDIA_ITEM_ID)
+        ]), context.completed)
+      };
+    }
+
     if (character.level < BARREL_BEER_TUTORIAL_REQUIRED_LEVEL) {
       return {
         state: "level-locked",
@@ -139,14 +154,12 @@ export class BarrelBeerTutorialService {
       };
     }
 
-    if (context.completed) {
+    if (!context.accepted && character.level > BARREL_BEER_TUTORIAL_MAX_LEVEL) {
       return {
-        state: "completed",
+        state: "level-retired",
         character,
-        progress: context.progress,
-        reward: buildReward(enrichRewardItemGrants([
-          starterEquipmentGrant(PERSTEN_PYVOVLADDIA_ITEM_ID)
-        ]))
+        maxLevel: BARREL_BEER_TUTORIAL_MAX_LEVEL,
+        progress: context.progress
       };
     }
 
@@ -170,6 +183,17 @@ export class BarrelBeerTutorialService {
       return { state: "no-character" };
     }
 
+    if (context.completed) {
+      return {
+        state: "already-completed",
+        character: summarizeCharacter(context.character),
+        progress: context.progress,
+        reward: buildReward(context.character, enrichRewardItemGrants([
+          starterEquipmentGrant(PERSTEN_PYVOVLADDIA_ITEM_ID)
+        ]), context.completed)
+      };
+    }
+
     if (context.character.level < BARREL_BEER_TUTORIAL_REQUIRED_LEVEL) {
       return {
         state: "level-locked",
@@ -178,14 +202,12 @@ export class BarrelBeerTutorialService {
       };
     }
 
-    if (context.completed) {
+    if (!context.accepted && context.character.level > BARREL_BEER_TUTORIAL_MAX_LEVEL) {
       return {
-        state: "already-completed",
+        state: "level-retired",
         character: summarizeCharacter(context.character),
-        progress: context.progress,
-        reward: buildReward(enrichRewardItemGrants([
-          starterEquipmentGrant(PERSTEN_PYVOVLADDIA_ITEM_ID)
-        ]))
+        maxLevel: BARREL_BEER_TUTORIAL_MAX_LEVEL,
+        progress: context.progress
       };
     }
 
@@ -238,6 +260,19 @@ export class BarrelBeerTutorialService {
 
     const character = summarizeCharacter(context.character);
 
+    if (context.completed) {
+      return {
+        state: "already-completed",
+        character,
+        progress: context.progress,
+        reward: buildReward(context.character, enrichRewardItemGrants([
+          starterEquipmentGrant(PERSTEN_PYVOVLADDIA_ITEM_ID)
+        ]), context.completed),
+        levelChange: null,
+        achievementUnlocks: []
+      };
+    }
+
     if (character.level < BARREL_BEER_TUTORIAL_REQUIRED_LEVEL) {
       return {
         state: "level-locked",
@@ -246,16 +281,12 @@ export class BarrelBeerTutorialService {
       };
     }
 
-    if (context.completed) {
+    if (!context.accepted && character.level > BARREL_BEER_TUTORIAL_MAX_LEVEL) {
       return {
-        state: "already-completed",
+        state: "level-retired",
         character,
-        progress: context.progress,
-        reward: buildReward(enrichRewardItemGrants([
-          starterEquipmentGrant(PERSTEN_PYVOVLADDIA_ITEM_ID)
-        ])),
-        levelChange: null,
-        achievementUnlocks: []
+        maxLevel: BARREL_BEER_TUTORIAL_MAX_LEVEL,
+        progress: context.progress
       };
     }
 
@@ -275,10 +306,11 @@ export class BarrelBeerTutorialService {
       return { state: "wrong-location", character, progress: context.progress };
     }
 
+    const rewardXp = getBarrelBeerTutorialRewardXp(context.character);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: COMPLETED_KEY,
       localDate: context.lifeToken,
-      rewardXp: BARREL_BEER_TUTORIAL_REWARD_XP,
+      rewardXp,
       rewardGold: 0,
       itemGrants: [starterEquipmentGrant(PERSTEN_PYVOVLADDIA_ITEM_ID)],
       expectedLife: {
@@ -316,7 +348,7 @@ export class BarrelBeerTutorialService {
         accepted: true,
         stipendGranted: true
       },
-      reward: buildReward(enrichRewardItemGrants(claim.itemGrants)),
+      reward: buildReward(claim.character, enrichRewardItemGrants(claim.itemGrants), claim.action),
       levelChange: claim.state === "created" ? claim.levelChange : null,
       achievementUnlocks
     };
@@ -335,14 +367,19 @@ export class BarrelBeerTutorialService {
     });
   }
 
-  async markBeerActionForTelegramUser(telegramUserId: bigint): Promise<void> {
-    await this.markProgress(telegramUserId, BEER_ACTION_KEY, {
-      flag: "beer-action"
+  async markBeerRoundOfferedForTelegramUser(telegramUserId: bigint): Promise<void> {
+    const context = await this.getContext(telegramUserId);
+
+    if (!context?.accepted || context.completed || !context.progress.visitedBarrel || !context.progress.raidCompleted) {
+      return;
+    }
+
+    await this.claimProgress(telegramUserId, context, BEER_ROUND_OFFERED_KEY, {
+      flag: "beer-round-offered"
     });
   }
 
   async markBeerDrunkForTelegramUser(telegramUserId: bigint): Promise<void> {
-    await this.markBeerActionForTelegramUser(telegramUserId);
     await this.markProgress(telegramUserId, BEER_DRUNK_KEY, {
       flag: "beer-drunk"
     });
@@ -359,6 +396,15 @@ export class BarrelBeerTutorialService {
       return;
     }
 
+    await this.claimProgress(telegramUserId, context, key, resultJson);
+  }
+
+  private async claimProgress(
+    telegramUserId: bigint,
+    context: BarrelBeerTutorialContext,
+    key: string,
+    resultJson: unknown
+  ): Promise<void> {
     await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key,
       localDate: context.lifeToken,
@@ -389,7 +435,7 @@ export class BarrelBeerTutorialService {
       accepted,
       visitedBarrel,
       raidCompleted,
-      beerAction,
+      beerRoundOffered,
       beerDrunk,
       completed,
       activeDrink
@@ -407,7 +453,7 @@ export class BarrelBeerTutorialService {
         localDate: lifeToken
       }),
       this.dailyActions.findForTelegramUser(telegramUserId, {
-        key: BEER_ACTION_KEY,
+        key: BEER_ROUND_OFFERED_KEY,
         localDate: lifeToken
       }),
       this.dailyActions.findForTelegramUser(telegramUserId, {
@@ -431,7 +477,7 @@ export class BarrelBeerTutorialService {
         stipendGranted: Boolean(accepted),
         visitedBarrel: Boolean(visitedBarrel),
         raidCompleted: Boolean(raidCompleted),
-        beerAction: Boolean(beerAction),
+        beerRoundOffered: Boolean(beerRoundOffered),
         beerDrunk: Boolean(beerDrunk),
         activeBeer: Boolean(
           activeDrink &&
@@ -467,13 +513,36 @@ function hasRequiredProgress(progress: BarrelBeerTutorialProgress): boolean {
   return progress.accepted &&
     progress.visitedBarrel &&
     progress.raidCompleted &&
-    progress.beerAction &&
+    progress.beerRoundOffered &&
     progress.beerDrunk;
 }
 
-function buildReward(itemGrants: RewardItemGrant[]): BarrelBeerTutorialReward {
+export function getBarrelBeerTutorialRewardXp(
+  character: Pick<CharacterRecord, "level" | "xp" | "remortCount">
+): number {
+  const remortCount = character.remortCount ?? 0;
+  const rewardBaseLevel = Math.min(
+    BARREL_BEER_TUTORIAL_MAX_LEVEL,
+    Math.max(BARREL_BEER_TUTORIAL_REQUIRED_LEVEL, Math.floor(character.level))
+  );
+  const levelStart = getLevelStartXp(rewardBaseLevel, { remortCount });
+  const nextLevelStart = getLevelStartXp(rewardBaseLevel + 1, { remortCount });
+  const levelWidth = Math.max(1, nextLevelStart - levelStart);
+  const rawReward = Math.max(5, Math.ceil(levelWidth * 0.4));
+  const currentLevel = Math.max(1, Math.floor(character.level));
+  const nextNextLevelStart = getLevelStartXp(currentLevel + 2, { remortCount });
+  const maxRewardWithoutDoubleLevel = Math.max(1, nextNextLevelStart - 1 - Math.floor(character.xp));
+
+  return Math.max(1, Math.min(rawReward, maxRewardWithoutDoubleLevel));
+}
+
+function buildReward(
+  character: Pick<CharacterRecord, "level" | "xp" | "remortCount">,
+  itemGrants: RewardItemGrant[],
+  action?: Pick<DailyActionRecord, "rewardXp"> | null
+): BarrelBeerTutorialReward {
   return {
-    xp: BARREL_BEER_TUTORIAL_REWARD_XP,
+    xp: action?.rewardXp ?? getBarrelBeerTutorialRewardXp(character),
     gold: 0,
     itemGrants
   };

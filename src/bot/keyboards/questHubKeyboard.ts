@@ -222,7 +222,7 @@ function addBarrelBeerTutorialButton(
 ): void {
   const quest = input.barrelBeerTutorial;
 
-  if (!quest || quest.state === "level-locked" || quest.state === "completed") {
+  if (!quest || quest.state === "level-locked" || quest.state === "level-retired" || quest.state === "completed") {
     return;
   }
 
@@ -250,7 +250,7 @@ function addBarrelBeerTutorialButton(
 }
 
 function getBarrelBeerTutorialTarget(
-  quest: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" | "level-locked" | "available" | "completed" }>
+  quest: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" | "level-locked" | "level-retired" | "available" | "completed" }>
 ): { label: string; callbackData: string; markerTarget: QuestMarkerTarget } {
   if (!quest.progress.visitedBarrel || !quest.progress.raidCompleted) {
     return {
@@ -260,7 +260,7 @@ function getBarrelBeerTutorialTarget(
     };
   }
 
-  if (!quest.progress.beerAction || !quest.progress.beerDrunk || !quest.progress.activeBeer) {
+  if (!quest.progress.beerRoundOffered || !quest.progress.beerDrunk || !quest.progress.activeBeer) {
     return {
       label: "🍻 До шинку",
       callbackData: makePlaceCallbackData("bar"),

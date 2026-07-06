@@ -8,9 +8,9 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 
 type QuestState =
-  | Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" | "level-locked" | "completed" }>
-  | Exclude<BarrelBeerTutorialAcceptResult, { state: "no-character" | "level-locked" | "already-completed" }>
-  | Exclude<BarrelBeerTutorialTurnInResult, { state: "no-character" | "level-locked" | "completed" | "already-completed" }>;
+  | Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" | "level-locked" | "level-retired" | "completed" }>
+  | Exclude<BarrelBeerTutorialAcceptResult, { state: "no-character" | "level-locked" | "level-retired" | "already-completed" }>
+  | Exclude<BarrelBeerTutorialTurnInResult, { state: "no-character" | "level-locked" | "level-retired" | "completed" | "already-completed" }>;
 
 export function buildBarrelBeerTutorialKeyboard(result: QuestState): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -22,7 +22,7 @@ export function buildBarrelBeerTutorialKeyboard(result: QuestState): InlineKeybo
     keyboard.text("✅ Здати Бочку", makeQuestCallbackData("barrel-tutorial-turn-in")).row();
   } else if (!progress.visitedBarrel || !progress.raidCompleted) {
     keyboard.text("🛢️ До Бочки", makePlaceCallbackData("barrel")).row();
-  } else if (!progress.beerAction || !progress.beerDrunk || !progress.activeBeer) {
+  } else if (!progress.beerRoundOffered || !progress.beerDrunk || !progress.activeBeer) {
     keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
   } else {
     keyboard.text("📋 До столу", makePlaceCallbackData("quest-table")).row();

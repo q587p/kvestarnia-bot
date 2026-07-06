@@ -416,7 +416,7 @@ function presentBarrelBeerTutorialRow(
 
   const title = `🛢️ <i>${BARREL_BEER_TUTORIAL_TITLE}</i>`;
 
-  if (quest.state === "level-locked") {
+  if (quest.state === "level-locked" || quest.state === "level-retired") {
     return null;
   }
 
@@ -436,7 +436,7 @@ function presentBarrelBeerTutorialRow(
     return `${title} — ти вже біля Бочки. Для початку пройди місцевий новачковий соло-рейд.`;
   }
 
-  if (!quest.progress.beerAction || !quest.progress.beerDrunk) {
+  if (!quest.progress.beerRoundOffered || !quest.progress.beerDrunk) {
     return `${title} — рейд позаду. Тепер вистав пива й не забудь випити свій кухоль.`;
   }
 

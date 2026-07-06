@@ -330,13 +330,13 @@ async function handleQuestCallback(
       return;
     }
 
-    await markScenePresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: null
-    });
-
     if (action === "barrel-tutorial") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+
       const result = await services.barrelBeerTutorial.acceptForTelegramUser(telegramUserId);
 
       await safeEditMessageText(ctx, presentBarrelBeerTutorialAccept(result), {
@@ -355,7 +355,8 @@ async function handleQuestCallback(
       result.state === "completed" ||
       result.state === "already-completed" ||
       result.state === "no-character" ||
-      result.state === "level-locked"
+      result.state === "level-locked" ||
+      result.state === "level-retired"
         ? buildBarrelBeerTutorialCompletedKeyboard()
         : buildBarrelBeerTutorialKeyboard(result);
 

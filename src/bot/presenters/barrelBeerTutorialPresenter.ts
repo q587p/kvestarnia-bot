@@ -1,5 +1,5 @@
 import {
-  BARREL_BEER_TUTORIAL_REWARD_XP,
+  BARREL_BEER_TUTORIAL_MAX_LEVEL,
   BARREL_BEER_TUTORIAL_STIPEND_GOLD,
   BARREL_BEER_TUTORIAL_TITLE,
   type BarrelBeerTutorialAcceptResult,
@@ -17,6 +17,10 @@ export function presentBarrelBeerTutorialLookup(
 
   if (result.state === "level-locked") {
     return `«${BARREL_BEER_TUTORIAL_TITLE}» відкриється з ${result.requiredLevel} рівня. Бочка поважає юних героїв, але не настільки.`;
+  }
+
+  if (result.state === "level-retired") {
+    return `«${BARREL_BEER_TUTORIAL_TITLE}» лишається новачковою справою до ${result.maxLevel} рівня. Бочка вже робить вигляд, що ви знайомі.`;
   }
 
   if (result.state === "completed") {
@@ -53,6 +57,10 @@ export function presentBarrelBeerTutorialAccept(
     return `«${BARREL_BEER_TUTORIAL_TITLE}» відкриється з ${result.requiredLevel} рівня.`;
   }
 
+  if (result.state === "level-retired") {
+    return `«${BARREL_BEER_TUTORIAL_TITLE}» можна взяти тільки до ${result.maxLevel} рівня включно. Ця записка любить новачків, а не бухгалтерію досвіду.`;
+  }
+
   if (result.state === "already-completed") {
     return `«${BARREL_BEER_TUTORIAL_TITLE}» уже виконано. Повторний аванс не видають навіть під дуже переконливий кухоль.`;
   }
@@ -87,7 +95,19 @@ export function presentBarrelBeerTutorialTurnIn(
     return `«${BARREL_BEER_TUTORIAL_TITLE}» відкриється з ${result.requiredLevel} рівня.`;
   }
 
+  if (result.state === "level-retired") {
+    return `«${BARREL_BEER_TUTORIAL_TITLE}» — новачкова справа для ${BARREL_BEER_TUTORIAL_MAX_LEVEL} рівня і нижче. Нову записку стіл уже не видає.`;
+  }
+
   if (result.state === "not-started" || result.state === "missing-progress" || result.state === "wrong-location") {
+    if (result.state === "wrong-location") {
+      return [
+        "Маршрут майже зійшовся, але звітувати треба біля столу зі справами.",
+        "",
+        presentProgressHint(result.progress)
+      ].join("\n");
+    }
+
     return [
       "Стіл мовчить. Записка вперто чекає повного маршруту: Бочка, новачковий соло-рейд, пиво — і тільки тоді назад.",
       "",
@@ -118,7 +138,7 @@ export function presentBarrelBeerTutorialTurnIn(
     "",
     "Під запискою лишився маленький перстень. Не схоже, що він зробить тебе невидимим, але після Бочки й так не всіх хочеться бачити.",
     "",
-    `+${BARREL_BEER_TUTORIAL_REWARD_XP} XP`,
+    `+${result.reward.xp} XP`,
     ...rewardLines
   ].join("\n");
 }
@@ -132,7 +152,11 @@ function presentProgressHint(progress: BarrelBeerTutorialProgress): string {
     return "Ти вже біля Бочки. Для початку доведи, що можеш пройти місцевий новачковий соло-рейд без підказок із-під столу.";
   }
 
-  if (!progress.beerAction || !progress.beerDrunk) {
+  if (!progress.beerRoundOffered) {
+    return "Рейд позаду. Тепер вистав пива іншим і не забудь про власний кухоль.";
+  }
+
+  if (!progress.beerDrunk) {
     return "Рейд позаду. Тепер вистав пива й не забудь випити свій кухоль.";
   }
 

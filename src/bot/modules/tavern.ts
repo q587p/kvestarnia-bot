@@ -705,7 +705,7 @@ async function handleShynokCallback(
       action.tier
     );
     if (result.state === "completed") {
-      await services.barrelBeerTutorial?.markBeerActionForTelegramUser(telegramUserId);
+      await services.barrelBeerTutorial?.markBeerRoundOfferedForTelegramUser(telegramUserId);
     }
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Кухлі поставлено.", show_alert: false }

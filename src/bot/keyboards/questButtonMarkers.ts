@@ -258,7 +258,7 @@ function getBarrelBeerTutorialMarker(
     quest?.state === "in-progress" &&
     quest.progress.visitedBarrel &&
     quest.progress.raidCompleted &&
-    quest.progress.beerAction &&
+    quest.progress.beerRoundOffered &&
     quest.progress.beerDrunk &&
     quest.progress.activeBeer
   ) {
@@ -293,7 +293,7 @@ function getBarrelBeerTutorialBarMarker(
 
   return quest.progress.visitedBarrel &&
     quest.progress.raidCompleted &&
-    (!quest.progress.beerAction || !quest.progress.beerDrunk || !quest.progress.activeBeer)
+    (!quest.progress.beerRoundOffered || !quest.progress.beerDrunk || !quest.progress.activeBeer)
     ? QuestMarker.CAN_ACCEPT
     : QuestMarker.NONE;
 }

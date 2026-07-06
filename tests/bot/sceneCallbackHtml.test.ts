@@ -1037,6 +1037,62 @@ describe("scene callback HTML options", () => {
     expect(movementMessages).toHaveLength(1);
   });
 
+  it("does not move the player to the quest table before Barrel tutorial turn-in validation", async () => {
+    let currentLocationId = "location.korchma.bar";
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      if ("locationId" in input) {
+        currentLocationId = input.locationId;
+      }
+
+      return Promise.resolve();
+    });
+    const turnInForTelegramUser = vi.fn(() =>
+      Promise.resolve(
+        currentLocationId === "location.korchma.quest-table"
+          ? {
+              state: "completed" as const,
+              character: { ...character, level: 2 },
+              progress: barrelBeerTutorialProgress(true, currentLocationId),
+              reward: { xp: 6, gold: 0, itemGrants: [] },
+              levelChange: null,
+              achievementUnlocks: []
+            }
+          : {
+              state: "wrong-location" as const,
+              character: { ...character, level: 2 },
+              progress: barrelBeerTutorialProgress(true, currentLocationId)
+            }
+      )
+    );
+
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("barrel-tutorial-turn-in"),
+      servicesWith({
+        barrelBeerTutorial: {
+          turnInForTelegramUser
+        },
+        presence: {
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: currentLocationId,
+              locationName: "Шинок",
+              insideKorchma: true
+            })
+        }
+      })
+    );
+
+    expect(turnInForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(markAction.mock.calls.some(([input]) =>
+      "locationId" in input && input.locationId === "location.korchma.quest-table"
+    )).toBe(false);
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(edit?.payload.text).toContain("звітувати треба біля столу");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makePlaceCallbackData("quest-table"));
+  });
+
   it("sends level-up celebration as a separate HTML message after the result edit", async () => {
     const calls = await captureApiCalls(
       makeAdventureApproachCallbackData({
@@ -6951,6 +7007,19 @@ function tavernGameCharacter(telegramUserId: bigint, id: string, name: string) {
     activeCosmeticTitleGrantId: null,
     statsJson: {},
     remortCount: 0
+  };
+}
+
+function barrelBeerTutorialProgress(done: boolean, currentLocationId: string) {
+  return {
+    accepted: done,
+    stipendGranted: done,
+    visitedBarrel: done,
+    raidCompleted: done,
+    beerRoundOffered: done,
+    beerDrunk: done,
+    activeBeer: done,
+    currentLocationId
   };
 }
 

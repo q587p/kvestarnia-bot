@@ -1468,6 +1468,13 @@ function barrelBeerTutorialService(summary: CharacterSummary): BarrelBeerTutoria
               character: summary,
               requiredLevel: 2
             }
+          : summary.level > 5
+            ? {
+                state: "level-retired",
+                character: summary,
+                maxLevel: 5,
+                progress: barrelBeerTutorialProgress(false)
+              }
           : {
               state: "available",
               character: summary,
@@ -1485,7 +1492,7 @@ function completedBarrelBeerTutorialService(summary: CharacterSummary): BarrelBe
         character: summary,
         progress: barrelBeerTutorialProgress(true),
         reward: {
-          xp: 50,
+          xp: 6,
           gold: 0,
           itemGrants: []
         }
@@ -1499,7 +1506,7 @@ function barrelBeerTutorialProgress(done: boolean) {
     stipendGranted: done,
     visitedBarrel: done,
     raidCompleted: done,
-    beerAction: done,
+    beerRoundOffered: done,
     beerDrunk: done,
     activeBeer: done,
     currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE

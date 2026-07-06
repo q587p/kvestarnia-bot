@@ -80,7 +80,7 @@ describe("health server", () => {
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Бочка отримала маршрут для новачків");
     expect(text).toContain("Бочка, або Туди і звідти");
-    expect(text).toContain("з 2 рівня можна взяти нову разову справу");
+    expect(text).toContain("з 2 до 5 рівня можна взяти нову разову справу");
     expect(text).toContain("якщо піна вивітриться дорогою назад");
     expect(text).toContain("Бочка нарешті отримала навчальний маршрут");
     expect(text).toContain("У грі зараз: 4");

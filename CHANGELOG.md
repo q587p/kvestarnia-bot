@@ -7,23 +7,24 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.29] - 12026-07-06 - Level 2 Barrel Beer Tutorial
+## [0.2.29] - 12026-07-06 - Newbie Barrel Beer Tutorial
 
 ### Added
-- Added the one-time level 2 quest `Бочка, або Туди і звідти` at the quest table without replacing the existing `Льохова справа` option.
+- Added the one-time level 2-5 newbie quest `Бочка, або Туди і звідти` at the quest table without replacing the existing `Льохова справа` option.
 - Quest acceptance grants a replay-safe 39 gold travel/drink stipend once per character life, keyed through existing daily-action claim semantics.
-- Added explicit quest progress flags for accepting, reaching `Бочка`, completing the beginner solo Barrel raid, performing a beer action, drinking beer and returning to the quest table with a timed active beer effect.
+- Added explicit quest progress flags for accepting, reaching `Бочка`, completing the beginner solo Barrel raid, offering a beer round after that route step, drinking beer and returning to the quest table with a timed active beer effect.
 - Added the weak beginner accessory `Перстень Пивовладдя`, requiring level 2 and granting `+1 Luck`, as the completion keepsake.
 - Added the rewardless first-completion achievement `achievement.quest.barrel-beer-tutorial`.
-- Added focused service, callback-data, content and quest-hub tests for level gating, stipend no-farm behavior, required route progress, active-beer turn-in, expired-beer retry and one-time XP/item reward.
+- Added focused service, callback-data, content, callback-route and quest-hub tests for level gating, stipend no-farm behavior, required route progress, mandatory post-raid beer round, active-beer turn-in, expired-beer retry and one-time XP/item reward.
 
 ### Changed
-- Wired the existing Barrel place callback, solo Barrel raid completion, Shynok self-beer confirmation, Shynok round purchase and round acceptance flows into reusable quest progress hooks.
+- Wired the existing Barrel place callback, solo Barrel raid completion, Shynok self-beer confirmation, Shynok round purchase and round acceptance flows into reusable quest progress hooks; self-drinks and accepted offers only satisfy the drink retry step, while buying a round satisfies the mandatory round step.
+- Barrel tutorial turn-in now validates the character's existing location before any quest-table presence refresh, so stale direct callbacks cannot complete the quest from elsewhere.
 - Quest markers can now point toward the Barrel tutorial's next step: quest table, Barrel or Shynok, depending on current progress.
 - Bumped package metadata to `0.2.29`.
 
 ### Balance
-- Completion grants 50 XP and no completion gold because the quest already gives 39 gold up front.
+- Completion grants small level-scaled XP, currently 6/8/10/16 XP for levels 2-5 before caps, and no completion gold because the quest already gives 39 gold up front. Accepted characters who level past 5 still use newbie-scale rewards, with a no-remort cap preventing the quest reward itself from advancing more than one level.
 - Existing beer durations remain unchanged: simple beer lasts 23 minutes and fine beer lasts 42 minutes, which is enough time to return to the quest table without making this tutorial frustrating.
 - The quest state resets on remort with the current character life, matching the project default for character-scoped tutorial progress.
 
