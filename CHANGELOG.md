@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Wired the existing Barrel place callback, solo Barrel raid completion, Shynok self-beer confirmation, Shynok round purchase, legacy Tavern round purchase and round acceptance flows into reusable quest progress hooks; self-drinks and accepted offers only satisfy the drink retry step, while buying a round satisfies the mandatory round step.
 - Barrel tutorial turn-in now validates the character's existing location before any quest-table presence refresh, so stale direct callbacks cannot complete the quest from elsewhere.
 - Quest markers can now point toward the Barrel tutorial's next step: quest table, Barrel or Shynok, depending on current progress.
+- Local `/dev_raid_stop` now also marks the Barrel tutorial visit and beginner-raid progress when it completes a pending Barrel raid, matching the ordinary raid completion callback for manual QA.
 - Bumped package metadata to `0.2.29`.
 
 ### Balance
