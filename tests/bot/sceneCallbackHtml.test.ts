@@ -21,6 +21,7 @@ import {
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
+  makeFightGearActionCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightTurnCallbackData,
@@ -4520,6 +4521,83 @@ describe("scene callback HTML options", () => {
     expect(resolvePersistentFightTurn).toHaveBeenCalledTimes(1);
     expect(resolveTrainingTurn).toHaveBeenCalledTimes(1);
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes persistent gear action callbacks through the fight turn handler", async () => {
+    const sessionId = "123e4567-e89b-42d3-a456-426614174000";
+    const session = {
+      ...persistentSession("monster.deadline-spider"),
+      id: sessionId,
+      state: {
+        ...persistentSession("monster.deadline-spider").state,
+        id: sessionId,
+        turn: 2,
+        hero: {
+          hp: 18,
+          hpMax: 24,
+          mana: 9,
+          manaMax: 12
+        },
+        monster: {
+          id: "monster.deadline-spider",
+          hp: 7,
+          hpMax: 12
+        },
+        equipmentAbilities: {
+          version: 1 as const,
+          grantIds: ["mantok-ability.red-line-dagger"]
+        },
+        lastTurn: {
+          action: "gear" as const,
+          heroOutcome: "hit" as const,
+          heroDamage: 5,
+          monsterDamage: 2,
+          manaSpent: 1,
+          critical: false,
+          skillId: "gear.red-line-dagger",
+          abilitySource: "equipment" as const
+        }
+      }
+    };
+    const resolvePersistentFightTurn = vi.fn(() =>
+      Promise.resolve({
+        state: "updated" as const,
+        character: { ...character, level: 10 },
+        session,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 10,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null,
+        fightReward: null
+      })
+    );
+
+    const calls = await captureApiCalls(
+      makeFightGearActionCallbackData({
+        sessionId,
+        turn: 1,
+        grantKey: "rldagr"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(resolvePersistentFightTurn).toHaveBeenCalledWith(42n, {
+      sessionId,
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+    expect(String(edit?.payload.text)).toContain("Вміння 🩸 <i>Червоний рядок</i>");
+    expect(JSON.stringify(edit?.payload.reply_markup ?? null)).toContain(`v1:fight:turn:${sessionId}:2:attack`);
   });
 
   it("keeps selected passage presence after persistent fight turn callbacks", async () => {

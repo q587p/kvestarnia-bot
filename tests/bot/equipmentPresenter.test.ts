@@ -137,6 +137,40 @@ describe("equipment presenter", () => {
     expect(text).toContain("перезарядка 3");
   });
 
+  it("escapes equipped grant item names while keeping gear action copy readable", () => {
+    const dagger = items.find((item) => item.id === "item.set.red-line.left-dagger");
+    expect(dagger).toBeDefined();
+    if (!dagger) {
+      throw new Error("Expected red-line dagger content.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        {
+          slot: "weapon",
+          item: {
+            itemId: dagger.id,
+            content: {
+              ...dagger,
+              name: "<b>Кинджал червоного рядка</b>"
+            }
+          }
+        },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("&lt;b&gt;Кинджал червоного рядка&lt;/b&gt;");
+    expect(text).not.toContain("<b>Кинджал червоного рядка</b>");
+    expect(text).toContain("Дія: <b>🩸 Червоний рядок</b>");
+  });
+
   it("distinguishes borrowed gear actions and docs-only service perks in equipment", () => {
     const staff = items.find((item) => item.id === "item.set.asclepius.staff");
     const cloak = items.find((item) => item.id === "item.set.yeger-shadow.cloak");

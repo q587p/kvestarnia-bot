@@ -2172,6 +2172,45 @@ describe("FightService", () => {
     expect(sessions.updateCount).toBe(1);
   });
 
+  it("rejects a simultaneous duplicate gear callback when the active-turn update loses the race", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const equipment = new FakeEquipmentRepository({
+      characterId: "character-42",
+      equipment: [buildEquipment({ slot: "weapon", itemId: "item.set.red-line.left-dagger" })]
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99]),
+      equipment
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setMonsterHp(started.session.id, 80);
+    const before = sessions.getById(started.session.id);
+    sessions.rejectNextActiveTurnUpdate = true;
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result.state).toBe("stale-turn");
+    expect(sessions.updateCount).toBe(0);
+    expect(sessions.staleActiveTurnUpdateCount).toBe(1);
+    expect(sessions.getById(started.session.id)?.state).toEqual(before?.state);
+  });
+
   it("uses a one-use manatka as the current persistent fight action", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -6848,6 +6887,8 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   activeSessionToReturnOnCreate: SoloCombatSessionRecord | null = null;
   createCount = 0;
   updateCount = 0;
+  staleActiveTurnUpdateCount = 0;
+  rejectNextActiveTurnUpdate = false;
   readonly combatItemStacks = new Map<string, number>();
   readonly consumedCombatItems: string[] = [];
 
@@ -7093,7 +7134,14 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   ): Promise<SoloCombatSessionRecord | null> {
     const session = this.sessions.get(sessionId);
 
+    if (this.rejectNextActiveTurnUpdate) {
+      this.rejectNextActiveTurnUpdate = false;
+      this.staleActiveTurnUpdateCount += 1;
+      return Promise.resolve(null);
+    }
+
     if (!session || session.status !== "active" || session.turn !== expectedTurn) {
+      this.staleActiveTurnUpdateCount += 1;
       return Promise.resolve(null);
     }
 

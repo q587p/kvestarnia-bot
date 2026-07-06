@@ -1212,6 +1212,29 @@ describe("main menu and scene keyboards", () => {
     }, character))).toEqual(["v1:place:quest-table"]);
   });
 
+  it("hides unavailable persistent gear action buttons while the fight card explains the blocker", () => {
+    const session = {
+      ...persistentFightSession(),
+      state: {
+        ...persistentFightSession().state!,
+        hero: {
+          hp: 21,
+          hpMax: 24,
+          mana: 0,
+          manaMax: 12
+        },
+        equipmentAbilities: {
+          version: 1 as const,
+          grantIds: ["mantok-ability.red-line-dagger"]
+        }
+      }
+    };
+    const keyboard = buildPersistentFightKeyboard(session, { ...character, level: 10 });
+
+    expect(flatInlineButtonTexts(keyboard)).not.toContain("🩸 Червоний рядок");
+    expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:fight:gear:"))).toBe(false);
+  });
+
   it("adds journal navigation only on persistent fight results", () => {
     const session = {
       ...persistentFightSession(),
