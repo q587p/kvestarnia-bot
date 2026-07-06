@@ -11,8 +11,10 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added the Чароковальня item-upgrade foundation: eligible equipment can move from `+0` to `+5` one level at a time, with deterministic cost/chance calculation, luck influence, pity after failures and a hard no-break/no-downgrade/no-delete failure contract.
-- Added persistent item enhancement storage on `CharacterItem`, item-upgrade pity rows and Plusoslav order rows for higher-level NPC upgrade preparation.
+- Added concrete upgraded item ids (`base`, `base.plus-1` ... `base.plus-5`) for authored eligible equipment, avoiding a new per-stack enhancement column while still letting one copy split from a stack on success.
+- Added item-upgrade pity and Plusoslav order state through existing daily-action ledger rows for higher-level NPC upgrade preparation.
 - Added `Іскрокамінь` as a stackable tradeable material and a small monster-reward replacement slot where ordinary bandage-style material drops become either bandages or Iskrokamin, not both.
+- Added a very rare post-drop upgrade roll for authored eligible equipment from sufficiently high-level combat rewards; Luck and effective monster level improve the tiny chance, while higher `+N` levels need extra falling checks.
 - Added the `🔧 Чароковальня` Korchma hall entry, compact stable item callback keys, upgrade preview/order/attempt/result cards and stale-level callback rejection.
 - Added Mage-style self upgrade attempts through `Іскровий підкрут`, spending mana and using the weaker self-upgrade chance table.
 - Added rewardless item-upgrade achievements for first Iskrokamin, first success/failure, donor use, `+5`, set-item upgrade and completed Plusoslav order.
@@ -25,8 +27,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Transfer eligibility inherits the existing manatka gift/postal rules for Iskrokamin through the `tradeable` item tag.
 
 ### Deferred
-- True per-copy item instances remain deferred; this slice stores enhancement level on the current character/item row and treats same-template donor use through stack quantity.
-- Shops, market, crafting recipes, broad combat formulas and generated upgrade loot remain deferred.
+- True per-copy item instances remain deferred; this slice treats same-template donor use through stack quantity and moves one copy between concrete `itemId` stacks.
+- Shops, market, crafting recipes, broad combat formulas and broad/generated upgrade loot remain deferred.
 
 ## [0.2.29] - 12026-07-06 - Mantok Ability Grants Foundation
 

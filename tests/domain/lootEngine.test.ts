@@ -158,6 +158,54 @@ describe("loot engine", () => {
     });
   });
 
+  it("can very rarely upgrade an authored equipment drop by source level and luck", () => {
+    const roll = rollMonsterLoot({
+      monsterId: "monster.upgrade-drop",
+      monsterLoot: { "monster.upgrade-drop": ["item.pan-of-persuasion"] },
+      items: contentItems,
+      luck: 23,
+      sourceLevel: 13,
+      rng: new FakeRandomSource([0, 0.1, 0.99, 0, 0, 0.99])
+    });
+
+    expect(roll).toMatchObject({
+      state: "dropped",
+      item: { id: "item.pan-of-persuasion.plus-1" }
+    });
+  });
+
+  it("does not drop upgraded authored equipment from very low-level sources", () => {
+    const roll = rollMonsterLoot({
+      monsterId: "monster.low-upgrade-drop",
+      monsterLoot: { "monster.low-upgrade-drop": ["item.pan-of-persuasion"] },
+      items: contentItems,
+      luck: 999,
+      sourceLevel: 1,
+      rng: new FakeRandomSource([0, 0.1, 0.99, 0, 0])
+    });
+
+    expect(roll).toMatchObject({
+      state: "dropped",
+      item: { id: "item.pan-of-persuasion" }
+    });
+  });
+
+  it("keeps already enhanced authored loot from rolling another enhancement layer", () => {
+    const roll = rollMonsterLoot({
+      monsterId: "monster.upgraded-source",
+      monsterLoot: { "monster.upgraded-source": ["item.pan-of-persuasion.plus-1"] },
+      items: contentItems,
+      luck: 999,
+      sourceLevel: 23,
+      rng: new FakeRandomSource([0, 0.1, 0.99, 0, 0])
+    });
+
+    expect(roll).toMatchObject({
+      state: "dropped",
+      item: { id: "item.pan-of-persuasion.plus-1" }
+    });
+  });
+
   it("uses trophy weights so a single concrete monster trophy is not guaranteed", () => {
     const trophyMonsterId = "monster.collective-liability-cauldron";
     const fallbackIds = new Set<string>(MONSTER_TROPHY_FALLBACK_ITEM_IDS);

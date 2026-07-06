@@ -354,7 +354,9 @@ async function handleItemUpgradeCallback(
     action.method,
     donorItemId,
     undefined,
-    action.fromLevel
+    action.fromLevel,
+    action.expectedQuantity,
+    action.expectedPityFailures
   );
   await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "attempted" || !result.success });
   await safeEditMessageText(ctx, presentItemUpgradeAttemptResult(result), {

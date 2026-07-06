@@ -1,6 +1,7 @@
 import { items } from "../content";
 import type { ItemContent } from "../content/schema";
 import { getItemUseEffect } from "../domain/itemUse";
+import { getItemUpgradeLevelFromItemId } from "../domain/itemUpgrades";
 import type {
   CharacterItemRecord,
   InventoryRepository
@@ -111,7 +112,7 @@ function enrichItem(row: CharacterItemRecord): InventoryItemSummary {
     id: row.id,
     itemId: row.itemId,
     quantity: row.quantity,
-    enhancementLevel: row.enhancementLevel ?? 0,
+    enhancementLevel: getItemUpgradeLevelFromItemId(row.itemId),
     content
   };
 }

@@ -5,8 +5,9 @@ import { mantokEquipmentCoverageItems } from "./mantokEquipmentCoverage";
 import { mantokSetItemContents } from "./mantokSetItems";
 import { monsterLootItemAdditions } from "./monsterLootItems";
 import { monsterTrophyItemAdditions } from "./monsterTrophyCoverage";
+import { buildItemUpgradeVariantContents } from "../domain/itemUpgrades";
 
-export const items = [
+const baseItems = [
   {
     id: "item.iskrokamin",
     name: "Іскрокамінь",
@@ -284,4 +285,9 @@ export const items = [
   ...monsterLootItemAdditions,
   ...monsterTrophyItemAdditions,
   ...lootExpansionV1ItemContents
+] satisfies ItemContent[];
+
+export const items = [
+  ...baseItems,
+  ...buildItemUpgradeVariantContents(baseItems)
 ] satisfies ItemContent[];

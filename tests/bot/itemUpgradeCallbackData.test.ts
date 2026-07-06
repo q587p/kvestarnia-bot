@@ -33,7 +33,14 @@ describe("item upgrade callback data", () => {
       makeItemUpgradePreviewCallbackData({ method: "self", itemId }),
       makeItemUpgradePreviewCallbackData({ method: "npc", itemId, donorItemId }),
       makeItemUpgradeOrderCallbackData(itemId, donorItemId),
-      makeItemUpgradeAttemptCallbackData({ method: "npc", itemId, fromLevel: 0, donorItemId })
+      makeItemUpgradeAttemptCallbackData({
+        method: "npc",
+        itemId,
+        fromLevel: 0,
+        expectedQuantity: 2,
+        expectedPityFailures: 1,
+        donorItemId
+      })
     ];
 
     for (const callback of callbacks) {
@@ -43,7 +50,13 @@ describe("item upgrade callback data", () => {
 
   it("parses stale-safe attempt callbacks with expected from level", () => {
     const itemId = "item.ability.last-page-rapier";
-    const data = makeItemUpgradeAttemptCallbackData({ method: "self", itemId, fromLevel: 2 });
+    const data = makeItemUpgradeAttemptCallbackData({
+      method: "self",
+      itemId,
+      fromLevel: 2,
+      expectedQuantity: 3,
+      expectedPityFailures: 1
+    });
 
     expect(parseItemUpgradeCallbackData(data)).toEqual({
       ok: true,
@@ -52,6 +65,8 @@ describe("item upgrade callback data", () => {
         method: "self",
         itemKey: getItemUpgradeCallbackKey(itemId),
         fromLevel: 2,
+        expectedQuantity: 3,
+        expectedPityFailures: 1,
         donorItemKey: null
       }
     });
@@ -60,7 +75,14 @@ describe("item upgrade callback data", () => {
   it("parses explicit donor item keys for upgrade attempts", () => {
     const itemId = "item.ability.last-page-rapier";
     const donorItemId = "item.dagger-red-line";
-    const data = makeItemUpgradeAttemptCallbackData({ method: "npc", itemId, fromLevel: 1, donorItemId });
+    const data = makeItemUpgradeAttemptCallbackData({
+      method: "npc",
+      itemId,
+      fromLevel: 1,
+      expectedQuantity: 2,
+      expectedPityFailures: 0,
+      donorItemId
+    });
 
     expect(parseItemUpgradeCallbackData(data)).toEqual({
       ok: true,
@@ -69,7 +91,34 @@ describe("item upgrade callback data", () => {
         method: "npc",
         itemKey: getItemUpgradeCallbackKey(itemId),
         fromLevel: 1,
+        expectedQuantity: 2,
+        expectedPityFailures: 0,
         donorItemKey: getItemUpgradeCallbackKey(donorItemId)
+      }
+    });
+  });
+
+  it("still parses legacy direct attempt callbacks without replay snapshot fields", () => {
+    const itemId = "item.ability.last-page-rapier";
+    const legacy = [
+      "v1",
+      "upg",
+      "a",
+      "n",
+      getItemUpgradeCallbackKey(itemId),
+      "0"
+    ].join(":");
+
+    expect(parseItemUpgradeCallbackData(legacy)).toEqual({
+      ok: true,
+      value: {
+        type: "attempt",
+        method: "npc",
+        itemKey: getItemUpgradeCallbackKey(itemId),
+        fromLevel: 0,
+        expectedQuantity: null,
+        expectedPityFailures: null,
+        donorItemKey: null
       }
     });
   });

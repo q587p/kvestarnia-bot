@@ -1888,7 +1888,6 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       character_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       quantity INTEGER NOT NULL DEFAULT 1,
-      enhancement_level INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(character_id, item_id)

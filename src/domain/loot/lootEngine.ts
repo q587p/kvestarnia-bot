@@ -1,5 +1,9 @@
 import type { ItemContent } from "../../content/schema";
 import {
+  makeItemUpgradeVariantId,
+  rollLootItemUpgradeLevel
+} from "../itemUpgrades";
+import {
   buildLootExpansionVariant,
   checkLootExpansionEquipRequirement,
   getEnhancementWeight,
@@ -37,6 +41,7 @@ export interface LootRollInput {
   character?: LootExpansionProfile;
   sourceId?: LootExpansionSourceId;
   sourceTags?: readonly string[];
+  sourceLevel?: number;
 }
 
 export type LootRollResult =
@@ -99,10 +104,20 @@ export function rollMonsterLoot(input: LootRollInput): LootRollResult {
     return { state: "none", rarity, reason: "no-eligible-loot" };
   }
 
+  const upgradeLevel = rollLootItemUpgradeLevel({
+    item: selected.item,
+    luck: input.luck,
+    rng: input.rng,
+    ...(input.sourceLevel === undefined ? {} : { sourceLevel: input.sourceLevel })
+  });
+  const upgradedItem = upgradeLevel > 0
+    ? input.items.find((item) => item.id === makeItemUpgradeVariantId(selected.item.id, upgradeLevel)) ?? selected.item
+    : selected.item;
+
   return {
     state: "dropped",
     rarity,
-    item: selected.item
+    item: upgradedItem
   };
 }
 

@@ -49,6 +49,8 @@ export interface ItemUpgradeAttemptInput {
   now: Date;
   roll: number;
   expectedFromLevel?: number;
+  expectedQuantity?: number;
+  expectedPityFailures?: number;
 }
 
 export type ItemUpgradeAttemptResult =

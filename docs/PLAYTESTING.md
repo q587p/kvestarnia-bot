@@ -12,11 +12,12 @@ Manual Telegram QA status for the implementation pass: not run.
 2. Use `/dev_add_item itemId=<upgradeable item id>` and `/dev_add_iskrokamin 5`.
 3. Open `🍺 Корчма` → `🔧 Чароковальня`; verify eligible equipment appears and Iskrokamin count is visible.
 4. Preview an NPC `+1` attempt and verify the card shows item name, cost, chance and no-break failure wording.
-5. Attempt `+1`; on success, double-click the old attempt callback if available and verify it is rejected as stale instead of spending again.
+5. Attempt `+1`; on success, verify one copy moved from the base `itemId` stack to a `...plus-1` stack, then double-click the old attempt callback if available and verify it does not spend the same visible success twice.
 6. Use `/dev_set_item_plus itemId=<same id> level=1`, open Charkokovalnia again, create a higher-level Plusoslav order, then use `/dev_complete_upgrade_order` and attempt the ready order.
 7. On a magic class, preview `Іскровий підкрут`; verify mana cost/unavailable states are clear.
-8. Open `🎒 Манатки`, the upgraded item detail, `/equipment` and `/hero`; verify the `+N` name and stat contribution are visible.
-9. Try gifting/postal transfer of `Іскрокамінь`; verify it behaves as a stackable tradeable manatka.
+8. Open `🎒 Манатки`, the upgraded item detail, `/equipment` and `/hero`; verify the `+N` name and stat contribution are visible without double-counting the bonus.
+9. Fight higher-level monsters with a high-Luck character if convenient; verify any random `+N` equipment drop stays rare and already `+N` drops do not chain-upgrade.
+10. Try gifting/postal transfer of `Іскрокамінь`; verify it behaves as a stackable tradeable manatka.
 
 ## 0.2.29 — Mantok Ability Grants Foundation smoke
 

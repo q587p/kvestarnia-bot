@@ -46,6 +46,8 @@ export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult
         method: result.method,
         itemId: result.item.itemId,
         fromLevel: result.item.enhancementLevel,
+        expectedQuantity: result.item.quantity,
+        expectedPityFailures: result.pityFailures,
         donorItemId: result.donor?.itemId ?? null
       })).row();
     }

@@ -4,6 +4,7 @@ import {
   type MantokSetDefinition,
   type MantokSetPieceDefinition
 } from "../../content/mantokSetItems";
+import { getBaseItemIdForUpgradeVariant } from "../itemUpgrades";
 
 export interface ActiveMantokSetSummary {
   set: MantokSetDefinition;
@@ -14,7 +15,7 @@ export interface ActiveMantokSetSummary {
 }
 
 export function getActiveMantokSets(equippedItemIds: readonly string[]): ActiveMantokSetSummary[] {
-  const equipped = new Set(equippedItemIds);
+  const equipped = new Set(equippedItemIds.map(getBaseItemIdForUpgradeVariant));
 
   return mantokSetDefinitions.flatMap((set) => {
     const equippedPieces = set.pieces.filter((piece) => equipped.has(piece.itemId));
@@ -33,7 +34,9 @@ export function getActiveMantokSetBonuses(equippedItemIds: readonly string[]): M
 }
 
 export function getMantokSetForItem(itemId: string): MantokSetDefinition | null {
-  return mantokSetDefinitions.find((set) => set.pieces.some((piece) => piece.itemId === itemId)) ?? null;
+  const baseItemId = getBaseItemIdForUpgradeVariant(itemId);
+
+  return mantokSetDefinitions.find((set) => set.pieces.some((piece) => piece.itemId === baseItemId)) ?? null;
 }
 
 export function getMantokSetProgressForItem(
@@ -46,7 +49,7 @@ export function getMantokSetProgressForItem(
     return null;
   }
 
-  const equipped = new Set(equippedItemIds);
+  const equipped = new Set(equippedItemIds.map(getBaseItemIdForUpgradeVariant));
   const equippedPieces = set.pieces.filter((piece) => equipped.has(piece.itemId));
   const activeBonuses = set.bonuses.filter((bonus) => equippedPieces.length >= bonus.pieces);
   const inactiveBonuses = set.bonuses.filter((bonus) => equippedPieces.length < bonus.pieces);

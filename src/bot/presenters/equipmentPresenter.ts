@@ -10,7 +10,7 @@ import type {
 import type { ItemEffectContent } from "../../content/schema";
 import { findMantokAbilityGrantByItemId } from "../../content";
 import { getActiveMantokSets } from "../../domain/equipment/mantokSetBonuses";
-import { applyItemEnhancementEffect, getItemDisplayNameWithEnhancement } from "../../domain/itemUpgrades";
+import { getItemDisplayNameWithEnhancement } from "../../domain/itemUpgrades";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
 
@@ -97,12 +97,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
     ].join(" ");
   }
 
-  const enhancedEffect = applyItemEnhancementEffect(
-    result.item.content.effect,
-    result.item.content,
-    result.item.enhancementLevel
-  );
-  const effect = presentItemEffect(enhancedEffect);
+  const effect = presentItemEffect(result.item.content.effect);
   const itemName = getItemDisplayNameWithEnhancement(result.item.content, result.item.enhancementLevel);
   const lines = [
     `Екіпіровано: <b>${presentCallbackHtmlText(itemName)}</b>.`,
@@ -151,12 +146,7 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
   const equipped = slotSummary?.item;
 
   if (equipped) {
-    const enhancedEffect = applyItemEnhancementEffect(
-      equipped.content.effect,
-      equipped.content,
-      equipped.enhancementLevel
-    );
-    const effect = presentItemEffect(enhancedEffect);
+    const effect = presentItemEffect(equipped.content.effect);
     const displayName = getItemDisplayNameWithEnhancement(equipped.content, equipped.enhancementLevel);
     const name = slotSummary?.occupiedByTwohand
       ? `${escapeHtml(displayName)} <i>(дворучна)</i>`

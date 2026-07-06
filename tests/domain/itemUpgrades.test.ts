@@ -4,8 +4,11 @@ import {
   applyItemEnhancementEffect,
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
+  getBaseItemIdForUpgradeVariant,
   getDonorBonus,
   getItemDisplayNameWithEnhancement,
+  getItemUpgradeLevelFromItemId,
+  makeItemUpgradeVariantId,
   isItemUpgradeable
 } from "../../src/domain/itemUpgrades";
 
@@ -18,6 +21,17 @@ describe("item upgrades", () => {
 
     const effect = applyItemEnhancementEffect(rapier.effect, rapier, 3);
     expect(effect?.weaponDamage).toBe((rapier.effect?.weaponDamage ?? 0) + 3);
+  });
+
+  it("models authored upgrade levels as stable item id variants", () => {
+    const plusThreeId = makeItemUpgradeVariantId(rapier.id, 3);
+    const plusThree = items.find((item) => item.id === plusThreeId);
+
+    expect(plusThreeId).toBe("item.ability.last-page-rapier.plus-3");
+    expect(plusThree?.name).toBe(`${rapier.name} +3`);
+    expect(plusThree?.effect?.weaponDamage).toBe((rapier.effect?.weaponDamage ?? 0) + 3);
+    expect(getItemUpgradeLevelFromItemId(plusThreeId)).toBe(3);
+    expect(getBaseItemIdForUpgradeVariant(plusThreeId)).toBe(rapier.id);
   });
 
   it("rejects capped or non-equipment items", () => {

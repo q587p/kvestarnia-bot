@@ -79,6 +79,7 @@ export type ItemUpgradePreviewResult =
         iskrokaminDiscount: number;
       } | null;
       donorOptions: ItemUpgradeDonorOption[];
+      pityFailures: number;
       requiresOrder: boolean;
       order: ItemUpgradeOrderRecord | null;
     };
@@ -234,6 +235,7 @@ export class ItemUpgradeService {
           }
         : null,
       donorOptions,
+      pityFailures,
       requiresOrder: method === "npc" && targetLevel >= ITEM_UPGRADE_ORDER_TARGET_LEVEL,
       order
     };
@@ -276,7 +278,9 @@ export class ItemUpgradeService {
     method: "npc" | "self" = "npc",
     donorItemId?: string | null,
     orderToken?: string,
-    expectedFromLevel?: number
+    expectedFromLevel?: number,
+    expectedQuantity?: number | null,
+    expectedPityFailures?: number | null
   ): Promise<ItemUpgradeAttemptServiceResult> {
     const now = this.clock();
     const result = await this.repository.attemptForTelegramUser(telegramUserId, {
@@ -286,7 +290,9 @@ export class ItemUpgradeService {
       roll: this.rng.nextFloat(),
       ...(orderToken === undefined ? {} : { token: orderToken }),
       ...(donorItemId === undefined ? {} : { donorItemId }),
-      ...(expectedFromLevel === undefined ? {} : { expectedFromLevel })
+      ...(expectedFromLevel === undefined ? {} : { expectedFromLevel }),
+      ...(expectedQuantity === undefined || expectedQuantity === null ? {} : { expectedQuantity }),
+      ...(expectedPityFailures === undefined || expectedPityFailures === null ? {} : { expectedPityFailures })
     });
 
     if (result.state !== "attempted" || !this.achievements) {

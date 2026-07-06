@@ -10,7 +10,15 @@ export type ItemUpgradeCallback =
   | { type: "menu" }
   | { type: "preview"; method: ItemUpgradeMethod; itemKey: string; donorItemKey: string | null }
   | { type: "order"; itemKey: string; donorItemKey: string | null }
-  | { type: "attempt"; method: ItemUpgradeMethod; itemKey: string; fromLevel: number; donorItemKey: string | null }
+  | {
+      type: "attempt";
+      method: ItemUpgradeMethod;
+      itemKey: string;
+      fromLevel: number;
+      expectedQuantity: number | null;
+      expectedPityFailures: number | null;
+      donorItemKey: string | null;
+    }
   | { type: "attempt-order"; token: string };
 
 export function getItemUpgradeCallbackKey(itemId: string): string {
@@ -66,6 +74,8 @@ export function makeItemUpgradeAttemptCallbackData(input: {
   method: ItemUpgradeMethod;
   itemId: string;
   fromLevel: number;
+  expectedQuantity?: number | null;
+  expectedPityFailures?: number | null;
   donorItemId?: string | null;
 }): string {
   return assertCallbackData(
@@ -75,6 +85,8 @@ export function makeItemUpgradeAttemptCallbackData(input: {
       methodToken(input.method),
       getItemUpgradeCallbackKey(input.itemId),
       String(input.fromLevel),
+      String(Math.max(0, Math.floor(input.expectedQuantity ?? 0))),
+      String(Math.max(0, Math.floor(input.expectedPityFailures ?? 0))),
       input.donorItemId ? getItemUpgradeCallbackKey(input.donorItemId) : null
     ].filter(Boolean).join(":")
   );
@@ -110,7 +122,42 @@ export function parseItemUpgradeCallbackData(data: string): CallbackParseResult<
     const method = parseMethodToken(parts[3]!);
     const fromLevel = Number.parseInt(parts[5]!, 10);
     return method && Number.isInteger(fromLevel)
-      ? { ok: true, value: { type: "attempt", method, itemKey: parts[4]!, fromLevel, donorItemKey: parts[6] ?? null } }
+      ? {
+          ok: true,
+          value: {
+            type: "attempt",
+            method,
+            itemKey: parts[4]!,
+            fromLevel,
+            expectedQuantity: null,
+            expectedPityFailures: null,
+            donorItemKey: parts[6] ?? null
+          }
+        }
+      : { ok: false };
+  }
+
+  if (parts[2] === "a" && (parts.length === 8 || parts.length === 9)) {
+    const method = parseMethodToken(parts[3]!);
+    const fromLevel = Number.parseInt(parts[5]!, 10);
+    const expectedQuantity = Number.parseInt(parts[6]!, 10);
+    const expectedPityFailures = Number.parseInt(parts[7]!, 10);
+    return method &&
+      Number.isInteger(fromLevel) &&
+      Number.isInteger(expectedQuantity) &&
+      Number.isInteger(expectedPityFailures)
+      ? {
+          ok: true,
+          value: {
+            type: "attempt",
+            method,
+            itemKey: parts[4]!,
+            fromLevel,
+            expectedQuantity,
+            expectedPityFailures,
+            donorItemKey: parts[8] ?? null
+          }
+        }
       : { ok: false };
   }
 

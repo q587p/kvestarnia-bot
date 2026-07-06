@@ -212,6 +212,7 @@ describe("content tables", () => {
     ] as const;
     const cheapAuthoredEquipment = items.filter((item) =>
       !item.id.startsWith("item.loot-v1-") &&
+      !/\.plus-[1-5]$/.test(item.id) &&
       ["weapon", "armor", "accessory"].includes(item.slot) &&
       (item.goldValue ?? 999) <= 4
     );

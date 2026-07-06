@@ -1,6 +1,6 @@
 import type { ItemContent } from "../../content/schema";
 import { findMantokAbilityGrantByItemId } from "../../content";
-import { applyItemEnhancementEffect, getItemDisplayNameWithEnhancement } from "../../domain/itemUpgrades";
+import { getItemDisplayNameWithEnhancement } from "../../domain/itemUpgrades";
 import { getMantokSetProgressForItem } from "../../domain/equipment/mantokSetBonuses";
 import type { EquipmentSlot, ItemEquipPreviewResult } from "../../services/equipmentService";
 import {
@@ -50,8 +50,7 @@ export function presentOwnedItemDetail(
   const content = item.content;
   const quantity = Math.max(1, Math.floor(item.quantity));
   const displayName = getItemDisplayNameWithEnhancement(content, item.enhancementLevel);
-  const enhancedEffect = applyItemEnhancementEffect(content.effect, content, item.enhancementLevel);
-  const effectLine = presentItemEffectLine({ ...content, ...(enhancedEffect ? { effect: enhancedEffect } : {}) });
+  const effectLine = presentItemEffectLine(content);
 
   return [
     `🔎 <b>${escapeHtml(displayName)}</b>`,

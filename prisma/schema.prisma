@@ -46,8 +46,6 @@ model Character {
   itemTransfersSent ItemTransfer[] @relation("ItemTransferSender")
   itemTransfersReceived ItemTransfer[] @relation("ItemTransferReceiver")
   itemUseOrders ItemUseOrder[]
-  itemUpgradePities ItemUpgradePity[]
-  itemUpgradeOrders ItemUpgradeOrder[]
   huntContracts HuntContract[]
   soloCombatSessions SoloCombatSession[]
   pendingPassageEncounters PendingPassageEncounter[]
@@ -472,57 +470,12 @@ model CharacterItem {
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   itemId      String    @map("item_id")
   quantity    Int       @default(1)
-  enhancementLevel Int   @default(0) @map("enhancement_level")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@unique([characterId, itemId])
   @@index([itemId])
   @@map("character_items")
-}
-
-model ItemUpgradePity {
-  id           String    @id @default(uuid())
-  characterId  String    @map("character_id")
-  character    Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  itemId       String    @map("item_id")
-  targetLevel  Int       @map("target_level")
-  failureCount Int       @default(0) @map("failure_count")
-  lastFailureAt DateTime? @map("last_failure_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  @@unique([characterId, itemId, targetLevel])
-  @@index([itemId, targetLevel])
-  @@map("item_upgrade_pities")
-}
-
-model ItemUpgradeOrder {
-  id                String    @id @default(uuid())
-  token             String    @unique
-  characterId       String    @map("character_id")
-  character         Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  itemId            String    @map("item_id")
-  donorItemId       String?   @map("donor_item_id")
-  fromLevel         Int       @map("from_level")
-  targetLevel       Int       @map("target_level")
-  method            String
-  status            String    @default("pending")
-  requiredFightCount Int      @default(0) @map("required_fight_count")
-  progressFightCount Int      @default(0) @map("progress_fight_count")
-  costJson          Json      @map("cost_json")
-  chanceJson        Json      @map("chance_json")
-  resultJson        Json?     @map("result_json")
-  expiresAt         DateTime? @map("expires_at")
-  completedAt       DateTime? @map("completed_at")
-  cancelledAt       DateTime? @map("cancelled_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-
-  @@index([characterId, status, expiresAt])
-  @@index([itemId, status])
-  @@index([donorItemId, status])
-  @@map("item_upgrade_orders")
 }
 
 model MantokChestRun {

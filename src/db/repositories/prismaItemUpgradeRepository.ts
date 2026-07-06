@@ -1,12 +1,16 @@
-import { Prisma, type Character, type PrismaClient } from "@prisma/client";
+import { Prisma, type Character, type DailyAction, type PrismaClient } from "@prisma/client";
 import { items } from "../../content";
 import {
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
+  getBaseItemIdForUpgradeVariant,
   getDonorBonus,
+  getItemUpgradeLevelFromItemId,
   getLuckFromStats,
+  getNextItemUpgradeItemId,
   isItemUpgradeable,
   isMageClassForSparkTemper,
+  makeItemUpgradeVariantId,
   MAX_ITEM_ENHANCEMENT_LEVEL,
   normalizeEnhancementLevel
 } from "../../domain/itemUpgrades";
@@ -26,23 +30,50 @@ import type {
 
 type TxClient = Prisma.TransactionClient;
 
+const ORDER_KEY = "item-upgrade.order";
+const PITY_LOCAL_DATE = "persistent";
+const PITY_KEY_PREFIX = "item-upgrade.pity:";
+const ORDER_KIND = "item-upgrade-order";
+const PITY_KIND = "item-upgrade-pity";
+
+interface StoredOrderJson {
+  kind: typeof ORDER_KIND;
+  token: string;
+  itemId: string;
+  donorItemId: string | null;
+  fromLevel: number;
+  targetLevel: number;
+  method: "npc" | "self";
+  status: ItemUpgradeOrderStatus;
+  requiredFightCount: number;
+  progressFightCount: number;
+  cost: unknown;
+  chance: unknown;
+  result: unknown;
+  expiresAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  updatedAt: string;
+}
+
 export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemUpgradeSnapshot | null> {
-    void now;
     return this.prisma.$transaction(async (tx) => {
       const character = await findCharacter(tx, telegramUserId);
       if (!character) {
         return null;
       }
 
-      const [itemsRows, equipment, pities, orders] = await Promise.all([
+      const [itemRows, equipment, pities, orderRows] = await Promise.all([
         tx.characterItem.findMany({ where: { characterId: character.id }, orderBy: [{ createdAt: "asc" }] }),
         tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } }),
-        tx.itemUpgradePity.findMany({ where: { characterId: character.id } }),
-        tx.itemUpgradeOrder.findMany({
-          where: { characterId: character.id, status: { in: ["pending", "ready"] } },
+        tx.dailyAction.findMany({
+          where: { characterId: character.id, key: { startsWith: PITY_KEY_PREFIX }, localDate: PITY_LOCAL_DATE }
+        }),
+        tx.dailyAction.findMany({
+          where: { characterId: character.id, key: ORDER_KEY },
           orderBy: [{ createdAt: "desc" }]
         })
       ]);
@@ -50,13 +81,12 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
 
       return {
         character: toCharacterRecord(character),
-        items: itemsRows.map((row) => toInventoryRow(row, equipped)),
-        pities: pities.map((row) => ({
-          itemId: row.itemId,
-          targetLevel: row.targetLevel,
-          failureCount: row.failureCount
-        })),
-        orders: orders.map(mapOrder)
+        items: itemRows.map((row) => toInventoryRow(row, equipped)),
+        pities: pities.flatMap(mapPity),
+        orders: orderRows
+          .map(mapOrder)
+          .filter((order): order is ItemUpgradeOrderRecord => order !== null)
+          .filter((order) => isActiveOrder(order, now))
       };
     });
   }
@@ -80,11 +110,11 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       }
 
       const itemContent = findItem(input.itemId);
-      if (!itemContent || !isItemUpgradeable(itemContent, base.enhancementLevel)) {
+      const fromLevel = getItemUpgradeLevelFromItemId(input.itemId);
+      if (!itemContent || !isItemUpgradeable(itemContent, fromLevel)) {
         return { state: "not-upgradeable" };
       }
 
-      const fromLevel = normalizeEnhancementLevel(base.enhancementLevel);
       if (fromLevel >= MAX_ITEM_ENHANCEMENT_LEVEL) {
         return { state: "cap-reached", item: toInventoryRow(base, new Set(equipment.map((row) => row.itemId))) };
       }
@@ -101,41 +131,54 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         }
       }
 
-      await tx.itemUpgradeOrder.updateMany({
-        where: {
-          characterId: character.id,
-          itemId: input.itemId,
-          status: { in: ["pending", "ready"] }
-        },
-        data: {
+      const activeOrders = await getActiveOrderRows(tx, character.id, input.now);
+      for (const active of activeOrders.filter((order) => order.order.itemId === input.itemId)) {
+        await updateOrderRow(tx, active.row, {
+          ...active.order,
           status: "canceled",
           cancelledAt: input.now,
           updatedAt: input.now
-        }
-      });
+        });
+      }
 
-      const row = await tx.itemUpgradeOrder.create({
+      const order: StoredOrderJson = {
+        kind: ORDER_KIND,
+        token: input.token,
+        itemId: input.itemId,
+        donorItemId: input.donorItemId ?? null,
+        fromLevel,
+        targetLevel: input.targetLevel,
+        method: "npc",
+        status: input.requiredFightCount > 0 ? "pending" : "ready",
+        requiredFightCount: input.requiredFightCount,
+        progressFightCount: 0,
+        cost: input.cost,
+        chance: input.chance,
+        result: null,
+        expiresAt: input.expiresAt?.toISOString() ?? null,
+        completedAt: null,
+        cancelledAt: null,
+        updatedAt: input.now.toISOString()
+      };
+      const row = await tx.dailyAction.create({
         data: {
-          token: input.token,
           characterId: character.id,
-          itemId: input.itemId,
-          donorItemId: input.donorItemId ?? null,
-          fromLevel,
-          targetLevel: input.targetLevel,
-          method: "npc",
-          status: input.requiredFightCount > 0 ? "pending" : "ready",
-          requiredFightCount: input.requiredFightCount,
-          progressFightCount: 0,
-          costJson: input.cost as Prisma.InputJsonValue,
-          chanceJson: input.chance as Prisma.InputJsonValue,
-          expiresAt: input.expiresAt ?? null,
-          updatedAt: input.now
+          key: ORDER_KEY,
+          localDate: input.token,
+          rewardXp: 0,
+          rewardGold: 0,
+          spentGold: 0,
+          resultJson: order as unknown as Prisma.InputJsonValue
         }
       });
+      const mapped = mapOrder(row);
+      if (!mapped) {
+        throw new Error("Created item upgrade order could not be mapped.");
+      }
 
       return {
         state: "created",
-        order: mapOrder(row),
+        order: mapped,
         character: toCharacterRecord(character),
         item: toInventoryRow(base, new Set(equipment.map((entry) => entry.itemId)))
       };
@@ -152,14 +195,12 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         return { state: "no-character" };
       }
 
-      const tokenOrderRow = input.token
-        ? await tx.itemUpgradeOrder.findUnique({ where: { token: input.token } })
-        : null;
-      if (input.token && (!tokenOrderRow || tokenOrderRow.characterId !== character.id)) {
-        return { state: "stale-order", ...(tokenOrderRow ? { order: mapOrder(tokenOrderRow) } : {}) };
+      const tokenOrder = input.token ? await findOrderByToken(tx, character.id, input.token) : null;
+      if (input.token && !tokenOrder) {
+        return { state: "stale-order" };
       }
-      const itemId = tokenOrderRow?.itemId ?? input.itemId;
 
+      const itemId = tokenOrder?.order.itemId ?? input.itemId;
       const [base, equipment] = await Promise.all([
         tx.characterItem.findUnique({ where: { characterId_itemId: { characterId: character.id, itemId } } }),
         tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } })
@@ -170,31 +211,36 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
 
       const equipped = new Set(equipment.map((row) => row.itemId));
       const itemContent = findItem(itemId);
-      if (!itemContent || !isItemUpgradeable(itemContent, base.enhancementLevel)) {
+      const fromLevel = getItemUpgradeLevelFromItemId(itemId);
+      if (!itemContent || !isItemUpgradeable(itemContent, fromLevel)) {
         return { state: "not-upgradeable" };
       }
 
-      const fromLevel = normalizeEnhancementLevel(base.enhancementLevel);
       if (fromLevel >= MAX_ITEM_ENHANCEMENT_LEVEL) {
         return { state: "cap-reached", item: toInventoryRow(base, equipped) };
       }
       if (input.expectedFromLevel !== undefined && input.expectedFromLevel !== fromLevel) {
         return { state: "stale-item-level", item: toInventoryRow(base, equipped) };
       }
+      if (input.expectedQuantity !== undefined && input.expectedQuantity !== base.quantity) {
+        return { state: "stale-item-level", item: toInventoryRow(base, equipped) };
+      }
 
       const targetLevel = fromLevel + 1;
+      const nextItemId = getNextItemUpgradeItemId(itemId);
+      if (!nextItemId || !findItem(nextItemId)) {
+        return { state: "not-upgradeable" };
+      }
+
       let order: ItemUpgradeOrderRecord | null = null;
+      let orderRow: DailyAction | null = null;
       if (input.method === "npc" && targetLevel >= 2) {
-        const orderRow = input.token
-          ? await tx.itemUpgradeOrder.findUnique({ where: { token: input.token } })
-          : await tx.itemUpgradeOrder.findFirst({
-            where: { characterId: character.id, itemId, status: { in: ["pending", "ready"] } },
-              orderBy: [{ createdAt: "desc" }]
-            });
-        if (!orderRow || orderRow.characterId !== character.id || orderRow.itemId !== itemId) {
+        const activeOrder = tokenOrder ?? (await findLatestActiveOrderForItem(tx, character.id, itemId, input.now));
+        if (!activeOrder) {
           return { state: "stale-order" };
         }
-        order = mapOrder(orderRow);
+        order = activeOrder.order;
+        orderRow = activeOrder.row;
         if (order.fromLevel !== fromLevel || order.targetLevel !== targetLevel || order.method !== "npc") {
           return { state: "stale-order", order };
         }
@@ -220,26 +266,20 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         ? getDonorBonus({
             baseItem: itemContent,
             baseItemId: itemId,
-            baseEnhancementLevel: base.enhancementLevel,
+            baseEnhancementLevel: fromLevel,
             donorItem: donorContent,
             donorItemId: input.donorItemId!,
-            donorEnhancementLevel: donor.enhancementLevel
+            donorEnhancementLevel: getItemUpgradeLevelFromItemId(input.donorItemId!)
           })
         : null;
       if (input.donorItemId && !donorBonus) {
         return { state: "invalid-donor" };
       }
 
-      const pity = await tx.itemUpgradePity.findUnique({
-        where: {
-          characterId_itemId_targetLevel: {
-            characterId: character.id,
-            itemId,
-            targetLevel
-          }
-        }
-      });
-      const pityFailuresBefore = Math.max(0, pity?.failureCount ?? 0);
+      const pityFailuresBefore = await getPityFailureCount(tx, character.id, itemId, targetLevel);
+      if (input.expectedPityFailures !== undefined && input.expectedPityFailures !== pityFailuresBefore) {
+        return { state: "stale-item-level", item: toInventoryRow(base, equipped) };
+      }
       const chance = calculateItemUpgradeChance({
         method: input.method,
         targetLevel,
@@ -300,55 +340,30 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       }
 
       const success = chance.guaranteed || input.roll * 100 < chance.finalChance;
+      const updatedItemId = success ? nextItemId : itemId;
       if (success) {
-        await tx.characterItem.update({
-          where: { characterId_itemId: { characterId: character.id, itemId } },
-          data: { enhancementLevel: targetLevel }
-        });
-        await tx.itemUpgradePity.deleteMany({
-          where: { characterId: character.id, itemId, targetLevel }
-        });
+        await replaceOneItemId(tx, character.id, itemId, nextItemId);
+        await clearPity(tx, character.id, itemId, targetLevel);
       } else {
-        await tx.itemUpgradePity.upsert({
-          where: {
-            characterId_itemId_targetLevel: {
-              characterId: character.id,
-              itemId,
-              targetLevel
-            }
-          },
-          create: {
-            characterId: character.id,
-            itemId,
-            targetLevel,
-            failureCount: 1,
-            lastFailureAt: input.now
-          },
-          update: {
-            failureCount: { increment: 1 },
-            lastFailureAt: input.now
-          }
-        });
+        await setPity(tx, character.id, itemId, targetLevel, pityFailuresBefore + 1, input.now);
       }
 
       let updatedOrder = order;
-      if (order) {
-        const row = await tx.itemUpgradeOrder.update({
-          where: { id: order.id },
-          data: {
-            status: "attempted",
-            completedAt: input.now,
-            resultJson: {
-              success,
-              fromLevel,
-              targetLevel,
-              finalChance: chance.finalChance,
-              donorConsumed
-            },
-            updatedAt: input.now
-          }
+      if (order && orderRow) {
+        const updated = await updateOrderRow(tx, orderRow, {
+          ...order,
+          status: "attempted",
+          completedAt: input.now,
+          result: {
+            success,
+            fromLevel,
+            targetLevel,
+            finalChance: chance.finalChance,
+            donorConsumed
+          },
+          updatedAt: input.now
         });
-        updatedOrder = mapOrder(row);
+        updatedOrder = mapOrder(updated);
       }
 
       await tx.characterItem.deleteMany({
@@ -356,29 +371,23 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       });
       const [updatedCharacter, updatedItem, updatedPity] = await Promise.all([
         tx.character.findUniqueOrThrow({ where: { id: character.id }, include: characterInclude }),
-        tx.characterItem.findUniqueOrThrow({ where: { characterId_itemId: { characterId: character.id, itemId } } }),
-        tx.itemUpgradePity.findUnique({
-          where: {
-            characterId_itemId_targetLevel: {
-              characterId: character.id,
-              itemId,
-              targetLevel
-            }
-          }
-        })
+        tx.characterItem.findUniqueOrThrow({
+          where: { characterId_itemId: { characterId: character.id, itemId: updatedItemId } }
+        }),
+        getPityFailureCount(tx, character.id, itemId, targetLevel)
       ]);
 
       return {
         state: "attempted",
         success,
         character: toCharacterRecord(updatedCharacter),
-        item: toInventoryRow(updatedItem, equipped),
+        item: toInventoryRow(updatedItem, new Set([...equipped].map((entry) => entry === itemId ? updatedItemId : entry))),
         donorConsumed,
         fromLevel,
         targetLevel,
         finalChance: chance.finalChance,
         pityFailuresBefore,
-        pityFailuresAfter: success ? 0 : updatedPity?.failureCount ?? pityFailuresBefore + 1,
+        pityFailuresAfter: success ? 0 : updatedPity,
         pityGuaranteed: chance.guaranteed,
         spent: costs,
         order: updatedOrder
@@ -388,28 +397,16 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
 
   async incrementReadyFightOrders(characterId: string, now: Date): Promise<number> {
     return this.prisma.$transaction(async (tx) => {
-      const orders = await tx.itemUpgradeOrder.findMany({
-        where: {
-          characterId,
-          status: "pending"
-        },
-        select: {
-          id: true,
-          requiredFightCount: true,
-          progressFightCount: true
-        }
-      });
+      const activeOrders = await getActiveOrderRows(tx, characterId, now);
       let updatedCount = 0;
 
-      for (const order of orders) {
-        const nextProgress = Math.min(order.requiredFightCount, order.progressFightCount + 1);
-        await tx.itemUpgradeOrder.update({
-          where: { id: order.id },
-          data: {
-            progressFightCount: nextProgress,
-            status: nextProgress >= order.requiredFightCount ? "ready" : "pending",
-            updatedAt: now
-          }
+      for (const active of activeOrders.filter((order) => order.order.status === "pending")) {
+        const nextProgress = Math.min(active.order.requiredFightCount, active.order.progressFightCount + 1);
+        await updateOrderRow(tx, active.row, {
+          ...active.order,
+          progressFightCount: nextProgress,
+          status: nextProgress >= active.order.requiredFightCount ? "ready" : "pending",
+          updatedAt: now
         });
         updatedCount += 1;
       }
@@ -428,15 +425,19 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       if (!character) {
         return null;
       }
-      const updated = await tx.characterItem.updateMany({
-        where: { characterId: character.id, itemId },
-        data: { enhancementLevel: normalizeEnhancementLevel(level) }
-      });
-      if (updated.count !== 1) {
+      const baseItemId = getBaseItemIdForUpgradeVariant(itemId);
+      const targetItemId = makeItemUpgradeVariantId(baseItemId, level);
+      const owned = await findOwnedVariantRow(tx, character.id, itemId);
+      if (!owned || !findItem(targetItemId)) {
         return null;
       }
+
+      await replaceOneItemId(tx, character.id, owned.itemId, targetItemId);
+      await tx.characterItem.deleteMany({
+        where: { characterId: character.id, quantity: { lte: 0 } }
+      });
       const [item, equipment] = await Promise.all([
-        tx.characterItem.findUniqueOrThrow({ where: { characterId_itemId: { characterId: character.id, itemId } } }),
+        tx.characterItem.findUniqueOrThrow({ where: { characterId_itemId: { characterId: character.id, itemId: targetItemId } } }),
         tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } })
       ]);
 
@@ -459,24 +460,12 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       if (!character) {
         return null;
       }
+      const safeTarget = normalizeEnhancementLevel(targetLevel);
       const safeFailures = Math.max(0, Math.floor(failureCount));
       if (safeFailures === 0) {
-        await tx.itemUpgradePity.deleteMany({ where: { characterId: character.id, itemId, targetLevel } });
+        await clearPity(tx, character.id, itemId, safeTarget);
       } else {
-        await tx.itemUpgradePity.upsert({
-          where: { characterId_itemId_targetLevel: { characterId: character.id, itemId, targetLevel } },
-          create: {
-            characterId: character.id,
-            itemId,
-            targetLevel,
-            failureCount: safeFailures,
-            lastFailureAt: now
-          },
-          update: {
-            failureCount: safeFailures,
-            lastFailureAt: now
-          }
-        });
+        await setPity(tx, character.id, itemId, safeTarget, safeFailures, now);
       }
 
       return { character: toCharacterRecord(character), failureCount: safeFailures };
@@ -509,23 +498,67 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       if (!character) {
         return null;
       }
-      const updated = await tx.itemUpgradeOrder.updateMany({
-        where: { characterId: character.id, status: { in: ["pending", "ready"] } },
-        data: {
-          status,
-          ...(status === "ready" ? { progressFightCount: 999 } : { cancelledAt: now }),
-          updatedAt: now
-        }
-      });
+      const activeOrders = await getActiveOrderRows(tx, character.id, now);
 
-      return { character: toCharacterRecord(character), canceled: updated.count };
+      for (const active of activeOrders) {
+        await updateOrderRow(tx, active.row, {
+          ...active.order,
+          status,
+          progressFightCount: status === "ready" ? 999 : active.order.progressFightCount,
+          cancelledAt: status === "canceled" ? now : active.order.cancelledAt,
+          updatedAt: now
+        });
+      }
+
+      return { character: toCharacterRecord(character), canceled: activeOrders.length };
     });
   }
 }
 
+async function replaceOneItemId(
+  tx: TxClient,
+  characterId: string,
+  fromItemId: string,
+  toItemId: string
+): Promise<void> {
+  const removed = await tx.characterItem.updateMany({
+    where: { characterId, itemId: fromItemId, quantity: { gte: 1 } },
+    data: { quantity: { decrement: 1 } }
+  });
+  if (removed.count !== 1) {
+    throw new Error(`Item upgrade source row disappeared: ${fromItemId}`);
+  }
+
+  await tx.characterItem.upsert({
+    where: { characterId_itemId: { characterId, itemId: toItemId } },
+    create: { characterId, itemId: toItemId, quantity: 1 },
+    update: { quantity: { increment: 1 } }
+  });
+  await tx.characterEquipment.updateMany({
+    where: { characterId, itemId: fromItemId },
+    data: { itemId: toItemId }
+  });
+}
+
+async function findOwnedVariantRow(tx: TxClient, characterId: string, itemId: string) {
+  const exact = await tx.characterItem.findUnique({
+    where: { characterId_itemId: { characterId, itemId } }
+  });
+  if (exact) {
+    return exact;
+  }
+
+  const baseItemId = getBaseItemIdForUpgradeVariant(itemId);
+  const itemIds = [0, 1, 2, 3, 4, 5].map((level) => makeItemUpgradeVariantId(baseItemId, level));
+  return tx.characterItem.findFirst({
+    where: { characterId, itemId: { in: itemIds }, quantity: { gt: 0 } },
+    orderBy: [{ createdAt: "asc" }]
+  });
+}
+
 function isValidDonor(
-  base: { itemId: string; quantity: number; enhancementLevel: number },
-  donor: { itemId: string; quantity: number; enhancementLevel: number },
+  base: { itemId: string; quantity: number },
+  donor: { itemId: string; quantity: number },
   baseItemId: string,
   donorItemId: string
 ): boolean {
@@ -542,10 +575,10 @@ function isValidDonor(
   return Boolean(getDonorBonus({
     baseItem: baseContent,
     baseItemId,
-    baseEnhancementLevel: base.enhancementLevel,
+    baseEnhancementLevel: getItemUpgradeLevelFromItemId(base.itemId),
     donorItem: donorContent,
     donorItemId,
-    donorEnhancementLevel: donor.enhancementLevel
+    donorEnhancementLevel: getItemUpgradeLevelFromItemId(donor.itemId)
   }));
 }
 
@@ -554,7 +587,7 @@ function findItem(itemId: string) {
 }
 
 function toInventoryRow(
-  row: { id: string; characterId: string; itemId: string; quantity: number; enhancementLevel: number },
+  row: { id: string; characterId: string; itemId: string; quantity: number },
   equippedItemIds: ReadonlySet<string>
 ): ItemUpgradeInventoryRow {
   return {
@@ -562,52 +595,218 @@ function toInventoryRow(
     characterId: row.characterId,
     itemId: row.itemId,
     quantity: row.quantity,
-    enhancementLevel: normalizeEnhancementLevel(row.enhancementLevel),
+    enhancementLevel: getItemUpgradeLevelFromItemId(row.itemId),
     equipped: equippedItemIds.has(row.itemId)
   };
 }
 
-function mapOrder(row: {
-  id: string;
-  token: string;
-  characterId: string;
+async function getPityFailureCount(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  targetLevel: number
+): Promise<number> {
+  const row = await tx.dailyAction.findUnique({
+    where: {
+      characterId_key_localDate: {
+        characterId,
+        key: pityKey(itemId, targetLevel),
+        localDate: PITY_LOCAL_DATE
+      }
+    }
+  });
+
+  return mapPity(row).at(0)?.failureCount ?? 0;
+}
+
+async function setPity(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  targetLevel: number,
+  failureCount: number,
+  now: Date
+): Promise<void> {
+  await tx.dailyAction.upsert({
+    where: {
+      characterId_key_localDate: {
+        characterId,
+        key: pityKey(itemId, targetLevel),
+        localDate: PITY_LOCAL_DATE
+      }
+    },
+    create: {
+      characterId,
+      key: pityKey(itemId, targetLevel),
+      localDate: PITY_LOCAL_DATE,
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: {
+        kind: PITY_KIND,
+        itemId,
+        targetLevel,
+        failureCount,
+        lastFailureAt: now.toISOString()
+      }
+    },
+    update: {
+      resultJson: {
+        kind: PITY_KIND,
+        itemId,
+        targetLevel,
+        failureCount,
+        lastFailureAt: now.toISOString()
+      }
+    }
+  });
+}
+
+async function clearPity(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  targetLevel: number
+): Promise<void> {
+  await tx.dailyAction.deleteMany({
+    where: { characterId, key: pityKey(itemId, targetLevel), localDate: PITY_LOCAL_DATE }
+  });
+}
+
+function pityKey(itemId: string, targetLevel: number): string {
+  return `${PITY_KEY_PREFIX}${itemId}:${normalizeEnhancementLevel(targetLevel)}`;
+}
+
+function mapPity(row: Pick<DailyAction, "key" | "resultJson"> | null): Array<{
   itemId: string;
-  donorItemId: string | null;
-  fromLevel: number;
   targetLevel: number;
-  method: string;
-  status: string;
-  requiredFightCount: number;
-  progressFightCount: number;
-  costJson: unknown;
-  chanceJson: unknown;
-  resultJson: unknown;
-  expiresAt: Date | null;
-  completedAt: Date | null;
-  cancelledAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): ItemUpgradeOrderRecord {
+  failureCount: number;
+}> {
+  if (!row || !row.key.startsWith(PITY_KEY_PREFIX) || !isRecord(row.resultJson)) {
+    return [];
+  }
+
+  return row.resultJson.kind === PITY_KIND &&
+    typeof row.resultJson.itemId === "string" &&
+    typeof row.resultJson.targetLevel === "number" &&
+    typeof row.resultJson.failureCount === "number"
+    ? [{
+        itemId: row.resultJson.itemId,
+        targetLevel: normalizeEnhancementLevel(row.resultJson.targetLevel),
+        failureCount: Math.max(0, Math.floor(row.resultJson.failureCount))
+      }]
+    : [];
+}
+
+async function findOrderByToken(
+  tx: TxClient,
+  characterId: string,
+  token: string
+): Promise<{ row: DailyAction; order: ItemUpgradeOrderRecord } | null> {
+  const row = await tx.dailyAction.findUnique({
+    where: { characterId_key_localDate: { characterId, key: ORDER_KEY, localDate: token } }
+  });
+  const order = mapOrder(row);
+
+  return row && order ? { row, order } : null;
+}
+
+async function findLatestActiveOrderForItem(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  now: Date
+): Promise<{ row: DailyAction; order: ItemUpgradeOrderRecord } | null> {
+  return (await getActiveOrderRows(tx, characterId, now)).find((active) => active.order.itemId === itemId) ?? null;
+}
+
+async function getActiveOrderRows(
+  tx: TxClient,
+  characterId: string,
+  now: Date
+): Promise<Array<{ row: DailyAction; order: ItemUpgradeOrderRecord }>> {
+  const rows = await tx.dailyAction.findMany({
+    where: { characterId, key: ORDER_KEY },
+    orderBy: [{ createdAt: "desc" }]
+  });
+
+  return rows.flatMap((row) => {
+    const order = mapOrder(row);
+
+    return order && isActiveOrder(order, now) ? [{ row, order }] : [];
+  });
+}
+
+function isActiveOrder(order: ItemUpgradeOrderRecord, now: Date): boolean {
+  return (order.status === "pending" || order.status === "ready") &&
+    (!order.expiresAt || order.expiresAt.getTime() > now.getTime());
+}
+
+async function updateOrderRow(
+  tx: TxClient,
+  row: DailyAction,
+  order: ItemUpgradeOrderRecord & { updatedAt: Date }
+): Promise<DailyAction> {
+  const payload: StoredOrderJson = {
+    kind: ORDER_KIND,
+    token: order.token,
+    itemId: order.itemId,
+    donorItemId: order.donorItemId,
+    fromLevel: order.fromLevel,
+    targetLevel: order.targetLevel,
+    method: order.method,
+    status: order.status,
+    requiredFightCount: order.requiredFightCount,
+    progressFightCount: order.progressFightCount,
+    cost: order.cost,
+    chance: order.chance,
+    result: order.result,
+    expiresAt: order.expiresAt?.toISOString() ?? null,
+    completedAt: order.completedAt?.toISOString() ?? null,
+    cancelledAt: order.cancelledAt?.toISOString() ?? null,
+    updatedAt: order.updatedAt.toISOString()
+  };
+
+  return tx.dailyAction.update({
+    where: { id: row.id },
+    data: { resultJson: payload as unknown as Prisma.InputJsonValue }
+  });
+}
+
+function mapOrder(row: Pick<DailyAction, "id" | "characterId" | "key" | "localDate" | "resultJson" | "createdAt"> | null): ItemUpgradeOrderRecord | null {
+  if (!row || row.key !== ORDER_KEY || !isRecord(row.resultJson) || row.resultJson.kind !== ORDER_KIND) {
+    return null;
+  }
+
+  const token = typeof row.resultJson.token === "string" ? row.resultJson.token : row.localDate;
+  const itemId = typeof row.resultJson.itemId === "string" ? row.resultJson.itemId : "";
+  const targetLevel = typeof row.resultJson.targetLevel === "number" ? row.resultJson.targetLevel : 0;
+  if (!itemId || targetLevel <= 0) {
+    return null;
+  }
+
+  const updatedAt = parseDate(row.resultJson.updatedAt) ?? row.createdAt;
+
   return {
     id: row.id,
-    token: row.token,
+    token,
     characterId: row.characterId,
-    itemId: row.itemId,
-    donorItemId: row.donorItemId,
-    fromLevel: row.fromLevel,
-    targetLevel: row.targetLevel,
-    method: row.method === "self" ? "self" : "npc",
-    status: parseStatus(row.status),
-    requiredFightCount: Math.max(0, row.requiredFightCount),
-    progressFightCount: Math.max(0, row.progressFightCount),
-    cost: row.costJson,
-    chance: row.chanceJson,
-    result: row.resultJson,
-    expiresAt: row.expiresAt,
-    completedAt: row.completedAt,
-    cancelledAt: row.cancelledAt,
+    itemId,
+    donorItemId: typeof row.resultJson.donorItemId === "string" ? row.resultJson.donorItemId : null,
+    fromLevel: typeof row.resultJson.fromLevel === "number" ? row.resultJson.fromLevel : 0,
+    targetLevel: normalizeEnhancementLevel(targetLevel),
+    method: row.resultJson.method === "self" ? "self" : "npc",
+    status: parseStatus(typeof row.resultJson.status === "string" ? row.resultJson.status : "pending"),
+    requiredFightCount: numberOrZero(row.resultJson.requiredFightCount),
+    progressFightCount: numberOrZero(row.resultJson.progressFightCount),
+    cost: row.resultJson.cost,
+    chance: row.resultJson.chance,
+    result: row.resultJson.result,
+    expiresAt: parseDate(row.resultJson.expiresAt),
+    completedAt: parseDate(row.resultJson.completedAt),
+    cancelledAt: parseDate(row.resultJson.cancelledAt),
     createdAt: row.createdAt,
-    updatedAt: row.updatedAt
+    updatedAt
   };
 }
 
@@ -661,5 +860,18 @@ function parseStats(value: unknown) {
 }
 
 function numberOrZero(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseDate(value: unknown): Date | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }

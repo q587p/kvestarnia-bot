@@ -10,6 +10,7 @@ import {
   getEquipmentSlotStorageKeys,
   normalizeEquipmentSlot
 } from "../../content/equipmentSlots";
+import { getItemUpgradeLevelFromItemId } from "../../domain/itemUpgrades";
 
 export class PrismaEquipmentRepository implements EquipmentRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -23,12 +24,6 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       },
       select: {
         id: true,
-        items: {
-          select: {
-            itemId: true,
-            enhancementLevel: true
-          }
-        },
         equipment: {
           orderBy: {
             slot: "asc"
@@ -41,14 +36,10 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       return null;
     }
 
-    const enhancementByItemId = new Map(
-      character.items.map((item) => [item.itemId, item.enhancementLevel])
-    );
-
     return {
       characterId: character.id,
       equipment: character.equipment.flatMap((row) => {
-        const record = toRecord(row, enhancementByItemId.get(row.itemId) ?? 0);
+        const record = toRecord(row);
 
         return record ? [record] : [];
       })
@@ -266,7 +257,7 @@ function toRecord(row: {
   itemId: string;
   createdAt: Date;
   updatedAt: Date;
-}, enhancementLevel = 0): CharacterEquipmentRecord | null {
+}): CharacterEquipmentRecord | null {
   const slot = normalizeEquipmentSlot(row.slot);
 
   if (!slot) {
@@ -278,7 +269,7 @@ function toRecord(row: {
     characterId: row.characterId,
     slot,
     itemId: row.itemId,
-    enhancementLevel,
+    enhancementLevel: getItemUpgradeLevelFromItemId(row.itemId),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };

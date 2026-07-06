@@ -4312,7 +4312,8 @@ function buildPersistentFightReward(
       title: character.title
     },
     sourceId: getLootExpansionSourceForMonster(monster),
-    sourceTags: monster.tags
+    sourceTags: monster.tags,
+    sourceLevel: effectiveMonsterLevel
   });
 
   const xp = buildPersistentFightWinXp({
