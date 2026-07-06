@@ -121,7 +121,8 @@ export function presentDoppelgangerGameMenu(maxStake: number): string {
 
 export function presentDoppelgangerStakeMenu(
   gameKey: "quick" | "scorecard" | "tavlei",
-  maxStake: number
+  maxStake: number,
+  playerGold?: number
 ): string {
   const title = gameKey === "quick"
     ? "⚡ Швидкі кості з Допельґанґером"
@@ -133,8 +134,9 @@ export function presentDoppelgangerStakeMenu(
     title,
     "",
     "Оберіть ставку для партії з Допельґанґером.",
-    `Межа ставки зараз: <b>${maxStake} зол.</b>`
-  ].join("\n");
+    `Межа ставки зараз: <b>${maxStake} зол.</b>`,
+    playerGold === undefined ? null : `У тебе зараз: <b>${playerGold} зол.</b>`
+  ].filter((line): line is string => line !== null).join("\n");
 }
 
 export function presentDicePokerRules(): string {
@@ -501,7 +503,6 @@ function presentDicePokerState(
       "",
       state.drawRound > 1 ? `Додатковий раунд: ${state.drawRound}/3` : null,
       `Твої кості: ${state.playerDice.join(" ")} — ${quickHandLabel(evaluateQuickHand(state.playerDice))}.`,
-      `Кості Допельґанґера: ${state.opponentDice.join(" ")} — ${quickHandLabel(evaluateQuickHand(state.opponentDice))}.`,
       `Вибрано для перекиду: ${presentSelectedDice(state.playerDice, state.selectedMask)}.`,
       "",
       "Обери кості для одного перекиду або лиши кидок як є.",

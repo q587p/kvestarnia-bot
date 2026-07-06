@@ -49,6 +49,7 @@ import {
 import {
   makeShynokBarrelRoundPreviewCallbackData,
   makeShynokDicePokerRollCallbackData,
+  makeShynokDoppelgangerModeCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokKostiDecisionCallbackData,
   makeShynokRoundConfirmCallbackData
@@ -3122,6 +3123,39 @@ describe("scene callback HTML options", () => {
     );
 
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
+  });
+
+  it("shows player gold on the Doppelganger stake picker callback", async () => {
+    const getHub = vi.fn(() =>
+      Promise.resolve({
+        state: "ready" as const,
+        maxStake: 93,
+        tavleiEnabled: true,
+        kostiEnabled: true,
+        doppelgangerAvailable: true,
+        character: { gold: 42 },
+        openTables: []
+      })
+    );
+    const calls = await captureApiCalls(
+      makeShynokDoppelgangerModeCallbackData("quick"),
+      servicesWith({
+        shynok: {},
+        tavernGames: {
+          isDoppelgangerAtShynok: () => true,
+          getMaxStake: () => 93,
+          getHub,
+          isTavleiEnabled: () => true,
+          isKostiEnabled: () => true
+        } as never
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(getHub).toHaveBeenCalledWith(42n);
+    expect(String(edit?.payload.text)).toContain("⚡ Швидкі кості з Допельґанґером");
+    expect(String(edit?.payload.text)).toContain("Межа ставки зараз: <b>93 зол.</b>");
+    expect(String(edit?.payload.text)).toContain("У тебе зараз: <b>42 зол.</b>");
   });
 
   it("notifies existing tavern game participants when another player joins", async () => {

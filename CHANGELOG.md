@@ -49,6 +49,8 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Kept inventory item-detail and equip callback payloads within Telegram's 64-byte limit for long authored Mantok/coverage item ids by using stable deterministic compact catalog keys when needed, with collision detection during callback map construction.
+- Updated the `🪞 Допельґанґер` Dice Poker stake picker to show the player's current gold, and hid the Doppelganger's quick-dice hand until the terminal result card.
+- Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.
 
 ### Deferred
 - Gear-action buttons, bleed/burn/status runtime, borrowed class/race actions, Yeger disguise/service perks, shops, markets, crafting and broad combat rebalance remain deferred.

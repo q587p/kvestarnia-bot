@@ -89,6 +89,7 @@ describe("tavern game presenter", () => {
   it("describes Doppelganger game and stake menus compactly", () => {
     expect(presentDoppelgangerGameMenu(93)).toContain("Оберіть гру з Допельґанґером");
     expect(presentDoppelgangerStakeMenu("tavlei", 93)).toContain("♟ Тавлеї з Допельґанґером");
+    expect(presentDoppelgangerStakeMenu("quick", 93, 42)).toContain("У тебе зараз: <b>42 зол.</b>");
   });
 
   it("does not spoil the Doppelganger fallback schedule in blocked callbacks", () => {
@@ -319,6 +320,30 @@ describe("tavern game presenter", () => {
     expect(text).toContain("💀 Поразка: пара сильніша за старшу кістку.");
     expect(text).toContain("💸 Ставка програна: <b>13 зол.</b>");
     expect(text).not.toContain("шинкар");
+  });
+
+  it("hides the Doppelganger quick dice hand until the result card", () => {
+    const state: DicePokerState = {
+      kind: "dice_poker",
+      mode: "quick",
+      phase: "quick-reroll",
+      drawRound: 1,
+      playerDice: [6, 1, 2, 3, 2],
+      opponentDice: [2, 3, 4, 5, 4],
+      selectedMask: 0
+    };
+
+    const text = presentTavernGameActionResult({
+      state: "started",
+      session: session({ stakeGold: 5, result: state }),
+      dicePoker: state
+    });
+
+    expect(text).toContain("Твої кості: 6 1 2 3 2 — Пара двійок.");
+    expect(text).toContain("Вибрано для перекиду: нічого.");
+    expect(text).toContain("Ставка: <b>5 зол.</b>");
+    expect(text).not.toContain("Кості Допельґанґера");
+    expect(text).not.toContain("2 3 4 5 4");
   });
 
   it("renders social quick table starts with the viewer's own dice", () => {
