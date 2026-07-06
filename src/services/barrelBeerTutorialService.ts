@@ -380,7 +380,13 @@ export class BarrelBeerTutorialService {
   }
 
   async markBeerDrunkForTelegramUser(telegramUserId: bigint): Promise<void> {
-    await this.markProgress(telegramUserId, BEER_DRUNK_KEY, {
+    const context = await this.getContext(telegramUserId);
+
+    if (!context?.accepted || context.completed || !context.progress.beerRoundOffered) {
+      return;
+    }
+
+    await this.claimProgress(telegramUserId, context, BEER_DRUNK_KEY, {
       flag: "beer-drunk"
     });
   }

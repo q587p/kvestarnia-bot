@@ -101,17 +101,29 @@ describe("BarrelBeerTutorialService", () => {
     });
   });
 
-  it("requires a round offered after the route, not only a self beer drink", async () => {
+  it("ignores beer drinks before the mandatory round and requires a fresh post-round drink", async () => {
     const world = createWorld({ level: 2, activeBeer: true });
 
     await acceptAndFinishRoute(world);
     await world.service.markBeerDrunkForTelegramUser(telegramUserId);
+    await world.service.markBeerRoundOfferedForTelegramUser(telegramUserId);
     world.character.currentLocationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
 
     await expect(world.service.turnInForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "missing-progress",
       progress: {
-        beerRoundOffered: false,
+        beerRoundOffered: true,
+        beerDrunk: false,
+        activeBeer: true
+      }
+    });
+
+    await world.service.markBeerDrunkForTelegramUser(telegramUserId);
+
+    await expect(world.service.turnInForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "completed",
+      progress: {
+        beerRoundOffered: true,
         beerDrunk: true,
         activeBeer: true
       }
@@ -151,7 +163,7 @@ describe("BarrelBeerTutorialService", () => {
         visitedBarrel: true,
         raidCompleted: true,
         beerRoundOffered: false,
-        beerDrunk: true
+        beerDrunk: false
       }
     });
   });
