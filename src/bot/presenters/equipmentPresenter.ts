@@ -104,7 +104,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
 
   if (result.replacedItem) {
     lines.push(
-      `Попередня манатка зі слота <i>${presentEquipmentSlotLabel(result.slot)}</i> лишилася в торбі:`,
+      `\nПопередня манатка зі слота <i>${presentEquipmentSlotLabel(result.slot)}</i> лишилася в торбі:`,
       `${presentCallbackHtmlText(result.replacedItem.content.name)}.`
     );
   } else {
@@ -113,7 +113,7 @@ export function presentEquipItemResult(result: EquipItemResult): string {
 
   if (result.clearedHandItem) {
     lines.push(
-      "Конфліктна рука звільнилася:",
+      "\nКонфліктна рука звільнилася:",
       `${presentCallbackHtmlText(result.clearedHandItem.content.name)} лишилася в торбі.`
     );
   }
