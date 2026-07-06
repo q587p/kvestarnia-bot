@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import {
   getActorCombatActionAvailability,
+  getCombatGearActionAvailabilityForActor,
   getCombatRaceAbilityProfile,
   getCombatSkillProfile
 } from "../../domain/combat";
@@ -135,7 +136,9 @@ export function buildPartyBossKeyboard(
     const gearGrants = getCombatMantokAbilityGrantsByIds({
       grantIds: viewer.equipmentAbilityGrantIds ?? [],
       characterLevel: viewer.combatStats.level
-    });
+    }).filter((grant) =>
+      grant.combat && getCombatGearActionAvailabilityForActor(viewer.resources, grant.combat.profile).available
+    );
     appendGearActionButtons(
       keyboard,
       gearGrants,

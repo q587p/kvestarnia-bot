@@ -20,7 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added focused registry, callback, combat-engine and presenter tests for compact keys, collision safety, cooldown/mana behavior, bleed settlement and visible grant copy.
 
 ### Changed
-- Active fight keyboards can now show eligible gear actions after native attack/defend/class/race controls while preserving existing combat item and class/race cooldown behavior.
+- Active fight keyboards can now show currently available gear actions after native attack/defend/class/race controls while preserving existing combat item and class/race cooldown behavior.
 - Active fight keyboards now reflect mid-fight equipment changes for the current turn: newly equipped grant manatky can add gear buttons, and removed grant manatky stop working, without refilling stored combat HP/mana or granting an extra turn.
 - Equipment and hero cards now show aggregate `Дія спорядження` lines so granted actions are visible on the character doll, not only inside individual item detail cards.
 - Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
@@ -30,7 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Persistent PvE gear-action callbacks now bypass the generic combat-lock redirect, so pressing a visible gear button during an active fight reaches the fight turn handler instead of answering `Спочатку завершіть бій`.
 - Big Barrel Brother raid and turn-based duel gear-action callbacks now bypass the same active-combat redirect and resolve through the existing combat action engine instead of becoming dead visible buttons.
 - Big Barrel Brother active cards now hide the `🎒 Одноразові манатки` shortcut when the participant has no currently useful one-use combat items; stale item-menu callbacks still return the empty-menu explanation without spending a turn.
-- Kept eligible persistent PvE gear-action buttons visible even when mana or cooldown gates block the action, so the callback gate can explain the blocker without advancing combat.
+- Hidden gear-action buttons while mana or cooldown gates block the action in persistent PvE, Big Barrel Brother raids and turn-based duels; the active fight text still shows cooldown/mana blockers, and the buttons return after real player turns clear the gate.
 - Refreshed eligible gear-action buttons on active fight overview cards as well as direct fight views and callbacks, so returning to an already active fight after changing equipment shows the current manatka actions.
 - Preserved gear-action grant ids and bleed statuses when active persistent PvE fights reload from stored session JSON, so multi-enemy and later-turn fight cards keep the same equipment buttons and status ticks as freshly started fights.
 - Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.

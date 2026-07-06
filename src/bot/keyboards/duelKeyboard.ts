@@ -5,6 +5,7 @@ import type {
 } from "../../services/duelChallengeService";
 import {
   getActorCombatActionAvailability,
+  getCombatGearActionAvailabilityForActor,
   getCombatRaceAbilityProfile
 } from "../../domain/combat";
 import { getCombatMantokAbilityGrantsByIds } from "../../content";
@@ -170,7 +171,16 @@ export function buildTurnBasedDuelKeyboard(
     const gearGrants = getCombatMantokAbilityGrantsByIds({
       grantIds: viewer.equipmentAbilityGrantIds ?? [],
       characterLevel: viewer.level
-    });
+    }).filter((grant) =>
+      grant.combat &&
+      getCombatGearActionAvailabilityForActor(
+        {
+          mana: viewer.mana,
+          cooldowns: viewer.cooldowns
+        },
+        grant.combat.profile
+      ).available
+    );
     appendGearActionButtons(
       keyboard,
       gearGrants,

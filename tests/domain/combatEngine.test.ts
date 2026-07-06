@@ -2596,6 +2596,70 @@ describe("combat domain engine", () => {
     expect(result.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]).toBeDefined();
   });
 
+  it("ticks equipment gear action cooldowns across later own actions", () => {
+    const grant = getCombatGrant("bcshield");
+    const quietMonster = { ...monster, hpMax: 80, attack: 0 };
+
+    const first = resolveCombatGearTurn({
+      state: startCombat({ hero: { ...warrior, level: 9, manaCurrent: 0 }, monster: quietMonster }),
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99, 0.99])
+    });
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected first gear action to resolve.");
+    }
+    expect(first.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(3);
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "attack",
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99])
+    });
+    expect(second.ok).toBe(true);
+    expect(second.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(2);
+
+    const third = resolveCombatTurn({
+      state: second.state,
+      action: "attack",
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99])
+    });
+    expect(third.ok).toBe(true);
+    expect(third.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(1);
+
+    const fourth = resolveCombatTurn({
+      state: third.state,
+      action: "attack",
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99])
+    });
+    expect(fourth.ok).toBe(true);
+    expect(fourth.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]).toBeUndefined();
+
+    const reused = resolveCombatGearTurn({
+      state: fourth.state,
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99, 0.99])
+    });
+
+    expect(reused.ok).toBe(true);
+    if (!reused.ok) {
+      throw new Error("Expected gear action to resolve after cooldown ticks away.");
+    }
+    expect(reused.summary.skillId).toBe("gear.barrel-counter-shield");
+    expect(reused.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(3);
+  });
+
   it("resolves borrowed support and healing as weaker gear, not native class behavior", () => {
     const grant = getCombatGrant("ascstf");
     const state = startCombat({ hero: { ...warrior, level: 11, manaCurrent: 8 }, monster });

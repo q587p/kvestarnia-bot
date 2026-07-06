@@ -9,9 +9,10 @@
 Manual Telegram QA status for the implementation pass: not run.
 
 1. Seed or win each ability-granting manatka from the `9..13` band and equip it on a level-appropriate character.
-2. Start a persistent fight and verify eligible gear-action buttons appear after the normal fight controls.
+2. Start a persistent fight and verify currently available gear-action buttons appear after the normal fight controls.
 3. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
 4. Use the shield, bleed and borrowed-action buttons; verify each spends the current turn, spends mana when required and starts only its own gear cooldown.
+4a. After a gear action starts cooldown, verify its button disappears while the fight card still shows the cooldown line, then take enough ordinary player turns and verify the button returns and can trigger again.
 5. Replay a stale gear callback after the turn advances and verify no mana, cooldown, RNG or monster response changes.
 6. Verify bleed appears visibly, ticks during committed hero activations and can finish combat without an extra status-kill response.
 7. Open item detail and `/equipment`; verify granted actions and the Yeger cloak service marker are explained compactly.

@@ -242,7 +242,14 @@ export function getCombatGearActionAvailability(
   state: CombatState,
   ability: CombatSkillProfile
 ): CombatGearActionAvailability {
-  return getAbilityAvailability({ ...state.hero, cooldowns: state.cooldowns }, ability);
+  return getCombatGearActionAvailabilityForActor({ ...state.hero, cooldowns: state.cooldowns }, ability);
+}
+
+export function getCombatGearActionAvailabilityForActor(
+  actorState: Pick<CombatActorResourceState, "mana" | "cooldowns">,
+  ability: CombatSkillProfile
+): CombatGearActionAvailability {
+  return getAbilityAvailability(actorState, ability);
 }
 
 export function resolveActorCombatAction(

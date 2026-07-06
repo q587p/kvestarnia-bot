@@ -77,6 +77,25 @@ describe("party session keyboard", () => {
     }))).toContain("v1:party:bg:partyABC12:1:rldagr");
   });
 
+  it("hides party boss gear actions while their equipment cooldown is active", () => {
+    const session = makeBossSession({
+      level: 10,
+      equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"],
+      cooldowns: {
+        abilities: {
+          "gear.red-line-dagger": {
+            id: "gear.red-line-dagger",
+            remainingTurns: 2
+          }
+        }
+      }
+    });
+
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).not.toContain("v1:party:bg:partyABC12:1:rldagr");
+  });
+
   it("shows the Big Barrel Brother raid start without dev proof helpers", () => {
     const session = {
       ...makeSession(),
@@ -254,6 +273,7 @@ function makeBossSession(
     classId?: string;
     level?: number;
     equipmentAbilityGrantIds?: string[];
+    cooldowns?: NonNullable<PartyBossSessionRecord["state"]["participants"][number]["resources"]["cooldowns"]>;
   } = {},
   sessionOverrides: { status?: PartyBossSessionRecord["status"]; roundLogLength?: number } = {}
 ): PartyBossSessionRecord {
@@ -318,7 +338,8 @@ function makeBossSession(
             hp: participantOverrides.hp ?? 25,
             hpMax: 25,
             mana: participantOverrides.mana ?? 10,
-            manaMax: 10
+            manaMax: 10,
+            ...(participantOverrides.cooldowns ? { cooldowns: participantOverrides.cooldowns } : {})
           },
           contribution: {
             submittedActions: 0,
