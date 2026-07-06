@@ -159,7 +159,7 @@ function presentProgressHint(progress: BarrelBeerTutorialProgress): string {
   }
 
   if (!progress.beerDrunk) {
-    return "Рейд позаду. Тепер вистав пива й не забудь випити свій кухоль.";
+    return "Раунд уже виставлено. Тепер випий свій кухоль.";
   }
 
   if (!progress.activeBeer) {
