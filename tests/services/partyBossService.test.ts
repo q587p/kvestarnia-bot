@@ -8,6 +8,7 @@ import type { InventoryRepository } from "../../src/db/repositories/inventoryRep
 import { BIG_BARREL_BROTHER_BOSS_KEY, BIG_BARREL_BROTHER_RULES_VERSION } from "../../src/domain/partyBoss/partyBoss";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import type { AchievementService } from "../../src/services/achievementService";
+import type { BarrelBeerTutorialService } from "../../src/services/barrelBeerTutorialService";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 import { PartyBossService } from "../../src/services/partyBossService";
 
@@ -188,18 +189,20 @@ describe("PartyBossService achievements", () => {
 
   it("lists owned useful one-use combat items for the active party boss participant", async () => {
     const occurredAt = new Date("2026-07-01T19:00:00.000Z");
-    const session = makeSessionWithParticipant({
-      resources: {
-        hp: 10,
-        hpMax: 25,
-        mana: 10,
-        manaMax: 10
-      },
-      combatItems: {
-        cooldowns: {
-          "item.dense-bandage": {
-            itemId: "item.dense-bandage",
-            remainingTurns: 2
+    const session = makeSessionWithParticipant("active", {
+      participant: {
+        resources: {
+          hp: 10,
+          hpMax: 25,
+          mana: 10,
+          manaMax: 10
+        },
+        combatItems: {
+          cooldowns: {
+            "item.dense-bandage": {
+              itemId: "item.dense-bandage",
+              remainingTurns: 2
+            }
           }
         }
       }
@@ -305,6 +308,94 @@ describe("PartyBossService achievements", () => {
     expect(trackEventSafely).not.toHaveBeenCalled();
   });
 
+  it("marks the Barrel beer tutorial route after a fresh remorted Big Barrel Brother win", async () => {
+    const occurredAt = new Date("2026-07-01T19:00:00.000Z");
+    const session = makeSessionWithParticipant("won", {
+      participant: {
+        remortCount: 1,
+        combatStats: {
+          level: 3,
+          hpMax: 25,
+          manaMax: 10,
+          hpCurrent: 25,
+          manaCurrent: 10,
+          strength: 5,
+          dexterity: 5,
+          intelligence: 5,
+          charisma: 5,
+          luck: 5,
+          raceId: "race.human-ish",
+          classId: "class.warrior"
+        }
+      },
+      record: {
+        remortCount: 1,
+        level: 3
+      }
+    });
+    const result: PartyBossActionResult = {
+      state: "resolved",
+      session,
+      achievementEvents: [{
+        type: "barrel.raid.claimed",
+        characterId: "character-leader",
+        sourceId: "daily-win-1",
+        occurredAt
+      }]
+    };
+    const repository = {
+      submitActionForTelegramUser: vi.fn<PartyBossRepository["submitActionForTelegramUser"]>().mockResolvedValue(result)
+    } as unknown as PartyBossRepository;
+    const barrelBeerTutorial = barrelBeerTutorialProgressService();
+    const service = new PartyBossService(
+      repository,
+      { enabled: true },
+      () => occurredAt,
+      undefined,
+      undefined,
+      undefined,
+      barrelBeerTutorial
+    );
+
+    await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
+
+    expect(barrelBeerTutorial.markVisitedBarrelForTelegramUser).toHaveBeenCalledWith(123n);
+    expect(barrelBeerTutorial.markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(123n);
+  });
+
+  it("does not mark the Barrel beer tutorial on Big Barrel terminal replay without a fresh claim event", async () => {
+    const session = makeSessionWithParticipant("won", {
+      participant: {
+        remortCount: 1
+      },
+      record: {
+        remortCount: 1,
+        level: 3
+      }
+    });
+    const repository = {
+      resolveTimedOutByToken: vi.fn<PartyBossRepository["resolveTimedOutByToken"]>().mockResolvedValue({
+        state: "terminal",
+        session
+      })
+    } as unknown as PartyBossRepository;
+    const barrelBeerTutorial = barrelBeerTutorialProgressService();
+    const service = new PartyBossService(
+      repository,
+      { enabled: true },
+      () => new Date("2026-07-01T19:00:00.000Z"),
+      undefined,
+      undefined,
+      undefined,
+      barrelBeerTutorial
+    );
+
+    await service.resolveDueTimedOutByToken("token-1");
+
+    expect(barrelBeerTutorial.markVisitedBarrelForTelegramUser).not.toHaveBeenCalled();
+    expect(barrelBeerTutorial.markBarrelRaidCompletedForTelegramUser).not.toHaveBeenCalled();
+  });
+
   it("emits one activity row for a terminal Big Barrel Brother victory", async () => {
     const recordPartyRaidWonSafely =
       vi.fn<PublicActivityEventPublisher["recordPartyRaidWonSafely"]>().mockResolvedValue(null);
@@ -380,9 +471,14 @@ function makeSession(status: "active" | "won" | "lost" | "cancelled"): PartyBoss
 }
 
 function makeSessionWithParticipant(
-  overrides: Partial<PartyBossSessionRecord["state"]["participants"][number]> = {}
+  statusOrOverrides: "active" | "won" | "lost" | "cancelled" | PartyBossParticipantOverrides = "active",
+  overridesArg: PartyBossParticipantOverrides = {}
 ): PartyBossSessionRecord {
-  const session = makeSession("active");
+  const status = typeof statusOrOverrides === "string" ? statusOrOverrides : "active";
+  const overrides = normalizePartyBossParticipantOverrides(
+    typeof statusOrOverrides === "string" ? overridesArg : statusOrOverrides
+  );
+  const session = makeSession(status);
   const participant: PartyBossSessionRecord["state"]["participants"][number] = {
     characterId: "character-leader",
     name: "Тестова Лідерка",
@@ -414,7 +510,7 @@ function makeSessionWithParticipant(
       damageDealt: 0,
       damageTaken: 0
     },
-    ...overrides
+    ...overrides.participant
   };
 
   return {
@@ -445,9 +541,38 @@ function makeSessionWithParticipant(
         manaRegenAt: null,
         activeCosmeticTitleGrantId: null,
         statsJson: {},
-        remortCount: 0
+        remortCount: 0,
+        ...overrides.record
       }
     ]
+  };
+}
+
+type PartyBossParticipantOverrides =
+  | Partial<PartyBossSessionRecord["state"]["participants"][number]>
+  | {
+      participant?: Partial<PartyBossSessionRecord["state"]["participants"][number]>;
+      record?: Partial<PartyBossSessionRecord["participants"][number]>;
+    };
+
+function normalizePartyBossParticipantOverrides(overrides: PartyBossParticipantOverrides): {
+  participant?: Partial<PartyBossSessionRecord["state"]["participants"][number]>;
+  record?: Partial<PartyBossSessionRecord["participants"][number]>;
+} {
+  if ("participant" in overrides || "record" in overrides) {
+    return overrides;
+  }
+
+  return { participant: overrides };
+}
+
+function barrelBeerTutorialProgressService(): Pick<
+  BarrelBeerTutorialService,
+  "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
+> {
+  return {
+    markVisitedBarrelForTelegramUser: vi.fn(() => Promise.resolve()),
+    markBarrelRaidCompletedForTelegramUser: vi.fn(() => Promise.resolve())
   };
 }
 

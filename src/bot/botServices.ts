@@ -3,6 +3,7 @@ import type { ActivityEventService } from "../services/activityEventService";
 import type { AchievementService } from "../services/achievementService";
 import type { AdventureService } from "../services/adventureService";
 import type { BardPerformanceService } from "../services/bardPerformanceService";
+import type { BarrelBeerTutorialService } from "../services/barrelBeerTutorialService";
 import type { CellarErrandService } from "../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import type { ClassNoncombatService } from "../services/classNoncombatService";
@@ -40,6 +41,7 @@ export interface BotServices {
   achievements: AchievementService;
   adventure: AdventureService;
   bardPerformance?: BardPerformanceService;
+  barrelBeerTutorial: BarrelBeerTutorialService;
   barrelRaidNotifications?: BarrelRaidNotificationRepository;
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;

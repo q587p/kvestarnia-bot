@@ -6,6 +6,7 @@ export const STAMP_OF_MINOR_AUTHORITY_ITEM_ID = "item.stamp-of-minor-authority";
 export const APRON_OF_FOAM_RESISTANCE_ITEM_ID = "item.apron-of-foam-resistance";
 export const BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID = "item.barrel-splinter-of-optimism";
 export const CORK_RING_OF_SERIOUS_BUSINESS_ITEM_ID = "item.cork-ring-of-serious-business";
+export const PERSTEN_PYVOVLADDIA_ITEM_ID = "item.persten-pyvovladdia";
 export const FOAM_CORK_OF_ACCOUNTING_ITEM_ID = "item.foam-cork-of-accounting";
 export const MIRAGE_FOAM_SAMPLE_ITEM_ID = "item.mirage-foam-sample";
 export const CHEESE_OF_PROCEDURAL_DOUBT_ITEM_ID = "item.cheese-of-procedural-doubt";

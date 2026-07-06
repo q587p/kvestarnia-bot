@@ -679,6 +679,7 @@ function getRecalculationProgress(
     case "starter.mimic-shawarma.completed":
     case "starter.mimic-shawarma.probe.completed":
     case "cellar.mouse.completed":
+    case "quest.barrel-beer-tutorial.completed":
     case "daily.korchma-round.completed":
     case "adventure.choice.strong-success":
     case "training.doppelganger.won":
@@ -786,6 +787,7 @@ function getRecalculationOccurredAt(
     case "starter.mimic-shawarma.completed":
     case "starter.mimic-shawarma.probe.completed":
     case "cellar.mouse.completed":
+    case "quest.barrel-beer-tutorial.completed":
     case "daily.korchma-round.completed":
     case "adventure.choice.strong-success":
     case "training.doppelganger.won":
@@ -886,6 +888,7 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "starter.mimic-shawarma.completed":
     case "starter.mimic-shawarma.probe.completed":
     case "cellar.mouse.completed":
+    case "quest.barrel-beer-tutorial.completed":
     case "daily.korchma-round.completed":
     case "adventure.choice.strong-success":
     case "training.doppelganger.won":

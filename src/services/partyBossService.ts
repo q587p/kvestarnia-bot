@@ -1,4 +1,8 @@
-import type { PartyBossActionKey } from "../domain/partyBoss/partyBoss";
+import {
+  BIG_BARREL_BROTHER_BOSS_KEY,
+  BIG_BARREL_BROTHER_RULES_VERSION,
+  type PartyBossActionKey
+} from "../domain/partyBoss/partyBoss";
 import { findMantokAbilityGrantByKey, items } from "../content";
 import type {
   PartyBossActionResult,
@@ -17,6 +21,7 @@ import { findCombatUsableItemByKey, getCombatUsableItem } from "./combatItemUse"
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
+import type { BarrelBeerTutorialService } from "./barrelBeerTutorialService";
 
 export interface PartyBossServiceOptions {
   enabled: boolean;
@@ -50,7 +55,11 @@ export class PartyBossService {
     private readonly clock: Clock = systemClock,
     private readonly achievements?: AchievementService,
     private readonly activityEvents?: PublicActivityEventPublisher,
-    private readonly inventory?: InventoryRepository
+    private readonly inventory?: InventoryRepository,
+    private readonly barrelBeerTutorial?: Pick<
+      BarrelBeerTutorialService,
+      "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
+    >
   ) {}
 
   isEnabled(): boolean {
@@ -95,6 +104,7 @@ export class PartyBossService {
       nextTurnExpiresAt: nextTurnDeadline(now)
     });
     await this.trackAchievementEvents(result);
+    await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
     return result;
@@ -197,6 +207,7 @@ export class PartyBossService {
       }
     );
     await this.trackAchievementEvents(result);
+    await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
     return result;
@@ -302,6 +313,7 @@ export class PartyBossService {
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "due");
     await this.trackAchievementEvents(result);
+    await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
     return result;
@@ -318,6 +330,7 @@ export class PartyBossService {
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "force-dev");
     await this.trackAchievementEvents(result);
+    await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
     return result;
@@ -385,8 +398,47 @@ export class PartyBossService {
 
     await this.activityEvents.recordPartyRaidWonSafely(result.session);
   }
+
+  private async trackBarrelBeerTutorialProgress(result: PartyBossActionResult): Promise<void> {
+    if (!this.barrelBeerTutorial || !("session" in result) || !isBigBarrelBrotherSession(result.session)) {
+      return;
+    }
+
+    const achievementEvents = "achievementEvents" in result
+      ? result.achievementEvents ?? []
+      : [];
+    const claimedCharacterIds = new Set(
+      achievementEvents
+        .filter((event) => event.type === "barrel.raid.claimed")
+        .map((event) => event.characterId)
+    );
+
+    if (claimedCharacterIds.size === 0) {
+      return;
+    }
+
+    for (const participant of result.session.participants) {
+      if (!claimedCharacterIds.has(participant.id)) {
+        continue;
+      }
+
+      try {
+        await this.barrelBeerTutorial.markVisitedBarrelForTelegramUser(participant.telegramUserId);
+        await this.barrelBeerTutorial.markBarrelRaidCompletedForTelegramUser(participant.telegramUserId);
+      } catch (error) {
+        console.error("Квестарня: прогрес бочкової навчальної справи після рейду Старшого Брата не записався.", error);
+      }
+    }
+  }
 }
 
 function nextTurnDeadline(now: Date): Date {
   return new Date(now.getTime() + PARTY_BOSS_TURN_MS);
+}
+
+function isBigBarrelBrotherSession(session: PartyBossSessionRecord): boolean {
+  return session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION ||
+    session.bossKey === BIG_BARREL_BROTHER_BOSS_KEY ||
+    session.state.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION ||
+    session.state.boss.monsterId === BIG_BARREL_BROTHER_BOSS_KEY;
 }

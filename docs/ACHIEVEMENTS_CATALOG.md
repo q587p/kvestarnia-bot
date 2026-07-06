@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 132 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 133 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -67,6 +67,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.quest.problem-chain.42` | enabled | visible | `problem.quest.completed >= 3` | Сорок дві причини для печатки | закрити третю теку корчмарських проблем і змусити печатку задуматися. |
 | `achievement.quest.mimic-shawarma` | enabled | visible | `starter.mimic-shawarma.completed >= 1` | Шаурма мала зуби | завершити першу справу з міміком-шаурмою й не довіряти обіду з очима. |
 | `achievement.quest.cellar-mouse` | enabled | visible | `cellar.mouse.completed >= 1` | Мишача дипломатія | завершити льохову справу з мишею й лишити сирні аргументи в архіві. |
+| `achievement.quest.barrel-beer-tutorial` | enabled | visible | `quest.barrel-beer-tutorial.completed >= 1` | Туди, звідти і з кухлем | завершити першу бочкову справу з пивом і повернутися до столу, доки піна ще має юридичну силу. |
 | `achievement.quest.daily-korchma-round` | enabled | visible | `daily.korchma-round.completed >= 1` | Дві катастрофи — це вже порядок | закрити перший Корчмарський обхід і лишити третю дрібницю на офіційне «не сьогодні». |
 | `achievement.quest.daily-korchma-round.seven` | enabled | visible | `daily.korchma-round.completed >= 7` | Тиждень дрібниць підписано | закрити 7 Корчмарських обходів і навчити дощечку впізнавати ваш почерк. |
 | `achievement.quest.daily-korchma-round.thirteen` | enabled | visible | `daily.korchma-round.completed >= 13` | Тринадцять ревізій без паніки | закрити 13 Корчмарських обходів і лишити здоровий глузд у стані контрольованої образи. |

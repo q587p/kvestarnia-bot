@@ -1,5 +1,6 @@
 import type { Bot, Context } from "grammy";
 import type { AdventureService } from "../../services/adventureService";
+import type { BarrelBeerTutorialService } from "../../services/barrelBeerTutorialService";
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService } from "../../services/fightService";
@@ -27,6 +28,7 @@ type ReplyOptions = Parameters<Context["reply"]>[1];
 
 export interface QuestHubCommandOptions {
   adventure: AdventureService;
+  barrelBeerTutorial?: BarrelBeerTutorialService;
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
   dailyKorchmaRound?: DailyKorchmaRoundService;
@@ -108,6 +110,9 @@ async function buildQuestHubSnapshot(
   const problemQuest = await options.fight.getProblemQuestProgressForTelegramUser(telegramUserId);
   const yeger = await options.yeger.getForTelegramUser(telegramUserId);
   const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
+  const barrelBeerTutorial = options.barrelBeerTutorial
+    ? await options.barrelBeerTutorial.getForTelegramUser(telegramUserId)
+    : null;
   const cellarGrownup =
     cellar.state === "level-retired" && options.cellarGrownup
       ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
@@ -120,7 +125,8 @@ async function buildQuestHubSnapshot(
     fight.state === "no-character" ||
     problemQuest.state === "no-character" ||
     yeger.state === "no-character" ||
-    cellar.state === "no-character"
+    cellar.state === "no-character" ||
+    barrelBeerTutorial?.state === "no-character"
   ) {
     return null;
   }
@@ -136,6 +142,7 @@ async function buildQuestHubSnapshot(
     ...(starterFight && starterFight.state !== "no-character" ? { starterFight } : {}),
     problemQuest: problemQuest.progress,
     problemQuestArchive: problemQuest.archive,
+    ...(barrelBeerTutorial ? { barrelBeerTutorial } : {}),
     yeger,
     cellar,
     ...(dailyKorchmaRound && dailyKorchmaRound.state !== "no-character" ? { dailyKorchmaRound } : {}),

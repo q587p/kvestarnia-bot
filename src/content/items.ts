@@ -94,6 +94,21 @@ export const items = [
     }
   },
   {
+    id: "item.persten-pyvovladdia",
+    name: "Перстень Пивовладдя",
+    description: "Не робить невидимим. Просто додає +1 до Вдачі й нагадує, що великі пригоди іноді починаються з малого кухля.",
+    rarity: "common",
+    slot: "accessory",
+    equipmentSlot: "accessory",
+    equipmentRequirements: {
+      minLevel: 2
+    },
+    goldValue: 4,
+    effect: {
+      luck: 1
+    }
+  },
+  {
     id: "item.wet-hero-ticket",
     name: "Квиток мокрого пригодника",
     description: "Трофей тавернової логістики. Трохи пахне перемогою і підлогою.",

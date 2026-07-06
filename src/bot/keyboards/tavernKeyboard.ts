@@ -447,7 +447,7 @@ export function buildKorchmaRoundOfferKeyboard(
 
 export function buildKorchmaRoundResultKeyboard(
   result: Exclude<TavernRoundResult, { state: "no-character" }>,
-  options: { tavernGames?: boolean; tavernGameTableCount?: number } = {}
+  options: { tavernGames?: boolean; tavernGameTableCount?: number; questMarkers?: QuestMarkerInput | null } = {}
 ): InlineKeyboard {
   if (result.state === "raid-required") {
     return new InlineKeyboard()

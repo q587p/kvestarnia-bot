@@ -6,6 +6,7 @@ type QuestHubCommandOptions
 export function buildQuestHubCommandOptions(services: BotServices): QuestHubCommandOptions {
   return {
     adventure: services.adventure,
+    barrelBeerTutorial: services.barrelBeerTutorial,
     cellarErrand: services.cellarErrand,
     ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
     dailyKorchmaRound: services.dailyKorchmaRound,

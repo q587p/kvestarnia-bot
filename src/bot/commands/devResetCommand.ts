@@ -5,6 +5,7 @@ import type { DevResetService } from "../../services/devResetService";
 import type { FightService } from "../../services/fightService";
 import type { PartyBossService } from "../../services/partyBossService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import type { BarrelBeerTutorialService } from "../../services/barrelBeerTutorialService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT } from "../../services/presenceService";
 import { playerFromContext } from "../context";
 import { buildPersistentFightResultKeyboard } from "../keyboards/fightKeyboard";
@@ -38,7 +39,11 @@ export function registerDevResetCommand(
     FightService,
     "getOrStartPersistentFightForTelegramUser" | "recordPersistentFightMessageReference" | "resetMonsterRestCooldownForDev"
   >,
-  partyBossService?: Pick<PartyBossService, "forceBigBarrelWinForTelegramUser">
+  partyBossService?: Pick<PartyBossService, "forceBigBarrelWinForTelegramUser">,
+  barrelBeerTutorialService?: Pick<
+    BarrelBeerTutorialService,
+    "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
+  >
 ): void {
   bot.command("dev_reset_me", async (ctx) => {
     if (!devResetService.isEnabled()) {
@@ -119,6 +124,9 @@ export function registerDevResetCommand(
 
     await ctx.reply(presentDevRaidStopResult(result));
     if (result.state === "completed") {
+      await barrelBeerTutorialService?.markVisitedBarrelForTelegramUser(telegramUserId);
+      await barrelBeerTutorialService?.markBarrelRaidCompletedForTelegramUser(telegramUserId);
+
       const levelUpText = presentLevelUpCelebration(
         result.result.levelChange,
         result.result.character.classId,

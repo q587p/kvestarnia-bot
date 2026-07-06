@@ -7,6 +7,7 @@ import type { DevResetService } from "../../src/services/devResetService";
 import type { FightService } from "../../src/services/fightService";
 import type { PartyBossService } from "../../src/services/partyBossService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
+import type { BarrelBeerTutorialService } from "../../src/services/barrelBeerTutorialService";
 
 describe("dev adventure reset command", () => {
   it("resets current adventure period in local environments", async () => {
@@ -41,6 +42,8 @@ describe("dev adventure reset command", () => {
 
   it("stops a pending barrel raid in local environments", async () => {
     const replies: string[] = [];
+    const markVisitedBarrelForTelegramUser = vi.fn(() => Promise.resolve());
+    const markBarrelRaidCompletedForTelegramUser = vi.fn(() => Promise.resolve());
     const bot = createTestBot(replies, {
       devReset: enabledDevReset(),
       adventure: {
@@ -70,7 +73,11 @@ describe("dev adventure reset command", () => {
               }
             }
           })
-      } as unknown as TavernRaidService
+      } as unknown as TavernRaidService,
+      barrelBeerTutorial: {
+        markVisitedBarrelForTelegramUser,
+        markBarrelRaidCompletedForTelegramUser
+      }
     });
 
     await bot.handleUpdate(commandUpdate("/dev_raid_stop"));
@@ -79,6 +86,8 @@ describe("dev adventure reset command", () => {
     expect(replies[0]).toBe("Рейд на Бочку завершено достроково.\nЗараховано: +18 XP, +8 золота.");
     expect(replies[1]).toContain("🎉 Рівень підріс!");
     expect(replies[1]).toContain("✨ <b>1 → 2</b>");
+    expect(markVisitedBarrelForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(42n);
   });
 
   it("keeps dev raid stop disabled in production", async () => {
@@ -442,6 +451,10 @@ function createTestBot(
     adventure: Pick<AdventureService, "resetCurrentPeriodForTelegramUser">;
     tavern?: Pick<TavernRaidService, "resetFridayBarrelRaidForDev" | "stopPendingFridayBarrelRaidForDev">;
     partyBoss?: Pick<PartyBossService, "forceBigBarrelWinForTelegramUser">;
+    barrelBeerTutorial?: Pick<
+      BarrelBeerTutorialService,
+      "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
+    >;
     dailyKorchmaRound?: Pick<DailyKorchmaRoundService, "resetTodayForDev">;
     fight?: Pick<
       FightService,
@@ -474,7 +487,8 @@ function createTestBot(
     services.tavern,
     services.dailyKorchmaRound,
     services.fight,
-    services.partyBoss
+    services.partyBoss,
+    services.barrelBeerTutorial
   );
   return bot;
 }
