@@ -186,6 +186,23 @@ describe("PrismaSoloCombatSessionRepository", () => {
           remainingTurns: 1
         }
       },
+      equipmentAbilities: {
+        version: 1,
+        grantIds: ["mantok-ability.barrel-counter-shield"]
+      },
+      enemyStatuses: {
+        version: 1,
+        enemies: {
+          "enemy:1": {
+            bleed: {
+              sourceAbilityId: "gear.red-line-dagger",
+              damagePerActivation: 1,
+              remainingHeroActivations: 2,
+              refreshedAtTurn: 3
+            }
+          }
+        }
+      },
       drinkModifiers: {
         drinkKey: "drink.fine-beer",
         sourceId: "drink-state.beer",
@@ -331,6 +348,16 @@ describe("PrismaSoloCombatSessionRepository", () => {
     expect(mapped?.state?.lastTurn?.action).toBe("skip");
     expect(mapped?.state?.lastTurn?.actionOrigin).toBe("timeout-skip");
     expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
+    expect(mapped?.state?.equipmentAbilities).toEqual({
+      version: 1,
+      grantIds: ["mantok-ability.barrel-counter-shield"]
+    });
+    expect(mapped?.state?.enemyStatuses?.enemies["enemy:1"]?.bleed).toEqual({
+      sourceAbilityId: "gear.red-line-dagger",
+      damagePerActivation: 1,
+      remainingHeroActivations: 2,
+      refreshedAtTurn: 3
+    });
     expect(mapped?.state?.turnLog?.[0]).toMatchObject({
       eventId: "turn:3:timeout-skip",
       turn: 3,
@@ -714,7 +741,7 @@ function runtimeRoundTripState(): CombatState {
         consecutiveMissedTurns: 1,
         lastMissedAt: "2026-06-20T00:00:24.000Z"
       },
-      cooldowns: {
+    cooldowns: {
       abilities: {
         "skill.forceful-strike": {
           id: "skill.forceful-strike",
@@ -724,6 +751,23 @@ function runtimeRoundTripState(): CombatState {
       skill: {
         id: "skill.forceful-strike",
         remainingTurns: 1
+      }
+    },
+    equipmentAbilities: {
+      version: 1,
+      grantIds: ["mantok-ability.barrel-counter-shield"]
+    },
+    enemyStatuses: {
+      version: 1,
+      enemies: {
+        "enemy:1": {
+          bleed: {
+            sourceAbilityId: "gear.red-line-dagger",
+            damagePerActivation: 1,
+            remainingHeroActivations: 2,
+            refreshedAtTurn: 3
+          }
+        }
       }
     },
     drinkModifiers: {

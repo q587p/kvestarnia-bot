@@ -1619,6 +1619,8 @@ export function parseCombatState(value: unknown): CombatState | null {
   const turnLog = parseTurnLog(value.turnLog);
   const drinkModifiers = parseDrinkModifiers(value.drinkModifiers);
   const playerAbilityFumbles = parsePlayerAbilityFumbles(value.playerAbilityFumbles);
+  const equipmentAbilities = parseEquipmentAbilities(value.equipmentAbilities);
+  const enemyStatuses = parseEnemyStatuses(value.enemyStatuses);
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -1654,8 +1656,66 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(lastTurn ? { lastTurn } : {}),
     ...(turnLog.length > 0 ? { turnLog } : {}),
-    ...(playerAbilityFumbles ? { playerAbilityFumbles } : {})
+    ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
+    ...(equipmentAbilities ? { equipmentAbilities } : {}),
+    ...(enemyStatuses ? { enemyStatuses } : {})
   };
+}
+
+function parseEquipmentAbilities(value: unknown): CombatState["equipmentAbilities"] | null {
+  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.grantIds)) {
+    return null;
+  }
+
+  const grantIds = value.grantIds.filter((grantId): grantId is string =>
+    typeof grantId === "string" && grantId.length > 0 && grantId.length <= 128
+  );
+
+  return grantIds.length > 0
+    ? { version: 1, grantIds: [...new Set(grantIds)] }
+    : null;
+}
+
+function parseEnemyStatuses(value: unknown): CombatState["enemyStatuses"] | null {
+  if (!isRecord(value) || value.version !== 1 || !isRecord(value.enemies)) {
+    return null;
+  }
+
+  const enemies = Object.fromEntries(
+    Object.entries(value.enemies).flatMap(([enemyId, raw]) => {
+      if (!isRecord(raw) || enemyId.length === 0 || enemyId.length > 128) {
+        return [];
+      }
+
+      const bleed = parseCombatBleedStatus(raw.bleed);
+      return bleed ? [[enemyId, { bleed }] as const] : [];
+    })
+  );
+
+  return Object.keys(enemies).length > 0
+    ? { version: 1, enemies }
+    : null;
+}
+
+function parseCombatBleedStatus(value: unknown): NonNullable<CombatState["enemyStatuses"]>["enemies"][string]["bleed"] | null {
+  if (!isRecord(value) || typeof value.sourceAbilityId !== "string" || value.sourceAbilityId.length === 0 || value.sourceAbilityId.length > 128) {
+    return null;
+  }
+
+  const damagePerActivation = boundedOptionalInt(value.damagePerActivation, 1, 93);
+  const remainingHeroActivations = boundedOptionalInt(value.remainingHeroActivations, 0, 93);
+  const refreshedAtTurn = boundedOptionalInt(value.refreshedAtTurn, 1, 1_000_000);
+
+  return damagePerActivation === undefined ||
+    remainingHeroActivations === undefined ||
+    refreshedAtTurn === undefined
+    ? null
+    : {
+        sourceAbilityId: value.sourceAbilityId,
+        damagePerActivation,
+        remainingHeroActivations,
+        refreshedAtTurn
+      };
 }
 
 function parseCombatItems(value: unknown): CombatState["combatItems"] | null {

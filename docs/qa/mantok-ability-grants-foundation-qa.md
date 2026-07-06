@@ -15,6 +15,7 @@ Manual Telegram QA status for the implementation pass: partial local smoke found
      - `item.set.fog-knot.amulet` — level `11+`.
    - Service-perk-only QA id: `item.set.yeger-shadow.cloak` — level `12+`; it should show copy but no combat button.
 2. Start a persistent fight and verify the gear-action button appears for currently equipped, level-eligible grants, including when current mana/cooldown state blocks pressing it.
+2b. Leave and reopen the active fight card on a later turn, including in a two-enemy persistent fight; verify gear-action buttons and bleed ticks survive the stored session JSON reload.
 2a. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
 3. Use `🛡 Контраргумент`; verify it spends a turn, applies protection and does not create a class/race action.
 4. Use `🩸 Червоний рядок` or `🖋 Остання сторінка`; verify bleed appears, ticks visibly and can finish combat without an extra status-kill response.
