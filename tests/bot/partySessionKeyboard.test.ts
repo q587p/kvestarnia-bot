@@ -65,6 +65,18 @@ describe("party session keyboard", () => {
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bm:partyABC12:1");
   });
 
+  it("keeps the party boss one-use shortcut hidden unless explicitly enabled", () => {
+    const session = makeBossSession();
+
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).not.toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true
+    }))).toContain("v1:party:bm:partyABC12:1");
+  });
+
   it("shows party boss gear actions from equipment grants", () => {
     const session = makeBossSession({
       level: 10,

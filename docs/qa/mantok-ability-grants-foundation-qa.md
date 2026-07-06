@@ -2,6 +2,12 @@
 
 Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons staying visible while unusable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
 
+Review follow-up coverage:
+
+- Automated service coverage confirms turn-based duel gear callbacks blocked by no mana or cooldown return the specific gate state without mutating the duel.
+- Automated command coverage confirms those blocked duel gear callbacks answer with reason-specific callback notices.
+- Automated keyboard coverage confirms the Big Barrel one-use item shortcut stays hidden unless the caller explicitly enables the item menu.
+
 Manual evidence still required before merge:
 
 - Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and does not create a second effect.

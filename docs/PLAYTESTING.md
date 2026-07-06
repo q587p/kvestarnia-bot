@@ -8,6 +8,8 @@
 
 Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons staying visible while unusable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
 
+Review follow-up coverage: duel gear no-mana/cooldown callbacks are covered by service and command tests, and the Big Barrel one-use item shortcut has a fail-safe keyboard test proving it remains hidden unless explicitly enabled. Exact local Telegram evidence is still pending for duplicate party-boss gear actions, stale duel gear callbacks and ordinary two-enemy fight gear actions.
+
 1. Seed or win each ability-granting manatka from the `9..13` band and equip it on a level-appropriate character.
 2. Start persistent one-enemy and two-enemy fights and verify currently usable gear-action buttons appear after the normal fight controls, while cooldown/mana-blocked gear actions stay in text but not on the keyboard.
 3. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
