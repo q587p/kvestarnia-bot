@@ -43,6 +43,7 @@ import {
   makeSafePassageSearchStartCallbackData
 } from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
+import { appendGearActionButtons } from "./gearActionKeyboard";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
 
@@ -105,17 +106,14 @@ export function buildPersistentFightKeyboard(
       })
     : [];
 
-  for (const [index, grant] of gearGrants.entries()) {
-    if (index % 2 === 0) {
-      keyboard.row();
-    }
-    keyboard.text(
-      grant.buttonLabel ?? grant.label,
-      makeFightGearActionCallbackData({ sessionId: session.id, turn, grantKey: grant.key })
-    );
+  appendGearActionButtons(
+    keyboard,
+    gearGrants,
+    (grant) => makeFightGearActionCallbackData({ sessionId: session.id, turn, grantKey: grant.key })
+  );
+  if (gearGrants.length === 0) {
+    keyboard.row();
   }
-
-  keyboard.row();
 
   return keyboard
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));

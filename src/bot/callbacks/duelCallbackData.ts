@@ -15,6 +15,7 @@ export type DuelCallback =
   | { type: "share"; token: string }
   | { type: "invite"; token: string; templateIndex: number }
   | { type: "turn"; token: string; action: "attack" | "defend" | "skill" | "race" | "surrender"; turn: number; version: number }
+  | { type: "gear"; token: string; turn: number; version: number; grantKey: string }
   | { type: "view"; token: string };
 
 export type DuelCallbackError =
@@ -27,6 +28,7 @@ export type DuelCallbackError =
 
 const PREFIX = "v1:duel";
 const tokenPattern = /^[A-Za-z0-9_-]{8,24}$/;
+const gearKeyPattern = /^[a-z0-9]{1,10}$/;
 
 export function makeDuelNewCallbackData(): string {
   return `${PREFIX}:new`;
@@ -99,6 +101,15 @@ export function makeDuelTurnCallbackData(
   return `${PREFIX}:t:${token}:${actionKey}:${turn.toString(36)}:${version.toString(36)}`;
 }
 
+export function makeDuelGearActionCallbackData(input: {
+  token: string;
+  turn: number;
+  version: number;
+  grantKey: string;
+}): string {
+  return `${PREFIX}:g:${input.token}:${input.turn.toString(36)}:${input.version.toString(36)}:${input.grantKey}`;
+}
+
 export function parseDuelCallbackData(
   data: string | undefined
 ): Result<DuelCallback, DuelCallbackError> {
@@ -145,6 +156,7 @@ export function parseDuelCallbackData(
     action !== "rematch-risk" &&
     action !== "inv" &&
     action !== "t" &&
+    action !== "g" &&
     action !== "share" &&
     action !== "view"
   ) {
@@ -196,6 +208,28 @@ export function parseDuelCallbackData(
             : "surrender",
       turn: Number.parseInt(turnValue, 36),
       version: Number.parseInt(versionValue, 36)
+    });
+  }
+
+  if (action === "g") {
+    if (!templateIndex || !turnValue || !versionValue || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (
+      !/^[0-9a-z]{1,4}$/.test(templateIndex) ||
+      !/^[0-9a-z]{1,4}$/.test(turnValue) ||
+      !gearKeyPattern.test(versionValue)
+    ) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "gear",
+      token,
+      turn: Number.parseInt(templateIndex, 36),
+      version: Number.parseInt(turnValue, 36),
+      grantKey: versionValue
     });
   }
 

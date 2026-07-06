@@ -49,6 +49,34 @@ describe("party session keyboard", () => {
     ]);
   });
 
+  it("hides the party boss one-use shortcut when no useful combat items are available", () => {
+    const session = makeBossSession();
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).toEqual([
+      "🗡️ Вдарити",
+      "🛡 Захищатися",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
+      "🔎 Оновити"
+    ]);
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).not.toContain("v1:party:bm:partyABC12:1");
+  });
+
+  it("shows party boss gear actions from equipment grants", () => {
+    const session = makeBossSession({
+      level: 10,
+      equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"]
+    });
+
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).toContain("v1:party:bg:partyABC12:1:rldagr");
+  });
+
   it("shows the Big Barrel Brother raid start without dev proof helpers", () => {
     const session = {
       ...makeSession(),
@@ -219,7 +247,14 @@ function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: stri
 }
 
 function makeBossSession(
-  participantOverrides: { status?: "active" | "knocked-out"; hp?: number; mana?: number; classId?: string } = {},
+  participantOverrides: {
+    status?: "active" | "knocked-out";
+    hp?: number;
+    mana?: number;
+    classId?: string;
+    level?: number;
+    equipmentAbilityGrantIds?: string[];
+  } = {},
   sessionOverrides: { status?: PartyBossSessionRecord["status"]; roundLogLength?: number } = {}
 ): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
@@ -263,7 +298,7 @@ function makeBossSession(
           remortCount: 0,
           status: participantOverrides.status ?? "active",
           combatStats: {
-            level: 3,
+            level: participantOverrides.level ?? 3,
             hpMax: 25,
             manaMax: 10,
             hpCurrent: 25,
@@ -276,6 +311,9 @@ function makeBossSession(
             raceId: "race.human-ish",
             classId: participantOverrides.classId ?? "class.warrior"
           },
+          ...(participantOverrides.equipmentAbilityGrantIds
+            ? { equipmentAbilityGrantIds: participantOverrides.equipmentAbilityGrantIds }
+            : {}),
           resources: {
             hp: participantOverrides.hp ?? 25,
             hpMax: 25,

@@ -1,6 +1,7 @@
 import { items } from "../../content";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CombatActorStats } from "../../domain/combat/combatState";
+import type { CombatGearAbilityInput } from "../../domain/combat/combatEngine";
 import type {
   PartyBossActionKey,
   PartyBossCombatItemInput,
@@ -106,7 +107,8 @@ export interface PartyBossRepository {
     partyInviteToken: string,
     turn: number,
     action: PartyBossActionKey,
-    input: PartyBossResolveInput
+    input: PartyBossResolveInput,
+    options?: { gearAbility?: CombatGearAbilityInput }
   ): Promise<PartyBossActionResult>;
 
   submitItemForTelegramUser(

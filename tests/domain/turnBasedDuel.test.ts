@@ -8,6 +8,7 @@ import {
 } from "../../src/domain/duels/turnBasedDuel";
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
 import { FakeRandomSource } from "../../src/shared/random";
+import { findMantokAbilityGrantByKey } from "../../src/content";
 
 describe("turn-based duel domain", () => {
   it("stores a stable first actor from initiative instead of always using the challenger", () => {
@@ -344,6 +345,68 @@ describe("turn-based duel domain", () => {
       resolved.state.participants.challenger.cooldowns?.abilities?.["ability.race.practical-improvisation"]
     ).toEqual({
       id: "ability.race.practical-improvisation",
+      remainingTurns: 3
+    });
+  });
+
+  it("resolves gear actions in turn-based duels with separate cooldowns", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 10,
+        dexterity: 14,
+        manaCurrent: 10,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile,
+        ...(grant.combat.bleed
+          ? {
+              bleed: {
+                sourceAbilityId: grant.combat.profile.id,
+                ...grant.combat.bleed
+              }
+            }
+          : {})
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) {
+      throw new Error("Expected gear action to queue.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected gear round to resolve.");
+    }
+
+    expect(resolved.round.actions[0]).toMatchObject({
+      actorCharacterId: "challenger",
+      action: "gear",
+      skillId: "gear.red-line-dagger"
+    });
+    expect(
+      resolved.state.participants.challenger.cooldowns?.abilities?.["gear.red-line-dagger"]
+    ).toEqual({
+      id: "gear.red-line-dagger",
       remainingTurns: 3
     });
   });

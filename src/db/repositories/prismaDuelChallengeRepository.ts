@@ -17,6 +17,7 @@ import type {
 } from "./duelChallengeRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import type { CharacterStats, StatKey } from "../../domain/characters/starterStats";
+import type { CombatGearAbilityInput, CombatSkillProfile } from "../../domain/combat";
 import type { TurnBasedDuelState, TurnBasedDuelStatus } from "../../domain/duels/turnBasedDuel";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -1167,6 +1168,9 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   const equipmentEffects = hasOwn(value, "equipmentEffects")
     ? parseEquipmentEffects(value.equipmentEffects)
     : undefined;
+  const equipmentAbilityGrantIds = hasOwn(value, "equipmentAbilityGrantIds")
+    ? parseStringList(value.equipmentAbilityGrantIds)
+    : undefined;
 
   if (
     !characterId ||
@@ -1187,7 +1191,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     !balanceAudit ||
     cooldowns === null ||
     playerAbilityFumbles === null ||
-    equipmentEffects === null
+    equipmentEffects === null ||
+    equipmentAbilityGrantIds === null
   ) {
     return null;
   }
@@ -1215,7 +1220,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     ...(cooldowns ? { cooldowns } : {}),
     ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
     balanceAudit,
-    ...(equipmentEffects ? { equipmentEffects } : {})
+    ...(equipmentEffects ? { equipmentEffects } : {}),
+    ...(equipmentAbilityGrantIds ? { equipmentAbilityGrantIds } : {})
   };
 }
 
@@ -1389,12 +1395,22 @@ function parseQueuedAction(
     value.action !== "attack" &&
     value.action !== "defend" &&
     value.action !== "skill" &&
-    value.action !== "race"
+    value.action !== "race" &&
+    value.action !== "gear"
   ) {
     return null;
   }
 
-  return { actorCharacterId: expectedCharacterId, action: value.action };
+  const gearAbility = value.action === "gear" ? parseGearAbility(value.gearAbility) : undefined;
+  if (value.action === "gear" && !gearAbility) {
+    return null;
+  }
+
+  return {
+    actorCharacterId: expectedCharacterId,
+    action: value.action,
+    ...(gearAbility ? { gearAbility } : {})
+  };
 }
 
 function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | undefined | null {
@@ -1520,8 +1536,103 @@ function isTurnBasedSummaryAction(value: unknown): value is NonNullable<TurnBase
     value === "defend" ||
     value === "skill" ||
     value === "race" ||
+    value === "gear" ||
     value === "surrender" ||
     value === "timeout-attack";
+}
+
+function parseStringList(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const result = value.filter((entry): entry is string =>
+    typeof entry === "string" && entry.length > 0 && entry.length <= 128
+  );
+
+  return result.length === value.length ? result : null;
+}
+
+function parseGearAbility(value: unknown): CombatGearAbilityInput | null {
+  if (!isRecord(value) || !isRecord(value.profile)) {
+    return null;
+  }
+
+  const profile = value.profile;
+  const id = stringOrNull(profile.id);
+  const label = stringOrNull(profile.label);
+  const description = stringOrNull(profile.description);
+  const manaCost = parseNonNegativeInt(profile.manaCost);
+  const cooldownOwnActions = parsePositiveInt(profile.cooldownOwnActions);
+  const baseDamage = numberOrNull(profile.baseDamage);
+  const multiplier = numberOrNull(profile.multiplier);
+  const damageKind = parseDamageKind(profile.damageKind);
+  const stat = parseStatKey(profile.stat);
+  const primaryTargetScope = parseTargetScope(profile.primaryTargetScope);
+  const secondaryTargetScope = hasOwn(profile, "secondaryTargetScope")
+    ? parseTargetScope(profile.secondaryTargetScope)
+    : undefined;
+  const recipe = parseStringList(profile.recipe);
+  const accuracyBonus = typeof profile.accuracyBonus === "number" ? profile.accuracyBonus : 0;
+  const critBonus = typeof profile.critBonus === "number" ? profile.critBonus : 0;
+  const monsterDamageReduction =
+    typeof profile.monsterDamageReduction === "number" ? profile.monsterDamageReduction : 0;
+
+  if (
+    !id ||
+    !label ||
+    !description ||
+    manaCost === null ||
+    cooldownOwnActions === null ||
+    baseDamage === null ||
+    multiplier === null ||
+    !damageKind ||
+    !stat ||
+    primaryTargetScope === null ||
+    recipe === null ||
+    secondaryTargetScope === null
+  ) {
+    return null;
+  }
+
+  const bleed = isRecord(value.bleed)
+    ? {
+        sourceAbilityId: stringOrNull(value.bleed.sourceAbilityId),
+        damagePerActivation: parsePositiveInt(value.bleed.damagePerActivation),
+        remainingHeroActivations: parsePositiveInt(value.bleed.remainingHeroActivations)
+      }
+    : null;
+
+  return {
+    profile: {
+      id,
+      label,
+      description,
+      manaCost,
+      cooldownOwnActions,
+      baseDamage,
+      multiplier,
+      damageKind,
+      stat,
+      accuracyBonus,
+      critBonus,
+      monsterDamageReduction,
+      ...(primaryTargetScope ? { primaryTargetScope } : {}),
+      ...(secondaryTargetScope ? { secondaryTargetScope } : {}),
+      ...(typeof profile.guardReduction === "number" ? { guardReduction: profile.guardReduction } : {}),
+      ...(typeof profile.healAmount === "number" ? { healAmount: profile.healAmount } : {}),
+      ...(recipe.length > 0 ? { recipe: recipe as NonNullable<CombatSkillProfile["recipe"]> } : {})
+    },
+    ...(bleed?.sourceAbilityId && bleed.damagePerActivation !== null && bleed.remainingHeroActivations !== null
+      ? {
+          bleed: {
+            sourceAbilityId: bleed.sourceAbilityId,
+            damagePerActivation: bleed.damagePerActivation,
+            remainingHeroActivations: bleed.remainingHeroActivations
+          }
+        }
+      : {})
+  };
 }
 
 function isTurnBasedSummaryOutcome(value: unknown): value is NonNullable<TurnBasedDuelState["lastAction"]>["outcome"] {
@@ -1696,6 +1807,10 @@ function intOrZero(value: unknown): number {
   return typeof value === "number" && Number.isInteger(value) ? value : 0;
 }
 
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function parsePositiveInt(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : null;
 }
@@ -1706,6 +1821,34 @@ function parseNonNegativeInt(value: unknown): number | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function parseDamageKind(value: unknown) {
+  return value === "physical" || value === "spell" || value === "social" || value === "trick"
+    ? value
+    : null;
+}
+
+function parseStatKey(value: unknown) {
+  return value === "strength" ||
+    value === "dexterity" ||
+    value === "intelligence" ||
+    value === "charisma" ||
+    value === "luck"
+    ? value
+    : null;
+}
+
+function parseTargetScope(value: unknown) {
+  return value === undefined
+    ? undefined
+    : value === "single-enemy" ||
+        value === "all-enemies" ||
+        value === "self" ||
+        value === "lowest-hp-ally" ||
+        value === "all-allies-including-self"
+      ? value
+      : null;
 }
 
 function hasOwn(value: Record<string, unknown>, key: string): boolean {

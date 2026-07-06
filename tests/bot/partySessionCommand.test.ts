@@ -476,6 +476,30 @@ describe("handlePartySessionCallback", () => {
     expect(messageText(editMessageText)).toContain("<b>Бій: 1 хід</b>");
   });
 
+  it("hides the active boss one-use shortcut when no useful combat items are available", async () => {
+    const session = makeBossSession();
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
+    const hasCombatItemsForTelegramUser = vi.fn().mockResolvedValue(false);
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-journal", token: session.partyInviteToken, page: null },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          getByPartyInviteToken,
+          hasCombatItemsForTelegramUser
+        })
+      }
+    );
+
+    expect(hasCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1);
+    expect(keyboardJson(editMessageText)).toContain("v1:party:ba:partyABC12:1:a");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:party:bm:partyABC12:1");
+  });
+
   it("refreshes the leader recruiting card after another player joins", async () => {
     const session = makeSessionWithMember();
     const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "joined", session });
@@ -740,6 +764,7 @@ function partyBossWith(overrides: Partial<PartyBossService>): PartyBossService {
     resolveDueTimedOutByToken: vi.fn(),
     forceResolveTimedOutByToken: vi.fn(),
     getByPartyInviteToken: vi.fn(),
+    hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(true),
     ...overrides
   } as unknown as PartyBossService;
 }

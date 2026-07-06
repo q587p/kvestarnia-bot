@@ -13,6 +13,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a data-driven Mantok ability-grant registry with stable compact gear-action keys, uniqueness validation and additive high-level monster loot for the first authored grant set.
 - Added the first epic/soulbound ability manatky in the level `9..13` band, including one new rapier item and grant metadata for existing Mantok set pieces.
 - Added persistent PvE gear-action callbacks and fight buttons that seed grant ids at combat start, refresh current eligible gear actions during the active turn, spend mana/cooldowns through the combat engine and reject stale or currently unavailable callbacks without advancing combat.
+- Added shared gear-action button wiring for persistent PvE fights, Big Barrel Brother raid turns and turn-based duels.
 - Added equipment-sourced combat profiles for reinforced defense, small bleed strikes and weaker borrowed class/race-style actions that do not count as native class or race actions.
 - Added a narrow visible bleed status family that ticks during committed hero activations and can settle combat without an extra monster response when the status itself defeats the final enemy.
 - Added item-detail, equipment-surface and hero-card summaries for granted actions and service-perk markers.
@@ -26,6 +27,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
 
 ### Fixed
+- Persistent PvE gear-action callbacks now bypass the generic combat-lock redirect, so pressing a visible gear button during an active fight reaches the fight turn handler instead of answering `Спочатку завершіть бій`.
+- Big Barrel Brother raid and turn-based duel gear-action callbacks now bypass the same active-combat redirect and resolve through the existing combat action engine instead of becoming dead visible buttons.
+- Big Barrel Brother active cards now hide the `🎒 Одноразові манатки` shortcut when the participant has no currently useful one-use combat items; stale item-menu callbacks still return the empty-menu explanation without spending a turn.
 - Kept eligible persistent PvE gear-action buttons visible even when mana or cooldown gates block the action, so the callback gate can explain the blocker without advancing combat.
 - Refreshed eligible gear-action buttons on active fight overview cards as well as direct fight views and callbacks, so returning to an already active fight after changing equipment shows the current manatka actions.
 - Preserved gear-action grant ids and bleed statuses when active persistent PvE fights reload from stored session JSON, so multi-enemy and later-turn fight cards keep the same equipment buttons and status ticks as freshly started fights.
@@ -33,7 +37,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Deferred
 - The Yeger cloak ordinary-bandage service perk is represented as a narrow documented service marker only; no Yeger board, dense-bandage, field-kit or service runtime change ships in this slice.
-- PvP/duel gear actions, generated ability loot, hidden procs, free extra turns, shops, markets, crafting and ability-granting set bonuses remain deferred.
+- Quick-duel/PvP-specific gear expansion, generated ability loot, hidden procs, free extra turns, shops, markets, crafting and ability-granting set bonuses remain deferred.
 
 ## [0.2.28] - 12026-07-06 - Mantok Set Synergies Foundation
 

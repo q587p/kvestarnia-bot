@@ -21,7 +21,9 @@ Manual Telegram QA status for the implementation pass: partial local smoke found
 4. Use `🩸 Червоний рядок` or `🖋 Остання сторінка`; verify bleed appears, ticks visibly and can finish combat without an extra status-kill response.
 5. Use the borrowed Bard/Priest/Bureaucramancer/Varenyk/Drantohor/Molfar-style actions; verify they feel weaker than native class/race actions, consume mana/cooldown normally and reject blocked presses without advancing combat.
 6. Replay an old gear callback after the turn advances; verify it is stale and does not spend mana, tick cooldowns, advance RNG or let the monster respond.
-7. Equip duplicate copies if locally possible; verify only one grant is active.
-8. Open item detail, `/equipment` and `/hero`; verify granted action/perk summaries are visible and readable, including the aggregate `Дія спорядження` row on equipment and character cards.
-9. Verify `Єгерський плащ чужої справи` does not expose dense bandages, field kits or Yeger boards.
-10. Win fights against configured source monsters and verify new grants can appear without removing existing trophy/coverage/set drops.
+7. Start a Big Barrel Brother raid with an equipped eligible grant manatka; verify the gear button appears on the raid card, pressing it queues/resolves normally during the active raid, and the one-use shortcut is hidden when no useful one-use manatky are available.
+8. Start a turn-based duel with an equipped eligible grant manatka; verify the gear button appears, pressing it queues/resolves during the active duel, and stale repeated gear callbacks do not advance the duel.
+9. Equip duplicate copies if locally possible; verify only one grant is active.
+10. Open item detail, `/equipment` and `/hero`; verify granted action/perk summaries are visible and readable, including the aggregate `Дія спорядження` row on equipment and character cards.
+11. Verify `Єгерський плащ чужої справи` does not expose dense bandages, field kits or Yeger boards.
+12. Win fights against configured source monsters and verify new grants can appear without removing existing trophy/coverage/set drops.

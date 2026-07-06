@@ -11,6 +11,7 @@ export type PartySessionCallback =
   | { type: "readiness"; token: string; readiness: PartyParticipantReadiness }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
+  | { type: "boss-gear"; token: string; turn: number; grantKey: string }
   | { type: "boss-items"; token: string; turn: number }
   | { type: "boss-item"; token: string; turn: number; itemKey: string }
   | { type: "boss-timeout"; token: string }
@@ -36,6 +37,7 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 const PAGE_PATTERN = /^[0-9a-z]{1,3}$/;
 const TARGET_PATTERN = /^[0-9a-z]{1,13}$/;
 const ITEM_KEY_PATTERN = /^[a-z0-9]{1,10}$/;
+const GEAR_KEY_PATTERN = /^[a-z0-9]{1,10}$/;
 
 export function makePartySessionViewCallbackData(token: string): string {
   return `${PREFIX}:v:${token}`;
@@ -74,6 +76,14 @@ export function makePartyBossActionCallbackData(
   action: PartyBossCallbackAction
 ): string {
   return `${PREFIX}:ba:${token}:${turn.toString(36)}:${actionKey(action)}`;
+}
+
+export function makePartyBossGearActionCallbackData(input: {
+  token: string;
+  turn: number;
+  grantKey: string;
+}): string {
+  return `${PREFIX}:bg:${input.token}:${input.turn.toString(36)}:${input.grantKey}`;
 }
 
 export function makePartyBossItemsMenuCallbackData(token: string, turn: number): string {
@@ -132,7 +142,7 @@ export function parsePartySessionCallbackData(
 
   const [, section, action, tokenOrTarget, page, ...rest] = data.split(":");
 
-  if (section !== "party" || (action !== "ba" && action !== "bi" && rest.length > 0)) {
+  if (section !== "party" || (action !== "ba" && action !== "bg" && action !== "bi" && rest.length > 0)) {
     return err("invalid-prefix");
   }
 
@@ -189,6 +199,28 @@ export function parsePartySessionCallbackData(
       token: tokenOrTarget,
       turn: Number.parseInt(page, 36),
       action: parsedAction
+    });
+  }
+
+  if (action === "bg") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget)) {
+      return err("invalid-token");
+    }
+
+    if (!page || !PAGE_PATTERN.test(page)) {
+      return err("invalid-page");
+    }
+
+    const grantKey = rest[0];
+    if (rest.length !== 1 || !grantKey || !GEAR_KEY_PATTERN.test(grantKey)) {
+      return err("invalid-action");
+    }
+
+    return ok({
+      type: "boss-gear",
+      token: tokenOrTarget,
+      turn: Number.parseInt(page, 36),
+      grantKey
     });
   }
 

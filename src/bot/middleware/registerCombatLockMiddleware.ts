@@ -86,9 +86,12 @@ function shouldCheckCombatLock(ctx: Context): boolean {
     return (
       !data.startsWith("v1:fight:turn:") &&
       !data.startsWith("v1:fight:item:") &&
+      !data.startsWith("v1:fight:gear:") &&
       !data.startsWith("v1:spar:turn:") &&
       !data.startsWith("v1:duel:t:") &&
+      !data.startsWith("v1:duel:g:") &&
       !data.startsWith("v1:party:ba:") &&
+      !data.startsWith("v1:party:bg:") &&
       !data.startsWith("v1:party:bm:") &&
       !data.startsWith("v1:party:bi:") &&
       !data.startsWith("v1:party:bt:") &&
@@ -297,11 +300,32 @@ async function redirectPartyBossLockIfNeeded(
   });
   await sendCombatLockText(ctx, presentCombatLockRedirect(presentPartyBoss(active, { viewerCharacterId })), {
     reply_markup: buildPartyBossKeyboard(active, viewerCharacterId, {
+      includeCombatItems: await resolvePartyBossCombatItemShortcut(
+        services.partyBoss,
+        telegramUserId,
+        active
+      ),
       includeDevTimeout: services.partyBoss.areDevHelpersEnabled()
     })
   });
 
   return true;
+}
+
+async function resolvePartyBossCombatItemShortcut(
+  partyBoss: NonNullable<BotServices["partyBoss"]>,
+  telegramUserId: bigint,
+  session: Parameters<typeof buildPartyBossKeyboard>[0]
+): Promise<boolean | undefined> {
+  if (session.status !== "active") {
+    return undefined;
+  }
+
+  return partyBoss.hasCombatItemsForTelegramUser(
+    telegramUserId,
+    session.partyInviteToken,
+    session.turn
+  );
 }
 
 async function redirectTurnBasedDuelLockIfNeeded(

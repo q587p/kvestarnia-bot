@@ -295,7 +295,7 @@ export async function handleDuelCallback(
     return;
   }
 
-  if (callback.type === "turn") {
+  if (callback.type === "turn" || callback.type === "gear") {
     if (!isPrivateChat(ctx)) {
       await answerCallback({ text: "Ходи дуелі приймаються тільки в приваті з ботом." });
       const current = await service.getByToken(callback.token);
@@ -320,7 +320,8 @@ export async function handleDuelCallback(
       inviteToken: callback.token,
       expectedTurn: callback.turn,
       expectedVersion: callback.version,
-      action: callback.action
+      action: callback.type === "gear" ? "gear" : callback.action,
+      ...(callback.type === "gear" ? { grantKey: callback.grantKey } : {})
     });
 
     await answerCallback(

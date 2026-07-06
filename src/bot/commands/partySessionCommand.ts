@@ -155,6 +155,8 @@ export async function handlePartySessionCallback(
       await sendBossText(ctx, "reply", presentPartyBossStart(result, viewerCharacterId), {
         session: result.session,
         viewerCharacterId,
+        partyBoss: options.partyBoss,
+        telegramUserId,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
       });
     } else {
@@ -162,12 +164,15 @@ export async function handlePartySessionCallback(
         ? {
             session: result.session,
             viewerCharacterId,
+            partyBoss: options.partyBoss,
+            telegramUserId,
             includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
           }
         : false);
     }
     if (result.state === "started") {
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         includeIntro: true,
         notice: isBigBossSession(result.session)
@@ -202,12 +207,15 @@ export async function handlePartySessionCallback(
       ? {
           session: result.session,
           viewerCharacterId,
+          partyBoss: options.partyBoss,
+          telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
     if (result.state === "resolved" || result.state === "terminal") {
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: result.session.status === "active"
           ? big
@@ -216,6 +224,52 @@ export async function handlePartySessionCallback(
           : big
             ? "Рейд завершено. Показую підсумок."
             : "Тестовий бій завершено. Показую підсумок."
+      });
+    }
+    return;
+  }
+
+  if (callback.type === "boss-gear") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    const result = await options.partyBoss.submitGearForTelegramUser(
+      telegramUserId,
+      callback.token,
+      callback.turn,
+      callback.grantKey
+    );
+    await safeAnswerCallbackQuery(ctx, result.state === "updated"
+      ? { text: "Р’РёР±С–СЂ РѕРЅРѕРІР»РµРЅРѕ." }
+      : result.state === "duplicate"
+        ? { text: "Р”С–СЋ РІР¶Рµ Р·Р°РїРёСЃР°РЅРѕ." }
+        : undefined);
+    const viewerCharacterId = "session" in result
+      ? getBossViewerCharacterId(result.session, telegramUserId)
+      : null;
+    await sendBossText(ctx, "edit", presentPartyBossAction(result, viewerCharacterId), "session" in result
+      ? {
+          session: result.session,
+          viewerCharacterId,
+          partyBoss: options.partyBoss,
+          telegramUserId,
+          includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
+        }
+      : false);
+    if (result.state === "resolved" || result.state === "terminal") {
+      const big = isBigBossSession(result.session);
+      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        partyBoss: options.partyBoss,
+        includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
+        notice: result.session.status === "active"
+          ? big
+            ? "РҐС–Рґ РѕРЅРѕРІР»РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РЅРѕРІРёР№ СЃС‚Р°РЅ СЂРµР№РґСѓ."
+            : "РҐС–Рґ РѕРЅРѕРІР»РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РЅРѕРІРёР№ СЃС‚Р°РЅ С‚РµСЃС‚РѕРІРѕРіРѕ Р±РѕСЋ."
+          : big
+            ? "Р РµР№Рґ Р·Р°РІРµСЂС€РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РїС–РґСЃСѓРјРѕРє."
+            : "РўРµСЃС‚РѕРІРёР№ Р±С–Р№ Р·Р°РІРµСЂС€РµРЅРѕ. РџРѕРєР°Р·СѓСЋ РїС–РґСЃСѓРјРѕРє."
       });
     }
     return;
@@ -255,6 +309,8 @@ export async function handlePartySessionCallback(
       ? {
           session: result.session,
           viewerCharacterId,
+          partyBoss: options.partyBoss,
+          telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
@@ -287,12 +343,15 @@ export async function handlePartySessionCallback(
       ? {
           session: result.session,
           viewerCharacterId,
+          partyBoss: options.partyBoss,
+          telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
     if (result.state === "resolved" || result.state === "terminal") {
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: result.session.status === "active"
           ? big
@@ -324,12 +383,15 @@ export async function handlePartySessionCallback(
       ? {
           session: result.session,
           viewerCharacterId,
+          partyBoss: options.partyBoss,
+          telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
     if (result.state === "resolved" || result.state === "terminal") {
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+        partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         notice: result.session.status === "active"
           ? canForceTimeout
@@ -372,6 +434,8 @@ export async function handlePartySessionCallback(
       }), {
         session: boss,
         viewerCharacterId,
+        partyBoss: options.partyBoss,
+        telegramUserId,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
       });
       return;
@@ -392,6 +456,8 @@ export async function handlePartySessionCallback(
       await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
         session: boss,
         viewerCharacterId,
+        partyBoss: options.partyBoss,
+        telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
       return;
@@ -410,6 +476,8 @@ export async function handlePartySessionCallback(
       await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
         session: boss,
         viewerCharacterId,
+        partyBoss: options.partyBoss,
+        telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
       return;
@@ -547,6 +615,7 @@ export async function sendPartyJoinFromStartPayload(
       await ctx.reply(presentPartyBoss(boss, { viewerCharacterId }), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPartyBossKeyboard(boss, viewerCharacterId, {
+          includeCombatItems: await resolvePartyBossCombatItemShortcut(partyBoss, telegramUserId, boss),
           includeDevTimeout: partyBoss.areDevHelpersEnabled()
         })
       });
@@ -739,14 +808,26 @@ async function sendBossText(
     | {
         session: Parameters<typeof buildPartyBossKeyboard>[0];
         viewerCharacterId?: string | null | undefined;
+        partyBoss?: PartyBossService | undefined;
+        telegramUserId?: bigint | undefined;
+        includeCombatItems?: boolean | undefined;
         includeDevTimeout?: boolean | undefined;
       } = false
 ): Promise<void> {
+  const includeCombatItems = keyboard
+    ? await resolvePartyBossCombatItemShortcut(
+        keyboard.partyBoss,
+        keyboard.telegramUserId,
+        keyboard.session,
+        keyboard.includeCombatItems
+      )
+    : undefined;
   const options = {
     ...HTML_MESSAGE_OPTIONS,
     ...(keyboard
       ? {
           reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
+            ...(includeCombatItems === undefined ? {} : { includeCombatItems }),
             includeDevTimeout: keyboard.includeDevTimeout
           })
         }
@@ -866,6 +947,7 @@ async function notifyPartyBossParticipants(
   session: Parameters<typeof buildPartyBossKeyboard>[0],
   actorTelegramUserId: bigint,
   options: {
+    partyBoss?: PartyBossService | undefined;
     includeDevTimeout?: boolean | undefined;
     includeIntro?: boolean | undefined;
     notice: string;
@@ -894,6 +976,11 @@ async function notifyPartyBossParticipants(
         {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPartyBossKeyboard(session, participant.id, {
+            includeCombatItems: await resolvePartyBossCombatItemShortcut(
+              options.partyBoss,
+              participant.telegramUserId,
+              session
+            ),
             includeDevTimeout: options.includeDevTimeout
           })
         }
@@ -968,6 +1055,27 @@ function getBossViewerCharacterId(
 ): string | null {
   const participant = session.participants.find((row) => row.telegramUserId === telegramUserId);
   return participant?.id ?? null;
+}
+
+async function resolvePartyBossCombatItemShortcut(
+  partyBoss: PartyBossService | undefined,
+  telegramUserId: bigint | undefined,
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  explicit?: boolean
+): Promise<boolean | undefined> {
+  if (explicit !== undefined) {
+    return explicit;
+  }
+
+  if (!partyBoss || telegramUserId === undefined || session.status !== "active") {
+    return undefined;
+  }
+
+  return partyBoss.hasCombatItemsForTelegramUser(
+    telegramUserId,
+    session.partyInviteToken,
+    session.turn
+  );
 }
 
 async function findNearbyTarget(

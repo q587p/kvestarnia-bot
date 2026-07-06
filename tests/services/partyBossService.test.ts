@@ -120,6 +120,37 @@ describe("PartyBossService achievements", () => {
     );
   });
 
+  it("passes equipped gear actions through the party-boss action path", async () => {
+    const occurredAt = new Date("2026-07-01T19:00:00.000Z");
+    const session = makeSessionWithParticipant({
+      equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"]
+    });
+    const result: PartyBossActionResult = {
+      state: "queued",
+      session
+    };
+    const submitActionForTelegramUser =
+      vi.fn<PartyBossRepository["submitActionForTelegramUser"]>().mockResolvedValue(result);
+    const repository = {
+      findByPartyInviteToken: vi.fn<PartyBossRepository["findByPartyInviteToken"]>().mockResolvedValue(session),
+      submitActionForTelegramUser
+    } as unknown as PartyBossRepository;
+    const service = new PartyBossService(repository, { enabled: true }, () => occurredAt);
+
+    await service.submitGearForTelegramUser(123n, "token-1", 1, "rldagr");
+
+    const call = submitActionForTelegramUser.mock.calls[0];
+    expect(call?.[0]).toBe(123n);
+    expect(call?.[1]).toBe("token-1");
+    expect(call?.[2]).toBe(1);
+    expect(call?.[3]).toBe("gear");
+    expect(call?.[4]).toEqual({
+      now: occurredAt,
+      nextTurnExpiresAt: new Date("2026-07-01T19:00:23.000Z")
+    });
+    expect(call?.[5]?.gearAbility?.profile.id).toBe("gear.red-line-dagger");
+  });
+
   it("lists owned useful one-use combat items for the active party boss participant", async () => {
     const occurredAt = new Date("2026-07-01T19:00:00.000Z");
     const session = makeSessionWithParticipant({
@@ -181,6 +212,42 @@ describe("PartyBossService achievements", () => {
         }
       ]
     });
+  });
+
+  it("reports whether the active party boss participant has useful one-use combat items", async () => {
+    const occurredAt = new Date("2026-07-01T19:00:00.000Z");
+    const session = makeSessionWithParticipant({
+      resources: {
+        hp: 10,
+        hpMax: 25,
+        mana: 10,
+        manaMax: 10
+      }
+    });
+    const repository = {
+      findByPartyInviteToken: vi.fn<PartyBossRepository["findByPartyInviteToken"]>().mockResolvedValue(session)
+    } as unknown as PartyBossRepository;
+    const listByTelegramUserId = vi.fn<InventoryRepository["listByTelegramUserId"]>()
+      .mockResolvedValueOnce([
+        makeInventoryItem("character-leader", "item.responsible-panic-bandage", 1)
+      ])
+      .mockResolvedValueOnce([
+        makeInventoryItem("character-leader", "item.fake-stone", 1)
+      ]);
+    const inventory = {
+      listByTelegramUserId
+    } as unknown as InventoryRepository;
+    const service = new PartyBossService(
+      repository,
+      { enabled: true },
+      () => occurredAt,
+      undefined,
+      undefined,
+      inventory
+    );
+
+    await expect(service.hasCombatItemsForTelegramUser(123n, "token-1", 1)).resolves.toBe(true);
+    await expect(service.hasCombatItemsForTelegramUser(123n, "token-1", 1)).resolves.toBe(false);
   });
 
   it("does not track achievements for replay results without fresh settlement events", async () => {

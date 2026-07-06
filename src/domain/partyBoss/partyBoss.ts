@@ -2,7 +2,8 @@ import {
   resolveActorCombatAction,
   tickActorCooldowns,
   type ActorCombatActionSummary,
-  type CombatActorResourceState
+  type CombatActorResourceState,
+  type CombatGearAbilityInput
 } from "../combat/combatEngine";
 import {
   cloneCombatCooldowns,
@@ -24,7 +25,7 @@ export const BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS = 3 * 60_000;
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
 const BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS = 4;
 
-export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race"> | "item";
+export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item";
 export type PartyBossParticipantStatus = "active" | "knocked-out";
 export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 
@@ -34,6 +35,7 @@ export interface PartyBossParticipantState {
   remortCount: number;
   status: PartyBossParticipantStatus;
   combatStats: CombatActorStats;
+  equipmentAbilityGrantIds?: string[];
   resources: CombatActorResourceState;
   combatItems?: CombatState["combatItems"];
   contribution: {
@@ -63,6 +65,7 @@ export interface PartyBossRoundActionInput {
   action: PartyBossActionKey;
   origin?: "manual" | "timeout";
   item?: PartyBossCombatItemInput;
+  gearAbility?: CombatGearAbilityInput;
 }
 
 export interface PartyBossCombatItemInput {
@@ -159,6 +162,7 @@ export function createPartyBossState(input: {
     name: string;
     remortCount: number;
     combatStats: CombatActorStats & { hpCurrent: number; manaCurrent: number };
+    equipmentAbilityGrantIds?: string[];
   }>;
   now: Date;
 }): PartyBossState {
@@ -205,6 +209,9 @@ export function createPartyBossState(input: {
         remortCount: participant.remortCount,
         status: "active",
         combatStats: participant.combatStats,
+        ...(participant.equipmentAbilityGrantIds && participant.equipmentAbilityGrantIds.length > 0
+          ? { equipmentAbilityGrantIds: [...participant.equipmentAbilityGrantIds] }
+          : {}),
         resources: {
           hp: clamp(Math.floor(participant.combatStats.hpCurrent), 0, hpMax),
           hpMax,
@@ -295,7 +302,7 @@ export function resolvePartyBossRound(input: {
       continue;
     }
 
-    const combatAction: Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race"> =
+    const combatAction: Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> =
       action === "item" ? "defend" : action;
     const result = resolveActorCombatAction({
       actorState: participant.resources,
@@ -308,6 +315,7 @@ export function resolvePartyBossRound(input: {
       actorStats: participant.combatStats,
       defenderStats: next.boss,
       action: combatAction,
+      ...(action === "gear" && committed?.gearAbility ? { skillProfile: committed.gearAbility.profile } : {}),
       fumbleSeed: `${input.seed}:${next.turn}:${participant.characterId}`,
       rng: new SeededRandomSource(`${input.seed}:${next.turn}:${participant.characterId}:${combatAction}`)
     });
@@ -479,6 +487,7 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
     participants: state.participants.map((participant) => ({
       ...participant,
       combatStats: { ...participant.combatStats },
+      ...(participant.equipmentAbilityGrantIds ? { equipmentAbilityGrantIds: [...participant.equipmentAbilityGrantIds] } : {}),
       resources: {
         ...participant.resources,
         ...(participant.resources.cooldowns

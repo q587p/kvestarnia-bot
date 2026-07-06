@@ -4,6 +4,7 @@ import {
   makeDuelAcceptRiskCallbackData,
   makeDuelCancelCallbackData,
   makeDuelDeclineCallbackData,
+  makeDuelGearActionCallbackData,
   makeDuelInviteRotateCallbackData,
   makeDuelNewCallbackData,
   makeDuelNewRiskCallbackData,
@@ -91,6 +92,15 @@ describe("duel callback data", () => {
       ok: true,
       value: { type: "turn", token: "abc_DEF12", action: "surrender", turn: 42, version: 13 }
     });
+    expect(parseDuelCallbackData(makeDuelGearActionCallbackData({
+      token: "abc_DEF12",
+      turn: 42,
+      version: 13,
+      grantKey: "rldagr"
+    }))).toEqual({
+      ok: true,
+      value: { type: "gear", token: "abc_DEF12", turn: 42, version: 13, grantKey: "rldagr" }
+    });
   });
 
   it("keeps generated callback data below Telegram limits", () => {
@@ -100,6 +110,12 @@ describe("duel callback data", () => {
     expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "attack", 42, 13), "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "defend", 42, 13), "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "race", 42, 13), "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(makeDuelGearActionCallbackData({
+      token: "abc_DEF12",
+      turn: 42,
+      version: 13,
+      grantKey: "rldagr"
+    }), "utf8")).toBeLessThanOrEqual(64);
   });
 
   it("rejects unknown, unsafe and too-long payloads", () => {
@@ -120,6 +136,10 @@ describe("duel callback data", () => {
       error: "invalid-template"
     });
     expect(parseDuelCallbackData("v1:duel:t:abc_DEF12:hax:1:1")).toEqual({
+      ok: false,
+      error: "invalid-action"
+    });
+    expect(parseDuelCallbackData("v1:duel:g:abc_DEF12:1:1:bad_key")).toEqual({
       ok: false,
       error: "invalid-action"
     });

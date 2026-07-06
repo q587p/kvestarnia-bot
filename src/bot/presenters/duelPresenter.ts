@@ -541,6 +541,8 @@ function presentQueuedDuelAction(action: string): string {
     ? "класова дія"
     : action === "race"
       ? "расова дія"
+    : action === "gear"
+      ? "РґС–СЏ СЃРїРѕСЂСЏРґР¶РµРЅРЅСЏ"
     : action === "defend"
       ? "захист"
     : action === "surrender"
@@ -562,8 +564,33 @@ function presentTurnBasedLastAction(action: {
     line: string;
     selfDamage?: number | undefined;
     enemyHealing?: number | undefined;
-  } | undefined;
+} | undefined;
 }): string {
+  if (action.action === "gear") {
+    const hitLine =
+      action.fumble
+        ? presentTurnBasedDuelFumble(action.fumble)
+        : action.damage > 0
+          ? `РЁРєРѕРґР°: <b>${action.damage}</b>${action.critical ? " В· РєСЂРёС‚РёС‡РЅРѕ" : ""}.`
+          : action.healing || action.guard
+            ? "РЁРєРѕРґР° РЅРµ РїСЂРѕР№С€Р»Р°, Р°Р»Рµ РїС–РґС‚СЂРёРјРєР° СЃРїСЂР°С†СЋРІР°Р»Р°."
+          : action.outcome === "not-enough-mana"
+            ? "РњР°РЅРё РЅРµ РІРёСЃС‚Р°С‡РёР»Рѕ, Р°Р»Рµ С…С–Рґ СѓСЃРµ РѕРґРЅРѕ РїС–С€РѕРІ Сѓ РїСЂРѕС‚РѕРєРѕР»."
+          : action.outcome === "skill-on-cooldown"
+            ? "Р”С–СЏ С‰Рµ РЅРµ РІС–РґР»РёРїР»Р° РІС–Рґ РїРѕРїРµСЂРµРґРЅСЊРѕРіРѕ СЂР°Р·Сѓ."
+            : "РЁРєРѕРґР° РЅРµ РїСЂРѕР№С€Р»Р°.";
+    const supportLine = [
+      action.healing ? `HP РїС–РґСЂРѕСЃР»Рё РЅР° <b>${action.healing}</b>` : "",
+      action.guard ? `Р·Р°С…РёСЃС‚ С‚СЂРёРјР°С” <b>${action.guard}</b>` : ""
+    ].filter(Boolean).join("; ");
+
+    return [
+      "рџЋ’ Р”С–СЏ СЃРїРѕСЂСЏРґР¶РµРЅРЅСЏ Р·Р°РїРёСЃР°РЅР° РІ РїСЂРѕС‚РѕРєРѕР».",
+      hitLine,
+      supportLine ? `РџС–РґС‚СЂРёРјРєР°: ${supportLine}.` : ""
+    ].filter(Boolean).join("\n");
+  }
+
   const actionLine =
     action.action === "surrender"
       ? "🏳️ Учасник здався. Корчмар записав це без зайвих запитань."

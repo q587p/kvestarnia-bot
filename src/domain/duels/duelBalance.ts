@@ -10,6 +10,7 @@ export const INSTANT_DUEL_BALANCE_VERSION = "instant-duel-v2";
 
 export interface DuelistBalanceInput extends CharacterSummary {
   id: string;
+  equipmentAbilityGrantIds?: string[];
 }
 
 export interface DuelProgressionBudget {

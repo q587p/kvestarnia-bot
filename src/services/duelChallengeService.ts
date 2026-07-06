@@ -1,5 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
+import {
+  findMantokAbilityGrantByKey,
+  getCombatMantokAbilityGrantsForEquippedItems
+} from "../content";
 import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import type {
   DuelChallengeRecord,
@@ -12,7 +16,8 @@ import type {
   ResolvedDuelChallengeRecord
 } from "../db/repositories/duelChallengeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
-import { resolveQuickDuel } from "../domain/duels/duelResolver";
+import { resolveQuickDuel, type DuelistSummary } from "../domain/duels/duelResolver";
+import type { CombatGearAbilityInput } from "../domain/combat";
 import {
   resolveTurnBasedDuelAction,
   resolveTurnBasedDuelTimeout,
@@ -606,6 +611,7 @@ export class DuelChallengeService {
       expectedTurn: number;
       expectedVersion: number;
       action: TurnBasedDuelAction;
+      grantKey?: string | undefined;
     }
   ): Promise<TurnBasedDuelTurnResult> {
     const character = await this.challenges.findCharacterByTelegramUser(telegramUserId);
@@ -634,7 +640,14 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
-    const first = await this.tryResolveTurnBasedAction(session, character.id, input.action, now);
+    const gearAbility = input.action === "gear"
+      ? resolveTurnBasedDuelGearAbility(session.state, character.id, input.grantKey) ?? undefined
+      : undefined;
+    if (input.action === "gear" && !gearAbility) {
+      return { state: "stale", session };
+    }
+
+    const first = await this.tryResolveTurnBasedAction(session, character.id, input.action, now, gearAbility);
 
     if (first.state !== "stale") {
       return first;
@@ -661,7 +674,14 @@ export class DuelChallengeService {
       return first;
     }
 
-    return this.tryResolveTurnBasedAction(latest, character.id, input.action, now);
+    const latestGearAbility = input.action === "gear"
+      ? resolveTurnBasedDuelGearAbility(latest.state, character.id, input.grantKey) ?? undefined
+      : undefined;
+    if (input.action === "gear" && !latestGearAbility) {
+      return first;
+    }
+
+    return this.tryResolveTurnBasedAction(latest, character.id, input.action, now, latestGearAbility);
   }
 
   async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
@@ -708,12 +728,14 @@ export class DuelChallengeService {
     session: DuelCombatSessionRecord,
     actorCharacterId: string,
     action: TurnBasedDuelAction,
-    now: Date
+    now: Date,
+    gearAbility?: CombatGearAbilityInput
   ): Promise<TurnBasedDuelTurnResult> {
     const resolved = resolveTurnBasedDuelAction({
       state: session.state,
       actorCharacterId,
       action,
+      ...(gearAbility ? { gearAbility } : {}),
       rng: this.rng
     });
 
@@ -1011,7 +1033,7 @@ export class DuelChallengeService {
     telegramUserId: bigint,
     character: DuelCharacterSnapshot,
     now: Date
-  ): Promise<CharacterSummary> {
+  ): Promise<DuelistSummary> {
     const result = await summarizeAndSyncCharacterResources({
       characters: this.characters,
       telegramUserId,
@@ -1034,7 +1056,10 @@ export class DuelChallengeService {
       }
     });
 
-    return withActiveCosmeticTitle(result.character, character.activeCosmeticTitleGrantId);
+    return withActiveCosmeticTitle(
+      withDuelEquipmentAbilityGrantIds({ ...result.character, id: character.id }, character),
+      character.activeCosmeticTitleGrantId
+    );
   }
 
 }
@@ -1122,20 +1147,61 @@ function getOrCreateLeaderboardEntry(
 
 function summarizeDuelCharacter(
   character: DuelCharacterSnapshot
-): CharacterSummary {
+): DuelistSummary {
   const summary = summarizeCharacter(character, {
     equippedItems: getEquippedItemContents(character.equipment)
   });
-  return withActiveCosmeticTitle(summary, character.activeCosmeticTitleGrantId);
+  return withActiveCosmeticTitle(
+    withDuelEquipmentAbilityGrantIds({ ...summary, id: character.id }, character),
+    character.activeCosmeticTitleGrantId
+  );
 }
 
 function withActiveCosmeticTitle(
-  character: CharacterSummary,
+  character: DuelistSummary,
   titleGrantId: string | null | undefined
-): CharacterSummary {
+): DuelistSummary {
   const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(titleGrantId);
 
   return activeCosmeticTitle ? { ...character, activeCosmeticTitle } : character;
+}
+
+function withDuelEquipmentAbilityGrantIds<T extends CharacterSummary & { id: string }>(
+  character: T,
+  source: Pick<DuelCharacterSnapshot, "equipment">
+): T {
+  const grantIds = getCombatMantokAbilityGrantsForEquippedItems({
+    itemIds: source.equipment.map((item) => item.itemId),
+    characterLevel: character.level
+  }).map((grant) => grant.id);
+
+  return grantIds.length > 0 ? { ...character, equipmentAbilityGrantIds: grantIds } : character;
+}
+
+function resolveTurnBasedDuelGearAbility(
+  state: TurnBasedDuelState,
+  characterId: string,
+  grantKey: string | undefined
+): CombatGearAbilityInput | null {
+  const grant = grantKey ? findMantokAbilityGrantByKey(grantKey) : null;
+  const side = getTurnBasedParticipantSide(state, characterId);
+  const participant = side ? state.participants[side] : null;
+
+  if (!grant?.combat || !participant?.equipmentAbilityGrantIds?.includes(grant.id)) {
+    return null;
+  }
+
+  return {
+    profile: grant.combat.profile,
+    ...(grant.combat.bleed
+      ? {
+          bleed: {
+            sourceAbilityId: grant.combat.profile.id,
+            ...grant.combat.bleed
+          }
+        }
+      : {})
+  };
 }
 
 function summarizeDuelCharacterWithResultSnapshot(

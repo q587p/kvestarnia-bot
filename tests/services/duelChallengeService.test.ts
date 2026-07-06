@@ -1160,6 +1160,75 @@ describe("DuelChallengeService", () => {
     expect(resolved.session.state.pendingActions).toBeUndefined();
   });
 
+  it("resolves an equipped gear action in a turn-based duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, { level: 10 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const actorAction = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: actorTelegramId === 1n ? "gear" : "defend",
+      ...(actorTelegramId === 1n ? { grantKey: "rldagr" } : {})
+    });
+
+    expect(actorAction.state).toBe("updated");
+    if (actorAction.state !== "updated") {
+      throw new Error(`Expected first duel action update, got ${actorAction.state}`);
+    }
+
+    const secondAction = await service.resolveTurnBasedActionForTelegramUser(
+      actorTelegramId === 1n ? 2n : 1n,
+      {
+        inviteToken: created.challenge.inviteToken,
+        expectedTurn: actorAction.session.turn,
+        expectedVersion: actorAction.session.version,
+        action: actorTelegramId === 1n ? "defend" : "gear",
+        ...(actorTelegramId === 1n ? {} : { grantKey: "rldagr" })
+      }
+    );
+
+    expect(secondAction.state).toBe("updated");
+    if (secondAction.state !== "updated") {
+      throw new Error(`Expected resolved duel round, got ${secondAction.state}`);
+    }
+    expect(secondAction.session.state.lastRound?.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorCharacterId: "character-1",
+          action: "gear",
+          skillId: "gear.red-line-dagger"
+        })
+      ])
+    );
+  });
+
   it("reports the challenger when their active combat lease blocks turn-based start", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, { name: "Зайнятий Автор" });

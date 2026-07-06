@@ -4,6 +4,7 @@ import {
   createPartyBossState,
   resolvePartyBossRound
 } from "../../src/domain/partyBoss/partyBoss";
+import { findMantokAbilityGrantByKey } from "../../src/content";
 
 const PARTY_BOSS_SIMULATION_HORIZON_TURNS = 13;
 const PARTY_BOSS_SIMULATION_RUNS = 400;
@@ -86,6 +87,57 @@ describe("party boss reducer", () => {
     live!.resources.cooldowns!.abilities![abilityId]!.remainingTurns = 9;
 
     expect(snapshot?.cooldowns?.abilities?.[abilityId]?.remainingTurns).toBe(2);
+  });
+
+  it("resolves equipment gear actions in party boss rounds", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "РџРµСЂС€Р°", {
+          level: 10,
+          dexterity: 14,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile,
+            ...(grant.combat.bleed
+              ? {
+                  bleed: {
+                    sourceAbilityId: grant.combat.profile.id,
+                    ...grant.combat.bleed
+                  }
+                }
+              : {})
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      skillId: "gear.red-line-dagger"
+    });
+    expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 3
+    });
   });
 
   it("keeps already submitted same-round actions when an earlier actor drops the boss", () => {
@@ -752,6 +804,7 @@ function participant(
     classId?: string;
     hpCurrent?: number;
     manaCurrent?: number;
+    equipmentAbilityGrantIds?: string[];
   } = {}
 ) {
   const strength = overrides.strength ?? 8;
@@ -778,6 +831,7 @@ function participant(
       resist: Math.max(0, Math.floor(intelligence / 3)),
       weaponDamage: 1 + Math.max(0, Math.floor(strength / 4)),
       spellPower: 1 + Math.max(0, Math.floor(intelligence / 4))
-    }
+    },
+    ...(overrides.equipmentAbilityGrantIds ? { equipmentAbilityGrantIds: overrides.equipmentAbilityGrantIds } : {})
   };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossGearActionCallbackData,
   makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
@@ -79,6 +80,14 @@ describe("party session callback data", () => {
       ok: true,
       value: { type: "boss-action", token, turn: 42, action: "skill" }
     });
+    expect(parsePartySessionCallbackData(makePartyBossGearActionCallbackData({
+      token,
+      turn: 42,
+      grantKey: "rldagr"
+    }))).toEqual({
+      ok: true,
+      value: { type: "boss-gear", token, turn: 42, grantKey: "rldagr" }
+    });
     expect(parsePartySessionCallbackData(makePartyBossItemsMenuCallbackData(token, 42))).toEqual({
       ok: true,
       value: { type: "boss-items", token, turn: 42 }
@@ -134,6 +143,10 @@ describe("party session callback data", () => {
       error: "invalid-target"
     });
     expect(parsePartySessionCallbackData("v1:party:ba:abCD_123-xy:1:bad")).toEqual({
+      ok: false,
+      error: "invalid-action"
+    });
+    expect(parsePartySessionCallbackData("v1:party:bg:abCD_123-xy:1:bad_key")).toEqual({
       ok: false,
       error: "invalid-action"
     });
