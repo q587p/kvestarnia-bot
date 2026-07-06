@@ -5,12 +5,14 @@ export type RemortCallback =
   | { type: "pronoun"; token: string; pronoun: string }
   | { type: "race"; token: string; raceKey: string }
   | { type: "class"; token: string; classKey: string }
-  | { type: "item"; token: string; itemKey: string }
+  | { type: "item"; token: string; itemKey: string; page?: number }
+  | { type: "page"; token: string; page: number }
   | { type: "confirm"; token: string };
 
 const TOKEN_RE = /^[a-f0-9]{16}$/;
 const KEY_RE = /^[a-z0-9-]+$/;
 const ITEM_KEY_RE = /^[a-f0-9]{12}$/;
+const PAGE_RE = /^(0|[1-9][0-9]{0,2})$/;
 
 export function makeRemortOpenCallbackData(): string {
   return "v1:rm:open";
@@ -30,6 +32,14 @@ export function makeRemortClassCallbackData(token: string, classKey: string): st
 
 export function makeRemortItemCallbackData(token: string, itemKey: string): string {
   return assertCallbackLength(`v1:rm:it:${token}:${itemKey}`);
+}
+
+export function makeRemortItemPageCallbackData(token: string, itemKey: string, page: number): string {
+  return assertCallbackLength(`v1:rm:it:${token}:${itemKey}:${normalizePage(page)}`);
+}
+
+export function makeRemortPageCallbackData(token: string, page: number): string {
+  return assertCallbackLength(`v1:rm:pg:${token}:${normalizePage(page)}`);
 }
 
 export function makeRemortConfirmCallbackData(token: string): string {
@@ -70,8 +80,24 @@ export function parseRemortCallbackData(data: string | undefined): Result<Remort
     return ok({ type: "class", token, classKey: value });
   }
 
-  if (parts[2] === "it" && parts.length === 5 && value && ITEM_KEY_RE.test(value)) {
-    return ok({ type: "item", token, itemKey: value });
+  if (parts[2] === "it" && (parts.length === 5 || parts.length === 6) && value && ITEM_KEY_RE.test(value)) {
+    const page = parts.length === 6 ? parsePage(parts[5]) : null;
+    if (parts.length === 6 && page === null) {
+      return err("invalid");
+    }
+
+    return page === null
+      ? ok({ type: "item", token, itemKey: value })
+      : ok({ type: "item", token, itemKey: value, page });
+  }
+
+  if (parts[2] === "pg" && parts.length === 5) {
+    const page = parsePage(value);
+    if (page === null) {
+      return err("invalid");
+    }
+
+    return ok({ type: "page", token, page });
   }
 
   if (parts[2] === "go" && parts.length === 4) {
@@ -79,6 +105,18 @@ export function parseRemortCallbackData(data: string | undefined): Result<Remort
   }
 
   return err("invalid");
+}
+
+function normalizePage(page: number): number {
+  return Math.min(999, Math.max(0, Math.floor(Number.isFinite(page) ? page : 0)));
+}
+
+function parsePage(value: string | undefined): number | null {
+  if (!value || !PAGE_RE.test(value)) {
+    return null;
+  }
+
+  return Number(value);
 }
 
 function assertCallbackLength(value: string): string {

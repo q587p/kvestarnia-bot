@@ -23,6 +23,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
 - Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
 
+### Fixed
+- Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.
+
 ### Deferred
 - The Yeger cloak ordinary-bandage service perk is represented as a narrow documented service marker only; no Yeger board, dense-bandage, field-kit or service runtime change ships in this slice.
 - PvP/duel gear actions, generated ability loot, hidden procs, free extra turns, shops, markets, crafting and ability-granting set bonuses remain deferred.

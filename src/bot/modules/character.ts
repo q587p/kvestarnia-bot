@@ -588,6 +588,16 @@ async function handleRemortCallback(
     return;
   }
 
+  if (callback.type === "page") {
+    const result = await remortService.viewDraftForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentRemortUpdate(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildRemortKeyboard(result, { itemPage: callback.page })
+    });
+    return;
+  }
+
   const result =
     callback.type === "pronoun"
       ? await remortService.selectPronoun(telegramUserId, callback.token, callback.pronoun)
@@ -607,6 +617,9 @@ async function handleRemortCallback(
       : result;
   await safeEditMessageText(ctx, presentRemortUpdate(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildRemortKeyboard(keyboardResult)
+    reply_markup: buildRemortKeyboard(
+      keyboardResult,
+      callback.type === "item" && callback.page !== undefined ? { itemPage: callback.page } : {}
+    )
   });
 }
