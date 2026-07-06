@@ -1,6 +1,6 @@
 # Mantok Ability Grants Foundation QA
 
-Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons staying visible while unusable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
+Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons hiding until usable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
 
 Review follow-up coverage:
 
@@ -26,7 +26,7 @@ Manual evidence still required before merge:
      - `item.set.border-map.compass` — level `12+`.
      - `item.set.fog-knot.amulet` — level `11+`.
    - Service-perk-only QA id: `item.set.yeger-shadow.cloak` — level `12+`; it should show copy but no combat button.
-2. Start one-enemy and two-enemy persistent fights and verify the gear-action button appears for currently equipped, level-eligible grants only when current mana/cooldown state allows pressing it.
+2. Start one-enemy and two-enemy persistent fights and verify the gear-action button appears for currently equipped, level-eligible grants only when current mana/cooldown state allows pressing it, then hides while mana/cooldown gates block the action.
 3. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
 4. Leave and reopen the active fight card on a later turn, including in a two-enemy persistent fight; verify available gear-action buttons and bleed ticks survive the stored session JSON reload.
 5. Use `🛡 Контраргумент`; verify it spends a turn, applies protection, writes the protection effect on the fight card and in the relevant journal/replay, and does not create a class/race action.
