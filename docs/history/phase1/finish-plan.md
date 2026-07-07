@@ -1,0 +1,98 @@
+﻿# Phase 1 Finish Plan
+
+Цей документ фіксує scope lock після `0.0.21`: добиваємо основний solo RPG loop, а нові поверхні додаємо тільки коли вони rewardless і не відволікають від бойової петлі.
+
+Closeout-рамка для закриття лінійки `0.0.x`, release PR `0.1.0` і deferred backlog `0.1.x` живе в `docs/history/phase1/0.1-transition.md`. Фінальний smoke/release gate перед `0.1.0` живе в `docs/history/phase1/closeout-smoke.md`.
+
+## Головна ціль
+
+Новий гравець має за кілька хвилин пройти зрозумілу RPG-петлю:
+
+```text
+/start → герой → справжній бій → XP/золото/лут → inventory/equipment → рівень і цифри реально впливають на наступний бій
+```
+
+Бестіарій, Hunt Board, presence, корчма й flavor уже дали корисну інфраструктуру. Persistent `/fight` уже зʼявився як session slice з одним маленьким quest wrapper-ом на 13 перемог, equipment effects уже впливають на числа, `0.0.23` додає перший контрольований per-session reward/loot path із replay деталей, а `0.0.25` додає persistent HP/mana, lazy recovery і ширший loot pool. Phase 1 не закрита, доки цей combat → equipment stats → loot/reward replay → level 1-13/resources loop не пройде балансний polish і playtesting. Achievements Phase 1 дозволений як later rewardless meta-slice для титулів і прогресу, але не має перебивати цей ланцюжок.
+
+## Scope Lock
+
+До завершення Phase 1 не розширювати як окремі feature tracks:
+
+- бестіарій collection/progression UI;
+- нові bestiary share cards, digest-и або journal surfaces;
+- group hunts/raids;
+- guilds, PvP, market, trade, crafting, Mini App;
+- Redis/BullMQ/jobs, якщо конкретний PR не доводить, що без цього неможлива ідемпотентність.
+
+Бестіарій лишається data/content foundation: read-only `/bestiary`, monster roster, monster → loot notes, flavor routing і source для майбутнього combat/loot. Нові bestiary-зміни допустимі тільки якщо вони прямо обслуговують combat/loot або виправляють безпеку/неточність наявного read-only surface.
+
+## Послідовність PR
+
+1. **Scope lock docs**
+   Docs-only. Зафіксувати цей порядок у roadmap/workflow/playtesting без bump version, changelog або news.
+
+2. **Combat Domain Engine**
+   Чистий TypeScript domain combat без Telegram: state/action/result, HP/mana, monster HP, turn, status, deterministic resolver, win/loss/flee/mana tests.
+
+3. **Persistent `/fight` Sessions**
+   Підʼєднати combat engine до runtime: combat row/session, start/resume, short validated callbacks, stale-safe turns, pending Barrel raid guard, плюс один вузький корчемний контракт на 13 won сесій без broad quest engine.
+
+4. **Effective Stats + Equipment Effects**
+   Один helper для base stats + level + equipment. Манатки дають маленькі прозорі bonuses, `/hero` і combat читають ту саму математику.
+
+5. **Loot Engine + Reward Replay**
+   Контрольовані loot tables із rarity, bounded LUCK modifier, deterministic/injected RNG, idempotent reward claim і replay деталей. Реалізовано в `0.0.23` для won persistent solo fights.
+
+6. **Level Cap 13 + доросла льохова справа**
+   Підняти current alpha cap до 13 рівня, перенести capstone `/restart` suggestion туди, змістити майбутні epic levels на `14-23` і замінити retired `/cellar` dead-end для level 4+ на вузьку once-per-player справу `Справа не до миші` без broad quest engine.
+
+7. **Persistent HP/Mana + Loot Expansion**
+   Реалізовано в `0.0.25` / PR #39: current HP/mana більше не restore-яться автоматично перед кожним боєм, ресурси повільно відновлюються поза боєм, persistent fight loot отримав Loot Expansion v1, а старші монстри мають власні дрібні трофеї.
+
+8. **Inventory / Chest Polish**
+   Після auto-pick MVP Дружньої Скрині лишається маленький inventory polish slice: ручний вибір 5 манаток, краща ергономіка protected/equipped/priceless stack-ів і підготовка до item-instance identity без магазинів, продажу або trading. Деталі: `docs/backlog/mantok-chest-backlog.md`.
+
+9. **Level 1-13 Reward Tuning**
+   Перевірити, що fight victory rewards, loot, level thresholds, multi-level grant і cap behavior разом дають нормальний Phase 1 темп. Не додавати нові системи, доки current loop не проходить smoke і симуляції.
+
+10. **Achievements Phase 1**
+   Rewardless ачівки як колекція титулів: seed definitions, idempotent unlock service, кнопка `🏅 Ачівки`, пагінація, hidden states і grouped notifications. Без XP, золота, предметів, stat effects або active-title selection. Деталі: `docs/history/phase1/achievements-phase1.md`.
+
+11. **Phase 1 Balance / Playtest / Polish**
+   Не додавати фічі. Пройти smoke checklist, симуляції або balance matrix, оновити docs/release surfaces.
+
+## Пропонована XP-крива для альфи 1-13
+
+Це робоча крива для видимого прогресу, не фінальний баланс:
+
+| Рівень | Total XP |
+|---:|---:|
+| 1 | 0 |
+| 2 | 10 |
+| 3 | 25 |
+| 4 | 45 |
+| 5 | 70 |
+| 6 | 110 |
+| 7 | 160 |
+| 8 | 225 |
+| 9 | 305 |
+| 10 | 450 |
+| 11 | 650 |
+| 12 | 900 |
+| 13 | 1300 |
+
+## Phase 1 Done
+
+Phase 1 можна вважати закритою, коли:
+
+- `/fight` запускає справжню покрокову solo-сутичку на 2-5 ходів;
+- у бою є attack, class/special action і flee;
+- HP/mana змінюються в межах combat session і відображаються;
+- stats, level і equipped items впливають на damage/survival/skill outcome через один helper;
+- перемога видає XP/gold/item через loot engine і repeated callback replay-ить той самий запис;
+- повторний callback не дублює XP/gold/items/level;
+- inventory має перший item sink для зайвого fight loot: Манатко-скриня зменшує `5` eligible речей до `1` output без втрати input items при помилці;
+- level-up 1-13 має тести й видимий короткий текст;
+- loss/flee не карають жорстко й не стають безкоштовним full reward;
+- `npm run check` або еквівалентні lint/typecheck/build/test проходять;
+- `docs/product/roadmap.md`, `docs/design/game-design.md`, `docs/balance/notes.md`, `docs/operations/playtesting.md`, `CHANGELOG.md`, `news.md` оновлені для runtime-релізів.

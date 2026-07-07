@@ -12,7 +12,7 @@ Use this skill for:
 - `stop-local-bot.cmd`
 - `scripts/local-bot-runtime.cjs`
 - `scripts/recover-prisma-client.ps1` as a legacy fallback only
-- `docs/LOCAL_BOT_RUNTIME.md`
+- `docs/operations/local-bot-runtime.md`
 - Windows Prisma Client `EPERM` / `query_engine-windows.dll.node` lock issues
 - isolated local SQLite runtime DB preparation
 
@@ -27,7 +27,7 @@ Hard rules:
 8. Main checkout validation must not depend on the manual-test bot being stopped.
 
 Preferred workflow:
-1. Read `docs/LOCAL_BOT_RUNTIME.md` and only the relevant launcher/script files.
+1. Read `docs/operations/local-bot-runtime.md` and only the relevant launcher/script files.
 2. Diagnose the exact failing command and the shortest useful log excerpt.
 3. Keep fixes scoped to local scripts and docs.
 4. Preserve snapshot isolation: Codex can edit/test the main checkout while the bot keeps running from its stable runtime copy.

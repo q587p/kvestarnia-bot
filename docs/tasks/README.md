@@ -79,7 +79,7 @@ Near-term next tasks:
 - [0.2.6-passage-search-mvp.md](0.2.6-passage-search-mvp.md) — shipped timed search for `Спуск до Низу` and first-tier Nyz passages.
 - [0.2.7-player-abilities-mvp.md](0.2.7-player-abilities-mvp.md) — player class/race ability catalogs, race action buttons and group-ready solo combat fallback.
 - [0.2.8-achievements-cosmetic-titles.md](0.2.8-achievements-cosmetic-titles.md) — rewardless achievement browsing, expanded seed unlock hooks, filters, recalculation and persisted cosmetic title grant records.
-- [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) — shipped Daily `Корчмарський обхід` route backed by [../DAILY_KORCHMA_ROUNDS.md](../DAILY_KORCHMA_ROUNDS.md).
+- [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) — shipped Daily `Корчмарський обхід` route backed by [../design/daily-korchma-rounds.md](../design/daily-korchma-rounds.md).
 - [0.2.10-active-cosmetic-title-selection.md](0.2.10-active-cosmetic-title-selection.md) — shipped active cosmetic title browsing, selection, clearing and `/hero` display.
 - [0.2.11-combat-balance-monster-signatures.md](0.2.11-combat-balance-monster-signatures.md) — shipped combat balance proof and presentation-only monster signature readability.
 - [0.2.12-two-enemy-threat-simulation-outliers.md](0.2.12-two-enemy-threat-simulation-outliers.md) — shipped two-enemy threat simulation, backup pressure guard and targeted outlier tuning.

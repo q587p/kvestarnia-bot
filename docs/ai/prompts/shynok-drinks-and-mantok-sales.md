@@ -7,7 +7,7 @@ Implement:
 docs/tasks/0.1.24-shynok-drinks-and-mantok-sales.md
 
 Product/mechanics authority:
-docs/SHYNOK_DRINKS_AND_MANTOK_SALES.md
+docs/design/shynok-drinks-and-mantok-sales.md
 
 Context:
 docs/ai/context.md

@@ -14,7 +14,7 @@ Do not turn README into a changelog. Keep it as a public window.
 
 ## Roadmap
 
-`docs/ROADMAP.md` should be updated after `0.2.30`:
+`docs/product/roadmap.md` should be updated after `0.2.30`:
 - append `0.2.18–0.2.30` in the Phase 2 closeout/deliverables summary;
 - explicitly mark Mantok/equipment work as supporting "character matters" rather than replacing social goals;
 - preserve the next-pivot note: after current Mantok stability, return to social combat/tournaments/reputation/quest overview.

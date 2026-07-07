@@ -115,7 +115,7 @@
 
 Після цього фокус поступово рухатиметься до обмінів, бойової різноманітности, кількох ворогів, гуртових боїв, справжніх рейдів, ґільдій, сезонних подій, рейтингів і колекцій. Квестарня має стати ботом, який хочеться додати в чат не тому, що «так треба для гри», а тому, що там буде смішніше разом.
 
-Детальні фази живуть у [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Детальні фази живуть у [`docs/product/roadmap.md`](docs/product/roadmap.md).
 
 ## 🧱 Технічний зріз
 
@@ -131,10 +131,10 @@
 
 Технічні інструкції свідомо винесені з README, щоб цей файл лишався вітриною проєкту. Для розробки починай звідси:
 
-- [`docs/DEVELOPER_SETUP.md`](docs/DEVELOPER_SETUP.md) — локальний запуск, `.env`, Prisma, Render, scripts і troubleshooting.
-- [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md) — ручний smoke test поточного playable loop.
-- [`docs/LOCAL_BOT_RUNTIME.md`](docs/LOCAL_BOT_RUNTIME.md) — ізольований локальний runtime для ручної перевірки бота.
-- [`docs/CODEX_WORKFLOW.md`](docs/CODEX_WORKFLOW.md) — як ставити задачі Codex, приймати PR і тримати docs-only зміни окремо від runtime.
+- [`docs/operations/developer-setup.md`](docs/operations/developer-setup.md) — локальний запуск, `.env`, Prisma, Render, scripts і troubleshooting.
+- [`docs/operations/playtesting.md`](docs/operations/playtesting.md) — ручний smoke test поточного playable loop.
+- [`docs/operations/local-bot-runtime.md`](docs/operations/local-bot-runtime.md) — ізольований локальний runtime для ручної перевірки бота.
+- [`docs/ai/codex-workflow.md`](docs/ai/codex-workflow.md) — як ставити задачі Codex, приймати PR і тримати docs-only зміни окремо від runtime.
 
 ## 📚 Документація
 
@@ -144,8 +144,11 @@
 
 - [`docs/product/README.md`](docs/product/README.md) — продукт, бренд, публічна обіцянка, roadmap.
 - [`docs/design/README.md`](docs/design/README.md) — game design, content style, термінологія, монстри, квести, лут і досягнення.
+- [`docs/balance/README.md`](docs/balance/README.md) — формули, економіка, RNG, предметна сила й бойові guardrails.
 - [`docs/architecture/README.md`](docs/architecture/README.md) — архітектура, безпека, session/idempotency notes і технічні guardrails.
 - [`docs/operations/README.md`](docs/operations/README.md) — локальний запуск, smoke tests, playtesting, support jar і runtime runbooks.
+- [`docs/content/README.md`](docs/content/README.md) — lore/canon/copy packages, inspiration banks і content seeds.
+- [`docs/qa/README.md`](docs/qa/README.md) — manual QA, smoke packages і feature proof checklists.
 - [`docs/ai/README.md`](docs/ai/README.md) — Codex context, prompt policy, prompts і workflow assets.
 - [`docs/tasks/README.md`](docs/tasks/README.md) — versioned task docs, active slice і архів задач.
 - [`docs/DOCUMENTATION_STRUCTURE.md`](docs/DOCUMENTATION_STRUCTURE.md) — правила, куди класти нові документи й як безпечно рухати старі.
@@ -156,7 +159,7 @@
 
 Це не список речей для копіювання. Це джерела смаку: швидкий жарт, впізнаваний архетип, абсурдна системність, радість від луту, групове «ну давай ще один раз» і відчуття, що пригодник може стати героєм, антигероєм або проблемою, яку внесли в журнал.
 
-Детальний backlog перетворення цих джерел на монстрів, манатки, пригоди, топоніми, короткі репліки, пародії та безпечні алюзії живе в [`docs/INSPIRATION_CONTENT_BACKLOG.md`](docs/INSPIRATION_CONTENT_BACKLOG.md). Правило просте: брати смак і механіку жарту, не копіювати чужі сцени, персонажів, унікальні топоніми або довгі цитати.
+Детальний backlog перетворення цих джерел на монстрів, манатки, пригоди, топоніми, короткі репліки, пародії та безпечні алюзії живе в [`docs/content/inspiration-content-backlog.md`](docs/content/inspiration-content-backlog.md). Правило просте: брати смак і механіку жарту, не копіювати чужі сцени, персонажів, унікальні топоніми або довгі цитати.
 
 ---
 

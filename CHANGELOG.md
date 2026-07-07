@@ -218,7 +218,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Local `/dev_reset_priest_blessing`, `/dev_reset_quiet_pocket` and `/dev_reset_rogue` now clear Priest blessing/support and Rogue Quiet Pocket QA gates; `/dev_reset_quiet_pocket` keeps the narrow cooldown reset, `/dev_reset_rogue` also forgets the current Kyiv-day Rogue target-attempt rows, the Priest helper also expires active direct blessings and pair-target waits, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
 
 ### Changed
-- Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
+- Updated `docs/design/noncombat-techniques.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
 - Updated `📖 Перекази` class entries for Priest and Rogue to mention the new noncombat behavior.
 - Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
 - Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
@@ -791,7 +791,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added all/earned/locked achievement filters and preserved the selected filter across pagination and recalculation.
 - Added historical-date recalculation for provable old records where stored ledgers carry the original event time.
 - Routed local dev level/item grant commands through the same achievement tracking/recalculation flow so QA grants can unlock level and item achievements.
-- Added `docs/ACHIEVEMENTS_CATALOG.md` as the shipped achievement catalog, including secret entries and honest future ledger gaps for bestiary, news, memorial, nearby, location-history, Yeger trail and lifetime ability-use counters.
+- Added `docs/design/achievements-catalog.md` as the shipped achievement catalog, including secret entries and honest future ledger gaps for bestiary, news, memorial, nearby, location-history, Yeger trail and lifetime ability-use counters.
 - Added `🔎 Перевірити` on the achievements page so existing characters can idempotently recalculate currently provable records from stored character, fight, problem, inventory and equipment rows.
 - Added safe archive rendering for unknown stored achievements so future disabled/deleted definitions do not break old rows.
 - Disabled the impossible current `achievement.level.23` row as a hidden future placeholder while the playable level cap remains 13, so it no longer appears in visible completion totals unless already stored as an archived earned row.
@@ -1036,7 +1036,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
 
 ### Added
-- Added canonical Phase 2 MVP release notes in `docs/PHASE2_MVP_RELEASE_NOTES.md`.
+- Added canonical Phase 2 MVP release notes in `docs/history/phase2/mvp-release-notes.md`.
 - Added closeout status for the accepted two-account regression/manual QA after merged and deployed `0.1.24`.
 - Added explicit branch/task disposition for superseded, absorbed, deferred and future-input Phase 2 work.
 
@@ -1613,7 +1613,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a separate post-fight problem-chain progress ping after newly won ordinary solo fights, keeping the main combat result short while showing the current stage counter immediately.
 - Extended the post-fight progress ping to combine multiple moved quest counters, including active Yeger unquiet progress when the defeated monster qualifies.
 - Added a level 6 Yeger-eligible ordinary monster, `Акт закриття, який не закрився`, so the unquiet target ladder stays covered without making the salted pretzel count as undead paperwork.
-- Added `docs/PROBLEM_QUEST_CHAIN_REFERENCES.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
+- Added `docs/references/problem-quest-chain.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
 - Added opt-in local `/dev_heal [HP]` for playtesting HP recovery without changing XP, gold or items.
 
 ### Guardrails

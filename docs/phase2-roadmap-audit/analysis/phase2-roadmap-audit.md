@@ -25,7 +25,7 @@ Phase 2 уже фактично стала не «рейдова фаза», а 
 Головна проблема зараз не в напрямі гри, а в **розсинхроні поверхонь**:
 
 - public site/news виглядають сильно застарілими;
-- `PHASE2_DEFERRED_0_2.md` після merge `0.2.7` все ще казатиме, що Race Abilities — proposed next;
+- `history/phase2/deferred-0.2.md` після merge `0.2.7` все ще казатиме, що Race Abilities — proposed next;
 - Product Brief має старий рядок про «Бочку підтримки», тоді як Brand канонізує «Банку підтримки Квестарні»;
 - Telegram bot description каже «про пригоди, лут і ґільдії», що може звучати так, ніби ґільдії вже playable;
 - task index і docs index мають draft-и, але немає чіткого post-0.2.7 order.
@@ -41,7 +41,7 @@ Scope:
 - сайт: latest news має відповідати repo `news.md` або чесно казати, що сайт-архів обмежений;
 - Telegram bot description: прибрати ready-sounding `ґільдії`, замінити на «корчму», «манатки», «майбутні соціяльні пригоди» або інший не-overpromise текст;
 - README/docs: після `0.2.7` додати Player Abilities до актуального playable list;
-- `PHASE2_DEFERRED_0_2.md`: перевести Race Abilities зі статусу proposed next у shipped/partially shipped, а наступними назвати Achievements/Daily/etc.;
+- `history/phase2/deferred-0.2.md`: перевести Race Abilities зі статусу proposed next у shipped/partially shipped, а наступними назвати Achievements/Daily/etc.;
 - `docs/ai/context.md`, task index, public site copy sync.
 
 ### 1. `0.2.8` — Achievements + Cosmetic Title Records
@@ -104,8 +104,8 @@ Small runtime proof: 5–8 ordinary monsters отримують authored signatu
 
 ## Що змінити в планах
 
-1. **Оновити `PHASE2_DEFERRED_0_2.md` після `0.2.7`.** Там Race Abilities досі «proposed next». Після merge це stale.
-2. **Додати короткий post-0.2.7 order у `docs/ROADMAP.md` і `docs/tasks/README.md`.** Зараз є багато draft-ів, але немає одного next-order source of truth.
+1. **Оновити `history/phase2/deferred-0.2.md` після `0.2.7`.** Там Race Abilities досі «proposed next». Після merge це stale.
+2. **Додати короткий post-0.2.7 order у `docs/product/roadmap.md` і `docs/tasks/README.md`.** Зараз є багато draft-ів, але немає одного next-order source of truth.
 3. **Винести public surface sync як окремий task.** Сайт/news зараз відстає від repo і шкодить баченню більше, ніж будь-яка внутрішня дрібниця.
 4. **Не робити full equipment rebalance перед achievements/daily/balance.** Він важливий, але зарано.
 5. **Не робити party/raid runtime одразу після abilities.** У проєкті правильно накопичені social primitives, але ще бракує public alignment, identity records і combat balance після abilities.

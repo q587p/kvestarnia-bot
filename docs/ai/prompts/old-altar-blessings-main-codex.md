@@ -14,8 +14,8 @@ Start with these repo anchors:
 
 - `docs/ai/context.md`
 - `docs/tasks/0.2.25-class-noncombat-priest-rogue.md`
-- `docs/NONCOMBAT_TECHNIQUES.md`
-- `docs/BALANCE_NOTES.md`
+- `docs/design/noncombat-techniques.md`
+- `docs/balance/notes.md`
 - `src/domain/noncombat/classNoncombatTechniques.ts`
 - `src/services/classNoncombatService.ts`
 - `src/domain/noncombat/priestBlessingBonus.ts`

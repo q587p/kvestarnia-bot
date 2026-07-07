@@ -6,7 +6,7 @@ Use $kvestarnia-telegram-qa if you need a compact manual QA matrix.
 
 Audit:
 docs/tasks/phase2-regression-smoke.md
-docs/PHASE2_CLOSEOUT_SMOKE.md
+docs/history/phase2/closeout-smoke.md
 
 Context:
 docs/ai/context.md

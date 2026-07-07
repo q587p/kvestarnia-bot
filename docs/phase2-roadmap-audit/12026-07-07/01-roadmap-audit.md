@@ -69,7 +69,7 @@ Mainline `package.json` is still `0.2.29`, while current work lives on the `0.2.
 - `docs/tasks/README.md`;
 - `docs/ai/context.md`;
 - `README.md` playable list if a major public surface changed;
-- `docs/ROADMAP.md` closeout line after `0.2.30`.
+- `docs/product/roadmap.md` closeout line after `0.2.30`.
 
 ### 4. "No forced PvP / no gold steal" guardrails were intentionally softened
 

@@ -4,8 +4,9 @@ This document defines the intended shape of Kvestarnia documentation. It is a ma
 
 ## Goals
 
-- Keep the root `README.md` public-facing and readable.
-- Keep `docs/README.md` as the front door to all docs.
+- Keep the repository root `README.md` public-facing and readable.
+- Keep `docs/README.md` as the front door to all detailed docs.
+- Keep top-level `docs/` almost empty: only durable entry points should live there.
 - Split docs by reader need and document role, not by the order in which files were created.
 - Preserve historical/audit packages without letting them look like current implementation scope.
 - Make Codex prompts short by pointing to durable docs instead of copying long context.
@@ -14,35 +15,46 @@ This document defines the intended shape of Kvestarnia documentation. It is a ma
 
 Kvestarnia docs use a lightweight Diátaxis-inspired shape:
 
-- **Product / explanation** — what the game is, why it exists, who it is for, how it should sound.
+- **Product / explanation** — what the game is, why it exists, who it is for, and how it should sound.
 - **How-to / operations** — how to run, test, smoke, deploy or review.
 - **Reference** — stable mechanics, terminology, balancing, architecture and fair-play rules.
 - **Tasks / workflow** — bounded Codex-ready work, active slices, reviews and handoffs.
 - **History / backlog** — closed phases, imported audits, old plans and future ideas.
 
-## Current folder roles
+## Folder roles
 
 | Path | Role | Put new docs here when... |
 | --- | --- | --- |
-| `docs/product/` | product, brand and public surface indexes | the doc explains positioning, roadmap, public wording or player promise |
-| `docs/design/` | game/content/system design indexes and package docs | the doc designs mechanics, content, tone, lore, monsters, quests, loot or achievements |
-| `docs/architecture/` | technical design and persistence/session notes | the doc explains architecture, data flow, sessions, idempotency, security or technical guardrails |
-| `docs/operations/` | runbooks and QA | the doc tells a human how to run, test, smoke or diagnose the bot |
+| `docs/product/` | product, brand and public surface | the doc explains positioning, roadmap, public wording, market context or player promise |
+| `docs/design/` | game/content/system design | the doc designs mechanics, content, tone, lore, monsters, quests, loot, achievements or social gameplay |
+| `docs/balance/` | combat/economy/progression balance | the doc is about formulas, simulations, tuning, RNG, risk/reward or economy guardrails |
+| `docs/architecture/` | technical design and persistence/session notes | the doc explains architecture, data flow, sessions, idempotency, callbacks, security or technical guardrails |
+| `docs/operations/` | setup/runbooks | the doc tells a human how to run, test, smoke, deploy or diagnose the bot |
+| `docs/content/` | canon/copy/content packages | the doc is a content bank, lore seed, canon snapshot, public copy bank or inspiration reference |
+| `docs/qa/` | QA plans and proof checklists | the doc is a manual QA script, smoke matrix or feature-specific verification package |
 | `docs/ai/` | Codex/agent workflow | the doc is context, prompt policy, prompt library or AI workflow material |
+| `docs/ai/prompts/` | active prompt library | the prompt is reusable for current implementation, QA, review or handoff work |
+| `docs/ai/prompts/archive/` | old prompt packs | the prompt is useful history but not the default prompt for new work |
 | `docs/tasks/` | versioned task docs | the doc is one bounded implementation/release/docs task for Codex |
 | `docs/tasks/archive/` | historical task material | the task is no longer active but still useful as record |
 | `docs/backlog/` | future ideas and deferred scope | the doc is not ready to implement as the next active slice |
-| `docs/history/` | phase closeout and old planning | the doc describes a completed phase, old roadmap, or imported historical package |
-| package folders such as `phase2/`, `phase2-roadmap-audit/`, `refactoring-audit/` | cohesive planning packages | moving files out would make the package harder to review |
+| `docs/history/` | completed phases and old planning | the doc describes a completed phase, old roadmap, imported historical package or superseded direction |
+| `docs/phase2/` | cohesive Phase 2 social-combat package | the doc belongs to the current Phase 2 package and moving it out would make the package harder to review |
+| `docs/phase2-roadmap-audit/`, `docs/refactoring-audit/` | imported audit packages | the package should remain intact until a dedicated cleanup task says otherwise |
 
-## Root `docs/` rule
+## Top-level `docs/` rule
 
-Top-level `docs/*.md` should be limited to canonical, frequently linked entry points. New files should not default to the root. A root-level doc is acceptable only if it is a source of truth that many other docs intentionally point to, such as `ROADMAP.md`, `GAME_DESIGN.md`, `TECHNICAL_PLAN.md`, `DEVELOPER_SETUP.md`, `PLAYTESTING.md`, `CODEX_WORKFLOW.md`, or this structure file.
+Do not add new Markdown files directly under `docs/` by default. After the root-doc cleanup, top-level `docs/*.md` should normally be limited to:
+
+- `docs/README.md` — the detailed docs front door.
+- `docs/DOCUMENTATION_STRUCTURE.md` — this placement rule.
+
+Temporary legacy root docs are acceptable only during migration. If a branch still has many root docs, prefer moving them with `git mv` into the folders above instead of adding more root files.
 
 ## Naming rules
 
 - New files should use lower-kebab-case where practical, e.g. `docs/design/lore-board.md`.
-- Existing uppercase legacy files may stay uppercase until moved in a focused cleanup.
+- Existing uppercase legacy files should become lower-kebab when they are moved.
 - Do not put PR numbers in reusable artifact, prompt or docs filenames.
 - Versioned implementation tasks stay in `docs/tasks/<version>-<short-slug>.md`.
 - Codex-facing prompts stay English and should point to `docs/ai/context.md`, `AGENTS.md`, task docs and skills instead of copying long rules.
@@ -52,49 +64,47 @@ Top-level `docs/*.md` should be limited to canonical, frequently linked entry po
 When reorganizing existing docs:
 
 1. Check `git status --short` first.
-2. Use `git mv` so local edits move with the file.
-3. Do not copy over modified files from an archive.
+2. Use `git mv`; never replace a locally modified file from an archive.
+3. If the source file has uncommitted changes, move that exact file with `git mv` so the changes follow the file.
 4. If a target path already exists, stop and merge manually.
-5. Update all relative links in `README.md`, `AGENTS.md`, `.agents/skills/**`, `docs/**`, and any prompt that references the moved path.
-6. Run `git diff --check` and a Markdown link scan if available.
-7. Keep the PR docs-only unless the task explicitly asks for runtime changes.
+5. Update all relative links in `README.md`, `AGENTS.md`, `.agents/skills/**`, `docs/**`, `news.md`, `CHANGELOG.md`, test fixtures and prompts that reference the moved path.
+6. Keep imported audit packages intact unless the task explicitly includes them.
+7. Run `git diff --check` and a Markdown link scan if available.
+8. Keep the PR docs-only unless the task explicitly asks for runtime changes.
 
-## Suggested cleanup order
+## Cleanup order
 
-Do this in small waves. A link-safe index cleanup is better than one huge move that breaks historical references.
+Do this in waves. A link-safe move with updated indexes is better than one huge move that breaks historical references.
 
-1. Add/refresh the category `README.md` files.
-2. Compact root `README.md` so it links to category doors instead of listing every doc.
-3. Refresh `docs/README.md` as the canonical index.
-4. Move low-risk archive/prompt/backlog files first.
-5. Move high-traffic canonical docs only after `rg` shows every reference is updated.
-6. Keep imported audit packages intact unless a dedicated task says otherwise.
+1. Move low-risk legacy prompt packs, backlogs, old closeouts and old raid planning.
+2. Add or refresh category `README.md` files.
+3. Move high-traffic canonical docs with `git mv` and update every reference.
+4. Compact root `README.md` so it links to category doors instead of individual internal docs.
+5. Refresh `docs/README.md` as the canonical index.
+6. Check that top-level `docs/*.md` contains only the intended entry points, or document temporary exceptions in the PR body.
 
-## Current high-value move candidates
+## Current migration target
 
-Use this as a guide, not as a blind script. Skip or adjust any move that conflicts with current branch changes.
+The intended post-cleanup shape is:
 
-| From | To | Why |
-| --- | --- | --- |
-| `docs/CODEX_BESTIARY_COLLECTION_PROMPTS.md` | `docs/ai/prompts/archive/bestiary-collection-prompts.md` | old Codex prompt pack, not canonical root doc |
-| `docs/CODEX_COMBAT_ENGINE_IMPLEMENTATION_PROMPT.md` | `docs/ai/prompts/archive/combat-engine-implementation.md` | old Codex prompt pack |
-| `docs/CODEX_MONSTER_RUNTIME_PROMPTS.md` | `docs/ai/prompts/archive/monster-runtime-prompts.md` | old Codex prompt pack |
-| `docs/CODEX_QUEST_CONTRACT_PROMPTS.md` | `docs/ai/prompts/archive/quest-contract-prompts.md` | old Codex prompt pack |
-| `docs/CODEX_TASK_PROMPTS_BACKLOG.md` | `docs/tasks/archive/legacy-codex-task-prompts-backlog.md` | task/prompt history belongs with task archive |
-| `docs/MONSTER_CONTENT_TASK_BACKLOG.md` | `docs/backlog/monster-content-task-backlog.md` | future content backlog |
-| `docs/BESTIARY_COLLECTION_BACKLOG.md` | `docs/backlog/bestiary-collection-backlog.md` | future collection backlog |
-| `docs/MANTOK_CHEST_BACKLOG.md` | `docs/backlog/mantok-chest-backlog.md` | future item-volume sink backlog |
-| `docs/SOCIAL_ACTIONS_BACKLOG.md` | `docs/backlog/social-actions-backlog.md` | deferred social actions |
-| `docs/SUPPORT_JAR_BACKLOG.md` | `docs/backlog/support-jar-backlog.md` | future support jar backlog |
-| `docs/NEXT_IMPLEMENTATION_BACKLOG.md` | `docs/backlog/next-implementation-backlog.md` | old next-order backlog |
-| `docs/PHASE1_RELEASE_NOTES.md` | `docs/history/phase1/PHASE1_RELEASE_NOTES.md` | completed phase record |
-| `docs/PHASE1_CLOSEOUT_0_1_TRANSITION.md` | `docs/history/phase1/PHASE1_CLOSEOUT_0_1_TRANSITION.md` | completed phase record |
-| `docs/PHASE1_CLOSEOUT_SMOKE.md` | `docs/history/phase1/PHASE1_CLOSEOUT_SMOKE.md` | completed phase record |
-| `docs/PHASE1_FINISH_PLAN.md` | `docs/history/phase1/PHASE1_FINISH_PLAN.md` | old planning record |
-| `docs/PHASE2_MVP_RELEASE_NOTES.md` | `docs/history/phase2/PHASE2_MVP_RELEASE_NOTES.md` | completed closeout record |
-| `docs/PHASE2_MVP_CLOSEOUT_PLAN.md` | `docs/history/phase2/PHASE2_MVP_CLOSEOUT_PLAN.md` | completed closeout record |
-| `docs/PHASE2_CLOSEOUT_SMOKE.md` | `docs/history/phase2/PHASE2_CLOSEOUT_SMOKE.md` | completed closeout smoke |
-| `docs/GROUP_HOOK_DESIGN.md` | `docs/history/early-raid/GROUP_HOOK_DESIGN.md` | earlier raid direction, not current Phase 2 entry point |
-| `docs/GROUP_RAID_SESSION_NOTES.md` | `docs/history/early-raid/GROUP_RAID_SESSION_NOTES.md` | earlier session notes, superseded by package/runtime docs |
+```text
+docs/
+  README.md
+  DOCUMENTATION_STRUCTURE.md
+  ai/
+  architecture/
+  backlog/
+  balance/
+  content/
+  design/
+  history/
+  operations/
+  phase2/
+  phase2-roadmap-audit/
+  qa/
+  refactoring-audit/
+  references/
+  tasks/
+```
 
-High-traffic docs such as `BRAND.md`, `PRODUCT_BRIEF.md`, `GAME_DESIGN.md`, `ROADMAP.md`, `TECHNICAL_PLAN.md`, `DEVELOPER_SETUP.md`, `PLAYTESTING.md`, `CODEX_WORKFLOW.md`, `BALANCE_NOTES.md`, `SECURITY_AND_FAIR_PLAY.md`, `CONTENT_STYLE_GUIDE.md`, and `TERMINOLOGY.md` can stay top-level until a dedicated link-update PR moves them safely.
+Root files such as `docs/design/game-design.md`, `docs/product/roadmap.md`, `docs/operations/developer-setup.md`, `docs/balance/notes.md`, `docs/history/phase1/release-notes.md`, `docs/*BACKLOG.md` and old `docs/CODEX_*PROMPT*.md` are legacy placement. Move them to the category folders with `git mv` and update links.

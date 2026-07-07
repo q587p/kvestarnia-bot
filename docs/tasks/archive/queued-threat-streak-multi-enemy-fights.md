@@ -118,5 +118,5 @@ Use these as the initial `13`-line pool or close variants during implementation:
 ## Release Surfaces
 
 - Update `CHANGELOG.md` and `news.md` if shipped as a numbered release.
-- Update `docs/GAME_DESIGN.md`, `docs/PLAYTESTING.md`, `docs/ai/context.md`.
+- Update `docs/design/game-design.md`, `docs/operations/playtesting.md`, `docs/ai/context.md`.
 - Mention `/dev_harder` in local/dev command documentation.

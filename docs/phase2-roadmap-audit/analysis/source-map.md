@@ -9,14 +9,14 @@
 ## Product / brand sources
 
 - `README.md`: public vision, playable list, technical stack and docs index.
-- `docs/BRAND.md`: canonical name, voice, no overpromising future guilds/raids/PvP/market/crafting/monetization.
-- `docs/PRODUCT_BRIEF.md`: promise: 30 seconds / 3 minutes / 3 days / 3 weeks; original MVP scope still names mini-raid/world boss, leaderboard and admin commands.
-- `docs/GAME_DESIGN.md`: core loop, character identity, combat debt, Phase 2 social combat direction.
+- `docs/product/brand.md`: canonical name, voice, no overpromising future guilds/raids/PvP/market/crafting/monetization.
+- `docs/product/product-brief.md`: promise: 30 seconds / 3 minutes / 3 days / 3 weeks; original MVP scope still names mini-raid/world boss, leaderboard and admin commands.
+- `docs/design/game-design.md`: core loop, character identity, combat debt, Phase 2 social combat direction.
 
 ## Phase 2 sources
 
-- `docs/ROADMAP.md`: Phase 2 is Social Combat & Interactions; 0.2.x is current implementation line.
-- `docs/PHASE2_DEFERRED_0_2.md`: current planned order, but must be refreshed after `0.2.7` because Race Abilities are no longer merely proposed.
+- `docs/product/roadmap.md`: Phase 2 is Social Combat & Interactions; 0.2.x is current implementation line.
+- `docs/history/phase2/deferred-0.2.md`: current planned order, but must be refreshed after `0.2.7` because Race Abilities are no longer merely proposed.
 - `docs/phase2/SOCIAL_COMBAT_PLAN.md`: Phase 2 no longer starts with a big group raid.
 - `docs/phase2/TRADING_AND_GIFTING.md`: safe gifting → postal → item-for-item → gold add-on → market later.
 - `docs/phase2/GROUP_COMBAT_AND_RAIDS.md`: party skeleton before party-vs-one-boss before real raids.
@@ -24,7 +24,7 @@
 
 ## Old tails / backlog
 
-- `docs/ACHIEVEMENTS_PHASE1.md`: rewardless achievements and future titles; clear next candidate.
+- `docs/history/phase1/achievements-phase1.md`: rewardless achievements and future titles; clear next candidate.
 - `docs/backlog/UNFINISHED_CHARACTER_AND_0_1X_TAILS.md`: Race Abilities → Achievements/Titles → Signature Techniques; must be refreshed after `0.2.7`.
 - `docs/tasks/0.2.x-daily-korchma-rounds.md`: strong ready task for daily retention route.
 - `docs/tasks/0.2.x-postal-mantok-delivery.md`: ready draft for future safe gifting extension.

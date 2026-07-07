@@ -9,7 +9,7 @@ docs/tasks/0.2.x-daily-korchma-rounds.md
 
 Context:
 docs/ai/context.md
-docs/DAILY_KORCHMA_ROUNDS.md
+docs/design/daily-korchma-rounds.md
 
 Follow AGENTS.md.
 Confirm 0.2.4 is already in the target base and assign the next explicit version before implementation; do not combine item work, Bard Performance follow-ups or another runtime slice with this task.

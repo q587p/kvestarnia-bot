@@ -6,13 +6,13 @@ Context:
 docs/ai/context.md
 
 Read:
-- docs/ROADMAP.md
-- docs/PHASE2_DEFERRED_0_2.md
+- docs/product/roadmap.md
+- docs/history/phase2/deferred-0.2.md
 - docs/backlog/UNFINISHED_CHARACTER_AND_0_1X_TAILS.md
 - docs/tasks/README.md
 - docs/phase2/SOCIAL_COMBAT_PLAN.md
 - docs/phase2/ITEM_TAGS_AND_CONSUMABLES.md
-- docs/ACHIEVEMENTS_PHASE1.md
+- docs/history/phase1/achievements-phase1.md
 
 Goals:
 - mark Race/Player Abilities as shipped/active, not proposed next;

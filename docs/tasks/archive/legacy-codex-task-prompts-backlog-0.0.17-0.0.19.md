@@ -1,6 +1,6 @@
 # Legacy Codex Task Prompts Backlog — historical copy
 
-> This file preserves the previous `docs/CODEX_TASK_PROMPTS_BACKLOG.md` content before the token-efficient Codex workflow rewrite.
+> This file preserves the previous `docs/tasks/archive/legacy-codex-task-prompts-backlog.md` content before the token-efficient Codex workflow rewrite.
 > It is historical only: the live version history has moved past these draft prompts. Do not use these prompts as active tasks unless a human explicitly reopens them.
 
 # Codex Task Prompts Backlog
@@ -19,12 +19,12 @@ Context:
 Read:
 - AGENTS.md
 - README.md
-- docs/GAME_DESIGN.md
-- docs/BALANCE_NOTES.md
-- docs/TECHNICAL_PLAN.md
-- docs/ROADMAP.md
-- docs/CONTENT_STYLE_GUIDE.md
-- docs/CODEX_WORKFLOW.md
+- docs/design/game-design.md
+- docs/balance/notes.md
+- docs/architecture/technical-plan.md
+- docs/product/roadmap.md
+- docs/design/content-style-guide.md
+- docs/ai/codex-workflow.md
 - src/domain/combat/combatProbe.ts
 - src/services/fightService.ts
 - src/bot/presenters/fightPresenter.ts
@@ -88,11 +88,11 @@ Context:
 Read:
 - AGENTS.md
 - README.md
-- docs/GAME_DESIGN.md
-- docs/BALANCE_NOTES.md
-- docs/TECHNICAL_PLAN.md
-- docs/CONTENT_STYLE_GUIDE.md
-- docs/CODEX_WORKFLOW.md
+- docs/design/game-design.md
+- docs/balance/notes.md
+- docs/architecture/technical-plan.md
+- docs/design/content-style-guide.md
+- docs/ai/codex-workflow.md
 - src/domain/characters/characterSummary.ts
 - src/domain/progression/effectiveStats.ts if present
 - src/services/heroService.ts
@@ -152,11 +152,11 @@ Context:
 Read:
 - AGENTS.md
 - README.md
-- docs/GAME_DESIGN.md
-- docs/BALANCE_NOTES.md
-- docs/TECHNICAL_PLAN.md
-- docs/CONTENT_STYLE_GUIDE.md
-- docs/CODEX_WORKFLOW.md
+- docs/design/game-design.md
+- docs/balance/notes.md
+- docs/architecture/technical-plan.md
+- docs/design/content-style-guide.md
+- docs/ai/codex-workflow.md
 - current equipment/inventory services and presenters
 - current content/items tables and tests
 

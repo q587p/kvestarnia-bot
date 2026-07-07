@@ -4,7 +4,7 @@ Phase 2 не починається з «великого рейду на всі
 
 Робоча назва Phase 2: **Social Combat & Interactions**.
 
-Closeout cutline lives in [../PHASE2_MVP_CLOSEOUT_PLAN.md](../PHASE2_MVP_CLOSEOUT_PLAN.md). After `0.1.24`, the intended next `0.1.x` step is `0.1.25 - Phase 2 MVP Closeout`: a docs/release/smoke milestone with no new gameplay. Expansion work moves to [../PHASE2_DEFERRED_0_2.md](../PHASE2_DEFERRED_0_2.md).
+Closeout cutline lives in [../history/phase2/mvp-closeout-plan.md](../history/phase2/mvp-closeout-plan.md). After `0.1.24`, the intended next `0.1.x` step is `0.1.25 - Phase 2 MVP Closeout`: a docs/release/smoke milestone with no new gameplay. Expansion work moves to [../history/phase2/deferred-0.2.md](../history/phase2/deferred-0.2.md).
 
 ## Product promise
 
