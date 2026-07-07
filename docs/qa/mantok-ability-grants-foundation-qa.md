@@ -23,6 +23,7 @@ Review follow-up coverage:
 - Automated activity-event and presenter coverage confirms solo Barrel raid wins plus Big Barrel Brother group wins/losses render as raid rows in `⚔️ Бої`, with only group raid victories marked important.
 - Automated keyboard/routing coverage confirms the persistent main menu places `🛡️ Спорядження` directly under `👤 Персонаж` and routes it to the existing equipment screen, including during active persistent fights.
 - Automated quest-marker coverage confirms outside-Korchma `🚪 Зайти в корчму` gates stay unmarked without a verified active quest marker, including when the only cellar errand is on cooldown.
+- Automated direct-command coverage confirms `/tavern` resolves fresh quest markers for the hall screen, so available Korchma quests keep `⚠️` when opened by command.
 
 Manual Telegram evidence still required before merge:
 
@@ -39,6 +40,7 @@ Manual Telegram evidence still required before merge:
 - Pending: after one solo Barrel raid completion and one Big Barrel Brother win/loss, `📜 Хроніки Квестарні` shows the raid rows under `⚔️ Бої`; `⭐ Важливе` shows the group victory only.
 - Pending: the live persistent main menu shows `🛡️ Спорядження` directly under `👤 Персонаж`, and tapping it opens `🧥 Спорядження`.
 - Pending: from outside the Korchma with only the cellar on cooldown, `/fight` shows `🚪 Зайти в корчму` without `⚠️`.
+- Pending: from inside the Korchma with an available hall quest, `/tavern` shows `📋 Стіл зі справами ⚠️` or the matching available location button with `⚠️`.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
    - Combat-action QA ids:
