@@ -14,6 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Turn-based duel gear-action round resolution now carries first-use achievement unlock notifications back to the acting participant and the other participant's refreshed card, while stale, blocked, duplicate or queued-only callbacks still do not spend mana, advance turns, tick cooldowns, mutate RNG or unlock early.
 - Unknown or stale Telegram callback payloads now answer with the existing invalid-button alert instead of leaving the client spinner blinking silently; the `Хто поруч` Rogue `Тиха кишеня` callback is covered as an active regression path.
 - Active Barrel cards no longer mark `⬅️ До зали` as the next quest step when the only outstanding marker is the Barrel tutorial step already available on that same Barrel card.
+- Generated Loot Expansion enhancement prices now use a soft economy cap, so high-base `+4`/`+5` manatky no longer inflate `goldValue`, Shynok sale payouts, Mantok Chest score or Munchkin exchange value into runaway five-digit ranges; combat stats, rarity, level gates and drop odds are unchanged.
 
 ### Changed
 - Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.

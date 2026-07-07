@@ -349,6 +349,24 @@ describe("loot expansion v1 content adapter", () => {
     });
   });
 
+  it("keeps high-enhancement generated prices inside the Kvestarnia economy envelope", () => {
+    expect(findLootExpansionVariantByItemId("item.loot-v1-x025-plus-4")).toMatchObject({
+      item: {
+        name: "Крихта Легендарного Печива +4",
+        goldValue: 4611
+      }
+    });
+    expect(findLootExpansionVariantByItemId("item.loot-v1-x025-plus-5")).toMatchObject({
+      item: {
+        name: "Крихта Легендарного Печива +5",
+        goldValue: 5071
+      }
+    });
+
+    const maxGeneratedValue = Math.max(...lootExpansionV1ItemContents.map((item) => item.goldValue ?? 0));
+    expect(maxGeneratedValue).toBe(5071);
+  });
+
   it("scales generated equipment effects with enhancement inside each practical family", () => {
     const effectKeys = [
       "hpMax",
