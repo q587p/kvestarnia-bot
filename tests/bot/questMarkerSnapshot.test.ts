@@ -33,6 +33,9 @@ describe("quest marker snapshot", () => {
       "🐭 Льох ⚠️"
     );
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).toContain(
+      "📋 Стіл зі справами"
+    );
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).not.toContain(
       "📋 Стіл зі справами ⚠️"
     );
   });

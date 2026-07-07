@@ -168,7 +168,7 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
   keyboard.text(
     decorateButtonLabel(
       "📋 Стіл зі справами",
-      resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.quest-table")
+      resolveHallQuestTableMarker(options.questMarkers)
     ),
     makePlaceCallbackData("quest-table")
   )
@@ -501,6 +501,34 @@ function resolveBackToHallMarker(
       .filter((target) => !ignored.has(target))
       .map((target) => resolveQuestMarkerForTarget(input, target))
   );
+}
+
+function resolveHallQuestTableMarker(questMarkers: QuestMarkerInput | null | undefined): QuestMarker {
+  const input = questMarkers ?? undefined;
+
+  if (!input) {
+    return QuestMarker.NONE;
+  }
+
+  return mergeQuestMarkers([
+    resolveQuestMarkerForTarget(input, "quest.adventure"),
+    resolveQuestMarkerForTarget(input, "quest.fight"),
+    getTableOnlyBarrelBeerTutorialMarker(input),
+    resolveQuestMarkerForTarget(input, "quest.daily-korchma-round")
+  ]);
+}
+
+function getTableOnlyBarrelBeerTutorialMarker(input: QuestMarkerInput): QuestMarker {
+  const marker = resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial");
+
+  if (marker === QuestMarker.NONE) {
+    return QuestMarker.NONE;
+  }
+
+  return resolveQuestMarkerForTarget(input, "location.korchma.barrel") === QuestMarker.NONE &&
+    resolveQuestMarkerForTarget(input, "location.korchma.bar") === QuestMarker.NONE
+    ? marker
+    : QuestMarker.NONE;
 }
 
 const HALL_CHILD_MARKER_TARGETS: readonly QuestMarkerTarget[] = [

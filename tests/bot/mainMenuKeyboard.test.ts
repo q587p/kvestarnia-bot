@@ -420,6 +420,37 @@ describe("main menu and scene keyboards", () => {
       flatInlineButtonTexts(
         buildKorchmaHallKeyboard({
           questMarkers: {
+            characterLevel: 2,
+            cellar: { state: "ready", character }
+          }
+        })
+      )
+    ).toContain("📋 Стіл зі справами");
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 2,
+            cellar: { state: "ready", character }
+          }
+        })
+      )
+    ).not.toContain("📋 Стіл зі справами ⚠️");
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 3,
+            cellar: { state: "ready", character },
+            dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260707" }
+          }
+        })
+      )
+    ).toEqual(expect.arrayContaining(["📋 Стіл зі справами ⚠️", "🐭 Льох ⚠️"]));
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
             characterLevel: 4,
             yeger: {
               state: "offered",
