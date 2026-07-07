@@ -12,7 +12,8 @@ import type {
   KorchmaRoundTier
 } from "../db/repositories/korchmaRoundPurchaseRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
-import { CryptoRandomSource, type RandomSource } from "../shared/random";
+import { rollLootExpansionItem } from "../domain/loot";
+import { CryptoRandomSource, SeededRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import {
   APRON_OF_FOAM_RESISTANCE_ITEM_ID,
@@ -801,6 +802,39 @@ export function buildBarrelRaidItemGrants(
   ];
 }
 
+export function buildBigBarrelBrotherItemGrants(input: {
+  periodId: string;
+  characterId: string;
+  level: number;
+  classId?: string;
+  raceId?: string;
+}): Array<{ itemId: string; quantity: number }> {
+  const level = Math.max(1, Math.floor(input.level));
+  const seed = [
+    "big-barrel-brother",
+    input.periodId,
+    input.characterId,
+    level,
+    input.classId ?? "unknown-class",
+    input.raceId ?? "unknown-race"
+  ].join(":");
+  const item = rollLootExpansionItem({
+    profile: {
+      level,
+      ...(input.classId ? { classId: input.classId } : {}),
+      ...(input.raceId ? { raceId: input.raceId } : {})
+    },
+    sourceId: "boss_chest",
+    sourceTags: ["barrel", "boss", "raid"],
+    rng: new SeededRandomSource(seed)
+  });
+
+  return [{
+    itemId: item?.id ?? getFallbackBigBarrelItemId(seed),
+    quantity: 1
+  }];
+}
+
 export function getBarrelRaidWaitBounds(characterLevel: number): {
   minSeconds: number;
   maxSeconds: number;
@@ -920,6 +954,16 @@ function stableHash(value: string): number {
   }
 
   return hash;
+}
+
+function getFallbackBigBarrelItemId(seed: string): string {
+  const rotatingLoot = [
+    BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID,
+    FOAM_CORK_OF_ACCOUNTING_ITEM_ID,
+    MIRAGE_FOAM_SAMPLE_ITEM_ID
+  ];
+
+  return rotatingLoot[stableHash(seed) % rotatingLoot.length] ?? BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID;
 }
 
 function getBarrelRaidWaitDurationMs(pending: PendingFridayBarrelRaid): number {

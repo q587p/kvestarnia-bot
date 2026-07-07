@@ -37,7 +37,7 @@ import {
   type PartyBossTimeoutMode
 } from "./partyBossRepository";
 import {
-  buildBarrelRaidItemGrants,
+  buildBigBarrelBrotherItemGrants,
   FRIDAY_BARREL_RAID_KEY
 } from "../../services/tavernRaidService";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -899,7 +899,15 @@ async function settleTerminalPartyBoss(
       continue;
     }
 
-    const itemGrants = reward.meaningful ? buildBarrelRaidItemGrants(periodId) : [];
+    const itemGrants = reward.meaningful
+      ? buildBigBarrelBrotherItemGrants({
+          periodId,
+          characterId: participant.characterId,
+          level: participant.combatStats.level,
+          ...(participant.combatStats.classId ? { classId: participant.combatStats.classId } : {}),
+          ...(participant.combatStats.raceId ? { raceId: participant.combatStats.raceId } : {})
+        })
+      : [];
     const oldLevel = Math.max(current.level, getLevelForXp(current.xp, { remortCount }));
     const nextXp = current.xp + reward.xp;
     const newLevel = Math.max(current.level, getLevelForXp(nextXp, { remortCount }));

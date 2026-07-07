@@ -1191,6 +1191,78 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
   });
 
+  it("stores participant-specific Big Barrel Brother manatky instead of replaying the solo Barrel bundle", async () => {
+    await seedCharacter(prisma, "big-varied-warrior-user", 5011n, "Бочкова Воячка", {
+      hp: 80,
+      level: 8,
+      classId: "class.warrior",
+      raceId: "race.human-ish",
+      strength: 24,
+      dexterity: 24
+    });
+    await seedCharacter(prisma, "big-varied-rogue-user", 5012n, "Бочковий Тінько", {
+      hp: 80,
+      level: 10,
+      classId: "class.rogue",
+      raceId: "race.bisyny",
+      strength: 18,
+      dexterity: 28
+    });
+    await partyRepository.createForTelegramUser(5011n, {
+      ...partyInput("party-token-big-varied"),
+      periodId: "2026-06-30T10:42",
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(5012n, "party-token-big-varied", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5011n, {
+      partyInviteToken: "party-token-big-varied",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
+    await bossRepository.submitActionForTelegramUser(5011n, "party-token-big-varied", 1, "attack", resolveInput());
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      5012n,
+      "party-token-big-varied",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+    const rewards = latest.result?.participants.flatMap((participant) => participant.reward?.itemGrants ?? []) ?? [];
+    const rewardIds = rewards.map((grant) => grant.itemId);
+    const soloBundleIds = new Set([
+      "item.apron-of-foam-resistance",
+      "item.wet-hero-ticket",
+      "item.barrel-splinter-of-optimism",
+      "item.foam-cork-of-accounting",
+      "item.mirage-foam-sample"
+    ]);
+
+    expect(resolved.state).toBe("resolved");
+    expect(latest.status).toBe("won");
+    expect(rewards).toHaveLength(2);
+    expect(rewardIds.every((itemId) => itemId.startsWith("item.loot-v1-"))).toBe(true);
+    expect(rewardIds.some((itemId) => soloBundleIds.has(itemId))).toBe(false);
+    expect(new Set(rewardIds).size).toBeGreaterThan(1);
+    await expect(prisma.characterItem.count({
+      where: {
+        characterId: {
+          in: ["big-varied-warrior-user-character", "big-varied-rogue-user-character"]
+        },
+        itemId: {
+          in: [...soloBundleIds]
+        }
+      }
+    })).resolves.toBe(0);
+  });
+
   it("dev-primes Big Barrel Brother victory and resolves boss-zero plus party-zero as a win", async () => {
     await seedCharacter(prisma, "big-dev-win-user", 5051n, "Dev Лідерка", {
       hp: 80,
@@ -1975,6 +2047,8 @@ async function seedCharacter(
     manaCurrent?: number;
     manaMax?: number;
     level?: number;
+    raceId?: string;
+    classId?: string;
     strength?: number;
     dexterity?: number;
     equipment?: Array<{ slot: string; itemId: string }>;
@@ -1992,8 +2066,8 @@ async function seedCharacter(
         create: {
           id: `${userId}-character`,
           name,
-          raceId: "race.human-ish",
-          classId: "class.warrior",
+          raceId: options.raceId ?? "race.human-ish",
+          classId: options.classId ?? "class.warrior",
           level: options.level ?? 3,
           hpCurrent: options.hpCurrent ?? hp,
           hpMax: options.hpMax ?? hp,

@@ -28,6 +28,7 @@ import { getLevelForXp } from "../../src/domain/progression/level";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import {
+  buildBigBarrelBrotherItemGrants,
   buildBarrelRaidItemGrants,
   buildBarrelRaidRewardAmounts,
   FRIDAY_BARREL_RAID_KEY,
@@ -113,6 +114,43 @@ describe("TavernRaidService", () => {
     expect(buildBarrelRaidItemGrants("2026-06-12T14:23")).not.toEqual(
       buildBarrelRaidItemGrants("2026-06-12T13:23")
     );
+  });
+
+  it("builds deterministic profile-based Big Barrel Brother loot instead of the solo raid starter bundle", () => {
+    const warrior = buildBigBarrelBrotherItemGrants({
+      periodId: "2026-06-12T13:23",
+      characterId: "character-warrior",
+      level: 8,
+      classId: "class.warrior",
+      raceId: "race.human-ish"
+    });
+    const rogue = buildBigBarrelBrotherItemGrants({
+      periodId: "2026-06-12T13:23",
+      characterId: "character-rogue",
+      level: 10,
+      classId: "class.rogue",
+      raceId: "race.bisyny"
+    });
+
+    expect(warrior).toEqual(buildBigBarrelBrotherItemGrants({
+      periodId: "2026-06-12T13:23",
+      characterId: "character-warrior",
+      level: 8,
+      classId: "class.warrior",
+      raceId: "race.human-ish"
+    }));
+    expect(warrior).toHaveLength(1);
+    expect(rogue).toHaveLength(1);
+    expect(warrior[0]?.itemId).toMatch(/^item\.loot-v1-/);
+    expect(rogue[0]?.itemId).toMatch(/^item\.loot-v1-/);
+    expect(new Set([
+      "item.apron-of-foam-resistance",
+      "item.wet-hero-ticket",
+      "item.barrel-splinter-of-optimism",
+      "item.foam-cork-of-accounting",
+      "item.mirage-foam-sample"
+    ])).not.toContain(warrior[0]?.itemId);
+    expect(rogue[0]?.itemId).not.toBe(warrior[0]?.itemId);
   });
 
   it("scales barrel raid wait bounds by level", () => {
