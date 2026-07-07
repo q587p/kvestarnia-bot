@@ -736,6 +736,8 @@ export async function sendTavernBarrel(
       await sendBigBossText(ctx, mode, presentPartyBoss(activeBoss, { viewerCharacterId }), {
         session: activeBoss,
         viewerCharacterId,
+        partyBoss: options.partyBoss,
+        telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
       return true;
@@ -866,12 +868,22 @@ async function sendBigBossText(
   keyboard: {
     session: Parameters<typeof buildPartyBossKeyboard>[0];
     viewerCharacterId?: string | null | undefined;
+    partyBoss?: PartyBossService | undefined;
+    telegramUserId?: bigint | undefined;
+    includeCombatItems?: boolean | undefined;
     includeDevTimeout?: boolean | undefined;
   }
 ): Promise<void> {
+  const includeCombatItems = await resolvePartyBossCombatItemShortcut(
+    keyboard.partyBoss,
+    keyboard.telegramUserId,
+    keyboard.session,
+    keyboard.includeCombatItems
+  );
   const options = {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
+      ...(includeCombatItems === undefined ? {} : { includeCombatItems }),
       includeDevTimeout: keyboard.includeDevTimeout
     })
   };
@@ -901,6 +913,27 @@ function getBossViewerCharacterId(
 ): string | null {
   const participant = session.participants.find((row) => row.telegramUserId === telegramUserId);
   return participant?.id ?? null;
+}
+
+async function resolvePartyBossCombatItemShortcut(
+  partyBoss: PartyBossService | undefined,
+  telegramUserId: bigint | undefined,
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  explicit?: boolean
+): Promise<boolean | undefined> {
+  if (explicit !== undefined) {
+    return explicit;
+  }
+
+  if (!partyBoss || telegramUserId === undefined || session.status !== "active") {
+    return undefined;
+  }
+
+  return partyBoss.hasCombatItemsForTelegramUser(
+    telegramUserId,
+    session.partyInviteToken,
+    session.turn
+  );
 }
 
 async function sendText(

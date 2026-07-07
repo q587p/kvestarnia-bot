@@ -3,6 +3,7 @@ import {
   presentItemDetail,
   presentOwnedItemDetail
 } from "../../src/bot/presenters/itemDetailPresenter";
+import { items } from "../../src/content";
 import type { InventoryItemSummary } from "../../src/services/inventoryService";
 
 describe("item detail presenter", () => {
@@ -461,6 +462,39 @@ describe("item detail presenter", () => {
     expect(text).toContain("Опис із &lt;script&gt; і &amp; знаком.");
     expect(text).not.toContain("<script>");
     expect(text).not.toContain("<b>Пательня & форма</b>");
+  });
+
+  it("shows Mantok ability grants on item detail pages", () => {
+    const content = items.find((item) => item.id === "item.set.red-line.left-dagger");
+    expect(content).toBeDefined();
+    if (!content) {
+      throw new Error("Expected red-line dagger content.");
+    }
+
+    const text = presentOwnedItemDetail(itemSummary({ itemId: content.id, content }));
+
+    expect(text).toContain("Дія спорядження: <b>🩸 Червоний рядок</b>");
+    expect(text).toContain("рівень 10+");
+    expect(text).toContain("1 мани");
+    expect(text).toContain("перезарядка 3 ходи");
+  });
+
+  it("distinguishes borrowed gear actions and service perks on item detail pages", () => {
+    const staff = items.find((item) => item.id === "item.set.asclepius.staff");
+    const cloak = items.find((item) => item.id === "item.set.yeger-shadow.cloak");
+    expect(staff).toBeDefined();
+    expect(cloak).toBeDefined();
+    if (!staff || !cloak) {
+      throw new Error("Expected Mantok ability grant items.");
+    }
+
+    const staffText = presentOwnedItemDetail(itemSummary({ itemId: staff.id, content: staff }));
+    const cloakText = presentOwnedItemDetail(itemSummary({ itemId: cloak.id, content: cloak }));
+
+    expect(staffText).toContain("Дія спорядження: <b>⚕️ Інструкція Асклепія</b>");
+    expect(staffText).toContain("Позичена від: Жрець; не рахується рідною дією.");
+    expect(cloakText).toContain("Перк спорядження: <b>🧥 Чужа єгерська справа</b>");
+    expect(cloakText).toContain("Зараз це службова позначка без бойової кнопки.");
   });
 
   it("does not reveal details for missing characters or unowned items", () => {

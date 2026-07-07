@@ -1,9 +1,11 @@
 import { InlineKeyboard } from "grammy";
 import {
   getActorCombatActionAvailability,
+  getCombatGearActionAvailabilityForActor,
   getCombatRaceAbilityProfile,
   getCombatSkillProfile
 } from "../../domain/combat";
+import { getCombatMantokAbilityGrantsByIds } from "../../content";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
 import type { PartyBossCombatItemMenuEntry } from "../../services/partyBossService";
@@ -11,6 +13,7 @@ import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../service
 import { getCombatSkillDisplay } from "../../services/fightService";
 import {
   makePartyBossActionCallbackData,
+  makePartyBossGearActionCallbackData,
   makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
@@ -27,6 +30,7 @@ import {
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
+import { appendGearActionButtons } from "./gearActionKeyboard";
 import { addPaginationControls } from "./pagination";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
@@ -90,7 +94,10 @@ export function buildPartySessionKeyboard(
 export function buildPartyBossKeyboard(
   session: PartyBossSessionRecord,
   viewerCharacterId: string | null,
-  options: { includeDevTimeout?: boolean | undefined } = {}
+  options: {
+    includeCombatItems?: boolean | undefined;
+    includeDevTimeout?: boolean | undefined;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const viewer = viewerCharacterId
@@ -122,10 +129,31 @@ export function buildPartyBossKeyboard(
       );
     }
 
-    keyboard.row();
-    keyboard
-      .text("🎒 Одноразові манатки", makePartyBossItemsMenuCallbackData(session.partyInviteToken, session.turn))
-      .row();
+    if ((availability?.skill.available !== false) || (raceLabel && availability?.race.available)) {
+      keyboard.row();
+    }
+
+    const gearGrants = getCombatMantokAbilityGrantsByIds({
+      grantIds: viewer.equipmentAbilityGrantIds ?? [],
+      characterLevel: viewer.combatStats.level
+    }).filter((grant) =>
+      grant.combat && getCombatGearActionAvailabilityForActor(viewer.resources, grant.combat.profile).available
+    );
+    appendGearActionButtons(
+      keyboard,
+      gearGrants,
+      (grant) => makePartyBossGearActionCallbackData({
+        token: session.partyInviteToken,
+        turn: session.turn,
+        grantKey: grant.key
+      })
+    );
+
+    if (options.includeCombatItems === true) {
+      keyboard
+        .text("🎒 Одноразові манатки", makePartyBossItemsMenuCallbackData(session.partyInviteToken, session.turn))
+        .row();
+    }
   }
 
   if (session.status === "active" && options.includeDevTimeout) {

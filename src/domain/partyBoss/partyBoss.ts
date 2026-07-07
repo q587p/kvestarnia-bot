@@ -2,7 +2,8 @@ import {
   resolveActorCombatAction,
   tickActorCooldowns,
   type ActorCombatActionSummary,
-  type CombatActorResourceState
+  type CombatActorResourceState,
+  type CombatGearAbilityInput
 } from "../combat/combatEngine";
 import {
   cloneCombatCooldowns,
@@ -24,7 +25,7 @@ export const BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS = 3 * 60_000;
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
 const BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS = 4;
 
-export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race"> | "item";
+export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item";
 export type PartyBossParticipantStatus = "active" | "knocked-out";
 export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 
@@ -34,6 +35,7 @@ export interface PartyBossParticipantState {
   remortCount: number;
   status: PartyBossParticipantStatus;
   combatStats: CombatActorStats;
+  equipmentAbilityGrantIds?: string[];
   resources: CombatActorResourceState;
   combatItems?: CombatState["combatItems"];
   contribution: {
@@ -63,6 +65,7 @@ export interface PartyBossRoundActionInput {
   action: PartyBossActionKey;
   origin?: "manual" | "timeout";
   item?: PartyBossCombatItemInput;
+  gearAbility?: CombatGearAbilityInput;
 }
 
 export interface PartyBossCombatItemInput {
@@ -111,6 +114,7 @@ export interface PartyBossParticipantActionSummary {
   itemId?: string;
   itemName?: string;
   healing?: number;
+  guard?: number;
   hpAfter?: number;
 }
 
@@ -159,6 +163,7 @@ export function createPartyBossState(input: {
     name: string;
     remortCount: number;
     combatStats: CombatActorStats & { hpCurrent: number; manaCurrent: number };
+    equipmentAbilityGrantIds?: string[];
   }>;
   now: Date;
 }): PartyBossState {
@@ -205,6 +210,9 @@ export function createPartyBossState(input: {
         remortCount: participant.remortCount,
         status: "active",
         combatStats: participant.combatStats,
+        ...(participant.equipmentAbilityGrantIds && participant.equipmentAbilityGrantIds.length > 0
+          ? { equipmentAbilityGrantIds: [...participant.equipmentAbilityGrantIds] }
+          : {}),
         resources: {
           hp: clamp(Math.floor(participant.combatStats.hpCurrent), 0, hpMax),
           hpMax,
@@ -295,7 +303,7 @@ export function resolvePartyBossRound(input: {
       continue;
     }
 
-    const combatAction: Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race"> =
+    const combatAction: Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> =
       action === "item" ? "defend" : action;
     const result = resolveActorCombatAction({
       actorState: participant.resources,
@@ -308,11 +316,15 @@ export function resolvePartyBossRound(input: {
       actorStats: participant.combatStats,
       defenderStats: next.boss,
       action: combatAction,
+      ...(action === "gear" && committed?.gearAbility ? { skillProfile: committed.gearAbility.profile } : {}),
       fumbleSeed: `${input.seed}:${next.turn}:${participant.characterId}`,
       rng: new SeededRandomSource(`${input.seed}:${next.turn}:${participant.characterId}:${combatAction}`)
     });
 
     participant.resources = result.actorState;
+    const support = action === "gear" && isCommittedPartyBossAbilityOutcome(result.summary.actorOutcome) && !result.summary.fumble
+      ? applyPartyBossGearSupport(participant, committed?.gearAbility?.profile)
+      : {};
     tickPartyBossCombatItemCooldowns(participant);
     next.boss.hp = Math.max(0, result.defenderState.hp);
     participant.contribution.damageDealt += result.summary.actorDamage;
@@ -330,7 +342,8 @@ export function resolvePartyBossRound(input: {
       outcome: result.summary.actorOutcome,
       damage: result.summary.actorDamage,
       manaSpent: result.summary.manaSpent,
-      ...(result.summary.skillId ? { skillId: result.summary.skillId } : {})
+      ...(result.summary.skillId ? { skillId: result.summary.skillId } : {}),
+      ...support
     });
   }
 
@@ -479,6 +492,7 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
     participants: state.participants.map((participant) => ({
       ...participant,
       combatStats: { ...participant.combatStats },
+      ...(participant.equipmentAbilityGrantIds ? { equipmentAbilityGrantIds: [...participant.equipmentAbilityGrantIds] } : {}),
       resources: {
         ...participant.resources,
         ...(participant.resources.cooldowns
@@ -626,7 +640,8 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
     const rawDamage = Math.max(1, state.boss.attack - Math.floor((participant.combatStats.armor ?? 0) / 2));
     const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
     const focusMultiplier = big && !broadBigRetaliation ? 2.23 : 1;
-    const damage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
+    const guardedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
+    const damage = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
 
@@ -642,6 +657,44 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
   }
 
   return retaliations;
+}
+
+function applyPartyBossGearSupport(
+  participant: PartyBossParticipantState,
+  ability: CombatGearAbilityInput["profile"] | undefined
+): { healing?: number; guard?: number; hpAfter?: number } {
+  const healing = ability?.healAmount && ability.healAmount > 0
+    ? applyPartyBossHealing(participant.resources, ability.healAmount)
+    : 0;
+  const guard = ability?.guardReduction && ability.guardReduction > 0
+    ? Math.floor(ability.guardReduction)
+    : 0;
+
+  if (guard > 0) {
+    participant.resources.guard = {
+      consecutiveDefends: 1,
+      abilityDamageReduction: Math.max(1, guard)
+    };
+  }
+
+  return {
+    ...(healing > 0 ? { healing, hpAfter: participant.resources.hp } : {}),
+    ...(guard > 0 ? { guard } : {})
+  };
+}
+
+function applyPartyBossHealing(
+  resources: CombatActorResourceState,
+  amount: number
+): number {
+  const before = resources.hp;
+  resources.hp = Math.min(resources.hpMax, resources.hp + Math.max(0, Math.floor(amount)));
+
+  return resources.hp - before;
+}
+
+function isCommittedPartyBossAbilityOutcome(outcome: ActorCombatActionSummary["actorOutcome"]): boolean {
+  return outcome !== "not-enough-mana" && outcome !== "skill-on-cooldown";
 }
 
 export function getPartyBossRetaliationPlan(state: PartyBossState): PartyBossRetaliationPlan {

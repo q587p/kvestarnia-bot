@@ -3,7 +3,7 @@ import {
   BIG_BARREL_BROTHER_RULES_VERSION,
   type PartyBossActionKey
 } from "../domain/partyBoss/partyBoss";
-import { items } from "../content";
+import { findMantokAbilityGrantByKey, items } from "../content";
 import type {
   PartyBossActionResult,
   PartyBossDevWinResult,
@@ -105,6 +105,68 @@ export class PartyBossService {
     });
     await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
+    await this.trackActivityEvents(result);
+
+    return result;
+  }
+
+  async submitGearForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    grantKey: string
+  ): Promise<PartyBossActionResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
+    const grant = findMantokAbilityGrantByKey(grantKey);
+    const participantRecord = session?.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId
+    );
+    const participant = participantRecord
+      ? session?.state.participants.find((candidate) => candidate.characterId === participantRecord.id)
+      : null;
+
+    if (!session) {
+      return { state: "not-found" };
+    }
+
+    if (
+      !grant?.combat ||
+      !participantRecord ||
+      !participant ||
+      !participant.equipmentAbilityGrantIds?.includes(grant.id)
+    ) {
+      return { state: "stale", session };
+    }
+
+    const now = this.clock();
+    const result = await this.sessions.submitActionForTelegramUser(
+      telegramUserId,
+      partyInviteToken,
+      turn,
+      "gear",
+      {
+        now,
+        nextTurnExpiresAt: nextTurnDeadline(now)
+      },
+      {
+        gearAbility: {
+          profile: grant.combat.profile,
+          ...(grant.combat.bleed
+            ? {
+                bleed: {
+                  sourceAbilityId: grant.combat.profile.id,
+                  ...grant.combat.bleed
+                }
+              }
+            : {})
+        }
+      }
+    );
+    await this.trackAchievementEvents(result);
     await this.trackActivityEvents(result);
 
     return result;
@@ -228,6 +290,16 @@ export class PartyBossService {
       session,
       items: entries
     };
+  }
+
+  async hasCombatItemsForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number
+  ): Promise<boolean> {
+    const result = await this.listCombatItemsForTelegramUser(telegramUserId, partyInviteToken, turn);
+
+    return result.state === "ready" && result.items.length > 0;
   }
 
   async resolveDueTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {

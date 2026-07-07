@@ -699,6 +699,56 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).not.toContain("Здатися");
   });
 
+  it.each([
+    ["not-enough-mana", "Не вистачає мани для цієї дії спорядження."],
+    ["skill-on-cooldown", "Дія спорядження ще відсапується."]
+  ] as const)("answers turn-based gear %s callbacks with a specific gate notice", async (state, notice) => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const activeSession = makeTurnBasedSession("active", target);
+    const resolveTurnBasedActionForTelegramUser = vi.fn().mockResolvedValue({
+      state,
+      session: activeSession
+    });
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "active",
+      challenge: {
+        ...makeChallenge("active", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session: activeSession,
+      turnExpiresAt: activeSession.turnExpiresAt,
+      now: NOW
+    });
+    const service = serviceWith({
+      resolveTurnBasedActionForTelegramUser,
+      getByToken,
+      recordTurnBasedMessageReference: vi.fn()
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(99, "private");
+
+    await handleDuelCallback(ctx, {
+      type: "gear",
+      token: TOKEN,
+      grantKey: "rldagr",
+      turn: 2,
+      version: 4
+    }, service, {
+      presence: createPresence()
+    });
+
+    expect(resolveTurnBasedActionForTelegramUser).toHaveBeenCalledWith(99n, {
+      inviteToken: TOKEN,
+      expectedTurn: 2,
+      expectedVersion: 4,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: notice });
+    expect(messageText(editMessageText)).toContain("Покрокова дуель");
+  });
+
   it("keeps resource-warning accept flow on the warning keyboard", async () => {
     const service = serviceWith({
       acceptForTelegramUser: vi.fn().mockResolvedValue({

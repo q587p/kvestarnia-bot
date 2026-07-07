@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeFightCallbackData,
+  makeFightGearActionCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightPassageAttackCallbackData,
@@ -86,6 +87,25 @@ describe("fight callback data", () => {
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
+  it("parses persistent fight gear action callbacks", () => {
+    const data = makeFightGearActionCallbackData({
+      sessionId: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 3,
+      grantKey: "rldagr"
+    });
+
+    expect(parseFightCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "gear",
+        sessionId: "123e4567-e89b-12d3-a456-426614174000",
+        turn: 3,
+        grantKey: "rldagr"
+      }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
   it("parses persistent passage attack callbacks", () => {
     const data = makeFightPassageAttackCallbackData({
       passage: "deep-right",
@@ -114,6 +134,18 @@ describe("fight callback data", () => {
     });
     expect(
       parseFightCallbackData("v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:3:dance")
+    ).toEqual({
+      ok: false,
+      error: "invalid-action"
+    });
+    expect(
+      parseFightCallbackData("v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:3:gear")
+    ).toEqual({
+      ok: false,
+      error: "invalid-action"
+    });
+    expect(
+      parseFightCallbackData("v1:fight:gear:123e4567-e89b-12d3-a456-426614174000:3:bad_key")
     ).toEqual({
       ok: false,
       error: "invalid-action"

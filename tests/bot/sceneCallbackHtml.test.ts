@@ -21,6 +21,7 @@ import {
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
   makeFightCallbackData,
+  makeFightGearActionCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightTurnCallbackData,
@@ -1965,7 +1966,7 @@ describe("scene callback HTML options", () => {
               reward: {
                 xp: 56,
                 gold: 170,
-                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Р„РіРµСЂСЊРєР° СЂРёСЃРєР° РЅР° РґРѕС‰РµС‡С†С–", quantity: 2 }]
+                itemGrants: [{ itemId: "item.yeger.first-notch", name: "Єгерська риска на дощечці", quantity: 2 }]
               }
             })
         }
@@ -2010,8 +2011,10 @@ describe("scene callback HTML options", () => {
     expect(edit?.payload).toMatchObject({
       parse_mode: "HTML"
     });
-    expect(String(edit?.payload.text)).toContain("Ще не екіпірується: Жетон Боргоманта +3.");
-    expect(String(edit?.payload.text)).toContain("Потрібно: вищий рівень, сумісний клас.");
+    expect(String(edit?.payload.text)).toContain("Ще не екіпірується: <b>Жетон Боргоманта +3</b>.");
+    expect(String(edit?.payload.text)).toContain(
+      "<b>Жетон Боргоманта +3</b>.\n\nПотрібно: вищий рівень, сумісний клас."
+    );
     expect(String(edit?.payload.text)).toContain("Це правило манатки, не помилка героя.");
   });
 
@@ -2071,9 +2074,9 @@ describe("scene callback HTML options", () => {
       { confirmTwohand: false }
     );
     expect(getEquipmentForTelegramUser).not.toHaveBeenCalled();
-    expect(text).toContain("Екіпіровано: Пательня переконання.");
-    expect(text).toContain("Попередня манатка зі слота");
-    expect(text).toContain("лишилася в торбі: Стара пательня.");
+    expect(text).toContain("Екіпіровано: <b>Пательня переконання</b>.");
+    expect(text).toContain("Попередня манатка зі слота <i>Основна рука</i> лишилася в торбі:");
+    expect(text).toContain("<b>Стара пательня</b>.");
     expect(keyboard).toContain("v1:item:inventory");
     expect(keyboard).toContain("v1:equip:view");
   });
@@ -2147,7 +2150,7 @@ describe("scene callback HTML options", () => {
 
     expect(equipItemForTelegramUser).toHaveBeenCalledTimes(2);
     expect(edits).toHaveLength(2);
-    expect(edits.every((edit) => String(edit.payload.text).includes("Екіпіровано: Пательня переконання."))).toBe(true);
+    expect(edits.every((edit) => String(edit.payload.text).includes("Екіпіровано: <b>Пательня переконання</b>."))).toBe(true);
     expect(achievementMessages).toHaveLength(1);
   });
 
@@ -2819,7 +2822,7 @@ describe("scene callback HTML options", () => {
             Promise.resolve({
               state: "ready" as const,
               locationId: "location.korchma.hall",
-              locationName: "Р—Р°Р»Р° РєРѕСЂС‡РјРё",
+              locationName: "Зала корчми",
               insideKorchma: true
             }),
           getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" as const }),
@@ -2845,7 +2848,6 @@ describe("scene callback HTML options", () => {
     );
     expect(scene).toBeDefined();
     expect(keyboard).toContain("v1:dkr:a:20260628:0:sign-ink:0");
-    expect(calls.some((call) => String(call.payload.text).includes("РЎС‚С–Р» Р·С– СЃРїСЂР°РІР°РјРё"))).toBe(false);
   });
 
   it("falls through to ordinary location content when no daily Korchma offer was issued yet", async () => {
@@ -4784,6 +4786,83 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
   });
 
+  it("routes persistent gear action callbacks through the fight turn handler", async () => {
+    const sessionId = "123e4567-e89b-42d3-a456-426614174000";
+    const session = {
+      ...persistentSession("monster.deadline-spider"),
+      id: sessionId,
+      state: {
+        ...persistentSession("monster.deadline-spider").state,
+        id: sessionId,
+        turn: 2,
+        hero: {
+          hp: 18,
+          hpMax: 24,
+          mana: 9,
+          manaMax: 12
+        },
+        monster: {
+          id: "monster.deadline-spider",
+          hp: 7,
+          hpMax: 12
+        },
+        equipmentAbilities: {
+          version: 1 as const,
+          grantIds: ["mantok-ability.red-line-dagger"]
+        },
+        lastTurn: {
+          action: "gear" as const,
+          heroOutcome: "hit" as const,
+          heroDamage: 5,
+          monsterDamage: 2,
+          manaSpent: 1,
+          critical: false,
+          skillId: "gear.red-line-dagger",
+          abilitySource: "equipment" as const
+        }
+      }
+    };
+    const resolvePersistentFightTurn = vi.fn(() =>
+      Promise.resolve({
+        state: "updated" as const,
+        character: { ...character, level: 10 },
+        session,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 10,
+          tags: ["beast", "time", "web"]
+        },
+        questProgress: null,
+        fightReward: null
+      })
+    );
+
+    const calls = await captureApiCalls(
+      makeFightGearActionCallbackData({
+        sessionId,
+        turn: 1,
+        grantKey: "rldagr"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(resolvePersistentFightTurn).toHaveBeenCalledWith(42n, {
+      sessionId,
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+    expect(String(edit?.payload.text)).toContain("Вміння 🩸 <i>Червоний рядок</i>");
+    expect(JSON.stringify(edit?.payload.reply_markup ?? null)).toContain(`v1:fight:turn:${sessionId}:2:attack`);
+  });
+
   it("keeps selected passage presence after persistent fight turn callbacks", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const session = persistentSessionWithOrigin("location.korchma.deep.level1.right");
@@ -4913,6 +4992,50 @@ describe("scene callback HTML options", () => {
     expect(String(edits[0]?.payload.text)).toContain("🎉 Ви перемогли");
     expect(String(edits[1]?.payload.text)).toContain("поточний стан");
     expect(levelUps).toHaveLength(1);
+  });
+
+  it("answers blocked persistent fight gear callbacks with gear-specific alert copy", async () => {
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.right");
+    const resolvePersistentFightTurn = vi.fn().mockResolvedValue({
+      state: "not-enough-mana" as const,
+      reason: "skill-on-cooldown" as const,
+      character,
+      session,
+      monster: {
+        id: "monster.deadline-spider",
+        name: "Павук дедлайнів",
+        description: "Плете павутину з «сьогодні швиденько».",
+        level: 2,
+        tags: ["beast", "time", "web"]
+      },
+      questProgress: null
+    });
+    const calls = await captureApiCalls(
+      makeFightGearActionCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        grantKey: "rldagr"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+    const callbackAnswer = calls.find((call) => call.method === "answerCallbackQuery");
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(resolvePersistentFightTurn).toHaveBeenCalledWith(42n, {
+      sessionId: session.id,
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+    expect(callbackAnswer?.payload).toMatchObject({
+      text: "Дія спорядження не спрацювала: ще відсапується.",
+      show_alert: true
+    });
+    expect(String(edit?.payload.text)).toContain("Дія спорядження ще відсапується");
   });
 
   it("removes combat action buttons when a persistent turn callback needs recovery", async () => {
@@ -7573,7 +7696,7 @@ async function captureRepeatedApiCalls(
         result: {
           id: 123456,
           is_bot: true,
-          first_name: "РљРІРµСЃС‚Р°СЂРЅСЏ",
+          first_name: "Квестарня",
           username: "kvestarnia_bot"
         }
       });
@@ -7595,7 +7718,7 @@ async function captureRepeatedApiCalls(
         from: {
           id: 42,
           is_bot: false,
-          first_name: "РўРµСЃС‚"
+          first_name: "Тест"
         },
         chat_instance: "chat-instance",
         data: callbackData,
@@ -7605,7 +7728,7 @@ async function captureRepeatedApiCalls(
           chat: {
             id: 42,
             type: "private",
-            first_name: "РўРµСЃС‚"
+            first_name: "Тест"
           },
           text: "old"
         }

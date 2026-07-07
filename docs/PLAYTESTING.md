@@ -4,6 +4,28 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.30 — Mantok Ability Grants Foundation smoke
+
+Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons hiding until usable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
+
+Review follow-up coverage: duel gear no-mana/cooldown callbacks are covered by service and command tests, and the Big Barrel one-use item shortcut has a fail-safe keyboard test proving it remains hidden unless explicitly enabled. Exact local Telegram evidence is still pending for duplicate party-boss gear actions, stale duel gear callbacks and ordinary two-enemy fight gear actions.
+
+1. Seed or win each ability-granting manatka from the `9..13` band and equip it on a level-appropriate character.
+2. Start persistent one-enemy and two-enemy fights and verify currently usable gear-action buttons appear after the normal fight controls, while cooldown/mana-blocked gear actions stay in text but not on the keyboard.
+3. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
+4. Use the shield, bleed and borrowed-action buttons; verify each spends the current turn, applies its damage/support effect, writes the effect on the fight card and in `📜 Журнал бою`, spends mana when required and starts only its own gear cooldown.
+5. After a gear action starts cooldown, verify its button disappears while the fight card still shows the cooldown line, then take enough ordinary player turns and verify the button returns and can trigger again.
+6. Replay a stale gear callback after the turn advances and verify no mana, cooldown, RNG or monster response changes.
+7. Verify bleed appears visibly, ticks during committed hero activations in single- and multi-enemy fights and can finish combat without an extra status-kill response.
+8. Start a Big Barrel Brother raid with an eligible gear-action manatka; verify the button appears only while usable, resolves during active combat, applies damage/support before boss retaliation, writes the effect to the active card plus `📜 Журнал`, and duplicate/stale/missing-grant gear callbacks do not double-apply effects.
+9. In the Big Barrel raid, verify active-combat redirects preserve refresh, item menu, item-use and gear shortcuts, and the one-use shortcut is hidden when no useful one-use manatky are available.
+10. Start a turn-based duel with an eligible gear-action manatka; verify the button appears only while usable, resolves during active combat, writes damage/support to the stored round replay, stale/missing-grant callbacks do not advance the duel, and quick duels stay instant without gear actions.
+11. Open item detail, `/equipment` and `/hero`; verify granted actions and the Yeger cloak service marker are explained compactly, including aggregate `Дія спорядження` rows.
+12. Use the first successful gear action on a character that has not earned `Манатка натиснула кнопку`; verify the rewardless achievement notification appears once, then stale/blocked/repeated gear callbacks do not repeat it.
+13. Run `/lore`; verify it opens `📖 Перекази Квестарні` and is absent from the Telegram side command menu. Open `🎒 Манатки` and verify the lore mentions visible `Дія спорядження`, not hidden procs.
+14. Verify `Єгерський плащ чужої справи` does not unlock dense bandages, field kits or Yeger boards.
+15. Win fights against configured source monsters if convenient; verify grant manatky can appear without removing existing trophy/coverage/set loot.
+
 ## 0.2.28 — Mantok Set Synergies Foundation smoke
 
 Manual Telegram QA status for the implementation pass: not run.
@@ -14,13 +36,13 @@ Manual Telegram QA status for the implementation pass: not run.
 4. Unequip or replace one set piece and verify active bonuses drop immediately on `/equipment` and item detail.
 5. Equip pieces from two different sets and verify both sets appear without mixing progress.
 6. Win fights against configured higher-level source monsters if convenient; verify set pieces can appear as possible item rewards and existing trophies/coverage drops still remain possible.
-7. Open `📖 Перекази` -> `🎒 Манатки` and verify the current lore mentions set-like manatky without promising future gear actions.
+7. Open `📖 Перекази` -> `🎒 Манатки` and verify the current lore mentions set-like manatky and visible `Дія спорядження` without implying hidden procs.
 
 ## 0.2.26 — Mantok Equipment Slot Coverage smoke
 
 Manual Telegram QA status for the implementation pass: not run.
 
-1. Seed or grant one authored coverage item for every slot and open `🎒 Манатки` slot filters. Locally, use `/dev_add_random_item slot=weapon`, `/dev_add_random_item slot=offhand`, `/dev_add_random_item slot=head`, `/dev_add_random_item slot=chest`, `/dev_add_random_item slot=legs`, `/dev_add_random_item slot=accessory`, `/dev_add_random_item slot=tool`, `/dev_add_random_item tag=twohand` and `/dev_add_random_item tag=offhand` as needed.
+1. Seed or grant one authored coverage item for every slot and open `🎒 Манатки` slot filters. Locally, use `/dev_add_random_item slot=weapon`, `/dev_add_random_item slot=offhand`, `/dev_add_random_item slot=head`, `/dev_add_random_item slot=chest`, `/dev_add_random_item slot=legs`, `/dev_add_random_item slot=accessory`, `/dev_add_random_item slot=tool`, `/dev_add_random_item tag=twohand` and `/dev_add_random_item tag=offhand` as needed; use `/dev_add_item itemId=<item.id>` when exact authored QA items are required.
 2. Equip universal weapon, offhand, head, chest, legs, accessory and tool manatky.
 3. Equip a two-handed bow and verify the offhand slot is occupied/cleared according to existing twohand confirmation rules.
 4. Try an offhand shield and an offhand dagger on a non-warrior and verify explicit offhand items are allowed.

@@ -7,6 +7,47 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.30] - 12026-07-07 - Mantok Ability Grants Foundation
+
+### Added
+- Added a data-driven Mantok ability-grant registry with stable compact gear-action keys, uniqueness validation and additive high-level monster loot for the first authored grant set.
+- Added the first epic/soulbound ability manatky in the level `9..13` band, including one new rapier item and grant metadata for existing Mantok set pieces.
+- Added persistent PvE gear-action callbacks and fight buttons that seed grant ids at combat start, refresh current eligible gear actions during the active turn, spend mana/cooldowns through the combat engine and reject stale or currently unavailable callbacks without advancing combat.
+- Added shared gear-action button wiring for persistent PvE fights, Big Barrel Brother raid turns and turn-based duels.
+- Added equipment-sourced combat profiles for reinforced defense, small bleed strikes and weaker borrowed class/race-style actions that do not count as native class or race actions.
+- Added a narrow visible bleed status family that ticks during committed hero activations and can settle combat without an extra monster response when the status itself defeats the final enemy.
+- Added item-detail, equipment-surface and hero-card summaries for granted actions and service-perk markers.
+- Added the rewardless first-use achievement `achievement.mantok.gear-action.first` for committed combat actions granted by manatky.
+- Added `/lore` as a help-listed shortcut to the existing `📖 Перекази Квестарні` board without adding it to the Telegram side menu.
+- Added focused registry, callback, combat-engine and presenter tests for compact keys, collision safety, cooldown/mana behavior, bleed settlement and visible grant copy.
+
+### Changed
+- Active fight keyboards can now show currently available gear actions after native attack/defend/class/race controls while preserving existing combat item and class/race cooldown behavior.
+- Active fight keyboards now reflect mid-fight equipment changes for the current turn: newly equipped grant manatky can add gear buttons, and removed grant manatky stop working, without refilling stored combat HP/mana or granting an extra turn.
+- Equipment and hero cards now show aggregate `Дія спорядження` lines so granted actions are visible on the character doll, not only inside individual item detail cards.
+- Shared combat action/effect presenter helpers now format gear-action skill labels and support-effect rows for ordinary fights, Big Barrel Brother raids and turn-based duels instead of hand-rolling the same copy in each surface.
+- Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
+- Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
+- Updated `📖 Перекази` manatky lore so rare ability-granting manatky are described as visible `Дія спорядження`, not hidden procs.
+- Bumped package metadata to `0.2.30` after `0.2.29` shipped from `main`.
+
+### Fixed
+- Persistent PvE gear-action callbacks now bypass the generic combat-lock redirect, so pressing a visible gear button during an active fight reaches the fight turn handler instead of answering `Спочатку завершіть бій`.
+- Big Barrel Brother raid and turn-based duel gear-action callbacks now bypass the same active-combat redirect and resolve through the existing combat action engine instead of becoming dead visible buttons.
+- Big Barrel Brother active cards now hide the `🎒 Одноразові манатки` shortcut when the participant has no currently useful one-use combat items; stale item-menu callbacks still return the empty-menu explanation without spending a turn.
+- Hidden gear-action buttons while mana or cooldown gates block the action in persistent PvE, Big Barrel Brother raids and turn-based duels; the active fight text still shows cooldown/mana blockers, and the buttons return after real player turns clear the gate.
+- Big Barrel Brother gear actions now apply their equipment support effects before boss retaliation, so shield and borrowed heal/guard actions reduce the incoming hit or restore HP instead of only starting cooldown; raid active cards and journal pages now show those support effects.
+- Turn-based duel gear-action result cards now render readable Ukrainian equipment-action names and support effects in stored round replays.
+- Turn-based duel gear-action achievements now emit only after the queued action commits in a resolved round, so pending gear choices cannot unlock the first-use achievement early.
+- Party-boss gear callback notices now render readable Ukrainian copy for updated/duplicate actions and participant raid/result refresh notices.
+- Refreshed eligible gear-action buttons on active fight overview cards as well as direct fight views and callbacks, so returning to an already active fight after changing equipment shows the current manatka actions.
+- Preserved gear-action grant ids and bleed statuses when active persistent PvE fights reload from stored session JSON, so multi-enemy and later-turn fight cards keep the same equipment buttons and status ticks as freshly started fights.
+- Added remort item pagination so eligible manatky after the first eight, including two-handed Mantok set weapons, remain selectable instead of being hidden by the inline keyboard.
+
+### Deferred
+- The Yeger cloak ordinary-bandage service perk is represented as a narrow documented service marker only; no Yeger board, dense-bandage, field-kit or service runtime change ships in this slice.
+- Quick-duel gear expansion, generated ability loot, hidden procs, free extra turns, shops, markets, crafting and ability-granting set bonuses remain deferred.
+
 ## [0.2.29] - 12026-07-07 - Newbie Barrel Beer Tutorial
 
 ### Added

@@ -3,6 +3,7 @@ import {
   presentEquipItemResult,
   presentEquipment
 } from "../../src/bot/presenters/equipmentPresenter";
+import { items } from "../../src/content";
 import { mantokSetItemContents } from "../../src/content/mantokSetItems";
 import type {
   EquipmentResult,
@@ -109,6 +110,97 @@ describe("equipment presenter", () => {
     expect(text).toContain("<b>Бочковий панцир старшого Брата</b>: 2/4");
     expect(text).toContain("Активно: Обруч не питає <i>(+2 HP · +1 до захисту)</i>");
     expect(text).toContain("Далі: 3 частини — Бочка тримає форму <i>(+1 до опору)</i>");
+  });
+
+  it("shows Mantok granted gear actions in equipped slots", () => {
+    const dagger = items.find((item) => item.id === "item.set.red-line.left-dagger");
+    expect(dagger).toBeDefined();
+    if (!dagger) {
+      throw new Error("Expected red-line dagger content.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        { slot: "weapon", item: { itemId: dagger.id, content: dagger } },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("Дія: <b>🩸 Червоний рядок</b>");
+    expect(text).toContain("✨ <b>Дія спорядження</b>");
+    expect(text).toContain("<b>🩸 Червоний рядок</b> <i>(1 мани, перезарядка 3)</i>");
+    expect(text).toContain("1 мани");
+    expect(text).toContain("перезарядка 3");
+  });
+
+  it("escapes equipped grant item names while keeping gear action copy readable", () => {
+    const dagger = items.find((item) => item.id === "item.set.red-line.left-dagger");
+    expect(dagger).toBeDefined();
+    if (!dagger) {
+      throw new Error("Expected red-line dagger content.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        {
+          slot: "weapon",
+          item: {
+            itemId: dagger.id,
+            content: {
+              ...dagger,
+              name: "<b>Кинджал червоного рядка</b>"
+            }
+          }
+        },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("&lt;b&gt;Кинджал червоного рядка&lt;/b&gt;");
+    expect(text).not.toContain("<b>Кинджал червоного рядка</b>");
+    expect(text).toContain("Дія: <b>🩸 Червоний рядок</b>");
+  });
+
+  it("distinguishes borrowed gear actions and docs-only service perks in equipment", () => {
+    const staff = items.find((item) => item.id === "item.set.asclepius.staff");
+    const cloak = items.find((item) => item.id === "item.set.yeger-shadow.cloak");
+    expect(staff).toBeDefined();
+    expect(cloak).toBeDefined();
+    if (!staff || !cloak) {
+      throw new Error("Expected Mantok ability grant items.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        { slot: "weapon", item: { itemId: staff.id, content: staff } },
+        { slot: "chest", item: { itemId: cloak.id, content: cloak } },
+        { slot: "head", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("Дія: <b>⚕️ Інструкція Асклепія</b>");
+    expect(text).toContain("позичена, не рідна");
+    expect(text).toContain("Перк: <b>🧥 Чужа єгерська справа</b> (без бойової кнопки)");
+    expect(text).toContain("✨ <b>Дія спорядження</b>");
+    expect(text).toContain("<b>⚕️ Інструкція Асклепія</b> <i>(5 мани, перезарядка 4; позичена, не рідна)</i>");
+    expect(text).not.toContain("<b>🧥 Чужа єгерська справа</b> <i>(");
   });
 
   it("shows the offhand as occupied by a twohand main-hand item", () => {
@@ -230,7 +322,7 @@ describe("equipment presenter", () => {
     expect(text).not.toContain("<b>Пательня</b>");
   });
 
-  it("keeps requirement denial callback text plain and specific", () => {
+  it("formats requirement denial callback text with safe item emphasis", () => {
     const text = presentEquipItemResult({
       state: "requirements-not-met",
       reasons: ["min-level", "class", "race"],
@@ -253,11 +345,14 @@ describe("equipment presenter", () => {
       }
     } satisfies EquipItemResult);
 
-    expect(text).toContain("Ще не екіпірується: Плащ «Я Тут Випадково» +3.");
-    expect(text).toContain("Потрібно: рівень 10+, клас: Бюрокрамант, походження: Людиноподібний.");
-    expect(text).toContain("Це правило манатки, не помилка героя.");
-    expect(text).not.toContain("<b>");
-    expect(text).not.toContain("</b>");
+    expect(text).toContain("Ще не екіпірується: <b>Плащ «Я Тут Випадково» +3</b>.");
+    expect(text).toContain(
+      "<b>Плащ «Я Тут Випадково» +3</b>.\n\nПотрібно: рівень 10+, клас: Бюрокрамант, походження: Людиноподібний."
+    );
+    expect(text).toContain(
+      "Потрібно: рівень 10+, клас: Бюрокрамант, походження: Людиноподібний.\n\nЦе правило манатки, не помилка героя."
+    );
+    expect(text).not.toContain("<b><b>");
     expect(text).not.toContain("&lt;");
     expect(text).not.toContain("іншу анкету");
   });
@@ -285,9 +380,85 @@ describe("equipment presenter", () => {
       }
     } satisfies EquipItemResult);
 
-    expect(text).toContain("Ще не екіпірується: Жетон Боргоманта +2.");
+    expect(text).toContain("Ще не екіпірується: <b>Жетон Боргоманта +2</b>.");
     expect(text).toContain("Потрібно: клас: Бюрокромант.");
     expect(text).not.toContain("відповідний титул");
+  });
+
+  it("formats successful equipment callbacks as readable lines", () => {
+    const text = presentEquipItemResult({
+      state: "equipped",
+      slot: "weapon",
+      item: {
+        itemId: "item.ability.last-page-rapier",
+        content: {
+          id: "item.ability.last-page-rapier",
+          name: "Рапіра останньої сторінки",
+          description: "Ставить фінальну крапку.",
+          rarity: "epic",
+          slot: "weapon",
+          goldValue: 158,
+          effect: {
+            charisma: 1,
+            luck: 1,
+            weaponDamage: 4
+          }
+        }
+      },
+      replacedItem: {
+        itemId: "item.set.red-line.left-dagger",
+        content: {
+          id: "item.set.red-line.left-dagger",
+          name: "Кинджал червоного рядка",
+          description: "Ріже правки.",
+          rarity: "epic",
+          slot: "weapon",
+          goldValue: 120
+        }
+      },
+      slots: [],
+      achievementUnlocks: []
+    });
+
+    expect(text).toBe([
+      "Екіпіровано: <b>Рапіра останньої сторінки</b>.",
+      "Ефект: +1 Харизми · +1 Вдачі · +4 до удару.",
+      "",
+      "Попередня манатка зі слота <i>Основна рука</i> лишилася в торбі:",
+      "<b>Кинджал червоного рядка</b>."
+    ].join("\n"));
+  });
+
+  it("formats successful equipment callbacks with slot spacing when nothing is replaced", () => {
+    const text = presentEquipItemResult({
+      state: "equipped",
+      slot: "weapon",
+      item: {
+        itemId: "item.yeger.last-notch-bow",
+        content: {
+          id: "item.yeger.last-notch-bow",
+          name: "Лук останньої зарубки",
+          description: "Пам'ятає, де була остання помилка.",
+          rarity: "epic",
+          slot: "weapon",
+          goldValue: 158,
+          effect: {
+            dexterity: 2,
+            weaponDamage: 5
+          }
+        }
+      },
+      replacedItem: null,
+      slots: [],
+      achievementUnlocks: []
+    });
+
+    expect(text).toBe([
+      "Екіпіровано: <b>Лук останньої зарубки</b>.",
+      "Ефект: +2 Спритности · +5 до удару.",
+      "",
+      "Слот: <i>Основна рука</i>."
+    ].join("\n"));
   });
 
   it("explains slot-denied equip callback results", () => {
@@ -308,7 +479,7 @@ describe("equipment presenter", () => {
       }
     });
 
-    expect(text).toContain("Не екіпірується в слот «Друга рука»: Печатка дрібної переваги.");
+    expect(text).toContain("Не екіпірується в слот <i>Друга рука</i>: <b>Печатка дрібної переваги</b>.");
     expect(text).toContain("Ця манатка просить обидві руки.");
   });
 
@@ -342,9 +513,9 @@ describe("equipment presenter", () => {
       }
     });
 
-    expect(text).toContain("Дворучна примірка: Дворучна мітла протоколу займе обидві руки.");
-    expect(text).toContain("Звільниться: Печатка дрібної переваги.");
-    expect(text).toContain("Підтвердити?");
+    expect(text).toContain("Дворучна примірка: <b>Дворучна мітла протоколу</b> займе обидві руки.");
+    expect(text).toContain("Звільниться: <b>Печатка дрібної переваги</b>.");
+    expect(text).toContain("Звільниться: <b>Печатка дрібної переваги</b>.\n\nПідтвердити?");
   });
 });
 

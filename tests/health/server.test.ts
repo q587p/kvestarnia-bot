@@ -78,11 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Бочка отримала маршрут для новачків");
-    expect(text).toContain("Бочка, або Туди і звідти");
-    expect(text).toContain("з 2 до 5 рівня можна взяти нову разову справу");
-    expect(text).toContain("якщо піна вивітриться дорогою назад");
-    expect(text).toContain("Бочка нарешті отримала навчальний маршрут");
+    expect(text).toContain("Манатки навчилися натискати кнопки");
+    expect(text).toContain("частина рідкісних манаток тепер може давати окрему дію спорядження");
+    expect(text).toContain("позичені трюки лишаються саме трюками спорядження");
+    expect(text).toContain("картки манаток, спорядження і персонажа пояснюють");
+    expect(text).toContain("Це не крамниця, не крафт");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

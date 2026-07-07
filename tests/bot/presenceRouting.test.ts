@@ -205,6 +205,14 @@ describe("presence routing", () => {
         currentAdventureId: null
       }
     ],
+    [
+      "lore",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+        currentRaidId: null,
+        currentAdventureId: null
+      }
+    ],
     ["inventory", {}],
     ["online", {}],
     ["look", {}],

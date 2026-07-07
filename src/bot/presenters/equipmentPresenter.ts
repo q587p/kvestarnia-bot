@@ -8,6 +8,8 @@ import type {
   UnequipSlotResult
 } from "../../services/equipmentService";
 import type { ItemEffectContent } from "../../content/schema";
+import { findMantokAbilityGrantByItemId } from "../../content";
+import type { MantokAbilityGrantDefinition } from "../../content";
 import { getActiveMantokSets } from "../../domain/equipment/mantokSetBonuses";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -51,6 +53,7 @@ export function presentEquipment(result: EquipmentResult): string {
     "<i>Манатки нарешті штовхають циферки. Корчма робить вигляд, що так і планувала.</i>",
     "",
     ...intersperseBlankLines(equipmentSlots.map((slot) => presentEquipmentSlot(slot, result.slots))),
+    ...presentMantokAbilityActionSummaryLines(result.slots),
     ...presentMantokSetSummaryLines(result.slots)
   ].join("\n");
 }
@@ -69,14 +72,16 @@ export function presentEquipItemResult(result: EquipItemResult): string {
   }
 
   if (result.state === "requirements-not-met") {
-    const itemName = plainTextForCallback(result.item.content.name);
+    const itemName = presentCallbackHtmlText(result.item.content.name);
     const reasons = presentEquipRequirementReasons(result.reasons, result.requirements);
 
     return [
-      `Ще не екіпірується: ${itemName}.`,
+      `Ще не екіпірується: <b>${itemName}</b>.`,
+      "",
       reasons ? `Потрібно: ${reasons}.` : "Корчмар ще звіряє правила цієї манатки.",
+      "",
       "Це правило манатки, не помилка героя."
-    ].join(" ");
+    ].join("\n");
   }
 
   if (result.state === "unsupported-slot") {
@@ -89,22 +94,36 @@ export function presentEquipItemResult(result: EquipItemResult): string {
 
   if (result.state === "twohand-confirm-required") {
     return [
-      `Дворучна примірка: ${plainTextForCallback(result.item.content.name)} займе обидві руки.`,
-      `Звільниться: ${plainTextForCallback(result.clearedHandItem.content.name)}.`,
+      `Дворучна примірка: <b>${presentCallbackHtmlText(result.item.content.name)}</b> займе обидві руки.`,
+      `Звільниться: <b>${presentCallbackHtmlText(result.clearedHandItem.content.name)}</b>.`,
+      "",
       "Підтвердити?"
-    ].join(" ");
+    ].join("\n");
   }
 
   const effect = presentItemEffect(result.item.content.effect);
-  const effectText = effect ? ` Ефект: ${effect}.` : " Бойового ефекту не виявлено.";
-  const replacementText = result.replacedItem
-    ? ` Попередня манатка зі слота «${presentEquipmentSlotLabel(result.slot)}» лишилася в торбі: ${plainTextForCallback(result.replacedItem.content.name)}.`
-    : ` Слот: ${presentEquipmentSlotLabel(result.slot)}.`;
-  const clearedHandText = result.clearedHandItem
-    ? ` Конфліктна рука звільнилася: ${plainTextForCallback(result.clearedHandItem.content.name)} лишилася в торбі.`
-    : "";
+  const lines = [
+    `Екіпіровано: <b>${presentCallbackHtmlText(result.item.content.name)}</b>.`,
+    effect ? `Ефект: ${effect}.` : "Бойового ефекту не виявлено."
+  ];
 
-  return `Екіпіровано: ${plainTextForCallback(result.item.content.name)}.${effectText}${replacementText}${clearedHandText}`;
+  if (result.replacedItem) {
+    lines.push(
+      `\nПопередня манатка зі слота <i>${presentEquipmentSlotLabel(result.slot)}</i> лишилася в торбі:`,
+      `<b>${presentCallbackHtmlText(result.replacedItem.content.name)}</b>.`
+    );
+  } else {
+    lines.push(`\nСлот: <i>${presentEquipmentSlotLabel(result.slot)}</i>.`);
+  }
+
+  if (result.clearedHandItem) {
+    lines.push(
+      "\nКонфліктна рука звільнилася:",
+      `<b>${presentCallbackHtmlText(result.clearedHandItem.content.name)}</b> лишилася в торбі.`
+    );
+  }
+
+  return lines.join("\n");
 }
 
 export function presentUnequipSlotResult(result: UnequipSlotResult): string {
@@ -137,17 +156,59 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
 
     return [
       `${slot.icon} <b>${slot.label}</b>: ${name}`,
-      `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`
+      `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`,
+      ...presentMantokAbilityGrantSlotLines(equipped.content.id)
     ].join("\n");
   }
 
   return `${slot.icon} <b>${slot.label}</b>: <i>${slot.emptyText}</i>`;
 }
 
-function presentMantokSetSummaryLines(slots: EquipmentSlotSummary[]): string[] {
-  const equippedItemIds = [
-    ...new Set(slots.flatMap((slot) => (slot.item ? [slot.item.itemId] : [])))
+function presentMantokAbilityGrantSlotLines(itemId: string): string[] {
+  const grant = findMantokAbilityGrantByItemId(itemId);
+  if (!grant) {
+    return [];
+  }
+
+  if (grant.combat) {
+    const cost = grant.combat.profile.manaCost > 0
+      ? `${grant.combat.profile.manaCost} мани`
+      : "без мани";
+    const borrowed = grant.borrowedFrom ? "; позичена, не рідна" : "";
+
+    return [
+      `Дія: <b>${escapeHtml(grant.label)}</b> (${cost}, перезарядка ${grant.combat.profile.cooldownOwnActions}${borrowed})`
+    ];
+  }
+
+  return [`Перк: <b>${escapeHtml(grant.label)}</b> (без бойової кнопки)`];
+}
+
+function presentMantokAbilityActionSummaryLines(slots: EquipmentSlotSummary[]): string[] {
+  const grants = getEquippedCombatMantokAbilityGrants(slots);
+
+  if (grants.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    "",
+    "✨ <b>Дія спорядження</b>",
+    "",
+    ...grants.map((grant) => {
+      const cost = grant.combat.profile.manaCost > 0
+        ? `${grant.combat.profile.manaCost} мани`
+        : "без мани";
+      const borrowed = grant.borrowedFrom ? "; позичена, не рідна" : "";
+
+      return `<b>${escapeHtml(grant.label)}</b> <i>(${cost}, перезарядка ${grant.combat.profile.cooldownOwnActions}${borrowed})</i>`;
+    })
   ];
+}
+
+function presentMantokSetSummaryLines(slots: EquipmentSlotSummary[]): string[] {
+  const equippedItemIds = getEquippedUniqueItemIds(slots);
   const summaries = getActiveMantokSets(equippedItemIds);
 
   if (summaries.length === 0) {
@@ -218,9 +279,29 @@ function presentSlotDeniedEquipResult(
   reason: EquipmentSlotDeniedReason
 ): string {
   return [
-    `Не екіпірується в слот «${presentEquipmentSlotLabel(slot)}»: ${plainTextForCallback(itemName)}.`,
+    `Не екіпірується в слот <i>${presentEquipmentSlotLabel(slot)}</i>: <b>${presentCallbackHtmlText(itemName)}</b>.`,
     `${capitalizeFirst(presentSlotDeniedReason(reason, slot))}.`
-  ].join(" ");
+  ].join("\n");
+}
+
+type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
+  combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
+};
+
+function getEquippedCombatMantokAbilityGrants(
+  slots: EquipmentSlotSummary[]
+): CombatMantokAbilityGrantDefinition[] {
+  return getEquippedUniqueItemIds(slots).flatMap((itemId) => {
+    const grant = findMantokAbilityGrantByItemId(itemId);
+
+    return grant?.combat ? [grant as CombatMantokAbilityGrantDefinition] : [];
+  });
+}
+
+function getEquippedUniqueItemIds(slots: EquipmentSlotSummary[]): string[] {
+  return [
+    ...new Set(slots.flatMap((slot) => (slot.item && !slot.occupiedByTwohand ? [slot.item.itemId] : [])))
+  ];
 }
 
 function capitalizeFirst(value: string): string {
@@ -276,4 +357,8 @@ function plainTextForCallback(value: string): string {
     .replace(/>/g, "›")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function presentCallbackHtmlText(value: string): string {
+  return escapeHtml(plainTextForCallback(value));
 }

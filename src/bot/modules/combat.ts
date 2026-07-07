@@ -61,6 +61,7 @@ presentFightNoCharacter,
 presentFightResult,
 presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
+presentPersistentFightGearUnavailableNotice,
 presentPersistentFightItemUnavailableNotice,
 presentPersistentFightJournal,
 presentPersistentFightPassagePreview,
@@ -540,7 +541,7 @@ async function handleFightCallback(
     return;
   }
 
-  if (callback.type === "turn" || callback.type === "item") {
+  if (callback.type === "turn" || callback.type === "item" || callback.type === "gear") {
     const yegerBefore = await getYegerProgressSnapshot(services.yeger, telegramUserId);
     const result = callback.type === "turn"
       ? await services.fight.resolvePersistentFightTurn(telegramUserId, {
@@ -548,6 +549,13 @@ async function handleFightCallback(
           turn: callback.turn,
           action: callback.action
         })
+      : callback.type === "gear"
+        ? await services.fight.resolvePersistentFightTurn(telegramUserId, {
+            sessionId: callback.sessionId,
+            turn: callback.turn,
+            action: "gear",
+            grantKey: callback.grantKey
+          })
       : await services.fight.resolvePersistentFightItemTurn(telegramUserId, {
           sessionId: callback.sessionId,
           turn: callback.turn,
@@ -571,8 +579,12 @@ async function handleFightCallback(
     const itemUnavailableNotice = callback.type === "item"
       ? presentPersistentFightItemUnavailableNotice(result)
       : null;
-    await safeAnswerCallbackQuery(ctx, itemUnavailableNotice
-      ? { text: itemUnavailableNotice, show_alert: true }
+    const gearUnavailableNotice = callback.type === "gear"
+      ? presentPersistentFightGearUnavailableNotice(result)
+      : null;
+    const unavailableNotice = itemUnavailableNotice ?? gearUnavailableNotice;
+    await safeAnswerCallbackQuery(ctx, unavailableNotice
+      ? { text: unavailableNotice, show_alert: true }
       : undefined);
     await safeEditMessageText(ctx, presentPersistentFightTurn(result), {
       ...HTML_MESSAGE_OPTIONS,

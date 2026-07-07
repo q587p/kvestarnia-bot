@@ -16,7 +16,8 @@ import {
   sendLoreGroup,
   sendLoreMenu,
   sendRandomLoreEntry,
-  sendRandomLoreEntryForCategory
+  sendRandomLoreEntryForCategory,
+  registerLoreBoardCommand
 } from "../commands/loreBoardCommand";
 import { registerLookCommand } from "../commands/lookCommand";
 import { registerNewsCommand, sendNewsEntry, sendNewsList } from "../commands/newsCommand";
@@ -61,6 +62,7 @@ export function registerCoreBotModule(
     })
   });
   registerNewsCommand(bot);
+  registerLoreBoardCommand(bot);
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
   registerPlannedCommands(bot);

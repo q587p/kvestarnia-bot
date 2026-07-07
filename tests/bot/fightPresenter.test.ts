@@ -14,11 +14,12 @@ import {
   presentPersistentFightPassagePreview,
   presentPersistentFightIntro,
   presentPersistentFightJournal,
+  presentPersistentFightGearUnavailableNotice,
   presentPersistentFightTurn
 } from "../../src/bot/presenters/fightPresenter";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
-import type { FightResult } from "../../src/services/fightService";
+import type { FightResult, PersistentFightTurnResult } from "../../src/services/fightService";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -1241,6 +1242,274 @@ describe("fight presenter", () => {
     expect(stale).toContain("👹 Тестовий: 18/18");
     expect(noMana).toContain("Мани не стало навіть на драматичний жест");
     expect(noMana).not.toContain("Нагорода");
+  });
+
+  it("uses gear-specific copy for persistent fight gear cooldown callbacks", () => {
+    const result: PersistentFightTurnResult = {
+      state: "not-enough-mana",
+      reason: "skill-on-cooldown",
+      character,
+      session: persistentSession({
+        hero: {
+          hp: 24,
+          hpMax: 24,
+          mana: 12,
+          manaMax: 12
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    };
+    const text = presentPersistentFightTurn(result);
+
+    expect(text).toContain("Дія спорядження ще відсапується");
+    expect(text).not.toContain("Вміння ще відсапується");
+    expect(presentPersistentFightGearUnavailableNotice(result)).toBe(
+      "Дія спорядження не спрацювала: ще відсапується."
+    );
+  });
+
+  it("formats persistent fight gear callback no-op notices", () => {
+    expect(presentPersistentFightGearUnavailableNotice({
+      state: "stale-turn",
+      character,
+      session: persistentSession(),
+      monster: null,
+      questProgress: questProgress(4)
+    })).toBe("Дія спорядження не спрацювала: цей хід уже змінився.");
+    expect(presentPersistentFightGearUnavailableNotice({
+      state: "not-enough-mana",
+      reason: "not-enough-mana",
+      character,
+      session: persistentSession(),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    })).toBe("Дія спорядження не спрацювала: мани замало.");
+  });
+
+  it("shows gear action availability, cooldown and bleed notices on active fight cards", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character: { ...character, level: 10 },
+      session: persistentSession({
+        hero: {
+          hp: 24,
+          hpMax: 24,
+          mana: 0,
+          manaMax: 12
+        },
+        equipmentAbilities: {
+          version: 1,
+          grantIds: ["mantok-ability.red-line-dagger"]
+        },
+        cooldowns: {
+          abilities: {
+            "gear.red-line-dagger": {
+              id: "gear.red-line-dagger",
+              remainingTurns: 2
+            }
+          }
+        },
+        enemyStatuses: {
+          version: 1,
+          enemies: {
+            "enemy:1": {
+              bleed: {
+                sourceAbilityId: "gear.red-line-dagger",
+                sourceActor: "hero",
+                target: "enemy",
+                kind: "bleed",
+                polarity: "harmful",
+                removable: true,
+                damagePerActivation: 1,
+                remainingHeroActivations: 2,
+                refreshedAtTurn: 1
+              }
+            }
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🫁 🩸 Червоний рядок відсапується: ще 2 ходи.");
+    expect(text).toContain("🩸 Кровотеча триває: 1 шкоди, ще 2 активац.");
+  });
+
+  it("shows gear mana failure reasons on active fight cards", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character: { ...character, level: 10 },
+      session: persistentSession({
+        hero: {
+          hp: 24,
+          hpMax: 24,
+          mana: 0,
+          manaMax: 12
+        },
+        equipmentAbilities: {
+          version: 1,
+          grantIds: ["mantok-ability.red-line-dagger"]
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("🪫 🩸 Червоний рядок: треба 1 мани, зараз 0.");
+  });
+
+  it("shows gear action names and bleed notices in the fight journal", () => {
+    const text = presentPersistentFightJournal(
+      {
+        state: "found",
+        character: { ...character, level: 10 },
+        session: persistentSession({
+          turn: 2,
+          turnLog: [
+            {
+              turn: 1,
+              summary: {
+                action: "gear",
+                heroOutcome: "hit",
+                heroDamage: 5,
+                monsterDamage: 2,
+                heroEffectDamage: 1,
+                manaSpent: 1,
+                critical: false,
+                skillId: "gear.red-line-dagger",
+                abilitySource: "equipment"
+              },
+              notices: ["Ефект триває: кровотеча 1 шкоди, ще 2 активац."],
+              cooldowns: {
+                abilities: {
+                  "gear.red-line-dagger": {
+                    id: "gear.red-line-dagger",
+                    remainingTurns: 2
+                  }
+                }
+              },
+              hero: {
+                hp: 22,
+                mana: 9
+              },
+              monster: {
+                hp: 12
+              }
+            }
+          ]
+        }),
+        monster: null
+      },
+      0
+    );
+
+    expect(text).toContain("Вміння 🩸 <i>Червоний рядок</i> влучає на 5 шкоди.");
+    expect(text).toContain("Накладений ефект спрацював і завдав 1 шкоди.");
+    expect(text).toContain("🫁 🩸 Червоний рядок відсапується: ще 2 ходи.");
+    expect(text).toContain("🧷 Ефект триває: кровотеча 1 шкоди, ще 2 активац.");
+  });
+
+  it("names defensive gear actions on active fight cards and journal pages", () => {
+    const session = persistentSession({
+      turn: 2,
+      cooldowns: {
+        abilities: {
+          "gear.barrel-counter-shield": {
+            id: "gear.barrel-counter-shield",
+            remainingTurns: 3
+          }
+        }
+      },
+      lastTurn: {
+        action: "gear",
+        heroOutcome: "defended",
+        heroDamage: 0,
+        monsterDamage: 1,
+        manaSpent: 0,
+        critical: false,
+        skillId: "gear.barrel-counter-shield",
+        abilitySource: "equipment"
+      },
+      turnLog: [{
+        turn: 1,
+        summary: {
+          action: "gear",
+          heroOutcome: "defended",
+          heroDamage: 0,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          skillId: "gear.barrel-counter-shield",
+          abilitySource: "equipment"
+        },
+        cooldowns: {
+          abilities: {
+            "gear.barrel-counter-shield": {
+              id: "gear.barrel-counter-shield",
+              remainingTurns: 3
+            }
+          }
+        },
+        hero: {
+          hp: 23,
+          mana: 12
+        },
+        monster: {
+          hp: 18
+        }
+      }]
+    });
+    const fight = {
+      state: "persistent-active" as const,
+      character: { ...character, level: 9 },
+      session,
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    };
+
+    const card = presentPersistentFight(fight);
+    const journal = presentPersistentFightJournal({
+      ...fight,
+      state: "found",
+      fightReward: null
+    }, 0);
+
+    expect(card).toContain("Вміння 🛡 <i>Бочковий контраргумент</i> спрацьовує");
+    expect(card).toContain("🫁 🛡 Бочковий контраргумент відсапується: ще 3 ходи.");
+    expect(journal).toContain("Вміння 🛡 <i>Бочковий контраргумент</i> спрацьовує");
+    expect(journal).toContain("🫁 🛡 Бочковий контраргумент відсапується: ще 3 ходи.");
   });
 
   it("shows item-use failures without replaying the previous real turn", () => {

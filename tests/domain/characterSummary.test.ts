@@ -147,6 +147,39 @@ describe("summarizeCharacter", () => {
       }
     });
   });
+
+  it("summarizes combat gear actions from equipped Mantok ability items", () => {
+    expect(
+      summarizeCharacter(character({ level: 13, xp: 1000 }), {
+        equippedItems: [
+          {
+            id: "item.ability.last-page-rapier",
+            name: "Рапіра останньої сторінки",
+            description: "Неважливо.",
+            rarity: "epic",
+            slot: "weapon",
+            goldValue: 158
+          },
+          {
+            id: "item.set.yeger-shadow.cloak",
+            name: "Плащ чужої єгерської справи",
+            description: "Неважливо.",
+            rarity: "epic",
+            slot: "armor",
+            equipmentSlot: "chest",
+            goldValue: 124
+          }
+        ]
+      })
+    ).toMatchObject({
+      equipmentAbilityActions: [
+        {
+          id: "mantok-ability.last-page-rapier",
+          label: "🖋 Остання сторінка"
+        }
+      ]
+    });
+  });
 });
 
 function character(overrides: Partial<Parameters<typeof summarizeCharacter>[0]> = {}) {

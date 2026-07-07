@@ -248,13 +248,20 @@ describe("hero presenter", () => {
           luck: 1
         },
         contributions: []
-      }
+      },
+      equipmentAbilityActions: [
+        {
+          id: "mantok-ability.last-page-rapier",
+          label: "🖋 Остання сторінка"
+        }
+      ]
     });
 
     expect(text).toContain("❤️ HP 26/26");
     expect(text).toContain("🎒 Манатки: +2 HP · +1 Вдачі");
     expect(text).toContain("🛡️ Захист спорядження: +1 до захисту");
     expect(text).toContain("🗡️ Удар: +2 до удару");
+    expect(text).toContain("✨ Дія спорядження: <b>🖋 Остання сторінка</b>");
     expect(text).toContain("Зміна: +4 HP · +2 мани · +1 Спритності");
   });
 

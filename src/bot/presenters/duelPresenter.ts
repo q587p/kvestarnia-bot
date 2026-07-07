@@ -18,6 +18,7 @@ import {
 import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentDuelEntry(): string {
@@ -541,6 +542,8 @@ function presentQueuedDuelAction(action: string): string {
     ? "класова дія"
     : action === "race"
       ? "расова дія"
+    : action === "gear"
+      ? "дія спорядження"
     : action === "defend"
       ? "захист"
     : action === "surrender"
@@ -557,13 +560,37 @@ function presentTurnBasedLastAction(action: {
   guard?: number;
   manaSpent: number;
   critical: boolean;
+  skillId?: string;
   fumble?: {
     kind: "self-damage" | "enemy-heal";
     line: string;
     selfDamage?: number | undefined;
     enemyHealing?: number | undefined;
-  } | undefined;
+} | undefined;
 }): string {
+  if (action.action === "gear") {
+    const skillLabel = presentCombatSkillHtml(action.skillId);
+    const hitLine =
+      action.fumble
+        ? presentTurnBasedDuelFumble(action.fumble)
+        : action.damage > 0
+          ? `Шкода: <b>${action.damage}</b>${action.critical ? " · критично" : ""}.`
+          : action.healing || action.guard
+            ? "Шкода не пройшла, але підтримка спрацювала."
+          : action.outcome === "not-enough-mana"
+            ? "Мани не вистачило, але хід усе одно пішов у протокол."
+          : action.outcome === "skill-on-cooldown"
+            ? "Дія ще не відлипла від попереднього разу."
+            : "Шкода не пройшла.";
+    const supportLine = presentCombatSupportEffectLine(action, { boldNumbers: true });
+
+    return [
+      `🎒 Дія спорядження ${skillLabel} записана в протокол.`,
+      hitLine,
+      supportLine
+    ].filter(Boolean).join("\n");
+  }
+
   const actionLine =
     action.action === "surrender"
       ? "🏳️ Учасник здався. Корчмар записав це без зайвих запитань."
@@ -589,12 +616,9 @@ function presentTurnBasedLastAction(action: {
           ? "Дія ще не відлипла від попереднього разу."
           : "Шкода не пройшла.";
 
-  const supportLine = [
-    action.healing ? `HP підросли на <b>${action.healing}</b>` : "",
-    action.guard ? `захист тримає <b>${action.guard}</b>` : ""
-  ].filter(Boolean).join("; ");
+  const supportLine = presentCombatSupportEffectLine(action, { boldNumbers: true });
 
-  return [actionLine, hitLine, supportLine ? `Підтримка: ${supportLine}.` : ""].filter(Boolean).join("\n");
+  return [actionLine, hitLine, supportLine].filter(Boolean).join("\n");
 }
 
 function presentTurnBasedDuelFumble(action: {

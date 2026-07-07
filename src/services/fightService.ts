@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { items, monsterLoot } from "../content";
+import {
+  findMantokAbilityGrantByKey,
+  getCombatMantokAbilityGrantsForEquippedItems,
+  items,
+  mantokAbilityGrantDefinitions,
+  monsterLoot
+} from "../content";
 import { findMonsterAbility } from "../content/monsterAbilities";
 import { findPlayerAbility, findRaceAbility } from "../content/playerAbilities";
 import { monsters } from "../content/monsters";
@@ -48,6 +54,7 @@ import {
   recordCombatTimeout,
   resetCombatTimeout,
   resolveCombatItemTurn,
+  resolveCombatGearTurn,
   resolveCombatTurn,
   resolveMonsterContext,
   startCombat,
@@ -1362,10 +1369,36 @@ export class FightService {
       };
     }
 
-    if (refreshedSession.state.hero.hp <= 0) {
+    const equipmentRefreshedSession = await this.refreshActiveEquipmentAbilitiesForSession(
+      telegramUserId,
+      refreshedSession,
+      characterSummary.level,
+      resourceAware.equippedItemIds
+    );
+
+    if (
+      equipmentRefreshedSession.status !== "active" ||
+      equipmentRefreshedSession.state?.status !== "active"
+    ) {
+      return {
+        state: "persistent-terminal",
+        character: characterSummary,
+        session: equipmentRefreshedSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          equipmentRefreshedSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (equipmentRefreshedSession.state.hero.hp <= 0) {
       const terminalSession = await this.terminalizeZeroHpActiveSession(
         telegramUserId,
-        refreshedSession
+        equipmentRefreshedSession
       );
       const fightReward = await this.getOrRecoverPersistentFightReward(
         telegramUserId,
@@ -1388,7 +1421,7 @@ export class FightService {
     return {
       state: "persistent-active",
       character: characterSummary,
-      session: refreshedSession,
+      session: equipmentRefreshedSession,
       monster,
       questProgress
     };
@@ -1512,7 +1545,8 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character);
+    const characterSummary = resourceAware.character;
 
     if (!this.combatSessions) {
       return {
@@ -1534,18 +1568,24 @@ export class FightService {
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
     const monster = findPersistentFightMonster(session);
+    const refreshedSession = await this.refreshActiveEquipmentAbilitiesForSession(
+      telegramUserId,
+      session,
+      characterSummary.level,
+      resourceAware.equippedItemIds
+    );
 
     return {
       state: "found",
       character: characterSummary,
-      session,
+      session: refreshedSession,
       monster,
       questProgress,
-      fightReward: session.status === "active"
+      fightReward: refreshedSession.status === "active"
         ? null
         : await this.getOrRecoverPersistentFightReward(
             telegramUserId,
-            session,
+            refreshedSession,
             monster,
             characterSummary
           )
@@ -1614,9 +1654,10 @@ export class FightService {
 
     if (leasedSession.state === "session") {
       const activeSession = leasedSession.session;
-      const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character, {
+      const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
         syncResources: false
       });
+      const characterSummary = resourceAware.character;
 
       if (isTrainingDoppelgangerMonsterId(activeSession.monsterId)) {
         return {
@@ -1714,10 +1755,17 @@ export class FightService {
           };
         }
 
+        const equipmentRefreshedSession = await this.refreshActiveEquipmentAbilitiesForSession(
+          telegramUserId,
+          refreshedSession,
+          characterSummary.level,
+          resourceAware.equippedItemIds
+        );
+
         return {
           state: "persistent-active",
           character: characterSummary,
-          session: refreshedSession,
+          session: equipmentRefreshedSession,
           monster,
           questProgress
         };
@@ -1825,6 +1873,16 @@ export class FightService {
       version: 1
     };
     state.originLocationId = resolvePersistentFightOriginLocationId(options);
+    const equipmentGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
+      itemIds: resourceAware.equippedItemIds,
+      characterLevel: characterSummary.level
+    }).map((grant) => grant.id);
+    if (equipmentGrantIds.length > 0) {
+      state.equipmentAbilities = {
+        version: 1,
+        grantIds: equipmentGrantIds
+      };
+    }
     const shouldAttachThreat = (threatDecision.enemyCount === 2 && !options.enemyCount) ||
       (options.enemyCount === 2 && options.devBypassAvailability && devThreatSecondEnemyLevelBonus > 0);
     if (shouldAttachThreat) {
@@ -1940,7 +1998,8 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character);
+    const characterSummary = resourceAware.character;
 
     const existingFight = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
@@ -2070,7 +2129,7 @@ export class FightService {
 
   async resolvePersistentFightTurn(
     telegramUserId: bigint,
-    input: { sessionId: string; turn: number; action: CombatActionType }
+    input: { sessionId: string; turn: number; action: CombatActionType; grantKey?: string }
   ): Promise<PersistentFightTurnResult> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -2078,7 +2137,8 @@ export class FightService {
       return { state: "no-character" };
     }
 
-    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+    const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character);
+    const characterSummary = resourceAware.character;
 
     if (!this.combatSessions) {
       return {
@@ -2225,9 +2285,42 @@ export class FightService {
       };
     }
 
-    const currentSession = deadlineSession;
+    let currentSession = deadlineSession;
 
     if (!currentSession.state) {
+      return {
+        state: "terminal",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress,
+        fightReward: await this.getOrRecoverPersistentFightReward(
+          telegramUserId,
+          currentSession,
+          monster,
+          characterSummary
+        )
+      };
+    }
+
+    if (currentSession.state.turn !== input.turn) {
+      return {
+        state: "stale-turn",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    currentSession = await this.refreshActiveEquipmentAbilitiesForSession(
+      telegramUserId,
+      currentSession,
+      characterSummary.level,
+      resourceAware.equippedItemIds
+    );
+
+    if (currentSession.status !== "active" || currentSession.state?.status !== "active") {
       return {
         state: "terminal",
         character: characterSummary,
@@ -2276,14 +2369,45 @@ export class FightService {
       };
     }
 
-    const resolved = resolveCombatTurn({
+    const grant = input.action === "gear" && input.grantKey
+      ? findMantokAbilityGrantByKey(input.grantKey)
+      : null;
+    if (input.action === "gear" && (!grant?.combat || !currentSession.state.equipmentAbilities?.grantIds.includes(grant.id))) {
+      return {
+        state: "stale-turn",
+        character: characterSummary,
+        session: currentSession,
+        monster,
+        questProgress
+      };
+    }
+
+    const commonTurnInput = {
       state: currentSession.state,
-      action: input.action,
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
       rng: this.rng
-    });
+    };
+    const resolved = grant?.combat
+      ? resolveCombatGearTurn({
+          ...commonTurnInput,
+          ability: {
+            profile: grant.combat.profile,
+            ...(grant.combat.bleed
+              ? {
+                  bleed: {
+                    sourceAbilityId: grant.combat.profile.id,
+                    ...grant.combat.bleed
+                  }
+                }
+              : {})
+          }
+        })
+      : resolveCombatTurn({
+          ...commonTurnInput,
+          action: input.action
+        });
 
     if (!resolved.ok && resolved.reason !== "not-enough-mana" && resolved.reason !== "skill-on-cooldown") {
       return {
@@ -2366,6 +2490,14 @@ export class FightService {
         : null;
 
     const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const achievementUnlocks = input.action === "gear" && grant
+      ? (await this.achievements?.trackEventSafely({
+          type: "mantok.gear-action.used",
+          characterId: currentSession.characterId,
+          occurredAt: this.clock(),
+          sourceId: `${updated.id}:turn:${input.turn}:gear:${grant.id}`
+        })) ?? []
+      : [];
 
     return {
       state: "updated",
@@ -2373,7 +2505,8 @@ export class FightService {
       session: updated,
       monster,
       questProgress: refreshedQuestProgress,
-      fightReward
+      fightReward,
+      achievementUnlocks
     };
   }
 
@@ -3350,8 +3483,13 @@ export class FightService {
     telegramUserId: bigint,
     character: CharacterRecord,
     options: { syncResources?: boolean } = {}
-  ): Promise<{ character: CharacterSummary; recoveryNotice?: ResourceRecoveryNotice }> {
+  ): Promise<{
+    character: CharacterSummary;
+    equippedItemIds: string[];
+    recoveryNotice?: ResourceRecoveryNotice;
+  }> {
     const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
+    const equippedItemIds = equipmentSnapshot?.equipment.map((row) => row.itemId) ?? [];
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
 
     if (options.syncResources) {
@@ -3371,6 +3509,7 @@ export class FightService {
 
       return {
         character: resourceAware.character,
+        equippedItemIds,
         ...(resourceAware.recoveryNotice
           ? { recoveryNotice: resourceAware.recoveryNotice }
           : {})
@@ -3380,8 +3519,52 @@ export class FightService {
     return {
       character: summarizeCharacter(character, {
         equippedItems
-      })
+      }),
+      equippedItemIds
     };
+  }
+
+  private async refreshActiveEquipmentAbilitiesForSession(
+    telegramUserId: bigint,
+    session: SoloCombatSessionRecord,
+    characterLevel: number,
+    equippedItemIds: readonly string[]
+  ): Promise<SoloCombatSessionRecord> {
+    if (!this.combatSessions || session.status !== "active" || session.state?.status !== "active") {
+      return session;
+    }
+
+    const grantIds = getCombatMantokAbilityGrantsForEquippedItems({
+      itemIds: equippedItemIds,
+      characterLevel
+    }).map((grant) => grant.id);
+    const currentGrantIds = session.state.equipmentAbilities?.grantIds ?? [];
+
+    if (sameStringList(currentGrantIds, grantIds)) {
+      return session;
+    }
+
+    const state = cloneCombatState(session.state);
+
+    if (grantIds.length > 0) {
+      state.equipmentAbilities = {
+        version: 1,
+        grantIds
+      };
+    } else {
+      delete state.equipmentAbilities;
+    }
+
+    const updated = await this.combatSessions.updateByIdIfActiveTurn(session.id, session.state.turn, {
+      state,
+      status: state.status
+    });
+
+    if (updated) {
+      return updated;
+    }
+
+    return await this.combatSessions.findByIdForTelegramUserId(telegramUserId, session.id) ?? session;
   }
 
   private async findLeasedSoloCombatSessionForTelegramUser(
@@ -4461,6 +4644,10 @@ function getLootExpansionSourceForMonster(monster: MonsterContent): LootExpansio
   return "trash_mob";
 }
 
+function sameStringList(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function buildPersistentFightRewardReplay(
   session: SoloCombatSessionRecord
 ): PersistentFightReward | null {
@@ -5219,6 +5406,17 @@ export interface CombatSkillDisplay {
 }
 
 export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillDisplay {
+  const gearGrant = mantokAbilityGrantDefinitions.find((grant) =>
+    "combat" in grant && grant.combat?.profile.id === skillId
+  );
+  if (gearGrant) {
+    const [icon, ...nameParts] = gearGrant.label.split(" ");
+    return {
+      icon: icon ?? "🎛",
+      name: nameParts.join(" ") || gearGrant.label
+    };
+  }
+
   const playerAbility = findPlayerAbility(skillId);
   if (playerAbility) {
     const [icon, ...nameParts] = playerAbility.label.split(" ");

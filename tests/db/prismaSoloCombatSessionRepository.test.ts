@@ -186,6 +186,23 @@ describe("PrismaSoloCombatSessionRepository", () => {
           remainingTurns: 1
         }
       },
+      equipmentAbilities: {
+        version: 1,
+        grantIds: ["mantok-ability.barrel-counter-shield"]
+      },
+      enemyStatuses: {
+        version: 1,
+        enemies: {
+          "enemy:1": {
+            bleed: {
+              sourceAbilityId: "gear.red-line-dagger",
+              damagePerActivation: 1,
+              remainingHeroActivations: 2,
+              refreshedAtTurn: 3
+            }
+          }
+        }
+      },
       drinkModifiers: {
         drinkKey: "drink.fine-beer",
         sourceId: "drink-state.beer",
@@ -331,6 +348,16 @@ describe("PrismaSoloCombatSessionRepository", () => {
     expect(mapped?.state?.lastTurn?.action).toBe("skip");
     expect(mapped?.state?.lastTurn?.actionOrigin).toBe("timeout-skip");
     expect(mapped?.state?.lastTurn?.debugTrace?.chosenAbilityId).toBe("skill.forceful-strike");
+    expect(mapped?.state?.equipmentAbilities).toEqual({
+      version: 1,
+      grantIds: ["mantok-ability.barrel-counter-shield"]
+    });
+    expect(mapped?.state?.enemyStatuses?.enemies["enemy:1"]?.bleed).toEqual({
+      sourceAbilityId: "gear.red-line-dagger",
+      damagePerActivation: 1,
+      remainingHeroActivations: 2,
+      refreshedAtTurn: 3
+    });
     expect(mapped?.state?.turnLog?.[0]).toMatchObject({
       eventId: "turn:3:timeout-skip",
       turn: 3,
@@ -357,6 +384,79 @@ describe("PrismaSoloCombatSessionRepository", () => {
     });
     expect(mapped?.state?.monster.copiedEquipment?.[0]?.sourceItemId).toBe("item.borrowed-pan");
     expect(mapped?.state?.monster.debugTrace?.copiedEquipmentCount).toBe(1);
+  });
+
+  it("preserves persisted gear action summaries for active fight cards and journals", async () => {
+    const gearSummary = {
+      action: "gear" as const,
+      heroOutcome: "hit" as const,
+      monsterOutcome: "hit" as const,
+      heroDamage: 5,
+      monsterDamage: 2,
+      heroEffectDamage: 1,
+      manaSpent: 1,
+      critical: false,
+      skillId: "gear.red-line-dagger",
+      abilitySource: "equipment" as const,
+      damageKind: "physical" as const
+    };
+    const state: CombatState = {
+      ...activeCombatState,
+      id: "session-gear-summary",
+      turn: 2,
+      cooldowns: {
+        abilities: {
+          "gear.red-line-dagger": {
+            id: "gear.red-line-dagger",
+            remainingTurns: 2
+          }
+        }
+      },
+      lastTurn: gearSummary,
+      turnLog: [{
+        turn: 1,
+        summary: gearSummary,
+        cooldowns: {
+          abilities: {
+            "gear.red-line-dagger": {
+              id: "gear.red-line-dagger",
+              remainingTurns: 2
+            }
+          }
+        },
+        hero: {
+          hp: 18,
+          mana: 9
+        },
+        monster: {
+          hp: 12
+        }
+      }]
+    };
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findFirst: () => Promise.resolve(makeSoloCombatRow(state))
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    const mapped = await repository.findByIdForTelegramUserId(42n, "session-gear-summary");
+
+    expect(mapped?.state?.lastTurn).toMatchObject({
+      action: "gear",
+      skillId: "gear.red-line-dagger",
+      abilitySource: "equipment",
+      heroEffectDamage: 1
+    });
+    expect(mapped?.state?.turnLog?.[0]?.summary).toMatchObject({
+      action: "gear",
+      skillId: "gear.red-line-dagger",
+      abilitySource: "equipment",
+      heroEffectDamage: 1
+    });
+    expect(mapped?.state?.turnLog?.[0]?.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 2
+    });
   });
 
   it("preserves a reloaded defend streak so the next persistent turn uses the second fatigue tier", async () => {
@@ -714,7 +814,7 @@ function runtimeRoundTripState(): CombatState {
         consecutiveMissedTurns: 1,
         lastMissedAt: "2026-06-20T00:00:24.000Z"
       },
-      cooldowns: {
+    cooldowns: {
       abilities: {
         "skill.forceful-strike": {
           id: "skill.forceful-strike",
@@ -724,6 +824,23 @@ function runtimeRoundTripState(): CombatState {
       skill: {
         id: "skill.forceful-strike",
         remainingTurns: 1
+      }
+    },
+    equipmentAbilities: {
+      version: 1,
+      grantIds: ["mantok-ability.barrel-counter-shield"]
+    },
+    enemyStatuses: {
+      version: 1,
+      enemies: {
+        "enemy:1": {
+          bleed: {
+            sourceAbilityId: "gear.red-line-dagger",
+            damagePerActivation: 1,
+            remainingHeroActivations: 2,
+            refreshedAtTurn: 3
+          }
+        }
       }
     },
     drinkModifiers: {

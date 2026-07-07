@@ -16,6 +16,10 @@ describe("dev grant commands", () => {
     const toolItemCalls = await captureMessageCalls("/dev_add_random_item slot=tool", devGrant);
     const taggedItemCalls = await captureMessageCalls("/dev_add_random_item 3 tag=twohand", devGrant);
     const combinedItemCalls = await captureMessageCalls("/dev_add_random_item 2 slot=weapon tag=twohand", devGrant);
+    const exactItemCalls = await captureMessageCalls(
+      "/dev_add_item 2 itemId=item.ability.last-page-rapier",
+      devGrant
+    );
     const defaultBandageCalls = await captureMessageCalls("/dev_add_bandage", devGrant);
     const explicitBandageCalls = await captureMessageCalls("/dev_add_bandage 5", devGrant);
     const defaultDenseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage", devGrant);
@@ -51,6 +55,7 @@ describe("dev grant commands", () => {
       equipmentSlot: "weapon",
       tag: "twohand"
     });
+    expect(devGrant.addItemById).toHaveBeenCalledWith(42n, "item.ability.last-page-rapier", 2);
     expect(devGrant.addBandages).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addBandages).toHaveBeenCalledWith(42n, 5);
     expect(devGrant.addDenseBandages).toHaveBeenCalledWith(42n, 1);
@@ -77,6 +82,7 @@ describe("dev grant commands", () => {
     expect(String(toolItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання");
     expect(String(taggedItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання ×3");
     expect(String(combinedItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання ×2");
+    expect(String(exactItemCalls.at(-1)?.payload.text)).toContain("Рапіра останньої сторінки ×2");
     expect(String(defaultBandageCalls.at(-1)?.payload.text)).toContain("Бинт відповідальної паніки");
     expect(String(explicitBandageCalls.at(-1)?.payload.text)).toContain("Бинт відповідальної паніки ×5");
     expect(String(defaultDenseBandageCalls.at(-1)?.payload.text)).toContain("Щільний бинт");
@@ -122,6 +128,8 @@ describe("dev grant commands", () => {
     const invalidRandomTagCalls = await captureMessageCalls("/dev_add_random_item tag=helmet", devGrant);
     const invalidRandomStoryTagCalls = await captureMessageCalls("/dev_add_random_item tag=story", devGrant);
     const invalidRandomDuplicateAmountCalls = await captureMessageCalls("/dev_add_random_item 1 2", devGrant);
+    const missingExactItemCalls = await captureMessageCalls("/dev_add_item", devGrant);
+    const invalidExactItemCalls = await captureMessageCalls("/dev_add_item 1 2 itemId=item.ability.last-page-rapier", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 0", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 0", devGrant);
 
@@ -131,6 +139,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
     expect(devGrant.addFieldKits).not.toHaveBeenCalled();
     expect(devGrant.addRandomItems).not.toHaveBeenCalled();
+    expect(devGrant.addItemById).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
     expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(String(levelCalls.at(-1)?.payload.text)).toContain(
@@ -154,6 +163,12 @@ describe("dev grant commands", () => {
     expect(String(invalidRandomTagCalls.at(-1)?.payload.text)).toContain("tag=twohand|offhand");
     expect(String(invalidRandomStoryTagCalls.at(-1)?.payload.text)).toContain("tag=twohand|offhand");
     expect(String(invalidRandomDuplicateAmountCalls.at(-1)?.payload.text)).toContain("slot=weapon");
+    expect(String(missingExactItemCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_add_item [додатне ціле число] itemId=<item.id>."
+    );
+    expect(String(invalidExactItemCalls.at(-1)?.payload.text)).toContain(
+      "itemId=item.ability.last-page-rapier"
+    );
     expect(String(healCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_heal [додатне ціле число HP]."
     );
@@ -184,12 +199,24 @@ describe("dev grant commands", () => {
     expect(String(calls.at(-1)?.payload.text)).toContain("Бій: HP 48/48");
   });
 
+  it("reports unknown exact item ids without mutating through the command", async () => {
+    const devGrant = fakeDevGrantService({
+      unknownItemIds: new Set(["item.no-such-mantok"])
+    });
+    const calls = await captureMessageCalls("/dev_add_item itemId=item.no-such-mantok", devGrant);
+
+    expect(devGrant.addItemById).toHaveBeenCalledWith(42n, "item.no-such-mantok", 1);
+    expect(String(calls.at(-1)?.payload.text)).toContain("не знайшов такої манатки");
+    expect(String(calls.at(-1)?.payload.text)).toContain("item.no-such-mantok");
+  });
+
   it("does not register value-granting commands when disabled", async () => {
     const devGrant = fakeDevGrantService({ enabled: false });
     const calls = await captureMessageCalls("/dev_add_xp 7", devGrant);
     const healCalls = await captureMessageCalls("/dev_heal 7", devGrant);
     const bandageCalls = await captureMessageCalls("/dev_add_bandage 5", devGrant);
     const randomItemCalls = await captureMessageCalls("/dev_add_random_item slot=tool", devGrant);
+    const exactItemCalls = await captureMessageCalls("/dev_add_item itemId=item.ability.last-page-rapier", devGrant);
     const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 2", devGrant);
     const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 3", devGrant);
     const yegerLineCalls = await captureMessageCalls("/dev_add_yeger_line 4", devGrant);
@@ -213,6 +240,7 @@ describe("dev grant commands", () => {
     expect(devGrant.heal).not.toHaveBeenCalled();
     expect(devGrant.addBandages).not.toHaveBeenCalled();
     expect(devGrant.addRandomItems).not.toHaveBeenCalled();
+    expect(devGrant.addItemById).not.toHaveBeenCalled();
     expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
     expect(devGrant.addFieldKits).not.toHaveBeenCalled();
     expect(devGrant.addYegerLines).not.toHaveBeenCalled();
@@ -230,6 +258,7 @@ describe("dev grant commands", () => {
     expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(bandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(randomItemCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(exactItemCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(denseBandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(fieldKitCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerLineCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -325,6 +354,7 @@ function fakeTavernGamesService(): {
 function fakeDevGrantService(input: {
   enabled?: boolean;
   combatHeal?: Extract<DevGrantResult, { state: "updated"; kind: "heal" }>["combat"];
+  unknownItemIds?: Set<string>;
 } = {}): {
   isEnabled: ReturnType<typeof vi.fn<() => boolean>>;
   addLevel: ReturnType<typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantResult>>>;
@@ -341,6 +371,13 @@ function fakeDevGrantService(input: {
       telegramUserId: bigint,
       amount: number,
       filter?: DevGrantRandomItemFilter
+    ) => Promise<DevGrantItemsResult>>
+  >;
+  addItemById: ReturnType<
+    typeof vi.fn<(
+      telegramUserId: bigint,
+      itemId: string,
+      amount: number
     ) => Promise<DevGrantItemsResult>>
   >;
   addBandages: ReturnType<
@@ -451,6 +488,26 @@ function fakeDevGrantService(input: {
         }
       ]
     })),
+    addItemById: vi.fn((_telegramUserId, itemId, amount) => Promise.resolve(
+      input.unknownItemIds?.has(itemId)
+        ? {
+            state: "unknown-item",
+            itemId
+          }
+        : {
+            state: "updated",
+            kind: "items",
+            amount,
+            character,
+            itemGrants: [
+              {
+                itemId,
+                name: "Рапіра останньої сторінки",
+                quantity: amount
+              }
+            ]
+          }
+    )),
     addBandages: vi.fn((_telegramUserId, amount) => Promise.resolve({
       state: "updated",
       kind: "items",

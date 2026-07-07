@@ -1,7 +1,12 @@
 import { InlineKeyboard } from "grammy";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { SoloCombatSessionRecord } from "../../db/repositories/soloCombatSessionRepository";
-import { getCombatActionAvailability, getTerminalCombatTurnLogEventId } from "../../domain/combat";
+import {
+  getCombatActionAvailability,
+  getCombatGearActionAvailability,
+  getTerminalCombatTurnLogEventId
+} from "../../domain/combat";
+import { getCombatMantokAbilityGrantsByIds } from "../../content";
 import {
   getPersistentFightRaceAbilityLabel,
   getPersistentFightSkillLabel
@@ -25,6 +30,7 @@ import {
 } from "../../services/presenceService";
 import {
   makeFightCallbackData,
+  makeFightGearActionCallbackData,
   makeFightJournalCallbackData,
   makeFightPassageAttackCallbackData,
   makeFightTurnCallbackData,
@@ -41,6 +47,7 @@ import {
   makeSafePassageSearchStartCallbackData
 } from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
+import { appendGearActionButtons } from "./gearActionKeyboard";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
 
@@ -96,7 +103,23 @@ export function buildPersistentFightKeyboard(
     }
   }
 
-  keyboard.row();
+  const gearGrants = session.state
+    ? getCombatMantokAbilityGrantsByIds({
+        grantIds: session.state.equipmentAbilities?.grantIds ?? [],
+        characterLevel: character.level
+      }).filter((grant) =>
+        grant.combat && getCombatGearActionAvailability(session.state!, grant.combat.profile).available
+      )
+    : [];
+
+  appendGearActionButtons(
+    keyboard,
+    gearGrants,
+    (grant) => makeFightGearActionCallbackData({ sessionId: session.id, turn, grantKey: grant.key })
+  );
+  if (gearGrants.length === 0) {
+    keyboard.row();
+  }
 
   return keyboard
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));

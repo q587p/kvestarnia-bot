@@ -14,11 +14,13 @@ import {
   resolvePartyBossRound,
   type PartyBossActionKey,
   type PartyBossCombatItemInput,
+  type PartyBossParticipantActionSummary,
   type PartyBossResult,
   type PartyBossRewardSnapshot,
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
-import { items } from "../../content";
+import { getCombatMantokAbilityGrantsByIds, getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
+import { getCombatGearActionAvailabilityForActor, type CombatGearAbilityInput } from "../../domain/combat";
 import { getLevelForXp } from "../../domain/progression/level";
 import {
   buildPartyBossCombatStats,
@@ -66,6 +68,7 @@ type QueuedPartyBossActionInput = {
   action: PartyBossActionKey;
   origin: "manual";
   item?: PartyBossCombatItemInput;
+  gearAbility?: CombatGearAbilityInput;
 };
 
 const partyCharacterInclude = {
@@ -220,12 +223,22 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         variant: isBigBarrelParty ? "big-barrel" : "proof",
         leaderCharacterId: party.leaderCharacterId,
         now: input.now,
-        participants: joined.map((participant) => ({
-          characterId: participant.characterId,
-          name: participant.character.name,
-          remortCount: participant.character._count.remorts,
-          combatStats: buildPartyBossCombatStats(mapCharacterForCombat(participant.character))
-        }))
+        participants: joined.map((participant) => {
+          const combatCharacter = mapCharacterForCombat(participant.character);
+          const combatStats = buildPartyBossCombatStats(combatCharacter);
+          const equipmentAbilityGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
+            itemIds: participant.character.equipment.map((equipment) => equipment.itemId),
+            characterLevel: combatStats.level
+          }).map((grant) => grant.id);
+
+          return {
+            characterId: participant.characterId,
+            name: participant.character.name,
+            remortCount: participant.character._count.remorts,
+            combatStats,
+            ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})
+          };
+        })
       });
 
       await tx.activeCombatLease.createMany({
@@ -277,7 +290,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     partyInviteToken: string,
     turn: number,
     action: PartyBossActionKey,
-    input: PartyBossResolveInput
+    input: PartyBossResolveInput,
+    options: { gearAbility?: CombatGearAbilityInput } = {}
   ): Promise<PartyBossActionResult> {
     const inserted = await this.prisma.$transaction(async (tx): Promise<PartyBossActionResult> => {
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
@@ -308,12 +322,35 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "stale", session: mapSession(session) };
       }
 
+      if (action === "gear" && options.gearAbility) {
+        const matchingGrant = getCombatMantokAbilityGrantsByIds({
+          grantIds: actor.equipmentAbilityGrantIds ?? [],
+          characterLevel: actor.combatStats.level
+        }).some((grant) => grant.combat?.profile.id === options.gearAbility?.profile.id);
+        if (!matchingGrant) {
+          return { state: "stale", session: mapSession(session) };
+        }
+
+        const availability = getCombatGearActionAvailabilityForActor(
+          actor.resources,
+          options.gearAbility.profile
+        );
+        if (!availability.available) {
+          return {
+            state: "gear-unavailable",
+            reason: availability.reason === "cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+            session: mapSession(session)
+          };
+        }
+      }
+
       const queuedState = await writePartyBossActionChoice(tx, {
         sessionId: session.id,
         actorCharacterId: character.id,
         turn,
         action,
-        submittedAt: input.now
+        submittedAt: input.now,
+        ...(options.gearAbility ? { gearAbility: options.gearAbility } : {})
       });
 
       const current = await tx.partyBossSession.findUnique({
@@ -660,13 +697,15 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       const actionInputs: QueuedPartyBossActionInput[] = actions.map((entry) => {
         const item = parseActionItem(entry.resultJson);
+        const gearAbility = parseActionGearAbility(entry.resultJson);
 
         return {
           id: entry.id,
           characterId: entry.actorCharacterId,
           action: parseActionKey(entry.actionKey),
           origin: "manual" as const,
-          ...(item ? { item } : {})
+          ...(item ? { item } : {}),
+          ...(gearAbility ? { gearAbility } : {})
         };
       });
       const resolved = resolvePartyBossRound({
@@ -677,7 +716,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           characterId: entry.characterId,
           action: entry.action,
           origin: entry.origin,
-          ...(entry.item ? { item: entry.item } : {})
+          ...(entry.item ? { item: entry.item } : {}),
+          ...(entry.gearAbility ? { gearAbility: entry.gearAbility } : {})
         }))
       });
       const nextVersion = session.version + 1;
@@ -724,7 +764,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       let achievementEvents: PartyBossAchievementEventRecord[] = actionInputs.flatMap((action) =>
         action.action === "item" && action.item
           ? buildPartyBossItemActionAchievementEvents(session, action, action.item, input.now)
-          : []
+          : buildPartyBossGearActionAchievementEvents(
+              session,
+              action,
+              resolved.round.actions.find((entry) => entry.characterId === action.characterId),
+              input.now
+            )
       );
       if (status !== "active") {
         achievementEvents = [
@@ -747,6 +792,30 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         : null;
     });
   }
+}
+
+function buildPartyBossGearActionAchievementEvents(
+  session: PartyBossRow,
+  action: QueuedPartyBossActionInput,
+  summary: PartyBossParticipantActionSummary | undefined,
+  occurredAt: Date
+): PartyBossAchievementEventRecord[] {
+  if (
+    action.action !== "gear" ||
+    !action.gearAbility ||
+    summary?.action !== "gear" ||
+    summary.outcome === "not-enough-mana" ||
+    summary.outcome === "skill-on-cooldown"
+  ) {
+    return [];
+  }
+
+  return [{
+    type: "mantok.gear-action.used",
+    characterId: action.characterId,
+    sourceId: `${session.id}:turn:${session.turn}:gear:${action.id}`,
+    occurredAt
+  }];
 }
 
 async function settleTerminalPartyBoss(
@@ -1328,7 +1397,7 @@ function parseStatus(value: string): PartyBossSessionStatus {
 }
 
 function parseActionKey(value: string): PartyBossActionKey {
-  return value === "defend" || value === "skill" || value === "race" || value === "item" ? value : "attack";
+  return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" ? value : "attack";
 }
 
 function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | null {
@@ -1380,6 +1449,22 @@ function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | nu
   return null;
 }
 
+function parseActionGearAbility(value: Prisma.JsonValue): CombatGearAbilityInput | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as { kind?: unknown; gearAbility?: unknown };
+  if (record.kind !== "gear-action" || !record.gearAbility || typeof record.gearAbility !== "object" || Array.isArray(record.gearAbility)) {
+    return null;
+  }
+
+  const gearAbility = record.gearAbility as { profile?: { id?: unknown } };
+  return typeof gearAbility.profile?.id === "string"
+    ? gearAbility as unknown as CombatGearAbilityInput
+    : null;
+}
+
 async function writePartyBossActionChoice(
   tx: TxClient,
   input: {
@@ -1389,12 +1474,18 @@ async function writePartyBossActionChoice(
     action: PartyBossActionKey;
     submittedAt: Date;
     item?: PartyBossCombatItemInput;
+    gearAbility?: CombatGearAbilityInput;
   }
 ): Promise<QueuedPartyBossActionState> {
   const resultJson = input.item
     ? {
         kind: "combat-item",
         item: input.item
+      } as unknown as Prisma.InputJsonValue
+    : input.gearAbility
+    ? {
+        kind: "gear-action",
+        gearAbility: input.gearAbility
       } as unknown as Prisma.InputJsonValue
     : null;
 
@@ -1407,7 +1498,7 @@ async function writePartyBossActionChoice(
   });
 
   if (existing) {
-    if (isSamePartyBossActionChoice(existing.actionKey, existing.resultJson, input.action, input.item)) {
+    if (isSamePartyBossActionChoice(existing.actionKey, existing.resultJson, input.action, input.item, input.gearAbility)) {
       return "duplicate";
     }
 
@@ -1458,7 +1549,8 @@ function isSamePartyBossActionChoice(
   existingActionKey: string,
   existingResultJson: Prisma.JsonValue | null,
   nextAction: PartyBossActionKey,
-  nextItem?: PartyBossCombatItemInput
+  nextItem?: PartyBossCombatItemInput,
+  nextGearAbility?: CombatGearAbilityInput
 ): boolean {
   if (parseActionKey(existingActionKey) !== nextAction) {
     return false;
@@ -1466,7 +1558,12 @@ function isSamePartyBossActionChoice(
 
   const existingItem = parseActionItem(existingResultJson);
   if (!nextItem) {
-    return !existingItem;
+    const existingGearAbility = parseActionGearAbility(existingResultJson);
+    if (!nextGearAbility) {
+      return !existingItem && !existingGearAbility;
+    }
+
+    return existingGearAbility?.profile.id === nextGearAbility.profile.id;
   }
 
   return existingItem?.id === nextItem.id &&

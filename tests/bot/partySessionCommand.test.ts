@@ -281,6 +281,154 @@ describe("handlePartySessionCallback", () => {
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
   });
 
+  it("answers queued boss gear actions with readable callback copy", async () => {
+    const session = makeBossSession();
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({ state: "updated", session });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-gear", token: session.partyInviteToken, turn: 1, grantKey: "rldagr" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitGearForTelegramUser })
+      }
+    );
+
+    expect(submitGearForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1, "rldagr");
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Вибір оновлено." });
+    expect(messageText(editMessageText)).toContain("1 хід");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("submits resolved boss gear actions with readable participant notices", async () => {
+    const proofSession = makeBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "character-42",
+            action: "gear",
+            origin: "manual",
+            outcome: "hit",
+            damage: 8,
+            manaSpent: 2,
+            skillId: "gear.red-line-dagger"
+          },
+          {
+            characterId: "character-93",
+            action: "defend",
+            origin: "manual",
+            outcome: "defended",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 8,
+        bossHpAfter: 57,
+        bossRetaliations: [
+          { characterId: "character-42", damage: 4, hpAfter: 21 },
+          { characterId: "character-93", damage: 3, hpAfter: 22 }
+        ],
+        statusAfter: "active"
+      }]
+    });
+    const session = {
+      ...proofSession,
+      rulesVersion: "big-barrel-brother-v1",
+      bossKey: "big-barrel-brother",
+      state: {
+        ...proofSession.state,
+        rulesVersion: "big-barrel-brother-v1",
+        boss: {
+          ...proofSession.state.boss,
+          monsterId: "big-barrel-brother",
+          name: "Старший Брат Бочки"
+        }
+      }
+    };
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({ state: "resolved", session });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-gear", token: session.partyInviteToken, turn: 1, grantKey: "rldagr" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitGearForTelegramUser })
+      }
+    );
+
+    expect(submitGearForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1, "rldagr");
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(messageText(editMessageText)).toContain("2 хід");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Хід оновлено. Показую новий стан рейду.");
+  });
+
+  it("answers duplicate boss gear callbacks with readable copy", async () => {
+    const session = makeBossSession();
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({ state: "duplicate", session });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-gear", token: session.partyInviteToken, turn: 1, grantKey: "rldagr" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitGearForTelegramUser })
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Дію вже записано." });
+    expect(messageText(editMessageText)).toContain("1 хід");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      reason: "not-enough-mana" as const,
+      callbackText: "Не вистачає мани.",
+      cardText: "Дія спорядження не спрацювала: мани замало"
+    },
+    {
+      reason: "skill-on-cooldown" as const,
+      callbackText: "Дія спорядження ще відсапується.",
+      cardText: "Дія спорядження ще відсапується. Корчмар показує свіжу картку бою."
+    }
+  ])("answers blocked boss gear callbacks for $reason without advancing the raid", async ({
+    reason,
+    callbackText,
+    cardText
+  }) => {
+    const session = makeBossSession();
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({
+      state: "gear-unavailable",
+      reason,
+      session
+    });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-gear", token: session.partyInviteToken, turn: 1, grantKey: "rldagr" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitGearForTelegramUser })
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: callbackText });
+    expect(messageText(editMessageText)).toContain(cardText);
+    expect(messageText(editMessageText)).toContain("1 хід");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("opens a concrete one-use item picker instead of immediately using a bandage", async () => {
     const session = makeBossSession({
       participants: [
@@ -474,6 +622,30 @@ describe("handlePartySessionCallback", () => {
 
     expect(messageText(editMessageText)).toContain("Журнал відкриється після бою");
     expect(messageText(editMessageText)).toContain("<b>Бій: 1 хід</b>");
+  });
+
+  it("hides the active boss one-use shortcut when no useful combat items are available", async () => {
+    const session = makeBossSession();
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
+    const hasCombatItemsForTelegramUser = vi.fn().mockResolvedValue(false);
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-journal", token: session.partyInviteToken, page: null },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          getByPartyInviteToken,
+          hasCombatItemsForTelegramUser
+        })
+      }
+    );
+
+    expect(hasCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1);
+    expect(keyboardJson(editMessageText)).toContain("v1:party:ba:partyABC12:1:a");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:party:bm:partyABC12:1");
   });
 
   it("refreshes the leader recruiting card after another player joins", async () => {
@@ -740,6 +912,7 @@ function partyBossWith(overrides: Partial<PartyBossService>): PartyBossService {
     resolveDueTimedOutByToken: vi.fn(),
     forceResolveTimedOutByToken: vi.fn(),
     getByPartyInviteToken: vi.fn(),
+    hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(true),
     ...overrides
   } as unknown as PartyBossService;
 }

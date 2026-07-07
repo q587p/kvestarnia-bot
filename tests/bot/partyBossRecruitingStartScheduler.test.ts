@@ -26,7 +26,8 @@ describe("party boss recruiting start scheduler", () => {
         partyBoss: {
           isEnabled: () => true,
           listDueTimedOutSessions: vi.fn().mockResolvedValue([]),
-          startFromPartyForTelegramUser
+          startFromPartyForTelegramUser,
+          hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false)
         } as unknown as PartyBossService
       },
       {
@@ -91,7 +92,8 @@ describe("party boss recruiting start scheduler", () => {
         partyBoss: {
           isEnabled: () => true,
           listDueTimedOutSessions: vi.fn().mockResolvedValue([dueSession]),
-          resolveDueTimedOutByToken
+          resolveDueTimedOutByToken,
+          hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false)
         } as unknown as PartyBossService
       },
       {

@@ -1,0 +1,51 @@
+# Mantok Ability Grants Foundation QA
+
+Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons hiding until usable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.
+
+Review follow-up coverage:
+
+- Automated service coverage confirms turn-based duel gear callbacks blocked by no mana or cooldown return the specific gate state without mutating the duel.
+- Automated command coverage confirms those blocked duel gear callbacks answer with reason-specific callback notices.
+- Automated keyboard coverage confirms the Big Barrel one-use item shortcut stays hidden unless the caller explicitly enables the item menu.
+- Automated achievement coverage confirms committed persistent PvE, party-boss and turn-based duel gear-action events can reach the rewardless first-use achievement hook.
+- Automated turn-based duel service coverage confirms a queued gear action does not emit the first-use achievement until the round resolves, and dual committed gear actions emit events from the resolved round.
+- Automated help/lore coverage confirms `/lore` opens the existing `📖 Перекази` board, is listed in `/help`, is not added to the side menu, and `🎒 Манатки` lore names visible `Дія спорядження`.
+- Automated regression coverage confirms duplicate Big Barrel gear callbacks keep one queued action/effect/cooldown/achievement event, stale turn-based duel gear callbacks do not advance the duel, and ordinary two-enemy persistent fight gear actions write a committed gear summary while preserving readable multi-enemy state.
+
+Manual Telegram evidence still required before merge:
+
+- Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and refreshes the raid card without a second visible effect row.
+- Pending: turn-based duel stale gear callback refreshes/replays the current card without advancing the duel.
+- Pending: ordinary two-enemy persistent fight gear action keeps the active card and `📜 Журнал бою` readable after the committed gear turn.
+- Pending: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not.
+- Pending: `/lore` opens `📖 Перекази Квестарні` on the local bot and remains absent from the Telegram side command menu.
+
+1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
+   - Combat-action QA ids:
+     - `item.set.barrel-brother.shield` — level `9+`.
+     - `item.set.red-line.left-dagger` — level `10+`.
+     - `item.ability.last-page-rapier` — level `13+`.
+     - `item.set.couplet.harp` — level `10+`.
+     - `item.set.asclepius.staff` — level `11+`.
+     - `item.set.form13bis.seal` — level `11+`.
+     - `item.set.siege-filling.ladle` — level `12+`.
+     - `item.set.border-map.compass` — level `12+`.
+     - `item.set.fog-knot.amulet` — level `11+`.
+   - Service-perk-only QA id: `item.set.yeger-shadow.cloak` — level `12+`; it should show copy but no combat button.
+2. Start one-enemy and two-enemy persistent fights and verify the gear-action button appears for currently equipped, level-eligible grants only when current mana/cooldown state allows pressing it, then hides while mana/cooldown gates block the action.
+3. During the same active turn, change equipment through the allowed side surface, return to the fight and verify newly equipped grant manatky add buttons while removed grant manatky stop working.
+4. Leave and reopen the active fight card on a later turn, including in a two-enemy persistent fight; verify available gear-action buttons and bleed ticks survive the stored session JSON reload.
+5. Use `🛡 Контраргумент`; verify it spends a turn, applies protection, writes the protection effect on the fight card and in the relevant journal/replay, and does not create a class/race action.
+6. Use `🩸 Червоний рядок` or `🖋 Остання сторінка`; verify bleed appears, ticks visibly in single- and multi-enemy fights, writes to `📜 Журнал бою`, and can finish combat without an extra status-kill response.
+7. Use the borrowed Bard/Priest/Bureaucramancer/Varenyk/Drantohor/Molfar-style actions; verify they feel weaker than native class/race actions, apply damage/support, write the effect on the card and in the relevant journal/replay, consume mana/cooldown normally, hide while blocked, and return after enough real player turns clear the gate.
+8. Replay an old persistent-fight gear callback after the turn advances; verify it is stale and does not spend mana, tick cooldowns, advance RNG or let the monster respond.
+9. Start a Big Barrel Brother raid with an equipped eligible grant manatka; verify the gear button appears on the raid card, pressing it queues/resolves normally during the active raid, applies damage/support before boss retaliation, writes the effect to the active card and `📜 Журнал`, and the one-use shortcut is hidden when no useful one-use manatky are available.
+10. In the Big Barrel raid, verify boss gear callbacks parse/build correctly, stale or missing-grant callbacks do not mutate, duplicate gear callbacks show `Дію вже записано.`, cooldown/mana gates hide blocked buttons, and active-combat redirects preserve refresh, item menu, item-use and gear shortcuts.
+11. Start a turn-based duel with an equipped eligible grant manatka; verify the gear button appears, pressing it queues/resolves during the active duel, writes damage/support to the stored round replay, and stale repeated gear callbacks do not advance the duel.
+12. In the turn-based duel, verify gear callbacks parse/build correctly, stale-turn and missing-grant callbacks are stale, cooldown/mana gates hide blocked buttons, support/heal effects show in replay/result presentation, and quick duels remain instant without gear actions.
+13. Equip duplicate copies if locally possible; verify only one grant is active.
+14. Open item detail, `/equipment` and `/hero`; verify granted action/perk summaries are visible and readable, including the aggregate `Дія спорядження` row on equipment and character cards.
+15. Use the first successful gear action on a character that has not earned `Манатка натиснула кнопку`; verify the achievement notification appears once, then repeat/stale/blocked callbacks do not repeat it.
+16. Run `/lore`; verify it opens `📖 Перекази Квестарні`. Open `🎒 Манатки`; verify the copy says rare manatky can grant visible `Дія спорядження` and does not imply hidden procs.
+17. Verify `Єгерський плащ чужої справи` does not expose dense bandages, field kits or Yeger boards.
+18. Win fights against configured source monsters and verify new grants can appear without removing existing trophy/coverage/set drops.

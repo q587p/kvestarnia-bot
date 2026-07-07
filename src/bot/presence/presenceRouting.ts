@@ -278,7 +278,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     return {};
   }
 
-  if (command === "news") {
+  if (command === "news" || command === "lore") {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
       currentRaidId: null,

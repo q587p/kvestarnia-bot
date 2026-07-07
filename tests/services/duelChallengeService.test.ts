@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
@@ -17,6 +17,7 @@ import type {
 import type { CharacterEquipmentRecord } from "../../src/db/repositories/equipmentRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import type { AchievementService } from "../../src/services/achievementService";
 import type { NearbyDuelTargetValidator } from "../../src/services/presenceService";
 import { FakeRandomSource } from "../../src/shared/random";
 
@@ -1160,6 +1161,476 @@ describe("DuelChallengeService", () => {
     expect(resolved.session.state.pendingActions).toBeUndefined();
   });
 
+  it("resolves an equipped gear action in a turn-based duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, { level: 10 });
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
+    const service = buildService(
+      world,
+      fixedNow,
+      undefined,
+      { trackEventSafely } as unknown as AchievementService
+    );
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const actorAction = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: actorTelegramId === 1n ? "gear" : "defend",
+      ...(actorTelegramId === 1n ? { grantKey: "rldagr" } : {})
+    });
+
+    expect(actorAction.state).toBe("updated");
+    if (actorAction.state !== "updated") {
+      throw new Error(`Expected first duel action update, got ${actorAction.state}`);
+    }
+
+    const secondAction = await service.resolveTurnBasedActionForTelegramUser(
+      actorTelegramId === 1n ? 2n : 1n,
+      {
+        inviteToken: created.challenge.inviteToken,
+        expectedTurn: actorAction.session.turn,
+        expectedVersion: actorAction.session.version,
+        action: actorTelegramId === 1n ? "defend" : "gear",
+        ...(actorTelegramId === 1n ? {} : { grantKey: "rldagr" })
+      }
+    );
+
+    expect(secondAction.state).toBe("updated");
+    if (secondAction.state !== "updated") {
+      throw new Error(`Expected resolved duel round, got ${secondAction.state}`);
+    }
+    expect(secondAction.session.state.lastRound?.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorCharacterId: "character-1",
+          action: "gear",
+          skillId: "gear.red-line-dagger"
+        })
+      ])
+    );
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    expect(trackEventSafely).toHaveBeenCalledWith({
+      type: "mantok.gear-action.used",
+      characterId: "character-1",
+      occurredAt: fixedNow(),
+      sourceId: `${secondAction.session.id}:turn:${accepted.session.turn}:gear:gear.red-line-dagger`
+    });
+  });
+
+  it("tracks turn-based duel gear achievements only after a queued gear action commits", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
+    const service = buildService(
+      world,
+      fixedNow,
+      undefined,
+      { trackEventSafely } as unknown as AchievementService
+    );
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const gearActorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const defenderTelegramId = gearActorTelegramId === 1n ? 2n : 1n;
+    const queued = await service.resolveTurnBasedActionForTelegramUser(gearActorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(queued.state).toBe("updated");
+    if (queued.state !== "updated") {
+      throw new Error(`Expected queued gear action, got ${queued.state}`);
+    }
+    expect(queued.session.state.pendingActions).toBeDefined();
+    expect(trackEventSafely).not.toHaveBeenCalled();
+
+    const resolved = await service.resolveTurnBasedActionForTelegramUser(defenderTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: queued.session.turn,
+      expectedVersion: queued.session.version,
+      action: "defend"
+    });
+
+    expect(resolved.state).toBe("updated");
+    if (resolved.state !== "updated") {
+      throw new Error(`Expected resolved duel round, got ${resolved.state}`);
+    }
+    expect(resolved.session.state.pendingActions).toBeUndefined();
+    expect(resolved.session.state.lastRound?.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorCharacterId: accepted.session.actingCharacterId,
+          action: "gear",
+          skillId: "gear.red-line-dagger"
+        })
+      ])
+    );
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    expect(trackEventSafely).toHaveBeenCalledWith({
+      type: "mantok.gear-action.used",
+      characterId: accepted.session.actingCharacterId,
+      occurredAt: fixedNow(),
+      sourceId: `${resolved.session.id}:turn:${accepted.session.turn}:gear:gear.red-line-dagger`
+    });
+  });
+
+  it("tracks every committed turn-based duel gear action from the resolved round", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 9,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.barrel-brother.shield")]
+    });
+    world.addCharacter(2n, {
+      level: 9,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.barrel-brother.shield")]
+    });
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
+    const service = buildService(
+      world,
+      fixedNow,
+      undefined,
+      { trackEventSafely } as unknown as AchievementService
+    );
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const firstActorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const secondActorTelegramId = firstActorTelegramId === 1n ? 2n : 1n;
+    const queued = await service.resolveTurnBasedActionForTelegramUser(firstActorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "bcshield"
+    });
+
+    expect(queued.state).toBe("updated");
+    if (queued.state !== "updated") {
+      throw new Error(`Expected queued shield gear action, got ${queued.state}`);
+    }
+    expect(trackEventSafely).not.toHaveBeenCalled();
+
+    const resolved = await service.resolveTurnBasedActionForTelegramUser(secondActorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: queued.session.turn,
+      expectedVersion: queued.session.version,
+      action: "gear",
+      grantKey: "bcshield"
+    });
+
+    expect(resolved.state).toBe("updated");
+    if (resolved.state !== "updated") {
+      throw new Error(`Expected resolved shield gear round, got ${resolved.state}`);
+    }
+    const gearActions = resolved.session.state.lastRound?.actions.filter((action) => action.action === "gear") ?? [];
+
+    expect(gearActions).toHaveLength(2);
+    expect(trackEventSafely).toHaveBeenCalledTimes(2);
+    expect(trackEventSafely.mock.calls.map(([event]) => event)).toEqual(
+      expect.arrayContaining(
+        gearActions.map((action) => ({
+          type: "mantok.gear-action.used",
+          characterId: action.actorCharacterId,
+          occurredAt: fixedNow(),
+          sourceId: `${resolved.session.id}:turn:${accepted.session.turn}:gear:gear.barrel-counter-shield`
+        }))
+      )
+    );
+  });
+
+  it("treats turn-based duel gear callbacks without the equipped grant as stale", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { level: 10 });
+    world.addCharacter(2n, { level: 10 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "stale" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
+  it("treats stale turn-based duel gear callbacks as stale without advancing the duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, {
+      level: 10,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version + 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "stale" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
+  it("reports turn-based duel gear callbacks blocked by mana without mutating the duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      manaCurrent: 0,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, {
+      level: 10,
+      manaCurrent: 0,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorTelegramId =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "not-enough-mana" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
+  it("reports turn-based duel gear callbacks blocked by cooldown without mutating the duel", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, {
+      level: 10,
+      manaCurrent: 16,
+      manaMax: 12,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    const actorSide =
+      accepted.session.actingCharacterId === accepted.session.challengerCharacterId
+        ? "challenger"
+        : "target";
+    const actorTelegramId = actorSide === "challenger" ? 1n : 2n;
+    const stored = world.sessions.get(accepted.session.id);
+
+    if (!stored) {
+      throw new Error("Expected stored turn-based session");
+    }
+
+    stored.state.participants[actorSide].cooldowns = {
+      abilities: {
+        "gear.red-line-dagger": {
+          id: "gear.red-line-dagger",
+          remainingTurns: 2
+        }
+      }
+    };
+    const result = await service.resolveTurnBasedActionForTelegramUser(actorTelegramId, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+
+    expect(result).toMatchObject({ state: "skill-on-cooldown" });
+    expect(world.turnUpdateAttempts).toBe(0);
+  });
+
+  it("keeps equipped gear grants out of quick duel resolution", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      level: 10,
+      equipment: [makeEquipment("item.set.red-line.left-dagger")]
+    });
+    world.addCharacter(2n, { level: 10 });
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    expect(accepted.state).toBe("resolved");
+    expect(world.sessions.size).toBe(0);
+    expect(world.challenges.get(created.challenge.inviteToken)?.mode).toBe("quick");
+  });
+
   it("reports the challenger when their active combat lease blocks turn-based start", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, { name: "Зайнятий Автор" });
@@ -1304,14 +1775,16 @@ describe("DuelChallengeService", () => {
 function buildService(
   world: FakeDuelWorld,
   clock = fixedNow,
-  nearbyDuelTargets?: NearbyDuelTargetValidator
+  nearbyDuelTargets?: NearbyDuelTargetValidator,
+  achievements?: AchievementService
 ): DuelChallengeService {
   return new DuelChallengeService(
     world,
     world,
     clock,
     new FakeRandomSource([0.5]),
-    nearbyDuelTargets
+    nearbyDuelTargets,
+    achievements
   );
 }
 

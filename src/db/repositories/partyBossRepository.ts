@@ -1,6 +1,7 @@
 import { items } from "../../content";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CombatActorStats } from "../../domain/combat/combatState";
+import type { CombatGearAbilityInput } from "../../domain/combat/combatEngine";
 import type {
   PartyBossActionKey,
   PartyBossCombatItemInput,
@@ -41,6 +42,12 @@ export type PartyBossAchievementEventRecord =
       occurredAt: Date;
     }
   | {
+      type: "mantok.gear-action.used";
+      characterId: string;
+      sourceId: string;
+      occurredAt: Date;
+    }
+  | {
       type: "item.used";
       characterId: string;
       itemId: string;
@@ -68,6 +75,11 @@ export type PartyBossActionResult =
       state: "item-unavailable";
       reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
       session?: PartyBossSessionRecord;
+    }
+  | {
+      state: "gear-unavailable";
+      reason: "not-enough-mana" | "skill-on-cooldown";
+      session: PartyBossSessionRecord;
     }
   | {
       state: "not-participant" | "stale" | "queued" | "updated" | "duplicate" | "resolved" | "terminal";
@@ -106,7 +118,8 @@ export interface PartyBossRepository {
     partyInviteToken: string,
     turn: number,
     action: PartyBossActionKey,
-    input: PartyBossResolveInput
+    input: PartyBossResolveInput,
+    options?: { gearAbility?: CombatGearAbilityInput }
   ): Promise<PartyBossActionResult>;
 
   submitItemForTelegramUser(

@@ -5,14 +5,17 @@ import type {
 } from "../../services/duelChallengeService";
 import {
   getActorCombatActionAvailability,
+  getCombatGearActionAvailabilityForActor,
   getCombatRaceAbilityProfile
 } from "../../domain/combat";
+import { getCombatMantokAbilityGrantsByIds } from "../../content";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import {
   makeDuelAcceptCallbackData,
   makeDuelAcceptRiskCallbackData,
   makeDuelCancelCallbackData,
   makeDuelDeclineCallbackData,
+  makeDuelGearActionCallbackData,
   makeDuelInviteRotateCallbackData,
   makeDuelNewCallbackData,
   makeDuelNewTurnBasedCallbackData,
@@ -26,6 +29,7 @@ import {
 } from "../callbacks/duelCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { appendGearActionButtons } from "./gearActionKeyboard";
 
 export function buildDuelEntryKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
@@ -143,7 +147,7 @@ export function buildTurnBasedDuelKeyboard(
     : raceAbilityLabel;
   const keyboard = new InlineKeyboard();
 
-  if (canAct) {
+  if (canAct && viewer) {
     keyboard
       .text("⚔️ Атакувати", makeDuelTurnCallbackData(token, "attack", session.turn, session.version))
       .text("🛡 Захищатися", makeDuelTurnCallbackData(token, "defend", session.turn, session.version))
@@ -163,6 +167,30 @@ export function buildTurnBasedDuelKeyboard(
     if (skillAvailable || raceAvailable) {
       keyboard.row();
     }
+
+    const gearGrants = getCombatMantokAbilityGrantsByIds({
+      grantIds: viewer.equipmentAbilityGrantIds ?? [],
+      characterLevel: viewer.level
+    }).filter((grant) =>
+      grant.combat &&
+      getCombatGearActionAvailabilityForActor(
+        {
+          mana: viewer.mana,
+          cooldowns: viewer.cooldowns
+        },
+        grant.combat.profile
+      ).available
+    );
+    appendGearActionButtons(
+      keyboard,
+      gearGrants,
+      (grant) => makeDuelGearActionCallbackData({
+        token,
+        turn: session.turn,
+        version: session.version,
+        grantKey: grant.key
+      })
+    );
 
     keyboard.text("🏳️ Здатися", makeDuelTurnCallbackData(token, "surrender", session.turn, session.version));
   }

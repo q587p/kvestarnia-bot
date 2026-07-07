@@ -45,7 +45,7 @@ export function createPartyBossRecruitingStartScheduler(
           }
 
           processed += 1;
-          await notifyParticipants(bot, result.session, "started");
+          await notifyParticipants(bot, services.partyBoss, result.session, "started");
         }
       }
 
@@ -58,7 +58,12 @@ export function createPartyBossRecruitingStartScheduler(
         }
 
         processed += 1;
-        await notifyParticipants(bot, result.session, result.session.status === "active" ? "timeout" : "terminal");
+        await notifyParticipants(
+          bot,
+          services.partyBoss,
+          result.session,
+          result.session.status === "active" ? "timeout" : "terminal"
+        );
       }
 
       return processed;
@@ -96,6 +101,7 @@ export function createPartyBossRecruitingStartScheduler(
 
 async function notifyParticipants(
   bot: Bot,
+  partyBoss: PartyBossService,
   session: Parameters<typeof buildPartyBossKeyboard>[0],
   reason: "started" | "timeout" | "terminal"
 ): Promise<void> {
@@ -116,10 +122,32 @@ async function notifyParticipants(
       }),
       {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPartyBossKeyboard(session, participant.id)
+        reply_markup: buildPartyBossKeyboard(session, participant.id, {
+          includeCombatItems: await resolvePartyBossCombatItemShortcut(
+            partyBoss,
+            participant.telegramUserId,
+            session
+          )
+        })
       }
     );
   }));
+}
+
+async function resolvePartyBossCombatItemShortcut(
+  partyBoss: PartyBossService,
+  telegramUserId: bigint,
+  session: Parameters<typeof buildPartyBossKeyboard>[0]
+): Promise<boolean | undefined> {
+  if (session.status !== "active") {
+    return undefined;
+  }
+
+  return partyBoss.hasCombatItemsForTelegramUser(
+    telegramUserId,
+    session.partyInviteToken,
+    session.turn
+  );
 }
 
 function presentNotificationNotice(reason: "started" | "timeout" | "terminal"): string {

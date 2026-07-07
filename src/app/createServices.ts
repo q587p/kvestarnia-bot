@@ -139,7 +139,8 @@ export function createServices(
       repositories.characters,
       undefined,
       undefined,
-      presence
+      presence,
+      achievements
     ),
     equipment: new EquipmentService(
       repositories.equipment,

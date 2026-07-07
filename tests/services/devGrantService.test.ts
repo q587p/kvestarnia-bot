@@ -231,6 +231,36 @@ describe("DevGrantService", () => {
     });
   });
 
+  it("adds a concrete catalog item by item id for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addItemById(42n, "item.ability.last-page-rapier", 3)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 3,
+      itemGrants: [
+        {
+          itemId: "item.ability.last-page-rapier",
+          name: "Рапіра останньої сторінки",
+          quantity: 3
+        }
+      ]
+    });
+    expect(repository.calls).toContain("items:42:item.ability.last-page-rapier:3");
+  });
+
+  it("does not mutate inventory for an unknown exact item id", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addItemById(42n, "item.no-such-mantok", 1)).resolves.toEqual({
+      state: "unknown-item",
+      itemId: "item.no-such-mantok"
+    });
+    expect(repository.calls).toEqual([]);
+  });
+
   it("filters random item grants by canonical equipment slot and hand tag for local QA", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -485,6 +515,7 @@ describe("DevGrantService", () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", false, new FakeRandomSource([0]));
 
+    await expect(service.addItemById(42n, "item.ability.last-page-rapier", 1)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetPriestBlessingCooldown(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetQuietPocketCooldown(42n)).resolves.toEqual({ state: "disabled" });

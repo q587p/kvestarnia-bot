@@ -184,6 +184,12 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: true
   },
   {
+    command: "lore",
+    icon: "🗂️",
+    description: "Перекази Квестарні",
+    includeInMenu: false
+  },
+  {
     command: "chronicles",
     icon: "📣",
     description: "останні події",
@@ -310,6 +316,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "dev_add_random_item",
     icon: "🎲",
     description: "додати випадкові манатки локально, можна slot=tool або tag=twohand",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_item",
+    icon: "🧾",
+    description: "додати конкретну манатку локально через itemId=...",
     includeInMenu: false,
     devOnly: "grant"
   },

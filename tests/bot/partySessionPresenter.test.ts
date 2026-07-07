@@ -26,6 +26,7 @@ describe("party session presenter", () => {
     expect(text).toContain("👹 Старший Брат Бочки: HP 55/100");
     expect(text).toContain("▪️ Голова: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
     expect(text).toContain("▪️ Шкодійка: HP 60/60 · мана 20/20");
+    expect(text).not.toContain("запечатав вдягнені манатки");
     expect(text).toContain("⏳ На хід є 23 секунди.");
   });
 
@@ -296,6 +297,43 @@ describe("party session presenter", () => {
     }), { viewerCharacterId: "striker" });
 
     expect(text).toContain("Голова застосовує 🩹 <b>Щільний бинт</b>. HP відновлено на 23.");
+  });
+
+  it("renders Big Barrel gear support effects on active cards and journal pages", () => {
+    const session = makeBigBossSession({
+      turn: 2,
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "leader",
+            action: "gear",
+            origin: "manual",
+            outcome: "hit",
+            damage: 0,
+            manaSpent: 0,
+            skillId: "gear.barrel-counter-shield",
+            guard: 2
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 100,
+        bossRetaliations: [
+          { characterId: "leader", damage: 6, hpAfter: 54 }
+        ],
+        participantsAfter: [
+          { characterId: "leader", status: "active", hp: 54, hpMax: 60, mana: 20, manaMax: 20 },
+          { characterId: "striker", status: "active", hp: 60, hpMax: 60, mana: 20, manaMax: 20 }
+        ],
+        statusAfter: "active"
+      }]
+    });
+
+    const active = presentPartyBoss(session, { viewerCharacterId: "leader" });
+    const journal = presentPartyBossJournal(session, 0);
+
+    expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i> спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
+    expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i> спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
   });
 
   it("uses per-round item cooldown snapshots in Big Barrel journal pages", () => {

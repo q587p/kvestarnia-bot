@@ -63,6 +63,34 @@ describe("duel presenter", () => {
     expect(text).toContain("Шкода: <b>11</b> · критично");
   });
 
+  it("renders turn-based gear action effects in stored round replays", () => {
+    const result = makeTurnBasedDuelView({
+      lastRound: {
+        turn: 2,
+        actions: [
+          {
+            actorCharacterId: "challenger-character",
+            defenderCharacterId: "target-character",
+            action: "gear",
+            outcome: "hit",
+            damage: 3,
+            healing: 4,
+            guard: 1,
+            manaSpent: 5,
+            critical: false,
+            skillId: "gear.asclepius-instruction"
+          }
+        ]
+      }
+    });
+
+    const text = presentTurnBasedDuel(result, { viewerCharacterId: "target-character" });
+
+    expect(text).toContain("🎒 Дія спорядження ⚕️ <i>Інструкція Асклепія</i> записана в протокол.");
+    expect(text).toContain("Шкода: <b>3</b>.");
+    expect(text).toContain("Підтримка: HP підросли на <b>4</b>; захист тримає <b>1</b>.");
+  });
+
   it("renders turn-based ability fumbles as a visible consequence", () => {
     const result = makeTurnBasedDuelView({
       lastRound: {

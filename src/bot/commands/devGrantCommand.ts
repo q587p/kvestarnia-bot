@@ -24,6 +24,7 @@ type DevGrantCommand =
   | "dev_add_level"
   | "dev_add_xp"
   | "dev_add_gold"
+  | "dev_add_item"
   | "dev_add_random_item"
   | "dev_add_bandage"
   | "dev_add_dense_bandage"
@@ -62,6 +63,10 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
 
   bot.command("dev_add_random_item", async (ctx) => {
     await handleDevAddRandomItemCommand(ctx, devGrantService);
+  });
+
+  bot.command("dev_add_item", async (ctx) => {
+    await handleDevAddItemCommand(ctx, devGrantService);
   });
 
   bot.command("dev_add_bandage", async (ctx) => {
@@ -193,6 +198,38 @@ async function handleDevAddRandomItemCommand(
     telegramUserId,
     parsed.amount,
     parsed.filter
+  );
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevAddItemCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const parsed = parseDevAddItemGrantInput(ctx.match);
+
+  if (!parsed) {
+    await ctx.reply(presentDevGrantInvalidAmount("dev_add_item"));
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.addItemById(
+    telegramUserId,
+    parsed.itemId,
+    parsed.amount
   );
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
@@ -420,6 +457,55 @@ function parseDevGrantAmount(raw: string | undefined): number | null {
   return Number.isSafeInteger(amount) && amount >= 1 && amount <= MAX_DEV_GRANT_AMOUNT
     ? amount
     : null;
+}
+
+function parseDevAddItemGrantInput(raw: string | undefined): {
+  amount: number;
+  itemId: string;
+} | null {
+  const value = raw?.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  const tokens = value.split(/\s+/).filter(Boolean);
+  let amount = DEFAULT_DEV_GRANT_AMOUNT;
+  let hasAmount = false;
+  let itemId: string | undefined;
+
+  for (const token of tokens) {
+    if (/^\d+$/.test(token)) {
+      const parsedAmount = Number(token);
+
+      if (
+        !Number.isSafeInteger(parsedAmount) ||
+        parsedAmount < 1 ||
+        parsedAmount > MAX_DEV_GRANT_AMOUNT ||
+        hasAmount
+      ) {
+        return null;
+      }
+
+      amount = parsedAmount;
+      hasAmount = true;
+      continue;
+    }
+
+    const [rawKey, rawValue, ...extraParts] = token.split("=");
+
+    if (!rawKey || !rawValue || extraParts.length > 0) {
+      return null;
+    }
+
+    if (rawKey.toLowerCase() !== "itemid" || itemId) {
+      return null;
+    }
+
+    itemId = rawValue;
+  }
+
+  return itemId ? { amount, itemId } : null;
 }
 
 function parseDevRandomItemGrantInput(raw: string | undefined): {

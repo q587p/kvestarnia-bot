@@ -15,6 +15,7 @@ import {
   rollFleeSuccess,
   rollMonsterDamage,
   rollSkillAttack,
+  resolveCombatGearTurn,
   resolveCombatItemTurn,
   resolveCombatTurn,
   startCombat,
@@ -23,8 +24,14 @@ import {
   type CombatState,
   type MonsterCombatStats
 } from "../../src/domain/combat";
+import { findMantokAbilityGrantByKey } from "../../src/content";
+import type { MantokAbilityGrantDefinition } from "../../src/content/mantokAbilityGrants";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import { FakeRandomSource } from "../../src/shared/random";
+
+type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
+  combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
+};
 
 const warrior: CombatActorStats = {
   level: 2,
@@ -2486,7 +2493,481 @@ describe("combat domain engine", () => {
     expect(result.summary.monsterDamage).toBeGreaterThanOrEqual(3);
     expect(result.state.lastTurn?.heroEffectDamage).toBe(3);
   });
+
+  it("resolves gear actions with separate cooldowns and mana gates", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    expect(grant?.combat).toBeDefined();
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+
+    const first = resolveCombatGearTurn({
+      state: startCombat({ hero: { ...warrior, level: 10, manaCurrent: 3 }, monster }),
+      ability: {
+        profile: grant.combat.profile,
+        bleed: {
+          sourceAbilityId: grant.combat.profile.id,
+          ...grant.combat.bleed!
+        }
+      },
+      hero: { ...warrior, level: 10 },
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected gear turn to resolve.");
+    }
+    expect(first.summary.action).toBe("gear");
+    expect(first.summary.abilitySource).toBe("equipment");
+    expect(first.summary.skillId).toBe("gear.red-line-dagger");
+    expect(first.state.cooldowns?.skill).toBeUndefined();
+    expect(first.state.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 3
+    });
+
+    const blocked = resolveCombatGearTurn({
+      state: first.state,
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 10 },
+      monster,
+      rng: new FakeRandomSource([0])
+    });
+
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toBe("skill-on-cooldown");
+    if (!blocked.ok) {
+      expect(blocked.state.hero.mana).toBe(first.state.hero.mana);
+      expect(blocked.state.turn).toBe(first.state.turn);
+    }
+  });
+
+  it("rejects gear actions without enough mana before cooldown or RNG changes", () => {
+    const grant = getCombatGrant("harpcp");
+    const state = startCombat({ hero: { ...warrior, level: 10, manaCurrent: 4 }, monster });
+
+    const result = resolveCombatGearTurn({
+      state,
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 10 },
+      monster,
+      rng: new FakeRandomSource([0.1])
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("not-enough-mana");
+    if (!result.ok) {
+      expect(result.summary).toMatchObject({
+        action: "gear",
+        heroOutcome: "not-enough-mana",
+        skillId: "gear.unscheduled-harp-couplet",
+        abilitySource: "equipment",
+        manaSpent: 0
+      });
+      expect(result.state).toEqual(state);
+    }
+  });
+
+  it("resolves zero-mana reinforced defend as a gear action", () => {
+    const grant = getCombatGrant("bcshield");
+
+    const result = resolveCombatGearTurn({
+      state: startCombat({ hero: { ...warrior, level: 9, manaCurrent: 0 }, monster: { ...monster, attack: 8 } }),
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 9 },
+      monster: { ...monster, attack: 8 },
+      rng: new FakeRandomSource([0.1, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected reinforced defend gear turn to resolve.");
+    }
+    expect(result.summary).toMatchObject({
+      action: "gear",
+      skillId: "gear.barrel-counter-shield",
+      abilitySource: "equipment",
+      manaSpent: 0
+    });
+    expect(result.state.hero.mana).toBe(0);
+    expect(result.state.cooldowns?.skill).toBeUndefined();
+    expect(result.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]).toBeDefined();
+  });
+
+  it("ticks equipment gear action cooldowns across later own actions", () => {
+    const grant = getCombatGrant("bcshield");
+    const quietMonster = { ...monster, hpMax: 80, attack: 0 };
+
+    const first = resolveCombatGearTurn({
+      state: startCombat({ hero: { ...warrior, level: 9, manaCurrent: 0 }, monster: quietMonster }),
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99, 0.99])
+    });
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected first gear action to resolve.");
+    }
+    expect(first.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(3);
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "attack",
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99])
+    });
+    expect(second.ok).toBe(true);
+    expect(second.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(2);
+
+    const third = resolveCombatTurn({
+      state: second.state,
+      action: "attack",
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99])
+    });
+    expect(third.ok).toBe(true);
+    expect(third.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(1);
+
+    const fourth = resolveCombatTurn({
+      state: third.state,
+      action: "attack",
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99])
+    });
+    expect(fourth.ok).toBe(true);
+    expect(fourth.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]).toBeUndefined();
+
+    const reused = resolveCombatGearTurn({
+      state: fourth.state,
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 9 },
+      monster: quietMonster,
+      rng: new FakeRandomSource([0.1, 0.99, 0.99])
+    });
+
+    expect(reused.ok).toBe(true);
+    if (!reused.ok) {
+      throw new Error("Expected gear action to resolve after cooldown ticks away.");
+    }
+    expect(reused.summary.skillId).toBe("gear.barrel-counter-shield");
+    expect(reused.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]?.remainingTurns).toBe(3);
+  });
+
+  it("resolves borrowed support and healing as weaker gear, not native class behavior", () => {
+    const grant = getCombatGrant("ascstf");
+    const state = startCombat({ hero: { ...warrior, level: 11, manaCurrent: 8 }, monster });
+    state.hero.hp = 12;
+
+    const result = resolveCombatGearTurn({
+      state,
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 11 },
+      monster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected borrowed support gear turn to resolve.");
+    }
+    expect(result.summary).toMatchObject({
+      action: "gear",
+      skillId: "gear.asclepius-instruction",
+      abilitySource: "equipment",
+      heroHealing: 4,
+      allyResults: [{
+        targetId: "self",
+        label: "Ви",
+        healing: 4,
+        guard: 1
+      }],
+      manaSpent: 5
+    });
+    expect(result.state.hero.mana).toBe(3);
+    expect(result.state.guard).toEqual({ consecutiveDefends: 1, abilityDamageReduction: 1 });
+    expect(result.state.cooldowns?.skill).toBeUndefined();
+    expect(result.state.cooldowns?.abilities?.["gear.asclepius-instruction"]).toBeDefined();
+  });
+
+  it("keeps native class cooldowns independent from gear cooldowns", () => {
+    const grant = getCombatGrant("bcshield");
+    const afterGear = resolveCombatGearTurn({
+      state: startCombat({ hero: { ...warrior, level: 9, manaCurrent: 8 }, monster: { ...monster, hpMax: 80 } }),
+      ability: { profile: grant.combat.profile },
+      hero: { ...warrior, level: 9 },
+      monster: { ...monster, hpMax: 80 },
+      rng: new FakeRandomSource([0.1, 0.99, 0.99])
+    });
+
+    expect(afterGear.ok).toBe(true);
+    if (!afterGear.ok) {
+      throw new Error("Expected gear setup to resolve.");
+    }
+
+    const classTurn = resolveCombatTurn({
+      state: afterGear.state,
+      action: "skill",
+      hero: { ...warrior, level: 9 },
+      monster: { ...monster, hpMax: 80 },
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(classTurn.ok).toBe(true);
+    if (!classTurn.ok) {
+      throw new Error("Expected native class skill to ignore gear cooldown.");
+    }
+    expect(classTurn.summary).toMatchObject({
+      action: "skill",
+      skillId: "skill.forceful-strike"
+    });
+    expect(classTurn.state.cooldowns?.skill?.id).toBe("skill.forceful-strike");
+    expect(classTurn.state.cooldowns?.abilities?.["gear.barrel-counter-shield"]).toBeDefined();
+  });
+
+  it("refreshes gear bleed instead of stacking duplicate enemy entries", () => {
+    const grant = getCombatGrant("rldagr");
+    const state = startCombat({ hero: { ...warrior, level: 10, manaCurrent: 8 }, monster: { ...monster, hpMax: 80 } });
+    state.turn = 4;
+    state.enemyStatuses = {
+      version: 1,
+      enemies: {
+        "enemy:1": {
+          bleed: {
+            sourceAbilityId: grant.combat.profile.id,
+            sourceActor: "hero",
+            target: "enemy",
+            kind: "bleed",
+            polarity: "harmful",
+            removable: true,
+            damagePerActivation: 1,
+            remainingHeroActivations: 1,
+            refreshedAtTurn: 2
+          }
+        }
+      }
+    };
+
+    const result = resolveCombatGearTurn({
+      state,
+      ability: {
+        profile: grant.combat.profile,
+        bleed: {
+          sourceAbilityId: grant.combat.profile.id,
+          ...grant.combat.bleed!
+        }
+      },
+      hero: { ...warrior, level: 10 },
+      monster: { ...monster, hpMax: 80 },
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected bleed refresh turn to resolve.");
+    }
+    expect(Object.keys(result.state.enemyStatuses?.enemies ?? {})).toEqual(["enemy:1"]);
+    expect(result.state.enemyStatuses?.enemies["enemy:1"]?.bleed).toMatchObject({
+      remainingHeroActivations: 2,
+      refreshedAtTurn: 4
+    });
+  });
+
+  it("expires bleed after the intended number of hero activations", () => {
+    const state = startCombat({ hero: { ...warrior, level: 10 }, monster: { ...monster, hpMax: 80 } });
+    state.enemyStatuses = {
+      version: 1,
+      enemies: {
+        "enemy:1": {
+          bleed: {
+            sourceAbilityId: "gear.red-line-dagger",
+            sourceActor: "hero",
+            target: "enemy",
+            kind: "bleed",
+            polarity: "harmful",
+            removable: true,
+            damagePerActivation: 1,
+            remainingHeroActivations: 2,
+            refreshedAtTurn: 1
+          }
+        }
+      }
+    };
+
+    const first = resolveCombatTurn({
+      state,
+      action: "defend",
+      hero: { ...warrior, level: 10 },
+      monster: { ...monster, hpMax: 80 },
+      rng: new FakeRandomSource([0.99, 0.99])
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error("Expected first bleed tick to resolve.");
+    }
+    expect(first.summary.heroEffectDamage).toBe(1);
+    expect(first.state.enemyStatuses?.enemies["enemy:1"]?.bleed?.remainingHeroActivations).toBe(1);
+
+    const second = resolveCombatTurn({
+      state: first.state,
+      action: "defend",
+      hero: { ...warrior, level: 10 },
+      monster: { ...monster, hpMax: 80 },
+      rng: new FakeRandomSource([0.99, 0.99])
+    });
+    expect(second.ok).toBe(true);
+    if (!second.ok) {
+      throw new Error("Expected second bleed tick to resolve.");
+    }
+    expect(second.summary.heroEffectDamage).toBe(1);
+    expect(second.state.enemyStatuses).toBeUndefined();
+  });
+
+  it("damages only the bleeding enemy in multi-enemy fights", () => {
+    const state = startCombat({
+      hero: { ...warrior, level: 10 },
+      monster: { ...monster, hpMax: 30 },
+      enemies: [{ ...monster, hpMax: 30 }, { ...secondMonster, hpMax: 30 }]
+    });
+    state.enemyStatuses = {
+      version: 1,
+      enemies: {
+        "enemy:1": {
+          bleed: {
+            sourceAbilityId: "gear.red-line-dagger",
+            sourceActor: "hero",
+            target: "enemy",
+            kind: "bleed",
+            polarity: "harmful",
+            removable: true,
+            damagePerActivation: 1,
+            remainingHeroActivations: 2,
+            refreshedAtTurn: 1
+          }
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "defend",
+      hero: { ...warrior, level: 10 },
+      monster: { ...monster, hpMax: 30 },
+      enemies: [{ ...monster, hpMax: 30 }, { ...secondMonster, hpMax: 30 }],
+      rng: new FakeRandomSource([0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected multi-enemy bleed tick to resolve.");
+    }
+    expect(result.summary.heroEffectDamage).toBe(1);
+    expect(result.state.enemies?.[0]?.hp).toBe(29);
+    expect(result.state.enemies?.[1]?.hp).toBe(30);
+  });
+
+  it("lets gear bleed settle combat without an extra monster response", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    expect(grant?.combat?.bleed).toBeDefined();
+    if (!grant?.combat?.bleed) {
+      throw new Error("Expected red-line dagger bleed grant.");
+    }
+    const lowHpMonster = { ...monster, hpMax: 2, attack: 10 };
+
+    const result = resolveCombatGearTurn({
+      state: startCombat({
+        hero: { ...warrior, level: 10, manaCurrent: 3 },
+        monster: lowHpMonster
+      }),
+      ability: {
+        profile: {
+          ...grant.combat.profile,
+          baseDamage: 0,
+          multiplier: 0.1
+        },
+        bleed: {
+          sourceAbilityId: grant.combat.profile.id,
+          damagePerActivation: 1,
+          remainingHeroActivations: 3
+        }
+      },
+      hero: { ...warrior, level: 10 },
+      monster: lowHpMonster,
+      rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected gear bleed turn to resolve.");
+    }
+    expect(result.state.status).toBe("won");
+    expect(result.summary.heroEffectDamage).toBe(1);
+    expect(result.summary.monsterDamage).toBe(1);
+    expect(result.state.hero.hp).toBe(result.state.hero.hpMax);
+    expect(result.state.enemyStatuses).toBeUndefined();
+  });
+
+  it("keeps multi-enemy fights active when bleed kills only one enemy", () => {
+    const state = startCombat({
+      hero: { ...warrior, level: 10 },
+      monster: { ...monster, hpMax: 1, attack: 10 },
+      enemies: [{ ...monster, hpMax: 1, attack: 10 }, { ...secondMonster, hpMax: 30, attack: 3 }]
+    });
+    state.enemyStatuses = {
+      version: 1,
+      enemies: {
+        "enemy:1": {
+          bleed: {
+            sourceAbilityId: "gear.red-line-dagger",
+            sourceActor: "hero",
+            target: "enemy",
+            kind: "bleed",
+            polarity: "harmful",
+            removable: true,
+            damagePerActivation: 1,
+            remainingHeroActivations: 1,
+            refreshedAtTurn: 1
+          }
+        }
+      }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "defend",
+      hero: { ...warrior, level: 10 },
+      monster: { ...monster, hpMax: 1, attack: 10 },
+      enemies: [{ ...monster, hpMax: 1, attack: 10 }, { ...secondMonster, hpMax: 30, attack: 3 }],
+      rng: new FakeRandomSource([0.99, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected non-final bleed kill to resolve.");
+    }
+    expect(result.state.status).toBe("active");
+    expect(result.summary.heroEffectDamage).toBe(1);
+    expect(result.state.enemies?.find((enemy) => enemy.enemyId === "enemy:1")?.hp).toBe(0);
+    expect(result.state.enemies?.find((enemy) => enemy.enemyId === "enemy:2")?.hp).toBeGreaterThan(0);
+    expectPrimaryEnemyMirror(result.state, "enemy:2");
+  });
 });
+
+function getCombatGrant(key: string): CombatMantokAbilityGrantDefinition {
+  const grant = findMantokAbilityGrantByKey(key);
+  expect(grant?.combat).toBeDefined();
+  if (!grant?.combat) {
+    throw new Error(`Expected combat grant ${key}.`);
+  }
+
+  return grant as CombatMantokAbilityGrantDefinition;
+}
 
 function makeStateAfterPrimaryEnemyDeath(): CombatState {
   const state = startCombat({ hero: warrior, monster, enemies: [secondMonster] });

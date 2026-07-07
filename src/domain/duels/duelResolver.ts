@@ -17,6 +17,7 @@ export interface DuelResolveInput {
 
 export interface DuelistSummary extends CharacterSummary {
   id: string;
+  equipmentAbilityGrantIds?: string[];
 }
 
 export interface DuelResolveResult {

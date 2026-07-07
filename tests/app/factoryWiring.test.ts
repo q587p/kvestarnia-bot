@@ -161,7 +161,8 @@ describe("application factory wiring", () => {
         repositories.characters,
         undefined,
         undefined,
-        presence
+        presence,
+        achievements
       )
     `));
     expect(source).toContain(compact(`

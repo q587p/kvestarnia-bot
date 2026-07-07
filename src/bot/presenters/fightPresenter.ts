@@ -4,6 +4,7 @@ import {
   findThreatEscalationLine,
   getCombatActionAvailability,
   getCombatClassAbilityProfile,
+  getCombatGearActionAvailability,
   getCombatRaceAbilityProfile,
   getTerminalCombatTurnLogEventId,
   normalizeCombatEnemies,
@@ -12,7 +13,7 @@ import {
   type CombatTurnSummary
 } from "../../domain/combat";
 import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
-import { items } from "../../content";
+import { getCombatMantokAbilityGrantsByIds, items } from "../../content";
 import type {
   FightLookupResult,
   FightResult,
@@ -30,6 +31,7 @@ import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
+import { presentCombatSupportEffectLine } from "./combatActionPresenter";
 
 export interface QuestProgressAfterFightEntry {
   title: string;
@@ -339,7 +341,7 @@ export function presentPersistentFightTurn(
 
     if (result.state === "not-enough-mana") {
       return result.reason === "skill-on-cooldown"
-        ? "Вміння ще відсапується. Корчма показує поточний стан без зайвого удару."
+        ? "Дія спорядження ще відсапується. Корчма показує поточний стан без зайвого удару."
         : "Мани не стало навіть на драматичний жест. Корчма показує поточний стан без зайвого удару.";
     }
 
@@ -399,6 +401,22 @@ export function presentPersistentFightItemUnavailableNotice(
     case "not-usable":
       return "Манатка не спрацювала: у цьому бою її не застосувати.";
   }
+}
+
+export function presentPersistentFightGearUnavailableNotice(
+  result: Exclude<PersistentFightTurnResult, { state: "no-character" }>
+): string | null {
+  if (result.state === "stale-turn") {
+    return "Дія спорядження не спрацювала: цей хід уже змінився.";
+  }
+
+  if (result.state !== "not-enough-mana") {
+    return null;
+  }
+
+  return result.reason === "skill-on-cooldown"
+    ? "Дія спорядження не спрацювала: ще відсапується."
+    : "Дія спорядження не спрацювала: мани замало.";
 }
 
 export function presentPersistentFightSnapshot(
@@ -471,8 +489,13 @@ function presentActiveFightEffectNotices(
         : []
     )
     .map((notice) => `🧷 Ефект триває: ${escapeHtml(trimTerminalPunctuation(notice))}.`);
+  const bleedNotices = Object.values(state.enemyStatuses?.enemies ?? {})
+    .flatMap((status) => status.bleed ? [status.bleed] : [])
+    .map((bleed) =>
+      `🩸 Кровотеча триває: ${bleed.damagePerActivation} шкоди, ще ${bleed.remainingHeroActivations} активац.`
+    );
 
-  return Array.from(new Set(notices));
+  return Array.from(new Set([...notices, ...bleedNotices]));
 }
 
 function presentJournalEnemyHpRows(
@@ -1195,9 +1218,14 @@ function presentTurnSummary(
   }
 
   if (summary.heroOutcome === "defended") {
+    const defenseLine =
+      summary.action === "skill" || summary.action === "race" || summary.action === "gear"
+        ? `${presentSkillAction(summary.skillId)} спрацьовує: ви стали в захист, ворогові важче влучити, а удар буде слабшим.`
+        : "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.";
+
     return withMonsterBark(summary, [
       ...heading,
-      "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.",
+      defenseLine,
       heroEffectResponse,
       withEnemyPressureSkips(
         enemyResponses || monsterResponse || "Монстр не знайшов переконливого кута атаки.",
@@ -1250,7 +1278,7 @@ function presentTurnSummary(
   }
 
   const action =
-    summary.action === "skill" || summary.action === "race"
+    summary.action === "skill" || summary.action === "race" || summary.action === "gear"
       ? presentSkillAction(summary.skillId)
       : summary.action === "attack"
         ? "Атака"
@@ -1595,6 +1623,20 @@ function presentUnavailableAbilityNotices(
     notices.push(presentNotEnoughManaAbility(getCombatRaceAbilityProfile(character.raceId) ?? availability.race.ability, state.hero.mana));
   }
 
+  const gearGrants = getCombatMantokAbilityGrantsByIds({
+    grantIds: state.equipmentAbilities?.grantIds ?? [],
+    characterLevel: character.level
+  });
+  for (const grant of gearGrants) {
+    if (!grant.combat) {
+      continue;
+    }
+    const gearAvailability = getCombatGearActionAvailability(state, grant.combat.profile);
+    if (gearAvailability.available === false && gearAvailability.reason === "not-enough-mana") {
+      notices.push(presentNotEnoughManaAbility(grant.combat.profile, state.hero.mana));
+    }
+  }
+
   return notices;
 }
 
@@ -1657,14 +1699,13 @@ function presentAllyAbilityResults(summary: CombatTurnSummary): string[] {
 
   return results.length > 0
     ? results.map((entry) => {
-        const parts = [
-          entry.healing ? `HP підросли на ${entry.healing}` : "",
-          entry.guard ? "захист став міцнішим" : ""
-        ].filter(Boolean);
-
-        return parts.length > 0 ? `Підтримка: ${parts.join(", ")}.` : "";
+        return presentCombatSupportEffectLine(entry, {
+          separator: ", ",
+          showGuardAmount: false,
+          guardWithoutAmountText: "захист став міцнішим"
+        });
       }).filter(Boolean)
-    : [`Підтримка: HP підросли на ${summary.heroHealing}.`];
+    : [presentCombatSupportEffectLine({ healing: summary.heroHealing ?? 0 })];
 }
 
 function trimTerminalPunctuation(text: string): string {

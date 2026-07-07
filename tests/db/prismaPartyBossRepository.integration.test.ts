@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { findMantokAbilityGrantByKey } from "../../src/content";
 import { PrismaPartyBossRepository } from "../../src/db/repositories/prismaPartyBossRepository";
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import type {
@@ -589,6 +590,288 @@ describe("PrismaPartyBossRepository integration", () => {
         itemId: "item.responsible-panic-bandage"
       }
     })).toBe(0);
+  });
+
+  it("treats duplicate Big Barrel gear actions as a single queued support effect", async () => {
+    const grant = findMantokAbilityGrantByKey("bcshield");
+    if (!grant?.combat) {
+      throw new Error("Expected barrel shield combat grant.");
+    }
+
+    await seedCharacter(prisma, "duplicate-gear-leader-user", 1191n, "Щитова Лідерка", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      strength: 20,
+      equipment: [{ slot: "offhand", itemId: "item.set.barrel-brother.shield" }]
+    });
+    await seedCharacter(prisma, "duplicate-gear-joiner-user", 1192n, "Свідок Щита", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      strength: 20
+    });
+    await partyRepository.createForTelegramUser(1191n, partyInput("party-token-duplicate-gear"));
+    await partyRepository.joinByTokenForTelegramUser(1192n, "party-token-duplicate-gear", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1191n, {
+      partyInviteToken: "party-token-duplicate-gear",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const gearAbility = { profile: grant.combat.profile };
+    const queued = await bossRepository.submitActionForTelegramUser(
+      1191n,
+      "party-token-duplicate-gear",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility }
+    );
+    const duplicate = await bossRepository.submitActionForTelegramUser(
+      1191n,
+      "party-token-duplicate-gear",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility }
+    );
+
+    expect(queued.state).toBe("queued");
+    expect(duplicate.state).toBe("duplicate");
+    expect(duplicate.achievementEvents).toBeUndefined();
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: expectPartyBossSession(queued).id,
+        actorCharacterId: "duplicate-gear-leader-user-character"
+      }
+    })).toBe(1);
+
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      1192n,
+      "party-token-duplicate-gear",
+      1,
+      "defend",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+    const round = latest.state.roundLog.at(-1);
+    const leaderGearActions = round?.actions.filter(
+      (action) => action.characterId === "duplicate-gear-leader-user-character" && action.action === "gear"
+    ) ?? [];
+    const leaderAfter = latest.state.participants.find(
+      (participant) => participant.characterId === "duplicate-gear-leader-user-character"
+    );
+
+    expect(resolved.state).toBe("resolved");
+    expect(leaderGearActions).toHaveLength(1);
+    expect(leaderGearActions[0]).toMatchObject({
+      skillId: "gear.barrel-counter-shield",
+      guard: 2,
+      manaSpent: 0
+    });
+    expect(Object.keys(leaderAfter?.resources.cooldowns?.abilities ?? {})).toEqual(["gear.barrel-counter-shield"]);
+    expect(resolved.achievementEvents).toEqual([
+      expect.objectContaining({
+        type: "mantok.gear-action.used",
+        characterId: "duplicate-gear-leader-user-character"
+      })
+    ]);
+  });
+
+  it("rejects Big Barrel gear actions without mana before writing the action ledger", async () => {
+    const grant = findMantokAbilityGrantByKey("harpcp");
+    if (!grant?.combat) {
+      throw new Error("Expected harp combat grant.");
+    }
+
+    await seedCharacter(prisma, "gear-no-mana-user", 1193n, "Без Мани", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      manaCurrent: 0,
+      manaMax: 10,
+      equipment: [{ slot: "tool", itemId: "item.set.couplet.harp" }]
+    });
+    await partyRepository.createForTelegramUser(1193n, partyInput("party-token-gear-no-mana"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1193n, {
+      partyInviteToken: "party-token-gear-no-mana",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    const beforeState = started.session.state;
+
+    const blocked = await bossRepository.submitActionForTelegramUser(
+      1193n,
+      "party-token-gear-no-mana",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility: { profile: grant.combat.profile } }
+    );
+    const latest = expectPartyBossSession(blocked);
+
+    expect(blocked.state).toBe("gear-unavailable");
+    if (blocked.state === "gear-unavailable") {
+      expect(blocked.reason).toBe("not-enough-mana");
+    }
+    expect(latest.state).toEqual(beforeState);
+    expect(latest.turn).toBe(1);
+    expect(latest.state.roundLog).toHaveLength(0);
+    expect(latest.state.roundLog.at(-1)?.bossRetaliations ?? []).toEqual([]);
+    expect(latest.state.participants.find(
+      (participant) => participant.characterId === "gear-no-mana-user-character"
+    )?.resources).toEqual(beforeState.participants.find(
+      (participant) => participant.characterId === "gear-no-mana-user-character"
+    )?.resources);
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: latest.id,
+        actorCharacterId: "gear-no-mana-user-character"
+      }
+    })).toBe(0);
+    expect(blocked.achievementEvents).toBeUndefined();
+  });
+
+  it("rejects Big Barrel gear actions missing from the frozen participant grant snapshot before writing the action ledger", async () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+
+    await seedCharacter(prisma, "gear-missing-grant-user", 1195n, "Без Кинджала", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      manaCurrent: 10,
+      manaMax: 10
+    });
+    await partyRepository.createForTelegramUser(1195n, partyInput("party-token-gear-missing-grant"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1195n, {
+      partyInviteToken: "party-token-gear-missing-grant",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    const beforeState = started.session.state;
+
+    const blocked = await bossRepository.submitActionForTelegramUser(
+      1195n,
+      "party-token-gear-missing-grant",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility: { profile: grant.combat.profile } }
+    );
+    const latest = expectPartyBossSession(blocked);
+
+    expect(blocked.state).toBe("stale");
+    expect(latest.state).toEqual(beforeState);
+    expect(latest.turn).toBe(1);
+    expect(latest.state.roundLog).toHaveLength(0);
+    expect(latest.state.roundLog.at(-1)?.bossRetaliations ?? []).toEqual([]);
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: latest.id,
+        actorCharacterId: "gear-missing-grant-user-character"
+      }
+    })).toBe(0);
+    expect(blocked.achievementEvents).toBeUndefined();
+  });
+
+  it("rejects Big Barrel gear actions on equipment cooldown before writing the action ledger", async () => {
+    const grant = findMantokAbilityGrantByKey("bcshield");
+    if (!grant?.combat) {
+      throw new Error("Expected barrel shield combat grant.");
+    }
+
+    await seedCharacter(prisma, "gear-cooldown-user", 1194n, "Відсапана Щитниця", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      manaCurrent: 10,
+      manaMax: 10,
+      equipment: [{ slot: "offhand", itemId: "item.set.barrel-brother.shield" }]
+    });
+    await partyRepository.createForTelegramUser(1194n, partyInput("party-token-gear-cooldown"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1194n, {
+      partyInviteToken: "party-token-gear-cooldown",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    const cooldownState = {
+      ...started.session.state,
+      participants: started.session.state.participants.map((participant) =>
+        participant.characterId === "gear-cooldown-user-character"
+          ? {
+              ...participant,
+              resources: {
+                ...participant.resources,
+                cooldowns: {
+                  ...participant.resources.cooldowns,
+                  abilities: {
+                    ...(participant.resources.cooldowns?.abilities ?? {}),
+                    "gear.barrel-counter-shield": {
+                      id: "gear.barrel-counter-shield",
+                      remainingTurns: 2
+                    }
+                  }
+                }
+              }
+            }
+          : participant
+      )
+    };
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: { stateJson: cooldownState }
+    });
+    const beforeResources = cooldownState.participants.find(
+      (participant) => participant.characterId === "gear-cooldown-user-character"
+    )?.resources;
+
+    const blocked = await bossRepository.submitActionForTelegramUser(
+      1194n,
+      "party-token-gear-cooldown",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility: { profile: grant.combat.profile } }
+    );
+    const latest = expectPartyBossSession(blocked);
+
+    expect(blocked.state).toBe("gear-unavailable");
+    if (blocked.state === "gear-unavailable") {
+      expect(blocked.reason).toBe("skill-on-cooldown");
+    }
+    expect(latest.state).toEqual(cooldownState);
+    expect(latest.turn).toBe(1);
+    expect(latest.state.roundLog).toHaveLength(0);
+    expect(latest.state.roundLog.at(-1)?.bossRetaliations ?? []).toEqual([]);
+    expect(latest.state.participants.find(
+      (participant) => participant.characterId === "gear-cooldown-user-character"
+    )?.resources).toEqual(beforeResources);
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: latest.id,
+        actorCharacterId: "gear-cooldown-user-character"
+      }
+    })).toBe(0);
+    expect(blocked.achievementEvents).toBeUndefined();
   });
 
   it("does not consume a party-boss field kit when raid HP is already above its threshold", async () => {

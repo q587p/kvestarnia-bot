@@ -119,6 +119,10 @@ export type DevGrantItemsResult =
   | { state: "disabled" }
   | { state: "no-character" }
   | {
+      state: "unknown-item";
+      itemId: string;
+    }
+  | {
       state: "no-matching-items";
       filter: DevGrantRandomItemFilter;
     }
@@ -284,6 +288,26 @@ export class DevGrantService {
         itemGrants: result.itemGrants
       })
     };
+  }
+
+  async addItemById(
+    telegramUserId: bigint,
+    itemId: string,
+    amount = 1
+  ): Promise<DevGrantItemsResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    if (!items.some((item) => item.id === itemId)) {
+      return { state: "unknown-item", itemId };
+    }
+
+    return this.addSpecificItems(telegramUserId, {
+      amount,
+      itemId,
+      sourceKind: "dev.add_item"
+    });
   }
 
   async addBandages(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {

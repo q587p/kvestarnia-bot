@@ -32,6 +32,7 @@ describe("party session keyboard", () => {
     const session = makeBossSession();
 
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true,
       includeDevTimeout: true
     }))).toEqual([
       "🗡️ Вдарити",
@@ -42,11 +43,68 @@ describe("party session keyboard", () => {
       "⏱️ Dev: добити хід",
       "🔎 Оновити"
     ]);
-    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true
+    }))).toContain("v1:party:bm:partyABC12:1");
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bi:");
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, null))).toEqual([
       "🔎 Оновити"
     ]);
+  });
+
+  it("hides the party boss one-use shortcut when no useful combat items are available", () => {
+    const session = makeBossSession();
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
+      "🗡️ Вдарити",
+      "🛡 Захищатися",
+      "🪓 Силовий замах",
+      "🧰 Практична імпровізація",
+      "🔎 Оновити"
+    ]);
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bm:partyABC12:1");
+  });
+
+  it("keeps the party boss one-use shortcut hidden unless explicitly enabled", () => {
+    const session = makeBossSession();
+
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1"))).not.toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).not.toContain("v1:party:bm:partyABC12:1");
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true
+    }))).toContain("v1:party:bm:partyABC12:1");
+  });
+
+  it("shows party boss gear actions from equipment grants", () => {
+    const session = makeBossSession({
+      level: 10,
+      equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"]
+    });
+
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).toContain("v1:party:bg:partyABC12:1:rldagr");
+  });
+
+  it("hides party boss gear actions while their equipment cooldown is active", () => {
+    const session = makeBossSession({
+      level: 10,
+      equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"],
+      cooldowns: {
+        abilities: {
+          "gear.red-line-dagger": {
+            id: "gear.red-line-dagger",
+            remainingTurns: 2
+          }
+        }
+      }
+    });
+
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: false
+    }))).not.toContain("v1:party:bg:partyABC12:1:rldagr");
   });
 
   it("shows the Big Barrel Brother raid start without dev proof helpers", () => {
@@ -125,7 +183,6 @@ describe("party session keyboard", () => {
       "🗡️ Вдарити",
       "🛡 Захищатися",
       "🧰 Практична імпровізація",
-      "🎒 Одноразові манатки",
       "🔎 Оновити"
     ]);
   });
@@ -219,7 +276,15 @@ function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: stri
 }
 
 function makeBossSession(
-  participantOverrides: { status?: "active" | "knocked-out"; hp?: number; mana?: number; classId?: string } = {},
+  participantOverrides: {
+    status?: "active" | "knocked-out";
+    hp?: number;
+    mana?: number;
+    classId?: string;
+    level?: number;
+    equipmentAbilityGrantIds?: string[];
+    cooldowns?: NonNullable<PartyBossSessionRecord["state"]["participants"][number]["resources"]["cooldowns"]>;
+  } = {},
   sessionOverrides: { status?: PartyBossSessionRecord["status"]; roundLogLength?: number } = {}
 ): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
@@ -263,7 +328,7 @@ function makeBossSession(
           remortCount: 0,
           status: participantOverrides.status ?? "active",
           combatStats: {
-            level: 3,
+            level: participantOverrides.level ?? 3,
             hpMax: 25,
             manaMax: 10,
             hpCurrent: 25,
@@ -276,11 +341,15 @@ function makeBossSession(
             raceId: "race.human-ish",
             classId: participantOverrides.classId ?? "class.warrior"
           },
+          ...(participantOverrides.equipmentAbilityGrantIds
+            ? { equipmentAbilityGrantIds: participantOverrides.equipmentAbilityGrantIds }
+            : {}),
           resources: {
             hp: participantOverrides.hp ?? 25,
             hpMax: 25,
             mana: participantOverrides.mana ?? 10,
-            manaMax: 10
+            manaMax: 10,
+            ...(participantOverrides.cooldowns ? { cooldowns: participantOverrides.cooldowns } : {})
           },
           contribution: {
             submittedActions: 0,

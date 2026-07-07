@@ -8,6 +8,7 @@ import {
 } from "../../src/domain/duels/turnBasedDuel";
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
 import { FakeRandomSource } from "../../src/shared/random";
+import { findMantokAbilityGrantByKey } from "../../src/content";
 
 describe("turn-based duel domain", () => {
   it("stores a stable first actor from initiative instead of always using the challenger", () => {
@@ -346,6 +347,197 @@ describe("turn-based duel domain", () => {
       id: "ability.race.practical-improvisation",
       remainingTurns: 3
     });
+  });
+
+  it("resolves gear actions in turn-based duels with separate cooldowns", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 10,
+        dexterity: 14,
+        manaCurrent: 10,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile,
+        ...(grant.combat.bleed
+          ? {
+              bleed: {
+                sourceAbilityId: grant.combat.profile.id,
+                ...grant.combat.bleed
+              }
+            }
+          : {})
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) {
+      throw new Error("Expected gear action to queue.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected gear round to resolve.");
+    }
+
+    expect(resolved.round.actions[0]).toMatchObject({
+      actorCharacterId: "challenger",
+      action: "gear",
+      skillId: "gear.red-line-dagger"
+    });
+    expect(
+      resolved.state.participants.challenger.cooldowns?.abilities?.["gear.red-line-dagger"]
+    ).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 3
+    });
+  });
+
+  it("rejects turn-based gear actions without enough mana", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 10,
+        manaCurrent: 0,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const result = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "not-enough-mana",
+      state
+    });
+    expect(state.pendingActions).toBeUndefined();
+  });
+
+  it("rejects turn-based gear actions while their equipment cooldown is active", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 10,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+    state.participants.challenger.cooldowns = {
+      abilities: {
+        [grant.combat.profile.id]: {
+          id: grant.combat.profile.id,
+          remainingTurns: 2
+        }
+      }
+    };
+
+    const result = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "skill-on-cooldown",
+      state
+    });
+    expect(state.pendingActions).toBeUndefined();
+  });
+
+  it("applies borrowed equipment support effects in turn-based duels", () => {
+    const grant = findMantokAbilityGrantByKey("ascstf");
+    if (!grant?.combat) {
+      throw new Error("Expected Asclepius staff combat grant.");
+    }
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({
+        id: "challenger",
+        level: 11,
+        hpCurrent: 10,
+        hpMax: 30,
+        manaCurrent: 10,
+        equipmentAbilityGrantIds: [grant.id]
+      }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "challenger",
+      action: "gear",
+      gearAbility: {
+        profile: grant.combat.profile
+      },
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) {
+      throw new Error("Expected borrowed support gear action to queue.");
+    }
+
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "target",
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!resolved.ok || resolved.resolution !== "resolved") {
+      throw new Error("Expected borrowed support gear round to resolve.");
+    }
+
+    expect(resolved.round.actions[0]).toMatchObject({
+      actorCharacterId: "challenger",
+      action: "gear",
+      skillId: "gear.asclepius-instruction",
+      healing: 4,
+      guard: 1
+    });
+    expect(resolved.state.participants.challenger.hp).toBe(14);
   });
 
   it("applies support-only class action effects in turn-based duel summaries", () => {

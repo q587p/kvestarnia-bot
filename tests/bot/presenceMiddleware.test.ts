@@ -6,10 +6,12 @@ import { makeCellarCallbackData } from "../../src/bot/callbacks/cellarCallbackDa
 import { makeDuelNewCallbackData } from "../../src/bot/callbacks/duelCallbackData";
 import {
   makeFightCallbackData,
+  makeFightGearActionCallbackData,
   makeFightTurnCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeHuntActionCallbackData } from "../../src/bot/callbacks/huntCallbackData";
 import {
+  makePartyBossGearActionCallbackData,
   makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartySessionViewCallbackData
@@ -414,7 +416,8 @@ describe("presence middleware", () => {
         getByPartyInviteToken: () => {
           refreshed = true;
           return Promise.resolve(boss);
-        }
+        },
+        hasCombatItemsForTelegramUser: () => Promise.resolve(false)
       } as unknown as NonNullable<BotServices["partyBoss"]>
     });
     await bot.init();
@@ -442,7 +445,8 @@ describe("presence middleware", () => {
         getActiveForTelegramUser: () => {
           throw new Error("party item use should not be intercepted by the combat lock");
         },
-        submitItemForTelegramUser
+        submitItemForTelegramUser,
+        hasCombatItemsForTelegramUser: () => Promise.resolve(false)
       } as unknown as NonNullable<BotServices["partyBoss"]>
     });
     await bot.init();
@@ -486,6 +490,39 @@ describe("presence middleware", () => {
     )));
 
     expect(listCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, boss.partyInviteToken, boss.turn);
+  });
+
+  it("lets party boss gear callbacks bypass the active combat lock", async () => {
+    const presence = new CapturingPresenceService();
+    const boss = activePartyBossSession();
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({
+      state: "queued" as const,
+      session: boss
+    });
+    const bot = createTestBot(presence, {
+      partySessions: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false
+      } as NonNullable<BotServices["partySessions"]>,
+      partyBoss: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        getActiveForTelegramUser: () => {
+          throw new Error("party gear action should not be intercepted by the combat lock");
+        },
+        submitGearForTelegramUser,
+        hasCombatItemsForTelegramUser: () => Promise.resolve(false)
+      } as unknown as NonNullable<BotServices["partyBoss"]>
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makePartyBossGearActionCallbackData({
+      token: boss.partyInviteToken,
+      turn: boss.turn,
+      grantKey: "rldagr"
+    })));
+
+    expect(submitGearForTelegramUser).toHaveBeenCalledWith(42n, boss.partyInviteToken, boss.turn, "rldagr");
   });
 
   it("keeps active training combat presence instead of stamping blocked tavern destination", async () => {
@@ -867,6 +904,35 @@ describe("presence middleware", () => {
         }
       }
     ]);
+  });
+
+  it("lets persistent gear callbacks bypass the active combat lock", async () => {
+    const presence = new CapturingPresenceService();
+    const resolvePersistentFightTurn = vi.fn().mockResolvedValue({ state: "not-found" });
+    const bot = createTestBot(presence, {
+      fight: {
+        getFightOverviewForTelegramUser: () => {
+          throw new Error("gear callbacks should not be intercepted by the combat lock");
+        },
+        resolvePersistentFightTurn,
+        getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        completeMimicShawarma: () => Promise.resolve({ state: "no-character" })
+      } as unknown as NonNullable<BotServices["fight"]>
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(makeFightGearActionCallbackData({
+      sessionId: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 1,
+      grantKey: "rldagr"
+    })));
+
+    expect(resolvePersistentFightTurn).toHaveBeenCalledWith(42n, {
+      sessionId: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
   });
 
   it("blocks hunt action callbacks outside the korchma before claiming the hourly hunt", async () => {

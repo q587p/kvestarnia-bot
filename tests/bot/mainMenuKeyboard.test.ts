@@ -1212,6 +1212,49 @@ describe("main menu and scene keyboards", () => {
     }, character))).toEqual(["v1:place:quest-table"]);
   });
 
+  it("hides unavailable persistent gear action buttons while the fight card explains the blocker", () => {
+    const session = {
+      ...persistentFightSession(),
+      state: {
+        ...persistentFightSession().state!,
+        hero: {
+          hp: 21,
+          hpMax: 24,
+          mana: 0,
+          manaMax: 12
+        },
+        equipmentAbilities: {
+          version: 1 as const,
+          grantIds: ["mantok-ability.red-line-dagger"]
+        }
+      }
+    };
+    const keyboard = buildPersistentFightKeyboard(session, { ...character, level: 10 });
+
+    expect(flatInlineButtonCallbacks(keyboard)).not.toContain(
+      "v1:fight:gear:123e4567-e89b-12d3-a456-426614174000:4:rldagr"
+    );
+  });
+
+  it("shows the barrel shield gear action on persistent fight keyboards", () => {
+    const session = {
+      ...persistentFightSession(),
+      state: {
+        ...persistentFightSession().state!,
+        equipmentAbilities: {
+          version: 1 as const,
+          grantIds: ["mantok-ability.barrel-counter-shield"]
+        }
+      }
+    };
+    const keyboard = buildPersistentFightKeyboard(session, { ...character, level: 9 });
+
+    expect(flatInlineButtonTexts(keyboard)).toContain("🛡 Контраргумент");
+    expect(flatInlineButtonCallbacks(keyboard)).toContain(
+      "v1:fight:gear:123e4567-e89b-12d3-a456-426614174000:4:bcshield"
+    );
+  });
+
   it("adds journal navigation only on persistent fight results", () => {
     const session = {
       ...persistentFightSession(),
@@ -1458,6 +1501,32 @@ describe("main menu and scene keyboards", () => {
       ["🧰 Практична імпровізація"],
       ["🏳️ Здатися", "🔎 Оновити"]
     ]);
+  });
+
+  it("hides a turn-based duel gear action while its equipment cooldown is active", () => {
+    const result = turnBasedDuelKeyboardResult({
+      session: {
+        state: {
+          participants: {
+            challenger: turnBasedParticipant("character-1", {
+              equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"],
+              cooldowns: {
+                abilities: {
+                  "gear.red-line-dagger": {
+                    id: "gear.red-line-dagger",
+                    remainingTurns: 2
+                  }
+                }
+              }
+            })
+          }
+        }
+      }
+    });
+
+    expect(flatInlineButtonCallbacks(
+      buildTurnBasedDuelKeyboard(result, "character-1", "💪 Силовий удар")
+    )).not.toContain("v1:duel:g:abcDEF12:2:4:rldagr");
   });
 
   it("keeps persistent fight skill icons unique and away from common action icons", () => {
@@ -3213,6 +3282,7 @@ function turnBasedParticipant(
   characterId: string,
   overrides: {
     mana?: number;
+    equipmentAbilityGrantIds?: string[];
     cooldowns?: {
       skill?: { id: string; remainingTurns: number };
       abilities?: Record<string, { id: string; remainingTurns: number }>;
@@ -3227,6 +3297,7 @@ function turnBasedParticipant(
     hpMax: 24,
     mana: overrides.mana ?? 10,
     manaMax: 10,
+    equipmentAbilityGrantIds: overrides.equipmentAbilityGrantIds,
     cooldowns: overrides.cooldowns,
     combatStats: {
       level: 3,

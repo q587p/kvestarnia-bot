@@ -4,6 +4,7 @@ import {
   createPartyBossState,
   resolvePartyBossRound
 } from "../../src/domain/partyBoss/partyBoss";
+import { findMantokAbilityGrantByKey } from "../../src/content";
 
 const PARTY_BOSS_SIMULATION_HORIZON_TURNS = 13;
 const PARTY_BOSS_SIMULATION_RUNS = 400;
@@ -86,6 +87,248 @@ describe("party boss reducer", () => {
     live!.resources.cooldowns!.abilities![abilityId]!.remainingTurns = 9;
 
     expect(snapshot?.cooldowns?.abilities?.[abilityId]?.remainingTurns).toBe(2);
+  });
+
+  it("resolves equipment gear actions in party boss rounds", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 10,
+          dexterity: 14,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile,
+            ...(grant.combat.bleed
+              ? {
+                  bleed: {
+                    sourceAbilityId: grant.combat.profile.id,
+                    ...grant.combat.bleed
+                  }
+                }
+              : {})
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      skillId: "gear.red-line-dagger"
+    });
+    expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 3
+    });
+  });
+
+  it("defensively resolves pre-queued party boss gear actions without effects when mana is missing", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-no-mana",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 10,
+          manaCurrent: 0,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-no-mana",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      outcome: "not-enough-mana",
+      damage: 0,
+      manaSpent: 0
+    });
+    expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toBeUndefined();
+  });
+
+  it("defensively resolves pre-queued party boss gear actions without effects while equipment cooldown is active", () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-cooldown",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 10,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+    state.participants[0]!.resources.cooldowns = {
+      abilities: {
+        [grant.combat.profile.id]: {
+          id: grant.combat.profile.id,
+          remainingTurns: 2
+        }
+      }
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-cooldown",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      outcome: "skill-on-cooldown",
+      damage: 0,
+      manaSpent: 0
+    });
+    expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toEqual({
+      id: "gear.red-line-dagger",
+      remainingTurns: 2
+    });
+  });
+
+  it("applies equipment guard effects before party boss retaliation", () => {
+    const grant = findMantokAbilityGrantByKey("bcshield");
+    if (!grant?.combat) {
+      throw new Error("Expected barrel shield combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-guard",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 9,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-guard",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      skillId: "gear.barrel-counter-shield",
+      guard: 2
+    });
+    expect(result.round.bossRetaliations[0]).toMatchObject({
+      characterId: "character-1",
+      damage: 6,
+      hpAfter: 24
+    });
+    expect(result.state.participants[0]?.resources.guard).toEqual({
+      consecutiveDefends: 1,
+      abilityDamageReduction: 2
+    });
+  });
+
+  it("applies borrowed equipment healing and guard in party boss rounds", () => {
+    const grant = findMantokAbilityGrantByKey("ascstf");
+    if (!grant?.combat) {
+      throw new Error("Expected Asclepius staff combat grant.");
+    }
+    const state = createPartyBossState({
+      partySessionId: "party-gear-support",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", {
+          level: 11,
+          hp: 30,
+          hpCurrent: 12,
+          mana: 12,
+          manaCurrent: 8,
+          equipmentAbilityGrantIds: [grant.id]
+        })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-gear-support",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "gear",
+          origin: "manual",
+          gearAbility: {
+            profile: grant.combat.profile
+          }
+        }
+      ]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "gear",
+      skillId: "gear.asclepius-instruction",
+      healing: 4,
+      guard: 1,
+      hpAfter: 16
+    });
+    expect(result.state.participants[0]?.resources.guard).toEqual({
+      consecutiveDefends: 1,
+      abilityDamageReduction: 1
+    });
   });
 
   it("keeps already submitted same-round actions when an earlier actor drops the boss", () => {
@@ -752,6 +995,7 @@ function participant(
     classId?: string;
     hpCurrent?: number;
     manaCurrent?: number;
+    equipmentAbilityGrantIds?: string[];
   } = {}
 ) {
   const strength = overrides.strength ?? 8;
@@ -778,6 +1022,7 @@ function participant(
       resist: Math.max(0, Math.floor(intelligence / 3)),
       weaponDamage: 1 + Math.max(0, Math.floor(strength / 4)),
       spellPower: 1 + Math.max(0, Math.floor(intelligence / 4))
-    }
+    },
+    ...(overrides.equipmentAbilityGrantIds ? { equipmentAbilityGrantIds: overrides.equipmentAbilityGrantIds } : {})
   };
 }

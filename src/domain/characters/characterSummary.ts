@@ -1,5 +1,6 @@
 import { classes } from "../../content/classes";
 import { getComboTitle, getPronounLabel, isPronoun } from "../../content/characterOptions";
+import { findMantokAbilityGrantByItemId } from "../../content/mantokAbilityGrants";
 import { races } from "../../content/races";
 import type { ItemContent, Pronoun } from "../../content/schema";
 import {
@@ -37,8 +38,14 @@ export interface CharacterSummary {
   stats: CharacterStats;
   levelBonus: LevelBonus;
   equipmentEffects?: EquipmentEffectSummary;
+  equipmentAbilityActions?: CharacterEquipmentAbilityActionSummary[];
   remortCount?: number;
   remortMemoryRank?: number;
+}
+
+export interface CharacterEquipmentAbilityActionSummary {
+  id: string;
+  label: string;
 }
 
 export interface CharacterSummaryInput {
@@ -94,6 +101,7 @@ export function summarizeCharacter(
       ...(item.effect ? { effect: item.effect } : {})
     }))
   });
+  const equipmentAbilityActions = summarizeEquipmentAbilityActions(options.equippedItems ?? []);
 
   return {
     name: input.name,
@@ -119,6 +127,7 @@ export function summarizeCharacter(
     stats: effectiveStats.stats,
     levelBonus: effectiveStats.levelBonus,
     equipmentEffects: effectiveStats.equipmentEffects,
+    ...(equipmentAbilityActions.length > 0 ? { equipmentAbilityActions } : {}),
     ...(remortCount > 0
       ? {
           remortCount,
@@ -126,6 +135,29 @@ export function summarizeCharacter(
         }
       : {})
   };
+}
+
+function summarizeEquipmentAbilityActions(
+  equippedItems: readonly ItemContent[]
+): CharacterEquipmentAbilityActionSummary[] {
+  const seenGrantIds = new Set<string>();
+
+  return equippedItems.flatMap((item) => {
+    const grant = findMantokAbilityGrantByItemId(item.id);
+
+    if (!grant?.combat || seenGrantIds.has(grant.id)) {
+      return [];
+    }
+
+    seenGrantIds.add(grant.id);
+
+    return [
+      {
+        id: grant.id,
+        label: grant.label
+      }
+    ];
+  });
 }
 
 function parsePronoun(value: string | undefined): Pronoun {

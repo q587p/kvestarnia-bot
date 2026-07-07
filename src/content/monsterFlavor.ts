@@ -2,6 +2,7 @@ import type { CharacterFlavorSelector } from "./characterFlavor";
 import type { CharacterPath } from "../domain/characters/path";
 import type { Pronoun } from "./schema";
 import { mantokEquipmentCoverageLoot } from "./mantokEquipmentCoverageLoot";
+import { mantokAbilityGrantLootAdditions } from "./mantokAbilityGrants";
 import { mantokSetLootAdditions } from "./mantokSetItems";
 import { monsterTrophyLoot } from "./monsterTrophyCoverage";
 
@@ -266,7 +267,8 @@ export const monsterLoot = mergeMonsterLoot(
   baseMonsterLoot,
   monsterTrophyLoot,
   mantokEquipmentCoverageLoot,
-  mantokSetLootAdditions
+  mantokSetLootAdditions,
+  mantokAbilityGrantLootAdditions
 );
 
 function mergeMonsterLoot(
