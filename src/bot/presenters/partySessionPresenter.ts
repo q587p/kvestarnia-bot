@@ -835,7 +835,10 @@ function getStatusLine(session: PartySessionRecord): string {
   }
 
   if (isBigBarrelParty(session)) {
-    return `Стан: рейд почнеться автоматично о ${formatTime(session.expiresAt)}. До того зайдіть у збір і полікуйтеся.`;
+    return [
+      `Стан: рейд почнеться автоматично о ${formatTime(session.expiresAt)}.`,
+      "Лідер ватаги може почати бій раніше. До того зайдіть у збір і полікуйтеся."
+    ].join("\n");
   }
 
   return `Стан: збір відкрито до ${formatTime(session.expiresAt)}`;
