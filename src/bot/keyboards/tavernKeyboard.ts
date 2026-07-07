@@ -143,7 +143,7 @@ export function buildEnterKorchmaKeyboard(
 ): InlineKeyboard {
   const marker =
     options.questMarkers === undefined
-      ? QuestMarker.CAN_ACCEPT
+      ? QuestMarker.NONE
       : resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall");
 
   return new InlineKeyboard().text(

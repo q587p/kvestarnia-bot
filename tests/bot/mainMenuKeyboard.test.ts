@@ -314,7 +314,7 @@ describe("main menu and scene keyboards", () => {
         }
       }
     }))).toContainEqual(["🚪 Зайти в корчму ⚠️"]);
-    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму ⚠️"]]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
     expect(inlineButtonRows(buildEnterKorchmaKeyboard({ questMarkers: null }))).toEqual([["🚪 Зайти в корчму"]]);
     expect(inlineButtonRows(buildEnterKorchmaKeyboard({
       questMarkers: {
@@ -326,6 +326,17 @@ describe("main menu and scene keyboards", () => {
         }
       }
     }))).toEqual([["🚪 Зайти в корчму ✅"]]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard({
+      questMarkers: {
+        characterLevel: 2,
+        cellar: {
+          state: "on-cooldown",
+          character,
+          availableAt: new Date("2026-07-07T14:05:00.000Z"),
+          now: new Date("2026-07-07T14:00:00.000Z")
+        }
+      }
+    }))).toEqual([["🚪 Зайти в корчму"]]);
     expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
       "🚪 Зайти в корчму",
@@ -2937,7 +2948,7 @@ describe("main menu and scene keyboards", () => {
       "🍺 До зали ⚠️"
     ]);
     expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
-    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму ⚠️");
+    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму");
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toContain("📋 Стіл зі справами");
 
     const level13HubKeyboard = buildQuestHubKeyboard({
