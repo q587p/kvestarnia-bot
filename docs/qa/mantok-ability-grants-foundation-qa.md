@@ -8,6 +8,7 @@ Review follow-up coverage:
 - Automated command coverage confirms those blocked duel gear callbacks answer with reason-specific callback notices.
 - Automated keyboard coverage confirms the Big Barrel one-use item shortcut stays hidden unless the caller explicitly enables the item menu.
 - Automated achievement coverage confirms committed persistent PvE, party-boss and turn-based duel gear-action events can reach the rewardless first-use achievement hook.
+- Automated 0.2.31 regression coverage confirms Big Barrel Brother and turn-based duel committed gear-action unlocks are returned to the Telegram notification layer for the relevant participant cards.
 - Automated turn-based duel service coverage confirms a queued gear action does not emit the first-use achievement until the round resolves, and dual committed gear actions emit events from the resolved round.
 - Automated help/lore coverage confirms `/lore` opens the existing `📖 Перекази` board, is listed in `/help`, is not added to the side menu, and `🎒 Манатки` lore names visible `Дія спорядження`.
 - Automated regression coverage confirms duplicate Big Barrel gear callbacks keep one queued action/effect/cooldown/achievement event, stale turn-based duel gear callbacks do not advance the duel, and ordinary two-enemy persistent fight gear actions write a committed gear summary while preserving readable multi-enemy state.
@@ -17,7 +18,7 @@ Manual Telegram evidence still required before merge:
 - Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and refreshes the raid card without a second visible effect row.
 - Pending: turn-based duel stale gear callback refreshes/replays the current card without advancing the duel.
 - Pending: ordinary two-enemy persistent fight gear action keeps the active card and `📜 Журнал бою` readable after the committed gear turn.
-- Pending: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not.
+- Pending live evidence: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not. Automated 0.2.31 coverage now pins the service-to-Telegram notification bridge.
 - Pending: `/lore` opens `📖 Перекази Квестарні` on the local bot and remains absent from the Telegram side command menu.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.

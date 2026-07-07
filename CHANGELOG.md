@@ -7,6 +7,16 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
+
+### Fixed
+- Big Barrel Brother raid gear-action settlements now carry first-use achievement unlock notifications back to the acting participant and any refreshed participant cards, matching persistent PvE combat without changing raid damage, mana, cooldown, reward or replay behavior.
+- Turn-based duel gear-action round resolution now carries first-use achievement unlock notifications back to the acting participant and the other participant's refreshed card, while stale, blocked, duplicate or queued-only callbacks still do not spend mana, advance turns, tick cooldowns, mutate RNG or unlock early.
+
+### Changed
+- Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.
+- Updated Mantok Ability Grants QA notes to distinguish automated notification coverage from still-pending live Telegram evidence.
+
 ## [0.2.30] - 12026-07-07 - Mantok Ability Grants Foundation
 
 ### Added

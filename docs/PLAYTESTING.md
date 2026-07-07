@@ -4,6 +4,15 @@
 
 Для технічного запуску дивись [`docs/DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md).
 
+## 0.2.31 — Mantok Ability Grants Polish smoke
+
+Manual Telegram QA status for this polish pass: not run in this branch. Automated coverage confirms committed Big Barrel Brother and turn-based duel gear-action unlock notifications are surfaced to the relevant Telegram participants; live evidence remains tracked in `docs/qa/mantok-ability-grants-foundation-qa.md`.
+
+1. Use the 0.2.30 Mantok Ability Grants smoke list below, prioritizing Big Barrel Brother and turn-based duel gear actions.
+2. On a character without `Манатка натиснула кнопку`, commit one gear action in a Big Barrel Brother raid and verify the acting participant receives the notification once, while other participants receive only their own matching notification if they earned it.
+3. Repeat the same check in a turn-based duel after the gear action commits in a resolved round; queued-only choices must not notify early.
+4. Replay duplicate, stale, no-mana, cooldown and missing-grant gear callbacks; verify they refresh/replay the card without a second notification, turn advance, mana spend, cooldown tick or monster/boss response.
+
 ## 0.2.30 — Mantok Ability Grants Foundation smoke
 
 Manual Telegram QA status for the implementation pass: partial local smoke found and fixed gear-action routing, active-fight gear swaps, active overview refreshes, blocked gear-action buttons hiding until usable, Big Barrel support effects starting cooldown without applying support, and corrupted party-boss gear callback notices; full manual pass still pending.

@@ -19,7 +19,7 @@ import {
 } from "../domain/partyBoss/partyBoss";
 import { findCombatUsableItemByKey, getCombatUsableItem } from "./combatItemUse";
 import { systemClock, type Clock } from "../shared/time";
-import type { AchievementService } from "./achievementService";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import type { BarrelBeerTutorialService } from "./barrelBeerTutorialService";
 
@@ -47,6 +47,10 @@ export type PartyBossCombatItemMenuResult =
   | { state: "stale"; session: PartyBossSessionRecord }
   | { state: "terminal"; session: PartyBossSessionRecord }
   | { state: "ready"; session: PartyBossSessionRecord; items: PartyBossCombatItemMenuEntry[] };
+
+export type PartyBossActionServiceResult = PartyBossActionResult & {
+  achievementUnlocksByCharacterId?: Record<string, AchievementUnlock[]>;
+};
 
 export class PartyBossService {
   constructor(
@@ -93,7 +97,7 @@ export class PartyBossService {
     partyInviteToken: string,
     turn: number,
     action: PartyBossActionKey
-  ): Promise<PartyBossActionResult> {
+  ): Promise<PartyBossActionServiceResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
@@ -103,11 +107,11 @@ export class PartyBossService {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     });
-    await this.trackAchievementEvents(result);
+    const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
-    return result;
+    return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
   }
 
   async submitGearForTelegramUser(
@@ -115,7 +119,7 @@ export class PartyBossService {
     partyInviteToken: string,
     turn: number,
     grantKey: string
-  ): Promise<PartyBossActionResult> {
+  ): Promise<PartyBossActionServiceResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
@@ -166,10 +170,10 @@ export class PartyBossService {
         }
       }
     );
-    await this.trackAchievementEvents(result);
+    const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackActivityEvents(result);
 
-    return result;
+    return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
   }
 
   async submitItemForTelegramUser(
@@ -177,7 +181,7 @@ export class PartyBossService {
     partyInviteToken: string,
     turn: number,
     itemKey: string
-  ): Promise<PartyBossActionResult> {
+  ): Promise<PartyBossActionServiceResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
@@ -206,11 +210,11 @@ export class PartyBossService {
         nextTurnExpiresAt: nextTurnDeadline(now)
       }
     );
-    await this.trackAchievementEvents(result);
+    const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
-    return result;
+    return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
   }
 
   async listCombatItemsForTelegramUser(
@@ -302,7 +306,7 @@ export class PartyBossService {
     return result.state === "ready" && result.items.length > 0;
   }
 
-  async resolveDueTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {
+  async resolveDueTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionServiceResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
@@ -312,14 +316,14 @@ export class PartyBossService {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "due");
-    await this.trackAchievementEvents(result);
+    const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
-    return result;
+    return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
   }
 
-  async forceResolveTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionResult> {
+  async forceResolveTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionServiceResult> {
     if (!this.areDevHelpersEnabled()) {
       return { state: "disabled" };
     }
@@ -329,11 +333,11 @@ export class PartyBossService {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     }, "force-dev");
-    await this.trackAchievementEvents(result);
+    const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
-    return result;
+    return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
   }
 
   async getActiveForTelegramUser(telegramUserId: bigint): Promise<PartyBossSessionRecord | null> {
@@ -368,13 +372,14 @@ export class PartyBossService {
     return this.sessions.forceBigBarrelWinForTelegramUser(telegramUserId, this.clock());
   }
 
-  private async trackAchievementEvents(result: PartyBossActionResult): Promise<void> {
+  private async trackAchievementEvents(result: PartyBossActionResult): Promise<Record<string, AchievementUnlock[]>> {
     if (!this.achievements || !("achievementEvents" in result) || !result.achievementEvents) {
-      return;
+      return {};
     }
 
+    const unlocksByCharacterId: Record<string, AchievementUnlock[]> = {};
     for (const event of result.achievementEvents) {
-      await this.achievements.trackEventSafely(event.type === "item.used"
+      const eventUnlocks = await this.achievements.trackEventSafely(event.type === "item.used"
         ? {
             type: event.type,
             characterId: event.characterId,
@@ -388,7 +393,17 @@ export class PartyBossService {
             occurredAt: event.occurredAt,
             sourceId: event.sourceId
           });
+      if (event.type === "mantok.gear-action.used") {
+        unlocksByCharacterId[event.characterId] = [
+          ...(unlocksByCharacterId[event.characterId] ?? []),
+          ...eventUnlocks
+        ];
+      }
     }
+
+    return Object.fromEntries(
+      Object.entries(unlocksByCharacterId).filter(([, unlocks]) => unlocks.length > 0)
+    );
   }
 
   private async trackActivityEvents(result: PartyBossActionResult): Promise<void> {
@@ -441,4 +456,13 @@ function isBigBarrelBrotherSession(session: PartyBossSessionRecord): boolean {
     session.bossKey === BIG_BARREL_BROTHER_BOSS_KEY ||
     session.state.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION ||
     session.state.boss.monsterId === BIG_BARREL_BROTHER_BOSS_KEY;
+}
+
+function withAchievementUnlocks(
+  result: PartyBossActionResult,
+  achievementUnlocksByCharacterId: Record<string, AchievementUnlock[]>
+): PartyBossActionServiceResult {
+  return Object.keys(achievementUnlocksByCharacterId).length > 0
+    ? { ...result, achievementUnlocksByCharacterId }
+    : result;
 }

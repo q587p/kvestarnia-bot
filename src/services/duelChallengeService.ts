@@ -34,7 +34,7 @@ import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
-import type { AchievementService } from "./achievementService";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { NearbyDuelTargetValidator } from "./presenceService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
@@ -194,7 +194,11 @@ export type TurnBasedDuelTurnResult =
   | { state: "skill-on-cooldown"; session: DuelCombatSessionRecord }
   | { state: "wrong-turn"; session: DuelCombatSessionRecord }
   | { state: "stale"; session: DuelCombatSessionRecord }
-  | { state: "updated"; session: DuelCombatSessionRecord };
+  | {
+      state: "updated";
+      session: DuelCombatSessionRecord;
+      achievementUnlocksByCharacterId?: Record<string, AchievementUnlock[]>;
+    };
 
 export class DuelChallengeService {
   constructor(
@@ -798,22 +802,27 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
-    if (resolved.resolution === "resolved") {
-      await this.trackCommittedTurnBasedGearActions(updated, resolved.round, now);
-    }
+    const achievementUnlocksByCharacterId = resolved.resolution === "resolved"
+      ? await this.trackCommittedTurnBasedGearActions(updated, resolved.round, now)
+      : {};
 
-    return { state: "updated", session: updated };
+    return {
+      state: "updated",
+      session: updated,
+      ...(Object.keys(achievementUnlocksByCharacterId).length > 0 ? { achievementUnlocksByCharacterId } : {})
+    };
   }
 
   private async trackCommittedTurnBasedGearActions(
     session: DuelCombatSessionRecord,
     round: TurnBasedDuelRoundSummary,
     occurredAt: Date
-  ): Promise<void> {
+  ): Promise<Record<string, AchievementUnlock[]>> {
     if (!this.achievements) {
-      return;
+      return {};
     }
 
+    const unlocksByCharacterId: Record<string, AchievementUnlock[]> = {};
     for (const action of round.actions) {
       if (
         action.action !== "gear" ||
@@ -823,13 +832,21 @@ export class DuelChallengeService {
         continue;
       }
 
-      await this.achievements.trackEventSafely({
+      const unlocks = await this.achievements.trackEventSafely({
         type: "mantok.gear-action.used",
         characterId: action.actorCharacterId,
         occurredAt,
         sourceId: `${session.id}:turn:${round.turn}:gear:${action.skillId ?? "unknown"}`
       });
+      if (unlocks.length > 0) {
+        unlocksByCharacterId[action.actorCharacterId] = [
+          ...(unlocksByCharacterId[action.actorCharacterId] ?? []),
+          ...unlocks
+        ];
+      }
     }
+
+    return unlocksByCharacterId;
   }
 
   async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {

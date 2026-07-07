@@ -48,17 +48,13 @@ Keep each task doc short. Link to canonical docs instead of copying long section
 The shipped `0.0.x` and `0.1.x` versions have compact historical records generated from `CHANGELOG.md`.
 They are not active tasks unless a human explicitly reopens a follow-up.
 
-Active task:
+Recently shipped:
 
 - [0.2.30-mantok-ability-grants-foundation.md](0.2.30-mantok-ability-grants-foundation.md) — Mantok ability-grant foundation with persistent PvE gear actions, compact callbacks, visible bleed and additive high-level loot.
+- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow Mantok Ability Grants post-merge polish for first-use gear-action notification delivery in Big Barrel Brother raids and turn-based duels.
 
 Near-term next tasks:
 
-- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow polish, bugfix and QA-hardening pass after the current release candidate; no new major systems unless the task is explicitly re-scoped.
-
-Near-term reserved sequence after the active `0.2.30` Mantok Ability Grants release candidate:
-
-- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow polish, bugfix and QA-hardening pass after the current release candidate; can absorb Mantok Ability Grants manual-QA fixes if needed, but should not add new major systems.
 - [0.2.32-charkokovalnia-item-upgrades.md](0.2.32-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP with concrete `+N` item ids and replay-safe upgrade attempts.
 - [0.2.33-turn-based-duel-tournaments-rewards.md](0.2.33-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
 - [0.2.34-rogue-reputation-location-risk.md](0.2.34-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.

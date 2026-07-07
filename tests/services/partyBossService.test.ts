@@ -15,7 +15,20 @@ import { PartyBossService } from "../../src/services/partyBossService";
 describe("PartyBossService achievements", () => {
   it("tracks exact Big Barrel Brother settlement achievement events from the repository", async () => {
     const occurredAt = new Date("2026-07-01T19:00:00.000Z");
-    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockImplementation((event) =>
+      Promise.resolve(
+        event.type === "mantok.gear-action.used"
+          ? [
+              {
+                id: "achievement.mantok.gear-action.first",
+                title: "Манатка натиснула кнопку",
+                cosmeticTitleGrantId: null,
+                unlockedAt: occurredAt
+              }
+            ]
+          : []
+      )
+    );
     const result: PartyBossActionResult = {
       state: "resolved",
       session: makeSession("won"),
@@ -63,7 +76,7 @@ describe("PartyBossService achievements", () => {
       { trackEventSafely } as unknown as AchievementService
     );
 
-    await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
+    const tracked = await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
 
     expect(trackEventSafely).toHaveBeenCalledTimes(5);
     expect(trackEventSafely).toHaveBeenNthCalledWith(1, {
@@ -96,6 +109,16 @@ describe("PartyBossService achievements", () => {
       characterId: "character-gear",
       occurredAt,
       sourceId: "boss-action-3"
+    });
+    expect(tracked.achievementUnlocksByCharacterId).toEqual({
+      "character-gear": [
+        {
+          id: "achievement.mantok.gear-action.first",
+          title: "Манатка натиснула кнопку",
+          cosmeticTitleGrantId: null,
+          unlockedAt: occurredAt
+        }
+      ]
     });
   });
 
