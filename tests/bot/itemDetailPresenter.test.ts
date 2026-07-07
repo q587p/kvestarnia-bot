@@ -54,7 +54,7 @@ describe("item detail presenter", () => {
     expect(text).toContain("Категорія: <b>зброя</b>");
     expect(text).toContain("Вартість: <b>25 золота</b>");
     expect(text).toContain("Ефект: <b>+2 до удару</b>");
-    expect(text).toContain("можна екіпірувати у слот «Основна рука»");
+    expect(text).toContain("<i>Екіпірування</i>: можна екіпірувати у слот <i>«Основна рука»</i>");
     expect(text).not.toContain("бонуси поки лежать у бухгалтерії");
   });
 
@@ -119,7 +119,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("Категорія: <b>річ на ноги</b>");
-    expect(text).toContain("можна екіпірувати у слот «Ноги»");
+    expect(text).toContain("<i>Екіпірування</i>: можна екіпірувати у слот <i>«Ноги»</i>");
     expect(text).toContain("Манекен виставив ногу");
     expect(text).not.toContain("Категорія: <b>обладунок</b>");
     expect(text).not.toContain("Манекен випростав плечі");
@@ -414,7 +414,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain(
-      "Замінить: Плащ «Я Тут Випадково» +2; зараз дає: +2 Спритности · +1 до захисту."
+      "\nЗамінить: <b>Плащ «Я Тут Випадково» +2</b>; зараз дає: +2 Спритности · +1 до захисту."
     );
   });
 
@@ -501,7 +501,7 @@ describe("item detail presenter", () => {
       }
     );
 
-    expect(text).toContain("можна екіпірувати у слот «Основна рука»");
+    expect(text).toContain("<i>Екіпірування</i>: можна екіпірувати у слот <i>«Основна рука»</i>");
     expect(text).toContain("Печатка дрібної переваги лишиться в торбі");
   });
 
