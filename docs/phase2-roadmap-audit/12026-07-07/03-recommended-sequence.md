@@ -1,8 +1,8 @@
-# 03 — Recommended Sequence After `0.2.30`
+# 03 — Recommended Sequence After `0.2.31`
 
 ## Principle
 
-Finish the current Mantok foundation, then return to Phase 2 social retention. Do not let the next three releases become only equipment power.
+Treat `0.2.31` as the Phase 2 closeout / hardening cutline, then open the next feature line at `0.3.0`. Do not let the next three releases become only equipment power.
 
 ## Proposed order
 
@@ -21,9 +21,9 @@ Scope:
 
 Reason: PR #133 itself says a narrow `0.2.31` polish/QA hardening follow-up is reserved.
 
-### `0.2.32 — Charkokovalnia / Item Upgrades MVP`
+### `0.3.0 — Charkokovalnia / Item Upgrades MVP`
 
-Promote the stacked Item Upgrades branch only after `0.2.30` is merged and stable. Renumber it away from `0.2.30`.
+Promote the stacked Item Upgrades branch only after `0.2.31` is merged and stable. Retarget it away from the `0.2.x` line.
 
 Scope:
 - concrete `base.plus-N` item ids;
@@ -36,7 +36,7 @@ Scope:
 
 Reason: it is a natural follow-up to equipment depth, but it should not outrun ability-grant QA.
 
-### `0.2.33 — Turn-Based Duel Tournaments Rewards MVP`
+### `0.3.1 — Turn-Based Duel Tournaments Rewards MVP`
 
 Return to Phase 2 social combat.
 
@@ -52,7 +52,7 @@ Scope:
 
 Reason: players need rewards beyond rating; tournament rewards give non-monster players a reason to return.
 
-### `0.2.34 — Rogue Reputation and Location Risk`
+### `0.3.x — Rogue Reputation and Location Risk`
 
 Scope:
 - durable reputation/social consequence ledger;
@@ -63,7 +63,7 @@ Scope:
 
 Reason: forced bounded theft is fun but needs social cost before it becomes a grief loop.
 
-### `0.2.35 — Quest Overview Route`
+### `0.3.x — Quest Overview Route`
 
 Scope:
 - make `🗺️ Квести` a true overview/journal rather than only an opener to current quest table;
@@ -74,7 +74,7 @@ Scope:
 
 Reason: lots of navigation and quest-marker polish has accumulated; a clear overview will reduce support friction.
 
-### `0.2.36 — Shynok Resale / Korchmar Recycling`
+### `later 0.3.x — Shynok Resale / Korchmar Recycling`
 
 Scope:
 - narrow buyback/recycling loop for surplus priced manatky;
@@ -84,7 +84,7 @@ Scope:
 
 Reason: item volume keeps growing; economy needs more controlled sinks.
 
-### `0.2.37+ — Fuller Big Barrel / Party Raid Hardening`
+### `later 0.3.x — Fuller Big Barrel / Party Raid Hardening`
 
 Scope:
 - only after social/economy fatigue decreases;
@@ -92,7 +92,7 @@ Scope:
 - richer boss/raid mechanics;
 - no broad party-vs-many engine until one-boss route is proven.
 
-### `0.2.38+ — Class / Race / Active Title Abilities Follow-ups`
+### `later 0.3.x — Class / Race / Active Title Abilities Follow-ups`
 
 Scope:
 - ability-grant data should inform which class/race gaps remain;
@@ -100,7 +100,7 @@ Scope:
 
 ## Short answer
 
-Best next full feature after `0.2.30`:
+Best next full feature after `0.2.31`:
 - if QA debt remains: `0.2.31 — Mantok Ability Grants QA Hardening`;
-- if QA is clean: `0.2.31 — Charkokovalnia / Item Upgrades MVP`;
+- if QA is clean: `0.3.0 — Charkokovalnia / Item Upgrades MVP`;
 - but after that, pivot to `Turn-Based Duel Tournaments Rewards`.

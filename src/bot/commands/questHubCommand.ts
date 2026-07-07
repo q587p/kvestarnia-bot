@@ -75,7 +75,11 @@ export async function sendQuestHub(
     return;
   }
 
-  const snapshot = await buildQuestHubSnapshot(telegramUserId, options, place.locationId);
+  const snapshot = await buildQuestHubSnapshot(
+    telegramUserId,
+    options,
+    PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+  );
 
   if (!snapshot) {
     await sendText(ctx, mode, presentQuestHubNoCharacter());

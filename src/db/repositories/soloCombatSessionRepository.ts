@@ -238,7 +238,11 @@ export interface SoloCombatSessionRepository {
   ): Promise<DueSoloCombatSessionRecord[]>;
   countWonByTelegramUserId(
     telegramUserId: bigint,
-    options?: { excludeMonsterIds?: readonly string[]; since?: Date }
+    options?: {
+      excludeMonsterIds?: readonly string[];
+      since?: Date;
+      life?: Pick<CombatLifeState, "remortCount">;
+    }
   ): Promise<number>;
   listCompletedByTelegramUserIdSince(
     telegramUserId: bigint,

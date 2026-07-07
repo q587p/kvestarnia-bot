@@ -5,6 +5,7 @@ import type {
   CreateCharacterInput,
   CreateCharacterResult
 } from "../../src/db/repositories/characterRepository";
+import { vi } from "vitest";
 import type {
   CharacterCooldownRecord,
   ClaimCooldownRewardInput,
@@ -25,6 +26,7 @@ import type {
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { FakeRandomSource } from "../../src/shared/random";
+import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import {
   buildBarrelRaidItemGrants,
   buildBarrelRaidRewardAmounts,
@@ -532,6 +534,43 @@ describe("TavernRaidService", () => {
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: fixedRaidReward.xp,
       gold: fixedRaidReward.gold
+    });
+  });
+
+  it("emits one solo raid activity event after the barrel raid completes", async () => {
+    let now = new Date("2026-06-12T10:30:00.000Z");
+    const clock = () => now;
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { name: "Рейдист" });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    const recordSoloRaidCompletedSafely =
+      vi.fn<PublicActivityEventPublisher["recordSoloRaidCompletedSafely"]>().mockResolvedValue(null);
+    const service = new TavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      clock,
+      new FakeRandomSource([0]),
+      { recordSoloRaidCompletedSafely } as unknown as PublicActivityEventPublisher
+    );
+
+    await service.advanceFridayBarrelRaid(telegramUserId);
+    now = new Date("2026-06-12T10:35:01.000Z");
+    const completed = await service.advanceFridayBarrelRaid(telegramUserId);
+    const repeated = await service.advanceFridayBarrelRaid(telegramUserId);
+
+    expect(completed.state).toBe("completed");
+    expect(repeated.state).toBe("already-completed");
+    expect(recordSoloRaidCompletedSafely).toHaveBeenCalledTimes(1);
+    expect(recordSoloRaidCompletedSafely).toHaveBeenCalledWith({
+      characterId: "character-42",
+      actorDisplayName: "Рейдист",
+      raidId: "2026-06-12T13:23",
+      raidName: "Бочка Пінного Міражу",
+      outcome: "won",
+      occurredAt: new Date("2026-06-12T10:35:01.000Z")
     });
   });
 

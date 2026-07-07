@@ -104,7 +104,9 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.quest, mainMenuButtons.inventory],
       [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
+    expect(mainMenuButtons.equipment).toBe("🛡️ Спорядження");
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
+    expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.equipment);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
@@ -123,8 +125,16 @@ describe("main menu and scene keyboards", () => {
   });
 
   it("builds hero inline actions with achievements and optional full restore", () => {
-    expect(flatInlineButtonTexts(buildHeroAchievementsKeyboard())).toEqual(["🏅 Ачівки", "🏷️ Титули"]);
-    expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual(["v1:ach:list:all:0", "v1:ach:titles"]);
+    expect(flatInlineButtonTexts(buildHeroAchievementsKeyboard())).toEqual([
+      "🛡️ Спорядження",
+      "🏅 Ачівки",
+      "🏷️ Титули"
+    ]);
+    expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual([
+      "v1:equip:view",
+      "v1:ach:list:all:0",
+      "v1:ach:titles"
+    ]);
 
     const keyboard = buildHeroAchievementsKeyboard({
       priestSelfHealCallbackData: "v1:nc:h:s:0:0:0",
@@ -133,12 +143,14 @@ describe("main menu and scene keyboards", () => {
     });
 
     expect(inlineButtonRows(keyboard)).toEqual([
+      ["🛡️ Спорядження"],
       ["🏅 Ачівки", "🏷️ Титули"],
       ["⚕️ Полікувати себе"],
       ["✨ Благословити себе"],
       ["🧻 До відновлення"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:equip:view",
       "v1:ach:list:all:0",
       "v1:ach:titles",
       "v1:nc:h:s:0:0:0",
@@ -310,7 +322,7 @@ describe("main menu and scene keyboards", () => {
         }
       }
     }))).toContainEqual(["🚪 Зайти в корчму ⚠️"]);
-    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму ⚠️"]]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard())).toEqual([["🚪 Зайти в корчму"]]);
     expect(inlineButtonRows(buildEnterKorchmaKeyboard({ questMarkers: null }))).toEqual([["🚪 Зайти в корчму"]]);
     expect(inlineButtonRows(buildEnterKorchmaKeyboard({
       questMarkers: {
@@ -322,6 +334,17 @@ describe("main menu and scene keyboards", () => {
         }
       }
     }))).toEqual([["🚪 Зайти в корчму ✅"]]);
+    expect(inlineButtonRows(buildEnterKorchmaKeyboard({
+      questMarkers: {
+        characterLevel: 2,
+        cellar: {
+          state: "on-cooldown",
+          character,
+          availableAt: new Date("2026-07-07T14:05:00.000Z"),
+          now: new Date("2026-07-07T14:00:00.000Z")
+        }
+      }
+    }))).toEqual([["🚪 Зайти в корчму"]]);
     expect(flatInlineButtonCallbacks(buildEnterKorchmaKeyboard())).toEqual(["v1:place:hall"]);
     expect(flatInlineButtonTexts(buildKorchmaArrivalBoardKeyboard())).toEqual([
       "🚪 Зайти в корчму",
@@ -401,6 +424,37 @@ describe("main menu and scene keyboards", () => {
         })
       )
     ).toContain("🐭 Льох ⚠️");
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 2,
+            cellar: { state: "ready", character }
+          }
+        })
+      )
+    ).toContain("📋 Стіл зі справами");
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 2,
+            cellar: { state: "ready", character }
+          }
+        })
+      )
+    ).not.toContain("📋 Стіл зі справами ⚠️");
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 3,
+            cellar: { state: "ready", character },
+            dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260707" }
+          }
+        })
+      )
+    ).toEqual(expect.arrayContaining(["📋 Стіл зі справами ⚠️", "🐭 Льох ⚠️"]));
     expect(
       flatInlineButtonTexts(
         buildKorchmaHallKeyboard({
@@ -603,6 +657,40 @@ describe("main menu and scene keyboards", () => {
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
+    const barrelQuestMarkers = {
+      characterLevel: 2,
+      barrelBeerTutorial: {
+        state: "in-progress" as const,
+        character,
+        progress: {
+          accepted: true,
+          stipendGranted: true,
+          visitedBarrel: false,
+          raidCompleted: false,
+          beerRoundOffered: false,
+          beerDrunk: false,
+          activeBeer: false,
+          currentLocationId: "location.korchma.barrel"
+        }
+      }
+    };
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: barrelQuestMarkers }))).toContain(
+      "🛢️ Бочка ⚠️"
+    );
+    expect(flatInlineButtonTexts(buildTavernKeyboard({ questMarkers: barrelQuestMarkers }))).toEqual([
+      "🍺 У рейд на бочку",
+      "🧥 Єгер",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonTexts(buildTavernKeyboard({
+      questMarkers: {
+        ...barrelQuestMarkers,
+        cellar: {
+          state: "ready",
+          character
+        }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
       "🍺 Просте всім",
       "🍻 Якісне всім",
@@ -1678,6 +1766,8 @@ describe("main menu and scene keyboards", () => {
       "🛡️ Спорядження",
       "1️⃣ Разові",
       "♻️ До Дружньої Скрині",
+      "🕒 Нові спершу",
+      "🔤 А-Я",
       "✅ Пательня переконання",
       "🔎 Квиток мокрого пригодника"
     ]);
@@ -1704,7 +1794,16 @@ describe("main menu and scene keyboards", () => {
           1
         )
       )
-    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
+    ).toEqual([
+      "🛡️ Спорядження",
+      "1️⃣ Разові",
+      "♻️ До Дружньої Скрині",
+      "🕒 Нові спершу",
+      "🔤 А-Я",
+      "🔎 Манатка 9",
+      "◀️ Назад",
+      "2/2"
+    ]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard(
@@ -1732,9 +1831,60 @@ describe("main menu and scene keyboards", () => {
       "v1:equip:view",
       "v1:item:inventory:f:u",
       "v1:chest:open",
+      "v1:item:inventory:r:dn",
+      "v1:item:inventory:r:az",
       "v1:item:detail:item.test-9:1",
       "v1:item:inventory",
       "v1:item:page:2"
+    ]);
+    expect(
+      inlineButtonRows(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: [
+              {
+                id: "character-item-1",
+                itemId: "item.test-beta",
+                quantity: 1,
+                createdAt: new Date("2026-06-12T10:00:00.000Z"),
+                content: {
+                  id: "item.test-beta",
+                  name: "Бета",
+                  description: "Трофей.",
+                  rarity: "common",
+                  slot: "junk",
+                  priceless: true
+                }
+              },
+              {
+                id: "character-item-2",
+                itemId: "item.test-alpha",
+                quantity: 1,
+                createdAt: new Date("2026-06-13T10:00:00.000Z"),
+                content: {
+                  id: "item.test-alpha",
+                  name: "Альфа",
+                  description: "Трофей.",
+                  rarity: "common",
+                  slot: "junk",
+                  priceless: true
+                }
+              }
+            ]
+          },
+          0,
+          null,
+          { sort: "date-desc" }
+        )
+      )
+    ).toEqual([
+      ["🛡️ Спорядження", "1️⃣ Разові"],
+      ["♻️ До Дружньої Скрині"],
+      ["🕒 Нові в кінці", "🔤 А-Я"],
+      ["🔎 Альфа"],
+      ["🔎 Бета"]
     ]);
     expect(
       flatInlineButtonTexts(
@@ -2899,7 +3049,7 @@ describe("main menu and scene keyboards", () => {
       "🍺 До зали ⚠️"
     ]);
     expect(inlineButtonRows(fullHubKeyboard)).toContainEqual(["📦 Архів", "📖 Бестіарій"]);
-    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму ⚠️");
+    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard())).toContain("🚪 Зайти в корчму");
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard())).toContain("📋 Стіл зі справами");
 
     const level13HubKeyboard = buildQuestHubKeyboard({

@@ -986,6 +986,101 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeQuestCallbackData("problem"));
   });
 
+  it("refreshes Shynok hall return markers after issuing a problem paper", async () => {
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("problem-next"),
+      servicesWith({
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () =>
+            Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              locationId: "location.korchma.bar",
+              locationName: "Шинок",
+              insideKorchma: true
+            }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        fight: {
+          getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          completeMimicShawarma: () => Promise.resolve({ state: "no-character" }),
+          getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getProblemQuestProgressForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character,
+              progress: {
+                stageId: "23",
+                title: "Двадцять три підозрілі проблеми",
+                wins: 0,
+                target: 23,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              }
+            }),
+          issueNextProblemQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "issued",
+              character,
+              progress: {
+                stageId: "23",
+                title: "Двадцять три підозрілі проблеми",
+                wins: 0,
+                target: 23,
+                completed: false,
+                rewardClaimed: false,
+                issued: true,
+                branchComplete: false
+              },
+              stage: {
+                id: "23",
+                title: "Двадцять три підозрілі проблеми",
+                target: 23,
+                reward: {
+                  xp: 42,
+                  gold: 23
+                },
+                issueKey: "quest.problem-chain.23.issued",
+                rewardKey: "quest.problem-chain.23.reward",
+                nextStageId: "42"
+              },
+              nextStage: {
+                id: "23",
+                title: "Двадцять три підозрілі проблеми",
+                target: 23,
+                reward: {
+                  xp: 42,
+                  gold: 23
+                },
+                issueKey: "quest.problem-chain.23.issued",
+                rewardKey: "quest.problem-chain.23.reward",
+                nextStageId: "42"
+              },
+              issued: "created"
+            })
+        },
+        yeger: questMarkerYegerService(),
+        cellarErrand: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ До зали ⚠️");
+  });
+
   it.each([
     {
       name: "quest adventure route",
@@ -4259,6 +4354,32 @@ describe("scene callback HTML options", () => {
 
     expect(inventoryCalls).toBe(1);
     expect(String(reply?.payload.text)).toContain("🎒 Манатки");
+    expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("lets the equipment keyboard button through during an active persistent fight", async () => {
+    let equipmentCalls = 0;
+    const calls = await captureTextApiCalls(
+      mainMenuButtons.equipment,
+      servicesWith({
+        fight: activeFightServiceThatShouldNotBeChecked(),
+        equipment: {
+          getEquipmentForTelegramUser: () => {
+            equipmentCalls += 1;
+            return Promise.resolve({
+              state: "ready",
+              character,
+              slots: [],
+              activeSetBonuses: []
+            });
+          }
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(equipmentCalls).toBe(1);
+    expect(String(reply?.payload.text)).toContain("🧥 <b>Спорядження</b>");
     expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 

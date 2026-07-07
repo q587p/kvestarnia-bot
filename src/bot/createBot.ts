@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import type { BotOptions } from "./botOptions";
 import type { BotServices } from "./botServices";
+import { answerInvalidCallback } from "./callbackRoute";
 import { installMessageFreshnessTracking } from "./messageFreshness";
 import { registerCombatLockMiddleware } from "./middleware/registerCombatLockMiddleware";
 import { registerPresenceMiddleware } from "./middleware/registerPresenceMiddleware";
@@ -35,6 +36,10 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   registerQuestBotModule(bot, { services, options });
   registerCombatBotModule(bot, { services, options });
   registerSocialBotModule(bot, { services, options });
+
+  bot.on("callback_query:data", async (ctx) => {
+    await answerInvalidCallback(ctx);
+  });
 
   resumeBotNotifications(bot, services);
 

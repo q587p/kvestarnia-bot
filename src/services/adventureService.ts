@@ -556,6 +556,7 @@ export class AdventureService {
       sourceType: "daily-action",
       occurredAt: claim.action.createdAt,
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemGrants: claim.itemGrants,
       events: achievementEvents,
       activityEvents: this.activityEvents
@@ -744,6 +745,7 @@ export class AdventureService {
       sourceType: "daily-action",
       occurredAt: claim.action.createdAt,
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemGrants: claim.itemGrants,
       events: ["starter.mimic-shawarma.completed"],
       activityEvents: this.activityEvents
@@ -1711,6 +1713,7 @@ const GENERAL_ADVENTURE_PROBLEMS = [
 
 interface AdventureNameForms {
   genitive: string;
+  genitiveLower: string;
 }
 
 const ADVENTURE_RACE_GENITIVE_NAMES: Record<string, string> = {
@@ -1740,23 +1743,23 @@ const ADVENTURE_CLASS_GENITIVE_NAMES: Record<string, string> = {
 const RACE_ADVENTURE_TEMPLATES = [
   {
     suffix: "survey",
-    title: (race: AdventureNameForms) => `Анкета раси «${race.genitive}» втекла з графи`,
+    title: (race: AdventureNameForms) => `Анкета раси ${race.genitiveLower} втекла з графи`,
     hook: (race: AdventureNameForms) =>
-      `У реєстрі біля «${race.genitive}» зʼявився підпис: «не вмістилось, пішло думати». Корчмар просить повернути папір, поки він не отримав громадянство.`,
+      `У реєстрі в графі раси ${race.genitiveLower} зʼявився підпис: «не вмістилось, пішло думати». Корчмар просить повернути папір, поки він не отримав громадянство.`,
     client: "Писар, який тримає чорнило обома руками"
   },
   {
     suffix: "mug",
-    title: (race: AdventureNameForms) => `Кухоль для «${race.genitive}» не проходить інструктаж`,
+    title: (race: AdventureNameForms) => `Кухоль для гостей раси ${race.genitiveLower} не проходить інструктаж`,
     hook: (race: AdventureNameForms) =>
-      `Особливий кухоль для гостей раси «${race.genitive}» вимагає окремого звертання, підставку й маленьку церемонію наливу.`,
+      `Особливий кухоль для гостей раси ${race.genitiveLower} вимагає окремого звертання, підставку й маленьку церемонію наливу.`,
     client: "Корчмар, який уже шкодує про персоналізацію"
   },
   {
     suffix: "portrait",
-    title: (race: AdventureNameForms) => `Портрет раси «${race.genitive}» сперечається з рамою`,
+    title: (race: AdventureNameForms) => `Портрет раси ${race.genitiveLower} сперечається з рамою`,
     hook: (race: AdventureNameForms) =>
-      `Портрет у кутку наполягає, що «${race.genitive}» треба малювати героїчніше, а рама каже, що в неї теж є межі.`,
+      `Портрет у кутку наполягає, що ${race.genitiveLower} треба малювати героїчніше, а рама каже, що в неї теж є межі.`,
     client: "Маляр із пензлем і дипломатичною втомою"
   }
 ] as const;
@@ -1764,23 +1767,23 @@ const RACE_ADVENTURE_TEMPLATES = [
 const CLASS_ADVENTURE_TEMPLATES = [
   {
     suffix: "manual",
-    title: (characterClass: AdventureNameForms) => `Підручник для «${characterClass.genitive}» почав практику`,
+    title: (characterClass: AdventureNameForms) => `Підручник для ${characterClass.genitiveLower} почав практику`,
     hook: (characterClass: AdventureNameForms) =>
-      `Підручник для «${characterClass.genitive}» відкрився сам і тепер оцінює відвідувачів за шкалою від «ще живий» до «потребує додатку».`,
+      `Підручник для ${characterClass.genitiveLower} відкрився сам і тепер оцінює відвідувачів за шкалою від «ще живий» до «потребує додатку».`,
     client: "Учень, який хотів лише закладку"
   },
   {
     suffix: "uniform",
-    title: (characterClass: AdventureNameForms) => `Форма для «${characterClass.genitive}» не влазить у клітинку`,
+    title: (characterClass: AdventureNameForms) => `Форма для ${characterClass.genitiveLower} не влазить у клітинку`,
     hook: (characterClass: AdventureNameForms) =>
-      `У бланку професій для «${characterClass.genitive}» лишилася надто мала клітинка. Клітинка вже подала скаргу на розширення обовʼязків.`,
+      `У бланку професій для ${characterClass.genitiveLower} лишилася надто мала клітинка. Клітинка вже подала скаргу на розширення обовʼязків.`,
     client: "Канцелярія персонажів із лінійкою напереваги"
   },
   {
     suffix: "exam",
-    title: (characterClass: AdventureNameForms) => `Іспит для «${characterClass.genitive}» здає викладача`,
+    title: (characterClass: AdventureNameForms) => `Іспит для ${characterClass.genitiveLower} здає викладача`,
     hook: (characterClass: AdventureNameForms) =>
-      `Тест для «${characterClass.genitive}» так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу.`,
+      `Тест для ${characterClass.genitiveLower} так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу.`,
     client: "Наставник, який не готувався до взаємності"
   }
 ] as const;
@@ -1826,14 +1829,20 @@ function buildTitleAdventureProblems(): AdventureProblemBase[] {
 }
 
 function getAdventureRaceNameForms(raceId: string, raceName: string): AdventureNameForms {
+  const genitive = ADVENTURE_RACE_GENITIVE_NAMES[raceId] ?? raceName;
+
   return {
-    genitive: ADVENTURE_RACE_GENITIVE_NAMES[raceId] ?? raceName
+    genitive,
+    genitiveLower: genitive.toLocaleLowerCase("uk-UA")
   };
 }
 
 function getAdventureClassNameForms(classId: string, className: string): AdventureNameForms {
+  const genitive = ADVENTURE_CLASS_GENITIVE_NAMES[classId] ?? className;
+
   return {
-    genitive: ADVENTURE_CLASS_GENITIVE_NAMES[classId] ?? className
+    genitive,
+    genitiveLower: genitive.toLocaleLowerCase("uk-UA")
   };
 }
 

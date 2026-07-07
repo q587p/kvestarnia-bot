@@ -51,6 +51,8 @@ import {
 sendKorchmaBar
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
+import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
 import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
 import {
 buildAdventureApproachKeyboard,
@@ -180,7 +182,8 @@ export function registerQuestBotModule(
   });
   registerHuntCommand(bot, services.yeger, {
     presence: services.presence,
-    tavernRaid: services.tavern
+    tavernRaid: services.tavern,
+    resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
   });
   registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
 
@@ -500,11 +503,13 @@ async function handleQuestCallback(
         currentAdventureId: null
       });
       const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
+      const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
       await safeEditMessageText(ctx, presentProblemQuestIssueNext(result), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildKorchmaBarKeyboard({
           ...getProblemQuestIssueNextBarKeyboardOptions(result),
-          ...tavernGameOptions
+          ...tavernGameOptions,
+          ...(questMarkers ? { questMarkers } : {})
         })
       });
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
@@ -547,7 +552,8 @@ async function handleQuestCallback(
     await sendYegerCorner(ctx, services.yeger, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: false
+      requireKorchmaInterior: false,
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1028,7 +1034,8 @@ async function handleHuntCallback(
   await sendHuntBoard(ctx, services.yeger, "edit", {
     presence: services.presence,
     tavernRaid: services.tavern,
-    requireKorchmaInterior: false
+    requireKorchmaInterior: false,
+    resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
   });
 }
 
@@ -1074,7 +1081,8 @@ async function handleYegerCallback(
     await sendYegerCorner(ctx, services.yeger, "edit", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: false
+      requireKorchmaInterior: false,
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
     });
     return;
   }
@@ -1089,10 +1097,11 @@ async function handleYegerCallback(
     }
 
     const craftOptions = await getYegerBandageCraftOptions(services, telegramUserId);
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
     await markYegerCornerPresence(ctx, services.presence);
     await safeEditMessageText(ctx, presentYegerBandages(quest), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildYegerBandagesKeyboard(quest, { craftOptions })
+      reply_markup: buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
     return;
   }
@@ -1100,11 +1109,12 @@ async function handleYegerCallback(
   if (callback.type === "notch-exchange-open") {
     await safeAnswerCallbackQuery(ctx);
     const result = await services.yeger.getNotchExchangeForTelegramUser(telegramUserId);
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
 
     await markYegerCornerPresence(ctx, services.presence);
     await safeEditMessageText(ctx, presentYegerNotchExchange(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildYegerNotchExchangeKeyboard(result)
+      reply_markup: buildYegerNotchExchangeKeyboard(result, yegerNavigationOptions)
     });
     return;
   }
@@ -1122,9 +1132,10 @@ async function handleYegerCallback(
     );
     await markYegerCornerPresence(ctx, services.presence);
     const lookup = await services.yeger.getNotchExchangeForTelegramUser(telegramUserId);
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
     await safeEditMessageText(ctx, presentYegerNotchExchangeResult(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildYegerNotchExchangeKeyboard(lookup)
+      reply_markup: buildYegerNotchExchangeKeyboard(lookup, yegerNavigationOptions)
     });
     const achievementText = presentAchievementUnlockNotification(
       result.state === "exchanged" ? result.achievementUnlocks ?? [] : []
@@ -1157,16 +1168,18 @@ async function handleYegerCallback(
     await sendHuntBoard(ctx, services.yeger, "edit", {
       presence: services.presence,
       tavernRaid: services.tavern,
-      requireKorchmaInterior: false
+      requireKorchmaInterior: false,
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
     });
     return;
   }
 
   if (callback.type === "help") {
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentYegerHelp(), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildYegerHelpKeyboard()
+      reply_markup: buildYegerHelpKeyboard(yegerNavigationOptions)
     });
     return;
   }
@@ -1187,13 +1200,14 @@ async function handleYegerCallback(
     const craftOptions = quest.state === "no-character" || result.state === "preview"
       ? []
       : await getYegerBandageCraftOptions(services, telegramUserId);
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
     await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "preview"
         ? buildYegerBandagePurchaseKeyboard(result.token)
         : quest.state === "no-character"
-          ? buildYegerHelpKeyboard()
-          : buildYegerBandagesKeyboard(quest, { craftOptions })
+          ? buildYegerHelpKeyboard(yegerNavigationOptions)
+          : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
     return;
   }
@@ -1214,6 +1228,7 @@ async function handleYegerCallback(
     const craftOptions = quest.state === "no-character" || affordablePreview
       ? []
       : await getYegerBandageCraftOptions(services, telegramUserId);
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
     await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: affordablePreview
@@ -1222,8 +1237,8 @@ async function handleYegerCallback(
             { confirmLabel: `✅ Купити ${affordablePreview.purchaseQuantity}` }
           )
         : quest.state === "no-character"
-          ? buildYegerHelpKeyboard()
-          : buildYegerBandagesKeyboard(quest, { craftOptions })
+          ? buildYegerHelpKeyboard(yegerNavigationOptions)
+          : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
     const achievementText = presentAchievementUnlockNotification(
       result.state === "bought" ? result.achievementUnlocks ?? [] : []
@@ -1247,11 +1262,12 @@ async function handleYegerCallback(
     const craftOptions = quest.state === "no-character"
       ? []
       : await getYegerBandageCraftOptions(services, telegramUserId);
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
     await safeEditMessageText(ctx, presentYegerRangerBandage(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: quest.state === "no-character"
-        ? buildYegerHelpKeyboard()
-        : buildYegerBandagesKeyboard(quest, { craftOptions })
+        ? buildYegerHelpKeyboard(yegerNavigationOptions)
+        : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
     const achievementText = presentAchievementUnlockNotification(
       result.state === "claimed" ? result.achievementUnlocks ?? [] : []
@@ -1366,9 +1382,10 @@ async function handleYegerCallback(
     }
 
     if (result.state !== "tracking-resolved-success") {
+      const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
       await safeEditMessageText(ctx, "Слід охолов.\n\nЄгер мовчить так переконливо, що навіть мапа перестала шарудіти.", {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildYegerHelpKeyboard()
+        reply_markup: buildYegerHelpKeyboard(yegerNavigationOptions)
       });
       return;
     }
@@ -1410,9 +1427,10 @@ async function handleYegerCallback(
       return;
     }
 
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
     await safeEditMessageText(ctx, "Слід охолов.\n\nЄгер мовчить так переконливо, що навіть мапа перестала шарудіти.", {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildYegerHelpKeyboard()
+      reply_markup: buildYegerHelpKeyboard(yegerNavigationOptions)
     });
     return;
   }
@@ -1431,9 +1449,10 @@ async function handleYegerCallback(
   const notchExchange = result.state === "completed" || result.state === "already-completed"
     ? await services.yeger.getNotchExchangeForTelegramUser(telegramUserId)
     : undefined;
+  const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
   const yegerTurnInKeyboardOptions = notchExchange
-    ? { craftOptions, notchExchange }
-    : { craftOptions };
+    ? { craftOptions, notchExchange, ...yegerNavigationOptions }
+    : { craftOptions, ...yegerNavigationOptions };
 
   await safeEditMessageText(ctx, presentYegerTurnIn(result), {
     ...HTML_MESSAGE_OPTIONS,
@@ -1461,4 +1480,13 @@ async function getYegerBandageCraftOptions(
     telegramUserId,
     RESPONSIBLE_PANIC_BANDAGE_ITEM_ID
   );
+}
+
+async function buildYegerNavigationOptions(
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<{ questMarkers?: QuestMarkerInput }> {
+  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+
+  return questMarkers ? { questMarkers } : {};
 }

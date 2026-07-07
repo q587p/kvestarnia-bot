@@ -450,6 +450,7 @@ export class DailyKorchmaRoundService {
           sourceType: "daily-action",
           occurredAt: claim.action.createdAt,
           levelChange: claim.levelChange,
+          remortCount: claim.character.remortCount ?? 0,
           events: ["daily.korchma-round.completed"],
           activityEvents: this.activityEvents
         })

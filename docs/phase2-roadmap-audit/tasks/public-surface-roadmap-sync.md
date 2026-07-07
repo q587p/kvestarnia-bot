@@ -9,9 +9,9 @@ Synchronize public surfaces and planning docs after `0.2.7 — Player Abilities 
 - Update public site/news source or rendering path so current repository news is visible beyond `0.0.24`.
 - Update Telegram-facing public wording proposal in docs, avoiding ready-sounding guild promises.
 - Update README playable list after `0.2.7` if the PR has merged.
-- Update `docs/PHASE2_DEFERRED_0_2.md` so Race Abilities are not still `proposed next` after they ship.
-- Update `docs/ROADMAP.md`, `docs/tasks/README.md`, `docs/ai/context.md` with the chosen post-`0.2.7` order.
-- Fix support wording drift in `docs/PRODUCT_BRIEF.md` if still present.
+- Update `docs/history/phase2/deferred-0.2.md` so Race Abilities are not still `proposed next` after they ship.
+- Update `docs/product/roadmap.md`, `docs/tasks/README.md`, `docs/ai/context.md` with the chosen post-`0.2.7` order.
+- Fix support wording drift in `docs/product/product-brief.md` if still present.
 
 ## Non-goals
 
@@ -33,11 +33,11 @@ Synchronize public surfaces and planning docs after `0.2.7 — Player Abilities 
 - `README.md`
 - `news.md`
 - site/server rendering files for homepage and `/news`
-- `docs/ROADMAP.md`
-- `docs/PHASE2_DEFERRED_0_2.md`
+- `docs/product/roadmap.md`
+- `docs/history/phase2/deferred-0.2.md`
 - `docs/README.md`
-- `docs/PRODUCT_BRIEF.md`
-- `docs/BRAND.md`
+- `docs/product/product-brief.md`
+- `docs/product/brand.md`
 - `docs/ai/context.md`
 - `docs/tasks/README.md`
 - search: `0.0.24`, `Race Abilities`, `proposed next`, `Бочка підтримки`, `ґільдії`

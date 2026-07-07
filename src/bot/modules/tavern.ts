@@ -214,7 +214,8 @@ export function registerTavernBotModule(
   registerTavernCommand(bot, services.tavern, services.presence, {
     botUsername: options.botUsername,
     partyBoss: services.partyBoss,
-    partySessions: services.partySessions
+    partySessions: services.partySessions,
+    resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
   });
   registerLatestEventsCommand(bot, services.activityEvents, services.hero);
   registerBardPerformanceDevResetHandler(bot, services);
@@ -1239,7 +1240,8 @@ async function handlePlaceCallback(
     }
     await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
-      tavernRaid: services.tavern
+      tavernRaid: services.tavern,
+      ...(questMarkers ? { questMarkers } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1477,10 +1479,12 @@ async function handleTavernCallback(
     ) {
       return;
     }
+    const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
     await sendYegerCorner(ctx, yegerQuestService, "edit", {
       presence: presenceService,
       tavernRaid: tavernRaidService,
-      requireKorchmaInterior: false
+      requireKorchmaInterior: false,
+      ...(questMarkers ? { questMarkers } : {})
     });
     return;
   }

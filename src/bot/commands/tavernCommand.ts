@@ -138,6 +138,7 @@ export interface TavernCommandOptions {
   openBigBarrelRecruiting?: boolean | undefined;
   onlyBigBarrelRecruiting?: boolean | undefined;
   questMarkers?: QuestMarkerInput | null | undefined;
+  resolveQuestMarkers?: ((telegramUserId: bigint) => Promise<QuestMarkerInput | null>) | undefined;
 }
 
 const HTML_MESSAGE_OPTIONS = {
@@ -151,15 +152,37 @@ export function registerTavernCommand(
   options: TavernCommandOptions = {}
 ): void {
   bot.command("tavern", async (ctx) => {
-    await sendTavern(ctx, tavernRaidService, presenceService, "reply");
+    const questMarkers = await resolveTavernCommandQuestMarkers(ctx, options);
+    await sendTavern(ctx, tavernRaidService, presenceService, "reply", {
+      ...(questMarkers === undefined ? {} : { questMarkers })
+    });
   });
 
   bot.command("raid", async (ctx) => {
+    const questMarkers = await resolveTavernCommandQuestMarkers(ctx, options);
     await sendTavernBarrel(ctx, tavernRaidService, presenceService, "reply", {
       ...options,
+      ...(questMarkers === undefined ? {} : { questMarkers }),
       openBigBarrelRecruiting: true
     });
   });
+}
+
+async function resolveTavernCommandQuestMarkers(
+  ctx: Context,
+  options: TavernCommandOptions
+): Promise<QuestMarkerInput | null | undefined> {
+  if (options.questMarkers !== undefined) {
+    return options.questMarkers;
+  }
+
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId || !options.resolveQuestMarkers) {
+    return undefined;
+  }
+
+  return options.resolveQuestMarkers(telegramUserId);
 }
 
 export async function sendTavern(

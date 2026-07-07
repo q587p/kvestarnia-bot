@@ -176,6 +176,7 @@ export class LevelBarterService {
               newLevel: result.plan.levelAfter,
               leveledUp: result.plan.levelAfter > result.plan.levelBefore
             },
+            remortCount: result.remortCount,
             events: ["level.barter.completed"],
             activityEvents: this.activityEvents
           })

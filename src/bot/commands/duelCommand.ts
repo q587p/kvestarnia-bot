@@ -45,6 +45,7 @@ import {
   presentTurnBasedDuel,
   presentDuelView
 } from "../presenters/duelPresenter";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { isMessageNotModifiedError, safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
@@ -358,7 +359,8 @@ export async function handleDuelCallback(
     if (current.state === "active") {
       await sendTurnBasedDuelCard(ctx, "edit", current, service);
       if (result.state === "updated") {
-        await notifyOtherTurnBasedParticipant(ctx, current, service);
+        await sendTurnBasedAchievementUnlocks(ctx, current, result);
+        await notifyOtherTurnBasedParticipant(ctx, current, service, result.achievementUnlocksByCharacterId);
       }
       return;
     }
@@ -371,7 +373,14 @@ export async function handleDuelCallback(
     );
 
     if (result.state === "updated" && current.state === "resolved") {
-      await notifyOtherTurnBasedResultParticipant(ctx, current, result.session, service);
+      await sendTurnBasedAchievementUnlocks(ctx, current, result);
+      await notifyOtherTurnBasedResultParticipant(
+        ctx,
+        current,
+        result.session,
+        service,
+        result.achievementUnlocksByCharacterId
+      );
     }
     return;
   }
@@ -629,7 +638,8 @@ async function notifyTurnBasedParticipants(
 async function notifyOtherTurnBasedParticipant(
   ctx: Context,
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
-  service: DuelChallengeService
+  service: DuelChallengeService,
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>
 ): Promise<void> {
   const viewerCharacterId = getViewerCharacterId(ctx, result);
   const other =
@@ -647,14 +657,15 @@ async function notifyOtherTurnBasedParticipant(
           messageId: result.session.challengerMessageId
         };
 
-  await notifyTurnBasedParticipant(ctx, result, service, other.participant);
+  await notifyTurnBasedParticipant(ctx, result, service, other.participant, achievementUnlocksByCharacterId);
 }
 
 async function notifyTurnBasedParticipant(
   ctx: Context,
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
   service: DuelChallengeService,
-  participantName: "challenger" | "target"
+  participantName: "challenger" | "target",
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>
 ): Promise<void> {
   const participant = participantName === "challenger"
     ? {
@@ -704,6 +715,11 @@ async function notifyTurnBasedParticipant(
         messageId
       });
     }
+    await sendAchievementUnlocksToChat(
+      ctx,
+      chatId,
+      achievementUnlocksByCharacterId?.[participant.characterId] ?? []
+    );
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
   }
@@ -785,7 +801,8 @@ async function notifyOtherTurnBasedResultParticipant(
   ctx: Context,
   result: Extract<DuelChallengeView, { state: "resolved" }>,
   session: Awaited<ReturnType<DuelChallengeService["listDueTurnBasedSessions"]>>[number],
-  service: DuelChallengeService
+  service: DuelChallengeService,
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>
 ): Promise<void> {
   const viewerCharacterId = getResolvedViewerCharacterId(ctx, result);
   const other =
@@ -825,8 +842,50 @@ async function notifyOtherTurnBasedResultParticipant(
         messageId
       });
     }
+    await sendAchievementUnlocksToChat(
+      ctx,
+      chatId,
+      achievementUnlocksByCharacterId?.[
+        other.participant === "challenger" ? session.challengerCharacterId : session.targetCharacterId
+      ] ?? []
+    );
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
+  }
+}
+
+async function sendTurnBasedAchievementUnlocks(
+  ctx: Context,
+  current: Extract<DuelChallengeView, { state: "active" | "resolved" }>,
+  result: Extract<
+    Awaited<ReturnType<DuelChallengeService["resolveTurnBasedActionForTelegramUser"]>>,
+    { state: "updated" }
+  >
+): Promise<void> {
+  const viewerCharacterId = current.state === "active"
+    ? getViewerCharacterId(ctx, current)
+    : getResolvedViewerCharacterId(ctx, current);
+
+  if (!viewerCharacterId) {
+    return;
+  }
+
+  const text = presentAchievementUnlockNotification(
+    result.achievementUnlocksByCharacterId?.[viewerCharacterId] ?? []
+  );
+  if (text) {
+    await ctx.reply(text, HTML_MESSAGE_OPTIONS);
+  }
+}
+
+async function sendAchievementUnlocksToChat(
+  ctx: Context,
+  chatId: bigint,
+  unlocks: Parameters<typeof presentAchievementUnlockNotification>[0]
+): Promise<void> {
+  const text = presentAchievementUnlockNotification(unlocks);
+  if (text) {
+    await ctx.api.sendMessage(Number(chatId), text, HTML_MESSAGE_OPTIONS);
   }
 }
 

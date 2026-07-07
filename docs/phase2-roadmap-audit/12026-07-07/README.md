@@ -14,12 +14,12 @@ The main drift is not tonal; it is sequencing. After `0.2.23–0.2.30`, the proj
 1. Finish `0.2.30 — Mantok Ability Grants Foundation`.
 2. Do **not** let stacked feature work share `0.2.30` numbering.
 3. If manual QA/fixes are still needed for gear actions, use `0.2.31 — Mantok Ability Grants QA Hardening`.
-4. If Item Upgrades / Charkokovalnia is already the next desired branch, renumber it to `0.2.32` after the hardening gate.
+4. If Item Upgrades / Charkokovalnia is already the next desired branch, renumber it to `0.3.0` after the 0.2.31 Phase 2 closeout / hardening cutline.
 5. Then pivot to social:
-   - `0.2.33 — Turn-Based Duel Tournaments Rewards MVP`;
-   - `0.2.34 — Rogue Reputation and Location Risk`;
-   - `0.2.35 — Quest Overview Route`;
-   - `0.2.36 — Shynok Resale / Korchmar Recycling`.
+   - `0.3.1 — Turn-Based Duel Tournaments Rewards MVP`;
+   - `0.3.x — Rogue Reputation and Location Risk`;
+   - `0.3.x — Quest Overview Route`;
+   - `later 0.3.x — Shynok Resale / Korchmar Recycling`.
 
 The exact version numbers can shift if `0.2.31` hardening is unnecessary, but the ordering should remain: **finish the current Mantok foundation cleanly, then return to social loops**.
 

@@ -37,6 +37,7 @@ import {
   presentPartyView
 } from "../presenters/partySessionPresenter";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -212,11 +213,15 @@ export async function handlePartySessionCallback(
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
+    await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
     if (result.state === "resolved" || result.state === "terminal") {
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
+        ...(result.achievementUnlocksByCharacterId
+          ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
+          : {}),
         notice: result.session.status === "active"
           ? big
             ? "Хід оновлено. Показую новий стан рейду."
@@ -264,11 +269,15 @@ export async function handlePartySessionCallback(
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
+    await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
     if (result.state === "resolved" || result.state === "terminal") {
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
+        ...(result.achievementUnlocksByCharacterId
+          ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
+          : {}),
         notice: result.session.status === "active"
           ? big
             ? "Хід оновлено. Показую новий стан рейду."
@@ -354,11 +363,15 @@ export async function handlePartySessionCallback(
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
+    await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
     if (result.state === "resolved" || result.state === "terminal") {
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
+        ...(result.achievementUnlocksByCharacterId
+          ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
+          : {}),
         notice: result.session.status === "active"
           ? big
             ? "Хід оновлено. Показую новий стан рейду."
@@ -394,11 +407,15 @@ export async function handlePartySessionCallback(
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
       : false);
+    await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
     if (result.state === "resolved" || result.state === "terminal") {
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
+        ...(result.achievementUnlocksByCharacterId
+          ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
+          : {}),
         notice: result.session.status === "active"
           ? canForceTimeout
             ? big
@@ -956,6 +973,7 @@ async function notifyPartyBossParticipants(
     partyBoss?: PartyBossService | undefined;
     includeDevTimeout?: boolean | undefined;
     includeIntro?: boolean | undefined;
+    achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>;
     notice: string;
   }
 ): Promise<void> {
@@ -991,9 +1009,42 @@ async function notifyPartyBossParticipants(
           })
         }
       );
+      await sendAchievementUnlocksToChat(
+        ctx,
+        participant.telegramUserId,
+        options.achievementUnlocksByCharacterId?.[participant.id] ?? []
+      );
     } catch {
       // Best-effort private push; refresh callbacks still replay the canonical state.
     }
+  }
+}
+
+async function sendBossAchievementUnlocks(
+  ctx: Context,
+  result: { achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]> },
+  viewerCharacterId: string | null
+): Promise<void> {
+  if (!viewerCharacterId) {
+    return;
+  }
+
+  const text = presentAchievementUnlockNotification(
+    result.achievementUnlocksByCharacterId?.[viewerCharacterId] ?? []
+  );
+  if (text) {
+    await ctx.reply(text, HTML_MESSAGE_OPTIONS);
+  }
+}
+
+async function sendAchievementUnlocksToChat(
+  ctx: Context,
+  chatId: bigint,
+  unlocks: Parameters<typeof presentAchievementUnlockNotification>[0]
+): Promise<void> {
+  const text = presentAchievementUnlockNotification(unlocks);
+  if (text) {
+    await ctx.api.sendMessage(Number(chatId), text, HTML_MESSAGE_OPTIONS);
   }
 }
 

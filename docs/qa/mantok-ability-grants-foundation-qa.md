@@ -8,17 +8,55 @@ Review follow-up coverage:
 - Automated command coverage confirms those blocked duel gear callbacks answer with reason-specific callback notices.
 - Automated keyboard coverage confirms the Big Barrel one-use item shortcut stays hidden unless the caller explicitly enables the item menu.
 - Automated achievement coverage confirms committed persistent PvE, party-boss and turn-based duel gear-action events can reach the rewardless first-use achievement hook.
+- Automated 0.2.31 regression coverage confirms Big Barrel Brother and turn-based duel committed gear-action unlocks are returned to the Telegram notification layer for the relevant participant cards.
 - Automated turn-based duel service coverage confirms a queued gear action does not emit the first-use achievement until the round resolves, and dual committed gear actions emit events from the resolved round.
 - Automated help/lore coverage confirms `/lore` opens the existing `📖 Перекази` board, is listed in `/help`, is not added to the side menu, and `🎒 Манатки` lore names visible `Дія спорядження`.
 - Automated regression coverage confirms duplicate Big Barrel gear callbacks keep one queued action/effect/cooldown/achievement event, stale turn-based duel gear callbacks do not advance the duel, and ordinary two-enemy persistent fight gear actions write a committed gear summary while preserving readable multi-enemy state.
+- Automated nearby-menu coverage confirms the `👀 Хто поруч` -> `🗡️ Тиха кишеня` callback opens the Rogue card, and unknown callback payloads answer with the existing invalid-button alert instead of leaving Telegram blinking silently.
+- Automated keyboard coverage confirms an active Barrel card does not mark `⬅️ До зали` when the only outstanding quest marker is the Barrel tutorial step already available at the Barrel.
+- Automated keyboard coverage confirms the Barrel tutorial accept result marks the direct `🛢️ До Бочки` route with `⚠️`.
+- Automated callback coverage confirms Shynok problem-paper issue results rebuild quest markers after issue and mark `⬅️ До зали` when another Korchma-location quest is available.
+- Automated service coverage confirms race- and class-personalized adventure problem copy renders lowercase unquoted identity forms such as `Портрет раси ельфа` and `Іспит для злодія`.
+- Automated content/economy coverage confirms high-enhancement generated manatky stay under the new soft `goldValue` cap while sale, level-exchange and Mantok Chest domain tests still pass.
+- Automated balance/presenter coverage confirms persistent PvE remort monster pressure starts only after the third remort, keeps encounter levels stable, covers remorts `5`, `7` and `9` in one-enemy and two-enemy threat simulations, and labels solo Yeger pressure as `Відплата за минулі пригоди` without `Натиск Низу` wording.
+- Automated threat-policy and fight-service coverage confirms ordinary Nyz two-enemy threat escalation keeps the base-life three-win gate, drops to two eligible wins at remort `1`, and drops to one eligible win at remort `2+`.
+- Automated service/repository coverage confirms Korchmar problem-chain counters count only wins from the current remort life, while preserving legacy zero-remort wins.
+- Automated activity-event and presenter coverage confirms solo Barrel raid wins plus Big Barrel Brother group wins/losses render as raid rows in `⚔️ Бої`, with only group raid victories marked important; new level-up rows carry the remort tag such as `(р5)`.
+- Automated presenter coverage confirms public completed Big Barrel Brother result cards do not leak a participant's XP/gold/item reward, while participant cards label the payout as `Ваша винагорода за рейд`.
+- Automated keyboard/routing coverage confirms the `👤 Персонаж` card places `🛡️ Спорядження` above achievements/titles and routes it to the existing equipment screen, while old equipment text routes still work during active persistent fights.
+- Automated quest-marker coverage confirms outside-Korchma `🚪 Зайти в корчму` gates stay unmarked without a verified active quest marker, including when the only cellar errand is on cooldown.
+- Automated direct-command coverage confirms `/tavern` resolves fresh quest markers for the hall screen, so available Korchma quests keep `⚠️` when opened by command.
+- Automated hall-keyboard coverage confirms `📋 Стіл зі справами` does not duplicate `⚠️` when the only available quest already has a visible final location button such as `🐭 Льох ⚠️`, while table-only quests still mark the table.
+- Automated quest-table command coverage confirms `🍺 До зали` stays unmarked when the currently visible `📋 Стіл зі справами` card already shows the available table quests.
+- Automated Yeger keyboard/command coverage confirms `🛢️ До Бочки` marks routes toward quest-table, Shynok or cellar work beyond the hall, while the visible Yeger quest itself does not mark that return button.
+- Automated presenter coverage confirms old Shynok table-game links replay stored completed Tavlei results and show a clear not-started/refunded card for expired tables instead of the generic closed-table copy.
+- Automated inventory callback, presenter and keyboard coverage confirms `🎒 Манатки` sort toggles can switch by received date or item name and preserve the chosen order through pagination, page prompts and item-detail back links.
+- Automated item-detail presenter coverage confirms same-slot replacement previews show the currently equipped item's visible effect beside the `Замінить` name.
 
 Manual Telegram evidence still required before merge:
 
 - Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and refreshes the raid card without a second visible effect row.
 - Pending: turn-based duel stale gear callback refreshes/replays the current card without advancing the duel.
 - Pending: ordinary two-enemy persistent fight gear action keeps the active card and `📜 Журнал бою` readable after the committed gear turn.
-- Pending: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not.
+- Pending live evidence: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not. Automated 0.2.31 coverage now pins the service-to-Telegram notification bridge.
 - Pending: `/lore` opens `📖 Перекази Квестарні` on the local bot and remains absent from the Telegram side command menu.
+- Pending: after taking `Бочка, або Туди і звідти`, the live accept result card shows `🛢️ До Бочки ⚠️`.
+- Pending: after taking a Korchmar problem paper from Shynok while another Korchma-location quest is available, the live result card shows `⬅️ До зали ⚠️`.
+- Pending: race- and class-personalized adventure result cards use lowercase unquoted identity copy, e.g. `Портрет раси ельфа` and `Іспит для злодія`.
+- Pending: remort `7+` Yeger fight card shows `Відплата за минулі пригоди` on the intro and active card; ordinary two-enemy threat fights still use `Натиск Низу`.
+- Pending: ordinary Nyz threat escalation starts after two eligible wins on remort `1`, after one eligible win on remort `2+`, and still waits for three eligible wins on a base-life character.
+- Pending: after remort, taking or checking `Тринадцять дрібних проблем` shows only current-life progress, not old counts such as `139/13`.
+- Pending: after one solo Barrel raid completion and one Big Barrel Brother win/loss, `📜 Хроніки Квестарні` shows the raid rows under `⚔️ Бої`; `⭐ Важливе` shows the group victory only; a fresh level-up row shows the current remort tag after the level, e.g. `бере 5 рівень (р5)`.
+- Pending: open a completed Big Barrel Brother result link as a non-participant and verify it shows `Загальна винагорода рейду` with total XP/gold/item grants but no per-participant ownership, while an actual participant sees `Ваша винагорода за рейд` with their own reward.
+- Pending: the live persistent main menu keeps the compact layout without `🛡️ Спорядження`; the live `👤 Персонаж` card shows `🛡️ Спорядження` under the hero text, and tapping it opens `🧥 Спорядження`.
+- Pending: from outside the Korchma with only the cellar on cooldown, `/fight` shows `🚪 Зайти в корчму` without `⚠️`.
+- Pending: from inside the Korchma with an available hall quest, `/tavern` shows `📋 Стіл зі справами ⚠️` or the matching available location button with `⚠️`.
+- Pending: from inside the Korchma when the only available highlighted quest is the cellar, `/tavern` shows `🐭 Льох ⚠️` and does not show `📋 Стіл зі справами ⚠️`.
+- Pending: on `📋 Стіл зі справами`, when only visible table quests such as `Підозріла шаурма`, `Новачкова сутичка` or `Обрати пригоду` are available, `🍺 До зали` has no `⚠️`.
+- Pending: from `🧥 Єгерський куток`, `🛢️ До Бочки` shows `⚠️` when another active quest is behind the hall at the table, Shynok or cellar, and stays unmarked when only the visible Yeger quest is available.
+- Pending: pressing an old Shynok table-game link after a completed table shows the stored result, while an expired/not-started table says the game did not start and does not mutate stakes again.
+- Pending: in live `🎒 Манатки` with at least two manatky, `🕒 Нові спершу` / `🕒 Нові в кінці` and `🔤 А-Я` / `🔤 Я-А` reorder the list and stay active after opening a detail card and returning.
+- Pending: in live `🎒 Манатки`, open an equippable item for an occupied slot and verify `Замінить` shows the current item's name plus its visible effect before equipping.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
    - Combat-action QA ids:

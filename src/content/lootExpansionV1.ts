@@ -334,6 +334,8 @@ export const PLUS_PRICE_MULT: Record<LootExpansionEnhancement, number> = {
   5: 10.0
 };
 
+const PLUS_PRICE_SOFT_CAP_PER_LEVEL = 23;
+
 const enhancementOddsByMax: Record<LootExpansionEnhancement, number> = {
   0: 35,
   1: 25,
@@ -422,7 +424,7 @@ export function buildLootExpansionVariant(
   enhancement: LootExpansionEnhancement
 ): LootExpansionVariant {
   const minLevel = Math.max(base.min_level, PLUS_UNLOCK[enhancement]);
-  const priceCoins = Math.max(0, Math.round(base.base_price_coins * PLUS_PRICE_MULT[enhancement]));
+  const priceCoins = calculateLootExpansionPrice(base, enhancement, minLevel);
   const item = buildItemContent(base, enhancement, minLevel, priceCoins);
 
   return {
@@ -435,6 +437,22 @@ export function buildLootExpansionVariant(
     effectIds: base.effect_ids,
     item
   };
+}
+
+function calculateLootExpansionPrice(
+  base: LootExpansionBaseItem,
+  enhancement: LootExpansionEnhancement,
+  minLevel: number
+): number {
+  const basePrice = Math.max(0, Math.round(base.base_price_coins));
+  const rawPrice = Math.max(0, Math.round(basePrice * PLUS_PRICE_MULT[enhancement]));
+
+  if (enhancement === 0) {
+    return rawPrice;
+  }
+
+  const softCap = basePrice + minLevel * PLUS_PRICE_SOFT_CAP_PER_LEVEL * enhancement;
+  return Math.min(rawPrice, softCap);
 }
 
 export function findLootExpansionBaseItem(baseId: string): LootExpansionBaseItem | undefined {

@@ -23,6 +23,7 @@ import {
   markCombatSettlementForfeitedByRemort,
   parseCombatAnalyticsState,
   parseMonsterAbilityRuntimeState,
+  THREAT_ESCALATION_REQUIRED_WINS,
   THREAT_ESCALATION_LINE_VERSION
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
@@ -172,7 +173,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async countWonByTelegramUserId(
     telegramUserId: bigint,
-    options: { excludeMonsterIds?: readonly string[]; since?: Date } = {}
+    options: {
+      excludeMonsterIds?: readonly string[];
+      since?: Date;
+      life?: Pick<CombatLifeState, "remortCount">;
+    } = {}
   ): Promise<number> {
     const records = await this.prisma.soloCombatSession.findMany({
       where: {
@@ -192,9 +197,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     });
 
-    return records.filter((record) =>
-      isVictoryProgressEligible("won", parseCombatState(record.stateJson))
-    ).length;
+    return records.filter((record) => {
+      const state = parseCombatState(record.stateJson);
+      return isVictoryProgressEligible("won", state) && combatLifeMatchesProgressFilter(state, options.life);
+    }).length;
   }
 
   async listCompletedByTelegramUserIdSince(
@@ -1807,10 +1813,15 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
   }
 
   const pressure = parseCombatThreatPressure(value.pressure);
+  const eligibleWins = boundedOptionalInt(
+    value.eligibleWins,
+    1,
+    THREAT_ESCALATION_REQUIRED_WINS
+  );
 
   return value.enemyCount === 2 &&
     value.reason === "ordinary-win-streak" &&
-    value.eligibleWins === 3 &&
+    eligibleWins !== undefined &&
     typeof value.lineId === "string" &&
     value.lineVersion === THREAT_ESCALATION_LINE_VERSION &&
     findThreatEscalationLine(value.lineId)
@@ -1818,7 +1829,7 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
         version: 1,
         enemyCount: 2,
         reason: "ordinary-win-streak",
-        eligibleWins: 3,
+        eligibleWins,
         lineId: value.lineId,
         lineVersion: value.lineVersion,
         ...(pressure ? { pressure } : {})
@@ -2078,6 +2089,22 @@ function isVictoryProgressEligible(
   }
 
   return state.settlement.status === "completed";
+}
+
+function combatLifeMatchesProgressFilter(
+  state: CombatState | null,
+  life: Pick<CombatLifeState, "remortCount"> | undefined
+): boolean {
+  if (!life) {
+    return true;
+  }
+
+  const stateRemortCount = state?.life?.remortCount;
+  if (stateRemortCount === undefined) {
+    return life.remortCount === 0;
+  }
+
+  return stateRemortCount === life.remortCount;
 }
 
 function settlementExpectationMatches(

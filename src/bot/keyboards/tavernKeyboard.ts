@@ -27,9 +27,11 @@ import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/t
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import {
   decorateButtonLabel,
+  mergeQuestMarkers,
   resolveQuestMarkerForTarget,
   QuestMarker,
-  type QuestMarkerInput
+  type QuestMarkerInput,
+  type QuestMarkerTarget
 } from "./questButtonMarkers";
 
 export type TavernResultKeyboardState =
@@ -50,7 +52,10 @@ export function buildTavernKeyboard(options: { questMarkers?: QuestMarkerInput |
       ),
       makeTavernCallbackData("ranger")
     )
-    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
+    .text(
+      buildBackToHallLabel(options.questMarkers, { ignoreTargets: ["location.korchma.barrel"] }),
+      makePlaceCallbackData("hall")
+    );
 }
 
 export function buildKorchmaFrontKeyboard(
@@ -138,7 +143,7 @@ export function buildEnterKorchmaKeyboard(
 ): InlineKeyboard {
   const marker =
     options.questMarkers === undefined
-      ? QuestMarker.CAN_ACCEPT
+      ? QuestMarker.NONE
       : resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall");
 
   return new InlineKeyboard().text(
@@ -163,7 +168,7 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
   keyboard.text(
     decorateButtonLabel(
       "📋 Стіл зі справами",
-      resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.quest-table")
+      resolveHallQuestTableMarker(options.questMarkers)
     ),
     makePlaceCallbackData("quest-table")
   )
@@ -467,9 +472,69 @@ export function formatTavernGamesButtonLabel(tableCount = 0): string {
     : "🎲 Ігри за столом";
 }
 
-function buildBackToHallLabel(questMarkers: QuestMarkerInput | null | undefined): string {
+function buildBackToHallLabel(
+  questMarkers: QuestMarkerInput | null | undefined,
+  options: { ignoreTargets?: readonly QuestMarkerTarget[] } = {}
+): string {
   return decorateButtonLabel(
     "⬅️ До зали",
-    resolveQuestMarkerForTarget(questMarkers ?? undefined, "location.korchma.hall")
+    resolveBackToHallMarker(questMarkers, options.ignoreTargets ?? [])
   );
 }
+
+function resolveBackToHallMarker(
+  questMarkers: QuestMarkerInput | null | undefined,
+  ignoreTargets: readonly QuestMarkerTarget[]
+): QuestMarker {
+  const input = questMarkers ?? undefined;
+  if (!input) {
+    return QuestMarker.NONE;
+  }
+
+  if (ignoreTargets.length === 0) {
+    return resolveQuestMarkerForTarget(input, "location.korchma.hall");
+  }
+
+  const ignored = new Set<QuestMarkerTarget>(ignoreTargets);
+  return mergeQuestMarkers(
+    HALL_CHILD_MARKER_TARGETS
+      .filter((target) => !ignored.has(target))
+      .map((target) => resolveQuestMarkerForTarget(input, target))
+  );
+}
+
+function resolveHallQuestTableMarker(questMarkers: QuestMarkerInput | null | undefined): QuestMarker {
+  const input = questMarkers ?? undefined;
+
+  if (!input) {
+    return QuestMarker.NONE;
+  }
+
+  return mergeQuestMarkers([
+    resolveQuestMarkerForTarget(input, "quest.adventure"),
+    resolveQuestMarkerForTarget(input, "quest.fight"),
+    getTableOnlyBarrelBeerTutorialMarker(input),
+    resolveQuestMarkerForTarget(input, "quest.daily-korchma-round")
+  ]);
+}
+
+function getTableOnlyBarrelBeerTutorialMarker(input: QuestMarkerInput): QuestMarker {
+  const marker = resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial");
+
+  if (marker === QuestMarker.NONE) {
+    return QuestMarker.NONE;
+  }
+
+  return resolveQuestMarkerForTarget(input, "location.korchma.barrel") === QuestMarker.NONE &&
+    resolveQuestMarkerForTarget(input, "location.korchma.bar") === QuestMarker.NONE
+    ? marker
+    : QuestMarker.NONE;
+}
+
+const HALL_CHILD_MARKER_TARGETS: readonly QuestMarkerTarget[] = [
+  "location.korchma.quest-table",
+  "location.korchma.bar",
+  "location.korchma.barrel",
+  "location.korchma.cellar",
+  "location.korchma.ranger-corner"
+];

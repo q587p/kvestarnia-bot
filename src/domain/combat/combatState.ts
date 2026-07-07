@@ -223,7 +223,7 @@ export interface CombatThreatState {
   version: 1;
   enemyCount: 2;
   reason: "ordinary-win-streak";
-  eligibleWins: 3;
+  eligibleWins: number;
   lineId: string;
   lineVersion: string;
   pressure?: CombatThreatPressureState;

@@ -4,9 +4,15 @@ import {
   isOneUseInventoryFilter,
   type InventoryFilter
 } from "./inventoryFilter";
+import {
+  DEFAULT_INVENTORY_SORT,
+  presentInventorySortPromptLabel,
+  type InventorySort
+} from "./inventorySort";
 
 export interface InventoryPagePrompt {
   filter: InventoryFilter;
+  sort: InventorySort;
   totalPages: number;
 }
 
@@ -14,9 +20,15 @@ const PROMPT_PATTERN = /^Введіть номер сторінки для «(.+
 
 export function presentInventoryPagePrompt(
   filter: InventoryFilter,
-  totalPages: number
+  totalPages: number,
+  sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): string {
-  return `Введіть номер сторінки для «${getInventoryPagePromptLabel(filter)}» (1-${normalizeTotalPages(totalPages)}):`;
+  const sortLabel = presentInventorySortPromptLabel(sort);
+  const label = sortLabel
+    ? `${getInventoryPagePromptLabel(filter)} · ${sortLabel}`
+    : getInventoryPagePromptLabel(filter);
+
+  return `Введіть номер сторінки для «${label}» (1-${normalizeTotalPages(totalPages)}):`;
 }
 
 export function parseInventoryPagePrompt(text: string | undefined): InventoryPagePrompt | null {
@@ -28,14 +40,17 @@ export function parseInventoryPagePrompt(text: string | undefined): InventoryPag
 
   const label = match[1];
   const totalPages = Number(match[2]);
-  const filter = labelToFilter(label);
+  const [filterLabel, sortLabel] = (label ?? "").split(" · ");
+  const filter = labelToFilter(filterLabel);
+  const sort = labelToSort(sortLabel);
 
-  if (filter === undefined || !Number.isInteger(totalPages) || totalPages < 1) {
+  if (filter === undefined || sort === null || !Number.isInteger(totalPages) || totalPages < 1) {
     return null;
   }
 
   return {
     filter,
+    sort,
     totalPages
   };
 }
@@ -87,6 +102,21 @@ function labelToFilter(label: string | undefined): InventoryFilter | undefined {
   const slot = Object.entries(slotLabels).find(([, title]) => title === label)?.[0];
 
   return slot ? (slot as Exclude<InventoryFilter, null | typeof ONE_USE_INVENTORY_FILTER>) : undefined;
+}
+
+function labelToSort(label: string | undefined): InventorySort | null {
+  if (!label) {
+    return DEFAULT_INVENTORY_SORT;
+  }
+
+  const labels: Record<string, InventorySort> = {
+    "нові в кінці": "date-asc",
+    "нові спершу": "date-desc",
+    "А-Я": "name-asc",
+    "Я-А": "name-desc"
+  };
+
+  return labels[label] ?? null;
 }
 
 function normalizeTotalPages(totalPages: number): number {

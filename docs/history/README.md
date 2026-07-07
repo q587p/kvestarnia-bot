@@ -4,30 +4,33 @@ Use these docs for completed phases, imported audit packages and old planning re
 
 ## Phase 1 closeout
 
-- [`../PHASE1_RELEASE_NOTES.md`](../PHASE1_RELEASE_NOTES.md) — canonical `0.1.0` Phase 1 release notes.
-- [`../PHASE1_CLOSEOUT_0_1_TRANSITION.md`](../PHASE1_CLOSEOUT_0_1_TRANSITION.md) — `0.0.x` to `0.1.x` transition cutline.
-- [`../PHASE1_CLOSEOUT_SMOKE.md`](../PHASE1_CLOSEOUT_SMOKE.md) — final smoke/release gate.
-- [`../PHASE1_FINISH_PLAN.md`](../PHASE1_FINISH_PLAN.md) — old Phase 1 finish plan.
-- [`../PHASE1_BALANCE_OBSERVATION_LOG.md`](../PHASE1_BALANCE_OBSERVATION_LOG.md) — Phase 1 balance observations if present.
+- [`phase1/release-notes.md`](phase1/release-notes.md) — canonical `0.1.0` Phase 1 release notes.
+- [`phase1/0.1-transition.md`](phase1/0.1-transition.md) — `0.0.x` to `0.1.x` transition cutline.
+- [`phase1/closeout-smoke.md`](phase1/closeout-smoke.md) — final smoke/release gate.
+- [`phase1/finish-plan.md`](phase1/finish-plan.md) — old Phase 1 finish plan.
+- [`phase1/manual-playtest-runbook.md`](phase1/manual-playtest-runbook.md) — old Phase 1 manual playtest runbook.
+- [`phase1/balance-observation-log.md`](phase1/balance-observation-log.md) — Phase 1 balance observations if present.
+- [`phase1/qa-bug-template.md`](phase1/qa-bug-template.md) — old Phase 1 QA bug template if present.
+- [`phase1/achievements-phase1.md`](phase1/achievements-phase1.md) — early rewardless achievement/title plan.
 
 ## Phase 2 closeout and reset
 
-- [`../PHASE2_MVP_RELEASE_NOTES.md`](../PHASE2_MVP_RELEASE_NOTES.md) — canonical `0.1.25` Phase 2 Social Combat MVP closeout.
-- [`../PHASE2_MVP_CLOSEOUT_PLAN.md`](../PHASE2_MVP_CLOSEOUT_PLAN.md) — closeout plan and backlog disposition.
-- [`../PHASE2_CLOSEOUT_SMOKE.md`](../PHASE2_CLOSEOUT_SMOKE.md) — closeout smoke if present.
-- [`../PHASE2_DEFERRED_0_2.md`](../PHASE2_DEFERRED_0_2.md) — deferred scope and recommended `0.2.x` order.
+- [`phase2/mvp-release-notes.md`](phase2/mvp-release-notes.md) — canonical `0.1.25` Phase 2 Social Combat MVP closeout.
+- [`phase2/mvp-closeout-plan.md`](phase2/mvp-closeout-plan.md) — closeout plan and backlog disposition.
+- [`phase2/closeout-smoke.md`](phase2/closeout-smoke.md) — closeout smoke if present.
+- [`phase2/deferred-0.2.md`](phase2/deferred-0.2.md) — original deferred scope and recommended early `0.2.x` order.
+
+## Earlier raid and group planning
+
+- [`early-raid/group-hook-design.md`](early-raid/group-hook-design.md) — earlier small group raid design.
+- [`../architecture/group-raid-session-notes.md`](../architecture/group-raid-session-notes.md) — earlier session/idempotency notes.
+- [`early-raid/big-barrel-brother-group-raid-package.md`](early-raid/big-barrel-brother-group-raid-package.md) — fuller future raid package overview.
+- [`early-raid/big-barrel-brother-group-raid-manifest.md`](early-raid/big-barrel-brother-group-raid-manifest.md) — fuller future raid package manifest.
 
 ## Imported audit packages
 
 - [`../phase2-roadmap-audit/README.md`](../phase2-roadmap-audit/README.md) — roadmap audit/handoff package.
 - [`../refactoring-audit/README.md`](../refactoring-audit/README.md) — refactoring audit package.
-
-## Earlier planning
-
-- [`../GROUP_HOOK_DESIGN.md`](../GROUP_HOOK_DESIGN.md) — earlier small group raid design.
-- [`../GROUP_RAID_SESSION_NOTES.md`](../GROUP_RAID_SESSION_NOTES.md) — earlier session/idempotency notes.
-- [`../BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md`](../BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md) — future raid package overview.
-- [`../BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md`](../BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md) — future raid package manifest.
 
 ## Rule
 

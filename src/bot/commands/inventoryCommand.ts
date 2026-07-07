@@ -6,6 +6,7 @@ import {
   isInventoryEquipmentSlotFilter,
   type InventoryFilter
 } from "../inventoryFilter";
+import { DEFAULT_INVENTORY_SORT, type InventorySort } from "../inventorySort";
 import { buildInventoryKeyboard } from "../keyboards/inventoryKeyboard";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
 import { presentInventory } from "../presenters/inventoryPresenter";
@@ -35,7 +36,8 @@ export async function sendInventory(
   equipmentService?: Pick<
     EquipmentService,
     "getEquipmentForTelegramUser" | "getCompatibleItemIdsForSlotForTelegramUser"
-  >
+  >,
+  sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -66,7 +68,8 @@ export async function sendInventory(
   const inventoryOptions = {
     currentSlotItem,
     equippedItemIds,
-    slotCompatibleItemIds
+    slotCompatibleItemIds,
+    sort
   };
   const text = presentInventory(result, page, filter, inventoryOptions);
 

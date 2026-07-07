@@ -48,21 +48,22 @@ Keep each task doc short. Link to canonical docs instead of copying long section
 The shipped `0.0.x` and `0.1.x` versions have compact historical records generated from `CHANGELOG.md`.
 They are not active tasks unless a human explicitly reopens a follow-up.
 
-Active task:
+Recently shipped:
 
 - [0.2.30-mantok-ability-grants-foundation.md](0.2.30-mantok-ability-grants-foundation.md) — Mantok ability-grant foundation with persistent PvE gear actions, compact callbacks, visible bleed and additive high-level loot.
+- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow Mantok Ability Grants post-merge polish for first-use gear-action notification delivery in Big Barrel Brother raids and turn-based duels, plus silent callback, Barrel/Yeger quest-marker, generated-price, remort PvE pressure, same-location quest-marker, stale table-game replay, inventory sort and item-detail replacement hardening.
 
 Near-term next tasks:
 
-- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow polish, bugfix and QA-hardening pass after the current release candidate; no new major systems unless the task is explicitly re-scoped.
+Post-`0.2.31`, new feature work starts on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
-Near-term reserved sequence after the active `0.2.30` Mantok Ability Grants release candidate:
-
-- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow polish, bugfix and QA-hardening pass after the current release candidate; can absorb Mantok Ability Grants manual-QA fixes if needed, but should not add new major systems.
-- [0.2.32-charkokovalnia-item-upgrades.md](0.2.32-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP with concrete `+N` item ids and replay-safe upgrade attempts.
-- [0.2.33-turn-based-duel-tournaments-rewards.md](0.2.33-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
-- [0.2.34-rogue-reputation-location-risk.md](0.2.34-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
-- [0.2.35-quest-overview-route.md](0.2.35-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
+- [0.3.0-charkokovalnia-item-upgrades.md](0.3.0-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP with concrete `+N` item ids and replay-safe upgrade attempts.
+- [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
+- [0.2.x-turn-based-duel-journal.md](0.2.x-turn-based-duel-journal.md) — draft follow-up for a paginated `📜 Журнал дуелі` over resolved turn-based duel rounds without leaking unresolved private choices.
+- [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
+- [0.3.x-quest-overview-route.md](0.3.x-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
+- [0.3.x-adventure-risk-reward-rebalance.md](0.3.x-adventure-risk-reward-rebalance.md) — future Adventure Choice balance/readability pass so method help preserves real risk/reward tradeoffs instead of collapsing into all-`майже надійно` rows.
+- [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -81,7 +82,7 @@ Near-term reserved sequence after the active `0.2.30` Mantok Ability Grants rele
 - [0.2.6-passage-search-mvp.md](0.2.6-passage-search-mvp.md) — shipped timed search for `Спуск до Низу` and first-tier Nyz passages.
 - [0.2.7-player-abilities-mvp.md](0.2.7-player-abilities-mvp.md) — player class/race ability catalogs, race action buttons and group-ready solo combat fallback.
 - [0.2.8-achievements-cosmetic-titles.md](0.2.8-achievements-cosmetic-titles.md) — rewardless achievement browsing, expanded seed unlock hooks, filters, recalculation and persisted cosmetic title grant records.
-- [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) — shipped Daily `Корчмарський обхід` route backed by [../DAILY_KORCHMA_ROUNDS.md](../DAILY_KORCHMA_ROUNDS.md).
+- [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) — shipped Daily `Корчмарський обхід` route backed by [../design/daily-korchma-rounds.md](../design/daily-korchma-rounds.md).
 - [0.2.10-active-cosmetic-title-selection.md](0.2.10-active-cosmetic-title-selection.md) — shipped active cosmetic title browsing, selection, clearing and `/hero` display.
 - [0.2.11-combat-balance-monster-signatures.md](0.2.11-combat-balance-monster-signatures.md) — shipped combat balance proof and presentation-only monster signature readability.
 - [0.2.12-two-enemy-threat-simulation-outliers.md](0.2.12-two-enemy-threat-simulation-outliers.md) — shipped two-enemy threat simulation, backup pressure guard and targeted outlier tuning.
@@ -107,15 +108,18 @@ Near-term reserved sequence after the active `0.2.30` Mantok Ability Grants rele
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
+- [0.2.x-raid-in-game-chat.md](0.2.x-raid-in-game-chat.md) — draft future in-game raid chat for joined participants, scoped to one raid and guarded against non-participant reads, stale writes and reward abuse.
 - [0.2.x-kharakternyk-ward-signs.md](0.2.x-kharakternyk-ward-signs.md) — draft future `class.kharakternyk` Big Barrel ward-sign support slice; docs-only until explicitly activated.
 - [0.2.x-old-altar-blessings-mvp.md](0.2.x-old-altar-blessings-mvp.md) — draft future `🪨 Старий жертовник` MVP from the Korchma Yard: gold offerings create `Благовоління`, level 3+ Priests spend mana/favor on one short selected-stat blessing, and direct Priest aid remains unchanged.
 - [0.2.x-old-altar-manatka-offerings.md](0.2.x-old-altar-manatka-offerings.md) — draft follow-up for safe irreversible manatka offerings at the Old Altar; docs-only and explicitly separate from the gold-only MVP.
 - [0.2.x-old-root-grove-location.md](0.2.x-old-root-grove-location.md) — optional future location split if the altar needs its own `Тихий Корінь` / root-grove presence after playtest.
 - [0.2.x-lore-board.md](0.2.x-lore-board.md) — draft future `Дошка корчми` / news-corner `📖 Перекази` section backed by current Kvestarnia canon seed content; docs-only until explicitly activated.
+- [future-durable-resource-recovery-notifications.md](future-durable-resource-recovery-notifications.md) — queued follow-up for server-initiated full-life recovery notifications that are not triggered by pressing `/hero`, `/fight` or other buttons.
 - [0.2.x-dense-bandage-field-kit.md](0.2.x-dense-bandage-field-kit.md) — archived draft activated as [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md).
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
 - [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — archived draft for the shipped [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) route.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
+- [0.2.x-consumable-manatka-uses.md](0.2.x-consumable-manatka-uses.md) — draft follow-up for giving coffee/tea/beer-style consumable manatky real one-use actions, take-away purchase, and `Разові` visibility without implementing it in `0.2.31`.
 - [0.2.x-bard-performance-mvp.md](0.2.x-bard-performance-mvp.md) — archived draft that was activated as `0.2.5`; future non-combat XP needs a separate task.
 
 ## Closeout

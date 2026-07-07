@@ -155,7 +155,7 @@ async function handleItemCallback(
 ): Promise<void> {
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
-    await sendInventory(ctx, services.inventory, "edit", action.page, action.filter, services.equipment);
+    await sendInventory(ctx, services.inventory, "edit", action.page, action.filter, services.equipment, action.sort);
     return;
   }
 
@@ -164,7 +164,7 @@ async function handleItemCallback(
       text: "Напишіть номер сторінки у відповідь на підказку.",
       show_alert: false
     });
-    await ctx.reply(presentInventoryPagePrompt(action.filter, action.totalPages), {
+    await ctx.reply(presentInventoryPagePrompt(action.filter, action.totalPages, action.sort), {
       reply_markup: {
         force_reply: true,
         input_field_placeholder: getInventoryPagePromptPlaceholder(action.totalPages)
@@ -227,7 +227,8 @@ async function handleItemCallback(
         canUse,
         ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
         craftOptions,
-        equipPreview
+        equipPreview,
+        sort: action.sort
       })
     }
   );
@@ -250,7 +251,7 @@ async function handleInventoryPageReply(
     return true;
   }
 
-  await sendInventory(ctx, services.inventory, "reply", pageNumber - 1, prompt.filter, services.equipment);
+  await sendInventory(ctx, services.inventory, "reply", pageNumber - 1, prompt.filter, services.equipment, prompt.sort);
   return true;
 }
 

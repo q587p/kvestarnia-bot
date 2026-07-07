@@ -4,21 +4,26 @@ Use these docs when running, testing, smoking, debugging or reviewing Kvestarnia
 
 ## Setup and runtime
 
-- [`../DEVELOPER_SETUP.md`](../DEVELOPER_SETUP.md) — local run, `.env`, Prisma, Render, scripts and troubleshooting.
-- [`../LOCAL_BOT_RUNTIME.md`](../LOCAL_BOT_RUNTIME.md) — isolated local bot runtime and Windows/Prisma process-lock workflow.
-- [`../PLAYTESTING.md`](../PLAYTESTING.md) — manual smoke test for the current playable loop.
-- [`../PLAYTESTING-daily-korchma-rounds-addendum.md`](../PLAYTESTING-daily-korchma-rounds-addendum.md) — future manual QA addendum for daily Korchma rounds.
+- [`developer-setup.md`](developer-setup.md) — local run, `.env`, Prisma, Render, scripts and troubleshooting.
+- [`local-bot-runtime.md`](local-bot-runtime.md) — isolated local bot runtime and Windows/Prisma process-lock workflow.
+- [`local-bot-runtime-db-prep.md`](local-bot-runtime-db-prep.md) — local bot runtime database preparation notes.
+- [`playtesting.md`](playtesting.md) — manual smoke test for the current playable loop.
+- [`playtesting-daily-korchma-rounds-addendum.md`](playtesting-daily-korchma-rounds-addendum.md) — historical/future manual QA addendum for daily Korchma rounds if still present.
+
+## QA entry points
+
+- [`../qa/README.md`](../qa/README.md) — feature-specific manual QA and smoke packages.
+- [`../tasks/phase2-regression-smoke.md`](../tasks/phase2-regression-smoke.md) — read-only/manual Phase 2 regression gate.
 
 ## Support jar and production-facing support
 
-- [`../SUPPORT_JAR_BACKLOG.md`](../SUPPORT_JAR_BACKLOG.md) — support jar plan and no-advantage guardrails.
-- [`../SUPPORT_JAR_LIVE_STATUS.md`](../SUPPORT_JAR_LIVE_STATUS.md) — future read-only live status design.
+- [`../backlog/support-jar-backlog.md`](../backlog/support-jar-backlog.md) — support jar plan and no-advantage guardrails.
+- [`support-jar-live-status.md`](support-jar-live-status.md) — future read-only live status design.
 
 ## Release and smoke records
 
-- [`../PHASE1_CLOSEOUT_SMOKE.md`](../PHASE1_CLOSEOUT_SMOKE.md) — Phase 1 final smoke gate.
-- [`../PHASE2_CLOSEOUT_SMOKE.md`](../PHASE2_CLOSEOUT_SMOKE.md) — Phase 2 MVP closeout smoke if present.
-- [`../tasks/phase2-regression-smoke.md`](../tasks/phase2-regression-smoke.md) — read-only/manual Phase 2 regression gate.
+- [`../history/phase1/closeout-smoke.md`](../history/phase1/closeout-smoke.md) — Phase 1 final smoke gate.
+- [`../history/phase2/closeout-smoke.md`](../history/phase2/closeout-smoke.md) — Phase 2 MVP closeout smoke if present.
 
 ## Guardrails
 

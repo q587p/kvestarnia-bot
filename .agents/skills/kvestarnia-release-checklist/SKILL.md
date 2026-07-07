@@ -12,7 +12,7 @@ Checklist:
 4. Confirm migrations, schemas, config, generated files, snapshots, and lockfiles changed only when required.
 5. Confirm relevant tests/checks were run, or blockers are named.
 6. Confirm player-facing text is Ukrainian and Telegram-friendly.
-7. If substantial player-facing copy changed, confirm it follows `$ukrainian-rpg-content` / `docs/CONTENT_STYLE_GUIDE.md`.
+7. If substantial player-facing copy changed, confirm it follows `$ukrainian-rpg-content` / `docs/design/content-style-guide.md`.
 8. Confirm changelog/news/package version surfaces are updated only when the task is release-oriented.
 9. Confirm manual Telegram QA is listed for behavior changes.
 10. Confirm risks and follow-ups are documented.

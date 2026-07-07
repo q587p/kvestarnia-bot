@@ -25,6 +25,7 @@ sendCellarErrandRouted
 } from "../commands/cellarCommand";
 import { sendFight } from "../commands/fightCommand";
 import { sendHero } from "../commands/heroCommand";
+import { sendEquipment } from "../commands/equipmentCommand";
 import {
 sendHuntBoard
 } from "../commands/huntCommand";
@@ -112,6 +113,15 @@ export function registerMainMenuKeyboard(
       buildQuestHubCommandOptions(services),
       "reply"
     );
+  });
+
+  bot.hears(mainMenuButtons.equipment, async (ctx) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "reply"))) {
+      return;
+    }
+
+    await sendEquipment(ctx, services.equipment, "reply");
   });
 
   bot.hears(mainMenuButtons.inventory, async (ctx) => {
@@ -587,7 +597,8 @@ async function sendCurrentPresenceLocation(
   if (locationId === PRESENCE_LOCATION_KORCHMA_RANGER_CORNER) {
     await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
-      tavernRaid: services.tavern
+      tavernRaid: services.tavern,
+      ...(questMarkers ? { questMarkers } : {})
     });
     return;
   }

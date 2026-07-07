@@ -48,17 +48,21 @@ Before changing code, read only the relevant sources of truth. Avoid broad readi
 High-level docs:
 
 - `README.md` — public-facing project window; do not turn it into a dev runbook.
-- `docs/BRAND.md` — canonical naming, voice, tone, public wording.
-- `docs/PRODUCT_BRIEF.md` — positioning, audience, USP, MVP scope.
-- `docs/GAME_DESIGN.md` — core loop, mechanics, progression.
-- `docs/CONTENT_STYLE_GUIDE.md` — Ukrainian tone, humor, Telegram message format.
-- `docs/TECHNICAL_PLAN.md` — architecture, modules, data, callbacks, deployment.
-- `docs/ROADMAP.md` — phases and Definition of Done.
-- `docs/BALANCE_NOTES.md` — formulas, economy, RNG.
-- `docs/SECURITY_AND_FAIR_PLAY.md` — anti-abuse, privacy, fair play.
-- `docs/DEVELOPER_SETUP.md` — local run, Prisma, Render, scripts, troubleshooting.
-- `docs/PLAYTESTING.md` — manual smoke test for the current playable loop.
-- `docs/CODEX_WORKFLOW.md` — task, PR, review, docs-only, and token-economy workflow.
+- `docs/README.md` — detailed docs front door.
+- `docs/DOCUMENTATION_STRUCTURE.md` — docs placement and safe movement rules.
+- `docs/product/brand.md` — canonical naming, voice, tone, public wording.
+- `docs/product/product-brief.md` — positioning, audience, USP, MVP scope.
+- `docs/product/roadmap.md` — phases and Definition of Done.
+- `docs/design/game-design.md` — core loop, mechanics, progression.
+- `docs/design/content-style-guide.md` — Ukrainian tone, humor, Telegram message format.
+- `docs/design/terminology.md` — canonical terms and place names.
+- `docs/balance/notes.md` — formulas, economy, RNG.
+- `docs/architecture/technical-plan.md` — architecture, modules, data, callbacks, deployment.
+- `docs/architecture/security-and-fair-play.md` — anti-abuse, privacy, fair play.
+- `docs/operations/developer-setup.md` — local run, Prisma, Render, scripts, troubleshooting.
+- `docs/operations/playtesting.md` — manual smoke test for the current playable loop.
+- `docs/operations/local-bot-runtime.md` — isolated local bot runtime.
+- `docs/ai/codex-workflow.md` — task, PR, review, docs-only, and token-economy workflow.
 - `docs/ai/context.md` — compact Codex context pack; keep it under 250 lines.
 - `docs/ai/CODEX_PROMPT_POLICY.md` — durable rules for writing Codex prompts, integration prompts, and prompt archives.
 - `docs/tasks/README.md` — version task doc convention.
@@ -140,12 +144,12 @@ For release-oriented versioned changes:
 
 - Update `package.json` version only when the task includes a version bump.
 - If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
-- Release note headings in `CHANGELOG.md` and `news.md` must include version, Holocene date, and short change description.
+- Release note headings in `CHANGELOG.md` and `news.md` must include version, Holocene date, and a short change description. When a release entry accumulates several visible themes, refresh the heading so it summarizes the actual combined player-facing scope instead of preserving an early single-feature title.
 - Every implementation or PR-follow-up commit on a later Kyiv day than the latest visible release heading must refresh that latest release date before the branch is called ready, even when the code change itself is narrow.
 - `CHANGELOG.md` may include technical details, exact mechanics, edge cases, and rewards.
 - `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, cooldown or period lengths, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, migrations, scaling, or similar platform backlog.
 - `news.md` should describe the planned player-facing release promise and visible outcome, not every bug fix, QA regression, hardening detail, or copy polish discovered while implementing the task. Do not present "we introduced a regression and fixed it before release" as player news. Put implementation cleanups and release-candidate QA fixes in `CHANGELOG.md`, docs, tests, or the PR body unless they are the headline player-visible change.
-- Do not mention new achievement definitions, hooks, triggers, or internal achievement decisions in `news.md`, lore entries, help text, item/action/equipment copy, onboarding, release-news flavor, or other ordinary player-facing copy unless the user explicitly asks for that achievement surface to be promoted. Achievement implementation details belong in `CHANGELOG.md`, task docs, `docs/ACHIEVEMENTS_CATALOG.md`, tests, and the PR body by default. The ordinary exception is the dedicated achievement UI itself, where earned/locked/archive achievement rows are the point of the surface.
+- Do not mention new achievement definitions, hooks, triggers, or internal achievement decisions in `news.md`, lore entries, help text, item/action/equipment copy, onboarding, release-news flavor, or other ordinary player-facing copy unless the user explicitly asks for that achievement surface to be promoted. Achievement implementation details belong in `CHANGELOG.md`, task docs, `docs/design/achievements-catalog.md`, tests, and the PR body by default. The ordinary exception is the dedicated achievement UI itself, where earned/locked/archive achievement rows are the point of the surface.
 - Do not edit older `news.md` entries unless the user explicitly asks for that historical entry to change. Put new player-facing notes in the current version entry, even when the note explains a fix to behavior introduced earlier.
 - PR title for release-oriented changes starts with the version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
 
@@ -225,7 +229,7 @@ Avoid:
 
 ## Isolated local bot runtime
 
-- `run-local-bot.cmd` runs the manual-test bot from an external isolated snapshot with separate `node_modules`, Prisma Client, and SQLite database. See `docs/LOCAL_BOT_RUNTIME.md`.
+- `run-local-bot.cmd` runs the manual-test bot from an external isolated snapshot with separate `node_modules`, Prisma Client, and SQLite database. See `docs/operations/local-bot-runtime.md`.
 - Use `$kvestarnia-local-runtime` for launcher/runtime/Prisma/Windows lock work instead of pasting local-runtime rules into prompts.
 - During normal implementation/review, do not stop, refresh, or replace the isolated bot unless the user explicitly asks.
 - Run lint, typecheck, build, Prisma generation, and tests in the main checkout; they must not depend on the running manual-test bot.

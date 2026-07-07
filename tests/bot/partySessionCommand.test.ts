@@ -349,8 +349,29 @@ describe("handlePartySessionCallback", () => {
         }
       }
     };
-    const submitGearForTelegramUser = vi.fn().mockResolvedValue({ state: "resolved", session });
-    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({
+      state: "resolved",
+      session,
+      achievementUnlocksByCharacterId: {
+        "character-42": [
+          {
+            id: "achievement.mantok.gear-action.first",
+            title: "Манатка натиснула кнопку",
+            cosmeticTitleGrantId: null,
+            unlockedAt: new Date("2026-07-07T10:00:00.000Z")
+          }
+        ],
+        "character-93": [
+          {
+            id: "achievement.mantok.gear-action.first",
+            title: "Манатка натиснула кнопку",
+            cosmeticTitleGrantId: null,
+            unlockedAt: new Date("2026-07-07T10:00:00.000Z")
+          }
+        ]
+      }
+    });
+    const { ctx, answerCallbackQuery, editMessageText, reply, sendMessage } = createCallbackContext();
 
     await handlePartySessionCallback(
       ctx,
@@ -365,8 +386,13 @@ describe("handlePartySessionCallback", () => {
     expect(submitGearForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1, "rldagr");
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(messageText(editMessageText)).toContain("2 хід");
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Нова ачівка");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Манатка натиснула кнопку");
+    expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Хід оновлено. Показую новий стан рейду.");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Нова ачівка");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Манатка натиснула кнопку");
   });
 
   it("answers duplicate boss gear callbacks with readable copy", async () => {

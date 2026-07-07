@@ -217,7 +217,7 @@ function presentEquipmentLine(
   }
 
   if (equipPreview?.state === "twohand-confirm-required") {
-    return `Екіпірування: <i>можна екіпірувати у слот «${presentEquipmentSlotLabel(equipPreview.slot)}», але спершу треба підтвердити звільнення руки: ${escapeHtml(equipPreview.clearedHandItem.content.name)} лишиться в торбі.</i>`;
+    return `<i>Екіпірування</i>: можна екіпірувати у слот <i>«${presentEquipmentSlotLabel(equipPreview.slot)}»</i>, але спершу треба підтвердити звільнення руки: ${escapeHtml(equipPreview.clearedHandItem.content.name)} лишиться в торбі.`;
   }
 
   const slot = equipPreview?.state === "can-equip"
@@ -227,14 +227,20 @@ function presentEquipmentLine(
   const slotLabel = slot ? presentEquipmentSlotLabel(slot) : null;
 
   if (slotLabel && currentItem) {
-    return `Екіпірування: <i>можна екіпірувати у слот «${slotLabel}». Замінить: ${escapeHtml(currentItem.content.name)}.</i>`;
+    return `<i>Екіпірування</i>: можна екіпірувати у слот <i>«${slotLabel}»</i>.\nЗамінить: ${presentReplacementItemSummary(currentItem)}.`;
   }
 
   if (slotLabel) {
-    return `Екіпірування: <i>можна екіпірувати у слот «${slotLabel}». Спорядження вже звільняє місце.</i>`;
+    return `<i>Екіпірування</i>: можна екіпірувати у слот <i>«${slotLabel}»</i>. Спорядження вже звільняє місце.`;
   }
 
   return "Екіпірування: <i>можна екіпірувати. Спорядження вже звільняє місце.</i>";
+}
+
+function presentReplacementItemSummary(item: { content: ItemContent }): string {
+  const effect = presentItemEffect(item.content.effect) ?? "без видимого ефекту";
+
+  return `<b>${escapeHtml(item.content.name)}</b>; зараз дає: ${escapeHtml(effect)}`;
 }
 
 function presentEquipmentSlotLabelInline(slot: EquipmentSlot): string {

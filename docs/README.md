@@ -1,91 +1,61 @@
 # Docs Index
 
-Це вхід у документацію Квестарні. Root [`README.md`](../README.md) лишається public-facing вітриною: що це за гра, чому вона цікава і як її спробувати. Усі runbook-и, дизайн-рішення, задачі, audit-пакети й Codex workflow живуть тут.
+This is the front door for Kvestarnia documentation. The repository root [`README.md`](../README.md) stays public-facing: what the game is, why it is interesting, and where to start. Detailed product decisions, system references, runbooks, Codex workflow, task docs, history and backlog live here.
 
-Документація тепер навігується за роллю:
-
-- [`DOCUMENTATION_STRUCTURE.md`](DOCUMENTATION_STRUCTURE.md) — правила структури, категорій, назв і безпечних `git mv`.
-- [`product/README.md`](product/README.md) — продукт, бренд, позиціонування, roadmap і публічна поверхня.
-- [`design/README.md`](design/README.md) — game design, content, термінологія, монстри, квести, лут, досягнення.
-- [`architecture/README.md`](architecture/README.md) — технічний дизайн, безпека, persistence, sessions і future architecture notes.
-- [`operations/README.md`](operations/README.md) — локальний запуск, smoke/playtesting, support jar і runtime runbooks.
-- [`ai/README.md`](ai/README.md) — Codex context, prompt policy, prompt library і agent workflow.
-- [`tasks/README.md`](tasks/README.md) — versioned task docs, активний slice, shipped records і drafts.
-- [`backlog/README.md`](backlog/README.md) — future ideas, deferred loops і not-yet-active planning.
-- [`history/README.md`](history/README.md) — phase closeouts, release notes і historical planning docs.
+The docs are organized by reader need and document role. Avoid adding one-off Markdown files directly under `docs/`; use the category folders below and update the matching `README.md` index.
 
 ## Start here by need
 
-| Потреба | Відкрити |
+| Need | Open |
 | --- | --- |
-| Зрозуміти, що таке Квестарня | [`../README.md`](../README.md), [`PRODUCT_BRIEF.md`](PRODUCT_BRIEF.md), [`GAME_DESIGN.md`](GAME_DESIGN.md) |
-| Перевірити бренд, voice або public wording | [`BRAND.md`](BRAND.md), [`CONTENT_STYLE_GUIDE.md`](CONTENT_STYLE_GUIDE.md), [`TERMINOLOGY.md`](TERMINOLOGY.md) |
-| Запустити локально або дебажити runtime | [`DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md), [`LOCAL_BOT_RUNTIME.md`](LOCAL_BOT_RUNTIME.md), [`PLAYTESTING.md`](PLAYTESTING.md) |
-| Дати Codex задачу або prompt | [`CODEX_WORKFLOW.md`](CODEX_WORKFLOW.md), [`ai/CODEX_PROMPT_POLICY.md`](ai/CODEX_PROMPT_POLICY.md), [`ai/context.md`](ai/context.md), [`tasks/README.md`](tasks/README.md) |
-| Знайти актуальний task slice | [`tasks/README.md`](tasks/README.md) |
-| Поняти roadmap / phase state | [`ROADMAP.md`](ROADMAP.md), [`phase2/SOCIAL_COMBAT_PLAN.md`](phase2/SOCIAL_COMBAT_PLAN.md), [`PHASE2_DEFERRED_0_2.md`](PHASE2_DEFERRED_0_2.md) |
-| Перевірити баланс, fair play або abuse boundaries | [`BALANCE_NOTES.md`](BALANCE_NOTES.md), [`SECURITY_AND_FAIR_PLAY.md`](SECURITY_AND_FAIR_PLAY.md) |
-| Знайти future backlog | [`backlog/README.md`](backlog/README.md), [`PHASE2_DEFERRED_0_2.md`](PHASE2_DEFERRED_0_2.md), [`tasks/README.md`](tasks/README.md) |
+| Understand the public product promise | [`product/README.md`](product/README.md) |
+| Check voice, naming, player-facing copy or Ukrainian style | [`product/README.md`](product/README.md), [`design/README.md`](design/README.md) |
+| Change mechanics, content, monsters, quests, loot or achievements | [`design/README.md`](design/README.md) |
+| Change formulas, economy, RNG or combat balance | [`balance/README.md`](balance/README.md) |
+| Change architecture, persistence, sessions, callbacks or fair-play guardrails | [`architecture/README.md`](architecture/README.md) |
+| Run, smoke, QA or debug the bot | [`operations/README.md`](operations/README.md), [`qa/README.md`](qa/README.md) |
+| Prepare a Codex task, review prompt or integration prompt | [`ai/README.md`](ai/README.md), [`tasks/README.md`](tasks/README.md) |
+| Find the active versioned slice | [`tasks/README.md`](tasks/README.md) |
+| Find deferred ideas and future slices | [`backlog/README.md`](backlog/README.md) |
+| Read completed phase closeouts or old planning | [`history/README.md`](history/README.md) |
+| Understand where a new document belongs | [`DOCUMENTATION_STRUCTURE.md`](DOCUMENTATION_STRUCTURE.md) |
 
-## Canonical sources of truth
+## Category doors
 
-These stay high-signal and should be updated when the feature they describe changes:
+- [`product/`](product/) — positioning, brand, public surface, roadmap and market/support notes.
+- [`design/`](design/) — gameplay systems, content style, terminology, characters, monsters, quests, loot, achievements, social loops and lore-facing mechanics.
+- [`balance/`](balance/) — formulas, economy, risk/reward, simulation notes and balance-specific feature docs.
+- [`architecture/`](architecture/) — technical plan, security/fair-play, persistence, callbacks, sessions and architectural guardrails.
+- [`operations/`](operations/) — setup, local runtime, playtesting, smoke checks and production-facing support runbooks.
+- [`content/`](content/) — canon snapshots, lore/content seed docs, inspiration banks and player-facing copy packages.
+- [`qa/`](qa/) — manual QA plans, focused smoke packages and feature-specific proof checklists.
+- [`ai/`](ai/) — compact Codex context, prompt policy, prompt library, token-economy notes and AI workflow.
+- [`tasks/`](tasks/) — versioned task docs, active slice, shipped records and future task drafts.
+- [`backlog/`](backlog/) — deferred mechanics and idea banks that are not active implementation permission.
+- [`history/`](history/) — completed phase records, old planning packages and imported audits.
+- [`phase2/`](phase2/) — cohesive Phase 2 social-combat planning docs that are still useful as a package.
+- [`phase2-roadmap-audit/`](phase2-roadmap-audit/) and [`refactoring-audit/`](refactoring-audit/) — imported audit packages; keep package-local structure intact.
 
-- [`BRAND.md`](BRAND.md) — назва, voice, tone, public wording і заборонені варіанти неймінґу.
-- [`PRODUCT_BRIEF.md`](PRODUCT_BRIEF.md) — позиціонування, аудиторія, USP і MVP scope.
-- [`GAME_DESIGN.md`](GAME_DESIGN.md) — core loop, персонаж, бій, прогресія й майбутні соціяльні механіки.
-- [`CONTENT_STYLE_GUIDE.md`](CONTENT_STYLE_GUIDE.md) — український тон, гумор, лапки й формат Telegram-повідомлень.
-- [`TERMINOLOGY.md`](TERMINOLOGY.md) — канонічні назви сутностей і місць.
-- [`ROADMAP.md`](ROADMAP.md) — фази розвитку й Definition of Done.
-- [`TECHNICAL_PLAN.md`](TECHNICAL_PLAN.md) — архітектура, дані, callbacks, deployment і технічні борги.
-- [`BALANCE_NOTES.md`](BALANCE_NOTES.md) — формули, економіка, RNG і balance guardrails.
-- [`SECURITY_AND_FAIR_PLAY.md`](SECURITY_AND_FAIR_PLAY.md) — приватність, антиаб’юз, idempotency і чесна гра.
-- [`DEVELOPER_SETUP.md`](DEVELOPER_SETUP.md) — локальний запуск, Prisma, Render, scripts і troubleshooting.
-- [`PLAYTESTING.md`](PLAYTESTING.md) — ручний smoke test поточного playable loop.
-- [`CODEX_WORKFLOW.md`](CODEX_WORKFLOW.md) — правила постановки задач, PR і docs-only workflow.
-- [`ai/context.md`](ai/context.md) — compact context pack for Codex; keep it under 250 lines.
-- [`ai/CODEX_PROMPT_POLICY.md`](ai/CODEX_PROMPT_POLICY.md) — durable prompt/integration policy.
-- [`tasks/README.md`](tasks/README.md) — version task convention and task registry.
+## Canonical source map
 
-## Gameplay, content and systems references
+These docs should be updated when their topic changes. Paths below assume the root-doc reorganization has been applied.
 
-- [`BESTIARY.md`](BESTIARY.md), [`MONSTER_LOOT_DROPS.md`](MONSTER_LOOT_DROPS.md), [`MONSTER_FLAVOR_ROUTING.md`](MONSTER_FLAVOR_ROUTING.md), [`MONSTER_ENCOUNTER_AUTHORING_GUIDE.md`](MONSTER_ENCOUNTER_AUTHORING_GUIDE.md) — monster/content references.
-- [`QUEST_RESOLUTION_VARIETY.md`](QUEST_RESOLUTION_VARIETY.md), [`QUEST_SKILLS_AND_CHECKS.md`](QUEST_SKILLS_AND_CHECKS.md), [`QUEST_RESOLUTION_CONTENT_SEEDS.md`](QUEST_RESOLUTION_CONTENT_SEEDS.md) — authored quest resolution and deterministic check vocabulary.
-- [`NONCOMBAT_TECHNIQUES.md`](NONCOMBAT_TECHNIQUES.md), [`PLAYER_IDENTITY_ABILITIES.md`](PLAYER_IDENTITY_ABILITIES.md) — player identity actions and planned/shipped abilities.
-- [`ACHIEVEMENTS_CATALOG.md`](ACHIEVEMENTS_CATALOG.md), [`ACHIEVEMENTS_DESIGN.md`](ACHIEVEMENTS_DESIGN.md), [`ACHIEVEMENTS_PHASE1.md`](ACHIEVEMENTS_PHASE1.md) — rewardless achievements and cosmetic title notes.
-- [`DAILY_KORCHMA_ROUNDS.md`](DAILY_KORCHMA_ROUNDS.md), [`LOOT_EXPANSION_CANONICAL_IDS.md`](LOOT_EXPANSION_CANONICAL_IDS.md), [`PROBLEM_QUEST_CHAIN_REFERENCES.md`](PROBLEM_QUEST_CHAIN_REFERENCES.md) — focused system references.
-- [`design/latest-events-feed.md`](design/latest-events-feed.md), [`content/latest-events-feed-copy.md`](content/latest-events-feed-copy.md), [`qa/latest-events-feed-qa.md`](qa/latest-events-feed-qa.md) — latest events feed design, copy and QA package.
+| Topic | Source of truth |
+| --- | --- |
+| Product promise and positioning | [`product/product-brief.md`](product/product-brief.md) |
+| Brand, name and public wording | [`product/brand.md`](product/brand.md) |
+| Roadmap and phase state | [`product/roadmap.md`](product/roadmap.md), [`tasks/README.md`](tasks/README.md) |
+| Game loop and mechanics overview | [`design/game-design.md`](design/game-design.md) |
+| Ukrainian voice and Telegram text style | [`design/content-style-guide.md`](design/content-style-guide.md), [`design/terminology.md`](design/terminology.md) |
+| Balance, formulas and economy | [`balance/notes.md`](balance/notes.md) |
+| Technical architecture | [`architecture/technical-plan.md`](architecture/technical-plan.md) |
+| Security, privacy and fair play | [`architecture/security-and-fair-play.md`](architecture/security-and-fair-play.md) |
+| Local setup and runtime troubleshooting | [`operations/developer-setup.md`](operations/developer-setup.md), [`operations/local-bot-runtime.md`](operations/local-bot-runtime.md) |
+| Manual smoke testing | [`operations/playtesting.md`](operations/playtesting.md), [`qa/README.md`](qa/README.md) |
+| Codex workflow and prompt policy | [`ai/codex-workflow.md`](ai/codex-workflow.md), [`ai/CODEX_PROMPT_POLICY.md`](ai/CODEX_PROMPT_POLICY.md), [`ai/context.md`](ai/context.md) |
+| Version task convention | [`tasks/README.md`](tasks/README.md) |
+| Documentation placement rules | [`DOCUMENTATION_STRUCTURE.md`](DOCUMENTATION_STRUCTURE.md) |
 
-## Phase 2 and raid planning
+## Migration note
 
-Phase 2 is Social Combat & Interactions first, not group-raid-first.
-
-- [`phase2/SOCIAL_COMBAT_PLAN.md`](phase2/SOCIAL_COMBAT_PLAN.md) — головний Phase 2 plan.
-- [`phase2/DUELS_AND_INVITES.md`](phase2/DUELS_AND_INVITES.md) — duels and shareable invite cards.
-- [`phase2/GROUP_COMBAT_AND_RAIDS.md`](phase2/GROUP_COMBAT_AND_RAIDS.md) — party sessions, group combat and raid growth.
-- [`phase2/TRADING_AND_GIFTING.md`](phase2/TRADING_AND_GIFTING.md) — safe gifting/trading boundaries.
-- [`phase2/REMORT.md`](phase2/REMORT.md), [`phase2/ITEM_TAGS_AND_CONSUMABLES.md`](phase2/ITEM_TAGS_AND_CONSUMABLES.md), [`phase2/UNSTABLE_BALANCE_PRINCIPLES.md`](phase2/UNSTABLE_BALANCE_PRINCIPLES.md) — shipped/remort/item/balance notes.
-- [`PHASE2_MVP_RELEASE_NOTES.md`](PHASE2_MVP_RELEASE_NOTES.md), [`PHASE2_MVP_CLOSEOUT_PLAN.md`](PHASE2_MVP_CLOSEOUT_PLAN.md), [`PHASE2_CLOSEOUT_SMOKE.md`](PHASE2_CLOSEOUT_SMOKE.md), [`PHASE2_DEFERRED_0_2.md`](PHASE2_DEFERRED_0_2.md) — closeout and deferred scope.
-- [`phase2-roadmap-audit/README.md`](phase2-roadmap-audit/README.md) — imported roadmap audit package; planning input only until a slice is activated.
-
-## AI / Codex workflow assets
-
-- [`ai/README.md`](ai/README.md) — AI/Codex mini-index.
-- [`ai/context.md`](ai/context.md) — compact context pack for new Codex sessions.
-- [`ai/prompts/`](ai/prompts/) — ready prompts for implementation, QA, review and handoff.
-- [`ai/CODEX_PROMPT_POLICY.md`](ai/CODEX_PROMPT_POLICY.md) — rules for prompt artifacts.
-- [`CODEX_WORKFLOW.md`](CODEX_WORKFLOW.md) — human-facing workflow guide.
-- [`refactoring-audit/README.md`](refactoring-audit/README.md) — imported refactoring audit package.
-
-## Historical / archived planning
-
-Keep historical docs discoverable, but do not treat them as active implementation scope unless a current task points to them.
-
-- [`history/README.md`](history/README.md) — phase closeout and old planning index.
-- [`PHASE1_RELEASE_NOTES.md`](PHASE1_RELEASE_NOTES.md), [`PHASE1_CLOSEOUT_0_1_TRANSITION.md`](PHASE1_CLOSEOUT_0_1_TRANSITION.md), [`PHASE1_CLOSEOUT_SMOKE.md`](PHASE1_CLOSEOUT_SMOKE.md) — Phase 1 closure.
-- [`GROUP_HOOK_DESIGN.md`](GROUP_HOOK_DESIGN.md), [`GROUP_RAID_SESSION_NOTES.md`](GROUP_RAID_SESSION_NOTES.md), [`SOCIAL_ACTIONS_BACKLOG.md`](SOCIAL_ACTIONS_BACKLOG.md), [`MANTOK_CHEST_BACKLOG.md`](MANTOK_CHEST_BACKLOG.md) — useful earlier planning, not the current starting point.
-- [`BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md`](BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md), [`BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md`](BIG_BARREL_BROTHER_GROUP_RAID_MANIFEST.md), [`design/BIG_BARREL_BROTHER_GROUP_RAID.md`](design/BIG_BARREL_BROTHER_GROUP_RAID.md), [`architecture/GROUP_RAID_SESSION_MODEL.md`](architecture/GROUP_RAID_SESSION_MODEL.md), [`qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md`](qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md) — future raid package, preserved as design input.
-
-## Placement rule for new docs
-
-Do not add new one-off Markdown files directly under `docs/` unless they are a canonical source of truth listed above. Prefer the category folders and update the matching `README.md` index. When moving old files, use `git mv`, update relative links with `rg`, and keep the PR docs-only unless explicitly requested otherwise.
+During the root cleanup, old links such as `docs/design/game-design.md` or `../design/game-design.md` may exist in branches or historical prompts. Move files with `git mv`, then update every reference with `rg` before calling the docs PR complete. Historical/audit packages may keep old references when they intentionally describe old repository state, but active docs, `AGENTS.md`, root `README.md`, skills and prompts should point to the new paths.

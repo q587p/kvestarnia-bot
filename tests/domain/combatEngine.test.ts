@@ -2451,6 +2451,51 @@ describe("combat domain engine", () => {
     expect(levelThirteen.attack).toBeLessThan(levelFive.attack * 2);
   });
 
+  it("adds remort-aware monster pressure without changing the encounter level", () => {
+    const monster = {
+      id: "monster.remort-pressure-test",
+      name: "Тест за ремортом",
+      description: "Знає, що пригодник уже це бачив.",
+      level: 13,
+      tags: []
+    };
+    const base = deriveMonsterCombatStats(monster);
+    const remortThree = deriveMonsterCombatStats(monster, {
+      remortCount: 3,
+      remortPressureMode: "single"
+    });
+    const soloVeteran = deriveMonsterCombatStats(monster, {
+      remortCount: 5,
+      remortPressureMode: "single"
+    });
+    const pressureBackup = deriveMonsterCombatStats(monster, {
+      remortCount: 9,
+      remortPressureMode: "multi"
+    });
+
+    expect(remortThree).toMatchObject({
+      level: 13,
+      hpMax: base.hpMax,
+      attack: base.attack,
+      armor: base.armor,
+      resist: base.resist
+    });
+    expect(soloVeteran).toMatchObject({
+      level: 13,
+      hpMax: 95,
+      attack: 18,
+      armor: 5,
+      resist: 5
+    });
+    expect(pressureBackup).toMatchObject({
+      level: 13,
+      hpMax: 124,
+      attack: 18,
+      armor: base.armor,
+      resist: base.resist
+    });
+  });
+
   it("separates ongoing monster effect damage from the direct monster response", () => {
     const state = startCombat({ hero: warrior, monster });
     state.monster.attack = 6;

@@ -75,6 +75,7 @@ describe("ActivityEventService", () => {
       sourceType: "daily-action",
       occurredAt: new Date("2026-07-02T10:00:00.000Z"),
       levelChange: { oldLevel: 1, newLevel: 5, leveledUp: true },
+      remortCount: 4,
       itemIds: [
         "item.pan-of-persuasion",
         "item.towel-of-forty-two-answers",
@@ -89,7 +90,8 @@ describe("ActivityEventService", () => {
     ]);
     expect(repository.rows[0]).toMatchObject({
       severity: "high",
-      dedupeKey: "character.level_reached:character-1:5"
+      dedupeKey: "character.level_reached:character-1:5:4",
+      payload: { level: 5, remortCount: 4 }
     });
     expect(repository.rows[1]).toMatchObject({
       subjectId: "item.towel-of-forty-two-answers",
@@ -111,15 +113,16 @@ describe("ActivityEventService", () => {
       sourceId: "daily-8",
       sourceType: "daily-action",
       occurredAt: new Date("2026-07-02T10:00:00.000Z"),
-      levelChange: { oldLevel: 7, newLevel: 8, leveledUp: true }
+      levelChange: { oldLevel: 7, newLevel: 8, leveledUp: true },
+      remortCount: 0
     });
 
     expect(repository.rows).toHaveLength(1);
     expect(repository.rows[0]).toMatchObject({
       eventType: "character.level_reached",
       severity: "high",
-      dedupeKey: "character.level_reached:character-1:8",
-      payload: { level: 8 }
+      dedupeKey: "character.level_reached:character-1:8:0",
+      payload: { level: 8, remortCount: 0 }
     });
   });
 
@@ -205,21 +208,54 @@ describe("ActivityEventService", () => {
     expect(repository.rows).toHaveLength(0);
   });
 
-  it("emits one Big Barrel Brother victory row per terminal boss session", async () => {
+  it("emits Big Barrel Brother raid completion rows for wins and losses", async () => {
     const repository = new FakeActivityEventRepository();
     const publisher = makePublicActivityEventPublisher(repository);
-    const session = makeBigBarrelSession("won");
+    const wonSession = makeBigBarrelSession("won", "boss-session-won");
+    const lostSession = makeBigBarrelSession("lost", "boss-session-lost");
 
-    await publisher.recordPartyRaidWonSafely(session);
-    await publisher.recordPartyRaidWonSafely(session);
-    await publisher.recordPartyRaidWonSafely(makeBigBarrelSession("lost"));
+    await publisher.recordPartyRaidCompletedSafely(wonSession);
+    await publisher.recordPartyRaidCompletedSafely(wonSession);
+    await publisher.recordPartyRaidCompletedSafely(lostSession);
+
+    expect(repository.rows).toHaveLength(2);
+    expect(repository.rows[0]).toMatchObject({
+      eventType: "raid.completed",
+      severity: "high",
+      dedupeKey: "raid.completed:party-boss:boss-session-won",
+      subjectName: "Старший Брат Бочки",
+      payload: { mode: "group", outcome: "won", participantCount: 2 }
+    });
+    expect(repository.rows[1]).toMatchObject({
+      eventType: "raid.completed",
+      severity: "normal",
+      dedupeKey: "raid.completed:party-boss:boss-session-lost",
+      payload: { mode: "group", outcome: "lost", participantCount: 2 }
+    });
+  });
+
+  it("emits solo raid completions as normal raid rows", async () => {
+    const repository = new FakeActivityEventRepository();
+    const publisher = makePublicActivityEventPublisher(repository);
+
+    await publisher.recordSoloRaidCompletedSafely({
+      characterId: "character-1",
+      actorDisplayName: "Арден",
+      raidId: "barrel-period-1",
+      raidName: "Бочка Пінного Міражу",
+      outcome: "won",
+      occurredAt: new Date("2026-07-02T10:00:00.000Z")
+    });
 
     expect(repository.rows).toHaveLength(1);
     expect(repository.rows[0]).toMatchObject({
-      eventType: "party.raid_won",
-      dedupeKey: "party.raid_won:boss-session-1",
-      subjectName: "Старший Брат Бочки",
-      payload: { participantCount: 2 }
+      eventType: "raid.completed",
+      category: "raid",
+      severity: "normal",
+      actorCharacterId: "character-1",
+      actorDisplayName: "Арден",
+      dedupeKey: "raid.completed:solo:character-1:barrel-period-1",
+      payload: { mode: "solo", outcome: "won", participantCount: 1 }
     });
   });
 
@@ -310,11 +346,11 @@ class FakeActivityEventRepository implements ActivityEventRepository {
   }
 }
 
-function makeBigBarrelSession(status: "won" | "lost"): PartyBossSessionRecord {
+function makeBigBarrelSession(status: "won" | "lost", id = "boss-session-1"): PartyBossSessionRecord {
   const now = new Date("2026-07-02T10:00:00.000Z");
 
   return {
-    id: "boss-session-1",
+    id,
     partySessionId: "party-session-1",
     partyInviteToken: "party-token",
     leaderCharacterId: "character-1",

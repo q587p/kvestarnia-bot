@@ -1,22 +1,25 @@
 # Architecture Docs
 
-Use these docs when changing technical design, persistence, sessions, idempotency, deployment boundaries or fair-play risk.
+Use these docs when changing technical design, persistence, sessions, callbacks, idempotency, deployment boundaries or fair-play risk.
 
 ## Canonical technical references
 
-- [`../TECHNICAL_PLAN.md`](../TECHNICAL_PLAN.md) — architecture, domains, data, callbacks, deployment and future technical decisions.
-- [`../SECURITY_AND_FAIR_PLAY.md`](../SECURITY_AND_FAIR_PLAY.md) — anti-abuse, privacy, idempotency and fair play.
-- [`../BALANCE_NOTES.md`](../BALANCE_NOTES.md) — balance formulas and economy guardrails that affect technical implementation.
-- [`../DEVELOPER_SETUP.md`](../DEVELOPER_SETUP.md) — local setup and troubleshooting with Prisma/Render/scripts.
+- [`technical-plan.md`](technical-plan.md) — architecture, domains, data, callbacks, deployment and future technical decisions.
+- [`security-and-fair-play.md`](security-and-fair-play.md) — anti-abuse, privacy, idempotency and fair play.
+- [`../balance/notes.md`](../balance/notes.md) — balance formulas and economy guardrails that affect technical implementation.
+- [`../operations/developer-setup.md`](../operations/developer-setup.md) — local setup and troubleshooting with Prisma/Render/scripts.
 
-## Sessions and group/raid architecture
+## Combat and session architecture
 
+- [`bestiary-collection-data-model-notes.md`](bestiary-collection-data-model-notes.md) — data model notes for future bestiary collection work.
+- [`combat-engine-design.md`](combat-engine-design.md) — combat engine design notes.
+- [`effective-stats-and-equipment-effects-plan.md`](effective-stats-and-equipment-effects-plan.md) — effective stats and equipment-effect planning notes.
 - [`GROUP_RAID_SESSION_MODEL.md`](GROUP_RAID_SESSION_MODEL.md) — proposed party/raid session model.
-- [`../GROUP_RAID_SESSION_NOTES.md`](../GROUP_RAID_SESSION_NOTES.md) — earlier session row, participant and idempotency notes.
+- [`group-raid-session-notes.md`](group-raid-session-notes.md) — earlier session row, participant and idempotency notes if kept as active technical input.
 - [`../phase2/GROUP_COMBAT_AND_RAIDS.md`](../phase2/GROUP_COMBAT_AND_RAIDS.md) — how raids grow from duels, party sessions and multi-enemy combat.
 - [`../phase2/ITEM_TAGS_AND_CONSUMABLES.md`](../phase2/ITEM_TAGS_AND_CONSUMABLES.md) — item tags, one-use manatky and combat actions from items.
 
-## Change maps and future package notes
+## Change maps and audit packages
 
 - [`../implementation/REPOSITORY_CHANGE_MAP.md`](../implementation/REPOSITORY_CHANGE_MAP.md) — future repository change map for the Big Barrel Brother package.
 - [`../refactoring-audit/README.md`](../refactoring-audit/README.md) — imported refactoring audit package.

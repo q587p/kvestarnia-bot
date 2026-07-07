@@ -14,9 +14,9 @@ Read first, in this order:
 AGENTS.md
 docs/ai/context.md
 docs/tasks/0.1.20-authored-quest-resolutions.md
-docs/QUEST_RESOLUTION_VARIETY.md
-docs/QUEST_SKILLS_AND_CHECKS.md
-docs/QUEST_RESOLUTION_CONTENT_SEEDS.md
+docs/design/quest-resolution-variety.md
+docs/design/quest-skills-and-checks.md
+docs/design/quest-resolution-content-seeds.md
 ```
 
 Then inspect only the directly relevant current code and tests before planning edits. At minimum inspect the Adventure Choice service/callback/keyboard/presenter path, the starter mimic-shawarma path, the cellar mouse path, effective-stat helpers, combat skill profiles, daily-action/cooldown transaction patterns and existing persistent-fight handoff.
@@ -56,7 +56,7 @@ Checks must:
 - use the canonical effective-stat pipeline;
 - use deterministic injected/pure RNG;
 - be replay-stable for the same character/period/scene/method;
-- stay within the caps documented in `QUEST_SKILLS_AND_CHECKS.md`;
+- stay within the caps documented in `design/quest-skills-and-checks.md`;
 - return `strong-success`, `success`, `mixed-success` or `complication`;
 - hide exact percentages from player-facing production copy.
 
@@ -96,7 +96,7 @@ chair broom door map teapot menu sign portrait key ledger rug bell
 
 Also cover the generated race, class and title problem families. Builders are allowed, but the visible nouns, verbs and outcomes must fit the actual generated scene family instead of falling back to one universal paragraph.
 
-Use `docs/QUEST_RESOLUTION_CONTENT_SEEDS.md` as the minimum content direction. Improve copy where needed, keeping it compact, Ukrainian and Kvestarnia-toned.
+Use `docs/design/quest-resolution-content-seeds.md` as the minimum content direction. Improve copy where needed, keeping it compact, Ukrainian and Kvestarnia-toned.
 
 ## Starter scenes
 
@@ -123,7 +123,7 @@ Keep old starter shawarma and cellar callbacks replay-safe and idempotent. Prese
 
 Prefer a small pure domain/content foundation, then service persistence/wiring, then Telegram presentation. Keep Telegram imports out of domain code. Avoid a broad quest-engine rewrite.
 
-The inspected `0.1.17` `DailyAction` row has no method/grade/result/cost payload. Unless current `main` already added an equivalent audit field, implement the narrow backward-compatible ledger extension from `QUEST_RESOLUTION_VARIETY.md`: optional versioned `resultJson` plus `spentGold` defaulting to zero, with one atomic claim/debit/reward/item transaction. Do not recompute a claimed grade from post-reward current stats. Add a transaction-safe paid cooldown claim for the mouse path if its bribery method ships. Do not add a production dependency.
+The inspected `0.1.17` `DailyAction` row has no method/grade/result/cost payload. Unless current `main` already added an equivalent audit field, implement the narrow backward-compatible ledger extension from `design/quest-resolution-variety.md`: optional versioned `resultJson` plus `spentGold` defaulting to zero, with one atomic claim/debit/reward/item transaction. Do not recompute a claimed grade from post-reward current stats. Add a transaction-safe paid cooldown claim for the mouse path if its bribery method ships. Do not add a production dependency.
 
 ## Required tests
 

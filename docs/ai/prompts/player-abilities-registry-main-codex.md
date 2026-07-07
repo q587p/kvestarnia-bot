@@ -9,7 +9,7 @@ docs/tasks/0.2.7-player-abilities-mvp.md
 
 Context:
 docs/ai/context.md
-docs/PLAYER_IDENTITY_ABILITIES.md
+docs/design/player-identity-abilities.md
 
 Follow AGENTS.md.
 Work on this versioned task only.
@@ -43,8 +43,8 @@ Critical properties:
 Read first:
 - `docs/tasks/0.2.7-player-abilities-mvp.md`
 - `docs/ai/context.md`
-- `docs/BALANCE_NOTES.md`
-- `docs/PLAYER_IDENTITY_ABILITIES.md` if it already exists
+- `docs/balance/notes.md`
+- `docs/design/player-identity-abilities.md` if it already exists
 - `src/content/playerAbilities.ts` if present
 - `src/domain/combat/combatActions.ts`
 - `src/domain/combat/combatEngine.ts`

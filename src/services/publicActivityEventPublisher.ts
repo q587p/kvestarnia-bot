@@ -42,10 +42,12 @@ export class PublicActivityEventPublisher {
     sourceType: string;
     occurredAt: Date;
     levelChange?: RewardLevelChange | null | undefined;
+    remortCount?: number | null | undefined;
     itemIds?: readonly string[] | undefined;
   }): Promise<void> {
     if (input.levelChange?.leveledUp && input.levelChange.newLevel >= LATEST_EVENTS_PUBLIC_MIN_LEVEL) {
       const level = input.levelChange.newLevel;
+      const remortCount = normalizeRemortCount(input.remortCount);
       await this.recordSafely({
         eventType: "character.level_reached",
         category: "progression",
@@ -54,8 +56,8 @@ export class PublicActivityEventPublisher {
         actorDisplayName: input.actorDisplayName,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
-        dedupeKey: `character.level_reached:${input.characterId}:${level}`,
-        payload: { level },
+        dedupeKey: `character.level_reached:${input.characterId}:${level}:${remortCount}`,
+        payload: { level, remortCount },
         occurredAt: input.occurredAt
       });
     }
@@ -141,6 +143,59 @@ export class PublicActivityEventPublisher {
     });
   }
 
+  recordPartyRaidCompletedSafely(session: PartyBossSessionRecord): Promise<ActivityEventRecord | null> {
+    if (
+      (session.status !== "won" && session.status !== "lost") ||
+      session.rulesVersion !== BIG_BARREL_BROTHER_RULES_VERSION
+    ) {
+      return Promise.resolve(null);
+    }
+
+    const occurredAt = session.completedAt ?? parseDate(session.state.completedAt) ?? new Date();
+    const participantCount = Math.max(1, session.state.participants.length || session.participants.length);
+    const outcome = session.status;
+
+    return this.recordSafely({
+      eventType: "raid.completed",
+      category: "raid",
+      severity: outcome === "won" ? "high" : "normal",
+      relatedCharacterIds: session.state.participants.map((participant) => participant.characterId),
+      subjectKind: "monster",
+      subjectId: session.state.boss.monsterId,
+      subjectName: session.state.boss.name,
+      sourceType: "party-boss",
+      sourceId: session.id,
+      dedupeKey: `raid.completed:party-boss:${session.id}`,
+      payload: { mode: "group", outcome, participantCount },
+      occurredAt
+    });
+  }
+
+  recordSoloRaidCompletedSafely(input: {
+    characterId: string;
+    actorDisplayName: string;
+    raidId: string;
+    raidName: string;
+    outcome: "won" | "lost";
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "raid.completed",
+      category: "raid",
+      severity: "normal",
+      actorCharacterId: input.characterId,
+      actorDisplayName: input.actorDisplayName,
+      subjectKind: "raid",
+      subjectId: input.raidId,
+      subjectName: input.raidName,
+      sourceType: "solo-raid",
+      sourceId: input.raidId,
+      dedupeKey: `raid.completed:solo:${input.characterId}:${input.raidId}`,
+      payload: { mode: "solo", outcome: input.outcome, participantCount: 1 },
+      occurredAt: input.occurredAt
+    });
+  }
+
   private recordSafely(input: RecordActivityEventInput): Promise<ActivityEventRecord | null> {
     return this.events.recordSafely(input);
   }
@@ -148,6 +203,12 @@ export class PublicActivityEventPublisher {
 
 function isMilestoneLevel(level: number): boolean {
   return LATEST_EVENTS_MILESTONE_LEVELS.includes(level as (typeof LATEST_EVENTS_MILESTONE_LEVELS)[number]);
+}
+
+function normalizeRemortCount(value: number | null | undefined): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : 0;
 }
 
 function parseDate(value: string | undefined): Date | null {

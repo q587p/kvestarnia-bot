@@ -655,6 +655,63 @@ describe("handleDuelCallback", () => {
     });
   });
 
+  it("sends a first gear-action achievement notice to the turn-based duel actor", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const activeSession = makeTurnBasedSession("active", target);
+    const resolveTurnBasedActionForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: activeSession,
+      achievementUnlocksByCharacterId: {
+        "character-99": [
+          {
+            id: "achievement.mantok.gear-action.first",
+            title: "Манатка натиснула кнопку",
+            cosmeticTitleGrantId: null,
+            unlockedAt: new Date("2026-07-07T10:00:00.000Z")
+          }
+        ]
+      }
+    });
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "active",
+      challenge: {
+        ...makeChallenge("active", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session: activeSession,
+      turnExpiresAt: activeSession.turnExpiresAt,
+      now: NOW
+    });
+    const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      resolveTurnBasedActionForTelegramUser,
+      getByToken,
+      recordTurnBasedMessageReference
+    });
+    const { ctx, answerCallbackQuery, editMessageText, reply, sendMessage } = createCallbackContext(99, "private");
+
+    await handleDuelCallback(ctx, {
+      type: "gear",
+      token: TOKEN,
+      grantKey: "rldagr",
+      turn: 2,
+      version: 4
+    }, service, {
+      presence: createPresence()
+    });
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(messageText(editMessageText)).toContain("Покрокова дуель");
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Нова ачівка");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Манатка натиснула кнопку");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Покрокова дуель");
+  });
+
   it("does not accept turn actions from a group chat or expose private queued choices", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
     const activeSession = makeTurnBasedSession("active", target);

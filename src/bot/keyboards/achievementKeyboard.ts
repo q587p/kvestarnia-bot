@@ -11,6 +11,7 @@ import {
   makeCosmeticTitleListCallbackData,
   makeCosmeticTitleSetCallbackData
 } from "../callbacks/achievementCallbackData";
+import { makeEquipmentCallbackData } from "../callbacks/itemCallbackData";
 
 export function buildHeroAchievementsKeyboard(
   options: {
@@ -20,6 +21,8 @@ export function buildHeroAchievementsKeyboard(
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
+    .text("🛡️ Спорядження", makeEquipmentCallbackData())
+    .row()
     .text("🏅 Ачівки", makeAchievementListCallbackData(0))
     .text("🏷️ Титули", makeCosmeticTitleListCallbackData());
 

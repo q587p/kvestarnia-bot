@@ -9,7 +9,7 @@
   - or `0.2.31-charkokovalnia-item-upgrades.md` if no hardening slice is needed.
 - Do not keep two different tasks under `0.2.30`.
 
-## `docs/ROADMAP.md`
+## `docs/product/roadmap.md`
 
 Add a compact summary after `0.2.17` line:
 - `0.2.18` Lore Board;

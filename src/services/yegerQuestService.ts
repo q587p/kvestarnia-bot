@@ -679,6 +679,7 @@ export class YegerQuestService {
           sourceType: "daily-action",
           occurredAt: claim.action.createdAt,
           levelChange: claim.levelChange,
+          remortCount: claim.character.remortCount ?? 0,
           itemGrants: claim.itemGrants,
           events: ["yeger.trial.completed"],
           activityEvents: this.activityEvents

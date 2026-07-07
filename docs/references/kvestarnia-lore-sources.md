@@ -12,10 +12,10 @@
 
 ## Docs
 
-- `docs/BRAND.md` — canonical naming and voice.
-- `docs/CONTENT_STYLE_GUIDE.md` — Telegram message shape, humor guardrails, `пригодник` rule.
-- `docs/GAME_DESIGN.md` — fantasy, core loop, race/class list, hidden paths, character impact loop.
-- `docs/BESTIARY.md` і `docs/MONSTER_LOOT_DROPS.md` — handcrafted monster/trophy flavor for early roster.
+- `docs/product/brand.md` — canonical naming and voice.
+- `docs/design/content-style-guide.md` — Telegram message shape, humor guardrails, `пригодник` rule.
+- `docs/design/game-design.md` — fantasy, core loop, race/class list, hidden paths, character impact loop.
+- `docs/design/bestiary.md` і `docs/design/monster-loot-drops.md` — handcrafted monster/trophy flavor for early roster.
 
 ## Важлива примітка
 

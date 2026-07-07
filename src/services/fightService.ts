@@ -1065,7 +1065,7 @@ export class FightService {
       difficulty: encounter.difficulty,
       encounterSeed: encounter.seedHash,
       originLocationId: encounter.originLocationId
-    });
+    }, character.remortCount ?? 0);
     const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
     const extraMonsters = await this.selectPersistentFightExtraMonsters({
       telegramUserId,
@@ -1795,7 +1795,11 @@ export class FightService {
       };
     }
 
-    const threatDecision = await this.resolveThreatEscalationDecision(telegramUserId, options);
+    const threatDecision = await this.resolveThreatEscalationDecision(
+      telegramUserId,
+      options,
+      character.remortCount ?? 0
+    );
 
     const difficulty = options.target
       ? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
@@ -2106,6 +2110,7 @@ export class FightService {
       sourceId: claim.action.id,
       sourceType: "daily-action",
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemIds: claim.itemGrants.map((grant) => grant.itemId),
       events: ["starter.mimic-shawarma.probe.completed"],
       combatMonsterId: MIMIC_SHAWARMA_MONSTER_ID,
@@ -2935,6 +2940,7 @@ export class FightService {
           sourceId: claim.action.id,
           sourceType: "daily-action",
           levelChange: claim.levelChange,
+          remortCount: claim.character.remortCount ?? 0,
           itemIds: claim.itemGrants.map((grant) => grant.itemId),
           problemStageId: stage.id
         })
@@ -3119,6 +3125,7 @@ export class FightService {
       sourceId: claim.action.id,
       sourceType: "daily-action",
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemIds: claim.itemGrants.map((grant) => grant.itemId),
       combatMonsterId: session.monsterId,
       ...withAchievementCombatOutcome(session.state?.status ?? session.status)
@@ -3158,6 +3165,7 @@ export class FightService {
     telegramUserId: bigint
   ): Promise<ThirteenSmallProblemsProgress> {
     const stageState = await this.getCurrentProblemQuestStage(telegramUserId);
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (stageState.branchComplete) {
       return buildCompletedProblemQuestBranchProgress();
@@ -3167,6 +3175,7 @@ export class FightService {
     const wins = this.combatSessions
       ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
           excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
+          ...(character ? { life: { remortCount: character.remortCount ?? 0 } } : {}),
           ...(countSinceIssue && stageState.issuedAt ? { since: stageState.issuedAt } : {})
         })
       : 0;
@@ -3388,6 +3397,7 @@ export class FightService {
     events?: readonly AchievementSimpleEventType[];
     actorDisplayName?: string;
     sourceType?: string;
+    remortCount?: number | null;
   }): Promise<AchievementUnlock[]> {
     const occurredAt = this.clock();
     const unlocks: AchievementUnlock[] = [];
@@ -3399,6 +3409,7 @@ export class FightService {
       sourceType: input.sourceType ?? "reward",
       occurredAt,
       levelChange: input.levelChange,
+      remortCount: input.remortCount,
       itemIds: input.itemIds
     });
 
@@ -4055,14 +4066,21 @@ export class FightService {
       locationTags: buildPersistentFightLocationTags(input.source)
     });
     const monsterContext = resolveMonsterContext({ monster: input.monster, world: worldContext });
+    const remortCount = input.character.remortCount ?? 0;
+    const hasExtraMonsters = (input.extraMonsters?.length ?? 0) > 0;
     const monsterStats = applyMonsterContextToStats(
-      deriveMonsterCombatStats(input.monster),
+      deriveMonsterCombatStats(input.monster, hasExtraMonsters
+        ? {}
+        : { remortCount, remortPressureMode: "single" }),
       monsterContext
     );
     const extraMonsterStats = (input.extraMonsters ?? []).map(({ monster }) => {
       const context = resolveMonsterContext({ monster, world: worldContext });
 
-      return applyMonsterContextToStats(deriveMonsterCombatStats(monster), context);
+      return applyMonsterContextToStats(
+        deriveMonsterCombatStats(monster, { remortCount, remortPressureMode: "multi" }),
+        context
+      );
     });
     const state = startCombat({
       id: input.sessionId,
@@ -4080,7 +4098,7 @@ export class FightService {
     state.source = input.source;
     state.life = freezeCombatLife({
       characterId: input.character.id,
-      remortCount: input.character.remortCount ?? 0,
+      remortCount,
       now: input.now
     });
     state.settlement = {
@@ -4229,7 +4247,8 @@ export class FightService {
 
   private async resolveThreatEscalationDecision(
     telegramUserId: bigint,
-    options: PersistentFightStartOptions
+    options: PersistentFightStartOptions,
+    remortCount = 0
   ): Promise<ReturnType<typeof decideThreatEscalation>> {
     if (
       !this.combatSessions ||
@@ -4254,7 +4273,8 @@ export class FightService {
     return decideThreatEscalation(
       history
         .sort((left, right) => right.completedAt.getTime() - left.completedAt.getTime())
-        .map((session) => toThreatEscalationHistoryEntry(session))
+        .map((session) => toThreatEscalationHistoryEntry(session)),
+      { remortCount }
     );
   }
 }

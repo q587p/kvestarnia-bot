@@ -37,7 +37,16 @@ import {
   type InventoryFilter
 } from "../inventoryFilter";
 import {
+  DEFAULT_INVENTORY_SORT,
+  getInventoryDateSortTarget,
+  getInventoryNameSortTarget,
+  presentInventoryDateSortButton,
+  presentInventoryNameSortButton,
+  type InventorySort
+} from "../inventorySort";
+import {
   clampInventoryPage,
+  getFilteredInventoryItems,
   getInventoryPageItems,
   getInventoryTotalPages,
   type InventoryPresenterOptions
@@ -52,6 +61,8 @@ export function buildInventoryKeyboard(
   options: InventoryPresenterOptions = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const sort = options.sort ?? DEFAULT_INVENTORY_SORT;
+  const inventoryOptions = { ...options, sort };
 
   if (result.state === "no-character") {
     return keyboard;
@@ -59,10 +70,10 @@ export function buildInventoryKeyboard(
 
   keyboard.text("🛡️ Спорядження", makeEquipmentCallbackData());
   if (filter) {
-    keyboard.text("🎒 Усі манатки", makeInventoryCallbackData()).row();
+    keyboard.text("🎒 Усі манатки", makeInventoryCallbackData(0, null, sort)).row();
   } else {
     keyboard
-      .text(`${ONE_USE_INVENTORY_FILTER_ICON} Разові`, makeInventoryCallbackData(0, ONE_USE_INVENTORY_FILTER))
+      .text(`${ONE_USE_INVENTORY_FILTER_ICON} Разові`, makeInventoryCallbackData(0, ONE_USE_INVENTORY_FILTER, sort))
       .row();
     keyboard.text("♻️ До Дружньої Скрині", makeMantokChestOpenCallbackData()).row();
   }
@@ -71,33 +82,51 @@ export function buildInventoryKeyboard(
     return keyboard;
   }
 
-  const safePage = clampInventoryPage(result, page, filter, options);
-  const totalPages = getInventoryTotalPages(result, filter, options);
+  const filteredCount = getFilteredInventoryItems(result, filter, inventoryOptions).length;
 
-  for (const item of getInventoryPageItems(result, safePage, filter, options)) {
+  if (filteredCount > 1) {
+    keyboard
+      .text(
+        presentInventoryDateSortButton(sort),
+        makeInventoryCallbackData(0, filter, getInventoryDateSortTarget(sort))
+      )
+      .text(
+        presentInventoryNameSortButton(sort),
+        makeInventoryCallbackData(0, filter, getInventoryNameSortTarget(sort))
+      )
+      .row();
+  }
+
+  const safePage = clampInventoryPage(result, page, filter, inventoryOptions);
+  const totalPages = getInventoryTotalPages(result, filter, inventoryOptions);
+
+  const pageItems = getInventoryPageItems(result, safePage, filter, inventoryOptions);
+
+  for (const [index, item] of pageItems.entries()) {
     const isEquipped =
       options.equippedItemIds?.has(item.itemId) || options.currentSlotItem?.itemId === item.itemId;
     const itemIcon = isEquipped ? "✅" : "🔎";
 
     keyboard
-      .row()
       .text(
         `${itemIcon} ${presentInventoryItemButtonLabel(item.content.name, item.quantity)}`,
-        makeItemDetailCallbackData(item.itemId, safePage, filter)
+        makeItemDetailCallbackData(item.itemId, safePage, filter, sort)
       );
+
+    if (index < pageItems.length - 1 || totalPages > 1) {
+      keyboard.row();
+    }
   }
 
   if (totalPages > 1) {
-    keyboard.row();
-
     if (safePage > 0) {
-      keyboard.text("◀️ Назад", makeInventoryCallbackData(safePage - 1, filter));
+      keyboard.text("◀️ Назад", makeInventoryCallbackData(safePage - 1, filter, sort));
     }
 
-    keyboard.text(`${safePage + 1}/${totalPages}`, makeInventoryPagePromptCallbackData(totalPages, filter));
+    keyboard.text(`${safePage + 1}/${totalPages}`, makeInventoryPagePromptCallbackData(totalPages, filter, sort));
 
     if (safePage < totalPages - 1) {
-      keyboard.text("Далі ▶️", makeInventoryCallbackData(safePage + 1, filter));
+      keyboard.text("Далі ▶️", makeInventoryCallbackData(safePage + 1, filter, sort));
     }
   }
 
@@ -115,6 +144,7 @@ export function buildItemDetailKeyboard(
   filter: InventoryFilter = null,
   options: {
     canUse?: boolean;
+    sort?: InventorySort;
     combatUse?:
       | {
           kind: "fight";
@@ -186,7 +216,7 @@ export function buildItemDetailKeyboard(
   return keyboard
     .text(
       presentInventoryBackButtonLabel(filter),
-      makeInventoryCallbackData(page, filter)
+      makeInventoryCallbackData(page, filter, options.sort ?? DEFAULT_INVENTORY_SORT)
     )
     .row()
     .text("🛡️ Спорядження", makeEquipmentCallbackData());

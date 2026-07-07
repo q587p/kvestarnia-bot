@@ -7,10 +7,10 @@ This is a starting map, not permission for a repository-wide rewrite. Inspect cu
 - `AGENTS.md`
 - `docs/ai/context.md`
 - `docs/phase2/GROUP_COMBAT_AND_RAIDS.md`
-- `docs/GROUP_HOOK_DESIGN.md`
-- `docs/GROUP_RAID_SESSION_NOTES.md`
-- `docs/BALANCE_NOTES.md`
-- `docs/SECURITY_AND_FAIR_PLAY.md`
+- `docs/history/early-raid/group-hook-design.md`
+- `docs/architecture/group-raid-session-notes.md`
+- `docs/balance/notes.md`
+- `docs/architecture/security-and-fair-play.md`
 - `src/services/tavernRaidService.ts`
 - Barrel presenter/keyboard/notification scheduler files
 - `src/services/presenceService.ts` and `src/bot/presence/presenceRouting.ts`
@@ -101,8 +101,8 @@ For each actual versioned implementation:
 - `CHANGELOG.md` and `news.md` use the current Kyiv Holocene release date;
 - `news.md` remains spoiler-light and omits exact rewards/formulas;
 - `docs/ai/context.md` stays compact;
-- `docs/PLAYTESTING.md` gains the current manual path;
-- `docs/BALANCE_NOTES.md` records formulas and simulator command;
-- `docs/SECURITY_AND_FAIR_PLAY.md` records invite/privacy/alt/idempotency policy;
-- `docs/TECHNICAL_PLAN.md` records models, scheduler and repair;
-- `docs/ROADMAP.md` and deferred/group-raid docs reflect shipped versus deferred scope.
+- `docs/operations/playtesting.md` gains the current manual path;
+- `docs/balance/notes.md` records formulas and simulator command;
+- `docs/architecture/security-and-fair-play.md` records invite/privacy/alt/idempotency policy;
+- `docs/architecture/technical-plan.md` records models, scheduler and repair;
+- `docs/product/roadmap.md` and deferred/group-raid docs reflect shipped versus deferred scope.

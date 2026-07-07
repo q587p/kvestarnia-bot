@@ -4,17 +4,18 @@ Use these docs for future ideas, deferred mechanics and planning notes that are 
 
 ## Current/future backlog surfaces
 
-- [`../PHASE2_DEFERRED_0_2.md`](../PHASE2_DEFERRED_0_2.md) — main deferred scope and `0.2.x` ordering notes.
-- [`../NEXT_IMPLEMENTATION_BACKLOG.md`](../NEXT_IMPLEMENTATION_BACKLOG.md) — old next-order backlog if present.
-- [`../MONSTER_CONTENT_TASK_BACKLOG.md`](../MONSTER_CONTENT_TASK_BACKLOG.md) — monster/content task backlog.
-- [`../BESTIARY_COLLECTION_BACKLOG.md`](../BESTIARY_COLLECTION_BACKLOG.md) — future bestiary collection backlog.
-- [`../MANTOK_CHEST_BACKLOG.md`](../MANTOK_CHEST_BACKLOG.md) — item-volume sink backlog.
-- [`../SOCIAL_ACTIONS_BACKLOG.md`](../SOCIAL_ACTIONS_BACKLOG.md) — social actions backlog.
-- [`../SUPPORT_JAR_BACKLOG.md`](../SUPPORT_JAR_BACKLOG.md) — support jar backlog.
-- [`../HUNT_BOARD_FOLLOWUP_PLAN.md`](../HUNT_BOARD_FOLLOWUP_PLAN.md) — hunt board follow-up plan.
-- [`../HUNT_JOURNAL_PROGRESS_PLAN.md`](../HUNT_JOURNAL_PROGRESS_PLAN.md) — hunt journal progress plan.
-- [`QUEST_OVERVIEW_ROUTE.md`](QUEST_OVERVIEW_ROUTE.md) — deferred `Квести` reply-button redesign into a compact quest overview/journal instead of a duplicate quest-table opener.
-- [`ROGUE_REPUTATION_LOCATION_RISK.md`](ROGUE_REPUTATION_LOCATION_RISK.md) — deferred Rogue reputation consequences with stronger loss in public locations and lower exposure in Nyz/passages/yard-style spaces.
+- [`monster-content-task-backlog.md`](monster-content-task-backlog.md) — monster/content task backlog.
+- [`bestiary-collection-backlog.md`](bestiary-collection-backlog.md) — future bestiary collection backlog.
+- [`mantok-chest-backlog.md`](mantok-chest-backlog.md) — item-volume sink backlog.
+- [`social-actions-backlog.md`](social-actions-backlog.md) — social actions backlog.
+- [`support-jar-backlog.md`](support-jar-backlog.md) — support jar backlog.
+- [`hunt-board-followup-plan.md`](hunt-board-followup-plan.md) — hunt board follow-up plan.
+- [`hunt-journal-progress-plan.md`](hunt-journal-progress-plan.md) — hunt journal progress plan.
+- [`quest-contracts-backlog.md`](quest-contracts-backlog.md) — deferred quest contract planning.
+- [`tavern-social-games-backlog.md`](tavern-social-games-backlog.md) — legacy tavern social games backlog preserved separately from the shipped design doc.
+- [`next-implementation-backlog.md`](next-implementation-backlog.md) — old next-order backlog if kept for reference.
+- [`QUEST_OVERVIEW_ROUTE.md`](QUEST_OVERVIEW_ROUTE.md) — deferred `Квести` reply-button redesign if present.
+- [`ROGUE_REPUTATION_LOCATION_RISK.md`](ROGUE_REPUTATION_LOCATION_RISK.md) — deferred Rogue reputation consequences if present.
 
 ## Task drafts
 

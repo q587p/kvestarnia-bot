@@ -346,6 +346,34 @@ describe("fight presenter", () => {
     expect(text).not.toContain("золота</b>");
   });
 
+  it("shows remort revenge pressure on solo Yeger fights without Nyz wording", () => {
+    const result = {
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        source: "yeger",
+        life: {
+          remortCount: 7
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Мапа коридору, яка бреше",
+        description: "Тестовий монстр.",
+        level: 7,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    } as const;
+    const intro = presentPersistentFightIntro(result);
+    const text = presentPersistentFight(result);
+
+    expect(intro).toContain("🧿 <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
+    expect(text).toContain("🧿 <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
+    expect(intro).not.toContain("Натиск Низу");
+    expect(text).not.toContain("Натиск Низу");
+  });
+
   it("marks the reloaded living primary enemy as the target", () => {
     const result = {
       state: "persistent-active",

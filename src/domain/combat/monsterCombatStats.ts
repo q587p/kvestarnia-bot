@@ -1,29 +1,105 @@
 import type { MonsterContent } from "../../content/schema";
 import type { MonsterCombatStats } from "./combatState";
 
-export function deriveMonsterCombatStats(monster: MonsterContent): MonsterCombatStats {
+export interface MonsterCombatStatsOptions {
+  remortCount?: number;
+  remortPressureMode?: "single" | "multi";
+}
+
+const REMORT_PRESSURE_FREE_RANKS = 3;
+
+export function deriveMonsterCombatStats(
+  monster: MonsterContent,
+  options: MonsterCombatStatsOptions = {}
+): MonsterCombatStats {
   const tags = [...monster.tags];
   const level = Math.max(1, Math.floor(monster.level));
-  const highTierLevel = Math.max(0, level - 4);
-  const lateTierLevel = Math.max(0, level - 7);
-  const earlyLevel = Math.min(level, 5);
-  const levelsAfterEarly = Math.max(0, level - 5);
+  const pressureRank = getRemortMonsterPressureRank(options.remortCount ?? 0);
+  const statLevel = buildRemortMonsterStatLevel(
+    level,
+    pressureRank,
+    options.remortPressureMode ?? "single"
+  );
+  const highTierLevel = Math.max(0, statLevel - 4);
+  const lateTierLevel = Math.max(0, statLevel - 7);
+  const earlyLevel = Math.min(statLevel, 5);
+  const levelsAfterEarly = Math.max(0, statLevel - 5);
   const boundedAttackLevel = earlyLevel + Math.floor(earlyLevel / 2) + Math.floor(levelsAfterEarly * 0.5);
-  const boundedHp = level <= 5
-    ? 10 + level * 4 + Math.floor(highTierLevel / 2)
+  const boundedHp = statLevel <= 5
+    ? 10 + statLevel * 4 + Math.floor(highTierLevel / 2)
     : 30 + levelsAfterEarly * 3 + Math.floor(highTierLevel / 3) + Math.floor(lateTierLevel / 3);
+  const remortPressure = buildRemortMonsterPressure(
+    level,
+    pressureRank,
+    options.remortPressureMode ?? "single"
+  );
 
   return {
     monsterId: monster.id,
     name: monster.name,
     level,
-    hpMax: boundedHp + tagHpBonus(tags),
-    attack: 2 + boundedAttackLevel + tagAttackBonus(tags),
-    armor: Math.floor(level / 4) + Math.floor(highTierLevel / 6) + tagArmorBonus(tags),
-    resist: Math.floor(level / 4) + Math.floor(highTierLevel / 6) + tagResistBonus(tags),
+    hpMax: boundedHp + tagHpBonus(tags) + remortPressure.hpMax,
+    attack: 2 + boundedAttackLevel + tagAttackBonus(tags) + remortPressure.attack,
+    armor: Math.floor(level / 4) + Math.floor(highTierLevel / 6) + tagArmorBonus(tags) + remortPressure.armor,
+    resist: Math.floor(level / 4) + Math.floor(highTierLevel / 6) + tagResistBonus(tags) + remortPressure.resist,
     dexterity:
-      5 + Math.min(level, 8) + Math.floor(Math.max(0, level - 8) / 2) + tagDexterityBonus(tags),
+      5 + Math.min(level, 8) + Math.floor(Math.max(0, level - 8) / 2) + tagDexterityBonus(tags) + remortPressure.dexterity,
     tags
+  };
+}
+
+function getRemortMonsterPressureRank(remortCount: number): number {
+  return Math.max(
+    0,
+    Math.floor(remortCount) - REMORT_PRESSURE_FREE_RANKS
+  );
+}
+
+function buildRemortMonsterStatLevel(
+  level: number,
+  pressureRank: number,
+  mode: NonNullable<MonsterCombatStatsOptions["remortPressureMode"]>
+): number {
+  if (pressureRank <= 0 || mode === "multi") {
+    return level;
+  }
+
+  return Math.min(23, level + pressureRank * 4);
+}
+
+function buildRemortMonsterPressure(
+  level: number,
+  pressureRank: number,
+  mode: NonNullable<MonsterCombatStatsOptions["remortPressureMode"]>
+): {
+  hpMax: number;
+  attack: number;
+  armor: number;
+  resist: number;
+  dexterity: number;
+} {
+  if (pressureRank <= 0) {
+    return { hpMax: 0, attack: 0, armor: 0, resist: 0, dexterity: 0 };
+  }
+
+  if (mode === "single") {
+    return {
+      hpMax: pressureRank * 4,
+      attack: Math.floor(pressureRank / 2),
+      armor: 0,
+      resist: 0,
+      dexterity: 0
+    };
+  }
+
+  const multiPressureRank = Math.min(pressureRank, 5);
+
+  return {
+    hpMax: multiPressureRank * Math.max(8, level),
+    attack: multiPressureRank,
+    armor: 0,
+    resist: 0,
+    dexterity: 0
   };
 }
 

@@ -170,14 +170,15 @@ export function runCombatSimulation(options: Partial<CombatSimulationOptions> = 
 
       for (const monsterTemplate of monsterTemplates) {
         const monster = materializeMonsterAtLevel(monsterTemplate, monsterLevel);
-        const monsterStats = deriveMonsterCombatStats(monster);
         const enemyStats = buildEncounterEnemies({
           mode: normalized.encounterMode,
           primary: monster,
           monsterLevel,
+          remortCount: normalized.remortCount,
           secondEnemyLevelBonus: normalized.threatSecondEnemyLevelBonus,
           seed: normalized.seed
         });
+        const monsterStats = enemyStats[0] ?? deriveMonsterCombatStats(monster);
 
         for (const classId of normalized.classIds) {
           const classContent = getClassContent(classId);
@@ -940,10 +941,14 @@ function buildEncounterEnemies(input: {
   mode: CombatSimulationEncounterMode;
   primary: MonsterContent;
   monsterLevel: number;
+  remortCount: number;
   secondEnemyLevelBonus: number;
   seed: string;
 }): MonsterCombatStats[] {
-  const primaryStats = deriveMonsterCombatStats(input.primary);
+  const primaryStats = deriveMonsterCombatStats(input.primary, {
+    remortCount: input.mode === "one-enemy" ? input.remortCount : 0,
+    remortPressureMode: "single"
+  });
 
   if (input.mode === "one-enemy") {
     return [primaryStats];
@@ -953,7 +958,10 @@ function buildEncounterEnemies(input: {
   const secondTemplate = selectThreatSecondMonsterTemplate(input.primary, secondLevel, input.seed);
   const second = materializeMonsterAtLevel(secondTemplate, secondLevel);
 
-  return [primaryStats, deriveMonsterCombatStats(second)];
+  return [primaryStats, deriveMonsterCombatStats(second, {
+    remortCount: input.remortCount,
+    remortPressureMode: "multi"
+  })];
 }
 
 function selectMonsterTemplates(level: number): MonsterContent[] {

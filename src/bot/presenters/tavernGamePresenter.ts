@@ -214,6 +214,12 @@ export function presentTavernGameActionResult(result: {
   ) {
     return presentDicePokerTableSession(result.session);
   }
+  const closedReplay = result.session && ["closed", "stale", "replayed"].includes(result.state)
+    ? presentClosedTavernGameReplay(result.session)
+    : null;
+  if (closedReplay) {
+    return closedReplay;
+  }
 
   switch (result.state) {
     case "disabled":
@@ -281,6 +287,56 @@ export function presentTavernGameActionResult(result: {
     default:
       return "Ця кнопка вже не діє, але стіл не постраждав.";
   }
+}
+
+function presentClosedTavernGameReplay(session: TavernGameSessionRecord): string | null {
+  const resolution = parseStoredTavernGameResolution(session.result);
+  if (resolution) {
+    return presentTavernGameResolution(resolution);
+  }
+
+  if (session.status === "cancelled_refund" || session.status === "expired_refund") {
+    const refundedGold = session.participants.reduce((sum, participant) =>
+      sum + participant.refundedGold
+    , 0);
+    return [
+      `${gameLabel(session.gameKey)} не стартували.`,
+      "",
+      "Стіл закрився до початку партії.",
+      refundedGold > 0
+        ? `💰 Ставки повернено: <b>${refundedGold} зол.</b>`
+        : "💰 Якщо була ставка, корчмар уже повернув її без повторного запису."
+    ].join("\n");
+  }
+
+  if (session.status === "failed_safe_refund") {
+    const refundedGold = session.participants.reduce((sum, participant) =>
+      sum + participant.refundedGold
+    , 0);
+    return [
+      `${gameLabel(session.gameKey)} не стартували.`,
+      "",
+      "Стіл зачепився за правила й закрився без партії.",
+      refundedGold > 0
+        ? `💰 Ставки повернено: <b>${refundedGold} зол.</b>`
+        : "💰 Повторна кнопка нічого не змінить."
+    ].join("\n");
+  }
+
+  return null;
+}
+
+function parseStoredTavernGameResolution(input: unknown): TavernGameResolution | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+
+  const value = input as { gameKey?: unknown; potGold?: unknown };
+  if ((value.gameKey === "tavlei" || value.gameKey === "kosti") && Number.isInteger(value.potGold)) {
+    return input as TavernGameResolution;
+  }
+
+  return null;
 }
 
 export function presentTavernGameSession(session: TavernGameSessionRecord): string {

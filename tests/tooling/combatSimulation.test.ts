@@ -281,6 +281,35 @@ describe("combatSimulation", () => {
     );
   });
 
+  it("keeps high-remort level thirteen monster pressure out of runaway win rates", () => {
+    const scenarios = [
+      { encounterMode: "one-enemy" as const, remortCount: 5 },
+      { encounterMode: "one-enemy" as const, remortCount: 7 },
+      { encounterMode: "one-enemy" as const, remortCount: 9 },
+      { encounterMode: "two-enemy-threat" as const, remortCount: 5 },
+      { encounterMode: "two-enemy-threat" as const, remortCount: 7 },
+      { encounterMode: "two-enemy-threat" as const, remortCount: 9 }
+    ];
+
+    for (const scenario of scenarios) {
+      const report = runCombatSimulation({
+        levels: [13],
+        monsterLevels: "same",
+        runsPerMatchup: 10,
+        seed: `high-remort-pressure-${scenario.encounterMode}-r${scenario.remortCount}`,
+        raceIds: ["race.human-ish"],
+        remortCount: scenario.remortCount,
+        encounterMode: scenario.encounterMode,
+        policy: "aggressive",
+        maxTurns: 20
+      });
+      const levelAggregate = report.aggregates.find((row) => row.dimension === "level");
+
+      expect(levelAggregate?.winRate).toBeGreaterThanOrEqual(0.5);
+      expect(levelAggregate?.winRate).toBeLessThanOrEqual(0.78);
+    }
+  });
+
   it("uses every exact ladder monster when simulating levels 4 and 13", () => {
     const report = runCombatSimulation({
       levels: [4, 13],

@@ -16,7 +16,7 @@ export type ThreatEscalationDecision =
   | {
       enemyCount: 2;
       reason: "ordinary-win-streak";
-      eligibleWins: typeof THREAT_ESCALATION_REQUIRED_WINS;
+      eligibleWins: number;
       secondEnemyLevelBonus: number;
     };
 
@@ -81,8 +81,10 @@ export const THREAT_ESCALATION_LINES: readonly ThreatEscalationLine[] = [
 ];
 
 export function decideThreatEscalation(
-  newestFirstHistory: readonly ThreatEscalationHistoryEntry[]
+  newestFirstHistory: readonly ThreatEscalationHistoryEntry[],
+  options: { remortCount?: number | undefined } = {}
 ): ThreatEscalationDecision {
+  const requiredWins = getThreatEscalationRequiredWins(options.remortCount);
   let wins = 0;
   let wonEscalatedCheckpoints = 0;
 
@@ -103,7 +105,7 @@ export function decideThreatEscalation(
       return {
         enemyCount: 2,
         reason: "ordinary-win-streak",
-        eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+        eligibleWins: requiredWins,
         secondEnemyLevelBonus:
           wonEscalatedCheckpoints * THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
       };
@@ -118,11 +120,11 @@ export function decideThreatEscalation(
     }
 
     wins += 1;
-    if (wins >= THREAT_ESCALATION_REQUIRED_WINS) {
+    if (wins >= requiredWins) {
       return {
         enemyCount: 2,
         reason: "ordinary-win-streak",
-        eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+        eligibleWins: requiredWins,
         secondEnemyLevelBonus: 0
       };
     }
@@ -132,13 +134,17 @@ export function decideThreatEscalation(
     return {
       enemyCount: 2,
       reason: "ordinary-win-streak",
-      eligibleWins: THREAT_ESCALATION_REQUIRED_WINS,
+      eligibleWins: requiredWins,
       secondEnemyLevelBonus:
         wonEscalatedCheckpoints * THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
     };
   }
 
   return { enemyCount: 1, reason: "base", eligibleWins: wins };
+}
+
+export function getThreatEscalationRequiredWins(remortCount: number | undefined): number {
+  return Math.max(1, THREAT_ESCALATION_REQUIRED_WINS - Math.max(0, Math.floor(remortCount ?? 0)));
 }
 
 export function findThreatEscalationLine(lineId: string | undefined): ThreatEscalationLine | null {

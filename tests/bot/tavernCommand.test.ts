@@ -1,10 +1,12 @@
 ﻿import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
+import type { Bot } from "grammy";
 import { makeMemorialRemortCallbackData } from "../../src/bot/callbacks/memorialCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeYegerOutsideCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
 import {
+  registerTavernCommand,
   sendKorchmaArrivalBoard,
   sendKorchmaBar,
   sendDuelWinnersBoard,
@@ -241,6 +243,41 @@ describe("tavern command screens", () => {
     expect(replies[0]?.text).not.toContain("Нестор Межовий");
     expect(replies[0]?.text).not.toContain("рівень 2");
     expect(replies[0]?.text).not.toContain("поки тільки ви");
+  });
+
+  it("keeps quest markers on the direct /tavern hall screen", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const handlers = new Map<string, (ctx: Context) => Promise<void>>();
+    const bot = {
+      command: (command: string, handler: (ctx: Context) => Promise<void>) => {
+        handlers.set(command, handler);
+      }
+    } as unknown as Bot;
+
+    registerTavernCommand(bot, readyTavernService({ ...character, level: 3 }), korchmaPresenceService(), {
+      resolveQuestMarkers: () =>
+        Promise.resolve({
+          characterLevel: 3,
+          dailyKorchmaRound: {
+            state: "not-issued",
+            character: { ...character, level: 3 },
+            dayToken: "20260707"
+          }
+        })
+    });
+
+    await handlers.get("tavern")?.(makeContext(replies));
+
+    const options = replies[0]?.options as {
+      parse_mode: string;
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+
+    expect(options.parse_mode).toBe("HTML");
+    expect(options.reply_markup.inline_keyboard.flat()).toContainEqual({
+      text: "📋 Стіл зі справами ⚠️",
+      callback_data: makePlaceCallbackData("quest-table")
+    });
   });
 
   it("shows the Шинок screen with beer controls", async () => {

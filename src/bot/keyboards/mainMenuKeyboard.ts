@@ -29,6 +29,7 @@ import {
 
 export const mainMenuButtons = {
   hero: "👤 Персонаж",
+  equipment: "🛡️ Спорядження",
   tavern: "🍺 Корчма",
   quest: "🗺️ Квести",
   inventory: "🎒 Манатки",

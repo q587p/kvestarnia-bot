@@ -16,8 +16,8 @@ Follow the active task mode:
 
 Read only what is needed:
 - `AGENTS.md` for hard project rules.
-- `docs/CONTENT_STYLE_GUIDE.md` for Ukrainian copy style.
-- `docs/BRAND.md` for naming and public voice.
+- `docs/design/content-style-guide.md` for Ukrainian copy style.
+- `docs/product/brand.md` for naming and public voice.
 - `news.md` only when editing player-facing release news.
 - Relevant presenter/content files only; avoid broad scans.
 

@@ -240,6 +240,7 @@ export function getTextPresenceContext(text: string): PresenceContext | null {
 
   if (
     text === mainMenuButtons.hero ||
+    text === mainMenuButtons.equipment ||
     text === mainMenuButtons.inventory ||
     text === mainMenuButtons.participants ||
     text === mainMenuButtons.help ||

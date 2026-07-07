@@ -7,6 +7,35 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
+
+### Fixed
+- Big Barrel Brother raid gear-action settlements now carry first-use achievement unlock notifications back to the acting participant and any refreshed participant cards, matching persistent PvE combat without changing raid damage, mana, cooldown, reward or replay behavior.
+- Turn-based duel gear-action round resolution now carries first-use achievement unlock notifications back to the acting participant and the other participant's refreshed card, while stale, blocked, duplicate or queued-only callbacks still do not spend mana, advance turns, tick cooldowns, mutate RNG or unlock early.
+- Unknown or stale Telegram callback payloads now answer with the existing invalid-button alert instead of leaving the client spinner blinking silently; the `Хто поруч` Rogue `Тиха кишеня` callback is covered as an active regression path.
+- Active Barrel cards no longer mark `⬅️ До зали` as the next quest step when the only outstanding marker is the Barrel tutorial step already available on that same Barrel card.
+- The `Бочка, або Туди і звідти` accept result now marks the direct `🛢️ До Бочки` route with the quest warning suffix, matching the hall and quest-table route markers after the note is taken.
+- Shynok problem-paper issue results now rebuild quest markers after the paper is issued, so `⬅️ До зали` still points toward other available Korchma-location quests instead of showing stale unmarked navigation.
+- Race- and class-personalized adventure problem titles and hooks now render identity forms without awkward capitalized quoted insertions, for example `Портрет раси ельфа` and `Іспит для злодія`.
+- Generated Loot Expansion enhancement prices now use a soft economy cap, so high-base `+4`/`+5` manatky no longer inflate `goldValue`, Shynok sale payouts, Mantok Chest score or Munchkin exchange value into runaway five-digit ranges; combat stats, rarity, level gates and drop odds are unchanged.
+- Persistent one-enemy PvE fights now apply combat-only remort-aware monster pressure after the third remort, including Yeger contracts, and active fight cards label the solo pressure as `Відплата за минулі пригоди` for Yeger sources or `Відлуння минулих пригод` elsewhere. Two-enemy threat backup monsters get a capped remort pressure guard while the primary enemy stays on its authored level. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
+- Ordinary Nyz two-enemy threat escalation now lowers its consecutive-win gate by current remort life: base-life characters still need three eligible wins, remort `1` needs two, and remort `2+` needs one. Losses, excluded routes, rewards, loot, Yeger fights, Adventure fights, dev-forced two-enemy rows and repeat escalated checkpoint rules stay unchanged.
+- Korchmar problem-chain counters now count persistent fight wins only from the character's current remort life, so taking or checking `Тринадцять дрібних проблем` cannot auto-complete from stale pre-remort victories.
+- `📜 Хроніки Квестарні` now records completed raid outcomes for solo Barrel raids and Big Barrel Brother group raids; `⚔️ Бої` includes both wins and losses, while `⭐ Важливе` only promotes group raid victories. New public level-up rows also include the character's remort life tag, such as `(р5)`, after the reached level.
+- Completed Big Barrel Brother result cards opened without a matching participant viewer now show the total raid XP, gold and item grants as `Загальна винагорода рейду` without assigning those rewards to a specific participant; participant cards still label the personal payout as `Ваша винагорода за рейд`.
+- The `👤 Персонаж` card now includes a direct inline `🛡️ Спорядження` button above achievements/titles and recovery actions, opening the existing equipment screen without going through `🎒 Манатки`; the persistent main menu keeps its compact location/quest/inventory/nearby/help layout.
+- Outside-Korchma quest gates no longer mark `🚪 Зайти в корчму` by default when no verified active quest marker exists, so a cooldown-only cellar errand cannot imply fresh quests inside; direct `/tavern` hall cards now resolve the same quest marker snapshot as place callbacks, while the hall `📋 Стіл зі справами` button no longer duplicates `⚠️` for quests already visible on final location buttons such as `🐭 Льох`.
+- Quest Table cards now build their keyboard as the physical `📋 Стіл зі справами` location, so `🍺 До зали` does not duplicate `⚠️` for starter/problem quests already visible on the same table card.
+- Yeger-corner `🛢️ До Бочки` return buttons now carry the quest marker when another available route sits beyond the hall at the quest table, Shynok or cellar, without marking from the visible Yeger quest itself.
+- Old Shynok table-game links now replay stored Tavlei/Kosti/Dice Poker results when the table completed, or say that the table did not start and stakes were returned when it closed before play, instead of only saying the table is closed.
+- `🎒 Манатки` list cards with more than one visible item now offer two compact sort toggles for received date and item name, preserving the chosen order through pagination, page prompts, item details and filtered views.
+- Item detail replacement previews now include the currently equipped item's visible effect next to the `Замінить` name, so slot swaps show what the player is giving up before equipping.
+- `📮 Пошта Квестарні` now allows several outgoing pending packages from the same sender when their reserved `itemId` lines do not overlap; trying to send an already reserved manatka still fails before charging a second fee.
+
+### Changed
+- Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.
+- Updated Mantok Ability Grants QA notes to distinguish automated notification coverage from still-pending live Telegram evidence.
+
 ## [0.2.30] - 12026-07-07 - Mantok Ability Grants Foundation
 
 ### Added
@@ -189,7 +218,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Local `/dev_reset_priest_blessing`, `/dev_reset_quiet_pocket` and `/dev_reset_rogue` now clear Priest blessing/support and Rogue Quiet Pocket QA gates; `/dev_reset_quiet_pocket` keeps the narrow cooldown reset, `/dev_reset_rogue` also forgets the current Kyiv-day Rogue target-attempt rows, the Priest helper also expires active direct blessings and pair-target waits, and the dev-command rule now requires new player-facing cooldown/timer gates to ship with a helper or documented exception before PR-ready handoff.
 
 ### Changed
-- Updated `docs/NONCOMBAT_TECHNIQUES.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
+- Updated `docs/design/noncombat-techniques.md` to record that Priest aid is direct in this MVP and that bounded player-targeted Rogue gold theft is allowed in this narrow slice.
 - Updated `📖 Перекази` class entries for Priest and Rogue to mention the new noncombat behavior.
 - Updated `docs/ai/context.md`, the task index and the achievements catalog for the new shipped slice.
 - Aligned class noncombat target discovery with mutation gates: action cards list exact normalized same-location targets, including explicit legacy aliases only when they normalize to the same actionable location.
@@ -762,7 +791,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added all/earned/locked achievement filters and preserved the selected filter across pagination and recalculation.
 - Added historical-date recalculation for provable old records where stored ledgers carry the original event time.
 - Routed local dev level/item grant commands through the same achievement tracking/recalculation flow so QA grants can unlock level and item achievements.
-- Added `docs/ACHIEVEMENTS_CATALOG.md` as the shipped achievement catalog, including secret entries and honest future ledger gaps for bestiary, news, memorial, nearby, location-history, Yeger trail and lifetime ability-use counters.
+- Added `docs/design/achievements-catalog.md` as the shipped achievement catalog, including secret entries and honest future ledger gaps for bestiary, news, memorial, nearby, location-history, Yeger trail and lifetime ability-use counters.
 - Added `🔎 Перевірити` on the achievements page so existing characters can idempotently recalculate currently provable records from stored character, fight, problem, inventory and equipment rows.
 - Added safe archive rendering for unknown stored achievements so future disabled/deleted definitions do not break old rows.
 - Disabled the impossible current `achievement.level.23` row as a hidden future placeholder while the playable level cap remains 13, so it no longer appears in visible completion totals unless already stored as an archived earned row.
@@ -1007,7 +1036,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.1.25] - 12026-06-24 - Phase 2 MVP Closeout
 
 ### Added
-- Added canonical Phase 2 MVP release notes in `docs/PHASE2_MVP_RELEASE_NOTES.md`.
+- Added canonical Phase 2 MVP release notes in `docs/history/phase2/mvp-release-notes.md`.
 - Added closeout status for the accepted two-account regression/manual QA after merged and deployed `0.1.24`.
 - Added explicit branch/task disposition for superseded, absorbed, deferred and future-input Phase 2 work.
 
@@ -1584,7 +1613,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a separate post-fight problem-chain progress ping after newly won ordinary solo fights, keeping the main combat result short while showing the current stage counter immediately.
 - Extended the post-fight progress ping to combine multiple moved quest counters, including active Yeger unquiet progress when the defeated monster qualifies.
 - Added a level 6 Yeger-eligible ordinary monster, `Акт закриття, який не закрився`, so the unquiet target ladder stays covered without making the salted pretzel count as undead paperwork.
-- Added `docs/PROBLEM_QUEST_CHAIN_REFERENCES.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
+- Added `docs/references/problem-quest-chain.md` to document the safe allusion layer for 13, 23, 42 and 93 without making player news spell out every reward.
 - Added opt-in local `/dev_heal [HP]` for playtesting HP recovery without changing XP, gold or items.
 
 ### Guardrails

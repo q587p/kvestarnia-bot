@@ -118,11 +118,22 @@ function renderEventRow(event: ActivityEventRecord): string {
       return `👋 ${time} | Новий пригодник у Квестарні: ${actor}!`;
     case "character.level_reached": {
       const level = readPayloadNumber(event.payload, "level");
-      return `🎉 ${time} | ${actor} бере ${level ?? "новий"} рівень!`;
+      const remort = presentRemortTag(readPayloadNumber(event.payload, "remortCount"));
+      return `🎉 ${time} | ${actor} бере ${level ?? "новий"} рівень${remort}!`;
     }
     case "party.raid_won": {
       const participantCount = readPayloadNumber(event.payload, "participantCount") ?? 1;
       return `🏆 ${time} | Ватага: перемога. Ціль — «${subject}». У протоколі: ${participantCount} пригодників.`;
+    }
+    case "raid.completed": {
+      const participantCount = readPayloadNumber(event.payload, "participantCount") ?? 1;
+      const mode = readPayloadString(event.payload, "mode");
+      const outcome = readPayloadString(event.payload, "outcome");
+      const result = outcome === "lost" ? "невдача" : "перемога";
+      if (mode === "group") {
+        return `🍺 ${time} | Ватага: ${result}. Ціль — «${subject}». У протоколі: ${participantCount} пригодників.`;
+      }
+      return `🛢️ ${time} | ${actor}: соло-рейд, ${result}. Ціль — «${subject}».`;
     }
     case "item.rare_received": {
       const rarity = readPayloadString(event.payload, "rarity");
@@ -208,6 +219,14 @@ function readPayloadNumber(payload: unknown, key: string): number | null {
   }
   const value = (payload as Record<string, unknown>)[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function presentRemortTag(remortCount: number | null): string {
+  if (remortCount === null) {
+    return "";
+  }
+
+  return ` (р${Math.max(0, Math.floor(remortCount))})`;
 }
 
 function readPayloadString(payload: unknown, key: string): string | null {

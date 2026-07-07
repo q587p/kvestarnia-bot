@@ -1170,7 +1170,14 @@ describe("DuelChallengeService", () => {
       equipment: [makeEquipment("item.set.red-line.left-dagger")]
     });
     world.addCharacter(2n, { level: 10 });
-    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.mantok.gear-action.first",
+        title: "Манатка натиснула кнопку",
+        cosmeticTitleGrantId: null,
+        unlockedAt: fixedNow()
+      }
+    ]);
     const service = buildService(
       world,
       fixedNow,
@@ -1240,6 +1247,16 @@ describe("DuelChallengeService", () => {
       characterId: "character-1",
       occurredAt: fixedNow(),
       sourceId: `${secondAction.session.id}:turn:${accepted.session.turn}:gear:gear.red-line-dagger`
+    });
+    expect(secondAction.achievementUnlocksByCharacterId).toEqual({
+      "character-1": [
+        {
+          id: "achievement.mantok.gear-action.first",
+          title: "Манатка натиснула кнопку",
+          cosmeticTitleGrantId: null,
+          unlockedAt: fixedNow()
+        }
+      ]
     });
   });
 

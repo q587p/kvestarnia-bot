@@ -54,7 +54,7 @@ describe("item detail presenter", () => {
     expect(text).toContain("Категорія: <b>зброя</b>");
     expect(text).toContain("Вартість: <b>25 золота</b>");
     expect(text).toContain("Ефект: <b>+2 до удару</b>");
-    expect(text).toContain("можна екіпірувати у слот «Основна рука»");
+    expect(text).toContain("<i>Екіпірування</i>: можна екіпірувати у слот <i>«Основна рука»</i>");
     expect(text).not.toContain("бонуси поки лежать у бухгалтерії");
   });
 
@@ -119,7 +119,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("Категорія: <b>річ на ноги</b>");
-    expect(text).toContain("можна екіпірувати у слот «Ноги»");
+    expect(text).toContain("<i>Екіпірування</i>: можна екіпірувати у слот <i>«Ноги»</i>");
     expect(text).toContain("Манекен виставив ногу");
     expect(text).not.toContain("Категорія: <b>обладунок</b>");
     expect(text).not.toContain("Манекен випростав плечі");
@@ -357,6 +357,67 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("відповідний титул");
   });
 
+  it("shows the current item effect when previewing a same-slot replacement", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        itemId: "item.apron-of-foam-resistance",
+        content: {
+          id: "item.apron-of-foam-resistance",
+          name: "Фартух піностійкого пригодника",
+          description: "Пережив бочку.",
+          rarity: "common",
+          slot: "armor",
+          goldValue: 14,
+          effect: {
+            armor: 1,
+            hpMax: 2
+          }
+        }
+      }),
+      {
+        equipPreview: {
+          state: "can-equip",
+          slot: "chest",
+          requirements: null,
+          item: {
+            itemId: "item.apron-of-foam-resistance",
+            content: {
+              id: "item.apron-of-foam-resistance",
+              name: "Фартух піностійкого пригодника",
+              description: "Пережив бочку.",
+              rarity: "common",
+              slot: "armor",
+              goldValue: 14,
+              effect: {
+                armor: 1,
+                hpMax: 2
+              }
+            }
+          },
+          currentItem: {
+            itemId: "item.test-current-cloak",
+            content: {
+              id: "item.test-current-cloak",
+              name: "Плащ «Я Тут Випадково» +2",
+              description: "Висить так, ніби це алібі.",
+              rarity: "uncommon",
+              slot: "armor",
+              goldValue: 42,
+              effect: {
+                dexterity: 2,
+                armor: 1
+              }
+            }
+          }
+        }
+      }
+    );
+
+    expect(text).toContain(
+      "\nЗамінить: <b>Плащ «Я Тут Випадково» +2</b>; зараз дає: +2 Спритности · +1 до захисту."
+    );
+  });
+
   it("shows slot-specific equipment denials in item details", () => {
     const text = presentOwnedItemDetail(
       itemSummary({
@@ -440,7 +501,7 @@ describe("item detail presenter", () => {
       }
     );
 
-    expect(text).toContain("можна екіпірувати у слот «Основна рука»");
+    expect(text).toContain("<i>Екіпірування</i>: можна екіпірувати у слот <i>«Основна рука»</i>");
     expect(text).toContain("Печатка дрібної переваги лишиться в торбі");
   });
 

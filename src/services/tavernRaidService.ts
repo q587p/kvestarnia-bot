@@ -24,6 +24,7 @@ import {
   WET_HERO_TICKET_ITEM_ID,
   type RewardItemGrant
 } from "./itemGrant";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export const BARREL_RAID_KEY = "tavern.friday-barrel-raid";
 export const BARREL_RAID_PENDING_KEY = "tavern.friday-barrel-raid.pending";
@@ -166,7 +167,8 @@ export class TavernRaidService {
     private readonly roundPurchases: KorchmaRoundPurchaseRepository,
     private readonly pendingRaids?: CooldownRepository,
     private readonly clock: Clock = systemClock,
-    private readonly random: RandomSource = new CryptoRandomSource()
+    private readonly random: RandomSource = new CryptoRandomSource(),
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   async getTavernForTelegramUser(telegramUserId: bigint): Promise<TavernLookupResult> {
@@ -301,6 +303,7 @@ export class TavernRaidService {
     telegramUserId: bigint,
     periodId = getBarrelRaidPeriod(this.clock()).id
   ): Promise<TavernRaidResult> {
+    const now = this.clock();
     const pending = await this.findPendingFridayBarrelRaidByPeriod(telegramUserId, periodId);
 
     if (!pending) {
@@ -335,6 +338,15 @@ export class TavernRaidService {
         levelChange: null
       };
     }
+
+    await this.activityEvents?.recordSoloRaidCompletedSafely({
+      characterId: claim.character.id,
+      actorDisplayName: claim.character.name,
+      raidId: periodId,
+      raidName: "Бочка Пінного Міражу",
+      outcome: "won",
+      occurredAt: now
+    });
 
     return {
       state: "completed",

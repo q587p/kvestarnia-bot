@@ -32,7 +32,7 @@ describe("hunt command", () => {
         inline_keyboard: [
           [
             {
-              text: "🚪 Зайти в корчму ⚠️",
+              text: "🚪 Зайти в корчму",
               callback_data: makePlaceCallbackData("hall")
             }
           ]
@@ -182,6 +182,26 @@ describe("hunt command", () => {
     expect(replies[0]?.text).not.toContain("Здобуто:");
     expect(JSON.stringify(replies[0]?.options)).not.toContain("🏹 Неспокійні справи");
     expect(JSON.stringify(replies[0]?.options)).toContain("🩹 Бинти");
+  });
+
+  it("passes quest markers to the Yeger corner Barrel return button", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+
+    await sendYegerCorner(makeContext(replies), completedYegerService(), "reply", {
+      presence,
+      requireKorchmaInterior: true,
+      resolveQuestMarkers: () =>
+        Promise.resolve({
+          characterLevel: 4,
+          cellar: { state: "ready", character }
+        })
+    });
+
+    expect(JSON.stringify(replies[0]?.options)).toContain("🛢️ До Бочки ⚠️");
   });
 });
 
