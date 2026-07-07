@@ -51,6 +51,7 @@ import {
 sendKorchmaBar
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
 import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
 import {
 buildAdventureApproachKeyboard,
@@ -500,11 +501,13 @@ async function handleQuestCallback(
         currentAdventureId: null
       });
       const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
+      const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
       await safeEditMessageText(ctx, presentProblemQuestIssueNext(result), {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildKorchmaBarKeyboard({
           ...getProblemQuestIssueNextBarKeyboardOptions(result),
-          ...tavernGameOptions
+          ...tavernGameOptions,
+          ...(questMarkers ? { questMarkers } : {})
         })
       });
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
