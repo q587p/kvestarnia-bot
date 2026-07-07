@@ -101,9 +101,11 @@ describe("main menu and scene keyboards", () => {
 
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
-      [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help]
+      [mainMenuButtons.equipment, mainMenuButtons.inventory],
+      [mainMenuButtons.quest, mainMenuButtons.participants],
+      [mainMenuButtons.help]
     ]);
+    expect(mainMenuButtons.equipment).toBe("🛡️ Спорядження");
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
@@ -116,8 +118,9 @@ describe("main menu and scene keyboards", () => {
 
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
-      [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
+      [mainMenuButtons.equipment, mainMenuButtons.inventory],
+      [mainMenuButtons.quest, mainMenuButtons.participants],
+      [mainMenuButtons.help, mainMenuButtons.admin]
     ]);
     expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
   });
@@ -229,8 +232,9 @@ describe("main menu and scene keyboards", () => {
 
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, `${mainMenuLocationButtons.hall} ✅`],
-      [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help]
+      [mainMenuButtons.equipment, mainMenuButtons.inventory],
+      [mainMenuButtons.quest, mainMenuButtons.participants],
+      [mainMenuButtons.help]
     ]);
     expect(getMainMenuLocationButtonPresenceId(`${mainMenuLocationButtons.hall} ✅`)).toBe(
       "location.korchma.hall"

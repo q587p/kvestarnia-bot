@@ -4357,6 +4357,32 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
+  it("lets the equipment keyboard button through during an active persistent fight", async () => {
+    let equipmentCalls = 0;
+    const calls = await captureTextApiCalls(
+      mainMenuButtons.equipment,
+      servicesWith({
+        fight: activeFightServiceThatShouldNotBeChecked(),
+        equipment: {
+          getEquipmentForTelegramUser: () => {
+            equipmentCalls += 1;
+            return Promise.resolve({
+              state: "ready",
+              character,
+              slots: [],
+              activeSetBonuses: []
+            });
+          }
+        }
+      })
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(equipmentCalls).toBe(1);
+    expect(String(reply?.payload.text)).toContain("🧥 <b>Спорядження</b>");
+    expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
   it.each([
     ["general inventory", makeInventoryCallbackData(), "🎒 Манатки"],
     ["slot-filtered inventory", makeInventoryCallbackData(0, "head"), "🎩 <b>Манатки-шоломи</b>"],

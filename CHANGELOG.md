@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Persistent one-enemy PvE fights now apply combat-only remort-aware monster pressure after the third remort, including Yeger contracts, and active fight cards label the solo pressure as `Відплата за минулі пригоди` for Yeger sources or `Відлуння минулих пригод` elsewhere. Two-enemy threat backup monsters get a capped remort pressure guard while the primary enemy stays on its authored level. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
 - Korchmar problem-chain counters now count persistent fight wins only from the character's current remort life, so taking or checking `Тринадцять дрібних проблем` cannot auto-complete from stale pre-remort victories.
 - `📜 Хроніки Квестарні` now records completed raid outcomes for solo Barrel raids and Big Barrel Brother group raids; `⚔️ Бої` includes both wins and losses, while `⭐ Важливе` only promotes group raid victories.
+- The persistent main menu now includes a direct `🛡️ Спорядження` button directly under `👤 Персонаж`, opening the existing equipment screen without going through `🎒 Манатки`.
 
 ### Changed
 - Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.

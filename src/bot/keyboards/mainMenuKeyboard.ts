@@ -29,6 +29,7 @@ import {
 
 export const mainMenuButtons = {
   hero: "👤 Персонаж",
+  equipment: "🛡️ Спорядження",
   tavern: "🍺 Корчма",
   quest: "🗺️ Квести",
   inventory: "🎒 Манатки",
@@ -105,10 +106,12 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.hero)
     .text(markedLocationButton)
     .row()
-    .text(mainMenuButtons.quest)
+    .text(mainMenuButtons.equipment)
     .text(mainMenuButtons.inventory)
     .row()
+    .text(mainMenuButtons.quest)
     .text(mainMenuButtons.participants)
+    .row()
     .text(mainMenuButtons.help);
 
   if (options.includeAdmin) {
