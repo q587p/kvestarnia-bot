@@ -101,12 +101,12 @@ describe("main menu and scene keyboards", () => {
 
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
-      [mainMenuButtons.equipment, mainMenuButtons.inventory],
-      [mainMenuButtons.quest, mainMenuButtons.participants],
-      [mainMenuButtons.help]
+      [mainMenuButtons.quest, mainMenuButtons.inventory],
+      [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
     expect(mainMenuButtons.equipment).toBe("🛡️ Спорядження");
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
+    expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.equipment);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
@@ -118,16 +118,23 @@ describe("main menu and scene keyboards", () => {
 
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
-      [mainMenuButtons.equipment, mainMenuButtons.inventory],
-      [mainMenuButtons.quest, mainMenuButtons.participants],
-      [mainMenuButtons.help, mainMenuButtons.admin]
+      [mainMenuButtons.quest, mainMenuButtons.inventory],
+      [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
     ]);
     expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
   });
 
   it("builds hero inline actions with achievements and optional full restore", () => {
-    expect(flatInlineButtonTexts(buildHeroAchievementsKeyboard())).toEqual(["🏅 Ачівки", "🏷️ Титули"]);
-    expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual(["v1:ach:list:all:0", "v1:ach:titles"]);
+    expect(flatInlineButtonTexts(buildHeroAchievementsKeyboard())).toEqual([
+      "🛡️ Спорядження",
+      "🏅 Ачівки",
+      "🏷️ Титули"
+    ]);
+    expect(flatInlineButtonCallbacks(buildHeroAchievementsKeyboard())).toEqual([
+      "v1:equip:view",
+      "v1:ach:list:all:0",
+      "v1:ach:titles"
+    ]);
 
     const keyboard = buildHeroAchievementsKeyboard({
       priestSelfHealCallbackData: "v1:nc:h:s:0:0:0",
@@ -136,12 +143,14 @@ describe("main menu and scene keyboards", () => {
     });
 
     expect(inlineButtonRows(keyboard)).toEqual([
+      ["🛡️ Спорядження"],
       ["🏅 Ачівки", "🏷️ Титули"],
       ["⚕️ Полікувати себе"],
       ["✨ Благословити себе"],
       ["🧻 До відновлення"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:equip:view",
       "v1:ach:list:all:0",
       "v1:ach:titles",
       "v1:nc:h:s:0:0:0",
@@ -232,9 +241,8 @@ describe("main menu and scene keyboards", () => {
 
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, `${mainMenuLocationButtons.hall} ✅`],
-      [mainMenuButtons.equipment, mainMenuButtons.inventory],
-      [mainMenuButtons.quest, mainMenuButtons.participants],
-      [mainMenuButtons.help]
+      [mainMenuButtons.quest, mainMenuButtons.inventory],
+      [mainMenuButtons.participants, mainMenuButtons.help]
     ]);
     expect(getMainMenuLocationButtonPresenceId(`${mainMenuLocationButtons.hall} ✅`)).toBe(
       "location.korchma.hall"

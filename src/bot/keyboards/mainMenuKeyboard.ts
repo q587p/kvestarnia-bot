@@ -106,12 +106,10 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.hero)
     .text(markedLocationButton)
     .row()
-    .text(mainMenuButtons.equipment)
+    .text(mainMenuButtons.quest)
     .text(mainMenuButtons.inventory)
     .row()
-    .text(mainMenuButtons.quest)
     .text(mainMenuButtons.participants)
-    .row()
     .text(mainMenuButtons.help);
 
   if (options.includeAdmin) {
