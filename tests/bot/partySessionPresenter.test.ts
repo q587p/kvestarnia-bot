@@ -567,7 +567,7 @@ describe("party session presenter", () => {
     expect(text).not.toContain("нагороди збережено");
   });
 
-  it("renders a public Big Barrel Brother victory without leaking a participant reward", () => {
+  it("renders a public Big Barrel Brother victory with the total raid reward", () => {
     const session = makeBigBossSession({
       status: "won",
       completedAt: "2026-06-30T10:01:00.000Z",
@@ -601,17 +601,37 @@ describe("party session presenter", () => {
               }
             ]
           }
+        },
+        {
+          characterId: "striker",
+          status: "active",
+          damageDealt: 18,
+          submittedActions: 1,
+          timeoutActions: 0,
+          reward: {
+            xp: 3,
+            gold: 5,
+            itemGrants: [
+              {
+                itemId: "item.self-check-mirror",
+                name: "Дзеркальце Самоперевірки",
+                quantity: 2
+              }
+            ]
+          }
         }
       ]
     };
 
     const text = presentPartyBoss(session);
+    const bystanderText = presentPartyBoss(session, { viewerCharacterId: "bystander" });
 
     expect(text).toContain("🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою.");
-    expect(text).toContain("Нагороди нараховано учасникам окремо.");
+    expect(text).toContain("Загальна винагорода рейду:\n<b>+5 XP\n+9 золота</b>");
+    expect(text).toContain("Здобуто загалом: <i>Дзеркальце Самоперевірки ×3</i>");
     expect(text).not.toContain("Ваша винагорода за рейд:");
-    expect(text).not.toContain("Здобуто:");
-    expect(text).not.toContain("Дзеркальце Самоперевірки");
+    expect(bystanderText).toContain("Загальна винагорода рейду:\n<b>+5 XP\n+9 золота</b>");
+    expect(bystanderText).not.toContain("Ваша винагорода за рейд:");
   });
 
   it("renders a forwardable Big Barrel Brother invite card with visible URL and rotating text", () => {

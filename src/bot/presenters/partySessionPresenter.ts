@@ -15,6 +15,7 @@ import {
   buildBigBarrelLossXp,
   getPartyBossRetaliationPlan,
   isMeaningfulBigBarrelParticipant,
+  type PartyBossRewardSnapshot,
   PARTY_BOSS_TURN_MS
 } from "../../domain/partyBoss/partyBoss";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
@@ -866,13 +867,13 @@ function presentBigBarrelVictoryResult(
     "🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою."
   ];
 
-  if (!viewerCharacterId) {
-    lines.push("", "Нагороди нараховано учасникам окремо. Ця загальна картка не показує чужі XP, золото й манатки.");
-    return lines.join("\n");
-  }
-
   if (!reward) {
-    lines.push("", "Винагороду для цієї картки не знайдено. Якщо ви билися, відкрийте власну бойову картку або результати за рейдовим посиланням.");
+    const publicReward = summarizeBigBarrelRewards(session);
+    if (publicReward) {
+      lines.push("", presentBigBarrelPublicReward(publicReward));
+    } else {
+      lines.push("", "Загальну винагороду рейду не знайдено в старому записі. Якщо ви билися, відкрийте власну бойову картку або результати за рейдовим посиланням.");
+    }
     return lines.join("\n");
   }
 
@@ -887,6 +888,50 @@ function presentBigBarrelVictoryResult(
       name: escapeHtml(grant.name),
       quantity: grant.quantity
     }));
+  }
+
+  return lines.join("\n");
+}
+
+function summarizeBigBarrelRewards(session: PartyBossSessionRecord): PartyBossRewardSnapshot | null {
+  const rewards = session.result?.participants
+    .map((participant) => participant.reward)
+    .filter((reward): reward is PartyBossRewardSnapshot => Boolean(reward)) ?? [];
+
+  if (rewards.length === 0) {
+    return null;
+  }
+
+  const itemGrants = new Map<string, PartyBossRewardSnapshot["itemGrants"][number]>();
+  for (const reward of rewards) {
+    for (const grant of reward.itemGrants) {
+      const key = `${grant.itemId}\u0000${grant.name}`;
+      const existing = itemGrants.get(key);
+      itemGrants.set(key, existing
+        ? { ...existing, quantity: existing.quantity + grant.quantity }
+        : { ...grant });
+    }
+  }
+
+  return {
+    xp: rewards.reduce((sum, reward) => sum + reward.xp, 0),
+    gold: rewards.reduce((sum, reward) => sum + reward.gold, 0),
+    itemGrants: [...itemGrants.values()]
+  };
+}
+
+function presentBigBarrelPublicReward(reward: PartyBossRewardSnapshot): string {
+  const lines = [presentRewardAmount({
+    xp: reward.xp,
+    gold: reward.gold,
+    label: "Загальна винагорода рейду"
+  })];
+
+  for (const grant of reward.itemGrants) {
+    lines.push(presentRewardItemGrant({
+      name: escapeHtml(grant.name),
+      quantity: grant.quantity
+    }).replace("Здобуто:", "Здобуто загалом:"));
   }
 
   return lines.join("\n");

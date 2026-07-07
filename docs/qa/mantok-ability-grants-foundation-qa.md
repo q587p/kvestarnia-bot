@@ -47,7 +47,7 @@ Manual Telegram evidence still required before merge:
 - Pending: ordinary Nyz threat escalation starts after two eligible wins on remort `1`, after one eligible win on remort `2+`, and still waits for three eligible wins on a base-life character.
 - Pending: after remort, taking or checking `Тринадцять дрібних проблем` shows only current-life progress, not old counts such as `139/13`.
 - Pending: after one solo Barrel raid completion and one Big Barrel Brother win/loss, `📜 Хроніки Квестарні` shows the raid rows under `⚔️ Бої`; `⭐ Важливе` shows the group victory only.
-- Pending: open a completed Big Barrel Brother result link as a non-participant and verify it shows only the general raid summary, while an actual participant sees `Ваша винагорода за рейд` with their own reward.
+- Pending: open a completed Big Barrel Brother result link as a non-participant and verify it shows `Загальна винагорода рейду` with total XP/gold/item grants but no per-participant ownership, while an actual participant sees `Ваша винагорода за рейд` with their own reward.
 - Pending: the live persistent main menu shows `🛡️ Спорядження` directly under `👤 Персонаж`, and tapping it opens `🧥 Спорядження`.
 - Pending: from outside the Korchma with only the cellar on cooldown, `/fight` shows `🚪 Зайти в корчму` without `⚠️`.
 - Pending: from inside the Korchma with an available hall quest, `/tavern` shows `📋 Стіл зі справами ⚠️` or the matching available location button with `⚠️`.
