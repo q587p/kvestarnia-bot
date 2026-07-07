@@ -700,6 +700,50 @@ describe("PrismaSoloCombatSessionRepository", () => {
       }
     });
   });
+
+  it("counts won sessions only for the requested remort life", async () => {
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: {
+        findMany: () =>
+          Promise.resolve([
+            {
+              stateJson: {
+                ...activeCombatState,
+                status: "won",
+                life: { remortCount: 0 },
+                settlement: { status: "completed", version: 1 }
+              }
+            },
+            {
+              stateJson: {
+                ...activeCombatState,
+                status: "won",
+                life: { remortCount: 1 },
+                settlement: { status: "completed", version: 1 }
+              }
+            },
+            {
+              stateJson: {
+                ...activeCombatState,
+                status: "won",
+                settlement: { status: "completed", version: 1 }
+              }
+            }
+          ])
+      }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    await expect(
+      repository.countWonByTelegramUserId(42n, {
+        life: { remortCount: 1 }
+      })
+    ).resolves.toBe(1);
+    await expect(
+      repository.countWonByTelegramUserId(42n, {
+        life: { remortCount: 0 }
+      })
+    ).resolves.toBe(2);
+  });
 });
 
 function fakePrismaThatCannotFindSoloCombatRows(): ConstructorParameters<

@@ -3158,6 +3158,7 @@ export class FightService {
     telegramUserId: bigint
   ): Promise<ThirteenSmallProblemsProgress> {
     const stageState = await this.getCurrentProblemQuestStage(telegramUserId);
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (stageState.branchComplete) {
       return buildCompletedProblemQuestBranchProgress();
@@ -3167,6 +3168,7 @@ export class FightService {
     const wins = this.combatSessions
       ? await this.combatSessions.countWonByTelegramUserId(telegramUserId, {
           excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
+          ...(character ? { life: { remortCount: character.remortCount ?? 0 } } : {}),
           ...(countSinceIssue && stageState.issuedAt ? { since: stageState.issuedAt } : {})
         })
       : 0;

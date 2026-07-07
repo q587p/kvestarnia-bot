@@ -172,7 +172,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async countWonByTelegramUserId(
     telegramUserId: bigint,
-    options: { excludeMonsterIds?: readonly string[]; since?: Date } = {}
+    options: {
+      excludeMonsterIds?: readonly string[];
+      since?: Date;
+      life?: Pick<CombatLifeState, "remortCount">;
+    } = {}
   ): Promise<number> {
     const records = await this.prisma.soloCombatSession.findMany({
       where: {
@@ -192,9 +196,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     });
 
-    return records.filter((record) =>
-      isVictoryProgressEligible("won", parseCombatState(record.stateJson))
-    ).length;
+    return records.filter((record) => {
+      const state = parseCombatState(record.stateJson);
+      return isVictoryProgressEligible("won", state) && combatLifeMatchesProgressFilter(state, options.life);
+    }).length;
   }
 
   async listCompletedByTelegramUserIdSince(
@@ -2078,6 +2083,22 @@ function isVictoryProgressEligible(
   }
 
   return state.settlement.status === "completed";
+}
+
+function combatLifeMatchesProgressFilter(
+  state: CombatState | null,
+  life: Pick<CombatLifeState, "remortCount"> | undefined
+): boolean {
+  if (!life) {
+    return true;
+  }
+
+  const stateRemortCount = state?.life?.remortCount;
+  if (stateRemortCount === undefined) {
+    return life.remortCount === 0;
+  }
+
+  return stateRemortCount === life.remortCount;
 }
 
 function settlementExpectationMatches(

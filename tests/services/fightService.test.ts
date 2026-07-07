@@ -5568,6 +5568,64 @@ describe("FightService", () => {
     });
   });
 
+  it("ignores old problem quest wins from previous remorts", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, remortCount: 1 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 139, "monster.deadline-spider", {
+      remortCount: 0
+    });
+    sessions.addWonSessions("character-42", 9, "monster.paperwork-ooze", {
+      remortCount: 1
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId);
+
+    expect(overview).toMatchObject({
+      state: "persistent-ready",
+      questProgress: {
+        stageId: "13",
+        wins: 9,
+        target: 13,
+        completed: false,
+        rewardClaimed: false,
+        issued: true
+      }
+    });
+  });
+
+  it("keeps legacy zero-remort wins eligible for problem quests", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, remortCount: 0 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.addWonSessions("character-42", 13, "monster.deadline-spider", {
+      remortCount: null
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
+
+    const result = await service.turnInProblemQuestForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "turned-in",
+      result: {
+        stage: { id: "13" }
+      }
+    });
+  });
+
   it("advances problem quest stages through forty-two and ninety-three with fresh counters", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -7121,7 +7179,11 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
 
   async countWonByTelegramUserId(
     telegramUserId: bigint,
-    options: { excludeMonsterIds?: readonly string[]; since?: Date } = {}
+    options: {
+      excludeMonsterIds?: readonly string[];
+      since?: Date;
+      life?: { remortCount: number };
+    } = {}
   ): Promise<number> {
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -7136,6 +7198,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
         candidate.characterId === character.id &&
         candidate.status === "won" &&
         (!options.since || candidate.createdAt > options.since) &&
+        combatLifeMatchesProgressFilter(candidate.state, options.life) &&
         !excludedMonsterIds.has(candidate.monsterId)
     ).length;
   }
@@ -7745,7 +7808,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     characterId: string,
     count: number,
     monsterId = "monster.deadline-spider",
-    options: { createdAt?: Date } = {}
+    options: { createdAt?: Date; remortCount?: number | null } = {}
   ): void {
     for (let index = 0; index < count; index += 1) {
       this.addSession(
@@ -7813,6 +7876,7 @@ function makeTerminalSession(
     updatedAt?: Date;
     completedAt?: Date | null;
     settlement?: "pending" | "completed" | "forfeited-by-remort" | null;
+    remortCount?: number | null;
   } = {}
 ): SoloCombatSessionRecord {
   const createdAt = options.createdAt ?? fixedClock();
@@ -7829,11 +7893,15 @@ function makeTerminalSession(
     state: {
       id,
       ...(completedAt ? { completedAt: completedAt.toISOString() } : {}),
-      life: {
-        characterId,
-        remortCount: 0,
-        startedAt: createdAt.toISOString()
-      },
+      ...(options.remortCount === null
+        ? {}
+        : {
+            life: {
+              characterId,
+              remortCount: options.remortCount ?? 0,
+              startedAt: createdAt.toISOString()
+            }
+          }),
       ...(settlement
         ? {
             settlement: {
@@ -7867,6 +7935,22 @@ function makeTerminalSession(
     updatedAt,
     expiresAt: new Date("2026-06-12T11:00:00.000Z")
   };
+}
+
+function combatLifeMatchesProgressFilter(
+  state: CombatState | null,
+  life: { remortCount: number } | undefined
+): boolean {
+  if (!life) {
+    return true;
+  }
+
+  const stateRemortCount = state?.life?.remortCount;
+  if (stateRemortCount === undefined) {
+    return life.remortCount === 0;
+  }
+
+  return stateRemortCount === life.remortCount;
 }
 
 function makeEligibleOrdinaryThreatSession(

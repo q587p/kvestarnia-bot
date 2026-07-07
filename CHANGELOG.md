@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Race-personalized adventure problem titles and hooks now render race forms without awkward capitalized quoted insertions, for example `Портрет раси ельфа`.
 - Generated Loot Expansion enhancement prices now use a soft economy cap, so high-base `+4`/`+5` manatky no longer inflate `goldValue`, Shynok sale payouts, Mantok Chest score or Munchkin exchange value into runaway five-digit ranges; combat stats, rarity, level gates and drop odds are unchanged.
 - Persistent one-enemy PvE fights now apply combat-only remort-aware monster pressure after the third remort, including Yeger contracts, and active fight cards label the solo pressure as `Відплата за минулі пригоди` for Yeger sources or `Відлуння минулих пригод` elsewhere. Two-enemy threat backup monsters get a capped remort pressure guard while the primary enemy stays on its authored level. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
+- Korchmar problem-chain counters now count persistent fight wins only from the character's current remort life, so taking or checking `Тринадцять дрібних проблем` cannot auto-complete from stale pre-remort victories.
 
 ### Changed
 - Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.
