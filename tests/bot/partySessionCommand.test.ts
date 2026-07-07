@@ -389,11 +389,26 @@ describe("handlePartySessionCallback", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("answers blocked boss gear callbacks without advancing the raid", async () => {
+  it.each([
+    {
+      reason: "not-enough-mana" as const,
+      callbackText: "Не вистачає мани.",
+      cardText: "Дія спорядження не спрацювала: мани замало"
+    },
+    {
+      reason: "skill-on-cooldown" as const,
+      callbackText: "Дія спорядження ще відсапується.",
+      cardText: "Дія спорядження ще відсапується. Корчмар показує свіжу картку бою."
+    }
+  ])("answers blocked boss gear callbacks for $reason without advancing the raid", async ({
+    reason,
+    callbackText,
+    cardText
+  }) => {
     const session = makeBossSession();
     const submitGearForTelegramUser = vi.fn().mockResolvedValue({
       state: "gear-unavailable",
-      reason: "not-enough-mana",
+      reason,
       session
     });
     const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
@@ -408,8 +423,8 @@ describe("handlePartySessionCallback", () => {
       }
     );
 
-    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Не вистачає мани." });
-    expect(messageText(editMessageText)).toContain("Дія спорядження не спрацювала: мани замало");
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: callbackText });
+    expect(messageText(editMessageText)).toContain(cardText);
     expect(messageText(editMessageText)).toContain("1 хід");
     expect(sendMessage).not.toHaveBeenCalled();
   });

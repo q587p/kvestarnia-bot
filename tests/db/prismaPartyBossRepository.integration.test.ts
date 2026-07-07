@@ -702,7 +702,10 @@ describe("PrismaPartyBossRepository integration", () => {
       now: now(),
       turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
     });
-    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    const beforeState = started.session.state;
 
     const blocked = await bossRepository.submitActionForTelegramUser(
       1193n,
@@ -718,8 +721,15 @@ describe("PrismaPartyBossRepository integration", () => {
     if (blocked.state === "gear-unavailable") {
       expect(blocked.reason).toBe("not-enough-mana");
     }
+    expect(latest.state).toEqual(beforeState);
     expect(latest.turn).toBe(1);
     expect(latest.state.roundLog).toHaveLength(0);
+    expect(latest.state.roundLog.at(-1)?.bossRetaliations ?? []).toEqual([]);
+    expect(latest.state.participants.find(
+      (participant) => participant.characterId === "gear-no-mana-user-character"
+    )?.resources).toEqual(beforeState.participants.find(
+      (participant) => participant.characterId === "gear-no-mana-user-character"
+    )?.resources);
     expect(await prisma.partyBossAction.count({
       where: {
         sessionId: latest.id,
@@ -749,7 +759,10 @@ describe("PrismaPartyBossRepository integration", () => {
       now: now(),
       turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
     });
-    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    const beforeState = started.session.state;
 
     const blocked = await bossRepository.submitActionForTelegramUser(
       1195n,
@@ -762,8 +775,10 @@ describe("PrismaPartyBossRepository integration", () => {
     const latest = expectPartyBossSession(blocked);
 
     expect(blocked.state).toBe("stale");
+    expect(latest.state).toEqual(beforeState);
     expect(latest.turn).toBe(1);
     expect(latest.state.roundLog).toHaveLength(0);
+    expect(latest.state.roundLog.at(-1)?.bossRetaliations ?? []).toEqual([]);
     expect(await prisma.partyBossAction.count({
       where: {
         sessionId: latest.id,
@@ -825,6 +840,9 @@ describe("PrismaPartyBossRepository integration", () => {
       where: { id: started.session.id },
       data: { stateJson: cooldownState }
     });
+    const beforeResources = cooldownState.participants.find(
+      (participant) => participant.characterId === "gear-cooldown-user-character"
+    )?.resources;
 
     const blocked = await bossRepository.submitActionForTelegramUser(
       1194n,
@@ -840,8 +858,13 @@ describe("PrismaPartyBossRepository integration", () => {
     if (blocked.state === "gear-unavailable") {
       expect(blocked.reason).toBe("skill-on-cooldown");
     }
+    expect(latest.state).toEqual(cooldownState);
     expect(latest.turn).toBe(1);
     expect(latest.state.roundLog).toHaveLength(0);
+    expect(latest.state.roundLog.at(-1)?.bossRetaliations ?? []).toEqual([]);
+    expect(latest.state.participants.find(
+      (participant) => participant.characterId === "gear-cooldown-user-character"
+    )?.resources).toEqual(beforeResources);
     expect(await prisma.partyBossAction.count({
       where: {
         sessionId: latest.id,
