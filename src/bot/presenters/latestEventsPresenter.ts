@@ -124,6 +124,16 @@ function renderEventRow(event: ActivityEventRecord): string {
       const participantCount = readPayloadNumber(event.payload, "participantCount") ?? 1;
       return `🏆 ${time} | Ватага: перемога. Ціль — «${subject}». У протоколі: ${participantCount} пригодників.`;
     }
+    case "raid.completed": {
+      const participantCount = readPayloadNumber(event.payload, "participantCount") ?? 1;
+      const mode = readPayloadString(event.payload, "mode");
+      const outcome = readPayloadString(event.payload, "outcome");
+      const result = outcome === "lost" ? "невдача" : "перемога";
+      if (mode === "group") {
+        return `🍺 ${time} | Ватага: ${result}. Ціль — «${subject}». У протоколі: ${participantCount} пригодників.`;
+      }
+      return `🛢️ ${time} | ${actor}: соло-рейд, ${result}. Ціль — «${subject}».`;
+    }
     case "item.rare_received": {
       const rarity = readPayloadString(event.payload, "rarity");
       if (rarity === "epic") {

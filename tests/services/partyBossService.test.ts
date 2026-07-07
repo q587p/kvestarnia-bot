@@ -432,8 +432,8 @@ describe("PartyBossService achievements", () => {
   });
 
   it("emits one activity row for a terminal Big Barrel Brother victory", async () => {
-    const recordPartyRaidWonSafely =
-      vi.fn<PublicActivityEventPublisher["recordPartyRaidWonSafely"]>().mockResolvedValue(null);
+    const recordPartyRaidCompletedSafely =
+      vi.fn<PublicActivityEventPublisher["recordPartyRaidCompletedSafely"]>().mockResolvedValue(null);
     const result: PartyBossActionResult = {
       state: "resolved",
       session: makeSession("won")
@@ -446,13 +446,13 @@ describe("PartyBossService achievements", () => {
       { enabled: true },
       () => new Date("2026-07-01T19:00:00.000Z"),
       undefined,
-      { recordPartyRaidWonSafely } as unknown as PublicActivityEventPublisher
+      { recordPartyRaidCompletedSafely } as unknown as PublicActivityEventPublisher
     );
 
     await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
 
-    expect(recordPartyRaidWonSafely).toHaveBeenCalledTimes(1);
-    expect(recordPartyRaidWonSafely).toHaveBeenCalledWith(result.session);
+    expect(recordPartyRaidCompletedSafely).toHaveBeenCalledTimes(1);
+    expect(recordPartyRaidCompletedSafely).toHaveBeenCalledWith(result.session);
   });
 });
 

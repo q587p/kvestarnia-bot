@@ -411,7 +411,7 @@ export class PartyBossService {
       return;
     }
 
-    await this.activityEvents.recordPartyRaidWonSafely(result.session);
+    await this.activityEvents.recordPartyRaidCompletedSafely(result.session);
   }
 
   private async trackBarrelBeerTutorialProgress(result: PartyBossActionResult): Promise<void> {

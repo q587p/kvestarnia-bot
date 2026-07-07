@@ -33,6 +33,15 @@ describe("latest events presenter", () => {
             subjectName: "Старший Брат Бочки",
             payload: { participantCount: 5 }
           }),
+          makeEvent("raid.completed", "2026-07-02T06:30:00.000Z", {
+            subjectName: "Старший Брат Бочки",
+            payload: { mode: "group", outcome: "lost", participantCount: 4 }
+          }),
+          makeEvent("raid.completed", "2026-07-02T06:00:00.000Z", {
+            actorDisplayName: "Арден",
+            subjectName: "Бочка Пінного Міражу",
+            payload: { mode: "solo", outcome: "won", participantCount: 1 }
+          }),
           makeEvent("item.rare_received", "2026-07-01T20:00:00.000Z", {
             actorDisplayName: "Мудрий",
             subjectName: "Пляшка Пінного Міражу",
@@ -56,6 +65,8 @@ describe("latest events presenter", () => {
     expect(text).toContain("Новий пригодник у Квестарні: Арден!");
     expect(text).toContain("You®4ik бере 7 рівень!");
     expect(text).toContain("Ватага: перемога. Ціль — «Старший Брат Бочки». У протоколі: 5 пригодників.");
+    expect(text).toContain("Ватага: невдача. Ціль — «Старший Брат Бочки». У протоколі: 4 пригодників.");
+    expect(text).toContain("Арден: соло-рейд, перемога. Ціль — «Бочка Пінного Міражу».");
     expect(text).toContain("Мудрий: рідкісна манатка — «Пляшка Пінного Міражу».");
     expect(text).toContain("Пандочка: перемога. Монстр — «Огрище», перевага рівнів: +6.");
   });

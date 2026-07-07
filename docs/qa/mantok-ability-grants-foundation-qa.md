@@ -20,6 +20,7 @@ Review follow-up coverage:
 - Automated content/economy coverage confirms high-enhancement generated manatky stay under the new soft `goldValue` cap while sale, level-exchange and Mantok Chest domain tests still pass.
 - Automated balance/presenter coverage confirms persistent PvE remort monster pressure starts only after the third remort, keeps encounter levels stable, covers remorts `5`, `7` and `9` in one-enemy and two-enemy threat simulations, and labels solo Yeger pressure as `Відплата за минулі пригоди` without `Натиск Низу` wording.
 - Automated service/repository coverage confirms Korchmar problem-chain counters count only wins from the current remort life, while preserving legacy zero-remort wins.
+- Automated activity-event and presenter coverage confirms solo Barrel raid wins plus Big Barrel Brother group wins/losses render as raid rows in `⚔️ Бої`, with only group raid victories marked important.
 
 Manual Telegram evidence still required before merge:
 
@@ -33,6 +34,7 @@ Manual Telegram evidence still required before merge:
 - Pending: a race-personalized adventure result card uses lowercase unquoted race copy, e.g. `Портрет раси ельфа`.
 - Pending: remort `7+` Yeger fight card shows `Відплата за минулі пригоди` on the intro and active card; ordinary two-enemy threat fights still use `Натиск Низу`.
 - Pending: after remort, taking or checking `Тринадцять дрібних проблем` shows only current-life progress, not old counts such as `139/13`.
+- Pending: after one solo Barrel raid completion and one Big Barrel Brother win/loss, `📜 Хроніки Квестарні` shows the raid rows under `⚔️ Бої`; `⭐ Важливе` shows the group victory only.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
    - Combat-action QA ids:

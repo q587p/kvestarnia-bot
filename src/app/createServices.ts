@@ -74,7 +74,10 @@ export function createServices(
     repositories.characters,
     repositories.dailyActions,
     repositories.roundPurchases,
-    repositories.cooldowns
+    repositories.cooldowns,
+    undefined,
+    undefined,
+    publicActivityEvents
   );
   const barrelBeerTutorial = new BarrelBeerTutorialService(
     repositories.characters,

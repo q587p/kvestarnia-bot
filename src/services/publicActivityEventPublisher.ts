@@ -141,6 +141,59 @@ export class PublicActivityEventPublisher {
     });
   }
 
+  recordPartyRaidCompletedSafely(session: PartyBossSessionRecord): Promise<ActivityEventRecord | null> {
+    if (
+      (session.status !== "won" && session.status !== "lost") ||
+      session.rulesVersion !== BIG_BARREL_BROTHER_RULES_VERSION
+    ) {
+      return Promise.resolve(null);
+    }
+
+    const occurredAt = session.completedAt ?? parseDate(session.state.completedAt) ?? new Date();
+    const participantCount = Math.max(1, session.state.participants.length || session.participants.length);
+    const outcome = session.status;
+
+    return this.recordSafely({
+      eventType: "raid.completed",
+      category: "raid",
+      severity: outcome === "won" ? "high" : "normal",
+      relatedCharacterIds: session.state.participants.map((participant) => participant.characterId),
+      subjectKind: "monster",
+      subjectId: session.state.boss.monsterId,
+      subjectName: session.state.boss.name,
+      sourceType: "party-boss",
+      sourceId: session.id,
+      dedupeKey: `raid.completed:party-boss:${session.id}`,
+      payload: { mode: "group", outcome, participantCount },
+      occurredAt
+    });
+  }
+
+  recordSoloRaidCompletedSafely(input: {
+    characterId: string;
+    actorDisplayName: string;
+    raidId: string;
+    raidName: string;
+    outcome: "won" | "lost";
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "raid.completed",
+      category: "raid",
+      severity: "normal",
+      actorCharacterId: input.characterId,
+      actorDisplayName: input.actorDisplayName,
+      subjectKind: "raid",
+      subjectId: input.raidId,
+      subjectName: input.raidName,
+      sourceType: "solo-raid",
+      sourceId: input.raidId,
+      dedupeKey: `raid.completed:solo:${input.characterId}:${input.raidId}`,
+      payload: { mode: "solo", outcome: input.outcome, participantCount: 1 },
+      occurredAt: input.occurredAt
+    });
+  }
+
   private recordSafely(input: RecordActivityEventInput): Promise<ActivityEventRecord | null> {
     return this.events.recordSafely(input);
   }
