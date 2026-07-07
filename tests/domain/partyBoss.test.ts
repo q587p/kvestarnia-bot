@@ -140,7 +140,7 @@ describe("party boss reducer", () => {
     });
   });
 
-  it("records party boss gear actions without effects when mana is missing", () => {
+  it("defensively resolves pre-queued party boss gear actions without effects when mana is missing", () => {
     const grant = findMantokAbilityGrantByKey("rldagr");
     if (!grant?.combat) {
       throw new Error("Expected red-line dagger combat grant.");
@@ -182,7 +182,7 @@ describe("party boss reducer", () => {
     expect(result.state.participants[0]?.resources.cooldowns?.abilities?.["gear.red-line-dagger"]).toBeUndefined();
   });
 
-  it("records party boss gear actions without effects while equipment cooldown is active", () => {
+  it("defensively resolves pre-queued party boss gear actions without effects while equipment cooldown is active", () => {
     const grant = findMantokAbilityGrantByKey("rldagr");
     if (!grant?.combat) {
       throw new Error("Expected red-line dagger combat grant.");

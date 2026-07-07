@@ -681,6 +681,132 @@ describe("PrismaPartyBossRepository integration", () => {
     ]);
   });
 
+  it("rejects Big Barrel gear actions without mana before writing the action ledger", async () => {
+    const grant = findMantokAbilityGrantByKey("harpcp");
+    if (!grant?.combat) {
+      throw new Error("Expected harp combat grant.");
+    }
+
+    await seedCharacter(prisma, "gear-no-mana-user", 1193n, "Без Мани", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      manaCurrent: 0,
+      manaMax: 10,
+      equipment: [{ slot: "tool", itemId: "item.set.couplet.harp" }]
+    });
+    await partyRepository.createForTelegramUser(1193n, partyInput("party-token-gear-no-mana"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1193n, {
+      partyInviteToken: "party-token-gear-no-mana",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const blocked = await bossRepository.submitActionForTelegramUser(
+      1193n,
+      "party-token-gear-no-mana",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility: { profile: grant.combat.profile } }
+    );
+    const latest = expectPartyBossSession(blocked);
+
+    expect(blocked.state).toBe("gear-unavailable");
+    if (blocked.state === "gear-unavailable") {
+      expect(blocked.reason).toBe("not-enough-mana");
+    }
+    expect(latest.turn).toBe(1);
+    expect(latest.state.roundLog).toHaveLength(0);
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: latest.id,
+        actorCharacterId: "gear-no-mana-user-character"
+      }
+    })).toBe(0);
+    expect(blocked.achievementEvents).toBeUndefined();
+  });
+
+  it("rejects Big Barrel gear actions on equipment cooldown before writing the action ledger", async () => {
+    const grant = findMantokAbilityGrantByKey("bcshield");
+    if (!grant?.combat) {
+      throw new Error("Expected barrel shield combat grant.");
+    }
+
+    await seedCharacter(prisma, "gear-cooldown-user", 1194n, "Відсапана Щитниця", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      manaCurrent: 10,
+      manaMax: 10,
+      equipment: [{ slot: "offhand", itemId: "item.set.barrel-brother.shield" }]
+    });
+    await partyRepository.createForTelegramUser(1194n, partyInput("party-token-gear-cooldown"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1194n, {
+      partyInviteToken: "party-token-gear-cooldown",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+
+    const cooldownState = {
+      ...started.session.state,
+      participants: started.session.state.participants.map((participant) =>
+        participant.characterId === "gear-cooldown-user-character"
+          ? {
+              ...participant,
+              resources: {
+                ...participant.resources,
+                cooldowns: {
+                  ...participant.resources.cooldowns,
+                  abilities: {
+                    ...(participant.resources.cooldowns?.abilities ?? {}),
+                    "gear.barrel-counter-shield": {
+                      id: "gear.barrel-counter-shield",
+                      remainingTurns: 2
+                    }
+                  }
+                }
+              }
+            }
+          : participant
+      )
+    };
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: { stateJson: cooldownState }
+    });
+
+    const blocked = await bossRepository.submitActionForTelegramUser(
+      1194n,
+      "party-token-gear-cooldown",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility: { profile: grant.combat.profile } }
+    );
+    const latest = expectPartyBossSession(blocked);
+
+    expect(blocked.state).toBe("gear-unavailable");
+    if (blocked.state === "gear-unavailable") {
+      expect(blocked.reason).toBe("skill-on-cooldown");
+    }
+    expect(latest.turn).toBe(1);
+    expect(latest.state.roundLog).toHaveLength(0);
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: latest.id,
+        actorCharacterId: "gear-cooldown-user-character"
+      }
+    })).toBe(0);
+    expect(blocked.achievementEvents).toBeUndefined();
+  });
+
   it("does not consume a party-boss field kit when raid HP is already above its threshold", async () => {
     await seedCharacter(prisma, "big-field-kit-healthy-user", 1153n, "Майже Здорова", {
       hpCurrent: 130,

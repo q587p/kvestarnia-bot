@@ -26,7 +26,7 @@ describe("party session presenter", () => {
     expect(text).toContain("👹 Старший Брат Бочки: HP 55/100");
     expect(text).toContain("▪️ Голова: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
     expect(text).toContain("▪️ Шкодійка: HP 60/60 · мана 20/20");
-    expect(text).toContain("🎒 Рейдовий протокол запечатав вдягнені манатки: у бою можна лише використати одноразові.");
+    expect(text).not.toContain("запечатав вдягнені манатки");
     expect(text).toContain("⏳ На хід є 23 секунди.");
   });
 

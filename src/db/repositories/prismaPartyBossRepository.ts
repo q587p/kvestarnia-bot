@@ -20,7 +20,7 @@ import {
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
 import { getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
-import type { CombatGearAbilityInput } from "../../domain/combat";
+import { getCombatGearActionAvailabilityForActor, type CombatGearAbilityInput } from "../../domain/combat";
 import { getLevelForXp } from "../../domain/progression/level";
 import {
   buildPartyBossCombatStats,
@@ -320,6 +320,20 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const actor = state.participants.find((participant) => participant.characterId === character.id);
       if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
         return { state: "stale", session: mapSession(session) };
+      }
+
+      if (action === "gear" && options.gearAbility) {
+        const availability = getCombatGearActionAvailabilityForActor(
+          actor.resources,
+          options.gearAbility.profile
+        );
+        if (!availability.available) {
+          return {
+            state: "gear-unavailable",
+            reason: availability.reason === "cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+            session: mapSession(session)
+          };
+        }
       }
 
       const queuedState = await writePartyBossActionChoice(tx, {

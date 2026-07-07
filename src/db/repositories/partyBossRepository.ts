@@ -77,6 +77,11 @@ export type PartyBossActionResult =
       session?: PartyBossSessionRecord;
     }
   | {
+      state: "gear-unavailable";
+      reason: "not-enough-mana" | "skill-on-cooldown";
+      session: PartyBossSessionRecord;
+    }
+  | {
       state: "not-participant" | "stale" | "queued" | "updated" | "duplicate" | "resolved" | "terminal";
       session: PartyBossSessionRecord;
       achievementEvents?: PartyBossAchievementEventRecord[];

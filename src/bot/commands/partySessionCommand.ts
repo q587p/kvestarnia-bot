@@ -245,6 +245,12 @@ export async function handlePartySessionCallback(
       ? { text: "Вибір оновлено." }
       : result.state === "duplicate"
         ? { text: "Дію вже записано." }
+        : result.state === "gear-unavailable"
+        ? {
+            text: result.reason === "not-enough-mana"
+              ? "Не вистачає мани."
+              : "Дія спорядження ще відсапується."
+          }
         : undefined);
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)

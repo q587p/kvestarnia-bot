@@ -361,6 +361,13 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
     });
   }
 
+  if (result.state === "gear-unavailable") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: presentPartyBossGearUnavailableNotice(result.reason)
+    });
+  }
+
   if (result.state === "queued") {
     const big = isBigPartyBossSession(result.session);
     return presentPartyBoss(result.session, {
@@ -455,9 +462,6 @@ export function presentPartyBoss(
     viewerCharacterId: session.status === "active" ? viewer?.characterId ?? null : null,
     targetedCharacterIds
   }));
-  if (session.status === "active" && big) {
-    lines.push("🎒 Рейдовий протокол запечатав вдягнені манатки: у бою можна лише використати одноразові.");
-  }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null));
   }
@@ -930,6 +934,17 @@ function presentPartyBossItemUnavailableNotice(
       return "Ця манатка вже зробила свою справу в цьому рейді.";
     case "not-usable":
       return "Ця манатка не підходить для бойового лікування.";
+  }
+}
+
+function presentPartyBossGearUnavailableNotice(
+  reason: Extract<PartyBossActionResult, { state: "gear-unavailable" }>["reason"]
+): string {
+  switch (reason) {
+    case "not-enough-mana":
+      return "Дія спорядження не спрацювала: мани замало для рейдового протоколу.";
+    case "skill-on-cooldown":
+      return "Дія спорядження ще відсапується. Корчмар показує свіжу картку бою.";
   }
 }
 

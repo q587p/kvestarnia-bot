@@ -389,6 +389,31 @@ describe("handlePartySessionCallback", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it("answers blocked boss gear callbacks without advancing the raid", async () => {
+    const session = makeBossSession();
+    const submitGearForTelegramUser = vi.fn().mockResolvedValue({
+      state: "gear-unavailable",
+      reason: "not-enough-mana",
+      session
+    });
+    const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-gear", token: session.partyInviteToken, turn: 1, grantKey: "rldagr" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitGearForTelegramUser })
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Не вистачає мани." });
+    expect(messageText(editMessageText)).toContain("Дія спорядження не спрацювала: мани замало");
+    expect(messageText(editMessageText)).toContain("1 хід");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("opens a concrete one-use item picker instead of immediately using a bandage", async () => {
     const session = makeBossSession({
       participants: [
