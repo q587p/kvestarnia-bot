@@ -13,6 +13,7 @@ Review follow-up coverage:
 - Automated help/lore coverage confirms `/lore` opens the existing `📖 Перекази` board, is listed in `/help`, is not added to the side menu, and `🎒 Манатки` lore names visible `Дія спорядження`.
 - Automated regression coverage confirms duplicate Big Barrel gear callbacks keep one queued action/effect/cooldown/achievement event, stale turn-based duel gear callbacks do not advance the duel, and ordinary two-enemy persistent fight gear actions write a committed gear summary while preserving readable multi-enemy state.
 - Automated nearby-menu coverage confirms the `👀 Хто поруч` -> `🗡️ Тиха кишеня` callback opens the Rogue card, and unknown callback payloads answer with the existing invalid-button alert instead of leaving Telegram blinking silently.
+- Automated keyboard coverage confirms an active Barrel card does not mark `⬅️ До зали` when the only outstanding quest marker is the Barrel tutorial step already available at the Barrel.
 
 Manual Telegram evidence still required before merge:
 

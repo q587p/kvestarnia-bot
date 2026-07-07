@@ -27,9 +27,11 @@ import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/t
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import {
   decorateButtonLabel,
+  mergeQuestMarkers,
   resolveQuestMarkerForTarget,
   QuestMarker,
-  type QuestMarkerInput
+  type QuestMarkerInput,
+  type QuestMarkerTarget
 } from "./questButtonMarkers";
 
 export type TavernResultKeyboardState =
@@ -50,7 +52,10 @@ export function buildTavernKeyboard(options: { questMarkers?: QuestMarkerInput |
       ),
       makeTavernCallbackData("ranger")
     )
-    .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
+    .text(
+      buildBackToHallLabel(options.questMarkers, { ignoreTargets: ["location.korchma.barrel"] }),
+      makePlaceCallbackData("hall")
+    );
 }
 
 export function buildKorchmaFrontKeyboard(
@@ -467,9 +472,41 @@ export function formatTavernGamesButtonLabel(tableCount = 0): string {
     : "🎲 Ігри за столом";
 }
 
-function buildBackToHallLabel(questMarkers: QuestMarkerInput | null | undefined): string {
+function buildBackToHallLabel(
+  questMarkers: QuestMarkerInput | null | undefined,
+  options: { ignoreTargets?: readonly QuestMarkerTarget[] } = {}
+): string {
   return decorateButtonLabel(
     "⬅️ До зали",
-    resolveQuestMarkerForTarget(questMarkers ?? undefined, "location.korchma.hall")
+    resolveBackToHallMarker(questMarkers, options.ignoreTargets ?? [])
   );
 }
+
+function resolveBackToHallMarker(
+  questMarkers: QuestMarkerInput | null | undefined,
+  ignoreTargets: readonly QuestMarkerTarget[]
+): QuestMarker {
+  const input = questMarkers ?? undefined;
+  if (!input) {
+    return QuestMarker.NONE;
+  }
+
+  if (ignoreTargets.length === 0) {
+    return resolveQuestMarkerForTarget(input, "location.korchma.hall");
+  }
+
+  const ignored = new Set<QuestMarkerTarget>(ignoreTargets);
+  return mergeQuestMarkers(
+    HALL_CHILD_MARKER_TARGETS
+      .filter((target) => !ignored.has(target))
+      .map((target) => resolveQuestMarkerForTarget(input, target))
+  );
+}
+
+const HALL_CHILD_MARKER_TARGETS: readonly QuestMarkerTarget[] = [
+  "location.korchma.quest-table",
+  "location.korchma.bar",
+  "location.korchma.barrel",
+  "location.korchma.cellar",
+  "location.korchma.ranger-corner"
+];

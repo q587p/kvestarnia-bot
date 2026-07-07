@@ -603,6 +603,40 @@ describe("main menu and scene keyboards", () => {
       "🧥 Єгер",
       "⬅️ До зали"
     ]);
+    const barrelQuestMarkers = {
+      characterLevel: 2,
+      barrelBeerTutorial: {
+        state: "in-progress" as const,
+        character,
+        progress: {
+          accepted: true,
+          stipendGranted: true,
+          visitedBarrel: false,
+          raidCompleted: false,
+          beerRoundOffered: false,
+          beerDrunk: false,
+          activeBeer: false,
+          currentLocationId: "location.korchma.barrel"
+        }
+      }
+    };
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: barrelQuestMarkers }))).toContain(
+      "🛢️ Бочка ⚠️"
+    );
+    expect(flatInlineButtonTexts(buildTavernKeyboard({ questMarkers: barrelQuestMarkers }))).toEqual([
+      "🍺 У рейд на бочку",
+      "🧥 Єгер",
+      "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonTexts(buildTavernKeyboard({
+      questMarkers: {
+        ...barrelQuestMarkers,
+        cellar: {
+          state: "ready",
+          character
+        }
+      }
+    }))).toContain("⬅️ До зали ⚠️");
     expect(flatInlineButtonTexts(buildTavernResultKeyboard("completed"))).toEqual([
       "🍺 Просте всім",
       "🍻 Якісне всім",
