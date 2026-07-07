@@ -1711,6 +1711,7 @@ const GENERAL_ADVENTURE_PROBLEMS = [
 
 interface AdventureNameForms {
   genitive: string;
+  genitiveLower: string;
 }
 
 const ADVENTURE_RACE_GENITIVE_NAMES: Record<string, string> = {
@@ -1740,23 +1741,23 @@ const ADVENTURE_CLASS_GENITIVE_NAMES: Record<string, string> = {
 const RACE_ADVENTURE_TEMPLATES = [
   {
     suffix: "survey",
-    title: (race: AdventureNameForms) => `Анкета раси «${race.genitive}» втекла з графи`,
+    title: (race: AdventureNameForms) => `Анкета раси ${race.genitiveLower} втекла з графи`,
     hook: (race: AdventureNameForms) =>
-      `У реєстрі біля «${race.genitive}» зʼявився підпис: «не вмістилось, пішло думати». Корчмар просить повернути папір, поки він не отримав громадянство.`,
+      `У реєстрі в графі раси ${race.genitiveLower} зʼявився підпис: «не вмістилось, пішло думати». Корчмар просить повернути папір, поки він не отримав громадянство.`,
     client: "Писар, який тримає чорнило обома руками"
   },
   {
     suffix: "mug",
-    title: (race: AdventureNameForms) => `Кухоль для «${race.genitive}» не проходить інструктаж`,
+    title: (race: AdventureNameForms) => `Кухоль для гостей раси ${race.genitiveLower} не проходить інструктаж`,
     hook: (race: AdventureNameForms) =>
-      `Особливий кухоль для гостей раси «${race.genitive}» вимагає окремого звертання, підставку й маленьку церемонію наливу.`,
+      `Особливий кухоль для гостей раси ${race.genitiveLower} вимагає окремого звертання, підставку й маленьку церемонію наливу.`,
     client: "Корчмар, який уже шкодує про персоналізацію"
   },
   {
     suffix: "portrait",
-    title: (race: AdventureNameForms) => `Портрет раси «${race.genitive}» сперечається з рамою`,
+    title: (race: AdventureNameForms) => `Портрет раси ${race.genitiveLower} сперечається з рамою`,
     hook: (race: AdventureNameForms) =>
-      `Портрет у кутку наполягає, що «${race.genitive}» треба малювати героїчніше, а рама каже, що в неї теж є межі.`,
+      `Портрет у кутку наполягає, що ${race.genitiveLower} треба малювати героїчніше, а рама каже, що в неї теж є межі.`,
     client: "Маляр із пензлем і дипломатичною втомою"
   }
 ] as const;
@@ -1826,14 +1827,20 @@ function buildTitleAdventureProblems(): AdventureProblemBase[] {
 }
 
 function getAdventureRaceNameForms(raceId: string, raceName: string): AdventureNameForms {
+  const genitive = ADVENTURE_RACE_GENITIVE_NAMES[raceId] ?? raceName;
+
   return {
-    genitive: ADVENTURE_RACE_GENITIVE_NAMES[raceId] ?? raceName
+    genitive,
+    genitiveLower: genitive.toLocaleLowerCase("uk-UA")
   };
 }
 
 function getAdventureClassNameForms(classId: string, className: string): AdventureNameForms {
+  const genitive = ADVENTURE_CLASS_GENITIVE_NAMES[classId] ?? className;
+
   return {
-    genitive: ADVENTURE_CLASS_GENITIVE_NAMES[classId] ?? className
+    genitive,
+    genitiveLower: genitive.toLocaleLowerCase("uk-UA")
   };
 }
 

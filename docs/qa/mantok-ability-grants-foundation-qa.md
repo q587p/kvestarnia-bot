@@ -16,6 +16,7 @@ Review follow-up coverage:
 - Automated keyboard coverage confirms an active Barrel card does not mark `⬅️ До зали` when the only outstanding quest marker is the Barrel tutorial step already available at the Barrel.
 - Automated keyboard coverage confirms the Barrel tutorial accept result marks the direct `🛢️ До Бочки` route with `⚠️`.
 - Automated callback coverage confirms Shynok problem-paper issue results rebuild quest markers after issue and mark `⬅️ До зали` when another Korchma-location quest is available.
+- Automated service coverage confirms race-personalized adventure problem copy renders lowercase unquoted race forms such as `Портрет раси ельфа`.
 - Automated content/economy coverage confirms high-enhancement generated manatky stay under the new soft `goldValue` cap while sale, level-exchange and Mantok Chest domain tests still pass.
 - Automated balance/presenter coverage confirms persistent PvE remort monster pressure starts only after the third remort, keeps encounter levels stable, covers remorts `5`, `7` and `9` in one-enemy and two-enemy threat simulations, and labels solo Yeger pressure as `Відплата за минулі пригоди` without `Натиск Низу` wording.
 
@@ -28,6 +29,7 @@ Manual Telegram evidence still required before merge:
 - Pending: `/lore` opens `📖 Перекази Квестарні` on the local bot and remains absent from the Telegram side command menu.
 - Pending: after taking `Бочка, або Туди і звідти`, the live accept result card shows `🛢️ До Бочки ⚠️`.
 - Pending: after taking a Korchmar problem paper from Shynok while another Korchma-location quest is available, the live result card shows `⬅️ До зали ⚠️`.
+- Pending: a race-personalized adventure result card uses lowercase unquoted race copy, e.g. `Портрет раси ельфа`.
 - Pending: remort `7+` Yeger fight card shows `Відплата за минулі пригоди` on the intro and active card; ordinary two-enemy threat fights still use `Натиск Низу`.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.

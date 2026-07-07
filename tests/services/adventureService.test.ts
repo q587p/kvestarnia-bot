@@ -147,13 +147,21 @@ describe("AdventureService", () => {
     const dwarfMug = getAdventureProblemPoolForProfile({ raceId: "race.dwarf" }).find(
       (problem) => problem.id === "race-dwarf-mug"
     );
+    const elfPortrait = getAdventureProblemPoolForProfile({ raceId: "race.elf" }).find(
+      (problem) => problem.id === "race-elf-portrait"
+    );
 
     expect(rogueExam).toMatchObject({
       title: "Іспит для «Злодія» здає викладача",
       hook:
         "Тест для «Злодія» так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу."
     });
-    expect(dwarfMug?.title).toBe("Кухоль для «Гнома» не проходить інструктаж");
+    expect(dwarfMug?.title).toBe("Кухоль для гостей раси гнома не проходить інструктаж");
+    expect(elfPortrait).toMatchObject({
+      title: "Портрет раси ельфа сперечається з рамою",
+      hook:
+        "Портрет у кутку наполягає, що ельфа треба малювати героїчніше, а рама каже, що в неї теж є межі."
+    });
   });
 
   it("selects a problem and exposes authored, character-aware methods", async () => {
