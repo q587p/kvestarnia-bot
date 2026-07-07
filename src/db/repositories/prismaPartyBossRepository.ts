@@ -19,7 +19,7 @@ import {
   type PartyBossRewardSnapshot,
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
-import { getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
+import { getCombatMantokAbilityGrantsByIds, getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
 import { getCombatGearActionAvailabilityForActor, type CombatGearAbilityInput } from "../../domain/combat";
 import { getLevelForXp } from "../../domain/progression/level";
 import {
@@ -323,6 +323,14 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       if (action === "gear" && options.gearAbility) {
+        const matchingGrant = getCombatMantokAbilityGrantsByIds({
+          grantIds: actor.equipmentAbilityGrantIds ?? [],
+          characterLevel: actor.combatStats.level
+        }).some((grant) => grant.combat?.profile.id === options.gearAbility?.profile.id);
+        if (!matchingGrant) {
+          return { state: "stale", session: mapSession(session) };
+        }
+
         const availability = getCombatGearActionAvailabilityForActor(
           actor.resources,
           options.gearAbility.profile

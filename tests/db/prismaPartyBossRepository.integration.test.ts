@@ -729,6 +729,50 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(blocked.achievementEvents).toBeUndefined();
   });
 
+  it("rejects Big Barrel gear actions missing from the frozen participant grant snapshot before writing the action ledger", async () => {
+    const grant = findMantokAbilityGrantByKey("rldagr");
+    if (!grant?.combat) {
+      throw new Error("Expected red-line dagger combat grant.");
+    }
+
+    await seedCharacter(prisma, "gear-missing-grant-user", 1195n, "Без Кинджала", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      manaCurrent: 10,
+      manaMax: 10
+    });
+    await partyRepository.createForTelegramUser(1195n, partyInput("party-token-gear-missing-grant"));
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1195n, {
+      partyInviteToken: "party-token-gear-missing-grant",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const blocked = await bossRepository.submitActionForTelegramUser(
+      1195n,
+      "party-token-gear-missing-grant",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility: { profile: grant.combat.profile } }
+    );
+    const latest = expectPartyBossSession(blocked);
+
+    expect(blocked.state).toBe("stale");
+    expect(latest.turn).toBe(1);
+    expect(latest.state.roundLog).toHaveLength(0);
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: latest.id,
+        actorCharacterId: "gear-missing-grant-user-character"
+      }
+    })).toBe(0);
+    expect(blocked.achievementEvents).toBeUndefined();
+  });
+
   it("rejects Big Barrel gear actions on equipment cooldown before writing the action ledger", async () => {
     const grant = findMantokAbilityGrantByKey("bcshield");
     if (!grant?.combat) {
