@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   INVENTORY_PAGE_SIZE,
+  getInventoryPageItems,
   presentInventory
 } from "../../src/bot/presenters/inventoryPresenter";
 import type { InventoryItemSummary, InventoryResult } from "../../src/services/inventoryService";
@@ -113,6 +114,29 @@ describe("inventory presenter", () => {
     expect(secondPage).not.toContain("<b>Манатка 1</b>");
   });
 
+  it("sorts inventory pages by received date and item name when requested", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        item("item.test-beta", "Бета", "junk", undefined, new Date("2026-06-12T10:00:00.000Z")),
+        item("item.test-alpha", "Альфа", "junk", undefined, new Date("2026-06-13T10:00:00.000Z")),
+        item("item.test-gamma", "Гама", "junk", undefined, new Date("2026-06-11T10:00:00.000Z"))
+      ]
+    };
+
+    expect(getInventoryPageItems(result, 0, null, { sort: "date-desc" }).map((entry) => entry.itemId)).toEqual([
+      "item.test-alpha",
+      "item.test-beta",
+      "item.test-gamma"
+    ]);
+    expect(getInventoryPageItems(result, 0, null, { sort: "name-asc" }).map((entry) => entry.itemId)).toEqual([
+      "item.test-alpha",
+      "item.test-beta",
+      "item.test-gamma"
+    ]);
+  });
+
   it("filters inventory by equipment slot", () => {
     const result: InventoryResult = {
       state: "found",
@@ -217,12 +241,14 @@ function item(
   itemId: string,
   name: string,
   slot = "junk",
-  tags?: InventoryItemSummary["content"]["tags"]
+  tags?: InventoryItemSummary["content"]["tags"],
+  createdAt?: Date
 ): InventoryItemSummary {
   return {
     id: `character-${itemId}`,
     itemId,
     quantity: 1,
+    ...(createdAt ? { createdAt } : {}),
     content: {
       id: itemId,
       name,

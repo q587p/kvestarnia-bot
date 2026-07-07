@@ -7,6 +7,12 @@ import {
   isOneUseInventoryFilter,
   type InventoryFilter
 } from "../inventoryFilter";
+import {
+  DEFAULT_INVENTORY_SORT,
+  callbackCodeToInventorySort,
+  inventorySortToCallbackCode,
+  type InventorySort
+} from "../inventorySort";
 import type { EquipmentSlot } from "../../services/equipmentService";
 import { equipmentSlots } from "../../services/equipmentService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
@@ -54,9 +60,9 @@ export function makeStableItemCallbackKey(itemId: string): string {
 }
 
 export type ItemCallback =
-  | { type: "detail"; itemId: string; page: number; filter: InventoryFilter }
-  | { type: "inventory"; page: number; filter: InventoryFilter }
-  | { type: "page-prompt"; totalPages: number; filter: InventoryFilter };
+  | { type: "detail"; itemId: string; page: number; filter: InventoryFilter; sort: InventorySort }
+  | { type: "inventory"; page: number; filter: InventoryFilter; sort: InventorySort }
+  | { type: "page-prompt"; totalPages: number; filter: InventoryFilter; sort: InventorySort };
 export type EquipmentCallback =
   | { type: "view" }
   | { type: "equip-item"; itemId: string; targetSlot: EquipmentSlot | null; confirmTwohand: boolean }
@@ -65,12 +71,11 @@ export type EquipmentCallback =
 export function makeItemDetailCallbackData(
   itemId: string,
   page = 0,
-  filter: InventoryFilter = null
+  filter: InventoryFilter = null,
+  sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): string {
-  const safePage = normalizePage(page);
-  const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
-  const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
-  const legacyData = `${ITEM_PREFIX}:detail:${itemId}${filterSuffix}${pageSuffix}`;
+  const suffix = formatInventoryNavigationSuffix(page, filter, sort);
+  const legacyData = `${ITEM_PREFIX}:detail:${itemId}${suffix}`;
 
   if (!isTooLong(legacyData)) {
     return legacyData;
@@ -79,28 +84,30 @@ export function makeItemDetailCallbackData(
   const compactItemKey = itemCallbackKeyById.get(itemId);
 
   if (compactItemKey) {
-    return assertCallbackData(`${ITEM_PREFIX}:d:${compactItemKey}${filterSuffix}${pageSuffix}`);
+    return assertCallbackData(`${ITEM_PREFIX}:d:${compactItemKey}${suffix}`);
   }
 
   return assertCallbackData(legacyData);
 }
 
-export function makeInventoryCallbackData(page = 0, filter: InventoryFilter = null): string {
-  const safePage = normalizePage(page);
-  const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
-  const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
-
-  return assertCallbackData(`${ITEM_PREFIX}:inventory${filterSuffix}${pageSuffix}`);
+export function makeInventoryCallbackData(
+  page = 0,
+  filter: InventoryFilter = null,
+  sort: InventorySort = DEFAULT_INVENTORY_SORT
+): string {
+  return assertCallbackData(`${ITEM_PREFIX}:inventory${formatInventoryNavigationSuffix(page, filter, sort)}`);
 }
 
 export function makeInventoryPagePromptCallbackData(
   totalPages: number,
-  filter: InventoryFilter = null
+  filter: InventoryFilter = null,
+  sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): string {
   const safeTotalPages = Math.max(1, Math.floor(Number.isFinite(totalPages) ? totalPages : 1));
   const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
+  const sortSuffix = formatInventorySortSuffix(sort);
 
-  return assertCallbackData(`${ITEM_PREFIX}:page${filterSuffix}:${safeTotalPages}`);
+  return assertCallbackData(`${ITEM_PREFIX}:page${filterSuffix}${sortSuffix}:${safeTotalPages}`);
 }
 
 export function parseItemCallbackData(data: string | undefined): ParseItemCallbackResult {
@@ -118,7 +125,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       value: {
         type: "inventory",
         page: 0,
-        filter: null
+        filter: null,
+        sort: DEFAULT_INVENTORY_SORT
       }
     };
   }
@@ -141,7 +149,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       value: {
         type: "inventory",
         page: parsed.page,
-        filter: parsed.filter
+        filter: parsed.filter,
+        sort: parsed.sort
       }
     };
   }
@@ -158,13 +167,14 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       value: {
         type: "page-prompt",
         totalPages: parsed.totalPages,
-        filter: parsed.filter
+        filter: parsed.filter,
+        sort: parsed.sort
       }
     };
   }
 
   if (action === "d") {
-    if (rest.length < 1 || rest.length > 4) {
+    if (rest.length < 1 || rest.length > 6) {
       return { ok: false };
     }
 
@@ -182,12 +192,13 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
         type: "detail",
         itemId,
         page: parsed.page,
-        filter: parsed.filter
+        filter: parsed.filter,
+        sort: parsed.sort
       }
     };
   }
 
-  if (action !== "detail" || rest.length < 1 || rest.length > 4) {
+  if (action !== "detail" || rest.length < 1 || rest.length > 6) {
     return { ok: false };
   }
 
@@ -208,7 +219,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       type: "detail",
       itemId,
       page: parsed.page,
-      filter: parsed.filter
+      filter: parsed.filter,
+      sort: parsed.sort
     }
   };
 }
@@ -349,55 +361,96 @@ function isEquipmentSlot(value: string | undefined): value is EquipmentSlot {
   return equipmentSlots.includes(value as EquipmentSlot);
 }
 
-function parseInventoryRest(rest: string[]): { page: number; filter: InventoryFilter } | null {
+function parseInventoryRest(rest: string[]): { page: number; filter: InventoryFilter; sort: InventorySort } | null {
   if (rest.length === 0) {
-    return { page: 0, filter: null };
+    return { page: 0, filter: null, sort: DEFAULT_INVENTORY_SORT };
   }
 
   if (rest.length === 1) {
     const page = parsePage(rest[0]);
 
-    return page === null ? null : { page, filter: null };
+    return page === null ? null : { page, filter: null, sort: DEFAULT_INVENTORY_SORT };
   }
 
-  if (rest.length === 2 || rest.length === 3) {
-    const filter = callbackPartToFilter(rest[0], rest[1]);
+  let index = 0;
+  let filter: InventoryFilter = null;
+  let sort: InventorySort = DEFAULT_INVENTORY_SORT;
+
+  if (rest[index] === "s" || rest[index] === "f") {
+    filter = callbackPartToFilter(rest[index], rest[index + 1]);
 
     if (!filter) {
       return null;
     }
 
-    if (rest.length === 2) {
-      return { page: 0, filter };
+    index += 2;
+  }
+
+  if (rest[index] === "r") {
+    const parsedSort = callbackCodeToInventorySort(rest[index + 1]);
+
+    if (!parsedSort) {
+      return null;
     }
 
-    const page = parsePage(rest[2]);
+    sort = parsedSort;
+    index += 2;
+  }
 
-    return page === null ? null : { page, filter };
+  if (index === rest.length) {
+    return { page: 0, filter, sort };
+  }
+
+  if (index === rest.length - 1) {
+    const page = parsePage(rest[index]);
+
+    return page === null ? null : { page, filter, sort };
   }
 
   return null;
 }
 
-function parseInventoryPagePromptRest(rest: string[]): { totalPages: number; filter: InventoryFilter } | null {
-  if (rest.length === 1) {
-    const totalPages = parsePage(rest[0]);
+function parseInventoryPagePromptRest(rest: string[]): {
+  totalPages: number;
+  filter: InventoryFilter;
+  sort: InventorySort;
+} | null {
+  const totalPages = parsePage(rest.at(-1));
 
-    return totalPages === null || totalPages < 1 ? null : { totalPages, filter: null };
+  if (totalPages === null || totalPages < 1) {
+    return null;
   }
 
-  if (rest.length === 3) {
-    const filter = callbackPartToFilter(rest[0], rest[1]);
-    const totalPages = parsePage(rest[2]);
+  const parsed = parseInventoryRest(rest.slice(0, -1));
 
-    if (!filter || totalPages === null || totalPages < 1) {
-      return null;
-    }
-
-    return { totalPages, filter };
+  if (!parsed || parsed.page !== 0) {
+    return null;
   }
 
-  return null;
+  return {
+    totalPages,
+    filter: parsed.filter,
+    sort: parsed.sort
+  };
+}
+
+function formatInventoryNavigationSuffix(
+  page: number,
+  filter: InventoryFilter,
+  sort: InventorySort
+): string {
+  const safePage = normalizePage(page);
+  const filterSuffix = filter ? `:${filterToCallbackPart(filter)}` : "";
+  const sortSuffix = formatInventorySortSuffix(sort);
+  const pageSuffix = safePage === 0 ? "" : `:${safePage}`;
+
+  return `${filterSuffix}${sortSuffix}${pageSuffix}`;
+}
+
+function formatInventorySortSuffix(sort: InventorySort): string {
+  const sortCode = inventorySortToCallbackCode(sort);
+
+  return sortCode ? `:r:${sortCode}` : "";
 }
 
 function filterToCallbackPart(filter: Exclude<InventoryFilter, null>): string {

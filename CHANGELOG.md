@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Outside-Korchma quest gates no longer mark `🚪 Зайти в корчму` by default when no verified active quest marker exists, so a cooldown-only cellar errand cannot imply fresh quests inside; direct `/tavern` hall cards now resolve the same quest marker snapshot as place callbacks, while the hall `📋 Стіл зі справами` button no longer duplicates `⚠️` for quests already visible on final location buttons such as `🐭 Льох`.
 - Quest Table cards now build their keyboard as the physical `📋 Стіл зі справами` location, so `🍺 До зали` does not duplicate `⚠️` for starter/problem quests already visible on the same table card.
 - Old Shynok table-game links now replay stored Tavlei/Kosti/Dice Poker results when the table completed, or say that the table did not start and stakes were returned when it closed before play, instead of only saying the table is closed.
+- `🎒 Манатки` list cards with more than one visible item now offer two compact sort toggles for received date and item name, preserving the chosen order through pagination, page prompts, item details and filtered views.
 
 ### Changed
 - Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.

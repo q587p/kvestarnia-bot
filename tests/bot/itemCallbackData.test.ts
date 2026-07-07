@@ -25,7 +25,8 @@ describe("item and equipment callback data", () => {
         type: "detail",
         itemId: "item.wet-hero-ticket",
         page: 0,
-        filter: null
+        filter: null,
+        sort: "default"
       }
     });
 
@@ -35,7 +36,8 @@ describe("item and equipment callback data", () => {
         type: "detail",
         itemId: "item.wet-hero-ticket",
         page: 2,
-        filter: null
+        filter: null,
+        sort: "default"
       }
     });
     expect(
@@ -46,7 +48,8 @@ describe("item and equipment callback data", () => {
         type: "detail",
         itemId: "item.wet-hero-ticket",
         page: 2,
-        filter: "weapon"
+        filter: "weapon",
+        sort: "default"
       }
     });
     expect(
@@ -57,7 +60,8 @@ describe("item and equipment callback data", () => {
         type: "detail",
         itemId: "item.responsible-panic-bandage",
         page: 1,
-        filter: "one-use"
+        filter: "one-use",
+        sort: "default"
       }
     });
   });
@@ -77,7 +81,8 @@ describe("item and equipment callback data", () => {
         type: "detail",
         itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
         page: 12,
-        filter: "tool"
+        filter: "tool",
+        sort: "default"
       }
     });
   });
@@ -119,7 +124,8 @@ describe("item and equipment callback data", () => {
           type: "detail",
           itemId: item.id,
           page: 999,
-          filter: "offhand"
+          filter: "offhand",
+          sort: "default"
         }
       });
     }
@@ -131,7 +137,8 @@ describe("item and equipment callback data", () => {
       value: {
         type: "inventory",
         page: 0,
-        filter: null
+        filter: null,
+        sort: "default"
       }
     });
     expect(parseItemCallbackData(makeInventoryCallbackData(3))).toEqual({
@@ -139,7 +146,8 @@ describe("item and equipment callback data", () => {
       value: {
         type: "inventory",
         page: 3,
-        filter: null
+        filter: null,
+        sort: "default"
       }
     });
     expect(parseItemCallbackData(makeInventoryCallbackData(1, "chest"))).toEqual({
@@ -147,7 +155,8 @@ describe("item and equipment callback data", () => {
       value: {
         type: "inventory",
         page: 1,
-        filter: "chest"
+        filter: "chest",
+        sort: "default"
       }
     });
     expect(parseItemCallbackData(makeInventoryCallbackData(0, "offhand"))).toEqual({
@@ -155,7 +164,8 @@ describe("item and equipment callback data", () => {
       value: {
         type: "inventory",
         page: 0,
-        filter: "offhand"
+        filter: "offhand",
+        sort: "default"
       }
     });
     expect(parseItemCallbackData(makeInventoryCallbackData(0, "tool"))).toEqual({
@@ -163,7 +173,8 @@ describe("item and equipment callback data", () => {
       value: {
         type: "inventory",
         page: 0,
-        filter: "tool"
+        filter: "tool",
+        sort: "default"
       }
     });
     expect(parseItemCallbackData(makeInventoryCallbackData(2, "one-use"))).toEqual({
@@ -171,7 +182,8 @@ describe("item and equipment callback data", () => {
       value: {
         type: "inventory",
         page: 2,
-        filter: "one-use"
+        filter: "one-use",
+        sort: "default"
       }
     });
     expect(parseItemCallbackData(makeInventoryPagePromptCallbackData(25, "offhand"))).toEqual({
@@ -179,11 +191,52 @@ describe("item and equipment callback data", () => {
       value: {
         type: "page-prompt",
         totalPages: 25,
-        filter: "offhand"
+        filter: "offhand",
+        sort: "default"
       }
     });
     expect(makeInventoryPagePromptCallbackData(4, "offhand")).toBe("v1:item:page:s:o:4");
     expect(makeInventoryPagePromptCallbackData(25)).toBe("v1:item:page:25");
+    expect(parseItemCallbackData(makeInventoryCallbackData(0, null, "date-desc"))).toEqual({
+      ok: true,
+      value: {
+        type: "inventory",
+        page: 0,
+        filter: null,
+        sort: "date-desc"
+      }
+    });
+    expect(parseItemCallbackData(makeInventoryCallbackData(2, "one-use", "name-asc"))).toEqual({
+      ok: true,
+      value: {
+        type: "inventory",
+        page: 2,
+        filter: "one-use",
+        sort: "name-asc"
+      }
+    });
+    expect(parseItemCallbackData(makeItemDetailCallbackData("item.wet-hero-ticket", 1, null, "date-asc"))).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.wet-hero-ticket",
+        page: 1,
+        filter: null,
+        sort: "date-asc"
+      }
+    });
+    expect(parseItemCallbackData(makeInventoryPagePromptCallbackData(4, "offhand", "name-desc"))).toEqual({
+      ok: true,
+      value: {
+        type: "page-prompt",
+        totalPages: 4,
+        filter: "offhand",
+        sort: "name-desc"
+      }
+    });
+    expect(makeInventoryCallbackData(0, null, "date-desc")).toBe("v1:item:inventory:r:dn");
+    expect(makeInventoryCallbackData(2, "one-use", "name-asc")).toBe("v1:item:inventory:f:u:r:az:2");
+    expect(makeInventoryPagePromptCallbackData(4, "offhand", "name-desc")).toBe("v1:item:page:s:o:r:za:4");
     expect(parseEquipmentCallbackData(makeEquipmentCallbackData())).toEqual({
       ok: true,
       value: {
@@ -314,8 +367,10 @@ describe("item and equipment callback data", () => {
     expect(parseItemCallbackData(`v1:item:d:${compactDetailKey}:s:t:nope`).ok).toBe(false);
     expect(parseItemCallbackData(`v1:item:d:${compactDetailKey}:s:t:1:extra`).ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:nope").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:inventory:r:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:1:extra").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:page:0").ok).toBe(false);
+    expect(parseItemCallbackData("v1:item:page:r:nope:4").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:page:s:boots:4").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:page:s:o:nope").ok).toBe(false);
     expect(parseItemCallbackData("v1:item:inventory:s:boots").ok).toBe(false);

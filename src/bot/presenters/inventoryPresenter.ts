@@ -1,4 +1,4 @@
-import type { InventoryResult } from "../../services/inventoryService";
+import type { InventoryItemSummary, InventoryResult } from "../../services/inventoryService";
 import {
   mapItemToEquipmentSlot,
   type EquipmentItemSummary,
@@ -10,6 +10,7 @@ import {
   ONE_USE_INVENTORY_FILTER_ICON,
   type InventoryFilter
 } from "../inventoryFilter";
+import { DEFAULT_INVENTORY_SORT, type InventorySort } from "../inventorySort";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { escapeHtml } from "./telegramHtml";
 
@@ -19,6 +20,7 @@ export interface InventoryPresenterOptions {
   currentSlotItem?: EquipmentItemSummary | null;
   equippedItemIds?: ReadonlySet<string> | null;
   slotCompatibleItemIds?: ReadonlySet<string> | null;
+  sort?: InventorySort;
 }
 
 export function presentInventory(
@@ -113,23 +115,62 @@ export function getFilteredInventoryItems(
   filter: InventoryFilter = null,
   options: InventoryPresenterOptions = {}
 ) {
-  if (result.state !== "found" || !filter) {
-    return result.state === "found" ? result.items : [];
+  if (result.state !== "found") {
+    return [];
+  }
+
+  if (!filter) {
+    return sortInventoryItems(result.items, options.sort ?? DEFAULT_INVENTORY_SORT);
   }
 
   if (isInventoryEquipmentSlotFilter(filter)) {
     if (options.slotCompatibleItemIds) {
-      return result.items.filter((item) => options.slotCompatibleItemIds?.has(item.itemId));
+      return sortInventoryItems(
+        result.items.filter((item) => options.slotCompatibleItemIds?.has(item.itemId)),
+        options.sort ?? DEFAULT_INVENTORY_SORT
+      );
     }
 
-    return result.items.filter((item) => mapItemToEquipmentSlot(item.content) === filter);
+    return sortInventoryItems(
+      result.items.filter((item) => mapItemToEquipmentSlot(item.content) === filter),
+      options.sort ?? DEFAULT_INVENTORY_SORT
+    );
   }
 
   if (isOneUseInventoryFilter(filter)) {
-    return result.items.filter((item) => item.content.tags?.includes("one-use"));
+    return sortInventoryItems(
+      result.items.filter((item) => item.content.tags?.includes("one-use")),
+      options.sort ?? DEFAULT_INVENTORY_SORT
+    );
   }
 
-  return result.items;
+  return sortInventoryItems(result.items, options.sort ?? DEFAULT_INVENTORY_SORT);
+}
+
+function sortInventoryItems(
+  items: readonly InventoryItemSummary[],
+  sort: InventorySort
+): InventoryItemSummary[] {
+  if (sort === DEFAULT_INVENTORY_SORT) {
+    return [...items];
+  }
+
+  return [...items]
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      if (sort === "date-asc" || sort === "date-desc") {
+        const leftTime = left.item.createdAt?.getTime() ?? 0;
+        const rightTime = right.item.createdAt?.getTime() ?? 0;
+        const dateOrder = sort === "date-asc" ? leftTime - rightTime : rightTime - leftTime;
+
+        return dateOrder || left.index - right.index;
+      }
+
+      const nameOrder = left.item.content.name.localeCompare(right.item.content.name, "uk");
+
+      return (sort === "name-asc" ? nameOrder : -nameOrder) || left.index - right.index;
+    })
+    .map(({ item }) => item);
 }
 
 function presentInventoryFilterHeading(filter: Exclude<InventoryFilter, null>): string {

@@ -1758,6 +1758,8 @@ describe("main menu and scene keyboards", () => {
       "🛡️ Спорядження",
       "1️⃣ Разові",
       "♻️ До Дружньої Скрині",
+      "🕒 Нові спершу",
+      "🔤 А-Я",
       "✅ Пательня переконання",
       "🔎 Квиток мокрого пригодника"
     ]);
@@ -1784,7 +1786,16 @@ describe("main menu and scene keyboards", () => {
           1
         )
       )
-    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Манатка 9", "◀️ Назад", "2/2"]);
+    ).toEqual([
+      "🛡️ Спорядження",
+      "1️⃣ Разові",
+      "♻️ До Дружньої Скрині",
+      "🕒 Нові спершу",
+      "🔤 А-Я",
+      "🔎 Манатка 9",
+      "◀️ Назад",
+      "2/2"
+    ]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard(
@@ -1812,9 +1823,60 @@ describe("main menu and scene keyboards", () => {
       "v1:equip:view",
       "v1:item:inventory:f:u",
       "v1:chest:open",
+      "v1:item:inventory:r:dn",
+      "v1:item:inventory:r:az",
       "v1:item:detail:item.test-9:1",
       "v1:item:inventory",
       "v1:item:page:2"
+    ]);
+    expect(
+      inlineButtonRows(
+        buildInventoryKeyboard(
+          {
+            state: "found",
+            totalGoldValue: 0,
+            items: [
+              {
+                id: "character-item-1",
+                itemId: "item.test-beta",
+                quantity: 1,
+                createdAt: new Date("2026-06-12T10:00:00.000Z"),
+                content: {
+                  id: "item.test-beta",
+                  name: "Бета",
+                  description: "Трофей.",
+                  rarity: "common",
+                  slot: "junk",
+                  priceless: true
+                }
+              },
+              {
+                id: "character-item-2",
+                itemId: "item.test-alpha",
+                quantity: 1,
+                createdAt: new Date("2026-06-13T10:00:00.000Z"),
+                content: {
+                  id: "item.test-alpha",
+                  name: "Альфа",
+                  description: "Трофей.",
+                  rarity: "common",
+                  slot: "junk",
+                  priceless: true
+                }
+              }
+            ]
+          },
+          0,
+          null,
+          { sort: "date-desc" }
+        )
+      )
+    ).toEqual([
+      ["🛡️ Спорядження", "1️⃣ Разові"],
+      ["♻️ До Дружньої Скрині"],
+      ["🕒 Нові в кінці", "🔤 А-Я"],
+      ["🔎 Альфа"],
+      ["🔎 Бета"]
     ]);
     expect(
       flatInlineButtonTexts(

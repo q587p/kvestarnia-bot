@@ -43,6 +43,7 @@ describe("InventoryService", () => {
       expect(result.items[0]).toMatchObject({
         itemId: "item.wet-hero-ticket",
         quantity: 2,
+        createdAt: new Date("2026-06-12T10:30:00.000Z"),
         content: {
           name: "Квиток мокрого пригодника"
         }
