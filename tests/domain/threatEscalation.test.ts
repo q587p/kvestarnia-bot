@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   decideThreatEscalation,
   findThreatEscalationLine,
+  getThreatEscalationRequiredWins,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINES,
   THREAT_ESCALATION_REPEAT_SECOND_ENEMY_LEVEL_BONUS
@@ -33,6 +34,42 @@ describe("threat escalation policy", () => {
       reason: "ordinary-win-streak",
       eligibleWins: 3,
       secondEnemyLevelBonus: 0
+    });
+  });
+
+  it.each([
+    { remortCount: 0, requiredWins: 3 },
+    { remortCount: 1, requiredWins: 2 },
+    { remortCount: 2, requiredWins: 1 },
+    { remortCount: 9, requiredWins: 1 }
+  ])(
+    "requires $requiredWins eligible wins at remort $remortCount",
+    ({ remortCount, requiredWins }) => {
+      expect(getThreatEscalationRequiredWins(remortCount)).toBe(requiredWins);
+
+      const history = Array.from({ length: requiredWins }, () => ({
+        result: "won" as const,
+        enemyCount: 1 as const,
+        eligible: true,
+        escalated: false
+      }));
+
+      expect(decideThreatEscalation(history, { remortCount })).toEqual({
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins: requiredWins,
+        secondEnemyLevelBonus: 0
+      });
+    }
+  );
+
+  it("keeps remort one at base threat after one eligible win", () => {
+    expect(decideThreatEscalation([
+      { result: "won", enemyCount: 1, eligible: true, escalated: false }
+    ], { remortCount: 1 })).toEqual({
+      enemyCount: 1,
+      reason: "base",
+      eligibleWins: 1
     });
   });
 

@@ -23,6 +23,7 @@ import {
   markCombatSettlementForfeitedByRemort,
   parseCombatAnalyticsState,
   parseMonsterAbilityRuntimeState,
+  THREAT_ESCALATION_REQUIRED_WINS,
   THREAT_ESCALATION_LINE_VERSION
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
@@ -1812,10 +1813,15 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
   }
 
   const pressure = parseCombatThreatPressure(value.pressure);
+  const eligibleWins = boundedOptionalInt(
+    value.eligibleWins,
+    1,
+    THREAT_ESCALATION_REQUIRED_WINS
+  );
 
   return value.enemyCount === 2 &&
     value.reason === "ordinary-win-streak" &&
-    value.eligibleWins === 3 &&
+    eligibleWins !== undefined &&
     typeof value.lineId === "string" &&
     value.lineVersion === THREAT_ESCALATION_LINE_VERSION &&
     findThreatEscalationLine(value.lineId)
@@ -1823,7 +1829,7 @@ function parseCombatThreat(value: unknown): CombatState["threat"] | null {
         version: 1,
         enemyCount: 2,
         reason: "ordinary-win-streak",
-        eligibleWins: 3,
+        eligibleWins,
         lineId: value.lineId,
         lineVersion: value.lineVersion,
         ...(pressure ? { pressure } : {})

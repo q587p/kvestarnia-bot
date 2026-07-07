@@ -15,7 +15,7 @@ Manual Telegram QA status for this polish pass: not run in this branch. Automate
 5. Take `Бочка, або Туди і звідти` and verify the accept result card shows `🛢️ До Бочки ⚠️`.
 6. From Shynok, take the next Korchmar problem paper while another Korchma-location quest is available; verify the result card shows `⬅️ До зали ⚠️`.
 7. On a remort `7+` character, start a Yeger fight and verify the intro plus active card show `Відплата за минулі пригоди`, not `Натиск Низу`; rewards and Yeger board progress should look unchanged after victory.
-8. On remort `5`, `7` or `9` characters, compare ordinary one-enemy and two-enemy threat fights: solo cards may show `Відлуння минулих пригод`, while two-enemy threat cards keep the existing `Натиск Низу` pressure language.
+8. Compare ordinary one-enemy and two-enemy threat fights: a base-life character should still need three eligible wins before `Натиск Низу`, remort `1` should need two, and remort `2+` should need one; solo remort-pressure cards may show `Відлуння минулих пригод`, while two-enemy threat cards keep the existing `Натиск Низу` pressure language.
 9. Open `🎒 Манатки`, choose an equippable item for an occupied slot and verify the `Замінить` line shows the current item's name plus its visible effect before equipping.
 10. From `🧥 Єгерський куток`, verify `🛢️ До Бочки` gains `⚠️` when an active table/Shynok/cellar quest waits beyond the hall, but not when the only marker is the Yeger quest visible on the current card.
 

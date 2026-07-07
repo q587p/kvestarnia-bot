@@ -4308,6 +4308,76 @@ describe("FightService", () => {
     }
   });
 
+  it.each([
+    { remortCount: 1, previousWins: 2, eligibleWins: 2 },
+    { remortCount: 2, previousWins: 1, eligibleWins: 1 },
+    { remortCount: 9, previousWins: 1, eligibleWins: 1 }
+  ])(
+    "starts ordinary threat after $previousWins eligible wins at remort $remortCount",
+    async ({ remortCount, previousWins, eligibleWins }) => {
+      const characters = new FakeCharacterRepository();
+      characters.add(telegramUserId, { xp: 25, remortCount });
+      const dailyActions = new FakeDailyActionRepository(characters);
+      const sessions = new FakeSoloCombatSessionRepository(characters);
+      const service = new FightService({
+        characters,
+        dailyActions,
+        clock: fixedClock,
+        combatSessions: sessions,
+        rng: new FakeRandomSource([0.1, 0.9, 0.2])
+      });
+
+      await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+      for (const index of Array.from({ length: previousWins }, (_, offset) => offset + 1)) {
+        sessions.addSession(makeEligibleOrdinaryThreatSession("won", `ordinary-threat-remort-${remortCount}-${index}`, {
+          completedAt: new Date(`2026-06-12T10:29:4${index}.000Z`)
+        }));
+      }
+
+      const started = await service.getFightForTelegramUser(telegramUserId);
+
+      expect(started.state).toBe("persistent-active");
+      if (started.state === "persistent-active") {
+        expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(2);
+        expect(started.session.state?.threat).toMatchObject({
+          version: 1,
+          enemyCount: 2,
+          reason: "ordinary-win-streak",
+          eligibleWins,
+          lineVersion: "threat-escalation-v1"
+        });
+      }
+    }
+  );
+
+  it("keeps remort one ordinary fights at one enemy after one eligible win", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, remortCount: 1 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1])
+    });
+
+    await service.issueNextProblemQuestForTelegramUser(telegramUserId);
+    sessions.addSession(makeEligibleOrdinaryThreatSession("won", "ordinary-threat-remort-one-base", {
+      completedAt: new Date("2026-06-12T10:29:41.000Z")
+    }));
+
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(normalizeCombatEnemies(started.session.state!)).toHaveLength(1);
+      expect(started.session.state?.threat).toBeUndefined();
+    }
+  });
+
   it("continues with two enemies and boosts the second enemy after a previous escalated two-enemy win", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });

@@ -197,6 +197,41 @@ describe("solo combat state JSON parser", () => {
     expect(state?.enemies).toHaveLength(2);
   });
 
+  it.each([1, 2, 3])("preserves valid remort-aware threat eligible wins %i", (eligibleWins) => {
+    const state = parseCombatState({
+      ...legacyState,
+      source: "normal",
+      threat: {
+        version: 1,
+        enemyCount: 2,
+        reason: "ordinary-win-streak",
+        eligibleWins,
+        lineId: "nyz-added-witnesses",
+        lineVersion: "threat-escalation-v1"
+      },
+      enemies: [
+        {
+          enemyId: "enemy:1",
+          id: "monster.legacy",
+          hp: 5,
+          hpMax: 5
+        },
+        {
+          enemyId: "enemy:2",
+          id: "monster.second",
+          hp: 7,
+          hpMax: 7
+        }
+      ]
+    });
+
+    expect(state?.threat).toMatchObject({
+      enemyCount: 2,
+      reason: "ordinary-win-streak",
+      eligibleWins
+    });
+  });
+
   it("preserves valid threat pressure metadata", () => {
     const state = parseCombatState({
       ...legacyState,

@@ -19,6 +19,7 @@ Review follow-up coverage:
 - Automated service coverage confirms race-personalized adventure problem copy renders lowercase unquoted race forms such as `Портрет раси ельфа`.
 - Automated content/economy coverage confirms high-enhancement generated manatky stay under the new soft `goldValue` cap while sale, level-exchange and Mantok Chest domain tests still pass.
 - Automated balance/presenter coverage confirms persistent PvE remort monster pressure starts only after the third remort, keeps encounter levels stable, covers remorts `5`, `7` and `9` in one-enemy and two-enemy threat simulations, and labels solo Yeger pressure as `Відплата за минулі пригоди` without `Натиск Низу` wording.
+- Automated threat-policy and fight-service coverage confirms ordinary Nyz two-enemy threat escalation keeps the base-life three-win gate, drops to two eligible wins at remort `1`, and drops to one eligible win at remort `2+`.
 - Automated service/repository coverage confirms Korchmar problem-chain counters count only wins from the current remort life, while preserving legacy zero-remort wins.
 - Automated activity-event and presenter coverage confirms solo Barrel raid wins plus Big Barrel Brother group wins/losses render as raid rows in `⚔️ Бої`, with only group raid victories marked important.
 - Automated presenter coverage confirms public completed Big Barrel Brother result cards do not leak a participant's XP/gold/item reward, while participant cards label the payout as `Ваша винагорода за рейд`.
@@ -43,6 +44,7 @@ Manual Telegram evidence still required before merge:
 - Pending: after taking a Korchmar problem paper from Shynok while another Korchma-location quest is available, the live result card shows `⬅️ До зали ⚠️`.
 - Pending: a race-personalized adventure result card uses lowercase unquoted race copy, e.g. `Портрет раси ельфа`.
 - Pending: remort `7+` Yeger fight card shows `Відплата за минулі пригоди` on the intro and active card; ordinary two-enemy threat fights still use `Натиск Низу`.
+- Pending: ordinary Nyz threat escalation starts after two eligible wins on remort `1`, after one eligible win on remort `2+`, and still waits for three eligible wins on a base-life character.
 - Pending: after remort, taking or checking `Тринадцять дрібних проблем` shows only current-life progress, not old counts such as `139/13`.
 - Pending: after one solo Barrel raid completion and one Big Barrel Brother win/loss, `📜 Хроніки Квестарні` shows the raid rows under `⚔️ Бої`; `⭐ Важливе` shows the group victory only.
 - Pending: open a completed Big Barrel Brother result link as a non-participant and verify it shows only the general raid summary, while an actual participant sees `Ваша винагорода за рейд` with their own reward.

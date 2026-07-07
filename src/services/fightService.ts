@@ -1065,7 +1065,7 @@ export class FightService {
       difficulty: encounter.difficulty,
       encounterSeed: encounter.seedHash,
       originLocationId: encounter.originLocationId
-    });
+    }, character.remortCount ?? 0);
     const monster = { ...baseMonster, level: encounter.effectiveMonsterLevel };
     const extraMonsters = await this.selectPersistentFightExtraMonsters({
       telegramUserId,
@@ -1795,7 +1795,11 @@ export class FightService {
       };
     }
 
-    const threatDecision = await this.resolveThreatEscalationDecision(telegramUserId, options);
+    const threatDecision = await this.resolveThreatEscalationDecision(
+      telegramUserId,
+      options,
+      character.remortCount ?? 0
+    );
 
     const difficulty = options.target
       ? PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal
@@ -4238,7 +4242,8 @@ export class FightService {
 
   private async resolveThreatEscalationDecision(
     telegramUserId: bigint,
-    options: PersistentFightStartOptions
+    options: PersistentFightStartOptions,
+    remortCount = 0
   ): Promise<ReturnType<typeof decideThreatEscalation>> {
     if (
       !this.combatSessions ||
@@ -4263,7 +4268,8 @@ export class FightService {
     return decideThreatEscalation(
       history
         .sort((left, right) => right.completedAt.getTime() - left.completedAt.getTime())
-        .map((session) => toThreatEscalationHistoryEntry(session))
+        .map((session) => toThreatEscalationHistoryEntry(session)),
+      { remortCount }
     );
   }
 }
