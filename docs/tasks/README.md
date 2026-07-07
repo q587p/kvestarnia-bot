@@ -105,6 +105,7 @@ Near-term next tasks:
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
+- [0.2.x-raid-in-game-chat.md](0.2.x-raid-in-game-chat.md) — draft future in-game raid chat for joined participants, scoped to one raid and guarded against non-participant reads, stale writes and reward abuse.
 - [0.2.x-kharakternyk-ward-signs.md](0.2.x-kharakternyk-ward-signs.md) — draft future `class.kharakternyk` Big Barrel ward-sign support slice; docs-only until explicitly activated.
 - [0.2.x-old-altar-blessings-mvp.md](0.2.x-old-altar-blessings-mvp.md) — draft future `🪨 Старий жертовник` MVP from the Korchma Yard: gold offerings create `Благовоління`, level 3+ Priests spend mana/favor on one short selected-stat blessing, and direct Priest aid remains unchanged.
 - [0.2.x-old-altar-manatka-offerings.md](0.2.x-old-altar-manatka-offerings.md) — draft follow-up for safe irreversible manatka offerings at the Old Altar; docs-only and explicitly separate from the gold-only MVP.
