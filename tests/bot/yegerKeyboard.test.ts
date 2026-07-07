@@ -82,6 +82,50 @@ describe("Yeger keyboard", () => {
     );
   });
 
+  it("marks the Barrel return when another Korchma quest is beyond the hall", () => {
+    const keyboard = buildYegerCornerKeyboard(
+      {
+        state: "completed",
+        character,
+        progress: { wins: 5, target: 5 },
+        reward
+      },
+      {
+        questMarkers: {
+          characterLevel: 4,
+          cellar: { state: "ready", character }
+        }
+      }
+    );
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🛢️ До Бочки ⚠️",
+      callback_data: makePlaceCallbackData("barrel")
+    });
+  });
+
+  it("does not mark the Barrel return for the visible Yeger quest itself", () => {
+    const keyboard = buildYegerCornerKeyboard(
+      {
+        state: "offered",
+        character,
+        progress: { wins: 0, target: 5 }
+      },
+      {
+        questMarkers: {
+          characterLevel: 4,
+          yeger: { state: "offered", character, progress: { wins: 0, target: 5 } }
+        }
+      }
+    );
+
+    expect(flatButtons(keyboard)).toContainEqual({
+      text: "🛢️ До Бочки",
+      callback_data: makePlaceCallbackData("barrel")
+    });
+    expect(flatButtons(keyboard).map((button) => button.text)).not.toContain("🛢️ До Бочки ⚠️");
+  });
+
   it("opens Yeger notch exchange from the closed second board when notches can be spent", () => {
     const keyboard = buildYegerCornerKeyboard({
       state: "completed",

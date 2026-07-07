@@ -26,6 +26,7 @@ Review follow-up coverage:
 - Automated direct-command coverage confirms `/tavern` resolves fresh quest markers for the hall screen, so available Korchma quests keep `⚠️` when opened by command.
 - Automated hall-keyboard coverage confirms `📋 Стіл зі справами` does not duplicate `⚠️` when the only available quest already has a visible final location button such as `🐭 Льох ⚠️`, while table-only quests still mark the table.
 - Automated quest-table command coverage confirms `🍺 До зали` stays unmarked when the currently visible `📋 Стіл зі справами` card already shows the available table quests.
+- Automated Yeger keyboard/command coverage confirms `🛢️ До Бочки` marks routes toward quest-table, Shynok or cellar work beyond the hall, while the visible Yeger quest itself does not mark that return button.
 - Automated presenter coverage confirms old Shynok table-game links replay stored completed Tavlei results and show a clear not-started/refunded card for expired tables instead of the generic closed-table copy.
 - Automated inventory callback, presenter and keyboard coverage confirms `🎒 Манатки` sort toggles can switch by received date or item name and preserve the chosen order through pagination, page prompts and item-detail back links.
 - Automated item-detail presenter coverage confirms same-slot replacement previews show the currently equipped item's visible effect beside the `Замінить` name.
@@ -48,6 +49,7 @@ Manual Telegram evidence still required before merge:
 - Pending: from inside the Korchma with an available hall quest, `/tavern` shows `📋 Стіл зі справами ⚠️` or the matching available location button with `⚠️`.
 - Pending: from inside the Korchma when the only available highlighted quest is the cellar, `/tavern` shows `🐭 Льох ⚠️` and does not show `📋 Стіл зі справами ⚠️`.
 - Pending: on `📋 Стіл зі справами`, when only visible table quests such as `Підозріла шаурма`, `Новачкова сутичка` or `Обрати пригоду` are available, `🍺 До зали` has no `⚠️`.
+- Pending: from `🧥 Єгерський куток`, `🛢️ До Бочки` shows `⚠️` when another active quest is behind the hall at the table, Shynok or cellar, and stays unmarked when only the visible Yeger quest is available.
 - Pending: pressing an old Shynok table-game link after a completed table shows the stored result, while an expired/not-started table says the game did not start and does not mutate stakes again.
 - Pending: in live `🎒 Манатки` with at least two manatky, `🕒 Нові спершу` / `🕒 Нові в кінці` and `🔤 А-Я` / `🔤 Я-А` reorder the list and stay active after opening a detail card and returning.
 - Pending: in live `🎒 Манатки`, open an equippable item for an occupied slot and verify `Замінить` shows the current item's name plus its visible effect before equipping.

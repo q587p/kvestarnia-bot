@@ -28,8 +28,15 @@ import {
 import { presentYegerQuestTitle } from "../presenters/yegerQuestTitle";
 import {
   decorateButtonLabel,
-  resolveQuestMarkerForTarget
+  mergeQuestMarkers,
+  QuestMarker,
+  resolveQuestMarkerForTarget,
+  type QuestMarkerInput
 } from "./questButtonMarkers";
+
+interface YegerNavigationOptions {
+  questMarkers?: QuestMarkerInput | null;
+}
 
 export function buildYegerKeyboard(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
@@ -85,7 +92,8 @@ export function buildYegerHuntKeyboard(
 }
 
 export function buildYegerCornerKeyboard(
-  result: Exclude<YegerQuestLookupResult, { state: "no-character" }>
+  result: Exclude<YegerQuestLookupResult, { state: "no-character" }>,
+  options: YegerNavigationOptions = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -115,12 +123,12 @@ export function buildYegerCornerKeyboard(
   return keyboard
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
     .row()
-    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+    .text(buildBackToBarrelLabel(options), makePlaceCallbackData("barrel"));
 }
 
 export function buildYegerBandagesKeyboard(
   result: Exclude<YegerQuestLookupResult, { state: "no-character" }>,
-  options: { craftOptions?: ItemCraftOption[] } = {}
+  options: { craftOptions?: ItemCraftOption[]; questMarkers?: QuestMarkerInput | null } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -146,10 +154,13 @@ export function buildYegerBandagesKeyboard(
   return keyboard
     .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
-    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+    .text(buildBackToBarrelLabel(options), makePlaceCallbackData("barrel"));
 }
 
-export function buildYegerNotchExchangeKeyboard(result: YegerNotchExchangeLookupResult): InlineKeyboard {
+export function buildYegerNotchExchangeKeyboard(
+  result: YegerNotchExchangeLookupResult,
+  options: YegerNavigationOptions = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (result.state === "ready") {
@@ -166,7 +177,7 @@ export function buildYegerNotchExchangeKeyboard(result: YegerNotchExchangeLookup
   return keyboard
     .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
-    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+    .text(buildBackToBarrelLabel(options), makePlaceCallbackData("barrel"));
 }
 
 function isBaseYegerQuestCompleted(
@@ -190,7 +201,11 @@ export function buildYegerBandagePurchaseKeyboard(
 
 export function buildYegerTurnInKeyboard(
   result: Exclude<YegerQuestTurnInResult, { state: "no-character" }>,
-  options: { craftOptions?: ItemCraftOption[]; notchExchange?: YegerNotchExchangeLookupResult } = {}
+  options: {
+    craftOptions?: ItemCraftOption[];
+    notchExchange?: YegerNotchExchangeLookupResult;
+    questMarkers?: QuestMarkerInput | null;
+  } = {}
 ): InlineKeyboard {
   if (result.state === "not-started") {
     return new InlineKeyboard()
@@ -216,16 +231,16 @@ export function buildYegerTurnInKeyboard(
   return keyboard
     .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
-    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+    .text(buildBackToBarrelLabel(options), makePlaceCallbackData("barrel"));
 }
 
-export function buildYegerHelpKeyboard(): InlineKeyboard {
+export function buildYegerHelpKeyboard(options: YegerNavigationOptions = {}): InlineKeyboard {
   return new InlineKeyboard()
     .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))
     .row()
-    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+    .text(buildBackToBarrelLabel(options), makePlaceCallbackData("barrel"));
 }
 
 function inProgressKeyboard(
@@ -280,4 +295,38 @@ function presentNotchExchangeButtonLabel(
     case "field-kit":
       return "🧰 2 риски на аптечку";
   }
+}
+
+function buildBackToBarrelLabel(options: YegerNavigationOptions): string {
+  return decorateButtonLabel("🛢️ До Бочки", resolveBackToBarrelMarker(options.questMarkers));
+}
+
+function resolveBackToBarrelMarker(questMarkers: QuestMarkerInput | null | undefined): QuestMarker {
+  const input = questMarkers ?? undefined;
+
+  if (!input) {
+    return QuestMarker.NONE;
+  }
+
+  return mergeQuestMarkers([
+    resolveQuestMarkerForTarget(input, "quest.adventure"),
+    resolveQuestMarkerForTarget(input, "quest.fight"),
+    resolveQuestMarkerForTarget(input, "quest.daily-korchma-round"),
+    getTableOnlyBarrelBeerTutorialMarker(input),
+    resolveQuestMarkerForTarget(input, "location.korchma.bar"),
+    resolveQuestMarkerForTarget(input, "location.korchma.cellar")
+  ]);
+}
+
+function getTableOnlyBarrelBeerTutorialMarker(input: QuestMarkerInput): QuestMarker {
+  const marker = resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial");
+
+  if (marker === QuestMarker.NONE) {
+    return QuestMarker.NONE;
+  }
+
+  return resolveQuestMarkerForTarget(input, "location.korchma.barrel") === QuestMarker.NONE &&
+    resolveQuestMarkerForTarget(input, "location.korchma.bar") === QuestMarker.NONE
+    ? marker
+    : QuestMarker.NONE;
 }

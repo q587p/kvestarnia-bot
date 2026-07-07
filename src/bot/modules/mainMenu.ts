@@ -597,7 +597,8 @@ async function sendCurrentPresenceLocation(
   if (locationId === PRESENCE_LOCATION_KORCHMA_RANGER_CORNER) {
     await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
-      tavernRaid: services.tavern
+      tavernRaid: services.tavern,
+      ...(questMarkers ? { questMarkers } : {})
     });
     return;
   }

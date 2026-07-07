@@ -1240,7 +1240,8 @@ async function handlePlaceCallback(
     }
     await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
-      tavernRaid: services.tavern
+      tavernRaid: services.tavern,
+      ...(questMarkers ? { questMarkers } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1478,10 +1479,12 @@ async function handleTavernCallback(
     ) {
       return;
     }
+    const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
     await sendYegerCorner(ctx, yegerQuestService, "edit", {
       presence: presenceService,
       tavernRaid: tavernRaidService,
-      requireKorchmaInterior: false
+      requireKorchmaInterior: false,
+      ...(questMarkers ? { questMarkers } : {})
     });
     return;
   }
