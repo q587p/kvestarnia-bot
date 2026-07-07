@@ -25,6 +25,7 @@ Review follow-up coverage:
 - Automated quest-marker coverage confirms outside-Korchma `🚪 Зайти в корчму` gates stay unmarked without a verified active quest marker, including when the only cellar errand is on cooldown.
 - Automated direct-command coverage confirms `/tavern` resolves fresh quest markers for the hall screen, so available Korchma quests keep `⚠️` when opened by command.
 - Automated hall-keyboard coverage confirms `📋 Стіл зі справами` does not duplicate `⚠️` when the only available quest already has a visible final location button such as `🐭 Льох ⚠️`, while table-only quests still mark the table.
+- Automated quest-table command coverage confirms `🍺 До зали` stays unmarked when the currently visible `📋 Стіл зі справами` card already shows the available table quests.
 - Automated presenter coverage confirms old Shynok table-game links replay stored completed Tavlei results and show a clear not-started/refunded card for expired tables instead of the generic closed-table copy.
 
 Manual Telegram evidence still required before merge:
@@ -44,6 +45,7 @@ Manual Telegram evidence still required before merge:
 - Pending: from outside the Korchma with only the cellar on cooldown, `/fight` shows `🚪 Зайти в корчму` without `⚠️`.
 - Pending: from inside the Korchma with an available hall quest, `/tavern` shows `📋 Стіл зі справами ⚠️` or the matching available location button with `⚠️`.
 - Pending: from inside the Korchma when the only available highlighted quest is the cellar, `/tavern` shows `🐭 Льох ⚠️` and does not show `📋 Стіл зі справами ⚠️`.
+- Pending: on `📋 Стіл зі справами`, when only visible table quests such as `Підозріла шаурма`, `Новачкова сутичка` or `Обрати пригоду` are available, `🍺 До зали` has no `⚠️`.
 - Pending: pressing an old Shynok table-game link after a completed table shows the stored result, while an expired/not-started table says the game did not start and does not mutate stakes again.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
