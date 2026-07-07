@@ -12,8 +12,9 @@ Manual Telegram QA status for this polish pass: not run in this branch. Automate
 2. On a character without `Манатка натиснула кнопку`, commit one gear action in a Big Barrel Brother raid and verify the acting participant receives the notification once, while other participants receive only their own matching notification if they earned it.
 3. Repeat the same check in a turn-based duel after the gear action commits in a resolved round; queued-only choices must not notify early.
 4. Replay duplicate, stale, no-mana, cooldown and missing-grant gear callbacks; verify they refresh/replay the card without a second notification, turn advance, mana spend, cooldown tick or monster/boss response.
-5. On a remort `7+` character, start a Yeger fight and verify the intro plus active card show `Відплата за минулі пригоди`, not `Натиск Низу`; rewards and Yeger board progress should look unchanged after victory.
-6. On remort `5`, `7` or `9` characters, compare ordinary one-enemy and two-enemy threat fights: solo cards may show `Відлуння минулих пригод`, while two-enemy threat cards keep the existing `Натиск Низу` pressure language.
+5. Take `Бочка, або Туди і звідти` and verify the accept result card shows `🛢️ До Бочки ⚠️`.
+6. On a remort `7+` character, start a Yeger fight and verify the intro plus active card show `Відплата за минулі пригоди`, not `Натиск Низу`; rewards and Yeger board progress should look unchanged after victory.
+7. On remort `5`, `7` or `9` characters, compare ordinary one-enemy and two-enemy threat fights: solo cards may show `Відлуння минулих пригод`, while two-enemy threat cards keep the existing `Натиск Низу` pressure language.
 
 ## 0.2.30 — Mantok Ability Grants Foundation smoke
 

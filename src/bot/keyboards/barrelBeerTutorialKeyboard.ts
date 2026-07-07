@@ -6,6 +6,7 @@ import type {
 } from "../../services/barrelBeerTutorialService";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
+import { decorateButtonLabel, QuestMarker } from "./questButtonMarkers";
 
 type QuestState =
   | Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" | "level-locked" | "level-retired" | "completed" }>
@@ -21,7 +22,10 @@ export function buildBarrelBeerTutorialKeyboard(result: QuestState): InlineKeybo
   } else if (result.state === "turn-in-ready") {
     keyboard.text("✅ Здати Бочку", makeQuestCallbackData("barrel-tutorial-turn-in")).row();
   } else if (!progress.visitedBarrel || !progress.raidCompleted) {
-    keyboard.text("🛢️ До Бочки", makePlaceCallbackData("barrel")).row();
+    keyboard.text(
+      decorateButtonLabel("🛢️ До Бочки", QuestMarker.CAN_ACCEPT),
+      makePlaceCallbackData("barrel")
+    ).row();
   } else if (!progress.beerRoundOffered || !progress.beerDrunk || !progress.activeBeer) {
     keyboard.text("🍻 До шинку", makePlaceCallbackData("bar")).row();
   } else {
