@@ -78,7 +78,7 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Манатки донесли корчмарські квитанції");
+    expect(text).toContain("Корчма підчистила кнопки, справи й рейди");
     expect(text).toContain("бойові кнопки мають не лише працювати");
     expect(text).toContain("вдалі дії спорядження тепер доносять");
     expect(text).toContain("старі або заблоковані натискання лишаються без додаткової драми");

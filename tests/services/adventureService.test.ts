@@ -141,6 +141,12 @@ describe("AdventureService", () => {
   });
 
   it("declines race and class names in personalized adventure copy", () => {
+    const rogueManual = getAdventureProblemPoolForProfile({ classId: "class.rogue" }).find(
+      (problem) => problem.id === "class-rogue-manual"
+    );
+    const rogueUniform = getAdventureProblemPoolForProfile({ classId: "class.rogue" }).find(
+      (problem) => problem.id === "class-rogue-uniform"
+    );
     const rogueExam = getAdventureProblemPoolForProfile({ classId: "class.rogue" }).find(
       (problem) => problem.id === "class-rogue-exam"
     );
@@ -151,10 +157,14 @@ describe("AdventureService", () => {
       (problem) => problem.id === "race-elf-portrait"
     );
 
+    expect(rogueManual?.title).toBe("Підручник для злодія почав практику");
+    expect(rogueManual?.hook).toContain("Підручник для злодія");
+    expect(rogueUniform?.title).toBe("Форма для злодія не влазить у клітинку");
+    expect(rogueUniform?.hook).toContain("для злодія");
     expect(rogueExam).toMatchObject({
-      title: "Іспит для «Злодія» здає викладача",
+      title: "Іспит для злодія здає викладача",
       hook:
-        "Тест для «Злодія» так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу."
+        "Тест для злодія так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу."
     });
     expect(dwarfMug?.title).toBe("Кухоль для гостей раси гнома не проходить інструктаж");
     expect(elfPortrait).toMatchObject({

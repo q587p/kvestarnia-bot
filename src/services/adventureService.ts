@@ -1765,23 +1765,23 @@ const RACE_ADVENTURE_TEMPLATES = [
 const CLASS_ADVENTURE_TEMPLATES = [
   {
     suffix: "manual",
-    title: (characterClass: AdventureNameForms) => `Підручник для «${characterClass.genitive}» почав практику`,
+    title: (characterClass: AdventureNameForms) => `Підручник для ${characterClass.genitiveLower} почав практику`,
     hook: (characterClass: AdventureNameForms) =>
-      `Підручник для «${characterClass.genitive}» відкрився сам і тепер оцінює відвідувачів за шкалою від «ще живий» до «потребує додатку».`,
+      `Підручник для ${characterClass.genitiveLower} відкрився сам і тепер оцінює відвідувачів за шкалою від «ще живий» до «потребує додатку».`,
     client: "Учень, який хотів лише закладку"
   },
   {
     suffix: "uniform",
-    title: (characterClass: AdventureNameForms) => `Форма для «${characterClass.genitive}» не влазить у клітинку`,
+    title: (characterClass: AdventureNameForms) => `Форма для ${characterClass.genitiveLower} не влазить у клітинку`,
     hook: (characterClass: AdventureNameForms) =>
-      `У бланку професій для «${characterClass.genitive}» лишилася надто мала клітинка. Клітинка вже подала скаргу на розширення обовʼязків.`,
+      `У бланку професій для ${characterClass.genitiveLower} лишилася надто мала клітинка. Клітинка вже подала скаргу на розширення обовʼязків.`,
     client: "Канцелярія персонажів із лінійкою напереваги"
   },
   {
     suffix: "exam",
-    title: (characterClass: AdventureNameForms) => `Іспит для «${characterClass.genitive}» здає викладача`,
+    title: (characterClass: AdventureNameForms) => `Іспит для ${characterClass.genitiveLower} здає викладача`,
     hook: (characterClass: AdventureNameForms) =>
-      `Тест для «${characterClass.genitive}» так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу.`,
+      `Тест для ${characterClass.genitiveLower} так довго чекав героя, що сам почав ставити питання викладачеві й вимагати перездачу.`,
     client: "Наставник, який не готувався до взаємності"
   }
 ] as const;
