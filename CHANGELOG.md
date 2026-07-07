@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `📜 Хроніки Квестарні` now records completed raid outcomes for solo Barrel raids and Big Barrel Brother group raids; `⚔️ Бої` includes both wins and losses, while `⭐ Важливе` only promotes group raid victories.
 - The persistent main menu now includes a direct `🛡️ Спорядження` button directly under `👤 Персонаж`, opening the existing equipment screen without going through `🎒 Манатки`.
 - Outside-Korchma quest gates no longer mark `🚪 Зайти в корчму` by default when no verified active quest marker exists, so a cooldown-only cellar errand cannot imply fresh quests inside; direct `/tavern` hall cards now resolve the same quest marker snapshot as place callbacks, while the hall `📋 Стіл зі справами` button no longer duplicates `⚠️` for quests already visible on final location buttons such as `🐭 Льох`.
+- Old Shynok table-game links now replay stored Tavlei/Kosti/Dice Poker results when the table completed, or say that the table did not start and stakes were returned when it closed before play, instead of only saying the table is closed.
 
 ### Changed
 - Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.

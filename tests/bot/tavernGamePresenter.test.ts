@@ -712,6 +712,87 @@ describe("tavern game presenter", () => {
     expect(text).not.toContain("Стара кнопка від старих костей");
   });
 
+  it("replays stored Tavlei results from closed table links", () => {
+    const text = presentTavernGameActionResult({
+      state: "closed",
+      session: session({
+        gameKey: "tavlei",
+        status: "completed",
+        stakeGold: 13,
+        potGold: 26,
+        result: {
+          gameKey: "tavlei",
+          outcome: "win",
+          potGold: 26,
+          payouts: { "character-2": 26 },
+          refunds: {},
+          players: [
+            {
+              participantId: "participant-1",
+              characterId: "character-1",
+              name: "Тест",
+              tactic: "careful_defense"
+            },
+            {
+              participantId: "participant-2",
+              characterId: "character-2",
+              name: "Shannar de Kassal",
+              tactic: "sharp_opening"
+            }
+          ],
+          winnerCharacterId: "character-2",
+          winnerName: "Shannar de Kassal",
+          loserName: "Тест",
+          narrativeKey: "sharp_opening:careful_defense"
+        },
+        participants: [
+          participant({ payoutGold: 0, refundedGold: 0, stakeGold: 13 }),
+          participant({
+            id: "participant-2",
+            characterId: "character-2",
+            telegramUserId: 43n,
+            displayName: "Shannar de Kassal",
+            payoutGold: 26,
+            refundedGold: 0,
+            stakeGold: 13
+          })
+        ]
+      })
+    });
+
+    expect(text).toContain("♟ Тавлеї завершено.");
+    expect(text).toContain("🏆 Перемога: <b>Shannar de Kassal</b>");
+    expect(text).toContain("💰 Виграш: <b>26 зол.</b>");
+    expect(text).not.toContain("Цей стіл уже закритий.");
+  });
+
+  it("explains closed table links that never started", () => {
+    const text = presentTavernGameActionResult({
+      state: "closed",
+      session: session({
+        gameKey: "kosti",
+        status: "expired_refund",
+        stakeGold: 13,
+        potGold: 13,
+        result: {
+          kind: "expired_refund",
+          refundedGold: 13
+        },
+        participants: [participant({
+          status: "left_refunded",
+          stakeGold: 13,
+          payoutGold: 0,
+          refundedGold: 13
+        })]
+      })
+    });
+
+    expect(text).toContain("🎲 Кості не стартували.");
+    expect(text).toContain("Стіл закрився до початку партії.");
+    expect(text).toContain("💰 Ставки повернено: <b>13 зол.</b>");
+    expect(text).not.toContain("Цей стіл уже закритий.");
+  });
+
   it("does not present legacy create cooldown as an active pause", () => {
     const text = presentTavernGameActionResult({
       state: "cooldown",
