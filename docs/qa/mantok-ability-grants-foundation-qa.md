@@ -15,6 +15,7 @@ Review follow-up coverage:
 - Automated nearby-menu coverage confirms the `👀 Хто поруч` -> `🗡️ Тиха кишеня` callback opens the Rogue card, and unknown callback payloads answer with the existing invalid-button alert instead of leaving Telegram blinking silently.
 - Automated keyboard coverage confirms an active Barrel card does not mark `⬅️ До зали` when the only outstanding quest marker is the Barrel tutorial step already available at the Barrel.
 - Automated content/economy coverage confirms high-enhancement generated manatky stay under the new soft `goldValue` cap while sale, level-exchange and Mantok Chest domain tests still pass.
+- Automated balance/presenter coverage confirms persistent PvE remort monster pressure starts only after the third remort, keeps encounter levels stable, covers remorts `5`, `7` and `9` in one-enemy and two-enemy threat simulations, and labels solo Yeger pressure as `Відплата за минулі пригоди` without `Натиск Низу` wording.
 
 Manual Telegram evidence still required before merge:
 
@@ -23,6 +24,7 @@ Manual Telegram evidence still required before merge:
 - Pending: ordinary two-enemy persistent fight gear action keeps the active card and `📜 Журнал бою` readable after the committed gear turn.
 - Pending live evidence: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not. Automated 0.2.31 coverage now pins the service-to-Telegram notification bridge.
 - Pending: `/lore` opens `📖 Перекази Квестарні` on the local bot and remains absent from the Telegram side command menu.
+- Pending: remort `7+` Yeger fight card shows `Відплата за минулі пригоди` on the intro and active card; ordinary two-enemy threat fights still use `Натиск Низу`.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
    - Combat-action QA ids:

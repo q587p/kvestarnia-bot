@@ -9,6 +9,7 @@ import {
   getTerminalCombatTurnLogEventId,
   normalizeCombatEnemies,
   presentActiveMonsterRuntimeEffectNotices,
+  type CombatState,
   type CombatTurnLogEntry,
   type CombatTurnSummary
 } from "../../domain/combat";
@@ -259,6 +260,10 @@ export function presentPersistentFightIntro(
   const threatLines = presentThreatEscalationLines(result.session.state);
   if (threatLines.length > 0) {
     lines.push("", ...threatLines);
+  }
+  const remortPressureLines = presentRemortMonsterPressureLines(result.session.state);
+  if (remortPressureLines.length > 0) {
+    lines.push("", ...remortPressureLines);
   }
   lines.push("", ...presentPersistentFightIntroOpponents(result));
 
@@ -798,6 +803,10 @@ function presentPersistentFightState(input: {
     }),
     ...enemyRows
   ];
+  const remortPressureLines = state ? presentRemortMonsterPressureLines(state) : [];
+  if (state?.status === "active" && remortPressureLines.length > 0) {
+    lines.push("", ...remortPressureLines);
+  }
 
   if (input.statusNote) {
     lines.push("", input.statusNote);
@@ -1340,6 +1349,22 @@ function presentEnemyHpRows(
       escapeName: false
     });
   });
+}
+
+function presentRemortMonsterPressureLines(state: CombatState | null | undefined): string[] {
+  const remortCount = state?.life?.remortCount ?? 0;
+
+  if (!state || remortCount <= 3 || normalizeCombatEnemies(state).length > 1) {
+    return [];
+  }
+
+  const label = state.source === "yeger"
+    ? "Відплата за минулі пригоди"
+    : "Відлуння минулих пригод";
+
+  return [
+    `🧿 <i>${label}:</i> монстр бʼється з поправкою на ремортну памʼять.`
+  ];
 }
 
 function presentShortMonsterName(name: string | null | undefined, fallback: string): string {

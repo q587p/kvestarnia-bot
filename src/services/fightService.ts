@@ -4055,14 +4055,21 @@ export class FightService {
       locationTags: buildPersistentFightLocationTags(input.source)
     });
     const monsterContext = resolveMonsterContext({ monster: input.monster, world: worldContext });
+    const remortCount = input.character.remortCount ?? 0;
+    const hasExtraMonsters = (input.extraMonsters?.length ?? 0) > 0;
     const monsterStats = applyMonsterContextToStats(
-      deriveMonsterCombatStats(input.monster),
+      deriveMonsterCombatStats(input.monster, hasExtraMonsters
+        ? {}
+        : { remortCount, remortPressureMode: "single" }),
       monsterContext
     );
     const extraMonsterStats = (input.extraMonsters ?? []).map(({ monster }) => {
       const context = resolveMonsterContext({ monster, world: worldContext });
 
-      return applyMonsterContextToStats(deriveMonsterCombatStats(monster), context);
+      return applyMonsterContextToStats(
+        deriveMonsterCombatStats(monster, { remortCount, remortPressureMode: "multi" }),
+        context
+      );
     });
     const state = startCombat({
       id: input.sessionId,
@@ -4080,7 +4087,7 @@ export class FightService {
     state.source = input.source;
     state.life = freezeCombatLife({
       characterId: input.character.id,
-      remortCount: input.character.remortCount ?? 0,
+      remortCount,
       now: input.now
     });
     state.settlement = {

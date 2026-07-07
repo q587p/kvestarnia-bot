@@ -51,7 +51,7 @@ They are not active tasks unless a human explicitly reopens a follow-up.
 Recently shipped:
 
 - [0.2.30-mantok-ability-grants-foundation.md](0.2.30-mantok-ability-grants-foundation.md) — Mantok ability-grant foundation with persistent PvE gear actions, compact callbacks, visible bleed and additive high-level loot.
-- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow Mantok Ability Grants post-merge polish for first-use gear-action notification delivery in Big Barrel Brother raids and turn-based duels, plus silent callback, Barrel quest-marker and generated-price hardening.
+- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow Mantok Ability Grants post-merge polish for first-use gear-action notification delivery in Big Barrel Brother raids and turn-based duels, plus silent callback, Barrel quest-marker, generated-price and remort PvE pressure hardening.
 
 Near-term next tasks:
 
