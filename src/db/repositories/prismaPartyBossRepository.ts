@@ -14,6 +14,7 @@ import {
   resolvePartyBossRound,
   type PartyBossActionKey,
   type PartyBossCombatItemInput,
+  type PartyBossParticipantActionSummary,
   type PartyBossResult,
   type PartyBossRewardSnapshot,
   type PartyBossState
@@ -741,7 +742,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       let achievementEvents: PartyBossAchievementEventRecord[] = actionInputs.flatMap((action) =>
         action.action === "item" && action.item
           ? buildPartyBossItemActionAchievementEvents(session, action, action.item, input.now)
-          : []
+          : buildPartyBossGearActionAchievementEvents(
+              session,
+              action,
+              resolved.round.actions.find((entry) => entry.characterId === action.characterId),
+              input.now
+            )
       );
       if (status !== "active") {
         achievementEvents = [
@@ -764,6 +770,30 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         : null;
     });
   }
+}
+
+function buildPartyBossGearActionAchievementEvents(
+  session: PartyBossRow,
+  action: QueuedPartyBossActionInput,
+  summary: PartyBossParticipantActionSummary | undefined,
+  occurredAt: Date
+): PartyBossAchievementEventRecord[] {
+  if (
+    action.action !== "gear" ||
+    !action.gearAbility ||
+    summary?.action !== "gear" ||
+    summary.outcome === "not-enough-mana" ||
+    summary.outcome === "skill-on-cooldown"
+  ) {
+    return [];
+  }
+
+  return [{
+    type: "mantok.gear-action.used",
+    characterId: action.characterId,
+    sourceId: `${session.id}:turn:${session.turn}:gear:${action.id}`,
+    occurredAt
+  }];
 }
 
 async function settleTerminalPartyBoss(

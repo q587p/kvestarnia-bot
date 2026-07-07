@@ -485,6 +485,25 @@ describe("AchievementService", () => {
     ]);
   });
 
+  it("unlocks the first Mantok gear-action achievement from a committed gear event", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    const event = {
+      type: "mantok.gear-action.used" as const,
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-07T09:11:00.000Z"),
+      sourceId: "session-1:turn:1:gear:mantok-ability.red-line-dagger"
+    };
+
+    const first = await service.trackEvent(event);
+    const second = await service.trackEvent(event);
+
+    expect(first.map((unlock) => unlock.id)).toEqual([
+      "achievement.mantok.gear-action.first"
+    ]);
+    expect(second).toEqual([]);
+  });
+
   it("unlocks simple ledger-backed triggers immediately and snapshots their thresholds", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({

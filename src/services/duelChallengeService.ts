@@ -33,6 +33,7 @@ import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
+import type { AchievementService } from "./achievementService";
 import type { NearbyDuelTargetValidator } from "./presenceService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
@@ -200,7 +201,8 @@ export class DuelChallengeService {
     private readonly characters: CharacterRepository,
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly nearbyDuelTargets?: NearbyDuelTargetValidator
+    private readonly nearbyDuelTargets?: NearbyDuelTargetValidator,
+    private readonly achievements?: AchievementService
   ) {}
 
   async createOpenChallengeForTelegramUser(
@@ -723,7 +725,11 @@ export class DuelChallengeService {
       }
     );
 
-    return updated ? { state: "updated", session: updated } : { state: "stale", session };
+    if (!updated) {
+      return { state: "stale", session };
+    }
+
+    return { state: "updated", session: updated };
   }
 
   private async tryResolveTurnBasedAction(
@@ -787,7 +793,20 @@ export class DuelChallengeService {
       }
     );
 
-    return updated ? { state: "updated", session: updated } : { state: "stale", session };
+    if (!updated) {
+      return { state: "stale", session };
+    }
+
+    if (action === "gear") {
+      await this.achievements?.trackEventSafely({
+        type: "mantok.gear-action.used",
+        characterId: actorCharacterId,
+        occurredAt: now,
+        sourceId: `${updated.id}:turn:${session.turn}:gear:${gearAbility?.profile.id ?? "unknown"}`
+      });
+    }
+
+    return { state: "updated", session: updated };
   }
 
   async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {

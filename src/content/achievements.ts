@@ -31,6 +31,7 @@ export const achievementTriggerTypes = [
   "item.crafted",
   "item.used",
   "equipment.item_equipped",
+  "mantok.gear-action.used",
   "starter.mimic-shawarma.completed",
   "starter.mimic-shawarma.probe.completed",
   "cellar.mouse.completed",
@@ -938,6 +939,17 @@ export const achievements = [
     trigger: { type: "equipment.item_equipped", threshold: 93, countMode: "cumulative" },
     progressTarget: 93,
     cosmeticTitleGrantId: "cosmetic-title.ninety-three-fittings"
+  },
+  {
+    id: "achievement.mantok.gear-action.first",
+    category: "gear",
+    title: "Манатка натиснула кнопку",
+    description: "уперше застосувати бойову дію з манатки й дати спорядженню привід пишатися.",
+    hidden: false,
+    lockedDescription: "уперше застосувати бойову дію з манатки.",
+    sortOrder: 83.6,
+    status: "enabled",
+    trigger: { type: "mantok.gear-action.used", threshold: 1 }
   },
   {
     id: "achievement.item.twenty-three-owned",

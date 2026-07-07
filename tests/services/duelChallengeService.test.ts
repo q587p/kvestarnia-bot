@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
@@ -17,6 +17,7 @@ import type {
 import type { CharacterEquipmentRecord } from "../../src/db/repositories/equipmentRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import type { AchievementService } from "../../src/services/achievementService";
 import type { NearbyDuelTargetValidator } from "../../src/services/presenceService";
 import { FakeRandomSource } from "../../src/shared/random";
 
@@ -1169,7 +1170,13 @@ describe("DuelChallengeService", () => {
       equipment: [makeEquipment("item.set.red-line.left-dagger")]
     });
     world.addCharacter(2n, { level: 10 });
-    const service = buildService(world);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
+    const service = buildService(
+      world,
+      fixedNow,
+      undefined,
+      { trackEventSafely } as unknown as AchievementService
+    );
     const created = await service.createOpenChallengeForTelegramUser(1n, {
       ignoreResourceWarning: true,
       mode: "turn-based"
@@ -1227,6 +1234,13 @@ describe("DuelChallengeService", () => {
         })
       ])
     );
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    expect(trackEventSafely).toHaveBeenCalledWith({
+      type: "mantok.gear-action.used",
+      characterId: "character-1",
+      occurredAt: fixedNow(),
+      sourceId: `${secondAction.session.id}:turn:${accepted.session.turn}:gear:gear.red-line-dagger`
+    });
   });
 
   it("treats turn-based duel gear callbacks without the equipped grant as stale", async () => {
@@ -1590,14 +1604,16 @@ describe("DuelChallengeService", () => {
 function buildService(
   world: FakeDuelWorld,
   clock = fixedNow,
-  nearbyDuelTargets?: NearbyDuelTargetValidator
+  nearbyDuelTargets?: NearbyDuelTargetValidator,
+  achievements?: AchievementService
 ): DuelChallengeService {
   return new DuelChallengeService(
     world,
     world,
     clock,
     new FakeRandomSource([0.5]),
-    nearbyDuelTargets
+    nearbyDuelTargets,
+    achievements
   );
 }
 

@@ -44,6 +44,12 @@ describe("PartyBossService achievements", () => {
           itemId: "item.field-kit",
           sourceId: "boss-action-2",
           occurredAt
+        },
+        {
+          type: "mantok.gear-action.used",
+          characterId: "character-gear",
+          sourceId: "boss-action-3",
+          occurredAt
         }
       ]
     };
@@ -59,7 +65,7 @@ describe("PartyBossService achievements", () => {
 
     await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
 
-    expect(trackEventSafely).toHaveBeenCalledTimes(4);
+    expect(trackEventSafely).toHaveBeenCalledTimes(5);
     expect(trackEventSafely).toHaveBeenNthCalledWith(1, {
       type: "barrel.raid.claimed",
       characterId: "character-leader",
@@ -84,6 +90,12 @@ describe("PartyBossService achievements", () => {
       itemId: "item.field-kit",
       occurredAt,
       sourceId: "boss-action-2"
+    });
+    expect(trackEventSafely).toHaveBeenNthCalledWith(5, {
+      type: "mantok.gear-action.used",
+      characterId: "character-gear",
+      occurredAt,
+      sourceId: "boss-action-3"
     });
   });
 

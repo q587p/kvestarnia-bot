@@ -10,6 +10,7 @@ This slice adds choices, not a broad power spike.
 - Bleed: current bleed is tiny visible chip damage, refresh-only and capped by remaining hero activations. It can finish combat, but only status-terminal kills suppress an extra monster response.
 - Duels: turn-based duels may use eligible gear actions, but quick duels remain instant and ignore gear-action buttons. The slice adds no item theft, wager, extra PvP reward or quick-duel gear expansion.
 - Party boss: Big Barrel gear support can reduce the incoming boss hit or restore a small amount of HP, but it does not change boss rewards, loss cooldowns, raid eligibility, one-use item economy or settlement ledgers.
+- Achievements: the first-use gear-action achievement is rewardless and grants no XP, gold, items, title power, stats, combat power, loot odds or quest progress.
 - Yeger cloak: the cloak is a documented service-perk marker only in this slice. It does not unlock dense bandages, field kits or Yeger boards.
 - Loot: grant items are low-weight additive monster loot entries and do not replace base, trophy, coverage or set-piece loot.
 

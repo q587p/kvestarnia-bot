@@ -56,6 +56,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "guild")).toBe(false);
     expect(commands.some((entry) => entry.command === "restart")).toBe(false);
     expect(commands.some((entry) => entry.command === "version")).toBe(false);
+    expect(commands.some((entry) => entry.command === "lore")).toBe(false);
     expect(commands.some((entry) => entry.command === "chronicles")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_help")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_party")).toBe(false);
@@ -89,13 +90,22 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_reset_tavern_games")).toBe(false);
   });
 
-  it("lists /chronicles in help without adding it to the side menu", () => {
+  it("lists /lore and /chronicles in help without adding them to the side menu", () => {
+    expect(getHelpCommandEntries(false).find((entry) => entry.command === "lore"))
+      .toMatchObject({
+        icon: "🗂️",
+        description: "Перекази Квестарні",
+        includeInMenu: false
+      });
     expect(getHelpCommandEntries(false).find((entry) => entry.command === "chronicles"))
       .toMatchObject({
         icon: "📣",
         description: "останні події",
         includeInMenu: false
       });
+    expect(getTelegramMenuCommands(false).some((entry) => entry.command === "lore")).toBe(
+      false
+    );
     expect(getTelegramMenuCommands(false).some((entry) => entry.command === "chronicles")).toBe(
       false
     );

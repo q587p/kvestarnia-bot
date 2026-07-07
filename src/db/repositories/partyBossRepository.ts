@@ -42,6 +42,12 @@ export type PartyBossAchievementEventRecord =
       occurredAt: Date;
     }
   | {
+      type: "mantok.gear-action.used";
+      characterId: string;
+      sourceId: string;
+      occurredAt: Date;
+    }
+  | {
       type: "item.used";
       characterId: string;
       itemId: string;

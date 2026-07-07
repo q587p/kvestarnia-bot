@@ -547,6 +547,7 @@ function getEventProgress(definition: AchievementDefinition, event: AchievementE
   if (
     definition.trigger.type === "achievement.list.opened" ||
     definition.trigger.type === "character.created" ||
+    definition.trigger.type === "mantok.gear-action.used" ||
     definition.trigger.type === "item.crafted" ||
     definition.trigger.type === "item.used"
   ) {
@@ -670,6 +671,8 @@ function getRecalculationProgress(
       return getActivityDates(definition, snapshot).length;
     case "equipment.item_equipped":
       return snapshot.equippedItemCount;
+    case "mantok.gear-action.used":
+      return getActivityDates(definition, snapshot).length;
     case "item.used":
       return getActivityDates(definition, snapshot).length;
     case "cosmetic-title.selected":
@@ -808,6 +811,7 @@ function getRecalculationOccurredAt(
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "barrel.raid.bandage-used":
+    case "mantok.gear-action.used":
     case "korchma.round.purchased":
     case "tavern.game.played":
     case "tavern.game.won":
@@ -909,6 +913,7 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "barrel.raid.bandage-used":
+    case "mantok.gear-action.used":
     case "korchma.round.purchased":
     case "tavern.game.played":
     case "tavern.game.won":

@@ -7,12 +7,16 @@ Review follow-up coverage:
 - Automated service coverage confirms turn-based duel gear callbacks blocked by no mana or cooldown return the specific gate state without mutating the duel.
 - Automated command coverage confirms those blocked duel gear callbacks answer with reason-specific callback notices.
 - Automated keyboard coverage confirms the Big Barrel one-use item shortcut stays hidden unless the caller explicitly enables the item menu.
+- Automated achievement coverage confirms committed persistent PvE, party-boss and turn-based duel gear-action events can reach the rewardless first-use achievement hook.
+- Automated help/lore coverage confirms `/lore` opens the existing `📖 Перекази` board, is listed in `/help`, is not added to the side menu, and `🎒 Манатки` lore names visible `Дія спорядження`.
 
 Manual evidence still required before merge:
 
 - Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and does not create a second effect.
 - Pending: turn-based duel stale gear callback refreshes/replays the current card without advancing the duel.
 - Pending: ordinary two-enemy persistent fight gear action applies the effect, keeps the multi-enemy state readable, and writes the combat journal row.
+- Pending: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not.
+- Pending: `/lore` opens `📖 Перекази Квестарні` on the local bot and remains absent from the Telegram side command menu.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
    - Combat-action QA ids:
@@ -39,5 +43,7 @@ Manual evidence still required before merge:
 12. In the turn-based duel, verify gear callbacks parse/build correctly, stale-turn and missing-grant callbacks are stale, cooldown/mana gates hide blocked buttons, support/heal effects show in replay/result presentation, and quick duels remain instant without gear actions.
 13. Equip duplicate copies if locally possible; verify only one grant is active.
 14. Open item detail, `/equipment` and `/hero`; verify granted action/perk summaries are visible and readable, including the aggregate `Дія спорядження` row on equipment and character cards.
-15. Verify `Єгерський плащ чужої справи` does not expose dense bandages, field kits or Yeger boards.
-16. Win fights against configured source monsters and verify new grants can appear without removing existing trophy/coverage/set drops.
+15. Use the first successful gear action on a character that has not earned `Манатка натиснула кнопку`; verify the achievement notification appears once, then repeat/stale/blocked callbacks do not repeat it.
+16. Run `/lore`; verify it opens `📖 Перекази Квестарні`. Open `🎒 Манатки`; verify the copy says rare manatky can grant visible `Дія спорядження` and does not imply hidden procs.
+17. Verify `Єгерський плащ чужої справи` does not expose dense bandages, field kits or Yeger boards.
+18. Win fights against configured source monsters and verify new grants can appear without removing existing trophy/coverage/set drops.

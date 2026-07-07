@@ -2490,6 +2490,14 @@ export class FightService {
         : null;
 
     const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const achievementUnlocks = input.action === "gear" && grant
+      ? (await this.achievements?.trackEventSafely({
+          type: "mantok.gear-action.used",
+          characterId: currentSession.characterId,
+          occurredAt: this.clock(),
+          sourceId: `${updated.id}:turn:${input.turn}:gear:${grant.id}`
+        })) ?? []
+      : [];
 
     return {
       state: "updated",
@@ -2497,7 +2505,8 @@ export class FightService {
       session: updated,
       monster,
       questProgress: refreshedQuestProgress,
-      fightReward
+      fightReward,
+      achievementUnlocks
     };
   }
 

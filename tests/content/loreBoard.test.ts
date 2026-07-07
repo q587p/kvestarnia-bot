@@ -194,6 +194,14 @@ describe("lore board content", () => {
     expect(crafting?.body).toContain("Польову аптечку");
   });
 
+  it("keeps manatky lore aligned with visible gear-action grants", () => {
+    const general = loreEntries.find((entry) => entry.id === "loot-mantok-definition");
+
+    expect(general?.body).toContain("Дія спорядження");
+    expect(general?.body).toContain("бойового трюку");
+    expect(general?.body).not.toContain("таємний");
+  });
+
   it("detects broken lore records", () => {
     expect(validateLoreBoardContent({
       categories: loreCategories,

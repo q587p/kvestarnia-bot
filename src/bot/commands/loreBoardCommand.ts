@@ -1,4 +1,4 @@
-import type { Context } from "grammy";
+import type { Bot, Context } from "grammy";
 import {
   getLoreEntriesForCategory,
   selectRandomLoreEntry,
@@ -14,6 +14,12 @@ import {
   type LoreBoardPage
 } from "../presenters/loreBoardPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+
+export function registerLoreBoardCommand(bot: Bot): void {
+  bot.command("lore", async (ctx) => {
+    await sendLoreMenu(ctx, "reply");
+  });
+}
 
 export async function sendLoreMenu(
   ctx: Context,

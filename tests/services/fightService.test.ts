@@ -2191,6 +2191,12 @@ describe("FightService", () => {
     characters.add(telegramUserId, { level: 10, xp: 1000, manaCurrent: 10, manaMax: 10 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([{
+      id: "achievement.mantok.gear-action.first",
+      title: "Манатка натиснула кнопку",
+      cosmeticTitleGrantId: null,
+      unlockedAt: fixedClock()
+    }]);
     const equipment = new FakeEquipmentRepository({
       characterId: "character-42",
       equipment: [buildEquipment({ slot: "weapon", itemId: "item.set.red-line.left-dagger" })]
@@ -2201,7 +2207,8 @@ describe("FightService", () => {
       clock: fixedClock,
       combatSessions: sessions,
       rng: new FakeRandomSource([0.1, 0.9, 0.99, 0.99, 0.99]),
-      equipment
+      equipment,
+      achievements: { trackEventSafely } as unknown as AchievementService
     });
     const started = await service.getFightForTelegramUser(telegramUserId, {
       enemyCount: 2,
@@ -2229,7 +2236,16 @@ describe("FightService", () => {
         abilitySource: "equipment"
       });
       expect(normalizeCombatEnemies(result.session.state!)).toHaveLength(2);
+      expect(result.achievementUnlocks?.map((unlock) => unlock.id)).toEqual([
+        "achievement.mantok.gear-action.first"
+      ]);
     }
+    expect(trackEventSafely).toHaveBeenCalledWith({
+      type: "mantok.gear-action.used",
+      characterId: "character-42",
+      occurredAt: fixedClock(),
+      sourceId: `${started.session.id}:turn:1:gear:mantok-ability.red-line-dagger`
+    });
     expect(sessions.updateCount).toBe(1);
   });
 

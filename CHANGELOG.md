@@ -17,6 +17,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added equipment-sourced combat profiles for reinforced defense, small bleed strikes and weaker borrowed class/race-style actions that do not count as native class or race actions.
 - Added a narrow visible bleed status family that ticks during committed hero activations and can settle combat without an extra monster response when the status itself defeats the final enemy.
 - Added item-detail, equipment-surface and hero-card summaries for granted actions and service-perk markers.
+- Added the rewardless first-use achievement `achievement.mantok.gear-action.first` for committed combat actions granted by manatky.
+- Added `/lore` as a help-listed shortcut to the existing `📖 Перекази Квестарні` board without adding it to the Telegram side menu.
 - Added focused registry, callback, combat-engine and presenter tests for compact keys, collision safety, cooldown/mana behavior, bleed settlement and visible grant copy.
 
 ### Changed
@@ -26,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Shared combat action/effect presenter helpers now format gear-action skill labels and support-effect rows for ordinary fights, Big Barrel Brother raids and turn-based duels instead of hand-rolling the same copy in each surface.
 - Combat turn logs and fight cards can surface active bleed status notices alongside existing monster runtime effects.
 - Updated docs, balance notes, playtesting notes and compact Codex context for the shipped Mantok ability-grant foundation.
+- Updated `📖 Перекази` manatky lore so rare ability-granting manatky are described as visible `Дія спорядження`, not hidden procs.
 - Bumped package metadata to `0.2.30` after `0.2.29` shipped from `main`.
 
 ### Fixed

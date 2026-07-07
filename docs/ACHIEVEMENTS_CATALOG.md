@@ -11,11 +11,11 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 133 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 134 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
-Immediate unlock hooks currently run from successful action boundaries that already emit achievement events: character creation, opening the achievement list, opening the latest-events feed, level/item/equipment events, item crafting and use, combat reward paths, problem-chain turn-in and local dev level/item grants. These can notify the player at action time when a definition is newly earned.
+Immediate unlock hooks currently run from successful action boundaries that already emit achievement events: character creation, opening the achievement list, opening the latest-events feed, level/item/equipment events, item crafting and use, committed Mantok gear actions, combat reward paths, problem-chain turn-in and local dev level/item grants. These can notify the player at action time when a definition is newly earned.
 
 Manual recalculation through `🔎 Перевірити` remains the broader idempotent backfill path for durable ledger rows and older characters: current identity, identities selected during stored remorts, remort, starter/cellar/Yeger/adventure daily rows, training/Doppleganger, duels, Barrel, Shynok beer rounds, daily Korchma rounds, tavern table games, gifts, sales, drinks, passage search, hunt contracts, special stored fight outcomes and similar rows proven from persisted state. These rows may appear only after the manual check unless the current runtime flow also emits a direct event. The very first pre-remort identity can only be recovered if it is still the current identity or a future durable snapshot exists; old rows before that snapshot are not guessed.
 
@@ -92,6 +92,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.equipment.three-equipped` | enabled | visible | `equipment.item_equipped >= 3` | Образ уже має інвентарний номер | вдягнути 3 манатки й виглядати як службова перевірка пригод. |
 | `achievement.equipment.all-slots-equipped` | enabled | visible | `equipment.item_equipped current slots >= 7` | Усі гачки при справі | вдягнути манатки в усі підготовлені слоти й зробити вигляд, що це не шафа, а бойова концепція. |
 | `achievement.equipment.ninety-three-equipped-total` | enabled | hidden | `equipment.item_equipped cumulative >= 93` | Девʼяносто три примірки без протоколу | сумарно екіпірувати 93 манатки й довести, що гачки теж можуть вигоріти. |
+| `achievement.mantok.gear-action.first` | enabled | visible | `mantok.gear-action.used >= 1` | Манатка натиснула кнопку | уперше застосувати бойову дію з манатки й дати спорядженню привід пишатися. |
 | `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |
 | `achievement.item.forty-two-owned` | enabled | visible | `item.received >= 42` | Сорок дві манатки відповіли | мати 42 манатки в торбі й не питати, на яке саме питання вони відповіли. |
 | `achievement.item.ninety-three-owned` | enabled | visible | `item.received >= 93` | Девʼяносто три докази торби | мати 93 манатки в торбі й виглядати як пересувний склад пригод. |

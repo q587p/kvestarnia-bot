@@ -21,6 +21,7 @@ describe("help command", () => {
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain("📖 Допомога Квестарні");
     expect(replies[0]).toContain("/start");
+    expect(replies[0]).toContain("/lore");
     expect(replies[0]).toContain("/help");
     expect(replies[0]).toContain("/support");
     expect(replies[0]).toContain("Останні події");
