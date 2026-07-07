@@ -60,6 +60,7 @@ Near-term next tasks:
 - [0.2.x-turn-based-duel-journal.md](0.2.x-turn-based-duel-journal.md) — draft follow-up for a paginated `📜 Журнал дуелі` over resolved turn-based duel rounds without leaking unresolved private choices.
 - [0.2.34-rogue-reputation-location-risk.md](0.2.34-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
 - [0.2.35-quest-overview-route.md](0.2.35-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
+- [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
