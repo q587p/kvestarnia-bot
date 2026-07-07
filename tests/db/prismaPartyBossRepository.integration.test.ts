@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { findMantokAbilityGrantByKey } from "../../src/content";
 import { PrismaPartyBossRepository } from "../../src/db/repositories/prismaPartyBossRepository";
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import type {
@@ -589,6 +590,95 @@ describe("PrismaPartyBossRepository integration", () => {
         itemId: "item.responsible-panic-bandage"
       }
     })).toBe(0);
+  });
+
+  it("treats duplicate Big Barrel gear actions as a single queued support effect", async () => {
+    const grant = findMantokAbilityGrantByKey("bcshield");
+    if (!grant?.combat) {
+      throw new Error("Expected barrel shield combat grant.");
+    }
+
+    await seedCharacter(prisma, "duplicate-gear-leader-user", 1191n, "Щитова Лідерка", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      strength: 20,
+      equipment: [{ slot: "offhand", itemId: "item.set.barrel-brother.shield" }]
+    });
+    await seedCharacter(prisma, "duplicate-gear-joiner-user", 1192n, "Свідок Щита", {
+      level: 10,
+      hpCurrent: 60,
+      hpMax: 60,
+      strength: 20
+    });
+    await partyRepository.createForTelegramUser(1191n, partyInput("party-token-duplicate-gear"));
+    await partyRepository.joinByTokenForTelegramUser(1192n, "party-token-duplicate-gear", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1191n, {
+      partyInviteToken: "party-token-duplicate-gear",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const gearAbility = { profile: grant.combat.profile };
+    const queued = await bossRepository.submitActionForTelegramUser(
+      1191n,
+      "party-token-duplicate-gear",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility }
+    );
+    const duplicate = await bossRepository.submitActionForTelegramUser(
+      1191n,
+      "party-token-duplicate-gear",
+      1,
+      "gear",
+      resolveInput(),
+      { gearAbility }
+    );
+
+    expect(queued.state).toBe("queued");
+    expect(duplicate.state).toBe("duplicate");
+    expect(duplicate.achievementEvents).toBeUndefined();
+    expect(await prisma.partyBossAction.count({
+      where: {
+        sessionId: expectPartyBossSession(queued).id,
+        actorCharacterId: "duplicate-gear-leader-user-character"
+      }
+    })).toBe(1);
+
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      1192n,
+      "party-token-duplicate-gear",
+      1,
+      "defend",
+      resolveInput()
+    );
+    const latest = expectPartyBossSession(resolved);
+    const round = latest.state.roundLog.at(-1);
+    const leaderGearActions = round?.actions.filter(
+      (action) => action.characterId === "duplicate-gear-leader-user-character" && action.action === "gear"
+    ) ?? [];
+    const leaderAfter = latest.state.participants.find(
+      (participant) => participant.characterId === "duplicate-gear-leader-user-character"
+    );
+
+    expect(resolved.state).toBe("resolved");
+    expect(leaderGearActions).toHaveLength(1);
+    expect(leaderGearActions[0]).toMatchObject({
+      skillId: "gear.barrel-counter-shield",
+      guard: 2,
+      manaSpent: 0
+    });
+    expect(Object.keys(leaderAfter?.resources.cooldowns?.abilities ?? {})).toEqual(["gear.barrel-counter-shield"]);
+    expect(resolved.achievementEvents).toEqual([
+      expect.objectContaining({
+        type: "mantok.gear-action.used",
+        characterId: "duplicate-gear-leader-user-character"
+      })
+    ]);
   });
 
   it("does not consume a party-boss field kit when raid HP is already above its threshold", async () => {

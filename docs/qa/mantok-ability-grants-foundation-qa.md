@@ -9,12 +9,13 @@ Review follow-up coverage:
 - Automated keyboard coverage confirms the Big Barrel one-use item shortcut stays hidden unless the caller explicitly enables the item menu.
 - Automated achievement coverage confirms committed persistent PvE, party-boss and turn-based duel gear-action events can reach the rewardless first-use achievement hook.
 - Automated help/lore coverage confirms `/lore` opens the existing `📖 Перекази` board, is listed in `/help`, is not added to the side menu, and `🎒 Манатки` lore names visible `Дія спорядження`.
+- Automated regression coverage confirms duplicate Big Barrel gear callbacks keep one queued action/effect/cooldown/achievement event, stale turn-based duel gear callbacks do not advance the duel, and ordinary two-enemy persistent fight gear actions write a committed gear summary while preserving readable multi-enemy state.
 
-Manual evidence still required before merge:
+Manual Telegram evidence still required before merge:
 
-- Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and does not create a second effect.
+- Pending: Big Barrel Brother duplicate gear action shows `Дію вже записано.` and refreshes the raid card without a second visible effect row.
 - Pending: turn-based duel stale gear callback refreshes/replays the current card without advancing the duel.
-- Pending: ordinary two-enemy persistent fight gear action applies the effect, keeps the multi-enemy state readable, and writes the combat journal row.
+- Pending: ordinary two-enemy persistent fight gear action keeps the active card and `📜 Журнал бою` readable after the committed gear turn.
 - Pending: first committed gear action shows the achievement notification once in Telegram, while repeated/stale/blocked callbacks do not.
 - Pending: `/lore` opens `📖 Перекази Квестарні` on the local bot and remains absent from the Telegram side command menu.
 

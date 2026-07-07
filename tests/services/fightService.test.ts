@@ -2233,9 +2233,24 @@ describe("FightService", () => {
       expect(result.session.state?.lastTurn).toMatchObject({
         action: "gear",
         skillId: "gear.red-line-dagger",
-        abilitySource: "equipment"
+        abilitySource: "equipment",
+        manaSpent: 1
       });
-      expect(normalizeCombatEnemies(result.session.state!)).toHaveLength(2);
+      expect(result.session.state?.turnLog?.at(-1)).toMatchObject({
+        turn: 1,
+        summary: {
+          action: "gear",
+          skillId: "gear.red-line-dagger",
+          abilitySource: "equipment",
+          manaSpent: 1
+        }
+      });
+      expect(result.session.state?.cooldowns?.abilities?.["gear.red-line-dagger"]).toMatchObject({
+        id: "gear.red-line-dagger"
+      });
+      const enemies = normalizeCombatEnemies(result.session.state!);
+      expect(enemies).toHaveLength(2);
+      expect(enemies.every((enemy) => Number.isFinite(enemy.hp) && enemy.hp >= 0)).toBe(true);
       expect(result.achievementUnlocks?.map((unlock) => unlock.id)).toEqual([
         "achievement.mantok.gear-action.first"
       ]);
