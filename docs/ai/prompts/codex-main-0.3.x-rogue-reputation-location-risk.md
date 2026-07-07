@@ -3,7 +3,7 @@ Use $balance-review.
 Use $ukrainian-rpg-content.
 
 Implement:
-docs/tasks/0.2.33-turn-based-duel-tournaments-rewards.md
+docs/tasks/0.3.x-rogue-reputation-location-risk.md
 
 Context:
 docs/ai/context.md
@@ -15,10 +15,9 @@ Inspect changed/relevant files before broad scans.
 Run focused tests first.
 
 Scope notes:
-- Count resolved turn-based duels only.
-- Add Korchma-funded daily/weekly/monthly rewards.
-- No wagers, no item loss, no quick-duel/Rogue-retaliation counting.
-- Keep rewards capped and replay-safe.
+- Add private/durable reputation consequences for Rogue pickpocket outcomes.
+- Scale by location exposure.
+- No public shame feed, no item theft, no guard/jail system.
 
 Final output:
 - changed files

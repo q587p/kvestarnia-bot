@@ -232,7 +232,7 @@ For Telegram/gameplay changes, always consider:
 - `0.0.x` foundation is closed after `0.0.30`.
 - `0.1.x` is closed after `0.1.25` unless an emergency hotfix is needed.
 - Phase 2 direction stays Social Combat & Interactions, not a group-raid-first roadmap; the first shipped MVP is closed, and expansion continues in `0.2.x`.
-- `0.2.0` safe gifting through `0.2.31` Mantok Ability Grants Polish are shipped `0.2.x` slices; `0.2.32` Charkokovalnia / Item Upgrades is the next reserved gameplay slice unless a human re-scopes the sequence.
+- `0.2.0` safe gifting through `0.2.31` Mantok Ability Grants Polish are shipped `0.2.x` slices; `0.2.31` is the Phase 2 closeout / hardening cutline, and `0.3.0` Charkokovalnia / Item Upgrades starts the next feature line unless a human re-scopes the sequence.
 - Real PvP, trading, fuller raid mechanics, shops, crafting, and ґільдії remain small future slices unless a task explicitly targets one. Mini App UI is not a current planned slice.
 
 ## Do not promise as shipped

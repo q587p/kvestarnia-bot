@@ -1,9 +1,8 @@
 Use $kvestarnia-version-task.
-Use $balance-review.
 Use $ukrainian-rpg-content.
 
 Implement:
-docs/tasks/0.2.32-charkokovalnia-item-upgrades.md
+docs/tasks/0.3.x-quest-overview-route.md
 
 Context:
 docs/ai/context.md
@@ -15,10 +14,9 @@ Inspect changed/relevant files before broad scans.
 Run focused tests first.
 
 Scope notes:
-- Renumber from any stacked 0.2.30 branch to 0.2.32.
-- Use concrete item ids for plus variants.
-- No item-instance rewrite, no market, no auction, no paid power.
-- Keep stale/replay upgrade attempts safe.
+- Make `🗺️ Квести` a compact overview/journal surface.
+- No new quest engine or rewards.
+- Preserve existing quest-table routes and blockers.
 
 Final output:
 - changed files

@@ -55,12 +55,14 @@ Recently shipped:
 
 Near-term next tasks:
 
-- [0.2.32-charkokovalnia-item-upgrades.md](0.2.32-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP with concrete `+N` item ids and replay-safe upgrade attempts.
-- [0.2.33-turn-based-duel-tournaments-rewards.md](0.2.33-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
+Post-`0.2.31`, new feature work starts on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
+
+- [0.3.0-charkokovalnia-item-upgrades.md](0.3.0-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP with concrete `+N` item ids and replay-safe upgrade attempts.
+- [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
 - [0.2.x-turn-based-duel-journal.md](0.2.x-turn-based-duel-journal.md) — draft follow-up for a paginated `📜 Журнал дуелі` over resolved turn-based duel rounds without leaking unresolved private choices.
-- [0.2.34-rogue-reputation-location-risk.md](0.2.34-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
-- [0.2.35-quest-overview-route.md](0.2.35-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
-- [0.2.36-adventure-risk-reward-rebalance.md](0.2.36-adventure-risk-reward-rebalance.md) — future Adventure Choice balance/readability pass so method help preserves real risk/reward tradeoffs instead of collapsing into all-`майже надійно` rows.
+- [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
+- [0.3.x-quest-overview-route.md](0.3.x-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
+- [0.3.x-adventure-risk-reward-rebalance.md](0.3.x-adventure-risk-reward-rebalance.md) — future Adventure Choice balance/readability pass so method help preserves real risk/reward tradeoffs instead of collapsing into all-`майже надійно` rows.
 - [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.

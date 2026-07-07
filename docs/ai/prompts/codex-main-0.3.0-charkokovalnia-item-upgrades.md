@@ -3,7 +3,7 @@ Use $balance-review.
 Use $ukrainian-rpg-content.
 
 Implement:
-docs/tasks/0.2.34-rogue-reputation-location-risk.md
+docs/tasks/0.3.0-charkokovalnia-item-upgrades.md
 
 Context:
 docs/ai/context.md
@@ -15,9 +15,10 @@ Inspect changed/relevant files before broad scans.
 Run focused tests first.
 
 Scope notes:
-- Add private/durable reputation consequences for Rogue pickpocket outcomes.
-- Scale by location exposure.
-- No public shame feed, no item theft, no guard/jail system.
+- Retarget from any stacked 0.2.x branch to 0.3.0 after the 0.2.31 Phase 2 closeout / hardening cutline.
+- Use concrete item ids for plus variants.
+- No item-instance rewrite, no market, no auction, no paid power.
+- Keep stale/replay upgrade attempts safe.
 
 Final output:
 - changed files

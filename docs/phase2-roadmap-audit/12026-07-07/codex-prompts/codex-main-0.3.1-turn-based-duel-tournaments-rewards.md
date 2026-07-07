@@ -1,8 +1,9 @@
 Use $kvestarnia-version-task.
+Use $balance-review.
 Use $ukrainian-rpg-content.
 
 Implement:
-docs/tasks/0.2.35-quest-overview-route.md
+docs/tasks/0.3.1-turn-based-duel-tournaments-rewards.md
 
 Context:
 docs/ai/context.md
@@ -14,9 +15,10 @@ Inspect changed/relevant files before broad scans.
 Run focused tests first.
 
 Scope notes:
-- Make `🗺️ Квести` a compact overview/journal surface.
-- No new quest engine or rewards.
-- Preserve existing quest-table routes and blockers.
+- Count resolved turn-based duels only.
+- Add Korchma-funded daily/weekly/monthly rewards.
+- No wagers, no item loss, no quick-duel/Rogue-retaliation counting.
+- Keep rewards capped and replay-safe.
 
 Final output:
 - changed files
