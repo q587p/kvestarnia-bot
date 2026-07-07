@@ -7,6 +7,7 @@ import type { ItemContent, ItemTagContent } from "../content/schema";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 import {
   BANDAGE_ITEM_ID,
+  ISKROKAMIN_ITEM_ID,
   YEGER_FIRST_NOTCH_ITEM_ID,
   enrichRewardItemGrants,
   type RewardItemGrant
@@ -339,6 +340,14 @@ export class DevGrantService {
       amount,
       itemId: YEGER_FIRST_NOTCH_ITEM_ID,
       sourceKind: "dev.add_yeger_line"
+    });
+  }
+
+  async addIskrokamin(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+    return this.addSpecificItems(telegramUserId, {
+      amount,
+      itemId: ISKROKAMIN_ITEM_ID,
+      sourceKind: "dev.add_iskrokamin"
     });
   }
 

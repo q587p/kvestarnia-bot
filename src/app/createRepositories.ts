@@ -17,6 +17,7 @@ import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRep
 import { PrismaItemCraftRepository } from "../db/repositories/prismaItemCraftRepository";
 import { PrismaItemUseRepository } from "../db/repositories/prismaItemUseRepository";
 import { PrismaItemTransferRepository } from "../db/repositories/prismaItemTransferRepository";
+import { PrismaItemUpgradeRepository } from "../db/repositories/prismaItemUpgradeRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "../db/repositories/prismaKorchmaRoundPurchaseRepository";
 import { PrismaLevelBarterRepository } from "../db/repositories/prismaLevelBarterRepository";
 import { PrismaLevelMilestoneRepository } from "../db/repositories/prismaLevelMilestoneRepository";
@@ -53,6 +54,7 @@ export function createRepositories(prisma: PrismaClient) {
     huntContracts: new PrismaHuntContractRepository(prisma),
     inventory: new PrismaInventoryRepository(prisma),
     itemCraft: new PrismaItemCraftRepository(prisma),
+    itemUpgrades: new PrismaItemUpgradeRepository(prisma),
     itemUse: new PrismaItemUseRepository(prisma),
     itemTransfers: new PrismaItemTransferRepository(prisma),
     levelBarter: new PrismaLevelBarterRepository(prisma),

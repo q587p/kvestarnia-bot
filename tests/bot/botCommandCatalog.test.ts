@@ -50,6 +50,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "equipment")).toBe(false);
     expect(commands.some((entry) => entry.command === "gear")).toBe(false);
     expect(commands.some((entry) => entry.command === "equip")).toBe(false);
+    expect(commands.some((entry) => entry.command === "upgrade")).toBe(false);
     expect(commands.some((entry) => entry.command === "online")).toBe(false);
     expect(commands.some((entry) => entry.command === "games")).toBe(false);
     expect(commands.some((entry) => entry.command === "look")).toBe(false);
@@ -77,6 +78,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_add_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_dense_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_field_kit")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_add_iskrokamin")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_add_yeger_line")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_bandage_day")).toBe(false);
@@ -107,6 +109,18 @@ describe("bot command catalog", () => {
       false
     );
     expect(getTelegramMenuCommands(false).some((entry) => entry.command === "chronicles")).toBe(
+      false
+    );
+  });
+
+  it("lists Charkokovalnia in help without adding it to the side menu", () => {
+    expect(getHelpCommandEntries(false).find((entry) => entry.command === "upgrade"))
+      .toMatchObject({
+        icon: "🔨",
+        description: "Чароковальня",
+        includeInMenu: false
+      });
+    expect(getTelegramMenuCommands(false).some((entry) => entry.command === "upgrade")).toBe(
       false
     );
   });
@@ -159,6 +173,7 @@ describe("bot command catalog", () => {
     expect(resetOnly.some((entry) => entry.command === "dev_raid_win")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_add_level")).toBe(false);
+    expect(resetOnly.some((entry) => entry.command === "dev_add_iskrokamin")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_help")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_me")).toBe(false);
@@ -187,6 +202,7 @@ describe("bot command catalog", () => {
       "dev_add_bandage",
       "dev_add_dense_bandage",
       "dev_add_field_kit",
+      "dev_add_iskrokamin",
       "dev_add_yeger_line",
       "dev_reset_yeger_bandage",
       "dev_reset_yeger_bandage_day",

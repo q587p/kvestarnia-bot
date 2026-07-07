@@ -540,6 +540,20 @@ describe("item detail presenter", () => {
     expect(text).toContain("перезарядка 3 ходи");
   });
 
+  it("shows concrete +N item ids as ordinary upgraded items", () => {
+    const content = items.find((item) => item.id === "item.pan-of-persuasion.plus-3");
+    expect(content).toBeDefined();
+    if (!content) {
+      throw new Error("Expected upgraded pan content.");
+    }
+
+    const text = presentOwnedItemDetail(itemSummary({ itemId: content.id, content }));
+
+    expect(text).toContain("🔎 <b>Пательня переконання +3</b>");
+    expect(text).toContain("Ефект: <b>+5 до удару</b>");
+    expect(text).toContain("Кількість: <b>1</b>");
+  });
+
   it("distinguishes borrowed gear actions and service perks on item detail pages", () => {
     const staff = items.find((item) => item.id === "item.set.asclepius.staff");
     const cloak = items.find((item) => item.id === "item.set.yeger-shadow.cloak");

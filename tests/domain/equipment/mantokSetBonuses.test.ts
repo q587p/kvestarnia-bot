@@ -24,6 +24,22 @@ describe("mantok set bonuses", () => {
     expect(summary?.nextBonus).toBeNull();
   });
 
+  it("counts upgraded concrete item ids as their base Mantok set pieces", () => {
+    const summaries = getActiveMantokSets([
+      "item.set.red-line.left-dagger.plus-1",
+      "item.set.red-line.margin-dagger"
+    ]);
+    const summary = summaries[0];
+
+    expect(summaries).toHaveLength(1);
+    expect(summary?.set.id).toBe("mantok-set.red-line-duel");
+    expect(summary?.equippedPieces.map((piece) => piece.itemId)).toEqual([
+      "item.set.red-line.left-dagger",
+      "item.set.red-line.margin-dagger"
+    ]);
+    expect(summary?.activeBonuses[0]?.pieces).toBe(2);
+  });
+
   it("activates partial and full armor thresholds", () => {
     const partial = summarizeMantokSetBonusEffects([
       "item.set.barrel-brother.helm",

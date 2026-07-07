@@ -1698,7 +1698,13 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника (2)"]);
+    ).toEqual([
+      "🛡️ Спорядження",
+      "1️⃣ Разові",
+      "✨ Чароковальня",
+      "♻️ До Дружньої Скрині",
+      "🔎 Квиток мокрого пригодника (2)"
+    ]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -1721,7 +1727,13 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["v1:equip:view", "v1:item:inventory:f:u", "v1:chest:open", "v1:item:detail:item.wet-hero-ticket"]);
+    ).toEqual([
+      "v1:equip:view",
+      "v1:item:inventory:f:u",
+      "v1:up:l",
+      "v1:chest:open",
+      "v1:item:detail:item.wet-hero-ticket"
+    ]);
     expect(
       flatInlineButtonTexts(
         buildInventoryKeyboard(
@@ -1765,6 +1777,7 @@ describe("main menu and scene keyboards", () => {
     ).toEqual([
       "🛡️ Спорядження",
       "1️⃣ Разові",
+      "✨ Чароковальня",
       "♻️ До Дружньої Скрині",
       "🕒 Нові спершу",
       "🔤 А-Я",
@@ -1797,6 +1810,7 @@ describe("main menu and scene keyboards", () => {
     ).toEqual([
       "🛡️ Спорядження",
       "1️⃣ Разові",
+      "✨ Чароковальня",
       "♻️ До Дружньої Скрині",
       "🕒 Нові спершу",
       "🔤 А-Я",
@@ -1830,6 +1844,7 @@ describe("main menu and scene keyboards", () => {
     ).toEqual([
       "v1:equip:view",
       "v1:item:inventory:f:u",
+      "v1:up:l",
       "v1:chest:open",
       "v1:item:inventory:r:dn",
       "v1:item:inventory:r:az",
@@ -1881,6 +1896,7 @@ describe("main menu and scene keyboards", () => {
       )
     ).toEqual([
       ["🛡️ Спорядження", "1️⃣ Разові"],
+      ["✨ Чароковальня"],
       ["♻️ До Дружньої Скрині"],
       ["🕒 Нові в кінці", "🔤 А-Я"],
       ["🔎 Альфа"],
@@ -2041,7 +2057,7 @@ describe("main menu and scene keyboards", () => {
           }
         })
       )
-    ).toEqual(["🧥 Екіпірувати", "⬅️ До манаток", "🛡️ Спорядження"]);
+    ).toEqual(["🧥 Екіпірувати", "✨ Підсилити", "⬅️ До манаток", "🛡️ Спорядження"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -2064,7 +2080,7 @@ describe("main menu and scene keyboards", () => {
           "weapon"
         )
       )
-    ).toEqual(["Зняти", "⬅️ До манаток", "🛡️ Спорядження"]);
+    ).toEqual(["Зняти", "✨ Підсилити", "⬅️ До манаток", "🛡️ Спорядження"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -2089,7 +2105,7 @@ describe("main menu and scene keyboards", () => {
           "weapon"
         )
       )
-    ).toEqual(["🧥 Екіпірувати", "⬅️ До списку слота", "🛡️ Спорядження"]);
+    ).toEqual(["🧥 Екіпірувати", "✨ Підсилити", "⬅️ До списку слота", "🛡️ Спорядження"]);
     expect(
       flatInlineButtonCallbacks(
         buildItemDetailKeyboard(
@@ -2114,7 +2130,12 @@ describe("main menu and scene keyboards", () => {
           "weapon"
         )
       )
-    ).toEqual(["v1:equip:item:item.pan-of-persuasion:s:w", "v1:item:inventory:s:w", "v1:equip:view"]);
+    ).toEqual([
+      "v1:equip:item:item.pan-of-persuasion:s:w",
+      "v1:up:p:b2ef1b56dbea:n",
+      "v1:item:inventory:s:w",
+      "v1:equip:view"
+    ]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -2158,7 +2179,7 @@ describe("main menu and scene keyboards", () => {
           }
         )
       )
-    ).toEqual(["🧥 Екіпірувати в другу руку", "⬅️ До списку слота", "🛡️ Спорядження"]);
+    ).toEqual(["🧥 Екіпірувати в другу руку", "✨ Підсилити", "⬅️ До списку слота", "🛡️ Спорядження"]);
     expect(
       flatInlineButtonCallbacks(
         buildItemDetailKeyboard(
@@ -2201,7 +2222,7 @@ describe("main menu and scene keyboards", () => {
           }
         )
       )
-    ).toEqual(["v1:item:inventory:s:o", "v1:equip:view"]);
+    ).toEqual(["v1:up:p:b2ef1b56dbea:n", "v1:item:inventory:s:o", "v1:equip:view"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(

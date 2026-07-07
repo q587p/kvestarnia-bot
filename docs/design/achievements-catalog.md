@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 134 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 137 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -93,6 +93,9 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.equipment.all-slots-equipped` | enabled | visible | `equipment.item_equipped current slots >= 7` | Усі гачки при справі | вдягнути манатки в усі підготовлені слоти й зробити вигляд, що це не шафа, а бойова концепція. |
 | `achievement.equipment.ninety-three-equipped-total` | enabled | hidden | `equipment.item_equipped cumulative >= 93` | Девʼяносто три примірки без протоколу | сумарно екіпірувати 93 манатки й довести, що гачки теж можуть вигоріти. |
 | `achievement.mantok.gear-action.first` | enabled | visible | `mantok.gear-action.used >= 1` | Манатка натиснула кнопку | уперше застосувати бойову дію з манатки й дати спорядженню привід пишатися. |
+| `achievement.item-upgrade.first-success` | enabled | visible | `item-upgrade.succeeded >= 1` | Молот сказав «дзень» | уперше успішно підсилити манатку в Чароковальні. |
+| `achievement.item-upgrade.first-failure` | enabled | visible | `item-upgrade.failed >= 1` | Іскра має власну думку | уперше пережити невдалу спробу підсилення без втрати гідности в журналі. |
+| `achievement.item-upgrade.level-five` | enabled | visible | `item-upgrade.level-5 >= 1` | Пʼять плюсів і жодної скромности | довести манатку до +5 і дати молоту маленьку відпустку. |
 | `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |
 | `achievement.item.forty-two-owned` | enabled | visible | `item.received >= 42` | Сорок дві манатки відповіли | мати 42 манатки в торбі й не питати, на яке саме питання вони відповіли. |
 | `achievement.item.ninety-three-owned` | enabled | visible | `item.received >= 93` | Девʼяносто три докази торби | мати 93 манатки в торбі й виглядати як пересувний склад пригод. |

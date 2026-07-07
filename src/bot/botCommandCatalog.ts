@@ -105,6 +105,12 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: true
   },
   {
+    command: "upgrade",
+    icon: "🔨",
+    description: "Чароковальня",
+    includeInMenu: false
+  },
+  {
     command: "items",
     icon: "📦",
     description: "перелік манаток",
@@ -344,6 +350,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     command: "dev_add_field_kit",
     icon: "🩺",
     description: "додати польові аптечки локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_add_iskrokamin",
+    icon: "✨",
+    description: "додати Іскрокамінь для Чароковальні локально",
     includeInMenu: false,
     devOnly: "grant"
   },

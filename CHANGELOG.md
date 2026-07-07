@@ -7,6 +7,27 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.0] - 12026-07-07 - Charkokovalnia Item Upgrades MVP
+
+### Added
+- Added the `🔨 Чароковальня` / `/upgrade` Telegram surface for replay-safe direct item upgrades on selected equipment manatky.
+- Added concrete authored upgrade variants for eligible manatky as `base.plus-1` through `base.plus-5`, while preserving existing generated Loot Expansion `-plus-N` ids and avoiding item-instance identity.
+- Added deterministic upgrade cost, chance, pity and donor-bonus math with passive previews and stale snapshot checks for direct attempts.
+- Added `Іскрокамінь` as the narrow material stack used by the upgrade loop, plus local `/dev_add_iskrokamin` QA support behind the existing non-production dev-grant gate.
+- Added rewardless first upgrade success, first upgrade failure and first `+5` upgrade achievement hooks.
+- Added focused domain, callback, presenter, Mantok semantics, dev-helper and Prisma transaction coverage for upgrade math, compact snapshot callbacks, equipped-row alignment, stale replay rejection and plus-id presentation.
+
+### Changed
+- Successful upgrades now move exactly one owned stack unit from the current item id to the next concrete plus id and align equipped rows that pointed at the upgraded stack id.
+- Failed attempts spend the chosen resources once and increment bounded pity once; replays with stale stack, level or pity snapshots reject before spending.
+- Item detail, inventory, equipment, hero/effective-stat, Mantok set and Mantok ability-grant surfaces treat upgraded concrete ids as ordinary catalog ids with the expected `+N` display and preserved base semantics.
+- Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
+- Updated task docs, developer setup notes, balance notes, achievement catalog, lore board, release notes and compact Codex context for the shipped `0.3.0` MVP.
+- Bumped package metadata to `0.3.0`.
+
+### Deferred
+- No item-instance rewrite, Prisma migration, market, auction, player-to-player upgrade service, broad crafting/economy rewrite, new combat action, plus-drop loot change, duel tournament, Rogue reputation system or Quest Overview redesign ships in this slice.
+
 ## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
 
 ### Fixed

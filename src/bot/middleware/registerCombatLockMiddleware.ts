@@ -116,6 +116,7 @@ function isCombatLockSafeCallback(data: string): boolean {
     data === "v1:menu:help" ||
     data === "v1:menu:inventory" ||
     data.startsWith("v1:item:") ||
+    data.startsWith("v1:up:") ||
     data.startsWith("v1:use:") ||
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:party:v:") ||
@@ -141,6 +142,8 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "profile" ||
     command === "me" ||
     command === "inventory" ||
+    command === "upgrade" ||
+    command === "charkokovalnia" ||
     command === "items" ||
     command === "bag" ||
     command === "equipment" ||
@@ -151,6 +154,7 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "dev_add_bandage" ||
     command === "dev_add_dense_bandage" ||
     command === "dev_add_field_kit" ||
+    command === "dev_add_iskrokamin" ||
     command === "dev_add_yeger_line" ||
     command === "dev_reset_yeger_trail" ||
     command === "dev_reset_priest_blessing" ||

@@ -4,6 +4,8 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboarding
 import { items, monsterLoot } from "../../src/content";
 import {
   findMantokAbilityGrantByKey,
+  findMantokAbilityGrantByItemId,
+  getCombatMantokAbilityGrantsForEquippedItems,
   mantokAbilityGrantDefinitions,
   mantokAbilityGrantItemContents,
   mantokAbilityGrantLootAdditions,
@@ -83,6 +85,17 @@ describe("Mantok ability grant registry", () => {
     expect(cloak?.description).toContain("без щільних бинтів");
     expect(cloak?.description).toContain("аптечок");
     expect(cloak?.description).toContain("дощечок");
+  });
+
+  it("resolves upgraded concrete item ids to their base Mantok ability grants", () => {
+    expect(findMantokAbilityGrantByItemId("item.set.red-line.left-dagger.plus-2"))
+      .toMatchObject({
+        key: "rldagr"
+      });
+    expect(getCombatMantokAbilityGrantsForEquippedItems({
+      characterLevel: 13,
+      itemIds: ["item.set.red-line.left-dagger.plus-2"]
+    }).map((grant) => grant.key)).toEqual(["rldagr"]);
   });
 
   it("keeps borrowed gear actions weaker than the native actions they echo", () => {

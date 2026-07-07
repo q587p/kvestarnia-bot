@@ -62,6 +62,30 @@ describe("equipment presenter", () => {
     expect(text).not.toContain("Пательня переконання — приклад");
   });
 
+  it("shows upgraded concrete item ids in equipped slots", () => {
+    const pan = items.find((item) => item.id === "item.pan-of-persuasion.plus-2");
+    expect(pan).toBeDefined();
+    if (!pan) {
+      throw new Error("Expected upgraded pan content.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        { slot: "weapon", item: { itemId: pan.id, content: pan } },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "tool", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("🗡️ <b>Основна рука</b>: Пательня переконання +2");
+    expect(text).toContain("Ефект: <i>+4 до удару</i>");
+  });
+
   it("summarizes active and next Mantok set bonuses", () => {
     const text = presentEquipment({
       state: "ready",

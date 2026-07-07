@@ -20,6 +20,7 @@ describe("help presenter", () => {
     expect(text).toContain("🚪 /start — почати пригоду");
     expect(text).toContain("👤 /hero — персонаж і прогрес");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
+    expect(text).toContain("🔨 /upgrade — Чароковальня");
     expect(text).toContain("🗂️ /lore — Перекази Квестарні");
     expect(text).toContain("📖 /help — допомога");
     expect(text).toContain("🫙 /support — добровільна підтримка без бонусів");
@@ -79,6 +80,7 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🧻 /dev_add_bandage");
     expect(resetOnly).not.toContain("🧵 /dev_add_dense_bandage");
     expect(resetOnly).not.toContain("🩺 /dev_add_field_kit");
+    expect(resetOnly).not.toContain("✨ /dev_add_iskrokamin");
     expect(resetOnly).not.toContain("/dev_add_yeger_line");
     expect(resetOnly).not.toContain("🧷 /dev_reset_yeger_bandage");
     expect(resetOnly).not.toContain("/dev_reset_yeger_bandage_day");
@@ -103,6 +105,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).not.toContain("/dev_add_bandage");
     expect(grantsEnabled).not.toContain("/dev_add_dense_bandage");
     expect(grantsEnabled).not.toContain("/dev_add_field_kit");
+    expect(grantsEnabled).not.toContain("/dev_add_iskrokamin");
     expect(grantsEnabled).not.toContain("/dev_add_yeger_line");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage_day");
@@ -145,6 +148,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🧻 /dev_add_bandage");
     expect(grantsEnabled).toContain("🧵 /dev_add_dense_bandage");
     expect(grantsEnabled).toContain("🩺 /dev_add_field_kit");
+    expect(grantsEnabled).toContain("✨ /dev_add_iskrokamin");
     expect(grantsEnabled).toContain("📏 /dev_add_yeger_line");
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
     expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");

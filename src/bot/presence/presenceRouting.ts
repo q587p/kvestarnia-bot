@@ -104,6 +104,7 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
 
   if (
     data.startsWith("v1:item:") ||
+    data.startsWith("v1:up:") ||
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:chest:") ||
     data.startsWith("v1:lvlx:") ||
@@ -292,6 +293,8 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "profile" ||
     command === "me" ||
     command === "inventory" ||
+    command === "upgrade" ||
+    command === "charkokovalnia" ||
     command === "items" ||
     command === "bag" ||
     command === "equipment" ||
@@ -323,6 +326,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "dev_add_bandage" ||
     command === "dev_add_dense_bandage" ||
     command === "dev_add_field_kit" ||
+    command === "dev_add_iskrokamin" ||
     command === "dev_add_yeger_line" ||
     command === "dev_reset_yeger_bandage" ||
     command === "dev_reset_yeger_bandage_day" ||

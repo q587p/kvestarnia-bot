@@ -16,6 +16,10 @@ parseItemCraftCallbackData,
 type ItemCraftCallback
 } from "../callbacks/itemCraftCallbackData";
 import {
+parseItemUpgradeCallbackData,
+type ItemUpgradeCallback
+} from "../callbacks/itemUpgradeCallbackData";
+import {
 parseItemUseCallbackData,
 type ItemUseCallback
 } from "../callbacks/itemUseCallbackData";
@@ -29,6 +33,7 @@ type MantokChestCallback
 } from "../callbacks/mantokChestCallbackData";
 import { registerEquipmentCommand,sendEquipment } from "../commands/equipmentCommand";
 import { registerInventoryCommand,sendInventory } from "../commands/inventoryCommand";
+import { registerItemUpgradeCommand, sendItemUpgradeList } from "../commands/itemUpgradeCommand";
 import { playerFromContext } from "../context";
 import {
 getInventoryPagePromptPlaceholder,
@@ -45,6 +50,10 @@ buildItemDetailKeyboard,
 buildItemUsePreviewKeyboard,
 buildItemUseResultKeyboard
 } from "../keyboards/inventoryKeyboard";
+import {
+buildItemUpgradePreviewKeyboard,
+buildItemUpgradeResultKeyboard
+} from "../keyboards/itemUpgradeKeyboard";
 import {
 buildLevelBarterOfferKeyboard,
 buildLevelBarterPreviewKeyboard,
@@ -70,6 +79,10 @@ import {
 presentItemCraftPreview,
 presentItemCraftResult
 } from "../presenters/itemCraftPresenter";
+import {
+presentItemUpgradeAttempt,
+presentItemUpgradePreview
+} from "../presenters/itemUpgradePresenter";
 import {
 presentItemUseCancel,
 presentItemUseConfirm,
@@ -108,7 +121,7 @@ export function registerInventoryBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
-  bot.command(["inventory", "items", "bag", "equipment", "gear", "equip"], async (ctx, next) => {
+  bot.command(["inventory", "items", "bag", "equipment", "gear", "equip", "upgrade", "charkokovalnia"], async (ctx, next) => {
     await guardActivePassageSearchCommand(ctx, services, next);
   });
 
@@ -122,6 +135,7 @@ export function registerInventoryBotModule(
 
   registerInventoryCommand(bot, services.inventory, services.equipment);
   registerEquipmentCommand(bot, services.equipment);
+  registerItemUpgradeCommand(bot, services.itemUpgrades);
 
   registerParsedCallbackRoute(bot, /^v1:equip:/, parseEquipmentCallbackData, async (ctx, action) => {
     await handleEquipmentCallback(ctx, action, services);
@@ -137,6 +151,10 @@ export function registerInventoryBotModule(
 
   registerParsedCallbackRoute(bot, /^v1:craft:/, parseItemCraftCallbackData, async (ctx, action) => {
     await handleItemCraftCallback(ctx, action, services);
+  });
+
+  registerParsedCallbackRoute(bot, /^v1:up:/, parseItemUpgradeCallbackData, async (ctx, action) => {
+    await handleItemUpgradeCallback(ctx, action, services);
   });
 
   registerParsedCallbackRoute(bot, /^v1:chest:/, parseMantokChestCallbackData, async (ctx, action) => {
@@ -488,6 +506,84 @@ async function handleItemCraftCallback(
   });
   const achievementText = presentAchievementUnlockNotification(
     result.state === "crafted" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
+}
+
+async function handleItemUpgradeCallback(
+  ctx: Context,
+  action: ItemUpgradeCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
+  if (action.type === "list") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendItemUpgradeList(ctx, services.itemUpgrades, "edit");
+    return;
+  }
+
+  if (action.type === "preview") {
+    const result = await services.itemUpgrades.previewForTelegramUser(
+      telegramUserId,
+      action.itemId,
+      action.method,
+      action.donorItemId
+    );
+
+    await safeAnswerCallbackQuery(ctx, {
+      show_alert:
+        result.state === "not-owned" ||
+        result.state === "not-upgradeable" ||
+        result.state === "cap-reached"
+    });
+    await safeEditMessageText(ctx, presentItemUpgradePreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradePreviewKeyboard(result)
+    });
+    return;
+  }
+
+  const result = await services.itemUpgrades.attemptForTelegramUser(telegramUserId, {
+    itemId: action.itemId,
+    method: action.method,
+    donorItemId: action.donorItemId,
+    expectedFromLevel: action.expectedFromLevel,
+    expectedQuantity: action.expectedQuantity,
+    expectedPityFailures: action.expectedPityFailures
+  });
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "attempted"
+      ? { text: result.success ? "Підсилено." : "Спроба записана." }
+      : {
+          show_alert:
+            result.state === "stale-snapshot" ||
+            result.state === "invalid-donor" ||
+            result.state === "not-enough-gold" ||
+            result.state === "not-enough-iskrokamin" ||
+            result.state === "not-enough-mana" ||
+            result.state === "class-not-allowed"
+        }
+  );
+  await safeEditMessageText(ctx, presentItemUpgradeAttempt(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildItemUpgradeResultKeyboard(result.state === "attempted" ? result.item.itemId : action.itemId)
+  });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "attempted" ? result.achievementUnlocks ?? [] : []
   );
   if (achievementText) {
     await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
