@@ -4994,6 +4994,50 @@ describe("scene callback HTML options", () => {
     expect(levelUps).toHaveLength(1);
   });
 
+  it("answers blocked persistent fight gear callbacks with gear-specific alert copy", async () => {
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.right");
+    const resolvePersistentFightTurn = vi.fn().mockResolvedValue({
+      state: "not-enough-mana" as const,
+      reason: "skill-on-cooldown" as const,
+      character,
+      session,
+      monster: {
+        id: "monster.deadline-spider",
+        name: "Павук дедлайнів",
+        description: "Плете павутину з «сьогодні швиденько».",
+        level: 2,
+        tags: ["beast", "time", "web"]
+      },
+      questProgress: null
+    });
+    const calls = await captureApiCalls(
+      makeFightGearActionCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        grantKey: "rldagr"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+    const callbackAnswer = calls.find((call) => call.method === "answerCallbackQuery");
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(resolvePersistentFightTurn).toHaveBeenCalledWith(42n, {
+      sessionId: session.id,
+      turn: 1,
+      action: "gear",
+      grantKey: "rldagr"
+    });
+    expect(callbackAnswer?.payload).toMatchObject({
+      text: "Дія спорядження не спрацювала: ще відсапується.",
+      show_alert: true
+    });
+    expect(String(edit?.payload.text)).toContain("Дія спорядження ще відсапується");
+  });
+
   it("removes combat action buttons when a persistent turn callback needs recovery", async () => {
     const session = {
       ...persistentSession("monster.deadline-spider"),

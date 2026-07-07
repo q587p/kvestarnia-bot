@@ -8,6 +8,7 @@ Review follow-up coverage:
 - Automated command coverage confirms those blocked duel gear callbacks answer with reason-specific callback notices.
 - Automated keyboard coverage confirms the Big Barrel one-use item shortcut stays hidden unless the caller explicitly enables the item menu.
 - Automated achievement coverage confirms committed persistent PvE, party-boss and turn-based duel gear-action events can reach the rewardless first-use achievement hook.
+- Automated turn-based duel service coverage confirms a queued gear action does not emit the first-use achievement until the round resolves, and dual committed gear actions emit events from the resolved round.
 - Automated help/lore coverage confirms `/lore` opens the existing `📖 Перекази` board, is listed in `/help`, is not added to the side menu, and `🎒 Манатки` lore names visible `Дія спорядження`.
 - Automated regression coverage confirms duplicate Big Barrel gear callbacks keep one queued action/effect/cooldown/achievement event, stale turn-based duel gear callbacks do not advance the duel, and ordinary two-enemy persistent fight gear actions write a committed gear summary while preserving readable multi-enemy state.
 

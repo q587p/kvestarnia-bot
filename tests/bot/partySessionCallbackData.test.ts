@@ -19,6 +19,7 @@ import {
   makePartySessionViewCallbackData,
   parsePartySessionCallbackData
 } from "../../src/bot/callbacks/partySessionCallbackData";
+import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
 
 describe("party session callback data", () => {
   it("round-trips compact party actions", () => {
@@ -80,14 +81,16 @@ describe("party session callback data", () => {
       ok: true,
       value: { type: "boss-action", token, turn: 42, action: "skill" }
     });
-    expect(parsePartySessionCallbackData(makePartyBossGearActionCallbackData({
+    const gearActionData = makePartyBossGearActionCallbackData({
       token,
       turn: 42,
       grantKey: "rldagr"
-    }))).toEqual({
+    });
+    expect(parsePartySessionCallbackData(gearActionData)).toEqual({
       ok: true,
       value: { type: "boss-gear", token, turn: 42, grantKey: "rldagr" }
     });
+    expect(Buffer.byteLength(gearActionData, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(parsePartySessionCallbackData(makePartyBossItemsMenuCallbackData(token, 42))).toEqual({
       ok: true,
       value: { type: "boss-items", token, turn: 42 }

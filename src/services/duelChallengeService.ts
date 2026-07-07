@@ -27,6 +27,7 @@ import {
   TURN_BASED_DUEL_TURN_SECONDS,
   type TurnBasedDuelAction,
   type TurnBasedDuelParticipantSnapshot,
+  type TurnBasedDuelRoundSummary,
   type TurnBasedDuelState
 } from "../domain/duels/turnBasedDuel";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
@@ -797,16 +798,38 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
-    if (action === "gear") {
-      await this.achievements?.trackEventSafely({
-        type: "mantok.gear-action.used",
-        characterId: actorCharacterId,
-        occurredAt: now,
-        sourceId: `${updated.id}:turn:${session.turn}:gear:${gearAbility?.profile.id ?? "unknown"}`
-      });
+    if (resolved.resolution === "resolved") {
+      await this.trackCommittedTurnBasedGearActions(updated, resolved.round, now);
     }
 
     return { state: "updated", session: updated };
+  }
+
+  private async trackCommittedTurnBasedGearActions(
+    session: DuelCombatSessionRecord,
+    round: TurnBasedDuelRoundSummary,
+    occurredAt: Date
+  ): Promise<void> {
+    if (!this.achievements) {
+      return;
+    }
+
+    for (const action of round.actions) {
+      if (
+        action.action !== "gear" ||
+        action.outcome === "not-enough-mana" ||
+        action.outcome === "skill-on-cooldown"
+      ) {
+        continue;
+      }
+
+      await this.achievements.trackEventSafely({
+        type: "mantok.gear-action.used",
+        characterId: action.actorCharacterId,
+        occurredAt,
+        sourceId: `${session.id}:turn:${round.turn}:gear:${action.skillId ?? "unknown"}`
+      });
+    }
   }
 
   async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {

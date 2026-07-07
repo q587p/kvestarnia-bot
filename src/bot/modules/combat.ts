@@ -61,6 +61,7 @@ presentFightNoCharacter,
 presentFightResult,
 presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
+presentPersistentFightGearUnavailableNotice,
 presentPersistentFightItemUnavailableNotice,
 presentPersistentFightJournal,
 presentPersistentFightPassagePreview,
@@ -578,8 +579,12 @@ async function handleFightCallback(
     const itemUnavailableNotice = callback.type === "item"
       ? presentPersistentFightItemUnavailableNotice(result)
       : null;
-    await safeAnswerCallbackQuery(ctx, itemUnavailableNotice
-      ? { text: itemUnavailableNotice, show_alert: true }
+    const gearUnavailableNotice = callback.type === "gear"
+      ? presentPersistentFightGearUnavailableNotice(result)
+      : null;
+    const unavailableNotice = itemUnavailableNotice ?? gearUnavailableNotice;
+    await safeAnswerCallbackQuery(ctx, unavailableNotice
+      ? { text: unavailableNotice, show_alert: true }
       : undefined);
     await safeEditMessageText(ctx, presentPersistentFightTurn(result), {
       ...HTML_MESSAGE_OPTIONS,

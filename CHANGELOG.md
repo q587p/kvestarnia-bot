@@ -38,6 +38,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Hidden gear-action buttons while mana or cooldown gates block the action in persistent PvE, Big Barrel Brother raids and turn-based duels; the active fight text still shows cooldown/mana blockers, and the buttons return after real player turns clear the gate.
 - Big Barrel Brother gear actions now apply their equipment support effects before boss retaliation, so shield and borrowed heal/guard actions reduce the incoming hit or restore HP instead of only starting cooldown; raid active cards and journal pages now show those support effects.
 - Turn-based duel gear-action result cards now render readable Ukrainian equipment-action names and support effects in stored round replays.
+- Turn-based duel gear-action achievements now emit only after the queued action commits in a resolved round, so pending gear choices cannot unlock the first-use achievement early.
 - Party-boss gear callback notices now render readable Ukrainian copy for updated/duplicate actions and participant raid/result refresh notices.
 - Refreshed eligible gear-action buttons on active fight overview cards as well as direct fight views and callbacks, so returning to an already active fight after changing equipment shows the current manatka actions.
 - Preserved gear-action grant ids and bleed statuses when active persistent PvE fights reload from stored session JSON, so multi-enemy and later-turn fight cards keep the same equipment buttons and status ticks as freshly started fights.

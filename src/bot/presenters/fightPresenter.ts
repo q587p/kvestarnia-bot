@@ -341,7 +341,7 @@ export function presentPersistentFightTurn(
 
     if (result.state === "not-enough-mana") {
       return result.reason === "skill-on-cooldown"
-        ? "Вміння ще відсапується. Корчма показує поточний стан без зайвого удару."
+        ? "Дія спорядження ще відсапується. Корчма показує поточний стан без зайвого удару."
         : "Мани не стало навіть на драматичний жест. Корчма показує поточний стан без зайвого удару.";
     }
 
@@ -401,6 +401,22 @@ export function presentPersistentFightItemUnavailableNotice(
     case "not-usable":
       return "Манатка не спрацювала: у цьому бою її не застосувати.";
   }
+}
+
+export function presentPersistentFightGearUnavailableNotice(
+  result: Exclude<PersistentFightTurnResult, { state: "no-character" }>
+): string | null {
+  if (result.state === "stale-turn") {
+    return "Дія спорядження не спрацювала: цей хід уже змінився.";
+  }
+
+  if (result.state !== "not-enough-mana") {
+    return null;
+  }
+
+  return result.reason === "skill-on-cooldown"
+    ? "Дія спорядження не спрацювала: ще відсапується."
+    : "Дія спорядження не спрацювала: мани замало.";
 }
 
 export function presentPersistentFightSnapshot(
