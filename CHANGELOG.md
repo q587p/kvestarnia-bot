@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Old Shynok table-game links now replay stored Tavlei/Kosti/Dice Poker results when the table completed, or say that the table did not start and stakes were returned when it closed before play, instead of only saying the table is closed.
 - `🎒 Манатки` list cards with more than one visible item now offer two compact sort toggles for received date and item name, preserving the chosen order through pagination, page prompts, item details and filtered views.
 - Item detail replacement previews now include the currently equipped item's visible effect next to the `Замінить` name, so slot swaps show what the player is giving up before equipping.
+- `📮 Пошта Квестарні` now allows several outgoing pending packages from the same sender when their reserved `itemId` lines do not overlap; trying to send an already reserved manatka still fails before charging a second fee.
 
 ### Changed
 - Bumped package metadata to `0.2.31` for the narrow post-merge Mantok Ability Grants polish slice.

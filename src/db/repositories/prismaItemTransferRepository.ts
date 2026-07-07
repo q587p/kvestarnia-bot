@@ -374,7 +374,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
           data: {
             status: "pending",
             expiresAt: input.expiresAt,
-            reservationKey: createPostalReservationKey(sender.id),
+            reservationKey: createPostalReservationKey(sender.id, transfer.id),
             deliveryFeeGold: fee,
             resultJson: markPostalSenderDebited(input.result),
             updatedAt: input.now
@@ -1597,8 +1597,8 @@ function createTransferReservationKey(senderCharacterId: string, itemId: string)
   return `gift:${senderCharacterId}:${itemId}`;
 }
 
-function createPostalReservationKey(senderCharacterId: string): string {
-  return `postal:${senderCharacterId}`;
+function createPostalReservationKey(senderCharacterId: string, transferId: string): string {
+  return `postal:${senderCharacterId}:${transferId}`;
 }
 
 function parsePackageLines(value: unknown): ItemPostalPackageLine[] {

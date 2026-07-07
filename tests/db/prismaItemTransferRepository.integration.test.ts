@@ -666,6 +666,70 @@ describe("PrismaItemTransferRepository integration", () => {
     await expectItemQuantity("receiver", bandage.id, 2);
   });
 
+  it("allows multiple pending postal packages with distinct item reservations", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+    await seedItem("sender", 5, postalItems[1]!.id);
+
+    await createPostal([packageLine(postalItems[0]!, 2)], "postal-token-1");
+    await createPostal([packageLine(postalItems[1]!, 3)], "postal-token-2");
+
+    const liveTransfers = await prisma.itemTransfer.findMany({
+      where: { senderCharacterId: "sender", transferKind: "postal", status: "pending" },
+      orderBy: { token: "asc" }
+    });
+    expect(liveTransfers).toHaveLength(2);
+    expect(liveTransfers.map((transfer) => transfer.reservationKey)).toEqual([
+      expect.stringMatching(/^postal:sender:/),
+      expect.stringMatching(/^postal:sender:/)
+    ]);
+    expect(liveTransfers[0]?.reservationKey).not.toBe(liveTransfers[1]?.reservationKey);
+    await expect(prisma.character.findUnique({ where: { id: "sender" } }))
+      .resolves.toMatchObject({ gold: 88 });
+    await expectItemQuantity("sender", postalItems[0]!.id, 3);
+    await expectItemQuantity("sender", postalItems[1]!.id, 2);
+    await expect(repository.getPostalRecipientsForTelegramUser(1n, 0, 5))
+      .resolves.toMatchObject({ state: "ready", inTransit: { total: 2 } });
+  });
+
+  it("blocks a second pending postal package for an already reserved item id", async () => {
+    await seedCharacter(1n, "sender", "Дарувальник");
+    await seedCharacter(2n, "receiver", "Отримувач");
+    await prisma.character.update({ where: { id: "sender" }, data: { gold: 100 } });
+    await seedCompletedRelationship();
+    await seedItem("sender", 5, postalItems[0]!.id);
+
+    await createPostal([packageLine(postalItems[0]!, 2)], "postal-token-1");
+    await repository.createPostalDraftForTelegramUser(1n, {
+      token: "postal-token-2",
+      receiverTelegramUserId: 2n,
+      now: now(),
+      expiresAt: future()
+    });
+    await expect(repository.updatePostalDraftForTelegramUser(1n, {
+      token: "postal-token-2",
+      packageLines: [packageLine(postalItems[0]!, 1)],
+      deliveryFeeGold: 0,
+      now: now()
+    })).resolves.toMatchObject({ state: "updated" });
+
+    await expect(repository.confirmPostalDraftForTelegramUser(1n, {
+      token: "postal-token-2",
+      itemContents: postalItems,
+      now: now(),
+      expiresAt: future(),
+      result: { kind: "postal-test-reserved" }
+    })).resolves.toMatchObject({ state: "stale-selection" });
+    await expect(prisma.character.findUnique({ where: { id: "sender" } }))
+      .resolves.toMatchObject({ gold: 94 });
+    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-2" } }))
+      .resolves.toMatchObject({ status: "draft", reservationKey: null });
+    await expectItemQuantity("sender", postalItems[0]!.id, 3);
+  });
+
   it("does not create a pending postal package when sender lacks gold at confirmation", async () => {
     await seedCharacter(1n, "sender", "Дарувальник");
     await seedCharacter(2n, "receiver", "Отримувач");
@@ -804,8 +868,9 @@ describe("PrismaItemTransferRepository integration", () => {
     await seedItem("sender", 5, postalItems[0]!.id);
     await createPostal([packageLine(postalItems[0]!, 2)]);
 
-    await expect(prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } }))
-      .resolves.toMatchObject({ status: "pending", reservationKey: "postal:sender" });
+    const pending = await prisma.itemTransfer.findUnique({ where: { token: "postal-token-1" } });
+    expect(pending).toMatchObject({ status: "pending" });
+    expect(pending?.reservationKey).toMatch(/^postal:sender:/);
     await expectItemQuantity("sender", postalItems[0]!.id, 3);
     await expectItemQuantity("receiver", postalItems[0]!.id, 0);
 
@@ -854,21 +919,21 @@ describe("PrismaItemTransferRepository integration", () => {
     });
   }
 
-  async function createPostal(lines: ReturnType<typeof packageLine>[]) {
+  async function createPostal(lines: ReturnType<typeof packageLine>[], token = "postal-token-1") {
     await repository.createPostalDraftForTelegramUser(1n, {
-      token: "postal-token-1",
+      token,
       receiverTelegramUserId: 2n,
       now: now(),
       expiresAt: future()
     });
     await expect(repository.updatePostalDraftForTelegramUser(1n, {
-      token: "postal-token-1",
+      token,
       packageLines: lines,
       deliveryFeeGold: 0,
       now: now()
     })).resolves.toMatchObject({ state: "updated" });
     await expect(repository.confirmPostalDraftForTelegramUser(1n, {
-      token: "postal-token-1",
+      token,
       itemContents: postalItems,
       now: now(),
       expiresAt: future(),

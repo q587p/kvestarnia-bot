@@ -18,6 +18,7 @@ Manual Telegram QA status for this polish pass: not run in this branch. Automate
 8. Compare ordinary one-enemy and two-enemy threat fights: a base-life character should still need three eligible wins before `Натиск Низу`, remort `1` should need two, and remort `2+` should need one; solo remort-pressure cards may show `Відлуння минулих пригод`, while two-enemy threat cards keep the existing `Натиск Низу` pressure language.
 9. Open `🎒 Манатки`, choose an equippable item for an occupied slot and verify the `Замінить` line shows the current item's name plus its visible effect before equipping.
 10. From `🧥 Єгерський куток`, verify `🛢️ До Бочки` gains `⚠️` when an active table/Shynok/cellar quest waits beyond the hall, but not when the only marker is the Yeger quest visible on the current card.
+11. With one outgoing `📮 Пошта Квестарні` package still pending, send a second package with a different manatka and verify it confirms; then try another package with an already reserved item id and verify it stales without charging another fee.
 
 ## 0.2.30 — Mantok Ability Grants Foundation smoke
 
