@@ -49,7 +49,7 @@ For these changes:
 - Update `package.json` version only when the task includes a version bump.
 - If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
 - Update `CHANGELOG.md` and `news.md` only for release-oriented changes.
-- Release headings must include version, Holocene `1YYYY-MM-DD` date, and short description.
+- Release headings must include version, Holocene `1YYYY-MM-DD` date, and short description. If the current entry grows to cover several visible themes, update the heading so it matches the combined release scope rather than the first narrow topic.
 - Use Kyiv time (`Europe/Kyiv`) for release/news/changelog dates, e.g. `12026-06-20`.
 - Before calling a release PR ready, recheck the current Kyiv date against the latest release/news/changelog headings. If the implementation has crossed into a newer Kyiv day, update the release headings to the current release day instead of keeping the task-start date.
 - PR title starts with version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.

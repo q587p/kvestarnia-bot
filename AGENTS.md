@@ -140,7 +140,7 @@ For release-oriented versioned changes:
 
 - Update `package.json` version only when the task includes a version bump.
 - If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
-- Release note headings in `CHANGELOG.md` and `news.md` must include version, Holocene date, and short change description.
+- Release note headings in `CHANGELOG.md` and `news.md` must include version, Holocene date, and a short change description. When a release entry accumulates several visible themes, refresh the heading so it summarizes the actual combined player-facing scope instead of preserving an early single-feature title.
 - Every implementation or PR-follow-up commit on a later Kyiv day than the latest visible release heading must refresh that latest release date before the branch is called ready, even when the code change itself is narrow.
 - `CHANGELOG.md` may include technical details, exact mechanics, edge cases, and rewards.
 - `news.md` is player-facing and spoiler-light: do not reveal exact XP/gold/items/souvenirs/titles, cooldown or period lengths, final punchlines, hidden conditions, scheduler/restart/deploy debt, Redis/BullMQ, migrations, scaling, or similar platform backlog.
