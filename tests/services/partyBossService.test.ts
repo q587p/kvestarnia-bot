@@ -398,6 +398,75 @@ describe("PartyBossService achievements", () => {
     expect(barrelBeerTutorial.markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(123n);
   });
 
+  it("marks the Barrel beer tutorial route for a non-leader Big Barrel Brother win claim", async () => {
+    const occurredAt = new Date("2026-07-01T19:00:00.000Z");
+    const session = makeSessionWithParticipant("won", {
+      participant: {
+        remortCount: 1,
+        combatStats: {
+          level: 3,
+          hpMax: 25,
+          manaMax: 10,
+          hpCurrent: 25,
+          manaCurrent: 10,
+          strength: 5,
+          dexterity: 5,
+          intelligence: 5,
+          charisma: 5,
+          luck: 5,
+          raceId: "race.human-ish",
+          classId: "class.warrior"
+        }
+      },
+      record: {
+        remortCount: 1,
+        level: 3
+      }
+    });
+    session.state.participants.push({
+      ...session.state.participants[0]!,
+      characterId: "character-joiner",
+      name: "Тестова Учасниця"
+    });
+    session.participants.push({
+      ...session.participants[0]!,
+      id: "character-joiner",
+      userId: "user-joiner",
+      telegramUserId: 456n,
+      name: "Тестова Учасниця"
+    });
+    const result: PartyBossActionResult = {
+      state: "resolved",
+      session,
+      achievementEvents: [{
+        type: "barrel.raid.claimed",
+        characterId: "character-joiner",
+        sourceId: "daily-win-joiner",
+        occurredAt
+      }]
+    };
+    const repository = {
+      submitActionForTelegramUser: vi.fn<PartyBossRepository["submitActionForTelegramUser"]>().mockResolvedValue(result)
+    } as unknown as PartyBossRepository;
+    const barrelBeerTutorial = barrelBeerTutorialProgressService();
+    const service = new PartyBossService(
+      repository,
+      { enabled: true },
+      () => occurredAt,
+      undefined,
+      undefined,
+      undefined,
+      barrelBeerTutorial
+    );
+
+    await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
+
+    expect(barrelBeerTutorial.markVisitedBarrelForTelegramUser).toHaveBeenCalledWith(456n);
+    expect(barrelBeerTutorial.markBarrelRaidCompletedForTelegramUser).toHaveBeenCalledWith(456n);
+    expect(barrelBeerTutorial.markVisitedBarrelForTelegramUser).not.toHaveBeenCalledWith(123n);
+    expect(barrelBeerTutorial.markBarrelRaidCompletedForTelegramUser).not.toHaveBeenCalledWith(123n);
+  });
+
   it("does not mark the Barrel beer tutorial on Big Barrel terminal replay without a fresh claim event", async () => {
     const session = makeSessionWithParticipant("won", {
       participant: {
