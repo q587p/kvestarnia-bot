@@ -208,6 +208,21 @@ describe("presence middleware", () => {
     });
   });
 
+  it("marks Shynok callbacks as bar actions that clear stale barrel raid presence", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate("v1:sh:round:s"));
+
+    expect(presence.marks).toHaveLength(1);
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+      currentRaidId: null,
+      currentAdventureId: null
+    });
+  });
+
   it.each([
     ["ranger", "v1:tavern:ranger"],
     ["round", makeTavernCallbackData("round")],
