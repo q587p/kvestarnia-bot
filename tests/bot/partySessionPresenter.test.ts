@@ -464,7 +464,7 @@ describe("party session presenter", () => {
     expect(text).toContain("▫️ Голова: HP 0/60 · мана 20/20 · вибито");
     expect(text).not.toContain("❤️ Ви:");
     expect(text).not.toContain("відсапується");
-    expect(text).toContain("Винагорода за бій:\n<b>+2 XP\n+4 золота</b>");
+    expect(text).toContain("Ваша винагорода за рейд:\n<b>+2 XP\n+4 золота</b>");
   });
 
   it("does not claim the Big Barrel Brother focus switched when it stayed on the same participant", () => {
@@ -562,9 +562,56 @@ describe("party session presenter", () => {
     const text = presentPartyBoss(session, { viewerCharacterId: "leader" });
 
     expect(text).toContain("🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою.");
-    expect(text).toContain("Винагорода за бій:\n<b>+2 XP\n+4 золота</b>");
+    expect(text).toContain("Ваша винагорода за рейд:\n<b>+2 XP\n+4 золота</b>");
     expect(text).toContain("Здобуто: <i>Дзеркальце Самоперевірки</i>");
     expect(text).not.toContain("нагороди збережено");
+  });
+
+  it("renders a public Big Barrel Brother victory without leaking a participant reward", () => {
+    const session = makeBigBossSession({
+      status: "won",
+      completedAt: "2026-06-30T10:01:00.000Z",
+      boss: {
+        ...makeBigBossSession().state.boss,
+        hp: 0,
+        hpMax: 216
+      }
+    });
+    session.status = "won";
+    session.completedAt = new Date("2026-06-30T10:01:00.000Z");
+    session.result = {
+      status: "won",
+      completedAt: "2026-06-30T10:01:00.000Z",
+      bossHpAfter: 0,
+      participants: [
+        {
+          characterId: "leader",
+          status: "active",
+          damageDealt: 12,
+          submittedActions: 1,
+          timeoutActions: 0,
+          reward: {
+            xp: 2,
+            gold: 4,
+            itemGrants: [
+              {
+                itemId: "item.self-check-mirror",
+                name: "Дзеркальце Самоперевірки",
+                quantity: 1
+              }
+            ]
+          }
+        }
+      ]
+    };
+
+    const text = presentPartyBoss(session);
+
+    expect(text).toContain("🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою.");
+    expect(text).toContain("Нагороди нараховано учасникам окремо.");
+    expect(text).not.toContain("Ваша винагорода за рейд:");
+    expect(text).not.toContain("Здобуто:");
+    expect(text).not.toContain("Дзеркальце Самоперевірки");
   });
 
   it("renders a forwardable Big Barrel Brother invite card with visible URL and rotating text", () => {

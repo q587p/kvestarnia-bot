@@ -21,6 +21,7 @@ Review follow-up coverage:
 - Automated balance/presenter coverage confirms persistent PvE remort monster pressure starts only after the third remort, keeps encounter levels stable, covers remorts `5`, `7` and `9` in one-enemy and two-enemy threat simulations, and labels solo Yeger pressure as `Відплата за минулі пригоди` without `Натиск Низу` wording.
 - Automated service/repository coverage confirms Korchmar problem-chain counters count only wins from the current remort life, while preserving legacy zero-remort wins.
 - Automated activity-event and presenter coverage confirms solo Barrel raid wins plus Big Barrel Brother group wins/losses render as raid rows in `⚔️ Бої`, with only group raid victories marked important.
+- Automated presenter coverage confirms public completed Big Barrel Brother result cards do not leak a participant's XP/gold/item reward, while participant cards label the payout as `Ваша винагорода за рейд`.
 - Automated keyboard/routing coverage confirms the persistent main menu places `🛡️ Спорядження` directly under `👤 Персонаж` and routes it to the existing equipment screen, including during active persistent fights.
 - Automated quest-marker coverage confirms outside-Korchma `🚪 Зайти в корчму` gates stay unmarked without a verified active quest marker, including when the only cellar errand is on cooldown.
 - Automated direct-command coverage confirms `/tavern` resolves fresh quest markers for the hall screen, so available Korchma quests keep `⚠️` when opened by command.
@@ -44,6 +45,7 @@ Manual Telegram evidence still required before merge:
 - Pending: remort `7+` Yeger fight card shows `Відплата за минулі пригоди` on the intro and active card; ordinary two-enemy threat fights still use `Натиск Низу`.
 - Pending: after remort, taking or checking `Тринадцять дрібних проблем` shows only current-life progress, not old counts such as `139/13`.
 - Pending: after one solo Barrel raid completion and one Big Barrel Brother win/loss, `📜 Хроніки Квестарні` shows the raid rows under `⚔️ Бої`; `⭐ Важливе` shows the group victory only.
+- Pending: open a completed Big Barrel Brother result link as a non-participant and verify it shows only the general raid summary, while an actual participant sees `Ваша винагорода за рейд` with their own reward.
 - Pending: the live persistent main menu shows `🛡️ Спорядження` directly under `👤 Персонаж`, and tapping it opens `🧥 Спорядження`.
 - Pending: from outside the Korchma with only the cellar on cooldown, `/fight` shows `🚪 Зайти в корчму` without `⚠️`.
 - Pending: from inside the Korchma with an available hall quest, `/tavern` shows `📋 Стіл зі справами ⚠️` or the matching available location button with `⚠️`.

@@ -866,6 +866,11 @@ function presentBigBarrelVictoryResult(
     "🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою."
   ];
 
+  if (!viewerCharacterId) {
+    lines.push("", "Нагороди нараховано учасникам окремо. Ця загальна картка не показує чужі XP, золото й манатки.");
+    return lines.join("\n");
+  }
+
   if (!reward) {
     lines.push("", "Винагороду для цієї картки не знайдено. Якщо ви билися, відкрийте власну бойову картку або результати за рейдовим посиланням.");
     return lines.join("\n");
@@ -874,7 +879,7 @@ function presentBigBarrelVictoryResult(
   lines.push("", presentRewardAmount({
     xp: reward.xp,
     gold: reward.gold,
-    label: "Винагорода за бій"
+    label: "Ваша винагорода за рейд"
   }));
 
   for (const grant of reward.itemGrants) {
@@ -960,7 +965,7 @@ function getViewerResultParticipant(
     return session.result.participants.find((participant) => participant.characterId === viewerCharacterId) ?? null;
   }
 
-  return session.result.participants.find((participant) => participant.reward) ?? null;
+  return null;
 }
 
 function getStoredAttemptXpValues(
