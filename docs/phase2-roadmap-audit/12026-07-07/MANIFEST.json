@@ -1,0 +1,23 @@
+{
+  "created": "12026-07-07",
+  "scope": "Phase 2 roadmap audit after main 0.2.29 and active 0.2.30 Mantok Ability Grants Foundation",
+  "files": [
+    "01-roadmap-audit.md",
+    "02-current-state-and-gaps.md",
+    "03-recommended-sequence.md",
+    "04-old-promises-gap-list.md",
+    "05-docs-and-tone-cleanup.md",
+    "README.md",
+    "codex-prompts/codex-main-0.2.31-mantok-ability-grants-qa-hardening.md",
+    "codex-prompts/codex-main-0.2.32-charkokovalnia-item-upgrades.md",
+    "codex-prompts/codex-main-0.2.33-turn-based-duel-tournaments-rewards.md",
+    "codex-prompts/codex-main-0.2.34-rogue-reputation-location-risk.md",
+    "codex-prompts/codex-main-0.2.35-quest-overview-route.md",
+    "docs-deltas/README-updates.md",
+    "task-doc-drafts/0.2.31-mantok-ability-grants-qa-hardening.md",
+    "task-doc-drafts/0.2.32-charkokovalnia-item-upgrades.md",
+    "task-doc-drafts/0.2.33-turn-based-duel-tournaments-rewards.md",
+    "task-doc-drafts/0.2.34-rogue-reputation-location-risk.md",
+    "task-doc-drafts/0.2.35-quest-overview-route.md"
+  ]
+}

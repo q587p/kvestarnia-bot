@@ -56,6 +56,14 @@ Near-term next tasks:
 
 - [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow polish, bugfix and QA-hardening pass after the current release candidate; no new major systems unless the task is explicitly re-scoped.
 
+Near-term reserved sequence after the active `0.2.30` Mantok Ability Grants release candidate:
+
+- [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow polish, bugfix and QA-hardening pass after the current release candidate; can absorb Mantok Ability Grants manual-QA fixes if needed, but should not add new major systems.
+- [0.2.32-charkokovalnia-item-upgrades.md](0.2.32-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP with concrete `+N` item ids and replay-safe upgrade attempts.
+- [0.2.33-turn-based-duel-tournaments-rewards.md](0.2.33-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
+- [0.2.34-rogue-reputation-location-risk.md](0.2.34-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
+- [0.2.35-quest-overview-route.md](0.2.35-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
+
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
 - [0.1.22-monster-abilities-ai.md](0.1.22-monster-abilities-ai.md) — typed monster ability catalogs, frozen monster loadouts and pure monster AI.

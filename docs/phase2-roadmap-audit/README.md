@@ -1,5 +1,18 @@
 # Phase 2 Roadmap Audit — Квестарня
 
+## 12026-07-07 refresh
+
+The latest imported refresh lives in [`12026-07-07/`](12026-07-07/). It audits the roadmap after the main `0.2.29` line and the active `0.2.30 — Mantok Ability Grants Foundation` release candidate.
+
+Short decision from that refresh:
+
+1. Finish the active Mantok Ability Grants foundation cleanly.
+2. Keep `0.2.31` available for polish, bugfixes and QA hardening if needed.
+3. Renumber Charkokovalnia / Item Upgrades to a later version instead of sharing `0.2.30`.
+4. After the equipment-depth stretch, pivot back toward Phase 2 social loops: turn-based duel tournament rewards, Rogue reputation/location risk and the quest overview route.
+
+The original post-`0.2.7` audit follows below.
+
 Дата аудиту: 12026-06-27, Europe/Kyiv.
 
 Цей архів зібраний як handoff-пакет після аналізу README, roadmap, phase2-доків, task-docs, Codex workflow, public site/Telegram surfaces і відкритого PR `0.2.7 — Player Abilities MVP`.
