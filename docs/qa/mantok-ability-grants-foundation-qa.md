@@ -28,6 +28,7 @@ Review follow-up coverage:
 - Automated quest-table command coverage confirms `🍺 До зали` stays unmarked when the currently visible `📋 Стіл зі справами` card already shows the available table quests.
 - Automated presenter coverage confirms old Shynok table-game links replay stored completed Tavlei results and show a clear not-started/refunded card for expired tables instead of the generic closed-table copy.
 - Automated inventory callback, presenter and keyboard coverage confirms `🎒 Манатки` sort toggles can switch by received date or item name and preserve the chosen order through pagination, page prompts and item-detail back links.
+- Automated item-detail presenter coverage confirms same-slot replacement previews show the currently equipped item's visible effect beside the `Замінить` name.
 
 Manual Telegram evidence still required before merge:
 
@@ -49,6 +50,7 @@ Manual Telegram evidence still required before merge:
 - Pending: on `📋 Стіл зі справами`, when only visible table quests such as `Підозріла шаурма`, `Новачкова сутичка` or `Обрати пригоду` are available, `🍺 До зали` has no `⚠️`.
 - Pending: pressing an old Shynok table-game link after a completed table shows the stored result, while an expired/not-started table says the game did not start and does not mutate stakes again.
 - Pending: in live `🎒 Манатки` with at least two manatky, `🕒 Нові спершу` / `🕒 Нові в кінці` and `🔤 А-Я` / `🔤 Я-А` reorder the list and stay active after opening a detail card and returning.
+- Pending: in live `🎒 Манатки`, open an equippable item for an occupied slot and verify `Замінить` shows the current item's name plus its visible effect before equipping.
 
 1. Seed or win one grant manatka in each slot and equip it on a level-appropriate character. Locally, use `/dev_add_item itemId=<item.id>` for exact QA grants.
    - Combat-action QA ids:

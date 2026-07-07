@@ -227,7 +227,7 @@ function presentEquipmentLine(
   const slotLabel = slot ? presentEquipmentSlotLabel(slot) : null;
 
   if (slotLabel && currentItem) {
-    return `Екіпірування: <i>можна екіпірувати у слот «${slotLabel}». Замінить: ${escapeHtml(currentItem.content.name)}.</i>`;
+    return `Екіпірування: <i>можна екіпірувати у слот «${slotLabel}». Замінить: ${presentReplacementItemSummary(currentItem)}.</i>`;
   }
 
   if (slotLabel) {
@@ -235,6 +235,12 @@ function presentEquipmentLine(
   }
 
   return "Екіпірування: <i>можна екіпірувати. Спорядження вже звільняє місце.</i>";
+}
+
+function presentReplacementItemSummary(item: { content: ItemContent }): string {
+  const effect = presentItemEffect(item.content.effect) ?? "без видимого ефекту";
+
+  return `${escapeHtml(item.content.name)}; зараз дає: ${escapeHtml(effect)}`;
 }
 
 function presentEquipmentSlotLabelInline(slot: EquipmentSlot): string {
