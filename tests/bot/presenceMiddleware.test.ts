@@ -736,6 +736,78 @@ describe("presence middleware", () => {
     expect(payload).toContain("🥊 Кинути виклик присутнім");
   });
 
+  it("opens the Rogue quiet pocket card from the nearby menu callback", async () => {
+    const presence = new CapturingPresenceService();
+    const openForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      mode: "rogue",
+      character: {
+        ...character,
+        classId: "class.rogue",
+        className: "Злодій",
+        level: 3
+      },
+      actorBlocked: false,
+      locationName: "Зала корчми",
+      targets: [
+        {
+          telegramUserId: 93n,
+          name: "Сусід",
+          remortCount: 0,
+          level: 3,
+          hpCurrent: 20,
+          hpMax: 20,
+          manaCurrent: 10,
+          manaMax: 10,
+          canPriestAid: false,
+          canRoguePickpocket: true,
+          rogueAttemptedToday: false
+        }
+      ],
+      targetPage: 0,
+      targetTotalPages: 1,
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: null,
+      roguePickpocketCooldownAvailableAt: null
+    });
+    const bot = createTestBot(presence, {
+      classNoncombat: {
+        openForTelegramUser
+      } as unknown as NonNullable<BotServices["classNoncombat"]>
+    });
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+    bot.api.config.use((prev, method, payload, signal) => {
+      calls.push({ method, payload });
+      return prev(method, payload, signal);
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate("v1:nc:o:r:0"));
+
+    expect(openForTelegramUser).toHaveBeenCalledWith(42n, "rogue", 0);
+    expect(calls.some((call) => call.method === "answerCallbackQuery")).toBe(true);
+    const editCall = calls.find((call) => call.method === "editMessageText");
+    expect(String(editCall?.payload.text)).toContain("🗡️ <b>Тиха кишеня</b>");
+    expect(JSON.stringify(editCall?.payload.reply_markup)).toContain("v1:nc:p:2l");
+  });
+
+  it("answers unknown callback payloads instead of leaving Telegram blinking", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence);
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+    bot.api.config.use((prev, method, payload, signal) => {
+      calls.push({ method, payload });
+      return prev(method, payload, signal);
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate("v1:missing:route"));
+
+    const answer = calls.find((call) => call.method === "answerCallbackQuery");
+    expect(answer?.payload.text).toContain("Ця кнопка вже втратила магію");
+    expect(answer?.payload.show_alert).toBe(true);
+  });
+
   it("marks successful cellar action callbacks with cellar presence after handler gates", async () => {
     const presence = new CapturingPresenceService();
     const bot = createTestBot(presence, {
