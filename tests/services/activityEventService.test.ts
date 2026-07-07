@@ -75,6 +75,7 @@ describe("ActivityEventService", () => {
       sourceType: "daily-action",
       occurredAt: new Date("2026-07-02T10:00:00.000Z"),
       levelChange: { oldLevel: 1, newLevel: 5, leveledUp: true },
+      remortCount: 4,
       itemIds: [
         "item.pan-of-persuasion",
         "item.towel-of-forty-two-answers",
@@ -89,7 +90,8 @@ describe("ActivityEventService", () => {
     ]);
     expect(repository.rows[0]).toMatchObject({
       severity: "high",
-      dedupeKey: "character.level_reached:character-1:5"
+      dedupeKey: "character.level_reached:character-1:5:4",
+      payload: { level: 5, remortCount: 4 }
     });
     expect(repository.rows[1]).toMatchObject({
       subjectId: "item.towel-of-forty-two-answers",
@@ -111,15 +113,16 @@ describe("ActivityEventService", () => {
       sourceId: "daily-8",
       sourceType: "daily-action",
       occurredAt: new Date("2026-07-02T10:00:00.000Z"),
-      levelChange: { oldLevel: 7, newLevel: 8, leveledUp: true }
+      levelChange: { oldLevel: 7, newLevel: 8, leveledUp: true },
+      remortCount: 0
     });
 
     expect(repository.rows).toHaveLength(1);
     expect(repository.rows[0]).toMatchObject({
       eventType: "character.level_reached",
       severity: "high",
-      dedupeKey: "character.level_reached:character-1:8",
-      payload: { level: 8 }
+      dedupeKey: "character.level_reached:character-1:8:0",
+      payload: { level: 8, remortCount: 0 }
     });
   });
 

@@ -13,6 +13,7 @@ export interface TrackRewardAchievementInput {
   actorDisplayName?: string | undefined;
   occurredAt: Date;
   levelChange?: RewardLevelChange | null | undefined;
+  remortCount?: number | null | undefined;
   itemGrants?: readonly ItemGrant[] | undefined;
   itemIds?: readonly string[] | undefined;
   events?: readonly AchievementSimpleEventType[] | undefined;
@@ -35,6 +36,7 @@ export async function trackRewardAchievementsSafely(
     sourceType: input.sourceType ?? "reward",
     occurredAt: input.occurredAt,
     levelChange: input.levelChange,
+    remortCount: input.remortCount,
     itemIds
   });
 

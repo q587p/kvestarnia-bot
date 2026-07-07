@@ -556,6 +556,7 @@ export class AdventureService {
       sourceType: "daily-action",
       occurredAt: claim.action.createdAt,
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemGrants: claim.itemGrants,
       events: achievementEvents,
       activityEvents: this.activityEvents
@@ -744,6 +745,7 @@ export class AdventureService {
       sourceType: "daily-action",
       occurredAt: claim.action.createdAt,
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemGrants: claim.itemGrants,
       events: ["starter.mimic-shawarma.completed"],
       activityEvents: this.activityEvents

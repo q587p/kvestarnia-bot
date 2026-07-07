@@ -42,10 +42,12 @@ export class PublicActivityEventPublisher {
     sourceType: string;
     occurredAt: Date;
     levelChange?: RewardLevelChange | null | undefined;
+    remortCount?: number | null | undefined;
     itemIds?: readonly string[] | undefined;
   }): Promise<void> {
     if (input.levelChange?.leveledUp && input.levelChange.newLevel >= LATEST_EVENTS_PUBLIC_MIN_LEVEL) {
       const level = input.levelChange.newLevel;
+      const remortCount = normalizeRemortCount(input.remortCount);
       await this.recordSafely({
         eventType: "character.level_reached",
         category: "progression",
@@ -54,8 +56,8 @@ export class PublicActivityEventPublisher {
         actorDisplayName: input.actorDisplayName,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
-        dedupeKey: `character.level_reached:${input.characterId}:${level}`,
-        payload: { level },
+        dedupeKey: `character.level_reached:${input.characterId}:${level}:${remortCount}`,
+        payload: { level, remortCount },
         occurredAt: input.occurredAt
       });
     }
@@ -201,6 +203,12 @@ export class PublicActivityEventPublisher {
 
 function isMilestoneLevel(level: number): boolean {
   return LATEST_EVENTS_MILESTONE_LEVELS.includes(level as (typeof LATEST_EVENTS_MILESTONE_LEVELS)[number]);
+}
+
+function normalizeRemortCount(value: number | null | undefined): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : 0;
 }
 
 function parseDate(value: string | undefined): Date | null {

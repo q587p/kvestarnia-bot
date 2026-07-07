@@ -118,7 +118,8 @@ function renderEventRow(event: ActivityEventRecord): string {
       return `👋 ${time} | Новий пригодник у Квестарні: ${actor}!`;
     case "character.level_reached": {
       const level = readPayloadNumber(event.payload, "level");
-      return `🎉 ${time} | ${actor} бере ${level ?? "новий"} рівень!`;
+      const remort = presentRemortTag(readPayloadNumber(event.payload, "remortCount"));
+      return `🎉 ${time} | ${actor} бере ${level ?? "новий"} рівень${remort}!`;
     }
     case "party.raid_won": {
       const participantCount = readPayloadNumber(event.payload, "participantCount") ?? 1;
@@ -218,6 +219,14 @@ function readPayloadNumber(payload: unknown, key: string): number | null {
   }
   const value = (payload as Record<string, unknown>)[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function presentRemortTag(remortCount: number | null): string {
+  if (remortCount === null) {
+    return "";
+  }
+
+  return ` (р${Math.max(0, Math.floor(remortCount))})`;
 }
 
 function readPayloadString(payload: unknown, key: string): string | null {

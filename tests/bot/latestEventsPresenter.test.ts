@@ -27,7 +27,7 @@ describe("latest events presenter", () => {
           }),
           makeEvent("character.level_reached", "2026-07-02T08:00:00.000Z", {
             actorDisplayName: "You®4ik",
-            payload: { level: 7 }
+            payload: { level: 7, remortCount: 5 }
           }),
           makeEvent("party.raid_won", "2026-07-02T07:00:00.000Z", {
             subjectName: "Старший Брат Бочки",
@@ -63,7 +63,7 @@ describe("latest events presenter", () => {
     expect(text).toContain("Сьогодні");
     expect(text).toContain("Вчора");
     expect(text).toContain("Новий пригодник у Квестарні: Арден!");
-    expect(text).toContain("You®4ik бере 7 рівень!");
+    expect(text).toContain("You®4ik бере 7 рівень (р5)!");
     expect(text).toContain("Ватага: перемога. Ціль — «Старший Брат Бочки». У протоколі: 5 пригодників.");
     expect(text).toContain("Ватага: невдача. Ціль — «Старший Брат Бочки». У протоколі: 4 пригодників.");
     expect(text).toContain("Арден: соло-рейд, перемога. Ціль — «Бочка Пінного Міражу».");

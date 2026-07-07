@@ -2110,6 +2110,7 @@ export class FightService {
       sourceId: claim.action.id,
       sourceType: "daily-action",
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemIds: claim.itemGrants.map((grant) => grant.itemId),
       events: ["starter.mimic-shawarma.probe.completed"],
       combatMonsterId: MIMIC_SHAWARMA_MONSTER_ID,
@@ -2939,6 +2940,7 @@ export class FightService {
           sourceId: claim.action.id,
           sourceType: "daily-action",
           levelChange: claim.levelChange,
+          remortCount: claim.character.remortCount ?? 0,
           itemIds: claim.itemGrants.map((grant) => grant.itemId),
           problemStageId: stage.id
         })
@@ -3123,6 +3125,7 @@ export class FightService {
       sourceId: claim.action.id,
       sourceType: "daily-action",
       levelChange: claim.levelChange,
+      remortCount: claim.character.remortCount ?? 0,
       itemIds: claim.itemGrants.map((grant) => grant.itemId),
       combatMonsterId: session.monsterId,
       ...withAchievementCombatOutcome(session.state?.status ?? session.status)
@@ -3394,6 +3397,7 @@ export class FightService {
     events?: readonly AchievementSimpleEventType[];
     actorDisplayName?: string;
     sourceType?: string;
+    remortCount?: number | null;
   }): Promise<AchievementUnlock[]> {
     const occurredAt = this.clock();
     const unlocks: AchievementUnlock[] = [];
@@ -3405,6 +3409,7 @@ export class FightService {
       sourceType: input.sourceType ?? "reward",
       occurredAt,
       levelChange: input.levelChange,
+      remortCount: input.remortCount,
       itemIds: input.itemIds
     });
 
