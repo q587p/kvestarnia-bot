@@ -7,12 +7,62 @@ import {
   buildShynokGameHubKeyboard,
   buildShynokGameRulesKeyboard,
   buildShynokGameSessionKeyboard,
+  buildShynokOverviewKeyboard,
   formatShynokOpenTableButtonLabel
 } from "../../src/bot/keyboards/shynokKeyboard";
 import { buildTavernGameActionKeyboard } from "../../src/bot/tavernGameNotifications";
 import { startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("Shynok game keyboards", () => {
+  it("does not mark the hall return when only Shynok itself has a quest marker", () => {
+    const keyboard = buildShynokOverviewKeyboard(shynokOverviewResult(), {
+      questMarkers: {
+        characterLevel: 2,
+        barrelBeerTutorial: {
+          state: "in-progress",
+          character: shynokCharacter(),
+          progress: {
+            accepted: true,
+            stipendGranted: true,
+            visitedBarrel: true,
+            raidCompleted: true,
+            beerRoundOffered: false,
+            beerDrunk: false,
+            activeBeer: false,
+            currentLocationId: "location.korchma.bar"
+          }
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toContain("⬅️ До зали");
+    expect(flatInlineButtonTexts(keyboard)).not.toContain("⬅️ До зали ⚠️");
+  });
+
+  it("keeps marking the Shynok hall return when another Korchma location has a quest marker", () => {
+    const keyboard = buildShynokOverviewKeyboard(shynokOverviewResult(), {
+      questMarkers: {
+        characterLevel: 2,
+        barrelBeerTutorial: {
+          state: "in-progress",
+          character: shynokCharacter(),
+          progress: {
+            accepted: true,
+            stipendGranted: true,
+            visitedBarrel: false,
+            raidCompleted: false,
+            beerRoundOffered: false,
+            beerDrunk: false,
+            activeBeer: false,
+            currentLocationId: "location.korchma.bar"
+          }
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toContain("⬅️ До зали ⚠️");
+  });
+
   it("shows Tavlei cancellation only to the creator while the table is still alone and open", () => {
     const keyboard = buildShynokGameSessionKeyboard({
       state: "created",
@@ -487,6 +537,36 @@ describe("Shynok game keyboards", () => {
     expect(callbacks.some((callback) => callback.includes(":gds:"))).toBe(false);
   });
 });
+
+function shynokOverviewResult() {
+  return {
+    state: "ready" as const,
+    character: shynokCharacter(),
+    openRoundOffers: []
+  };
+}
+
+function shynokCharacter() {
+  return {
+    id: "character-shynok",
+    name: "Тестова Відвідувачка",
+    pronoun: "they" as const,
+    pronounLabel: "Вони",
+    path: "boundary" as const,
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 2,
+    xp: 0,
+    gold: 93,
+    hpCurrent: 10,
+    hpMax: 10,
+    manaCurrent: 5,
+    manaMax: 5,
+    attack: 3,
+    defense: 2,
+    speed: 2
+  };
+}
 
 function tavleiSession(overrides: { status?: string; participantCount?: number; token?: string } = {}) {
   const participants = [

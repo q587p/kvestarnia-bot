@@ -32,8 +32,10 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { formatTavernGamesButtonLabel } from "./tavernKeyboard";
 import {
   decorateButtonLabel,
+  mergeQuestMarkers,
   resolveQuestMarkerForTarget,
-  type QuestMarkerInput
+  type QuestMarkerInput,
+  type QuestMarkerTarget
 } from "./questButtonMarkers";
 import {
   makeShynokDrinkConfirmCallbackData,
@@ -603,9 +605,28 @@ interface ShynokNavigationOptions {
 function buildBackToHallLabel(options: ShynokNavigationOptions = {}): string {
   return decorateButtonLabel(
     "⬅️ До зали",
-    resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.hall")
+    resolveShynokBackToHallMarker(options.questMarkers)
   );
 }
+
+function resolveShynokBackToHallMarker(questMarkers: QuestMarkerInput | null | undefined) {
+  const input = questMarkers ?? undefined;
+
+  if (!input) {
+    return resolveQuestMarkerForTarget(undefined, "location.korchma.hall");
+  }
+
+  return mergeQuestMarkers(
+    SHYNOK_BACK_TO_HALL_MARKER_TARGETS.map((target) => resolveQuestMarkerForTarget(input, target))
+  );
+}
+
+const SHYNOK_BACK_TO_HALL_MARKER_TARGETS: readonly QuestMarkerTarget[] = [
+  "location.korchma.quest-table",
+  "location.korchma.barrel",
+  "location.korchma.cellar",
+  "location.korchma.ranger-corner"
+];
 
 export function formatShynokOpenTableButtonLabel(
   gameKey: TavernGameKey,
