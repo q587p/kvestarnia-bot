@@ -4,6 +4,7 @@ import type { BarrelBeerTutorialService } from "../../services/barrelBeerTutoria
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService } from "../../services/fightService";
+import type { ItemUpgradeService } from "../../services/itemUpgradeService";
 import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { YegerQuestService } from "../../services/yegerQuestService";
@@ -33,6 +34,7 @@ export interface QuestHubCommandOptions {
   cellarGrownup?: CellarGrownupQuestService;
   dailyKorchmaRound?: DailyKorchmaRoundService;
   fight: FightService;
+  itemUpgrades?: Pick<ItemUpgradeService, "getUnlockQuestForTelegramUser">;
   yeger: YegerQuestService;
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
@@ -124,13 +126,17 @@ async function buildQuestHubSnapshot(
   const dailyKorchmaRound = options.dailyKorchmaRound
     ? await options.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
     : null;
+  const itemUpgrades = options.itemUpgrades
+    ? await options.itemUpgrades.getUnlockQuestForTelegramUser(telegramUserId)
+    : null;
 
   if (
     fight.state === "no-character" ||
     problemQuest.state === "no-character" ||
     yeger.state === "no-character" ||
     cellar.state === "no-character" ||
-    barrelBeerTutorial?.state === "no-character"
+    barrelBeerTutorial?.state === "no-character" ||
+    itemUpgrades?.state === "no-character"
   ) {
     return null;
   }
@@ -150,6 +156,7 @@ async function buildQuestHubSnapshot(
     yeger,
     cellar,
     ...(dailyKorchmaRound && dailyKorchmaRound.state !== "no-character" ? { dailyKorchmaRound } : {}),
+    ...(itemUpgrades ? { itemUpgrades } : {}),
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"
       ? { cellarGrownup }
       : {})

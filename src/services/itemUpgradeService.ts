@@ -90,6 +90,12 @@ export type ItemUpgradeAttemptServiceResult =
 
 export type ItemUpgradeUnlockServiceResult = Awaited<ReturnType<ItemUpgradeRepository["unlockForTelegramUser"]>>;
 
+export type ItemUpgradeQuestLookupResult =
+  | { state: "no-character" }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "unlock-required"; character: CharacterSummary; fieldKitQuantity: number; rewardXp: number }
+  | { state: "ready"; character: CharacterSummary };
+
 export class ItemUpgradeService {
   constructor(
     private readonly repository: ItemUpgradeRepository,
@@ -123,6 +129,34 @@ export class ItemUpgradeService {
         return [presentItem(content, row.itemId, row.quantity, row.equipped)];
       })
     };
+  }
+
+  async getUnlockQuestForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeQuestLookupResult> {
+    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, this.clock());
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+
+    const character = summarizeCharacter(snapshot.character);
+
+    if (!canAccessItemUpgrades(snapshot.character)) {
+      return {
+        state: "level-locked",
+        character,
+        requiredLevel: getItemUpgradeRequiredLevel(snapshot.character)
+      };
+    }
+
+    if (!snapshot.unlocked) {
+      return {
+        state: "unlock-required",
+        character,
+        fieldKitQuantity: snapshot.items.find((item) => item.itemId === FIELD_KIT_ITEM_ID)?.quantity ?? 0,
+        rewardXp: getItemUpgradeUnlockRewardXp(snapshot.character)
+      };
+    }
+
+    return { state: "ready", character };
   }
 
   async previewForTelegramUser(

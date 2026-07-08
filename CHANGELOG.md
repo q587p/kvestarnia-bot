@@ -33,6 +33,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `Іскрокамінь` is transferable through Safe Gifting and postal delivery like other ordinary tradeable material stacks.
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
+- Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows `✨ Доступ до Чароковальні` while the Mage still needs the field kit, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
 - Updated task docs, developer setup notes, balance notes, achievement catalog, lore board, release notes and compact Codex context for the shipped `0.3.0` MVP.
 - Bumped package metadata to `0.3.0`.
 

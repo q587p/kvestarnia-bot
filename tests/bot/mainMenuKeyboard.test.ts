@@ -300,14 +300,23 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(inlineButtonRows(buildKorchmaYardKeyboard())).toEqual([
       ["✨ Чароковальня"],
-      ["🧾 До обходу"],
       ["⬅️ До дверей"]
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaYardKeyboard())).toEqual([
       "v1:up:l",
-      "v1:place:quest-table",
       "v1:place:front"
     ]);
+    expect(inlineButtonRows(buildKorchmaYardKeyboard({
+      questMarkers: {
+        characterLevel: 5,
+        itemUpgrades: {
+          state: "unlock-required",
+          character,
+          fieldKitQuantity: 1,
+          rewardXp: 13
+        }
+      }
+    }))).toContainEqual(["✨ Чароковальня ⚠️"]);
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "🚪 Зайти в корчму",
       "📜 Табличка прибулих",

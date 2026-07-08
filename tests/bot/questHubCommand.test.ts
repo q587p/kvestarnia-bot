@@ -14,6 +14,7 @@ import type { CellarErrandService } from "../../src/services/cellarErrandService
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
 import type { FightService } from "../../src/services/fightService";
+import type { ItemUpgradeService } from "../../src/services/itemUpgradeService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import type { YegerQuestService } from "../../src/services/yegerQuestService";
 import {
@@ -156,6 +157,40 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     const dailyButton = buttons.find((button) => button.text === "🧾 Корчмарський обхід ⚠️");
     expect(dailyButton?.callback_data).toMatch(/^v1:dkr:o:\d{8}$/);
+  });
+
+  it("shows pending Charkokovalnia access on the quest table", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const getUnlockQuestForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "unlock-required" as const,
+        character: characterAtLevel(4),
+        fieldKitQuantity: 1,
+        rewardXp: 13
+      })
+    );
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser
+        }
+      }),
+      "reply"
+    );
+
+    expect(getUnlockQuestForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(replies[0]?.text).toContain("✨ <i>Доступ до Чароковальні</i>");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons).toContainEqual({
+      text: "✨ Доступ до Чароковальні ⚠️",
+      callback_data: makePlaceCallbackData("yard")
+    });
   });
 
   it("keeps locked cellar and hunt out of the active list on level one", async () => {
@@ -1369,6 +1404,7 @@ function servicesWith(overrides: {
   cellarGrownup?: CellarGrownupQuestService;
   dailyKorchmaRound?: DailyKorchmaRoundService;
   fight?: FightService;
+  itemUpgrades?: Pick<ItemUpgradeService, "getUnlockQuestForTelegramUser">;
   yeger?: YegerQuestService;
   presence?: CapturingPresenceService;
   tavernRaid?: TavernRaidService;
@@ -1388,6 +1424,7 @@ function servicesWith(overrides: {
     fight:
       overrides.fight ??
       readyFightService(character),
+    itemUpgrades: overrides.itemUpgrades,
     yeger:
       overrides.yeger ??
       readyYegerService(character),

@@ -4,6 +4,7 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
+import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
@@ -46,7 +47,8 @@ export type QuestMarkerTarget =
   | "quest.cellar"
   | "quest.cellar-grownup"
   | "quest.barrel-beer-tutorial"
-  | "quest.daily-korchma-round";
+  | "quest.daily-korchma-round"
+  | "quest.charkokovalnia";
 
 export interface QuestMarkerInput {
   characterLevel?: number;
@@ -59,6 +61,7 @@ export interface QuestMarkerInput {
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
   barrelBeerTutorial?: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }>;
   dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
+  itemUpgrades?: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }>;
 }
 
 const MARKER_SUFFIX: Record<QuestMarker, string> = {
@@ -112,6 +115,8 @@ export function resolveQuestMarkerForTarget(
       return getBarrelBeerTutorialMarker(input.barrelBeerTutorial);
     case "quest.daily-korchma-round":
       return getDailyKorchmaRoundMarker(input.dailyKorchmaRound);
+    case "quest.charkokovalnia":
+      return input.itemUpgrades?.state === "unlock-required" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
     case "location.korchma.quest-table":
     case "menu.quest":
       return mergeQuestMarkers([
@@ -122,7 +127,8 @@ export function resolveQuestMarkerForTarget(
         resolveQuestMarkerForTarget(input, "quest.cellar"),
         resolveQuestMarkerForTarget(input, "quest.cellar-grownup"),
         resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial"),
-        resolveQuestMarkerForTarget(input, "quest.daily-korchma-round")
+        resolveQuestMarkerForTarget(input, "quest.daily-korchma-round"),
+        resolveQuestMarkerForTarget(input, "quest.charkokovalnia")
       ]);
     case "location.korchma.bar":
       return mergeQuestMarkers([
@@ -143,7 +149,7 @@ export function resolveQuestMarkerForTarget(
     case "location.korchma.ranger-corner":
       return resolveQuestMarkerForTarget(input, "quest.yeger");
     case "location.korchma.yard":
-      return QuestMarker.NONE;
+      return resolveQuestMarkerForTarget(input, "quest.charkokovalnia");
     case "location.korchma.front":
       return QuestMarker.NONE;
     case "location.korchma.hall":
@@ -152,7 +158,8 @@ export function resolveQuestMarkerForTarget(
         resolveQuestMarkerForTarget(input, "location.korchma.bar"),
         resolveQuestMarkerForTarget(input, "location.korchma.barrel"),
         resolveQuestMarkerForTarget(input, "location.korchma.cellar"),
-        resolveQuestMarkerForTarget(input, "location.korchma.ranger-corner")
+        resolveQuestMarkerForTarget(input, "location.korchma.ranger-corner"),
+        resolveQuestMarkerForTarget(input, "location.korchma.yard")
       ]);
   }
 }

@@ -11,7 +11,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     | "dailyKorchmaRound"
     | "fight"
     | "yeger"
-  > & Partial<Pick<BotServices, "barrelBeerTutorial">>
+  > & Partial<Pick<BotServices, "barrelBeerTutorial" | "itemUpgrades">>
 ): Promise<QuestMarkerInput | null> {
   if (
     typeof services.adventure?.getAdventureOfferForTelegramUser !== "function" ||
@@ -31,7 +31,8 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     yeger,
     cellar,
     barrelBeerTutorial,
-    dailyKorchmaRound
+    dailyKorchmaRound,
+    itemUpgrades
   ] = await Promise.all([
     typeof services.adventure?.getAdventureOfferForTelegramUser === "function"
       ? services.adventure.getAdventureOfferForTelegramUser(telegramUserId)
@@ -56,6 +57,9 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
       : Promise.resolve(null),
     services.dailyKorchmaRound
       ? services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    typeof services.itemUpgrades?.getUnlockQuestForTelegramUser === "function"
+      ? services.itemUpgrades.getUnlockQuestForTelegramUser(telegramUserId)
       : Promise.resolve(null)
   ]);
 
@@ -73,6 +77,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     cellar,
     barrelBeerTutorial,
     dailyKorchmaRound,
+    itemUpgrades,
     cellarGrownup
   ].map(getCharacterLevel).find((level) => level !== undefined);
 
@@ -90,6 +95,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     ...(cellar && cellar.state !== "no-character" ? { cellar } : {}),
     ...(barrelBeerTutorial && barrelBeerTutorial.state !== "no-character" ? { barrelBeerTutorial } : {}),
     ...(dailyKorchmaRound && dailyKorchmaRound.state !== "no-character" ? { dailyKorchmaRound } : {}),
+    ...(itemUpgrades && itemUpgrades.state !== "no-character" ? { itemUpgrades } : {}),
     ...(cellarGrownup && cellarGrownup.state !== "no-character" && cellarGrownup.state !== "too-young"
       ? { cellarGrownup }
       : {})

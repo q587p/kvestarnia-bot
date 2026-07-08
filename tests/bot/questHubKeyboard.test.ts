@@ -142,6 +142,23 @@ describe("quest hub keyboard", () => {
     expect(json).toContain("v1:place:hall");
   });
 
+  it("offers Charkokovalnia access from the quest table while the unlock quest is pending", () => {
+    const keyboard = buildQuestHubKeyboard(
+      makeInput({
+        itemUpgrades: {
+          state: "unlock-required",
+          character: character(),
+          fieldKitQuantity: 1,
+          rewardXp: 13
+        }
+      })
+    );
+    const json = JSON.stringify(keyboard);
+
+    expect(json).toContain("✨ Доступ до Чароковальні ⚠️");
+    expect(json).toContain("v1:place:yard");
+  });
+
   it("keeps the back-to-hall route from other Korchma locations", () => {
     const keyboard = buildQuestHubKeyboard(
       makeInput({
