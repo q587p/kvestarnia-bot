@@ -12,6 +12,8 @@ They do not introduce a new combat engine. Tournament standings read resolved du
 
 Cards show the active period, current standings, the player's points/rank, time remaining, previous winners and a claim button when a completed previous period has an unclaimed prize.
 
+Stored period keys may remain Gregorian for repository/callback stability, but player-facing tournament cards must render period keys as Holocene dates: `12026-07-08`, `12026-W28`, `12026-07`.
+
 ## Counting Rules
 
 Only resolved turn-based duels count.

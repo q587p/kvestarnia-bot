@@ -13,6 +13,7 @@ export type DuelCallback =
   | { type: "rematch"; token: string }
   | { type: "rematch-risk"; token: string }
   | { type: "share"; token: string }
+  | { type: "journal"; token: string; page: number }
   | { type: "invite"; token: string; templateIndex: number }
   | { type: "turn"; token: string; action: "attack" | "defend" | "skill" | "race" | "surrender"; turn: number; version: number }
   | { type: "gear"; token: string; turn: number; version: number; grantKey: string }
@@ -22,6 +23,7 @@ export type DuelCallbackError =
   | "invalid-version"
   | "invalid-prefix"
   | "invalid-action"
+  | "invalid-page"
   | "invalid-template"
   | "invalid-token"
   | "too-long";
@@ -72,6 +74,10 @@ export function makeDuelRematchRiskCallbackData(token: string): string {
 
 export function makeDuelShareCallbackData(token: string): string {
   return `${PREFIX}:share:${token}`;
+}
+
+export function makeDuelJournalCallbackData(token: string, page = 0): string {
+  return `${PREFIX}:j:${token}:${Math.max(0, Math.floor(page)).toString(36)}`;
 }
 
 export function makeDuelInviteRotateCallbackData(token: string, templateIndex: number): string {
@@ -155,6 +161,7 @@ export function parseDuelCallbackData(
     action !== "rematch" &&
     action !== "rematch-risk" &&
     action !== "inv" &&
+    action !== "j" &&
     action !== "t" &&
     action !== "g" &&
     action !== "share" &&
@@ -176,6 +183,22 @@ export function parseDuelCallbackData(
       type: "invite",
       token,
       templateIndex: Number.parseInt(templateIndex, 36)
+    });
+  }
+
+  if (action === "j") {
+    if (templateIndex === undefined || !/^[0-9a-z]{1,3}$/.test(templateIndex)) {
+      return err("invalid-page");
+    }
+
+    if (turnValue !== undefined || versionValue !== undefined) {
+      return err("invalid-prefix");
+    }
+
+    return ok({
+      type: "journal",
+      token,
+      page: Number.parseInt(templateIndex, 36)
     });
   }
 

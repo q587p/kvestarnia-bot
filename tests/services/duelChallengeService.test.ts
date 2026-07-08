@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
+  DuelCombatActionRecord,
   DuelCombatSessionRecord,
   DuelCharacterSnapshot,
   DuelResultPayload,
@@ -1809,6 +1810,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   readonly characters = new Map<bigint, DuelCharacterSnapshot>();
   readonly challenges = new Map<string, DuelChallengeRecord>();
   readonly sessions = new Map<string, DuelCombatSessionRecord>();
+  readonly turnActions = new Map<string, DuelCombatActionRecord[]>();
   readonly resourceUpdates: UpdateCharacterResourcesInput[] = [];
   readonly busyCharacterIds = new Set<string>();
   readonly nearbyTargets = new FakeNearbyDuelTargetValidator();
@@ -2200,6 +2202,18 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     );
   }
 
+  listTurnBasedActionsByToken(inviteToken: string): Promise<DuelCombatActionRecord[]> {
+    const session = [...this.sessions.values()].find(
+      (entry) => entry.challenge.inviteToken === inviteToken
+    );
+
+    if (!session) {
+      return Promise.resolve([]);
+    }
+
+    return Promise.resolve([...(this.turnActions.get(session.id) ?? [])]);
+  }
+
   updateTurnBasedIfActiveVersion(
     sessionId: string,
     expectedTurn: number,
@@ -2253,6 +2267,19 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     if (input.status !== "active" && input.result?.xpRewards) {
       this.awardXp(session.challengerCharacterId, input.result.xpRewards.challenger);
       this.awardXp(session.targetCharacterId, input.result.xpRewards.target);
+    }
+    if (input.action) {
+      const actions = this.turnActions.get(sessionId) ?? [];
+      actions.push({
+        id: `duel-action-${sessionId}-${actions.length + 1}`,
+        sessionId,
+        actorCharacterId: input.action.actorCharacterId,
+        turn: input.action.turn,
+        actionKey: input.action.actionKey,
+        result: cloneState(input.action.result),
+        createdAt: fixedNow()
+      });
+      this.turnActions.set(sessionId, actions);
     }
     const updated = {
       ...session,

@@ -185,6 +185,14 @@ export type DuelInviteRotationResult =
   | { state: "not-pending"; view: DuelChallengeView }
   | { state: "ready"; challenge: DuelChallengeRecord; challenger: CharacterSummary };
 
+export type DuelTurnBasedJournalResult =
+  | { state: "not-found" }
+  | {
+      state: "ready";
+      session: DuelCombatSessionRecord;
+      rounds: TurnBasedDuelRoundSummary[];
+    };
+
 export type TurnBasedDuelTurnResult =
   | { state: "no-character" }
   | { state: "not-found" }
@@ -611,6 +619,25 @@ export class DuelChallengeService {
     const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(inviteToken, telegramUserId);
 
     return session ? this.buildActiveView(session, this.clock()) : { state: "not-found" };
+  }
+
+  async getTurnBasedJournalByToken(inviteToken: string): Promise<DuelTurnBasedJournalResult> {
+    const session = await this.challenges.findTurnBasedByToken(inviteToken);
+
+    if (!session) {
+      return { state: "not-found" };
+    }
+
+    const actions = await this.challenges.listTurnBasedActionsByToken(inviteToken);
+    const rounds = actions
+      .map((action) => parseTurnBasedDuelRoundSummary(action.result))
+      .filter((round): round is TurnBasedDuelRoundSummary => round !== null);
+
+    return {
+      state: "ready",
+      session,
+      rounds
+    };
   }
 
   async resolveTurnBasedActionForTelegramUser(
@@ -1496,4 +1523,85 @@ function getResourceWarning(character: CharacterSummary): DuelResourceWarning | 
   };
 
   return warning.hpBelowMax || warning.manaBelowMax ? warning : null;
+}
+
+function parseTurnBasedDuelRoundSummary(value: unknown): TurnBasedDuelRoundSummary | null {
+  if (!isRecord(value) || typeof value.turn !== "number" || !Array.isArray(value.actions)) {
+    return null;
+  }
+
+  const actions = value.actions
+    .map(parseTurnBasedDuelActionSummary)
+    .filter((action): action is TurnBasedDuelRoundSummary["actions"][number] => action !== null);
+
+  return {
+    turn: Math.max(1, Math.floor(value.turn)),
+    actions
+  };
+}
+
+function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSummary["actions"][number] | null {
+  if (
+    !isRecord(value) ||
+    typeof value.actorCharacterId !== "string" ||
+    typeof value.defenderCharacterId !== "string" ||
+    !isTurnBasedDuelStoredAction(value.action) ||
+    typeof value.outcome !== "string" ||
+    typeof value.damage !== "number" ||
+    typeof value.manaSpent !== "number" ||
+    typeof value.critical !== "boolean"
+  ) {
+    return null;
+  }
+
+  const fumble = parseTurnBasedDuelFumbleSummary(value.fumble);
+
+  return {
+    actorCharacterId: value.actorCharacterId,
+    defenderCharacterId: value.defenderCharacterId,
+    action: value.action,
+    outcome: value.outcome as TurnBasedDuelRoundSummary["actions"][number]["outcome"],
+    damage: Math.max(0, Math.floor(value.damage)),
+    ...(typeof value.healing === "number" ? { healing: Math.max(0, Math.floor(value.healing)) } : {}),
+    ...(typeof value.guard === "number" ? { guard: Math.max(0, Math.floor(value.guard)) } : {}),
+    manaSpent: Math.max(0, Math.floor(value.manaSpent)),
+    critical: value.critical,
+    ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
+    ...(fumble ? { fumble } : {})
+  };
+}
+
+function parseTurnBasedDuelFumbleSummary(
+  value: unknown
+): TurnBasedDuelRoundSummary["actions"][number]["fumble"] | null {
+  if (
+    !isRecord(value) ||
+    typeof value.abilityId !== "string" ||
+    (value.kind !== "self-damage" && value.kind !== "enemy-heal") ||
+    typeof value.line !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    abilityId: value.abilityId,
+    kind: value.kind,
+    line: value.line,
+    ...(typeof value.selfDamage === "number" ? { selfDamage: Math.max(0, Math.floor(value.selfDamage)) } : {}),
+    ...(typeof value.enemyHealing === "number" ? { enemyHealing: Math.max(0, Math.floor(value.enemyHealing)) } : {})
+  };
+}
+
+function isTurnBasedDuelStoredAction(value: unknown): value is TurnBasedDuelRoundSummary["actions"][number]["action"] {
+  return value === "attack" ||
+    value === "defend" ||
+    value === "skill" ||
+    value === "race" ||
+    value === "gear" ||
+    value === "surrender" ||
+    value === "timeout-attack";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -6,7 +6,8 @@ import type {
   DuelDeclineResult,
   DuelPairLimit,
   DuelRematchResult,
-  DuelResourceWarning
+  DuelResourceWarning,
+  DuelTurnBasedJournalResult
 } from "../../services/duelChallengeService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import {
@@ -19,6 +20,8 @@ import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResu
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
+import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
+import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentDuelEntry(): string {
@@ -368,35 +371,45 @@ export function presentTurnBasedDuel(
         : null;
   const viewerPending = viewerSide ? state.pendingActions?.[viewerSide] : null;
   const viewerParticipant = viewerSide ? state.participants[viewerSide] : null;
-  const statusLine =
-    result.session.status === "active"
-      ? viewerPending
-        ? `Ваш вибір записано · ${formatRemaining(result.turnExpiresAt, result.now)}`
-        : `Оберіть дію · ${formatRemaining(result.turnExpiresAt, result.now)}`
-      : "Бій завершено. Запис уже не перекидається.";
+  const remaining = formatRemaining(result.turnExpiresAt, result.now);
   const actionLine = presentTurnBasedRoundState(state, viewerSide);
 
   const lines = [
     "♟️ <b>Покрокова дуель</b>",
+    `${presentDuelFlavorName(result.challenger)} проти ${presentDuelFlavorName(result.target)}.`,
     "",
-    `${presentDuelParticipantInline(result.challenger)} ⚔️ ${presentDuelParticipantInline(result.target)}`,
+    "Порада дня: робіть вигляд, що це стратегія, навіть якщо це кнопка «Атакувати».",
     "",
+    `♟️ <b>Покрокова дуель: хід ${result.session.turn}</b>`,
     presentDuelVitals(challenger),
-    presentDuelVitals(target),
-    "",
-    `Раунд: <b>${result.session.turn}</b>`,
-    statusLine
+    presentDuelVitals(target)
   ];
 
   if (result.session.status === "active" && viewerParticipant?.cooldowns) {
     lines.push(...presentAbilityCooldowns(viewerParticipant.cooldowns));
   }
 
+  lines.push("", actionLine, "");
+
+  if (result.session.status !== "active") {
+    lines.push("Бій завершено. Запис уже не перекидається.");
+  } else if (viewerPending) {
+    lines.push(
+      `Ваш вибір: <b>${presentQueuedDuelAction(viewerPending.action)}</b>.`,
+      `⏳ Чекаємо другого учасника або таймер: ${remaining}.`
+    );
+  } else if (viewerSide) {
+    lines.push(
+      "Що робимо?",
+      `⏳ На хід є <b>${remaining}</b>. Потім Корчма поставить вас в атаку.`
+    );
+  } else {
+    lines.push(`⏳ На хід є <b>${remaining}</b>. Потім Корчма поставить мовчунів в атаку.`);
+  }
+
   lines.push(
     "",
-    actionLine,
-    "",
-    "<i>Дуель не змінює справжні HP/ману, золото чи манатки.</i>"
+    "<i>Справжні HP/мана, золото й манатки не рухаються. Турнірні нагороди Корчма видає після завершення відповідного періоду.</i>"
   );
 
   return lines.join("\n");
@@ -433,7 +446,7 @@ export function presentDuelResultShare(result: Extract<DuelChallengeView, { stat
     "",
     ...presentDuelRewardLines(result),
     result.challenge.mode === "turn-based"
-      ? "<i>Без золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
+      ? "<i>Золото й манатки не переходять між гравцями. Якщо дуель зарахується в турнір, Корчма видасть нагороду після завершення відповідного періоду.</i>"
       : "<i>Без XP, золота й манаток. Тільки слава, кухоль і трохи підозрілий запис у журналі.</i>"
   ].join("\n");
 }
@@ -475,7 +488,7 @@ function presentResolvedDuel(
     "",
     ...presentDuelRewardLines(result),
     mode === "turn-based"
-      ? "<i>Без золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
+      ? "<i>Золото й манатки не переходять між гравцями. Якщо дуель зарахується в турнір, Корчма видасть нагороду після завершення відповідного періоду.</i>"
       : "<i>Без XP, золота й манаток. Це корчемний запис для слави, а не спосіб заробітку.</i>"
   ];
 
@@ -509,7 +522,14 @@ function presentDuelVitals(participant: {
   mana: number;
   manaMax: number;
 }): string {
-  return `<b>${escapeHtml(participant.displayName)}</b>: HP ${participant.hp}/${participant.hpMax} · мана ${participant.mana}/${participant.manaMax}`;
+  return presentBattleCombatantResourceLine({
+    name: firstName(participant.displayName),
+    hp: participant.hp,
+    hpMax: participant.hpMax,
+    mana: participant.mana,
+    manaMax: participant.manaMax,
+    showHpLabel: true
+  });
 }
 
 function presentTurnBasedRoundState(
@@ -519,7 +539,7 @@ function presentTurnBasedRoundState(
   const pending = viewerSide ? state.pendingActions?.[viewerSide] : null;
 
   if (state.status === "active" && pending) {
-    return `Ваш вибір: <b>${presentQueuedDuelAction(pending.action)}</b>.\nРезультат відкриється, коли обидва учасники зроблять хід або спливе таймер.`;
+    return "Результат відкриється, коли обидва учасники зроблять хід або спливе таймер.";
   }
 
   if (state.status === "active" && state.pendingActions) {
@@ -527,14 +547,14 @@ function presentTurnBasedRoundState(
   }
 
   if (state.lastRound) {
-    return state.lastRound.actions.map(presentTurnBasedLastAction).join("\n");
+    return state.lastRound.actions.map((action) => presentTurnBasedActionLine(action, state)).join("\n");
   }
 
   if (state.lastAction) {
-    return presentTurnBasedLastAction(state.lastAction);
+    return presentTurnBasedActionLine(state.lastAction, state);
   }
 
-  return "⏳ На хід є 23 секунди. Потім Корчмар зарахує звичайну атаку.";
+  return "Корчмар відкрив чистий рядок. Поки що в ньому тільки очікування й пляма від кухля.";
 }
 
 function presentQueuedDuelAction(action: string): string {
@@ -551,8 +571,50 @@ function presentQueuedDuelAction(action: string): string {
       : "звичайна атака";
 }
 
-function presentTurnBasedLastAction(action: {
+export function presentTurnBasedDuelJournal(
+  result: Extract<DuelTurnBasedJournalResult, { state: "ready" }>,
+  requestedPage = 0
+): string {
+  const rounds = result.rounds;
+  const state = result.session.state;
+
+  if (rounds.length === 0) {
+    return presentBattleJournalPage({
+      title: "📜 <b>Журнал дуелі</b>",
+      headerLines: [
+        "",
+        `${escapeHtml(state.participants.challenger.displayName)} проти ${escapeHtml(state.participants.target.displayName)}.`
+      ],
+      emptyText: "Журнал поки порожній. Корчмар відкрив чорнильницю, але ще не має чим хвалитися."
+    });
+  }
+
+  const page = clampPage(requestedPage, rounds.length);
+  const round = rounds[page]!;
+
+  return presentBattleJournalPage({
+    title: "📜 <b>Журнал дуелі</b>",
+    headerLines: [
+      "",
+      `${escapeHtml(state.participants.challenger.displayName)} проти ${escapeHtml(state.participants.target.displayName)}.`
+    ],
+    turn: round.turn,
+    page,
+    totalPages: rounds.length,
+    actorRows: [
+      presentDuelVitals(state.participants.challenger),
+      presentDuelVitals(state.participants.target)
+    ],
+    actionLines: round.actions.length > 0
+      ? round.actions.map((action) => presentTurnBasedActionLine(action, state))
+      : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."]
+  });
+}
+
+function presentTurnBasedActionLine(
+  action: {
   actorCharacterId: string;
+  defenderCharacterId: string;
   action: string;
   outcome: string;
   damage: number;
@@ -567,58 +629,97 @@ function presentTurnBasedLastAction(action: {
     selfDamage?: number | undefined;
     enemyHealing?: number | undefined;
 } | undefined;
-}): string {
+},
+  state: Extract<DuelChallengeView, { state: "active" }>["session"]["state"]
+): string {
+  const actor = findTurnBasedParticipant(state, action.actorCharacterId);
+  const actorName = actor?.displayName ? escapeHtml(actor.displayName) : "Учасник";
+
   if (action.action === "gear") {
     const skillLabel = presentCombatSkillHtml(action.skillId);
     const hitLine =
       action.fumble
         ? presentTurnBasedDuelFumble(action.fumble)
         : action.damage > 0
-          ? `Шкода: <b>${action.damage}</b>${action.critical ? " · критично" : ""}.`
+          ? `влучає на <b>${action.damage}</b> шкоди${action.critical ? " · критично" : ""}.`
           : action.healing || action.guard
-            ? "Шкода не пройшла, але підтримка спрацювала."
+            ? "спрацьовує без прямої шкоди."
           : action.outcome === "not-enough-mana"
-            ? "Мани не вистачило, але хід усе одно пішов у протокол."
+            ? "не спрацьовує: мани не вистачило, але хід уже пішов у запис."
           : action.outcome === "skill-on-cooldown"
-            ? "Дія ще не відлипла від попереднього разу."
-            : "Шкода не пройшла.";
+            ? "ще відсапується від попереднього разу."
+            : "не пробиває захист.";
     const supportLine = presentCombatSupportEffectLine(action, { boldNumbers: true });
 
     return [
-      `🎒 Дія спорядження ${skillLabel} записана в протокол.`,
-      hitLine,
+      `${actorName} застосовує ${skillLabel} ${hitLine}`,
       supportLine
     ].filter(Boolean).join("\n");
   }
 
+  if (action.action === "defend") {
+    return `${actorName} у захисті: ворогові важче влучити, а удар буде слабшим.`;
+  }
+
+  if (action.action === "surrender") {
+    return `${actorName} здається. Корчмар записує це без зайвих запитань.`;
+  }
+
   const actionLine =
     action.action === "surrender"
-      ? "🏳️ Учасник здався. Корчмар записав це без зайвих запитань."
+      ? "здається"
       : action.action === "timeout-attack"
-        ? "⏳ Тиша зробила звичайну атаку замість гравця."
+        ? "мовчить, тож Корчма ставить звичайну атаку"
         : action.action === "defend"
-          ? "🛡 Захист записано в протокол."
+          ? "стає в захист"
         : action.action === "skill"
-          ? "✨ Класова дія записана в протокол."
+          ? `застосовує ${presentCombatSkillHtml(action.skillId)}`
         : action.action === "race"
-          ? "🧬 Расова дія записана в протокол."
-          : "⚔️ Звичайна атака записана в протокол.";
+          ? `застосовує ${presentCombatSkillHtml(action.skillId)}`
+          : "атакує";
   const hitLine =
     action.fumble
       ? presentTurnBasedDuelFumble(action.fumble)
       : action.damage > 0
-      ? `Шкода: <b>${action.damage}</b>${action.critical ? " · критично" : ""}.`
+      ? `влучає на <b>${action.damage}</b> шкоди${action.critical ? " · критично" : ""}.`
       : action.healing || action.guard
-        ? "Шкода не пройшла, але підтримка спрацювала."
+        ? "спрацьовує без прямої шкоди."
       : action.outcome === "not-enough-mana"
-        ? "Мани не вистачило, але хід усе одно пішов у протокол."
+        ? "не спрацьовує: мани не вистачило, але хід уже пішов у запис."
         : action.outcome === "skill-on-cooldown"
-          ? "Дія ще не відлипла від попереднього разу."
-          : "Шкода не пройшла.";
+          ? "ще відсапується від попереднього разу."
+          : "не пробиває захист.";
 
   const supportLine = presentCombatSupportEffectLine(action, { boldNumbers: true });
 
-  return [actionLine, hitLine, supportLine].filter(Boolean).join("\n");
+  return [`${actorName} ${actionLine} ${hitLine}`, supportLine].filter(Boolean).join("\n");
+}
+
+function findTurnBasedParticipant(
+  state: Extract<DuelChallengeView, { state: "active" }>["session"]["state"],
+  characterId: string
+): typeof state.participants.challenger | null {
+  if (state.participants.challenger.characterId === characterId) {
+    return state.participants.challenger;
+  }
+
+  if (state.participants.target.characterId === characterId) {
+    return state.participants.target;
+  }
+
+  return null;
+}
+
+function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] || name;
+}
+
+function clampPage(page: number, total: number): number {
+  if (!Number.isFinite(page)) {
+    return Math.max(0, total - 1);
+  }
+
+  return Math.min(Math.max(0, Math.floor(page)), Math.max(0, total - 1));
 }
 
 function presentTurnBasedDuelFumble(action: {

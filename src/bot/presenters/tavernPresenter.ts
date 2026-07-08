@@ -255,7 +255,7 @@ export function presentDuelTournamentBoard(
     presentTournamentNotice(claimResult),
     ...(claimResult ? [""] : []),
     `<b>${escapeHtml(board.current.label)}</b>`,
-    `Період: ${escapeHtml(board.current.key)}`,
+    `Період: ${escapeHtml(presentTournamentPeriodKey(board.current.key))}`,
     `Ваші очки: <b>${board.yourPoints}</b>${board.yourRank ? `, місце ${board.yourRank}` : ""}`,
     `Лишилось: <b>${presentTournamentRemaining(board.remainingMs)}</b>`,
     "",
@@ -321,16 +321,30 @@ function presentPreviousTournamentWinners(
   key: string,
   entries: DuelTournamentBoard["previousWinners"]
 ): string[] {
+  const displayKey = presentTournamentPeriodKey(key);
+
   if (entries.length === 0) {
-    return [`<b>Попередній ${escapeHtml(label.toLowerCase())}</b> (${escapeHtml(key)}): переможців ще не записано.`];
+    return [
+      `<b>Попередній ${escapeHtml(label.toLowerCase())}</b> (${escapeHtml(displayKey)}): переможців ще не записано.`
+    ];
   }
 
   return [
-    `<b>Попередні переможці</b> (${escapeHtml(key)}):`,
+    `<b>Попередні переможці</b> (${escapeHtml(displayKey)}):`,
     ...entries.map((entry) =>
       `${entry.rank}. ${presentCharacterDisplayName(entry, { boldName: false })} — ${entry.points} оч.`
     )
   ];
+}
+
+function presentTournamentPeriodKey(key: string): string {
+  const match = /^(\d{4})(-\d{2}(?:-\d{2})?|-W\d{2})$/.exec(key);
+
+  if (!match) {
+    return key;
+  }
+
+  return `${Number(match[1]) + 10000}${match[2]}`;
 }
 
 function presentTournamentReward(reward: DuelTournamentPresentedReward): string {

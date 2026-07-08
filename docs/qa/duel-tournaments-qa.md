@@ -10,6 +10,8 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 - Service coverage confirms duplicate claim callbacks replay the stored claim and do not add gold, items or activity events again.
 - Service coverage confirms current-period and non-placement claims do not pay.
 - Presenter coverage confirms tournament cards omit public loss counts.
+- Presenter coverage confirms visible daily, weekly and monthly tournament period keys use Holocene display dates.
+- Duel presenter and command coverage confirms combat-style active turn-based cards, stored journal pages and targeted rematch invite delivery.
 - Latest Events coverage confirms tournament claim rows render as combat recognition.
 - Schema coverage confirms the replay-safe claim table and unique character/period/period-key index.
 
@@ -19,7 +21,9 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 2. Use two or more test accounts with level 3+ characters.
 3. Open Korchma -> `🥊 Бійцівський куток` -> `🎖️ Турніри`.
 4. Verify daily, weekly and monthly tabs render compact cards.
+4a. Verify visible period labels use Holocene years, for example `12026-07`, not `2026-07`.
 5. Complete a turn-based duel and verify the active daily standings update.
+5a. During the duel, verify the active card uses compact HP names, natural action lines and the 23-second turn hint.
 6. Complete repeated wins against the same opponent and verify points stop growing after the bounded contribution.
 7. Complete a quick duel and verify tournament standings do not change.
 8. Complete or trigger a training fight and verify tournament standings do not change.
@@ -29,6 +33,8 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 12. Repeat rollover/claim checks for weekly and monthly periods when practical with seeded clock/data or a local DB snapshot.
 13. Open `📜 Хроніки Квестарні` and verify one tournament claim event appears.
 14. Verify no public event appears for tournament losses.
+15. Open `📜 Журнал бою` from a turn-based result and verify the stored round replay does not mutate duel state.
+16. Press `🔁 Реванш` from a result and verify the other participant receives the targeted invite card.
 
 ## Known Manual Gap
 

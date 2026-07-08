@@ -19,6 +19,9 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - The existing no-reward duel winners board remains available, while tournament cards show points, rank, remaining time, previous winners and a claim button only when a completed period reward is available.
+- Turn-based duel active cards now use a combat-style layout with a header, short HP names, natural action lines, a 23-second turn hint, and tournament-reward copy instead of claiming duels have no gold/manatky path.
+- Turn-based duel result cards now expose a replay-safe battle journal, and rematch presses send a targeted invite card to the other participant when Telegram delivery is available.
+- Tournament cards convert visible period keys to Holocene display dates, so daily, weekly and monthly player-facing periods show `12026-*` instead of Gregorian storage keys.
 
 ## [0.3.0] - 12026-07-08 - Charkokovalnia Item Upgrades MVP
 
