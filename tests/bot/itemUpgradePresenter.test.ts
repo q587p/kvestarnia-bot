@@ -100,7 +100,8 @@ describe("item upgrade presenter", () => {
       },
       donor: null,
       donorOptions: [],
-      pityFailures: 0
+      pityFailures: 0,
+      attemptGuard: "a1b2c3d4"
     });
 
     expect(text).toContain("Сетова манатка");

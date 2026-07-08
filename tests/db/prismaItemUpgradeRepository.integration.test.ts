@@ -69,6 +69,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc",
       now: now(),
       roll: 0,
+      attemptGuard: "00000001",
       expectedFromLevel: 0,
       expectedQuantity: 2,
       expectedPityFailures: 0
@@ -100,6 +101,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc",
       now: now(),
       roll: 0,
+      attemptGuard: "00000001",
       expectedFromLevel: 0,
       expectedQuantity: 2,
       expectedPityFailures: 0
@@ -128,6 +130,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc" as const,
       now: now(),
       roll: 0,
+      attemptGuard: "00000002",
       expectedFromLevel: 0,
       expectedQuantity: 2,
       expectedPityFailures: 0
@@ -157,6 +160,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       donorItemId: panPlusFourItemId,
       now: now(),
       roll: 0,
+      attemptGuard: "00000003",
       expectedFromLevel: 1,
       expectedQuantity: 1,
       expectedPityFailures: 0
@@ -195,6 +199,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc",
       now: now(),
       roll: 0.999,
+      attemptGuard: "00000004",
       expectedFromLevel: 0,
       expectedQuantity: 1,
       expectedPityFailures: 0
@@ -215,6 +220,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc",
       now: now(),
       roll: 0.999,
+      attemptGuard: "00000004",
       expectedFromLevel: 0,
       expectedQuantity: 1,
       expectedPityFailures: 0
@@ -228,6 +234,75 @@ describe("PrismaItemUpgradeRepository integration", () => {
 
     await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
+
+    await repository.setPityForTelegramUser(telegramUserId, panItemId, 1, 0, now());
+    await seedItem(ISKROKAMIN_ITEM_ID, 5);
+    await expect(repository.attemptForTelegramUser(telegramUserId, {
+      itemId: panItemId,
+      method: "npc",
+      now: now(),
+      roll: 0,
+      attemptGuard: "00000005",
+      expectedFromLevel: 0,
+      expectedQuantity: 1,
+      expectedPityFailures: 0
+    })).resolves.toMatchObject({
+      state: "attempted",
+      success: true,
+      fromLevel: 0,
+      targetLevel: 1
+    });
+
+    await expectItemQuantity(panItemId, 0);
+    await expectItemQuantity(panPlusOneItemId, 1);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
+    await expectCharacterResources({ gold: 900, manaCurrent: 80 });
+  });
+
+  it("does not let a spent q1 claim block a future q1 stack from a new preview", async () => {
+    await seedUnlock();
+    await seedItem(panItemId, 1);
+    await seedItem(ISKROKAMIN_ITEM_ID, 10);
+
+    await expect(repository.attemptForTelegramUser(telegramUserId, {
+      itemId: panItemId,
+      method: "npc",
+      now: now(),
+      roll: 0,
+      attemptGuard: "00000006",
+      expectedFromLevel: 0,
+      expectedQuantity: 1,
+      expectedPityFailures: 0
+    })).resolves.toMatchObject({
+      state: "attempted",
+      success: true,
+      fromLevel: 0,
+      targetLevel: 1
+    });
+
+    await expectItemQuantity(panItemId, 0);
+    await seedItem(panItemId, 1);
+
+    await expect(repository.attemptForTelegramUser(telegramUserId, {
+      itemId: panItemId,
+      method: "npc",
+      now: now(),
+      roll: 0,
+      attemptGuard: "00000007",
+      expectedFromLevel: 0,
+      expectedQuantity: 1,
+      expectedPityFailures: 0
+    })).resolves.toMatchObject({
+      state: "attempted",
+      success: true,
+      fromLevel: 0,
+      targetLevel: 1
+    });
+
+    await expectItemQuantity(panItemId, 0);
+    await expectItemQuantity(panPlusOneItemId, 2);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
+    await expectCharacterResources({ gold: 900, manaCurrent: 80 });
   });
 
   it("requires the Korchma yard, level gate and field-kit unlock before spending", async () => {
@@ -243,6 +318,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc",
       now: now(),
       roll: 0,
+      attemptGuard: "00000008",
       expectedFromLevel: 0,
       expectedQuantity: 1,
       expectedPityFailures: 0
@@ -271,6 +347,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc",
       now: now(),
       roll: 0,
+      attemptGuard: "00000009",
       expectedFromLevel: 0,
       expectedQuantity: 1,
       expectedPityFailures: 0
@@ -292,6 +369,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       method: "npc",
       now: now(),
       roll: 0,
+      attemptGuard: "0000000a",
       expectedFromLevel: 0,
       expectedQuantity: 1,
       expectedPityFailures: 0

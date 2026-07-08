@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { items } from "../content";
 import type { ItemContent } from "../content/schema";
 import type { ItemUpgradeRepository } from "../db/repositories/itemUpgradeRepository";
@@ -89,6 +89,7 @@ export type ItemUpgradePreviewResult =
       donor: ItemUpgradeDonorOption | null;
       donorOptions: ItemUpgradeDonorOption[];
       pityFailures: number;
+      attemptGuard: string;
     };
 
 export type ItemUpgradeAttemptServiceResult =
@@ -111,7 +112,8 @@ export class ItemUpgradeService {
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly achievements?: AchievementService,
     private readonly publicActivityEvents?: PublicActivityEventPublisher,
-    private readonly createActivityEventNonce: () => string = randomUUID
+    private readonly createActivityEventNonce: () => string = randomUUID,
+    private readonly createAttemptGuard: () => string = makeItemUpgradeAttemptGuard
   ) {}
 
   async listForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeListResult> {
@@ -237,7 +239,8 @@ export class ItemUpgradeService {
       chance,
       donor,
       donorOptions,
-      pityFailures
+      pityFailures,
+      attemptGuard: this.createAttemptGuard()
     };
   }
 
@@ -250,6 +253,7 @@ export class ItemUpgradeService {
       expectedFromLevel: number;
       expectedQuantity: number;
       expectedPityFailures: number;
+      attemptGuard?: string | null;
     }
   ): Promise<ItemUpgradeAttemptServiceResult> {
     const now = this.clock();
@@ -259,6 +263,7 @@ export class ItemUpgradeService {
       now,
       roll: this.rng.nextFloat(),
       donorItemId: input.donorItemId ?? null,
+      attemptGuard: input.attemptGuard ?? null,
       expectedFromLevel: input.expectedFromLevel,
       expectedQuantity: input.expectedQuantity,
       expectedPityFailures: input.expectedPityFailures
@@ -321,6 +326,10 @@ export class ItemUpgradeService {
   unlockForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeUnlockServiceResult> {
     return this.repository.unlockForTelegramUser(telegramUserId, this.clock());
   }
+}
+
+function makeItemUpgradeAttemptGuard(): string {
+  return randomBytes(4).toString("hex");
 }
 
 function getListGate(snapshot: Awaited<ReturnType<ItemUpgradeRepository["getSnapshotForTelegramUser"]>>): Extract<

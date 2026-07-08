@@ -28,6 +28,7 @@ export type ItemUpgradeCallback =
       expectedFromLevel: number;
       expectedQuantity: number;
       expectedPityFailures: number;
+      attemptGuard: string | null;
     };
 
 export function makeItemUpgradeListCallbackData(
@@ -68,14 +69,16 @@ export function makeItemUpgradeAttemptCallbackData(input: {
   itemId: string;
   method: "npc" | "self";
   donorItemId?: string | null;
+  attemptGuard: string;
   expectedFromLevel: number;
   expectedQuantity: number;
   expectedPityFailures: number;
 }): string {
   const donorSuffix = input.donorItemId ? `:d:${itemKey(input.donorItemId)}` : "";
+  const guardSuffix = `:g:${safeAttemptGuard(input.attemptGuard)}`;
 
   return assertCallbackData(
-    `${PREFIX}:a:${itemKey(input.itemId)}:${methodCode(input.method)}:${safeSmallInt(input.expectedFromLevel)}:${safeSmallInt(input.expectedQuantity)}:${safeSmallInt(input.expectedPityFailures)}${donorSuffix}`
+    `${PREFIX}:a:${itemKey(input.itemId)}:${methodCode(input.method)}:${safeSmallInt(input.expectedFromLevel)}:${safeSmallInt(input.expectedQuantity)}:${safeSmallInt(input.expectedPityFailures)}${guardSuffix}${donorSuffix}`
   );
 }
 
@@ -133,19 +136,19 @@ export function parseItemUpgradeCallbackData(data: string | undefined): { ok: tr
   }
 
   if (action === "a") {
-    if (rest.length !== 3 && rest.length !== 5) {
+    if (rest.length < 3) {
       return { ok: false };
     }
 
     const expectedFromLevel = parseSmallInt(rest[0]);
     const expectedQuantity = parseSmallInt(rest[1]);
     const expectedPityFailures = parseSmallInt(rest[2]);
-    const donorItemId = parseDonorRest(rest.slice(3));
+    const tail = parseAttemptTail(rest.slice(3));
     if (
       expectedFromLevel === null ||
       expectedQuantity === null ||
       expectedPityFailures === null ||
-      donorItemId === undefined
+      !tail
     ) {
       return { ok: false };
     }
@@ -156,7 +159,8 @@ export function parseItemUpgradeCallbackData(data: string | undefined): { ok: tr
         type: "attempt",
         itemId,
         method,
-        donorItemId,
+        donorItemId: tail.donorItemId,
+        attemptGuard: tail.attemptGuard,
         expectedFromLevel,
         expectedQuantity,
         expectedPityFailures
@@ -177,6 +181,42 @@ function parseDonorRest(rest: string[]): string | null | undefined {
   }
 
   return itemIdFromKey(rest[1]) ?? undefined;
+}
+
+function parseAttemptTail(rest: string[]): { donorItemId: string | null; attemptGuard: string | null } | null {
+  let donorItemId: string | null = null;
+  let attemptGuard: string | null = null;
+
+  for (let index = 0; index < rest.length; index += 2) {
+    const kind = rest[index];
+    const value = rest[index + 1];
+    if (!kind || !value) {
+      return null;
+    }
+
+    if (kind === "d") {
+      if (donorItemId !== null) {
+        return null;
+      }
+      donorItemId = itemIdFromKey(value);
+      if (!donorItemId) {
+        return null;
+      }
+      continue;
+    }
+
+    if (kind === "g") {
+      if (attemptGuard !== null || !isAttemptGuard(value)) {
+        return null;
+      }
+      attemptGuard = value;
+      continue;
+    }
+
+    return null;
+  }
+
+  return { donorItemId, attemptGuard };
 }
 
 function parseListRest(rest: string[]): { page: number; sort: InventorySort } | null {
@@ -264,6 +304,18 @@ function parseSmallInt(value: string | undefined): number | null {
 
 function safeSmallInt(value: number): number {
   return Math.max(0, Math.min(9999, Math.floor(value)));
+}
+
+function safeAttemptGuard(value: string): string {
+  if (!isAttemptGuard(value)) {
+    throw new RangeError("Invalid item upgrade attempt guard.");
+  }
+
+  return value;
+}
+
+function isAttemptGuard(value: string | undefined): value is string {
+  return Boolean(value && /^[a-f0-9]{8}$/.test(value));
 }
 
 function assertCallbackData(data: string): string {

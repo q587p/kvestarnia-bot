@@ -26,7 +26,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Successful upgrades now move exactly one owned stack unit from the current item id to the next concrete plus id and align equipped rows that pointed at the upgraded stack id.
-- Upgrade attempts now claim one exact stack/pity preview snapshot before spending, so concurrent duplicate attempt callbacks from a stack of `2+` cannot double-spend or upgrade two units from one stale preview.
+- Upgrade attempt buttons now carry a compact per-preview guard that is claimed before spending, so concurrent duplicate callbacks from the same visible button cannot double-spend while future same-item attempts with a refreshed preview are not blocked by an old stack/pity claim.
 - Failed attempts spend the chosen resources once and increment bounded pity once; replays with stale stack, level or pity snapshots reject before spending.
 - Item detail, inventory, equipment, hero/effective-stat, Mantok set and Mantok ability-grant surfaces treat upgraded concrete ids as ordinary catalog ids with the expected `+N` display and preserved base semantics.
 - Equipment bonuses, set bonuses and Mantok ability grants from tuning magical manatky are withheld until attunement is ready; equipment cards strike through the pending effect, hero cards show the `Налаштування на...` status, and replacing a tuning slot requires a separate confirmation.

@@ -216,6 +216,7 @@ function readyPreview(overrides: Partial<Extract<ItemUpgradePreviewResult, { sta
     donor: null,
     donorOptions: [],
     pityFailures: 0,
+    attemptGuard: "a1b2c3d4",
     ...overrides
   };
 }

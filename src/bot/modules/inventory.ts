@@ -621,6 +621,7 @@ async function handleItemUpgradeCallback(
     itemId: action.itemId,
     method: action.method,
     donorItemId: action.donorItemId,
+    attemptGuard: action.attemptGuard,
     expectedFromLevel: action.expectedFromLevel,
     expectedQuantity: action.expectedQuantity,
     expectedPityFailures: action.expectedPityFailures

@@ -25,6 +25,7 @@ describe("item upgrade callback data", () => {
       itemId: "item.mantok.coverage.path.ordinary-route-ruler",
       method: "self",
       donorItemId: "item.mantok.coverage.path.local-paper-hat",
+      attemptGuard: "a1b2c3d4",
       expectedFromLevel: 2,
       expectedQuantity: 13,
       expectedPityFailures: 4
@@ -73,6 +74,7 @@ describe("item upgrade callback data", () => {
         itemId: "item.mantok.coverage.path.ordinary-route-ruler",
         method: "self",
         donorItemId: "item.mantok.coverage.path.local-paper-hat",
+        attemptGuard: "a1b2c3d4",
         expectedFromLevel: 2,
         expectedQuantity: 13,
         expectedPityFailures: 4
@@ -84,6 +86,7 @@ describe("item upgrade callback data", () => {
     const data = makeItemUpgradeAttemptCallbackData({
       itemId: "item.pan-of-persuasion",
       method: "npc",
+      attemptGuard: "0000000f",
       expectedFromLevel: 0,
       expectedQuantity: 1,
       expectedPityFailures: 5
@@ -96,6 +99,23 @@ describe("item upgrade callback data", () => {
         itemId: "item.pan-of-persuasion",
         method: "npc",
         donorItemId: null,
+        attemptGuard: "0000000f",
+        expectedFromLevel: 0,
+        expectedQuantity: 1,
+        expectedPityFailures: 5
+      }
+    });
+  });
+
+  it("parses old direct attempts without a guard as safe stale-compatible callbacks", () => {
+    expect(parseItemUpgradeCallbackData("v1:up:a:item.pan-of-persuasion:n:0:1:5")).toEqual({
+      ok: true,
+      value: {
+        type: "attempt",
+        itemId: "item.pan-of-persuasion",
+        method: "npc",
+        donorItemId: null,
+        attemptGuard: null,
         expectedFromLevel: 0,
         expectedQuantity: 1,
         expectedPityFailures: 5
@@ -112,6 +132,7 @@ describe("item upgrade callback data", () => {
     expect(parseItemUpgradeCallbackData("v1:up:page:r:az:2:extra")).toEqual({ ok: false });
     expect(parseItemUpgradeCallbackData("v1:up:a:item.pan-of-persuasion:n:0")).toEqual({ ok: false });
     expect(parseItemUpgradeCallbackData("v1:up:a:item.pan-of-persuasion:n:0:1:nope")).toEqual({ ok: false });
+    expect(parseItemUpgradeCallbackData("v1:up:a:item.pan-of-persuasion:n:0:1:0:g:not-hex")).toEqual({ ok: false });
     expect(parseItemUpgradeCallbackData(`v1:up:l:${"x".repeat(80)}`)).toEqual({ ok: false });
   });
 });

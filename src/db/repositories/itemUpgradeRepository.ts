@@ -25,6 +25,7 @@ export interface ItemUpgradeAttemptInput {
   method: ItemUpgradeMethod;
   now: Date;
   roll: number;
+  attemptGuard?: string | null;
   expectedFromLevel: number;
   expectedQuantity: number;
   expectedPityFailures: number;

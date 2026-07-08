@@ -137,6 +137,7 @@ export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult
           itemId: result.item.itemId,
           method: result.method,
           donorItemId: result.donor?.itemId ?? null,
+          attemptGuard: result.attemptGuard,
           expectedFromLevel: result.item.enhancementLevel,
           expectedQuantity: result.item.quantity,
           expectedPityFailures: result.pityFailures

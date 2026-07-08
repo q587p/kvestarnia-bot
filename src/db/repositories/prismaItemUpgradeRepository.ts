@@ -121,6 +121,9 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         if (input.expectedFromLevel !== fromLevel || input.expectedQuantity !== base.quantity) {
           return { state: "stale-snapshot", item: toInventoryRow(base, equipped) };
         }
+        if (!isAttemptGuard(input.attemptGuard)) {
+          return { state: "stale-snapshot", item: toInventoryRow(base, equipped) };
+        }
 
         const targetLevel = fromLevel + 1;
         const nextItemId = getNextItemUpgradeItemId(input.itemId);
@@ -195,6 +198,7 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
           itemId: input.itemId,
           fromLevel,
           targetLevel,
+          attemptGuard: input.attemptGuard,
           expectedQuantity: input.expectedQuantity,
           expectedPityFailures: input.expectedPityFailures,
           now: input.now
@@ -639,6 +643,7 @@ async function createAttemptClaim(
     itemId: string;
     fromLevel: number;
     targetLevel: number;
+    attemptGuard: string;
     expectedQuantity: number;
     expectedPityFailures: number;
     now: Date;
@@ -648,7 +653,7 @@ async function createAttemptClaim(
     data: {
       characterId,
       key: attemptClaimKey(input.itemId, input.fromLevel, input.targetLevel),
-      localDate: attemptClaimLocalDate(input.expectedQuantity, input.expectedPityFailures),
+      localDate: input.attemptGuard,
       rewardXp: 0,
       rewardGold: 0,
       spentGold: 0,
@@ -659,6 +664,7 @@ async function createAttemptClaim(
         itemId: input.itemId,
         fromLevel: input.fromLevel,
         targetLevel: input.targetLevel,
+        attemptGuard: input.attemptGuard,
         expectedQuantity: input.expectedQuantity,
         expectedPityFailures: input.expectedPityFailures,
         claimedAt: input.now.toISOString()
@@ -673,10 +679,6 @@ function pityKey(itemId: string, targetLevel: number): string {
 
 function attemptClaimKey(itemId: string, fromLevel: number, targetLevel: number): string {
   return `${ATTEMPT_CLAIM_KEY_PREFIX}${itemId}:${normalizeItemUpgradeLevel(fromLevel)}->${normalizeItemUpgradeLevel(targetLevel)}`;
-}
-
-function attemptClaimLocalDate(expectedQuantity: number, expectedPityFailures: number): string {
-  return `q${Math.max(0, Math.floor(expectedQuantity))}:p${Math.max(0, Math.floor(expectedPityFailures))}`;
 }
 
 async function getStaleSnapshotResult(
@@ -777,6 +779,10 @@ function numberOrZero(value: unknown): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isAttemptGuard(value: string | null | undefined): value is string {
+  return Boolean(value && /^[a-f0-9]{8}$/.test(value));
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
