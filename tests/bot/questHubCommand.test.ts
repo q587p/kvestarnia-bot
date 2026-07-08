@@ -182,6 +182,8 @@ describe("quest hub command", () => {
 
     expect(getUnlockQuestForTelegramUser).toHaveBeenCalledWith(42n);
     expect(replies[0]?.text).toContain("✨ <i>Доступ до Чароковальні</i>");
+    expect(replies[0]?.text).toContain("ельф-маг у задвірку кличе до справи");
+    expect(replies[0]?.text).not.toContain("аптеч");
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };

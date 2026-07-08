@@ -205,11 +205,11 @@ describe("lore board content", () => {
     expect(general?.body).not.toContain("таємний");
   });
 
-  it("keeps yard lore aligned with the Mage and Charkokovalnia", () => {
+  it("keeps yard lore aligned with the elf-mage and Charkokovalnia", () => {
     const yard = loreEntries.find((entry) => entry.id === "place-yard");
 
     expect(yard?.body).toContain("Чароковальня");
-    expect(yard?.body).toContain("Маг");
+    expect(yard?.body).toContain("ельф-маг");
     expect(yard?.body).toContain("Іскрокаменем");
   });
 

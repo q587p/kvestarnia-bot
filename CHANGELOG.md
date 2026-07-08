@@ -10,7 +10,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.3.0] - 12026-07-08 - Charkokovalnia Item Upgrades MVP
 
 ### Added
-- Added the `✨ Чароковальня` Telegram surface from `Задвірок корчми`, with the Mage NPC framing and no public `/upgrade` command or `Манатки` shortcut.
+- Added the `✨ Чароковальня` Telegram surface from `Задвірок корчми`, with the elf-mage NPC framing and no public `/upgrade` command or `Манатки` shortcut.
 - Added a Charkokovalnia unlock gate: level `5+`, or remorted level `3+`, then one field kit turn-in that consumes `Польова аптечка`, grants dynamic XP and unlocks upgrade attempts.
 - Added concrete authored upgrade variants for eligible manatky as `base.plus-1` through `base.plus-5`, while preserving existing generated Loot Expansion `-plus-N` ids and avoiding item-instance identity.
 - Added deterministic upgrade cost, chance, pity and donor-bonus math with passive previews and stale snapshot checks for direct attempts.
@@ -33,7 +33,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `Іскрокамінь` is transferable through Safe Gifting and postal delivery like other ordinary tradeable material stacks.
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
-- Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows `✨ Доступ до Чароковальні` while the Mage still needs the field kit, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
+- Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows the spoiler-light `✨ Доступ до Чароковальні` route while the elf-mage still handles the field-kit unlock inside Charkokovalnia, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
 - Updated task docs, developer setup notes, balance notes, achievement catalog, lore board, release notes and compact Codex context for the shipped `0.3.0` MVP.
 - Bumped package metadata to `0.3.0`.
 
