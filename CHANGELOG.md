@@ -10,6 +10,7 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.2.31] - 12026-07-08 - Mantok Ability Grants Polish
 
 ### Fixed
+- Repeated persistent PvE flee attempts now ramp their success chance from the old first-attempt formula toward a bounded escape guarantee: attempt 5 succeeds at 93%, attempt 6 at 96.5%, and attempt 7 at 100%, with the attempt number replayed from the stored combat turn log and no schema change.
 - Big Barrel Brother raid gear-action settlements now carry first-use achievement unlock notifications back to the acting participant and any refreshed participant cards, matching persistent PvE combat without changing raid damage, mana, cooldown, reward or replay behavior.
 - Turn-based duel gear-action round resolution now carries first-use achievement unlock notifications back to the acting participant and the other participant's refreshed card, while stale, blocked, duplicate or queued-only callbacks still do not spend mana, advance turns, tick cooldowns, mutate RNG or unlock early.
 - Unknown or stale Telegram callback payloads now answer with the existing invalid-button alert instead of leaving the client spinner blinking silently; the `Хто поруч` Rogue `Тиха кишеня` callback is covered as an active regression path.

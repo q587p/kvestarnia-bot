@@ -11,6 +11,7 @@ import {
   getPrimaryCombatEnemy,
   MONSTER_ABILITY_RUNTIME_RULES_VERSION,
   normalizeCombatEnemies,
+  buildFleeSuccessChance,
   rollBasicAttack,
   rollFleeSuccess,
   rollMonsterDamage,
@@ -1369,6 +1370,59 @@ describe("combat domain engine", () => {
       heroDamage: 0,
       monsterDamage: 0
     });
+  });
+
+  it("ramps repeated flee attempts up to the guaranteed seventh escape", () => {
+    const baseChance = buildFleeSuccessChance(warrior, monster, 1);
+    expect(buildFleeSuccessChance(warrior, monster, 2)).toBeCloseTo(baseChance + (0.93 - baseChance) * 0.25);
+    expect(buildFleeSuccessChance(warrior, monster, 3)).toBeCloseTo(baseChance + (0.93 - baseChance) * 0.5);
+    expect(buildFleeSuccessChance(warrior, monster, 4)).toBeCloseTo(baseChance + (0.93 - baseChance) * 0.75);
+    expect(buildFleeSuccessChance(warrior, monster, 5)).toBe(0.93);
+    expect(buildFleeSuccessChance(warrior, monster, 6)).toBe(0.965);
+    expect(buildFleeSuccessChance(warrior, monster, 7)).toBe(1);
+
+    let state = startCombat({
+      hero: {
+        ...warrior,
+        hpMax: 200,
+        armor: 50
+      },
+      monster: {
+        ...monster,
+        hpMax: 200
+      }
+    });
+
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      const result = resolveCombatTurn({
+        state,
+        action: "flee",
+        hero: warrior,
+        monster,
+        rng: new FakeRandomSource([0.99, 0.99, 0.99, 0.99])
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        throw new Error(`Expected failed flee attempt ${attempt}.`);
+      }
+      expect(result.summary.heroOutcome).toBe("flee-failed");
+      expect(result.state.status).toBe("active");
+      state = result.state;
+    }
+
+    const seventh = resolveCombatTurn({
+      state,
+      action: "flee",
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99])
+    });
+    expect(seventh.ok).toBe(true);
+    if (!seventh.ok) {
+      throw new Error("Expected guaranteed seventh flee.");
+    }
+    expect(seventh.summary.heroOutcome).toBe("fled");
+    expect(seventh.state.status).toBe("fled");
   });
 
   it("preserves the active Telegram card reference when cloning combat state", () => {

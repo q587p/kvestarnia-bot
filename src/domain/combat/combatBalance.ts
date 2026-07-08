@@ -102,11 +102,34 @@ export function rollMonsterSkillDamage(
 export function rollFleeSuccess(
   hero: CombatActorStats,
   monster: MonsterCombatStats,
-  rng: RandomSource
+  rng: RandomSource,
+  attempt = 1
 ): boolean {
-  const chance = clamp(0.45 + (hero.dexterity + hero.luck - monster.level * 3) * 0.015, 0.25, 0.8);
+  const chance = buildFleeSuccessChance(hero, monster, attempt);
 
   return rng.nextFloat() < chance;
+}
+
+export function buildFleeSuccessChance(
+  hero: CombatActorStats,
+  monster: MonsterCombatStats,
+  attempt = 1
+): number {
+  const baseChance = clamp(0.45 + (hero.dexterity + hero.luck - monster.level * 3) * 0.015, 0.25, 0.8);
+  const normalizedAttempt = Math.max(1, Math.floor(attempt));
+  if (normalizedAttempt >= 7) {
+    return 1;
+  }
+
+  if (normalizedAttempt >= 5) {
+    return normalizedAttempt === 5 ? 0.93 : 0.965;
+  }
+
+  if (normalizedAttempt === 1) {
+    return baseChance;
+  }
+
+  return clamp(baseChance + ((0.93 - baseChance) * (normalizedAttempt - 1)) / 4, baseChance, 0.93);
 }
 
 function rollHeroDamage(input: {
