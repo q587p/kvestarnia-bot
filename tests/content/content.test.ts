@@ -284,7 +284,9 @@ describe("content tables", () => {
       })
     ).not.toThrow();
     expect(items.find((item) => item.id === "item.iskrokamin")).toMatchObject({
-      slot: "resource"
+      slot: "resource",
+      priceless: true,
+      tags: ["tradeable"]
     });
   });
 

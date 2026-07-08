@@ -33,8 +33,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Replaying equip for the same item already tuning in the same slot now preserves the pending attunement row as a no-op; active attunement is cancelled when the item actually changes, another slot is cleared, or the tuning slot is directly unequipped.
 - Attunement completion notification scans now page past old cancelled/notified rows instead of only filtering a small oldest-row window in memory.
 - Ordinary fight reward bandage slots can now rarely be replaced by bounded `Іскрокамінь` grants instead of granting both from the same slot.
-- `Іскрокамінь` is transferable through Safe Gifting and postal delivery like other ordinary tradeable material stacks.
-- `Іскрокамінь` now uses the explicit `resource` item slot on detail cards and links directly back to `✨ До Чароковальні`.
+- `Іскрокамінь` is explicitly tradeable through Safe Gifting and postal delivery while staying priceless, so it is not eligible for Shynok manatka sales or Munchkin level barter value.
+- `Іскрокамінь` now uses the explicit `resource` item slot on detail cards, shows as priceless, and links directly back to `✨ До Чароковальні`.
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia Iskrokamin costs now use the rounded log-spaced ladder `2 / 5 / 13 / 34 / 89`; set pieces cost `x1.25`, legendary items cost `x1.5`, legendary set pieces cost `x2`, and donor discounts are percentage-based with a 50% floor.
 - Charkokovalnia previews now identify set pieces as `Сетова манатка`, preserve upgraded Mantok set semantics, and distinguish same-template, same-set and same-slot donors.

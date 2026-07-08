@@ -139,6 +139,13 @@ describe("level barter domain", () => {
     const priced = item({ id: "item.priced", goldValue: 300 });
     const equipped = item({ id: "item.equipped", goldValue: 400 });
     const priceless = item({ id: "item.priceless", priceless: true, goldValue: undefined });
+    const iskrokamin = item({
+      id: "item.iskrokamin",
+      slot: "resource",
+      priceless: true,
+      goldValue: undefined,
+      tags: ["tradeable"]
+    });
     const protectedItem = item({ id: "item.cellar.foamy-mirage-bottle", goldValue: 500 });
     const zero = item({ id: "item.zero", goldValue: 0 });
 
@@ -147,12 +154,13 @@ describe("level barter domain", () => {
         { itemId: priced.id, quantity: 2 },
         { itemId: equipped.id, quantity: 1 },
         { itemId: priceless.id, quantity: 1 },
+        { itemId: iskrokamin.id, quantity: 100 },
         { itemId: protectedItem.id, quantity: 1 },
         { itemId: zero.id, quantity: 1 },
         { itemId: "item.missing", quantity: 1 }
       ],
       equippedItemIds: new Set([equipped.id]),
-      itemContents: [priced, equipped, priceless, protectedItem, zero]
+      itemContents: [priced, equipped, priceless, iskrokamin, protectedItem, zero]
     });
 
     expect(stacks.map((stack) => stack.itemId)).toEqual([priced.id]);

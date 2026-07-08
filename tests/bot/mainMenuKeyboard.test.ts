@@ -2782,7 +2782,8 @@ describe("main menu and scene keyboards", () => {
           description: "Малий камінець.",
           rarity: "uncommon",
           slot: "resource",
-          goldValue: 23
+          priceless: true,
+          tags: ["tradeable"]
         }
       }
     });

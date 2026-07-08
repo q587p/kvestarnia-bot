@@ -177,12 +177,14 @@ describe("item detail presenter", () => {
           description: "Малий камінець, який світиться так, ніби вже підписав техніку безпеки замість вас.",
           rarity: "uncommon",
           slot: "resource",
-          goldValue: 23
+          priceless: true,
+          tags: ["tradeable"]
         }
       })
     );
 
     expect(text).toContain("Категорія: <b>ресурс</b>");
+    expect(text).toContain("Вартість: <i>безцінна</i>");
     expect(text).toContain("Екіпірування: <i>не вдягається. Це ресурс для майстерні");
     expect(text).not.toContain("трофей / смішний доказ");
     expect(text).not.toContain("смішним трофеєм");

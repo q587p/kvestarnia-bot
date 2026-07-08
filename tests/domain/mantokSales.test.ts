@@ -48,6 +48,15 @@ describe("Mantok sales", () => {
       rarity: "common",
       slot: "junk",
       priceless: true
+    },
+    {
+      id: "item.iskrokamin",
+      name: "Іскрокамінь",
+      description: "Ресурс для Чароковальні, не для шинкового цінника.",
+      rarity: "uncommon",
+      slot: "resource",
+      priceless: true,
+      tags: ["tradeable"]
     }
   ];
 
@@ -59,6 +68,7 @@ describe("Mantok sales", () => {
         { itemId: "item.sell.equipped", quantity: 1 },
         { itemId: "item.cellar.cheese-seal", quantity: 1 },
         { itemId: "item.sell.priceless", quantity: 1 },
+        { itemId: "item.iskrokamin", quantity: 13 },
         { itemId: "item.unknown", quantity: 1 }
       ],
       equippedItemIds: new Set(["item.sell.equipped"]),
