@@ -4,6 +4,7 @@ import { playerFromContext } from "../context";
 import { DEFAULT_INVENTORY_SORT, type InventorySort } from "../inventorySort";
 import { buildItemUpgradeListKeyboard } from "../keyboards/itemUpgradeKeyboard";
 import { presentItemUpgradeList } from "../presenters/itemUpgradePresenter";
+import { safeEditMessageText } from "../safeEditMessageText";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -27,7 +28,7 @@ export async function sendItemUpgradeList(
   };
 
   if (mode === "edit") {
-    await ctx.editMessageText(message, options);
+    await safeEditMessageText(ctx, message, options);
     return;
   }
 
