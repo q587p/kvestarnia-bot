@@ -886,7 +886,7 @@ describe("EquipmentService", () => {
     expect(result.state === "equipped"
       ? result.slots.find((slot) => slot.slot === "weapon")?.attunement
       : null
-    ).toMatchObject(tuning);
+    ).toEqual(tuning);
   });
 
   it("prompts before replacing a slot that is still tuning", async () => {

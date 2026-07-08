@@ -142,7 +142,16 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
         throw error;
       }
 
-      const record = toRecord(row);
+      const attunementActions = await this.prisma.dailyAction.findMany({
+        where: {
+          characterId: input.characterId,
+          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+        },
+        orderBy: {
+          createdAt: "desc"
+        }
+      });
+      const record = toRecord(row, findAttunementForRow(row, attunementActions, new Date()));
       if (!record) {
         throw new Error(`Unsupported equipment slot returned after concurrent equip: ${row.slot}`);
       }
@@ -402,9 +411,20 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       });
 
       if (existing) {
+        const attunementActions = await tx.dailyAction.findMany({
+          where: {
+            characterId: input.characterId,
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+          },
+          orderBy: {
+            createdAt: "desc"
+          }
+        });
+
         return {
           row: existing,
-          changed: false
+          changed: false,
+          attunement: findAttunementForRow(existing, attunementActions, now)
         };
       }
 
@@ -424,14 +444,14 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       };
     });
 
-    const record = toRecord(result.row, input.attunement
+    const record = toRecord(result.row, result.attunement ?? (input.attunement
       ? {
           state: "tuning",
           strength: input.attunement.strength,
           startedAt: input.attunement.startedAt,
           readyAt: input.attunement.readyAt
         }
-      : undefined);
+      : undefined));
     if (!record) {
       throw new Error(`Unsupported equipment slot returned after equip: ${result.row.slot}`);
     }

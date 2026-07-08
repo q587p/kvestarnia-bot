@@ -35,14 +35,16 @@ describe("ItemUpgradeService", () => {
       spent: { gold: 900, iskrokamin: 17, mana: 0 }
     });
     const publisher = {
-      recordItemUpgradeSucceededSafely: vi.fn(() => Promise.resolve(null))
+      recordItemUpgradeSucceededSafely:
+        vi.fn<PublicActivityEventPublisher["recordItemUpgradeSucceededSafely"]>().mockResolvedValue(null)
     };
     const service = new ItemUpgradeService(
       repository,
       () => now,
       new FakeRandomSource([0]),
       undefined,
-      publisher as unknown as PublicActivityEventPublisher
+      publisher as unknown as PublicActivityEventPublisher,
+      () => "activity-1"
     );
 
     await expect(service.attemptForTelegramUser(42n, {
@@ -56,7 +58,7 @@ describe("ItemUpgradeService", () => {
     expect(publisher.recordItemUpgradeSucceededSafely).toHaveBeenCalledWith({
       characterId: character.id,
       actorDisplayName: character.name,
-      sourceId: "npc:character-42:item.pan-of-persuasion.plus-4:4->5",
+      sourceId: "npc:character-42:item.pan-of-persuasion.plus-4:4->5:activity-1",
       itemId: "item.pan-of-persuasion.plus-5",
       itemName: "Пательня переконання +5",
       targetLevel: 5,
@@ -86,7 +88,8 @@ describe("ItemUpgradeService", () => {
       spent: { gold: 900, iskrokamin: 17, mana: 0 }
     });
     const publisher = {
-      recordItemUpgradeSucceededSafely: vi.fn(() => Promise.resolve(null))
+      recordItemUpgradeSucceededSafely:
+        vi.fn<PublicActivityEventPublisher["recordItemUpgradeSucceededSafely"]>().mockResolvedValue(null)
     };
     const service = new ItemUpgradeService(
       repository,
@@ -106,6 +109,82 @@ describe("ItemUpgradeService", () => {
 
     expect(publisher.recordItemUpgradeSucceededSafely).not.toHaveBeenCalled();
   });
+
+  it("publishes separate successful upgrades with distinct public activity source ids", async () => {
+    const repository = new SequencedItemUpgradeRepository([
+      {
+        state: "attempted",
+        success: true,
+        character,
+        item: {
+          id: "row-pan-plus-1-a",
+          characterId: character.id,
+          itemId: "item.pan-of-persuasion.plus-1",
+          quantity: 1,
+          equipped: false
+        },
+        donorConsumed: false,
+        fromLevel: 0,
+        targetLevel: 1,
+        finalChance: 100,
+        pityFailuresBefore: 0,
+        pityFailuresAfter: 0,
+        pityGuaranteed: false,
+        spent: { gold: 50, iskrokamin: 1, mana: 0 }
+      },
+      {
+        state: "attempted",
+        success: true,
+        character,
+        item: {
+          id: "row-pan-plus-1-b",
+          characterId: character.id,
+          itemId: "item.pan-of-persuasion.plus-1",
+          quantity: 1,
+          equipped: false
+        },
+        donorConsumed: false,
+        fromLevel: 0,
+        targetLevel: 1,
+        finalChance: 100,
+        pityFailuresBefore: 0,
+        pityFailuresAfter: 0,
+        pityGuaranteed: false,
+        spent: { gold: 50, iskrokamin: 1, mana: 0 }
+      }
+    ]);
+    const publisher = {
+      recordItemUpgradeSucceededSafely:
+        vi.fn<PublicActivityEventPublisher["recordItemUpgradeSucceededSafely"]>().mockResolvedValue(null)
+    };
+    let nonce = 0;
+    const service = new ItemUpgradeService(
+      repository,
+      () => now,
+      new FakeRandomSource([0, 0]),
+      undefined,
+      publisher as unknown as PublicActivityEventPublisher,
+      () => `activity-${++nonce}`
+    );
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await expect(service.attemptForTelegramUser(42n, {
+        itemId: "item.pan-of-persuasion",
+        method: "npc",
+        expectedFromLevel: 0,
+        expectedQuantity: 2 - attempt,
+        expectedPityFailures: 0
+      })).resolves.toMatchObject({ state: "attempted", success: true });
+    }
+
+    const sourceIds = publisher.recordItemUpgradeSucceededSafely.mock.calls.map(([input]) => input.sourceId);
+
+    expect(sourceIds).toEqual([
+      "npc:character-42:item.pan-of-persuasion:0->1:activity-1",
+      "npc:character-42:item.pan-of-persuasion:0->1:activity-2"
+    ]);
+    expect(new Set(sourceIds)).toHaveProperty("size", 2);
+  });
 });
 
 class FakeItemUpgradeRepository implements ItemUpgradeRepository {
@@ -117,6 +196,35 @@ class FakeItemUpgradeRepository implements ItemUpgradeRepository {
 
   attemptForTelegramUser(): Promise<ItemUpgradeAttemptResult> {
     return Promise.resolve(this.result);
+  }
+
+  setPityForTelegramUser(): Promise<{ character: CharacterRecord; failureCount: number } | null> {
+    return Promise.resolve(null);
+  }
+
+  unlockForTelegramUser(): ReturnType<ItemUpgradeRepository["unlockForTelegramUser"]> {
+    return Promise.resolve({ state: "no-character" });
+  }
+}
+
+class SequencedItemUpgradeRepository implements ItemUpgradeRepository {
+  private index = 0;
+
+  constructor(private readonly results: ItemUpgradeAttemptResult[]) {}
+
+  getSnapshotForTelegramUser(): Promise<ItemUpgradeSnapshot | null> {
+    return Promise.resolve(null);
+  }
+
+  attemptForTelegramUser(): Promise<ItemUpgradeAttemptResult> {
+    const result = this.results[this.index];
+    this.index += 1;
+
+    if (!result) {
+      throw new Error("No fake item upgrade result configured for attempt.");
+    }
+
+    return Promise.resolve(result);
   }
 
   setPityForTelegramUser(): Promise<{ character: CharacterRecord; failureCount: number } | null> {

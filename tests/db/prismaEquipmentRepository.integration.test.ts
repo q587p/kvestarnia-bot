@@ -248,6 +248,7 @@ describe("PrismaEquipmentRepository integration", () => {
     });
 
     expect(replay.changed).toBe(false);
+    expect(replay.record.attunement).toMatchObject({ state: "tuning" });
     expect(before).toHaveLength(1);
     expect(after).toHaveLength(1);
     expect(parseEquipmentAttunementPayload(after[0]?.resultJson)?.status).toBe("tuning");

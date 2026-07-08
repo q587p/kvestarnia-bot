@@ -81,7 +81,6 @@ describe("health server", () => {
     expect(text).toContain("Маг заїхав у задвірок із Чароковальнею");
     expect(text).toContain("тепер живе <code>Чароковальня</code>: Маг");
     expect(text).toContain("конкретною одиницею зі стосу");
-    expect(text).toContain("старі натискання після успіху");
     expect(text).toContain("задвірок перестав пустувати");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");

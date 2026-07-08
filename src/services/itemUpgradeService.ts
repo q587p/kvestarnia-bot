@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { items } from "../content";
 import type { ItemContent } from "../content/schema";
 import type { ItemUpgradeRepository } from "../db/repositories/itemUpgradeRepository";
@@ -102,7 +103,8 @@ export class ItemUpgradeService {
     private readonly clock: () => Date = () => new Date(),
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly achievements?: AchievementService,
-    private readonly publicActivityEvents?: PublicActivityEventPublisher
+    private readonly publicActivityEvents?: PublicActivityEventPublisher,
+    private readonly createActivityEventNonce: () => string = randomUUID
   ) {}
 
   async listForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeListResult> {
@@ -259,7 +261,7 @@ export class ItemUpgradeService {
       await this.publicActivityEvents?.recordItemUpgradeSucceededSafely({
         characterId: result.character.id,
         actorDisplayName: result.character.name,
-        sourceId,
+        sourceId: `${sourceId}:${this.createActivityEventNonce()}`,
         itemId: result.item.itemId,
         itemName: upgradedItem
           ? getItemDisplayNameWithUpgrade(upgradedItem, getItemUpgradeLevelFromItemId(result.item.itemId))

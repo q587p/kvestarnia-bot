@@ -524,7 +524,10 @@ export class EquipmentService {
           }
         : {})
     });
-    const equipped = equipResult.record;
+    const equipped =
+      !equipResult.changed && replacedRow?.itemId === itemId && replacedRow.attunement && !equipResult.record.attunement
+        ? { ...equipResult.record, attunement: replacedRow.attunement }
+        : equipResult.record;
     const changedEquippedItem = equipResult.changed;
     const achievementUnlocks = changedEquippedItem
       ? (await this.achievements?.trackEventSafely({
