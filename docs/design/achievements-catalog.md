@@ -162,6 +162,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.combat.yeger-origin-win` | enabled | visible | `combat.persistent.yeger-origin-win >= 1` | Слід довів до синця | перемогти неупокоєну ціль Єгеря й повернути слід із синцем. |
 | `achievement.combat.low-hp-win` | enabled | hidden | `combat.persistent.low-hp-win >= 1` | На чесному слові й одному HP | перемогти у старшому бою, маючи не більш як 10% HP. |
 | `achievement.gear.zero-gold-item` | enabled | hidden | `combat.persistent.zero-gold-item-win >= 1` | Золота нуль, зате доказ | виграти старший бій без золота, але з манаткою. |
+| `achievement.gold.leet-balance` | enabled | visible | `gold.balance >= 1337` | 1337 у кишені | мати принаймні 1337 золота й змусити корчмарську бухгалтерію читати баланс як елітний шифр. |
+| `achievement.gold.over-nine-thousand` | enabled | visible | `gold.balance >= 9001` | Понад девʼять тисяч | мати принаймні 9001 золота й почути, як корчмарський лічильник просить не міряти силу гаманця. |
 | `achievement.remort.first-memory` | disabled | hidden | `future` | Свічка памʼятає більше | пройти перший реморт і лишити памʼять там, де Корчма її не дістане шваброю. |
 | `achievement.combat.critical-1` | disabled | hidden | `future` | Критичне непорозуміння | завдати першого критичного удару у старшому бою. |
 | `achievement.combat.critical-23` | disabled | hidden | `future` | Кістки мають особисту думку | завдати 23 критичних удари у старших боях. |

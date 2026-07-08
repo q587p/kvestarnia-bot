@@ -25,6 +25,7 @@ export type AchievementSimpleEventType = Exclude<
   AchievementTriggerType,
   | "achievement.list.opened"
   | "character.created"
+  | "gold.balance"
   | "level.reached"
   | "combat.finished"
   | "combat.persistent.finished"
@@ -48,6 +49,13 @@ export type AchievementEvent =
       characterId: string;
       raceId?: string;
       classId?: string;
+      occurredAt: Date;
+      sourceId?: string;
+    }
+  | {
+      type: "gold.balance";
+      characterId: string;
+      gold: number;
       occurredAt: Date;
       sourceId?: string;
     }
@@ -544,6 +552,10 @@ function getEventProgress(definition: AchievementDefinition, event: AchievementE
     return event.type === "level.reached" ? event.level : null;
   }
 
+  if (definition.trigger.type === "gold.balance") {
+    return event.type === "gold.balance" ? Math.max(0, Math.floor(event.gold)) : null;
+  }
+
   if (
     definition.trigger.type === "achievement.list.opened" ||
     definition.trigger.type === "character.created" ||
@@ -643,6 +655,8 @@ function getRecalculationProgress(
   switch (definition.trigger.type) {
     case "character.created":
       return getMatchingIdentityDates(definition, snapshot).length > 0 ? 1 : 0;
+    case "gold.balance":
+      return snapshot.gold;
     case "level.reached":
       return snapshot.level;
     case "combat.finished":
@@ -744,6 +758,8 @@ function getRecalculationOccurredAt(
   switch (definition.trigger.type) {
     case "character.created":
       return getMatchingIdentityDates(definition, snapshot)[0] ?? snapshot.createdAt;
+    case "gold.balance":
+      return fallback;
     case "level.reached":
       return snapshot.levelReachedAt[threshold] ?? fallback;
     case "combat.finished":
@@ -990,6 +1006,8 @@ function eventPayload(event: AchievementEvent): Record<string, unknown> {
         ...(event.raceId ? { raceId: event.raceId } : {}),
         ...(event.classId ? { classId: event.classId } : {})
       };
+    case "gold.balance":
+      return { gold: event.gold };
     case "equipment.item_equipped":
       return { itemId: event.itemId };
     default:

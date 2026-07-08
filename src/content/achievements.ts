@@ -17,6 +17,7 @@ export const achievementTriggerTypes = [
   "latest-events.opened",
   "cosmetic-title.selected",
   "character.created",
+  "gold.balance",
   "level.reached",
   "remort.completed",
   "combat.finished",
@@ -1778,6 +1779,28 @@ export const achievements = [
     sortOrder: 188,
     status: "enabled",
     trigger: { type: "combat.persistent.zero-gold-item-win", threshold: 1 }
+  },
+  {
+    id: "achievement.gold.leet-balance",
+    category: "weird",
+    title: "1337 у кишені",
+    description: "мати принаймні 1337 золота й змусити корчмарську бухгалтерію читати баланс як елітний шифр.",
+    hidden: false,
+    lockedDescription: "мати принаймні 1337 золота.",
+    sortOrder: 189,
+    status: "enabled",
+    trigger: { type: "gold.balance", threshold: 1337 }
+  },
+  {
+    id: "achievement.gold.over-nine-thousand",
+    category: "weird",
+    title: "Понад девʼять тисяч",
+    description: "мати принаймні 9001 золота й почути, як корчмарський лічильник просить не міряти силу гаманця.",
+    hidden: false,
+    lockedDescription: "мати принаймні 9001 золота.",
+    sortOrder: 190,
+    status: "enabled",
+    trigger: { type: "gold.balance", threshold: 9001 }
   },
   {
     id: "achievement.remort.first-memory",

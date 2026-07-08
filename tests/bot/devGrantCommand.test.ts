@@ -12,6 +12,7 @@ describe("dev grant commands", () => {
     const defaultLevelCalls = await captureMessageCalls("/dev_add_level", devGrant);
     const explicitLevelCalls = await captureMessageCalls("/dev_add_level 3", devGrant);
     const xpCalls = await captureMessageCalls("/dev_add_xp 7", devGrant);
+    const largeGoldCalls = await captureMessageCalls("/dev_add_gold 9999", devGrant);
     const itemCalls = await captureMessageCalls("/dev_add_random_item", devGrant);
     const toolItemCalls = await captureMessageCalls("/dev_add_random_item slot=tool", devGrant);
     const taggedItemCalls = await captureMessageCalls("/dev_add_random_item 3 tag=twohand", devGrant);
@@ -57,6 +58,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 3);
     expect(devGrant.addXp).toHaveBeenCalledWith(42n, 7);
+    expect(devGrant.addGold).toHaveBeenCalledWith(42n, 9999);
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1, {});
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1, { equipmentSlot: "tool" });
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 3, { tag: "twohand" });
@@ -90,6 +92,7 @@ describe("dev grant commands", () => {
     expect(String(defaultLevelCalls.at(-1)?.payload.text)).toContain("додано 1 рівень");
     expect(String(explicitLevelCalls.at(-1)?.payload.text)).toContain("додано 3 рівні");
     expect(String(xpCalls.at(-1)?.payload.text)).toContain("додано 7 XP");
+    expect(String(largeGoldCalls.at(-1)?.payload.text)).toContain("9999");
     expect(String(itemCalls.at(-1)?.payload.text)).toContain("додано 1 манатку");
     expect(String(toolItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання");
     expect(String(taggedItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання ×3");

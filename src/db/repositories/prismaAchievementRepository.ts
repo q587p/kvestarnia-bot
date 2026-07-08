@@ -210,6 +210,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       select: {
         id: true,
         level: true,
+        gold: true,
         raceId: true,
         classId: true,
         activeCosmeticTitleGrantId: true,
@@ -703,6 +704,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
     return {
       characterId: character.id,
       level: character.level,
+      gold: character.gold,
       raceId: character.raceId,
       classId: character.classId,
       createdAt: character.createdAt,

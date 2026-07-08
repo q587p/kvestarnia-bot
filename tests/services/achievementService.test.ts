@@ -458,6 +458,50 @@ describe("AchievementService", () => {
     expect(cumulativeRepo.progressFor("achievement.equipment.ninety-three-equipped-total")?.current).toBe(93);
   });
 
+  it("unlocks gold balance milestones from direct gold balance events", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    const leet = await service.trackEvent({
+      type: "gold.balance",
+      characterId: "character-1",
+      gold: 1337,
+      occurredAt: new Date("2026-06-28T10:00:00.000Z"),
+      sourceId: "test:1337"
+    });
+    const overNineThousand = await service.trackEvent({
+      type: "gold.balance",
+      characterId: "character-1",
+      gold: 9001,
+      occurredAt: new Date("2026-06-28T10:01:00.000Z"),
+      sourceId: "test:9001"
+    });
+
+    expect(leet.map((unlock) => unlock.id)).toEqual(["achievement.gold.leet-balance"]);
+    expect(overNineThousand.map((unlock) => unlock.id)).toEqual([
+      "achievement.gold.over-nine-thousand"
+    ]);
+  });
+
+  it("recalculates gold balance milestones from the current character balance", async () => {
+    const repo = new FakeAchievementRepository();
+    repo.recalculationSnapshot = makeRecalculationSnapshot({ gold: 9001 });
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-1",
+      new Date("2026-06-28T10:00:00.000Z")
+    );
+
+    expect(result.unlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.character.created",
+      "achievement.race.human-ish",
+      "achievement.class.warrior",
+      "achievement.gold.leet-balance",
+      "achievement.gold.over-nine-thousand"
+    ]);
+  });
+
   it("unlocks bandage craft and use achievements from direct item events", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);
@@ -659,6 +703,7 @@ describe("AchievementService", () => {
     repo.recalculationSnapshot = {
       characterId: "character-1",
       level: 13,
+      gold: 9001,
       raceId: "race.domovyk",
       classId: "class.ranger",
       createdAt: new Date("2026-06-28T08:00:00.000Z"),
@@ -890,7 +935,9 @@ describe("AchievementService", () => {
       "achievement.combat.adventure-origin-win",
       "achievement.combat.yeger-origin-win",
       "achievement.combat.low-hp-win",
-      "achievement.gear.zero-gold-item"
+      "achievement.gear.zero-gold-item",
+      "achievement.gold.leet-balance",
+      "achievement.gold.over-nine-thousand"
     ]);
     expect(duplicate.unlocks).toEqual([]);
     expect(repo.achievementFor("achievement.character.created")?.unlockedAt).toEqual(
@@ -1157,6 +1204,7 @@ function makeRecalculationSnapshot(
   return {
     characterId: "character-1",
     level: 1,
+    gold: 0,
     raceId: "race.human-ish",
     classId: "class.warrior",
     createdAt: new Date("2026-06-28T08:00:00.000Z"),

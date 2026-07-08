@@ -129,6 +129,58 @@ describe("DevGrantService", () => {
     expect(occurredAt).toBeInstanceOf(Date);
   });
 
+  it("routes gold dev grants through achievement tracking", async () => {
+    const repository = new FakeDevGrantRepository();
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.gold.over-nine-thousand",
+        title: "Понад девʼять тисяч",
+        cosmeticTitleGrantId: null,
+        unlockedAt: new Date("2026-06-17T10:00:00.000Z")
+      }
+    ]);
+    const recalculateForCharacter = vi
+      .fn<AchievementService["recalculateForCharacter"]>()
+      .mockResolvedValue({ unlocks: [] });
+    const achievements = {
+      trackEventSafely,
+      recalculateForCharacter
+    } as unknown as AchievementService;
+    const service = new DevGrantService(
+      repository,
+      "development",
+      true,
+      new FakeRandomSource([0]),
+      achievements
+    );
+
+    const result = await service.addGold(42n, 9001);
+
+    expect(result).toMatchObject({
+      state: "updated",
+      kind: "gold",
+      amount: 9001,
+      achievementUnlocks: [
+        {
+          id: "achievement.gold.over-nine-thousand"
+        }
+      ]
+    });
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = trackEventSafely.mock.calls[0] ?? [];
+    expect(event).toMatchObject({
+      characterId: "character-42",
+      type: "gold.balance",
+      gold: 9001,
+      sourceId: "dev.add_gold:character-42:9001"
+    });
+    expect(event?.occurredAt).toBeInstanceOf(Date);
+    expect(recalculateForCharacter).toHaveBeenCalledTimes(1);
+    const [characterId, occurredAt] = recalculateForCharacter.mock.calls[0] ?? [];
+    expect(characterId).toBe("character-42");
+    expect(occurredAt).toBeInstanceOf(Date);
+  });
+
   it("heals the current character to full or by a capped amount", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));

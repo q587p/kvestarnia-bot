@@ -56,6 +56,7 @@ export interface CharacterCosmeticTitleSnapshot {
 export interface AchievementRecalculationSnapshot {
   characterId: string;
   level: number;
+  gold: number;
   raceId: string;
   classId: string;
   createdAt: Date;

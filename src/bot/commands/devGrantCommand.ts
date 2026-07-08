@@ -17,6 +17,7 @@ import {
 
 const DEFAULT_DEV_GRANT_AMOUNT = 1;
 const MAX_DEV_GRANT_AMOUNT = 1_000;
+const MAX_DEV_GOLD_GRANT_AMOUNT = 1_000_000;
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
@@ -54,8 +55,12 @@ export function registerDevGrantCommands(
   });
 
   bot.command("dev_add_gold", async (ctx) => {
-    await handleDevGrantCommand(ctx, devGrantService, "dev_add_gold", (telegramUserId, amount) =>
-      devGrantService.addGold(telegramUserId, amount)
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_gold",
+      (telegramUserId, amount) => devGrantService.addGold(telegramUserId, amount),
+      MAX_DEV_GOLD_GRANT_AMOUNT
     );
   });
 
@@ -164,14 +169,15 @@ async function handleDevGrantCommand(
   grant: (
     telegramUserId: bigint,
     amount: number
-  ) => Promise<DevGrantResult | DevGrantItemsResult>
+  ) => Promise<DevGrantResult | DevGrantItemsResult>,
+  maxAmount = MAX_DEV_GRANT_AMOUNT
 ): Promise<void> {
   if (!devGrantService.isEnabled()) {
     await ctx.reply(presentDevGrantDisabled());
     return;
   }
 
-  const amount = parseDevGrantAmount(ctx.match);
+  const amount = parseDevGrantAmount(ctx.match, maxAmount);
 
   if (amount === null) {
     await ctx.reply(presentDevGrantInvalidAmount(command));
@@ -491,7 +497,7 @@ async function handleDevFinishAttunementsCommand(
   );
 }
 
-function parseDevGrantAmount(raw: string | undefined): number | null {
+function parseDevGrantAmount(raw: string | undefined, maxAmount = MAX_DEV_GRANT_AMOUNT): number | null {
   const value = raw?.trim();
 
   if (!value) {
@@ -504,7 +510,7 @@ function parseDevGrantAmount(raw: string | undefined): number | null {
 
   const amount = Number(value);
 
-  return Number.isSafeInteger(amount) && amount >= 1 && amount <= MAX_DEV_GRANT_AMOUNT
+  return Number.isSafeInteger(amount) && amount >= 1 && amount <= maxAmount
     ? amount
     : null;
 }
