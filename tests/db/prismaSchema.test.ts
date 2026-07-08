@@ -531,6 +531,30 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CREATE UNIQUE INDEX \"character_remorts_character_id_remort_number_key\"");
   });
 
+  it("stores replay-safe duel tournament reward claims", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260708120000_duel_tournaments",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model DuelTournamentClaim");
+    expect(schema).toContain("duelTournamentClaims DuelTournamentClaim[]");
+    expect(schema).toContain("@map(\"period_key\")");
+    expect(schema).toContain("@map(\"reward_items_json\")");
+    expect(schema).toContain("@@unique([characterId, period, periodKey])");
+    expect(schema).toContain("@@map(\"duel_tournament_claims\")");
+    expect(migration).toContain("CREATE TABLE \"duel_tournament_claims\"");
+    expect(migration).toContain("duel_tournament_claims_character_id_period_period_key_key");
+    expect(migration).toContain("duel_tournament_claims_period_period_key_idx");
+  });
+
   it("stores party sessions and participants for replay-safe recruitment", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(

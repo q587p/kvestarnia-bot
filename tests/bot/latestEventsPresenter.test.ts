@@ -57,6 +57,10 @@ describe("latest events presenter", () => {
             actorDisplayName: "Пандочка",
             subjectName: "Огрище",
             payload: { levelDelta: 6 }
+          }),
+          makeEvent("duel.tournament_claimed", "2026-07-01T18:30:00.000Z", {
+            actorDisplayName: "Дуелянт",
+            payload: { period: "day", periodKey: "2026-07-01", rank: 1, points: 5 }
           })
         ],
         page: 0,
@@ -76,6 +80,7 @@ describe("latest events presenter", () => {
     expect(text).toContain("Мудрий: рідкісна манатка — «Пляшка Пінного Міражу».");
     expect(text).toContain("Майстриня: легендарна манатка — «Ложка, яку не кладуть у шухляду».");
     expect(text).toContain("Пандочка: перемога. Монстр — «Огрище», перевага рівнів: +6.");
+    expect(text).toContain("Дуелянт: денний турнір, місце 1, 5 очк.");
   });
 
   it("escapes, truncates and falls back for dynamic names", () => {

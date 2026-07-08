@@ -4,6 +4,7 @@ import {
   presentTavernAlreadyRaided,
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
+  presentDuelTournamentBoard,
   presentDuelWinnersBoard,
   presentKorchmaDeepClosed,
   presentKorchmaDeepLevelLocked,
@@ -202,7 +203,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("результат одразу після згоди.");
     expect(text).toContain("♟️ Покрокова дуель");
     expect(text).toContain("гравці таємно обирають дії за раунд.");
-    expect(text).toContain("глянути переможців");
+    expect(text).toContain("глянути турніри й переможців");
   });
 
   it("shows the Nyz descent with its first surface copy", () => {
@@ -254,6 +255,82 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("1. Дара — 11 перемог, 12 нічиїх, 14 поразок");
+  });
+
+  it("shows compact duel tournament standings and claim state without public losses", () => {
+    const text = presentDuelTournamentBoard({
+      period: "day",
+      current: {
+        period: "day",
+        key: "2026-07-08",
+        label: "Денний турнір",
+        startsAt: new Date("2026-07-07T21:00:00.000Z"),
+        endsAt: new Date("2026-07-08T21:00:00.000Z")
+      },
+      previous: {
+        period: "day",
+        key: "2026-07-07",
+        label: "Денний турнір",
+        startsAt: new Date("2026-07-06T21:00:00.000Z"),
+        endsAt: new Date("2026-07-07T21:00:00.000Z")
+      },
+      standings: [{
+        characterId: "character-1",
+        name: "Дара",
+        points: 5,
+        wins: 2,
+        draws: 1,
+        scoredDuels: 3,
+        rank: 1
+      }],
+      previousWinners: [{
+        characterId: "character-2",
+        name: "Нестор",
+        points: 3,
+        wins: 1,
+        draws: 0,
+        scoredDuels: 1,
+        rank: 1
+      }],
+      character: {
+        id: "character-1",
+        userId: "user-1",
+        telegramUserId: 1n,
+        name: "Дара",
+        pronoun: "they",
+        path: "boundary",
+        raceId: "race.human-ish",
+        classId: "class.warrior",
+        level: 3,
+        xp: 0,
+        gold: 0,
+        hpCurrent: 25,
+        hpMax: 25,
+        manaCurrent: 10,
+        manaMax: 10,
+        statsJson: {}
+      },
+      yourPoints: 5,
+      yourRank: 1,
+      remainingMs: 93 * 60 * 1000,
+      claim: {
+        state: "available",
+        periodKey: "2026-07-07",
+        rank: 1,
+        points: 3,
+        reward: {
+          gold: 3,
+          items: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }]
+        }
+      }
+    });
+
+    expect(text).toContain("🏆 Турніри");
+    expect(text).toContain("Ваші очки: <b>5</b>, місце 1");
+    expect(text).toContain("1. Дара — 5 оч., 2 перем., 1 ніч.");
+    expect(text).toContain("Приз: 3 зол., 1 шт. «Бинт відповідальної паніки».");
+    expect(text).toContain("Попередні переможці");
+    expect(text).not.toContain("пораз");
   });
 
   it("shows a repeated duel winner cosmetic title only once per board card", () => {

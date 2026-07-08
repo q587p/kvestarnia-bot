@@ -54,12 +54,12 @@ Recently shipped:
 - [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow Mantok Ability Grants post-merge polish for first-use gear-action notification delivery in Big Barrel Brother raids and turn-based duels, plus silent callback, Barrel/Yeger quest-marker, generated-price, remort PvE pressure, same-location quest-marker, stale table-game replay, inventory sort and item-detail replacement hardening.
 - [0.2.32-polish-rollup.md](0.2.32-polish-rollup.md) — consolidated combat and Korchma polish rollup for repeated flee chance, once-only Yeger count copy, Yeger remort pressure, Big Barrel reward cleanup, remort medical-craft unlock and future daily-round variant tracking.
 - [0.3.0-charkokovalnia-item-upgrades.md](0.3.0-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP from the Korchma yard Mage, with a field-kit unlock, concrete `+N` item ids, replay-safe upgrade attempts, equipped-row alignment, bounded pity/donor gates, weak/strong magic attunement timers, very rare generated `+N` drops, rare fight Iskrokamin replacement rewards, successful-upgrade Chronicles rows and local `Іскрокамінь`/attunement QA support.
+- [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — fixed daily/weekly/monthly turn-based duel tournaments with repeated-opponent downweighting, replay-safe Korchma-funded top-three reward claims and Chronicles recognition for claims only.
 
 Near-term next tasks:
 
 Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
-- [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
 - [0.3.x-bureaucramancer-personal-protocol.md](0.3.x-bureaucramancer-personal-protocol.md) — draft narrow Bureaucramancer personal-protocol raid-prep slice for Big Barrel Brother recruiting: one protocol per session, count-only signatures, and per-signer first personal boss attack protection without broad-attack mitigation.
 - [0.2.x-turn-based-duel-journal.md](0.2.x-turn-based-duel-journal.md) — draft follow-up for a paginated `📜 Журнал дуелі` over resolved turn-based duel rounds without leaking unresolved private choices.
 - [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.

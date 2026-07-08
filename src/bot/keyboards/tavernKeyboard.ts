@@ -22,8 +22,14 @@ import {
 } from "../callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDuelNewCallbackData, makeDuelNewTurnBasedCallbackData } from "../callbacks/duelCallbackData";
+import {
+  makeDuelTournamentClaimCallbackData,
+  makeDuelTournamentOpenCallbackData
+} from "../callbacks/duelTournamentCallbackData";
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
 import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
+import type { DuelTournamentPeriod } from "../../domain/duels/duelTournament";
+import type { DuelTournamentClaimState } from "../../services/duelTournamentService";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import {
@@ -223,9 +229,40 @@ export function buildKorchmaFightingCornerKeyboard(
     .row()
     .text("♟️ Покрокова дуель", makeDuelNewTurnBasedCallbackData())
     .row()
+    .text("🏆 Турніри", makeDuelTournamentOpenCallbackData("day"))
+    .row()
     .text("🏆 Переможці", makePlaceCallbackData("duel-winners"))
     .row()
     .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
+}
+
+export function buildDuelTournamentKeyboard(input: {
+  period: DuelTournamentPeriod;
+  claim: DuelTournamentClaimState;
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
+    .text(periodButtonLabel("day", input.period), makeDuelTournamentOpenCallbackData("day"))
+    .text(periodButtonLabel("week", input.period), makeDuelTournamentOpenCallbackData("week"))
+    .text(periodButtonLabel("month", input.period), makeDuelTournamentOpenCallbackData("month"))
+    .row();
+
+  if (input.claim.state === "available") {
+    keyboard.text(
+      "🎁 Забрати нагороду",
+      makeDuelTournamentClaimCallbackData(input.period, input.claim.periodKey)
+    ).row();
+  }
+
+  return keyboard.text("↩️ До Бійцівського кутка", makePlaceCallbackData("fighting-corner"));
+}
+
+function periodButtonLabel(period: DuelTournamentPeriod, current: DuelTournamentPeriod): string {
+  const labels: Record<DuelTournamentPeriod, string> = {
+    day: "День",
+    week: "Тиждень",
+    month: "Місяць"
+  };
+  return period === current ? `• ${labels[period]}` : labels[period];
 }
 
 export function buildKorchmaBarKeyboard(

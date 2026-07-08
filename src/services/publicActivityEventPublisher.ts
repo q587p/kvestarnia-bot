@@ -149,6 +149,38 @@ export class PublicActivityEventPublisher {
     });
   }
 
+  recordDuelTournamentClaimedSafely(input: {
+    characterId: string;
+    actorDisplayName: string;
+    claimId: string;
+    period: "day" | "week" | "month";
+    periodKey: string;
+    rank: number;
+    points: number;
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "duel.tournament_claimed",
+      category: "combat",
+      severity: input.rank === 1 ? "high" : "normal",
+      actorCharacterId: input.characterId,
+      actorDisplayName: input.actorDisplayName,
+      subjectKind: "duel-tournament",
+      subjectId: input.periodKey,
+      subjectName: input.period,
+      sourceType: "duel-tournament-claim",
+      sourceId: input.claimId,
+      dedupeKey: `duel.tournament_claimed:${input.claimId}`,
+      payload: {
+        period: input.period,
+        periodKey: input.periodKey,
+        rank: input.rank,
+        points: input.points
+      },
+      occurredAt: input.occurredAt
+    });
+  }
+
   recordPartyRaidWonSafely(session: PartyBossSessionRecord): Promise<ActivityEventRecord | null> {
     if (session.status !== "won" || session.rulesVersion !== BIG_BARREL_BROTHER_RULES_VERSION) {
       return Promise.resolve(null);

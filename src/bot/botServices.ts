@@ -11,6 +11,7 @@ import type { DevGrantService } from "../services/devGrantService";
 import type { DevResetService } from "../services/devResetService";
 import type { DailyKorchmaRoundService } from "../services/dailyKorchmaRoundService";
 import type { DuelChallengeService } from "../services/duelChallengeService";
+import type { DuelTournamentService } from "../services/duelTournamentService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { FightService } from "../services/fightService";
 import type { HeroService } from "../services/heroService";
@@ -71,6 +72,7 @@ export interface BotServices {
   presence: PresenceService;
   devGrant?: DevGrantService;
   duel?: DuelChallengeService;
+  duelTournaments?: DuelTournamentService;
   devReset: DevResetService;
   restart: RestartService;
   remort?: RemortService;

@@ -1,0 +1,57 @@
+# Duel Tournaments
+
+Turn-based duel tournaments are a Korchma-funded recognition layer over the existing turn-based duel system.
+
+They do not introduce a new combat engine. Tournament standings read resolved duel records produced by the existing duel settlement and replay flow.
+
+## Periods
+
+- Daily: fixed Kyiv calendar day.
+- Weekly: fixed Kyiv ISO week.
+- Monthly: fixed Kyiv calendar month.
+
+Cards show the active period, current standings, the player's points/rank, time remaining, previous winners and a claim button when a completed previous period has an unclaimed prize.
+
+## Counting Rules
+
+Only resolved turn-based duels count.
+
+Excluded:
+
+- quick duels;
+- Rogue retaliation quick duels;
+- training fights;
+- cancelled, declined, expired or stale sessions;
+- developer helper fights.
+
+Each duel record contributes at most once. Old duel card replays do not create new records and cannot create another tournament result.
+
+## Points And Anti-Boost
+
+Scoring is deterministic:
+
+- first win by the same player against the same opponent in one period: 3 points;
+- second win by the same player against the same opponent in one period: 1 point;
+- later wins against that same opponent in that period: 0 tournament points;
+- first draw against the same opponent in one period: 1 point for each player;
+- later draws against that same opponent in that period: 0 tournament points.
+
+This keeps recognition possible for normal rematches while making easy same-pair farming unattractive.
+
+## Rewards
+
+Rewards are paid by Korchma, never by another player.
+
+Only top-three placements with positive points can claim. The reward snapshot is stored with the claim, so future balance changes or repeated callbacks do not recalculate or duplicate rewards.
+
+Current reward table:
+
+- Daily: 3/2/1 gold plus 1 `Бинт відповідальної паніки`.
+- Weekly: 13/8/5 gold plus 2/1/1 `Бинт відповідальної паніки`.
+- Monthly: 42/23/13 gold plus 5/3/2 `Бинт відповідальної паніки`.
+
+The loop is intentionally below ordinary PvE gold/hour and uses low-power existing manatky.
+
+## Public Recognition
+
+`📜 Хроніки Квестарні` may show successful tournament reward claims. Tournament losses are not published.

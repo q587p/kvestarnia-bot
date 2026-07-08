@@ -14,6 +14,7 @@ import {
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { TavernGameService } from "../../services/tavernGameService";
+import type { DuelTournamentService } from "../../services/duelTournamentService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { PartyBossService } from "../../services/partyBossService";
 import {
@@ -46,6 +47,7 @@ import {
   buildKorchmaBarKeyboard,
   buildBackToKorchmaHallKeyboard,
   buildKorchmaDeepKeyboard,
+  buildDuelTournamentKeyboard,
   buildKorchmaFightingCornerKeyboard,
   buildKorchmaFrontKeyboard,
   buildKorchmaHallKeyboard,
@@ -64,6 +66,7 @@ import {
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
   presentDuelWinnersBoard,
+  presentDuelTournamentBoard,
   presentKorchmaDeepClosed,
   presentKorchmaDeepLevelLocked,
   presentKorchmaFightingCorner,
@@ -118,6 +121,7 @@ type TavernCommandKeyboard =
   | "news-corner"
   | "fighting-corner"
   | { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean }
+  | { state: "duel-tournament"; period: "day" | "week" | "month"; claim: Parameters<typeof buildDuelTournamentKeyboard>[0]["claim"] }
   | "deep"
   | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
   | "back-to-fighting-corner"
@@ -657,6 +661,62 @@ export async function sendDuelWinnersBoard(
   await sendText(ctx, mode, presentDuelWinnersBoard(result.character, leaderboard), "back-to-fighting-corner");
 }
 
+export async function sendDuelTournamentBoard(
+  ctx: Context,
+  tavernRaidService: TavernRaidService,
+  presenceService: PresenceService,
+  tournamentService: Pick<DuelTournamentService, "getBoardForTelegramUser">,
+  period: "day" | "week" | "month",
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await tavernRaidService.getTavernForTelegramUser(telegramUserId);
+
+  if (result.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  if (result.state === "pending") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidPending(result), "barrel-pending");
+    return;
+  }
+
+  if (result.state === "pending-complete") {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL, true);
+    await sendText(ctx, mode, presentTavernRaidReadyToComplete(result), "barrel-pending");
+    return;
+  }
+
+  if (result.character.level < 3) {
+    await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
+    await sendText(ctx, mode, presentKorchmaFightingCornerLevelLocked(result.character), "back-to-hall");
+    return;
+  }
+
+  await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
+  const boardResult = await tournamentService.getBoardForTelegramUser(telegramUserId, period);
+
+  if (boardResult.state === "no-character") {
+    await sendText(ctx, mode, presentTavernNoCharacter());
+    return;
+  }
+
+  await sendText(
+    ctx,
+    mode,
+    presentDuelTournamentBoard(boardResult.board),
+    { state: "duel-tournament", period, claim: boardResult.board.claim }
+  );
+}
+
 export async function sendKorchmaBar(
   ctx: Context,
   tavernRaidService: TavernRaidService,
@@ -1011,6 +1071,8 @@ async function sendText(
                       : { trainingDoppelgangerAvailable: keyboard.trainingDoppelgangerAvailable })
                   }
                 )
+            : isDuelTournamentKeyboard(keyboard)
+              ? buildDuelTournamentKeyboard({ period: keyboard.period, claim: keyboard.claim })
             : keyboard === "deep"
               ? buildKorchmaDeepKeyboard()
             : isDeepKeyboard(keyboard)
@@ -1099,6 +1161,12 @@ function isFightingCornerKeyboard(
   keyboard: TavernCommandKeyboard
 ): keyboard is { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "fighting-corner";
+}
+
+function isDuelTournamentKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is Extract<TavernCommandKeyboard, { state: "duel-tournament" }> {
+  return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "duel-tournament";
 }
 
 function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "bar" }> {

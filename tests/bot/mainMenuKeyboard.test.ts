@@ -494,6 +494,7 @@ describe("main menu and scene keyboards", () => {
       "🥊 Потренуватися",
       "⚡ Миттєва дуель",
       "♟️ Покрокова дуель",
+      "🏆 Турніри",
       "🏆 Переможці",
       "⬅️ До зали"
     ]);
@@ -501,6 +502,7 @@ describe("main menu and scene keyboards", () => {
       "v1:spar:open",
       "v1:duel:new",
       "v1:duel:new-t",
+      "v1:tour:o:d",
       "v1:place:duel-winners",
       "v1:place:hall"
     ]);
@@ -509,6 +511,7 @@ describe("main menu and scene keyboards", () => {
     }))).toEqual([
       "⚡ Миттєва дуель",
       "♟️ Покрокова дуель",
+      "🏆 Турніри",
       "🏆 Переможці",
       "⬅️ До зали"
     ]);

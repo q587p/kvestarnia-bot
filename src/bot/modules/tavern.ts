@@ -25,6 +25,7 @@ import { isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
 import { parseCellarCallbackData,type CellarCallback } from "../callbacks/cellarCallbackData";
+import { parseDuelTournamentCallbackData,type DuelTournamentCallback } from "../callbacks/duelTournamentCallbackData";
 import { parseMemorialCallbackData,type MemorialCallback } from "../callbacks/memorialCallbackData";
 import { parseLatestEventsCallbackData,type LatestEventsCallback } from "../callbacks/latestEventsCallbackData";
 import { parsePlaceCallbackData,type PlaceCallback } from "../callbacks/placeCallbackData";
@@ -47,6 +48,7 @@ sendQuestHub
 } from "../commands/questHubCommand";
 import {
 registerTavernCommand,
+sendDuelTournamentBoard,
 sendDuelWinnersBoard,
 sendKorchmaArrivalBoard,
 sendKorchmaBar,
@@ -96,6 +98,7 @@ buildShynokSaleSelectionKeyboard
 import {
 buildBackToKorchmaHallKeyboard,
 buildBackToTavernRaidKeyboard,
+buildDuelTournamentKeyboard,
 buildKorchmaBarKeyboard,
 buildKorchmaRoundOfferKeyboard,
 buildKorchmaRoundResultKeyboard,
@@ -159,6 +162,7 @@ getNextTavernGameInviteTemplateIndex
 } from "../presenters/tavernGamePresenter";
 import {
 presentKorchmaDeepLevelLocked,
+presentDuelTournamentBoard,
 presentTavernNoCharacter,
 presentTavernRaidResult,
 presentTavernRoundLeaderboard,
@@ -244,6 +248,10 @@ export function registerTavernBotModule(
     });
   });
 
+  registerParsedCallbackRoute(bot, /^v1:tour:/, parseDuelTournamentCallbackData, async (ctx, action) => {
+    await handleDuelTournamentCallback(ctx, action, services);
+  });
+
   registerParsedCallbackRoute(bot, /^v1:mem:/, parseMemorialCallbackData, async (ctx, action) => {
     await handleMemorialCallback(ctx, action, services);
   });
@@ -255,6 +263,61 @@ export function registerTavernBotModule(
   registerParsedCallbackRoute(bot, /^v[12]:cellar:/, parseCellarCallbackData, async (ctx, action) => {
     await handleCellarCallback(ctx, action, services);
   });
+}
+
+async function handleDuelTournamentCallback(
+  ctx: Context,
+  action: DuelTournamentCallback,
+  services: BotServices
+): Promise<void> {
+  if (!services.duelTournaments) {
+    await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  if (action.action === "open") {
+    await sendDuelTournamentBoard(
+      ctx,
+      services.tavern,
+      services.presence,
+      services.duelTournaments,
+      action.period,
+      "edit"
+    );
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
+
+  const player = playerFromContext(ctx.from);
+  if (!player) {
+    await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  const result = await services.duelTournaments.claimRewardForTelegramUser(
+    player.telegramUserId,
+    action.period,
+    action.periodKey
+  );
+
+  if (result.state === "no-character") {
+    await safeEditMessageText(ctx, presentTavernNoCharacter(), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  if (result.state === "invalid-period") {
+    await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
+    return;
+  }
+
+  await safeEditMessageText(ctx, presentDuelTournamentBoard(result.board, result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildDuelTournamentKeyboard({
+      period: action.period,
+      claim: result.board.claim
+    })
+  });
+  await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 
 async function handleLatestEventsCallback(

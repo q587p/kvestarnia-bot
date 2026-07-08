@@ -7,6 +7,19 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.1] - 12026-07-08 - Turn-Based Duel Tournaments and Korchma Rewards
+
+### Added
+- Added `🏆 Турніри` to the Korchma Fighting Corner with daily, weekly and monthly fixed-period standings for completed turn-based duels.
+- Added deterministic tournament scoring that counts only resolved turn-based duels once and applies bounded repeated-opponent contribution: first win against the same opponent in a period grants full points, the second grants reduced points, later repeated wins grant no tournament points; repeated draws against the same opponent score once.
+- Added replay-safe tournament reward claims with stored reward snapshots and unique character/period/period-key claims.
+- Added Korchma-funded top-three reward tables for daily, weekly and monthly tournaments, each granting bounded gold plus `Бинт відповідальної паніки`.
+- Added `📜 Хроніки Квестарні` entries for successful tournament reward claims, emitted once per claim and never for tournament losses.
+- Added focused tournament domain, service, callback, presenter and schema coverage for standings, rewards, duplicate callbacks, claim replay, anti-boost scoring, period rollover and Latest Events integration.
+
+### Changed
+- The existing no-reward duel winners board remains available, while tournament cards show points, rank, remaining time, previous winners and a claim button only when a completed period reward is available.
+
 ## [0.3.0] - 12026-07-08 - Charkokovalnia Item Upgrades MVP
 
 ### Added

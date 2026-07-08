@@ -4,6 +4,17 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.1 — Duel Tournaments smoke
+
+Manual Telegram QA status for the implementation pass: not run in Telegram. Use the focused checklist in [`docs/qa/duel-tournaments-qa.md`](../qa/duel-tournaments-qa.md).
+
+1. Open Korchma -> `🥊 Бійцівський куток`; verify `🏆 Турніри` appears beside existing duel actions and `🏆 Переможці`.
+2. Open `🏆 Турніри`; verify day/week/month tabs, current points, rank, remaining time and previous winners render compactly.
+3. Complete a turn-based duel and verify only the resolved result affects the active tournament.
+4. Replay old duel cards and duplicate tournament buttons; verify no additional points or rewards are created.
+5. Claim an available completed-period reward and verify gold plus bandage are granted once.
+6. Open `📜 Хроніки Квестарні`; verify one tournament claim row appears and no loss row appears.
+
 ## 0.2.31 — Mantok Ability Grants Polish smoke
 
 Manual Telegram QA status for this polish pass: not run in this branch. Automated coverage confirms committed Big Barrel Brother and turn-based duel gear-action unlock notifications are surfaced to the relevant Telegram participants; live evidence remains tracked in `docs/qa/mantok-ability-grants-foundation-qa.md`.
