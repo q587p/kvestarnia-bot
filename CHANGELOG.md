@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.0] - 12026-07-09 - Charkokovalnia Item Upgrades MVP
+## [0.3.0] - 12026-07-08 - Charkokovalnia Item Upgrades MVP
 
 ### Added
 - Added the `✨ Чароковальня` Telegram surface from `Задвірок корчми`, with the elf-mage NPC framing and no public `/upgrade` command or `Манатки` shortcut.

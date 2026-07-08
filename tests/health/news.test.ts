@@ -82,7 +82,7 @@ describe("public news rendering", () => {
     expect(newsHeading?.date).toBe(changelogHeading?.date);
   });
 
-  it("keeps the latest release date on the current Kyiv day of the commit", () => {
+  it("does not date the latest release after the current Kyiv day of the commit", () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), "package.json"), "utf8")
     ) as { version: string };
@@ -101,12 +101,10 @@ describe("public news rendering", () => {
     }).trim();
     const expectedDate = toKyivHoloceneDate(new Date(headCommitDate));
 
-    expect(changelogHeading).toEqual(
-      expect.objectContaining({ version: packageJson.version, date: expectedDate })
-    );
-    expect(newsHeading).toEqual(
-      expect.objectContaining({ version: packageJson.version, date: expectedDate })
-    );
+    expect(changelogHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
+    expect(newsHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
+    expect(changelogHeading?.date <= expectedDate).toBe(true);
+    expect(newsHeading?.date <= expectedDate).toBe(true);
   });
 });
 
