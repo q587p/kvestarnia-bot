@@ -2,7 +2,9 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
   CharacterEquipmentRecord,
   CharacterEquipmentSnapshot,
+  EquipmentAttunementNotificationRecord,
   EquipForCharacterResult,
+  FinishEquipmentAttunementsResult,
   EquipmentRepository,
   EquipmentSlot
 } from "./equipmentRepository";
@@ -10,6 +12,15 @@ import {
   getEquipmentSlotStorageKeys,
   normalizeEquipmentSlot
 } from "../../content/equipmentSlots";
+import {
+  buildEquipmentAttunementPayload,
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+  isEquipmentAttunementReady,
+  parseEquipmentAttunementPayload,
+  type EquipmentAttunementPayload
+} from "../../domain/equipment/equipmentAttunement";
+
+type TxClient = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
 export class PrismaEquipmentRepository implements EquipmentRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -23,6 +34,14 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       },
       select: {
         id: true,
+        dailyActions: {
+          where: {
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+          },
+          orderBy: {
+            createdAt: "desc"
+          }
+        },
         equipment: {
           orderBy: {
             slot: "asc"
@@ -38,7 +57,7 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
     return {
       characterId: character.id,
       equipment: character.equipment.flatMap((row) => {
-        const record = toRecord(row);
+        const record = toRecord(row, findAttunementForRow(row, character.dailyActions, new Date()));
 
         return record ? [record] : [];
       })
@@ -96,6 +115,12 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
     slot: EquipmentSlot;
     itemId: string;
     clearSlot?: EquipmentSlot;
+    attunement?: {
+      strength: "weak" | "strong";
+      itemName: string;
+      startedAt: Date;
+      readyAt: Date;
+    };
   }): Promise<EquipForCharacterResult> {
     try {
       return await this.equipForCharacterAtomicallyUnsafe(input);
@@ -142,11 +167,168 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
     return deleted.count > 0;
   }
 
+  async listDueAttunementNotifications(
+    now: Date,
+    options: { limit?: number } = {}
+  ): Promise<EquipmentAttunementNotificationRecord[]> {
+    const rows = await this.prisma.dailyAction.findMany({
+      where: {
+        key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+      },
+      include: {
+        character: {
+          include: {
+            user: true,
+            equipment: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "asc"
+      },
+      take: Math.max(1, options.limit ?? 50) * 3
+    });
+    const due: EquipmentAttunementNotificationRecord[] = [];
+
+    for (const row of rows) {
+      const payload = parseEquipmentAttunementPayload(row.resultJson);
+      if (
+        !payload ||
+        payload.status !== "tuning" ||
+        payload.notifiedAt ||
+        !isEquipmentAttunementReady(payload, now)
+      ) {
+        continue;
+      }
+
+      const stillEquipped = row.character.equipment.some((equipment) =>
+        equipment.slot === payload.slot &&
+        equipment.itemId === payload.itemId &&
+        equipment.updatedAt.toISOString() === payload.equipmentUpdatedAt
+      );
+
+      if (!stillEquipped) {
+        continue;
+      }
+
+      due.push({
+        actionId: row.id,
+        characterId: row.characterId,
+        telegramUserId: row.character.user.telegramUserId,
+        itemId: payload.itemId,
+        itemName: payload.itemName,
+        strength: payload.strength,
+        readyAt: new Date(payload.readyAt)
+      });
+
+      if (due.length >= (options.limit ?? 50)) {
+        break;
+      }
+    }
+
+    return due;
+  }
+
+  async markAttunementNotified(actionId: string, notifiedAt: Date): Promise<boolean> {
+    const row = await this.prisma.dailyAction.findUnique({
+      where: { id: actionId }
+    });
+    const payload = parseEquipmentAttunementPayload(row?.resultJson);
+
+    if (!row || !payload || payload.status !== "tuning" || payload.notifiedAt) {
+      return false;
+    }
+
+    await this.prisma.dailyAction.update({
+      where: { id: actionId },
+      data: {
+        resultJson: {
+          ...payload,
+          notifiedAt: notifiedAt.toISOString()
+        } satisfies EquipmentAttunementPayload
+      }
+    });
+
+    return true;
+  }
+
+  async finishPendingAttunementsForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<FinishEquipmentAttunementsResult> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true,
+        dailyActions: {
+          where: {
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+          }
+        },
+        equipment: true
+      }
+    });
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    let count = 0;
+
+    for (const row of character.dailyActions) {
+      const payload = parseEquipmentAttunementPayload(row.resultJson);
+      if (
+        !payload ||
+        payload.status !== "tuning" ||
+        payload.notifiedAt ||
+        new Date(payload.readyAt).getTime() <= now.getTime()
+      ) {
+        continue;
+      }
+
+      const stillEquipped = character.equipment.some((equipment) =>
+        equipment.slot === payload.slot &&
+        equipment.itemId === payload.itemId &&
+        equipment.updatedAt.toISOString() === payload.equipmentUpdatedAt
+      );
+
+      if (!stillEquipped) {
+        continue;
+      }
+
+      await this.prisma.dailyAction.update({
+        where: { id: row.id },
+        data: {
+          resultJson: {
+            ...payload,
+            readyAt: now.toISOString()
+          } satisfies EquipmentAttunementPayload
+        }
+      });
+      count += 1;
+    }
+
+    return {
+      state: "finished",
+      count
+    };
+  }
+
   private async equipForCharacterAtomicallyUnsafe(input: {
     characterId: string;
     slot: EquipmentSlot;
     itemId: string;
     clearSlot?: EquipmentSlot;
+    attunement?: {
+      strength: "weak" | "strong";
+      itemName: string;
+      startedAt: Date;
+      readyAt: Date;
+    };
   }): Promise<EquipForCharacterResult> {
     const result = await this.prisma.$transaction(async (tx) => {
       const storageKeys = getEquipmentSlotStorageKeys(input.slot);
@@ -163,6 +345,10 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
         });
       }
 
+      const now = input.attunement?.startedAt ?? new Date();
+
+      await cancelActiveAttunementsForSlot(tx, input.characterId, input.slot, now);
+
       if (input.clearSlot) {
         await tx.characterEquipment.deleteMany({
           where: {
@@ -172,6 +358,7 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
             }
           }
         });
+        await cancelActiveAttunementsForSlot(tx, input.characterId, input.clearSlot, now);
       }
 
       const updated = await tx.characterEquipment.updateMany({
@@ -197,6 +384,8 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
           }
         });
 
+        await maybeCreateAttunement(tx, input, row);
+
         return {
           row,
           changed: true
@@ -213,6 +402,8 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       });
 
       if (existing) {
+        await maybeCreateAttunement(tx, input, existing);
+
         return {
           row: existing,
           changed: false
@@ -227,13 +418,22 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
         }
       });
 
+      await maybeCreateAttunement(tx, input, row);
+
       return {
         row,
         changed: true
       };
     });
 
-    const record = toRecord(result.row);
+    const record = toRecord(result.row, input.attunement
+      ? {
+          state: "tuning",
+          strength: input.attunement.strength,
+          startedAt: input.attunement.startedAt,
+          readyAt: input.attunement.readyAt
+        }
+      : undefined);
     if (!record) {
       throw new Error(`Unsupported equipment slot returned after equip: ${result.row.slot}`);
     }
@@ -256,7 +456,7 @@ function toRecord(row: {
   itemId: string;
   createdAt: Date;
   updatedAt: Date;
-}): CharacterEquipmentRecord | null {
+}, attunement?: CharacterEquipmentRecord["attunement"]): CharacterEquipmentRecord | null {
   const slot = normalizeEquipmentSlot(row.slot);
 
   if (!slot) {
@@ -269,6 +469,129 @@ function toRecord(row: {
     slot,
     itemId: row.itemId,
     createdAt: row.createdAt,
-    updatedAt: row.updatedAt
+    updatedAt: row.updatedAt,
+    ...(attunement ? { attunement } : {})
   };
+}
+
+async function maybeCreateAttunement(
+  tx: TxClient,
+  input: {
+    characterId: string;
+    slot: EquipmentSlot;
+    itemId: string;
+    attunement?: {
+      strength: "weak" | "strong";
+      itemName: string;
+      startedAt: Date;
+      readyAt: Date;
+    };
+  },
+  row: {
+    id: string;
+    slot: string;
+    itemId: string;
+    updatedAt: Date;
+  }
+): Promise<void> {
+  if (!input.attunement) {
+    return;
+  }
+
+  const payload = buildEquipmentAttunementPayload({
+    slot: row.slot,
+    itemId: row.itemId,
+    itemName: input.attunement.itemName,
+    equipmentUpdatedAt: row.updatedAt,
+    strength: input.attunement.strength,
+    startedAt: input.attunement.startedAt,
+    readyAt: input.attunement.readyAt
+  });
+  const localDate = `${row.slot}:${row.id}:${row.updatedAt.getTime()}`;
+
+  await tx.dailyAction.upsert({
+    where: {
+      characterId_key_localDate: {
+        characterId: input.characterId,
+        key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+        localDate
+      }
+    },
+    create: {
+      characterId: input.characterId,
+      key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+      localDate,
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: payload as unknown as Prisma.InputJsonValue
+    },
+    update: {}
+  });
+}
+
+async function cancelActiveAttunementsForSlot(
+  tx: TxClient,
+  characterId: string,
+  slot: EquipmentSlot,
+  now: Date
+): Promise<void> {
+  const rows = await tx.dailyAction.findMany({
+    where: {
+      characterId,
+      key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+    }
+  });
+
+  for (const row of rows) {
+    const payload = parseEquipmentAttunementPayload(row.resultJson);
+
+    if (!payload || payload.status !== "tuning" || normalizeEquipmentSlot(payload.slot) !== slot) {
+      continue;
+    }
+
+    await tx.dailyAction.update({
+      where: { id: row.id },
+      data: {
+        resultJson: {
+          ...payload,
+          status: "cancelled",
+          cancelledAt: now.toISOString()
+        } satisfies EquipmentAttunementPayload
+      }
+    });
+  }
+}
+
+function findAttunementForRow(
+  row: {
+    slot: string;
+    itemId: string;
+    updatedAt: Date;
+  },
+  actions: Array<{ resultJson: Prisma.JsonValue | null }>,
+  now: Date
+): CharacterEquipmentRecord["attunement"] | undefined {
+  for (const action of actions) {
+    const payload = parseEquipmentAttunementPayload(action.resultJson);
+
+    if (
+      !payload ||
+      payload.status !== "tuning" ||
+      payload.slot !== row.slot ||
+      payload.itemId !== row.itemId ||
+      payload.equipmentUpdatedAt !== row.updatedAt.toISOString()
+    ) {
+      continue;
+    }
+
+    return {
+      state: isEquipmentAttunementReady(payload, now) ? "attuned" : "tuning",
+      strength: payload.strength,
+      startedAt: new Date(payload.startedAt),
+      readyAt: new Date(payload.readyAt)
+    };
+  }
+
+  return undefined;
 }

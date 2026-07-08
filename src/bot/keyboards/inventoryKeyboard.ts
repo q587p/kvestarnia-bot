@@ -319,6 +319,26 @@ export function buildEquipItemResultKeyboard(result?: EquipItemResult): InlineKe
       .row();
   }
 
+  if (result?.state === "attunement-confirm-required") {
+    keyboard
+      .text(
+        "✅ Так, чекати",
+        makeEquipItemCallbackData(result.item.itemId, result.slot, { confirmAttunement: true })
+      )
+      .text("✖️ Ні", makeItemDetailCallbackData(result.item.itemId))
+      .row();
+  }
+
+  if (result?.state === "attunement-interrupt-confirm-required") {
+    keyboard
+      .text(
+        "✅ Так, збити процес",
+        makeEquipItemCallbackData(result.item.itemId, result.slot, { confirmAttunementInterrupt: true })
+      )
+      .text("✖️ Ні", makeEquipmentCallbackData())
+      .row();
+  }
+
   return keyboard
     .text("⬅️ До манаток", makeInventoryCallbackData())
     .row()

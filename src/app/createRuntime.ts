@@ -4,6 +4,7 @@ import { getTelegramMenuCommands } from "../bot/botCommandCatalog";
 import { createCombatTurnTimeoutScheduler } from "../bot/combatTurnTimeoutScheduler";
 import { createBot } from "../bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "../bot/duelTurnTimeoutScheduler";
+import { createEquipmentAttunementScheduler } from "../bot/equipmentAttunementScheduler";
 import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
 import { createPartyBossRecruitingStartScheduler } from "../bot/partyBossRecruitingStartScheduler";
 import type { AppConfig } from "../config/env";
@@ -21,6 +22,7 @@ interface RuntimeDependencies {
   createBot: typeof createBot;
   createCombatTurnTimeoutScheduler: typeof createCombatTurnTimeoutScheduler;
   createDuelTurnTimeoutScheduler: typeof createDuelTurnTimeoutScheduler;
+  createEquipmentAttunementScheduler: typeof createEquipmentAttunementScheduler;
   createPassageSearchCompletionScheduler: typeof createPassageSearchCompletionScheduler;
   createPartyBossRecruitingStartScheduler: typeof createPartyBossRecruitingStartScheduler;
   getTelegramMenuCommands: typeof getTelegramMenuCommands;
@@ -38,6 +40,7 @@ export function createRuntime(input: {
     createBot,
     createCombatTurnTimeoutScheduler,
     createDuelTurnTimeoutScheduler,
+    createEquipmentAttunementScheduler,
     createPassageSearchCompletionScheduler,
     createPartyBossRecruitingStartScheduler,
     getTelegramMenuCommands,
@@ -56,6 +59,7 @@ export function createRuntime(input: {
   let bot: Bot | null = null;
   let healthServer: ReturnType<typeof startHealthServer> | null = null;
   let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
+  let equipmentAttunementScheduler: ReturnType<typeof createEquipmentAttunementScheduler> | null = null;
   let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
   let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
@@ -95,6 +99,11 @@ export function createRuntime(input: {
         bot
       );
       combatTurnTimeoutScheduler.start();
+      equipmentAttunementScheduler = dependencies.createEquipmentAttunementScheduler(
+        services.equipment,
+        bot
+      );
+      equipmentAttunementScheduler.start();
       if (services.passageSearch) {
         passageSearchCompletionScheduler = dependencies.createPassageSearchCompletionScheduler({
           passageSearch: services.passageSearch,
@@ -142,6 +151,7 @@ export function createRuntime(input: {
 
         combatTurnTimeoutScheduler?.stop();
         duelTurnTimeoutScheduler?.stop();
+        equipmentAttunementScheduler?.stop();
         passageSearchCompletionScheduler?.stop();
         partyBossRecruitingStartScheduler?.stop();
 

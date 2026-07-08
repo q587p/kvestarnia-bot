@@ -62,6 +62,7 @@ const expectedCommandAliasInventory = [
   "dev_add_xp",
   "dev_add_yeger_line",
   "dev_adventure_reset",
+  "dev_finish_attunements",
   "dev_heal",
   "dev_help",
   "dev_party",

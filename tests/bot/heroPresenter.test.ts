@@ -187,6 +187,26 @@ describe("hero presenter", () => {
     );
   });
 
+  it("shows equipment attunement as a timed status", () => {
+    const text = presentHero({
+      ...summary,
+      equipmentAttunements: [
+        {
+          itemName: "Пательня переконання +1",
+          strength: "weak",
+          readyAt: new Date("2026-06-23T10:13:00.000Z")
+        }
+      ]
+    });
+
+    expect(text).toContain(
+      "✨ Стан: <b>Налаштування на Пательня переконання +1</b> ще <b>13 хв</b>."
+    );
+    expect(text).toContain(
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n✨ Стан: <b>Налаштування"
+    );
+  });
+
   it("shows queued pepper vodka as a pending monster combat buff", () => {
     const text = presentHero(summary, {
       activeDrink: {

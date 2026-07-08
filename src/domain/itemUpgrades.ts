@@ -60,8 +60,8 @@ export const ITEM_UPGRADE_LEVELS: Record<number, ItemUpgradeLevelConfig> = {
   1: { gold: 50, iskrokamin: 1, mana: 10, npcChance: 95, selfChance: 90 },
   2: { gold: 120, iskrokamin: 2, mana: 18, npcChance: 82, selfChance: 76 },
   3: { gold: 260, iskrokamin: 4, mana: 30, npcChance: 66, selfChance: 60 },
-  4: { gold: 500, iskrokamin: 7, mana: 45, npcChance: 48, selfChance: 42 },
-  5: { gold: 900, iskrokamin: 11, mana: 65, npcChance: 32, selfChance: 28 }
+  4: { gold: 500, iskrokamin: 10, mana: 45, npcChance: 48, selfChance: 42 },
+  5: { gold: 900, iskrokamin: 17, mana: 65, npcChance: 32, selfChance: 28 }
 };
 
 export function normalizeItemUpgradeLevel(value: number | undefined | null): number {
@@ -164,6 +164,11 @@ export function applyItemUpgradeEffect(
 ): ItemEffectContent | undefined {
   const safeLevel = normalizeItemUpgradeLevel(level);
   const primary = getItemUpgradePrimaryStat(item);
+  const primaryBonus = safeLevel <= 3
+    ? safeLevel
+    : safeLevel === 4
+      ? 5
+      : 7;
 
   if (safeLevel <= 0 || !primary) {
     return effect;
@@ -171,7 +176,7 @@ export function applyItemUpgradeEffect(
 
   return {
     ...(effect ?? {}),
-    [primary]: (effect?.[primary] ?? 0) + safeLevel
+    [primary]: Math.min(10, (effect?.[primary] ?? 0) + primaryBonus)
   };
 }
 

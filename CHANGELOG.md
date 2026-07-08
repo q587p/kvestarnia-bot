@@ -15,6 +15,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added concrete authored upgrade variants for eligible manatky as `base.plus-1` through `base.plus-5`, while preserving existing generated Loot Expansion `-plus-N` ids and avoiding item-instance identity.
 - Added deterministic upgrade cost, chance, pity and donor-bonus math with passive previews and stale snapshot checks for direct attempts.
 - Added `Іскрокамінь` as the narrow material stack used by the upgrade loop, plus local `/dev_add_iskrokamin` QA support behind the existing non-production dev-grant gate.
+- Added weak/strong magic attunement for magical equipment: `+1..+3` items tune for 13 minutes, while `+4..+5`, Mantok set pieces and ability-grant manatky tune for 42 minutes before their bonuses count.
+- Added the runtime attunement completion scheduler and local `/dev_finish_attunements` QA helper behind the existing non-production dev-grant gate.
 - Added rewardless first upgrade success, first upgrade failure and first `+5` upgrade achievement hooks.
 - Added focused domain, callback, presenter, Mantok semantics, dev-helper and Prisma transaction coverage for upgrade math, compact snapshot callbacks, equipped-row alignment, stale replay rejection and plus-id presentation.
 - Added very rare generated Loot Expansion `+N` drop weighting, keeping plus variants possible without double-upgrading generated ids or turning plus drops into the normal loot path.
@@ -23,6 +25,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Successful upgrades now move exactly one owned stack unit from the current item id to the next concrete plus id and align equipped rows that pointed at the upgraded stack id.
 - Failed attempts spend the chosen resources once and increment bounded pity once; replays with stale stack, level or pity snapshots reject before spending.
 - Item detail, inventory, equipment, hero/effective-stat, Mantok set and Mantok ability-grant surfaces treat upgraded concrete ids as ordinary catalog ids with the expected `+N` display and preserved base semantics.
+- Equipment bonuses, set bonuses and Mantok ability grants from tuning magical manatky are withheld until attunement is ready; equipment cards strike through the pending effect, hero cards show the `Налаштування на...` status, and replacing a tuning slot requires a separate confirmation.
+- `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
 - Updated task docs, developer setup notes, balance notes, achievement catalog, lore board, release notes and compact Codex context for the shipped `0.3.0` MVP.
 - Bumped package metadata to `0.3.0`.

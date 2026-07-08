@@ -86,6 +86,53 @@ describe("equipment presenter", () => {
     expect(text).toContain("Ефект: <i>+4 до удару</i>");
   });
 
+  it("shows tuning equipment with struck-through effects and without active grants", () => {
+    const pan = items.find((item) => item.id === "item.pan-of-persuasion.plus-1");
+    const staff = items.find((item) => item.id === "item.set.asclepius.staff");
+    expect(pan).toBeDefined();
+    expect(staff).toBeDefined();
+    if (!pan || !staff) {
+      throw new Error("Expected tuning test content.");
+    }
+
+    const text = presentEquipment({
+      state: "ready",
+      slots: [
+        {
+          slot: "weapon",
+          item: { itemId: pan.id, content: pan },
+          attunement: {
+            state: "tuning",
+            strength: "weak",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:13:00.000Z")
+          }
+        },
+        {
+          slot: "tool",
+          item: { itemId: staff.id, content: staff },
+          attunement: {
+            state: "tuning",
+            strength: "strong",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:42:00.000Z")
+          }
+        },
+        { slot: "head", item: null },
+        { slot: "chest", item: null },
+        { slot: "legs", item: null },
+        { slot: "accessory", item: null },
+        { slot: "offhand", item: null }
+      ]
+    });
+
+    expect(text).toContain("Пательня переконання +1");
+    expect(text).toContain("Ефект: <s>+3 до удару</s>\n<i>Йде налаштування.</i>");
+    expect(text).toContain("Посох Асклепія з інструкцією");
+    expect(text).not.toContain("Дія: <b>⚕️ Інструкція Асклепія</b>");
+    expect(text).not.toContain("✨ <b>Дія спорядження</b>");
+  });
+
   it("summarizes active and next Mantok set bonuses", () => {
     const text = presentEquipment({
       state: "ready",

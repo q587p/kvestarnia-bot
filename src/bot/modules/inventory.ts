@@ -700,7 +700,11 @@ async function handleEquipmentCallback(
       telegramUserId,
       action.itemId,
       action.targetSlot,
-      { confirmTwohand: action.confirmTwohand }
+      {
+        confirmTwohand: action.confirmTwohand,
+        confirmAttunement: action.confirmAttunement,
+        confirmAttunementInterrupt: action.confirmAttunementInterrupt
+      }
     );
 
     await safeAnswerCallbackQuery(ctx);

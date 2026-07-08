@@ -108,7 +108,7 @@ export function registerCharacterBotModule(
     })
   });
   if (services.devGrant?.isEnabled()) {
-    registerDevGrantCommands(bot, services.devGrant);
+    registerDevGrantCommands(bot, services.devGrant, services.equipment);
   }
   registerDevResetCommand(
     bot,

@@ -2166,7 +2166,11 @@ describe("scene callback HTML options", () => {
       42n,
       "item.pan-of-persuasion",
       null,
-      { confirmTwohand: false }
+      {
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
+      }
     );
     expect(getEquipmentForTelegramUser).not.toHaveBeenCalled();
     expect(text).toContain("Екіпіровано: <b>Пательня переконання</b>.");

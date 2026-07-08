@@ -157,6 +157,67 @@ describe("PrismaEquipmentRepository integration", () => {
     });
   });
 
+  it("stores tuning attunement rows, can finish them for dev QA, and emits due notifications", async () => {
+    const result = await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: {
+        strength: "weak",
+        itemName: "Пательня переконання +1",
+        startedAt: new Date("2099-01-01T00:00:00.000Z"),
+        readyAt: new Date("2099-01-01T00:13:00.000Z")
+      }
+    });
+    const tuningSnapshot = await repository.listByTelegramUserId(telegramUserId);
+
+    expect(result.record.attunement).toMatchObject({
+      state: "tuning",
+      strength: "weak"
+    });
+    expect(tuningSnapshot?.equipment[0]).toMatchObject({
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: {
+        state: "tuning",
+        strength: "weak"
+      }
+    });
+    await expect(
+      repository.listDueAttunementNotifications(new Date("2099-01-01T00:12:00.000Z"))
+    ).resolves.toEqual([]);
+
+    await expect(
+      repository.finishPendingAttunementsForTelegramUser(
+        telegramUserId,
+        new Date("2000-01-01T00:00:00.000Z")
+      )
+    ).resolves.toEqual({
+      state: "finished",
+      count: 1
+    });
+
+    const due = await repository.listDueAttunementNotifications(new Date("2000-01-01T00:00:00.000Z"));
+    expect(due).toMatchObject([
+      {
+        characterId,
+        telegramUserId,
+        itemId: "item.pan-of-persuasion.plus-1",
+        itemName: "Пательня переконання +1",
+        strength: "weak"
+      }
+    ]);
+    expect(due[0]?.actionId).toEqual(expect.any(String));
+    await expect(
+      repository.markAttunementNotified(
+        due[0]?.actionId ?? "",
+        new Date("2000-01-01T00:01:00.000Z")
+      )
+    ).resolves.toBe(true);
+    await expect(
+      repository.listDueAttunementNotifications(new Date("2000-01-01T00:02:00.000Z"))
+    ).resolves.toEqual([]);
+  });
+
   it("clears both canonical chest and legacy armor rows on chest unequip", async () => {
     await prisma.characterEquipment.createMany({
       data: [
@@ -255,6 +316,21 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       CONSTRAINT "character_equipment_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
     `CREATE UNIQUE INDEX "character_equipment_character_id_slot_key" ON "character_equipment"("character_id", "slot")`
+    ,
+    `CREATE TABLE "daily_actions" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "character_id" TEXT NOT NULL,
+      "key" TEXT NOT NULL,
+      "local_date" TEXT NOT NULL,
+      "reward_xp" INTEGER NOT NULL,
+      "reward_gold" INTEGER NOT NULL,
+      "spent_gold" INTEGER NOT NULL DEFAULT 0,
+      "result_json" JSONB,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "daily_actions_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "daily_actions_character_id_key_local_date_key" ON "daily_actions"("character_id", "key", "local_date")`,
+    `CREATE INDEX "daily_actions_key_idx" ON "daily_actions"("key")`
   ];
 
   for (const statement of statements) {

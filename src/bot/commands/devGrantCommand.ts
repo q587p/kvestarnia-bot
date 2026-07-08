@@ -1,4 +1,5 @@
 import type { Bot, Context } from "grammy";
+import type { EquipmentService } from "../../services/equipmentService";
 import {
   normalizeDevGrantRandomItemFilter,
   type DevGrantItemsResult,
@@ -35,7 +36,11 @@ type DevGrantCommand =
   | "dev_restore_mana";
 type DevGrantContext = Context & { match?: string };
 
-export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantService): void {
+export function registerDevGrantCommands(
+  bot: Bot,
+  devGrantService: DevGrantService,
+  equipmentService?: EquipmentService
+): void {
   bot.command("dev_add_level", async (ctx) => {
     await handleDevGrantCommand(ctx, devGrantService, "dev_add_level", (telegramUserId, amount) =>
       devGrantService.addLevel(telegramUserId, amount)
@@ -145,6 +150,10 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
 
   bot.command("dev_yeger_second_done", async (ctx) => {
     await handleDevCompleteYegerQuestCommand(ctx, devGrantService, "second");
+  });
+
+  bot.command("dev_finish_attunements", async (ctx) => {
+    await handleDevFinishAttunementsCommand(ctx, devGrantService, equipmentService);
   });
 }
 
@@ -449,6 +458,37 @@ async function handleDevCompleteYegerQuestCommand(
     : await devGrantService.completeFirstYegerQuestProgress(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevFinishAttunementsCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService,
+  equipmentService?: EquipmentService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await equipmentService?.finishPendingAttunementsForDev(telegramUserId);
+
+  if (!result || result.state === "no-character") {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  await ctx.reply(
+    result.count > 0
+      ? `✨ Готово: налаштувань пришвидшено: ${result.count}.`
+      : "✨ Активних налаштувань не знайдено."
+  );
 }
 
 function parseDevGrantAmount(raw: string | undefined): number | null {

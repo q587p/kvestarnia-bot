@@ -21,6 +21,7 @@ import type { ItemContent } from "../../src/content/schema";
 import type { AchievementService } from "../../src/services/achievementService";
 import {
   EquipmentService,
+  getEquippedItemContents,
   isItemCompatibleWithEquipmentSlot
 } from "../../src/services/equipmentService";
 
@@ -794,6 +795,104 @@ describe("EquipmentService", () => {
     expect(track).toHaveBeenCalledTimes(1);
   });
 
+  it("requires attunement confirmation for upgraded magical equipment and hides its bonuses while tuning", async () => {
+    const now = new Date("2026-07-08T08:00:00.000Z");
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([buildItem({ itemId: "item.pan-of-persuasion.plus-1" })]),
+      undefined,
+      undefined,
+      () => now
+    );
+
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.pan-of-persuasion.plus-1")
+    ).resolves.toMatchObject({
+      state: "attunement-confirm-required",
+      strength: "weak",
+      durationMinutes: 13
+    });
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion.plus-1")
+    ).resolves.toMatchObject({
+      state: "attunement-confirm-required"
+    });
+
+    const result = await service.equipItemForTelegramUser(
+      telegramUserId,
+      "item.pan-of-persuasion.plus-1",
+      undefined,
+      { confirmAttunement: true }
+    );
+
+    expect(result.state).toBe("equipped");
+    if (result.state !== "equipped") {
+      return;
+    }
+    expect(result.slots.find((slot) => slot.slot === "weapon")).toMatchObject({
+      attunement: {
+        state: "tuning",
+        strength: "weak",
+        startedAt: now,
+        readyAt: new Date("2026-07-08T08:13:00.000Z")
+      }
+    });
+    expect(getEquippedItemContents(equipment.rows)).toEqual([]);
+  });
+
+  it("prompts before replacing a slot that is still tuning", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "weapon",
+          itemId: "item.pan-of-persuasion.plus-1",
+          attunement: {
+            state: "tuning",
+            strength: "weak",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:13:00.000Z")
+          }
+        })
+      ]
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([
+        buildItem({ itemId: "item.pan-of-persuasion.plus-1" }),
+        buildItem({ id: "character-item-2", itemId: "item.stamp-of-minor-authority" })
+      ])
+    );
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.stamp-of-minor-authority")
+    ).resolves.toMatchObject({
+      state: "attunement-interrupt-confirm-required",
+      slot: "weapon",
+      currentItem: {
+        itemId: "item.pan-of-persuasion.plus-1"
+      }
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(
+        telegramUserId,
+        "item.stamp-of-minor-authority",
+        undefined,
+        { confirmAttunementInterrupt: true }
+      )
+    ).resolves.toMatchObject({
+      state: "equipped",
+      item: {
+        itemId: "item.stamp-of-minor-authority"
+      }
+    });
+  });
+
   it("tracks one achievement event for concurrent duplicate same-item equip callbacks", async () => {
     const inventoryRows = [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })];
     const equipment = new FakeEquipmentRepository({
@@ -1029,6 +1128,12 @@ class FakeEquipmentRepository implements EquipmentRepository {
     slot: EquipmentSlot;
     itemId: string;
     clearSlot?: EquipmentSlot;
+    attunement?: {
+      strength: "weak" | "strong";
+      itemName: string;
+      startedAt: Date;
+      readyAt: Date;
+    };
   }): Promise<EquipForCharacterResult> {
     if (input.clearSlot) {
       this.rows = this.rows.filter((row) => normalizeEquipmentSlot(row.slot) !== input.clearSlot);
@@ -1036,11 +1141,25 @@ class FakeEquipmentRepository implements EquipmentRepository {
 
     const existing = this.rows.find((row) => normalizeEquipmentSlot(row.slot) === input.slot);
     const changed = existing?.itemId !== input.itemId;
+    const baseWithoutAttunement = {
+      ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot: input.slot }))
+    };
+    delete baseWithoutAttunement.attunement;
     const row = {
-      ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot: input.slot })),
+      ...baseWithoutAttunement,
       characterId: input.characterId,
       slot: input.slot,
-      itemId: input.itemId
+      itemId: input.itemId,
+      ...(input.attunement
+        ? {
+            attunement: {
+              state: "tuning" as const,
+              strength: input.attunement.strength,
+              startedAt: input.attunement.startedAt,
+              readyAt: input.attunement.readyAt
+            }
+          }
+        : {})
     };
 
     this.rows = [

@@ -101,10 +101,33 @@ export function presentEquipItemResult(result: EquipItemResult): string {
     ].join("\n");
   }
 
+  if (result.state === "attunement-confirm-required") {
+    return [
+      `Магія на манатці прокидається не одразу: <b>${presentCallbackHtmlText(result.item.content.name)}</b>.`,
+      `Бонуси почнуть діяти після налаштування, приблизно за <b>${result.durationMinutes} хв</b>.`,
+      "",
+      "Готові чекати?"
+    ].join("\n");
+  }
+
+  if (result.state === "attunement-interrupt-confirm-required") {
+    return [
+      `У слоті <i>${presentEquipmentSlotLabel(result.slot)}</i> ще йде налаштування:`,
+      `<b>${presentCallbackHtmlText(result.currentItem.content.name)}</b>.`,
+      "",
+      `Нова манатка <b>${presentCallbackHtmlText(result.item.content.name)}</b> зібʼє процес.`,
+      "Ви певні?"
+    ].join("\n");
+  }
+
   const effect = presentItemEffect(result.item.content.effect);
   const lines = [
     `Екіпіровано: <b>${presentCallbackHtmlText(result.item.content.name)}</b>.`,
-    effect ? `Ефект: ${effect}.` : "Бойового ефекту не виявлено."
+    result.item.content.effect && result.slots.some((slot) =>
+      slot.item?.itemId === result.item.itemId && slot.attunement?.state === "tuning"
+    )
+      ? `Ефект після налаштування: ${effect}.`
+      : effect ? `Ефект: ${effect}.` : "Бойового ефекту не виявлено."
   ];
 
   if (result.replacedItem) {
@@ -153,11 +176,15 @@ function presentEquipmentSlot(slot: SlotView, slots: EquipmentSlotSummary[]): st
     const name = slotSummary?.occupiedByTwohand
       ? `${escapeHtml(equipped.content.name)} <i>(дворучна)</i>`
       : escapeHtml(equipped.content.name);
+    const tuning = slotSummary?.attunement?.state === "tuning";
+    const effectLine = tuning
+      ? `Ефект: <s>${escapeHtml(effect ?? "бойового ефекту не виявлено")}</s>\n<i>Йде налаштування.</i>`
+      : `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`;
 
     return [
       `${slot.icon} <b>${slot.label}</b>: ${name}`,
-      `Ефект: <i>${effect ?? "бойового ефекту не виявлено"}</i>`,
-      ...presentMantokAbilityGrantSlotLines(equipped.content.id)
+      effectLine,
+      ...(tuning ? [] : presentMantokAbilityGrantSlotLines(equipped.content.id))
     ].join("\n");
   }
 
@@ -300,8 +327,24 @@ function getEquippedCombatMantokAbilityGrants(
 
 function getEquippedUniqueItemIds(slots: EquipmentSlotSummary[]): string[] {
   return [
-    ...new Set(slots.flatMap((slot) => (slot.item && !slot.occupiedByTwohand ? [slot.item.itemId] : [])))
+    ...new Set(slots.flatMap((slot) =>
+      slot.item && !slot.occupiedByTwohand && slot.attunement?.state !== "tuning"
+        ? [slot.item.itemId]
+        : []
+    ))
   ];
+}
+
+export function presentEquipmentAttunementComplete(input: {
+  itemName: string;
+  effect: string | null;
+}): string {
+  return [
+    "✨ <b>Налаштування завершено</b>",
+    "",
+    `Ви вдало налаштувалися на <b>${presentCallbackHtmlText(input.itemName)}</b>.`,
+    input.effect ? `Ефект: ${escapeHtml(input.effect)}.` : "Ефект: манатка чемно працює, але без видимих чисел."
+  ].join("\n");
 }
 
 function capitalizeFirst(value: string): string {

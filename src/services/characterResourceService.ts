@@ -5,6 +5,7 @@ import type {
 } from "../db/repositories/characterRepository";
 import {
   summarizeCharacter,
+  type CharacterEquipmentAttunementSummary,
   type CharacterSummary
 } from "../domain/characters/characterSummary";
 import {
@@ -28,6 +29,7 @@ export interface ResourceRecoveryNotice {
 export interface CharacterResourceReloadResult {
   character: CharacterRecord;
   equippedItems?: ItemContent[];
+  equipmentAttunements?: CharacterEquipmentAttunementSummary[];
   remortCount?: number;
 }
 
@@ -36,6 +38,7 @@ export async function summarizeAndSyncCharacterResources(input: {
   telegramUserId: bigint;
   character: CharacterRecord;
   equippedItems?: ItemContent[];
+  equipmentAttunements?: CharacterEquipmentAttunementSummary[];
   remortCount?: number;
   now: Date;
   persist?: boolean;
@@ -45,6 +48,7 @@ export async function summarizeAndSyncCharacterResources(input: {
 }): Promise<CharacterResourceSyncResult> {
   const baseSummary = summarizeCharacter(input.character, {
     equippedItems: input.equippedItems ?? [],
+    ...(input.equipmentAttunements ? { equipmentAttunements: input.equipmentAttunements } : {}),
     ...(input.remortCount !== undefined ? { remortCount: input.remortCount } : {})
   });
   const regeneration = applyPassiveResourceRegeneration({
@@ -114,6 +118,9 @@ export async function summarizeAndSyncCharacterResources(input: {
         return summarizeAndSyncCharacterResources({
           ...retryInput,
           ...(latestEquippedItems !== undefined ? { equippedItems: latestEquippedItems } : {}),
+          ...("equipmentAttunements" in latest && latest.equipmentAttunements !== undefined
+            ? { equipmentAttunements: latest.equipmentAttunements }
+            : {}),
           ...(latestRemortCount !== undefined ? { remortCount: latestRemortCount } : {})
         });
       }

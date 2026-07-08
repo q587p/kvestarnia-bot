@@ -93,7 +93,7 @@ describe("item upgrades", () => {
     expect(variants[4]).toMatchObject({
       name: "Тестова пательня +5",
       effect: {
-        weaponDamage: 7
+        weaponDamage: 9
       }
     });
     expect(getItemDisplayNameWithUpgrade(variants[4]!, 5)).toBe("Тестова пательня +5");
@@ -125,6 +125,10 @@ describe("item upgrades", () => {
       targetLevel: 3,
       donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscount: 2 }
     })).toEqual({ gold: 260, iskrokamin: 2, mana: 0 });
+    expect(calculateItemUpgradeCosts({
+      method: "npc",
+      targetLevel: 5
+    })).toEqual({ gold: 900, iskrokamin: 17, mana: 0 });
     expect(calculateItemUpgradeCosts({
       method: "self",
       targetLevel: 1,
@@ -184,9 +188,21 @@ describe("item upgrades", () => {
     expect(applyItemUpgradeEffect(weapon.effect, weapon, 3)).toMatchObject({
       weaponDamage: 5
     });
+    expect(applyItemUpgradeEffect(weapon.effect, weapon, 4)).toMatchObject({
+      weaponDamage: 7
+    });
+    expect(applyItemUpgradeEffect(weapon.effect, weapon, 5)).toMatchObject({
+      weaponDamage: 9
+    });
     expect(applyItemUpgradeEffect(offhand.effect, offhand, 2)).toMatchObject({
       weaponDamage: 2,
       armor: 1
+    });
+  });
+
+  it("caps upgraded primary combat stats at the item schema limit", () => {
+    expect(applyItemUpgradeEffect({ weaponDamage: 5 }, weapon, 5)).toMatchObject({
+      weaponDamage: 10
     });
   });
 });

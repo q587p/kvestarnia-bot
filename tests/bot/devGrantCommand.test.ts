@@ -40,6 +40,13 @@ describe("dev grant commands", () => {
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
+    const equipment = fakeEquipmentService({ count: 2 });
+    const finishAttunementsCalls = await captureMessageCalls(
+      "/dev_finish_attunements",
+      devGrant,
+      undefined,
+      equipment
+    );
     const tavernGames = fakeTavernGamesService();
     const tavernGameResetCalls = await captureMessageCalls(
       "/dev_reset_tavern_games",
@@ -78,6 +85,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetRogue).toHaveBeenCalledWith(42n);
     expect(devGrant.completeFirstYegerQuestProgress).toHaveBeenCalledWith(42n);
     expect(devGrant.completeSecondYegerQuestProgress).toHaveBeenCalledWith(42n);
+    expect(equipment.finishPendingAttunementsForDev).toHaveBeenCalledWith(42n);
     expect(tavernGames.resetCreateCooldownForDev).toHaveBeenCalledWith(42n);
     expect(String(defaultLevelCalls.at(-1)?.payload.text)).toContain("додано 1 рівень");
     expect(String(explicitLevelCalls.at(-1)?.payload.text)).toContain("додано 3 рівні");
@@ -107,6 +115,7 @@ describe("dev grant commands", () => {
     expect(String(rogueResetCalls.at(-1)?.payload.text)).toContain("злодійський QA reset");
     expect(String(yegerFirstDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи» доведено до 5/5");
     expect(String(yegerSecondDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи 2.0» доведено до 17/17");
+    expect(String(finishAttunementsCalls.at(-1)?.payload.text)).toContain("налаштувань пришвидшено: 2");
     expect(String(tavernGameResetCalls.at(-1)?.payload.text)).toContain(
       "🎲 Столи вже без паузи"
     );
@@ -241,6 +250,13 @@ describe("dev grant commands", () => {
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
+    const equipment = fakeEquipmentService({ count: 2 });
+    const finishAttunementsCalls = await captureMessageCalls(
+      "/dev_finish_attunements",
+      devGrant,
+      undefined,
+      equipment
+    );
     const tavernGames = fakeTavernGamesService();
     const tavernGameResetCalls = await captureMessageCalls(
       "/dev_reset_tavern_games",
@@ -266,6 +282,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetRogue).not.toHaveBeenCalled();
     expect(devGrant.completeFirstYegerQuestProgress).not.toHaveBeenCalled();
     expect(devGrant.completeSecondYegerQuestProgress).not.toHaveBeenCalled();
+    expect(equipment.finishPendingAttunementsForDev).not.toHaveBeenCalled();
     expect(tavernGames.resetCreateCooldownForDev).not.toHaveBeenCalled();
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -285,6 +302,7 @@ describe("dev grant commands", () => {
     expect(rogueResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerFirstDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerSecondDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(finishAttunementsCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(tavernGameResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 });
@@ -297,9 +315,10 @@ interface ApiCall {
 async function captureMessageCalls(
   text: string,
   devGrant: ReturnType<typeof fakeDevGrantService>,
-  tavernGames?: ReturnType<typeof fakeTavernGamesService>
+  tavernGames?: ReturnType<typeof fakeTavernGamesService>,
+  equipment?: ReturnType<typeof fakeEquipmentService>
 ): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", servicesWith(devGrant, tavernGames));
+  const bot = createBot("123456:test-token", servicesWith(devGrant, tavernGames, equipment));
   const calls: ApiCall[] = [];
 
   bot.api.config.use((_prev, method, payload) => {
@@ -353,6 +372,19 @@ async function captureMessageCalls(
   });
 
   return calls;
+}
+
+function fakeEquipmentService(input: { count?: number } = {}): {
+  finishPendingAttunementsForDev: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint) => Promise<{ state: "finished"; count: number }>>
+  >;
+} {
+  return {
+    finishPendingAttunementsForDev: vi.fn(() => Promise.resolve({
+      state: "finished",
+      count: input.count ?? 0
+    }))
+  };
 }
 
 function fakeTavernGamesService(): {
@@ -652,7 +684,8 @@ function fakeDevGrantService(input: {
 
 function servicesWith(
   devGrant: ReturnType<typeof fakeDevGrantService>,
-  tavernGames?: ReturnType<typeof fakeTavernGamesService>
+  tavernGames?: ReturnType<typeof fakeTavernGamesService>,
+  equipment?: ReturnType<typeof fakeEquipmentService>
 ): BotServices {
   return {
     adventure: {},
@@ -662,7 +695,7 @@ function servicesWith(
     yeger: {},
     onboarding: {},
     hero: {},
-    equipment: {},
+    equipment: equipment ?? {},
     inventory: {},
     levelBarter: {},
     mantokChest: {},

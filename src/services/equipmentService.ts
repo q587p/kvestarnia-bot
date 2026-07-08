@@ -14,8 +14,10 @@ import type { ItemContent } from "../content/schema";
 import type { CharacterRepository } from "../db/repositories/characterRepository";
 import type {
   CharacterEquipmentRecord,
+  EquipmentAttunementNotificationRecord,
   EquipmentRepository,
-  EquipmentSlot
+  EquipmentSlot,
+  FinishEquipmentAttunementsResult
 } from "../db/repositories/equipmentRepository";
 import { equipmentSlots } from "../db/repositories/equipmentRepository";
 import { normalizeEquipmentSlot } from "../content/equipmentSlots";
@@ -24,6 +26,12 @@ import type {
   InventoryRepository
 } from "../db/repositories/inventoryRepository";
 import { summarizeCharacter } from "../domain/characters/characterSummary";
+import {
+  getEquipmentAttunementDurationMs,
+  getEquipmentMagicStrength,
+  type EquipmentMagicStrength
+} from "../domain/equipment/equipmentAttunement";
+import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 
 export type { EquipmentSlot };
@@ -74,6 +82,20 @@ export type ItemEquipPreviewResult =
       clearedHandItem: EquipmentItemSummary;
     }
   | {
+      state: "attunement-confirm-required";
+      item: EquipmentItemSummary;
+      slot: EquipmentSlot;
+      currentItem: EquipmentItemSummary | null;
+      strength: EquipmentMagicStrength;
+      durationMinutes: number;
+    }
+  | {
+      state: "attunement-interrupt-confirm-required";
+      item: EquipmentItemSummary;
+      slot: EquipmentSlot;
+      currentItem: EquipmentItemSummary;
+    }
+  | {
       state: "can-equip";
       item: EquipmentItemSummary;
       slot: EquipmentSlot;
@@ -106,6 +128,20 @@ export type EquipItemResult =
       clearedHandItem: EquipmentItemSummary;
     }
   | {
+      state: "attunement-confirm-required";
+      item: EquipmentItemSummary;
+      slot: EquipmentSlot;
+      currentItem: EquipmentItemSummary | null;
+      strength: EquipmentMagicStrength;
+      durationMinutes: number;
+    }
+  | {
+      state: "attunement-interrupt-confirm-required";
+      item: EquipmentItemSummary;
+      slot: EquipmentSlot;
+      currentItem: EquipmentItemSummary;
+    }
+  | {
       state: "equipped";
       slot: EquipmentSlot;
       item: EquipmentItemSummary;
@@ -129,6 +165,7 @@ export interface EquipmentSlotSummary {
   slot: EquipmentSlot;
   item: EquipmentItemSummary | null;
   occupiedByTwohand?: boolean;
+  attunement?: CharacterEquipmentRecord["attunement"];
 }
 
 export type EquipmentSlotDeniedReason =
@@ -139,6 +176,8 @@ export type EquipmentSlotDeniedReason =
 
 export interface EquipItemOptions {
   confirmTwohand?: boolean;
+  confirmAttunement?: boolean;
+  confirmAttunementInterrupt?: boolean;
 }
 
 export class EquipmentService {
@@ -146,7 +185,8 @@ export class EquipmentService {
     private readonly equipment: EquipmentRepository,
     private readonly inventory: InventoryRepository,
     private readonly characters?: CharacterRepository,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly clock: Clock = systemClock
   ) {}
 
   async getEquipmentForTelegramUser(telegramUserId: bigint): Promise<EquipmentResult> {
@@ -232,7 +272,8 @@ export class EquipmentService {
       };
     }
 
-    const currentItem = findCurrentItemForSlot(snapshot.equipment, slot);
+    const currentRow = findRowForSlot(snapshot.equipment, slot);
+    const currentItem = currentRow ? toEquipmentItemSummary(currentRow) : null;
     const twohandPrompt = getTwohandConfirmPrompt(content, slot, snapshot.equipment);
 
     if (twohandPrompt) {
@@ -284,6 +325,27 @@ export class EquipmentService {
         slot,
         requirements,
         currentItem
+      };
+    }
+
+    if (currentRow?.attunement?.state === "tuning" && currentRow.itemId !== itemId) {
+      return {
+        state: "attunement-interrupt-confirm-required",
+        item,
+        slot,
+        currentItem: toEquipmentItemSummary(currentRow)
+      };
+    }
+
+    const strength = getEquipmentMagicStrength(itemId);
+    if (strength && currentRow?.itemId !== itemId) {
+      return {
+        state: "attunement-confirm-required",
+        item,
+        slot,
+        currentItem,
+        strength,
+        durationMinutes: getEquipmentAttunementDurationMinutes(strength)
       };
     }
 
@@ -367,7 +429,8 @@ export class EquipmentService {
       };
     }
 
-    const replacedItem = findCurrentItemForSlot(snapshot.equipment, slot);
+    const replacedRow = findRowForSlot(snapshot.equipment, slot);
+    const replacedItem = replacedRow ? toEquipmentItemSummary(replacedRow) : null;
     const twohandPrompt = getTwohandConfirmPrompt(content, slot, snapshot.equipment);
 
     if (twohandPrompt && options.confirmTwohand !== true) {
@@ -386,6 +449,19 @@ export class EquipmentService {
         item,
         slot,
         reason: "not-enough-copies"
+      };
+    }
+
+    if (
+      replacedRow?.attunement?.state === "tuning" &&
+      replacedRow.itemId !== itemId &&
+      options.confirmAttunementInterrupt !== true
+    ) {
+      return {
+        state: "attunement-interrupt-confirm-required",
+        item,
+        slot,
+        currentItem: toEquipmentItemSummary(replacedRow)
       };
     }
 
@@ -412,6 +488,23 @@ export class EquipmentService {
       }
     }
 
+    const strength = getEquipmentMagicStrength(itemId);
+    const shouldStartAttunement =
+      strength &&
+      replacedRow?.itemId !== itemId;
+
+    if (shouldStartAttunement && options.confirmAttunement !== true) {
+      return {
+        state: "attunement-confirm-required",
+        item,
+        slot,
+        currentItem: replacedItem,
+        strength,
+        durationMinutes: getEquipmentAttunementDurationMinutes(strength)
+      };
+    }
+
+    const now = this.clock();
     const equipResult = await this.equipForCharacter({
       characterId: snapshot.characterId,
       slot,
@@ -419,6 +512,16 @@ export class EquipmentService {
       ...(replacedItem ? { previousItemId: replacedItem.itemId } : {}),
       ...(twohandPrompt && options.confirmTwohand === true
         ? { clearSlot: twohandPrompt.clearedSlot }
+        : {}),
+      ...(shouldStartAttunement && strength
+        ? {
+            attunement: {
+              strength,
+              itemName: content.name,
+              startedAt: now,
+              readyAt: new Date(now.getTime() + getEquipmentAttunementDurationMs(strength))
+            }
+          }
         : {})
     });
     const equipped = equipResult.record;
@@ -461,6 +564,12 @@ export class EquipmentService {
     itemId: string;
     previousItemId?: string;
     clearSlot?: EquipmentSlot;
+    attunement?: {
+      strength: EquipmentMagicStrength;
+      itemName: string;
+      startedAt: Date;
+      readyAt: Date;
+    };
   }): Promise<{ record: CharacterEquipmentRecord; changed: boolean }> {
     if (this.equipment.equipForCharacterAtomically) {
       return this.equipment.equipForCharacterAtomically(input);
@@ -476,6 +585,30 @@ export class EquipmentService {
       record,
       changed: input.previousItemId !== input.itemId
     };
+  }
+
+  async listDueAttunementNotifications(
+    now = this.clock(),
+    options: { limit?: number } = {}
+  ): Promise<EquipmentAttunementNotificationRecord[]> {
+    return this.equipment.listDueAttunementNotifications
+      ? this.equipment.listDueAttunementNotifications(now, options)
+      : [];
+  }
+
+  async markAttunementNotified(actionId: string, notifiedAt = this.clock()): Promise<boolean> {
+    return this.equipment.markAttunementNotified
+      ? this.equipment.markAttunementNotified(actionId, notifiedAt)
+      : false;
+  }
+
+  async finishPendingAttunementsForDev(
+    telegramUserId: bigint,
+    now = this.clock()
+  ): Promise<FinishEquipmentAttunementsResult> {
+    return this.equipment.finishPendingAttunementsForTelegramUser
+      ? this.equipment.finishPendingAttunementsForTelegramUser(telegramUserId, now)
+      : { state: "finished", count: 0 };
   }
 
   async unequipSlotForTelegramUser(
@@ -721,6 +854,10 @@ export function isEquippableItem(item: ItemContent): boolean {
 
 export function getEquippedItemContents(rows: CharacterEquipmentRecord[]): ItemContent[] {
   return rows.flatMap((row) => {
+    if (row.attunement?.state === "tuning") {
+      return [];
+    }
+
     const content = items.find((item) => item.id === row.itemId);
 
     return content ? [content] : [];
@@ -742,7 +879,8 @@ function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
             itemId: mainHand.itemId,
             content: mainHandContent
           },
-          occupiedByTwohand: true
+          occupiedByTwohand: true,
+          ...(mainHand.attunement ? { attunement: mainHand.attunement } : {})
         };
       }
     }
@@ -761,7 +899,8 @@ function buildSlots(rows: CharacterEquipmentRecord[]): EquipmentSlotSummary[] {
       item: {
         itemId: row.itemId,
         content
-      }
+      },
+      ...(row.attunement ? { attunement: row.attunement } : {})
     };
   });
 }
@@ -786,10 +925,18 @@ function findCurrentItemForSlot(
     return null;
   }
 
+  return toEquipmentItemSummary(row);
+}
+
+function toEquipmentItemSummary(row: CharacterEquipmentRecord): EquipmentItemSummary {
   return {
     itemId: row.itemId,
     content: findItemContentForEquipment(row.itemId)
   };
+}
+
+function getEquipmentAttunementDurationMinutes(strength: EquipmentMagicStrength): number {
+  return Math.ceil(getEquipmentAttunementDurationMs(strength) / 60_000);
 }
 
 function resolveEquipmentSlotForItem(

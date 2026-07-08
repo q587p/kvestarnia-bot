@@ -258,7 +258,9 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.pan-of-persuasion",
         targetSlot: null,
-        confirmTwohand: false
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
       }
     });
     expect(parseEquipmentCallbackData(clear)).toEqual({
@@ -292,7 +294,9 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
         targetSlot: "tool",
-        confirmTwohand: true
+        confirmTwohand: true,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
       }
     });
   });
@@ -308,7 +312,9 @@ describe("item and equipment callback data", () => {
           type: "equip-item",
           itemId: item.id,
           targetSlot: "offhand",
-          confirmTwohand: true
+          confirmTwohand: true,
+          confirmAttunement: false,
+          confirmAttunementInterrupt: false
         }
       });
     }
@@ -325,7 +331,9 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.pan-of-persuasion",
         targetSlot: "offhand",
-        confirmTwohand: false
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
       }
     });
   });
@@ -342,7 +350,60 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.test-twohand-broom",
         targetSlot: "weapon",
-        confirmTwohand: true
+        confirmTwohand: true,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
+      }
+    });
+  });
+
+  it("parses attunement confirmation equip callbacks", () => {
+    const confirmAttunement = makeEquipItemCallbackData("item.test-twohand-broom", "weapon", {
+      confirmAttunement: true
+    });
+    const confirmInterrupt = makeEquipItemCallbackData("item.test-twohand-broom", "weapon", {
+      confirmAttunementInterrupt: true
+    });
+    const confirmAll = makeEquipItemCallbackData("item.test-twohand-broom", "weapon", {
+      confirmTwohand: true,
+      confirmAttunement: true,
+      confirmAttunementInterrupt: true
+    });
+
+    expect(confirmAttunement).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:t");
+    expect(confirmInterrupt).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:i");
+    expect(confirmAll).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:2h-t-i");
+    expect(parseEquipmentCallbackData(confirmAttunement)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.test-twohand-broom",
+        targetSlot: "weapon",
+        confirmTwohand: false,
+        confirmAttunement: true,
+        confirmAttunementInterrupt: false
+      }
+    });
+    expect(parseEquipmentCallbackData(confirmInterrupt)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.test-twohand-broom",
+        targetSlot: "weapon",
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: true
+      }
+    });
+    expect(parseEquipmentCallbackData(confirmAll)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.test-twohand-broom",
+        targetSlot: "weapon",
+        confirmTwohand: true,
+        confirmAttunement: true,
+        confirmAttunementInterrupt: true
       }
     });
   });
