@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
+## [0.2.31] - 12026-07-08 - Mantok Ability Grants Polish
 
 ### Fixed
 - Big Barrel Brother raid gear-action settlements now carry first-use achievement unlock notifications back to the acting participant and any refreshed participant cards, matching persistent PvE combat without changing raid damage, mana, cooldown, reward or replay behavior.
@@ -18,7 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Shynok problem-paper issue results now rebuild quest markers after the paper is issued, so `⬅️ До зали` still points toward other available Korchma-location quests instead of showing stale unmarked navigation.
 - Race- and class-personalized adventure problem titles and hooks now render identity forms without awkward capitalized quoted insertions, for example `Портрет раси ельфа` and `Іспит для злодія`.
 - Generated Loot Expansion enhancement prices now use a soft economy cap, so high-base `+4`/`+5` manatky no longer inflate `goldValue`, Shynok sale payouts, Mantok Chest score or Munchkin exchange value into runaway five-digit ranges; combat stats, rarity, level gates and drop odds are unchanged.
-- Persistent one-enemy PvE fights now apply combat-only remort-aware monster pressure after the third remort, including Yeger contracts, and active fight cards label the solo pressure as `Відплата за минулі пригоди` for Yeger sources or `Відлуння минулих пригод` elsewhere. Two-enemy threat backup monsters get a capped remort pressure guard while the primary enemy stays on its authored level. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
+- Persistent one-enemy PvE fights now apply combat-only remort-aware monster pressure after the third remort, while Yeger contracts use the same pressure one remort earlier so remort `3` hunt monsters no longer stay at base stats. Active fight cards label the solo pressure as `Відплата за минулі пригоди` for Yeger sources or `Відлуння минулих пригод` elsewhere. Two-enemy threat backup monsters get a capped remort pressure guard while the primary enemy stays on its authored level. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
 - Ordinary Nyz two-enemy threat escalation now lowers its consecutive-win gate by current remort life: base-life characters still need three eligible wins, remort `1` needs two, and remort `2+` needs one. Losses, excluded routes, rewards, loot, Yeger fights, Adventure fights, dev-forced two-enemy rows and repeat escalated checkpoint rules stay unchanged.
 - Korchmar problem-chain counters now count persistent fight wins only from the character's current remort life, so taking or checking `Тринадцять дрібних проблем` cannot auto-complete from stale pre-remort victories.
 - `📜 Хроніки Квестарні` now records completed raid outcomes for solo Barrel raids and Big Barrel Brother group raids; `⚔️ Бої` includes both wins and losses, while `⭐ Важливе` only promotes group raid victories. New public level-up rows also include the character's remort life tag, such as `(р5)`, after the reached level.
