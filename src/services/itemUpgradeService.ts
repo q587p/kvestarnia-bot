@@ -76,6 +76,7 @@ export type ItemUpgradePreviewResult =
       item: ItemUpgradePresentedItem;
       method: ItemUpgradeMethod;
       costs: { gold: number; iskrokamin: number; mana: number };
+      available: { gold: number; iskrokamin: number };
       chance: {
         baseChance: number;
         luckBonus: number;
@@ -228,6 +229,10 @@ export class ItemUpgradeService {
       item: presented,
       method,
       costs,
+      available: {
+        gold: Math.max(0, Math.floor(snapshot.character.gold)),
+        iskrokamin: snapshot.items.find((item) => item.itemId === ISKROKAMIN_ITEM_ID)?.quantity ?? 0
+      },
       chance,
       donor,
       donorOptions,

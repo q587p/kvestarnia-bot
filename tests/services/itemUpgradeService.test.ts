@@ -232,6 +232,41 @@ describe("ItemUpgradeService", () => {
       "same-slot"
     ]);
   });
+
+  it("returns current gold and Iskrokamin balances in upgrade previews", async () => {
+    const repository = new FakeItemUpgradeRepository({ state: "no-character" }, {
+      character: { ...character, gold: 321 },
+      unlocked: true,
+      pities: [],
+      items: [
+        {
+          id: "row-pan",
+          characterId: character.id,
+          itemId: "item.pan-of-persuasion",
+          quantity: 1,
+          equipped: false
+        },
+        {
+          id: "row-iskrokamin",
+          characterId: character.id,
+          itemId: "item.iskrokamin",
+          quantity: 8,
+          equipped: false
+        }
+      ]
+    });
+    const service = new ItemUpgradeService(repository, () => now, new FakeRandomSource([0]));
+
+    const result = await service.previewForTelegramUser(42n, "item.pan-of-persuasion");
+
+    expect(result).toMatchObject({
+      state: "ready",
+      available: {
+        gold: 321,
+        iskrokamin: 8
+      }
+    });
+  });
 });
 
 class FakeItemUpgradeRepository implements ItemUpgradeRepository {

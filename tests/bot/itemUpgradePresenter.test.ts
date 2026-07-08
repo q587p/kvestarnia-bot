@@ -59,6 +59,7 @@ describe("item upgrade presenter", () => {
       },
       method: "npc",
       costs: { gold: 50, iskrokamin: 3, mana: 0 },
+      available: { gold: 587, iskrokamin: 13 },
       chance: {
         baseChance: 95,
         luckBonus: 0,
@@ -74,6 +75,8 @@ describe("item upgrade presenter", () => {
 
     expect(text).toContain("Сетова манатка");
     expect(text).toContain("більше думок");
+    expect(text).toContain("Ціна: 50 золота · 3 Іскрокамінь");
+    expect(text).toContain("У вас: <b>587</b> золота · <b>13</b> Іскрокаменю");
     expect(text).not.toContain("x1.25");
     expect(text).not.toContain("13%");
   });

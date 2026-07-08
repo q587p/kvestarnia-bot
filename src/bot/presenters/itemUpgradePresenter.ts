@@ -75,6 +75,7 @@ export function presentItemUpgradePreview(result: ItemUpgradePreviewResult): str
     methodLine,
     ...traitLines,
     `Ціна: ${presentCosts(result.costs)}`,
+    `У вас: <b>${result.available.gold}</b> золота · <b>${result.available.iskrokamin}</b> Іскрокаменю`,
     donorLine,
     "",
     `Шанс до натискання: <b>${presentQualitativeChance(result.chance.finalChance)}</b>.`,

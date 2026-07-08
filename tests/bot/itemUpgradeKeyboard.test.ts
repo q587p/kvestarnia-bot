@@ -53,6 +53,7 @@ function readyPreview(overrides: Partial<Extract<ItemUpgradePreviewResult, { sta
     },
     method: "npc",
     costs: { gold: 50, iskrokamin: 2, mana: 0 },
+    available: { gold: 120, iskrokamin: 5 },
     chance: {
       baseChance: 95,
       luckBonus: 0,
