@@ -36,6 +36,7 @@ import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { NearbyDuelTargetValidator } from "./presenceService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
 const DUEL_INVITE_TTL_MS = 13 * 60 * 1000;
@@ -215,7 +216,8 @@ export class DuelChallengeService {
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly nearbyDuelTargets?: NearbyDuelTargetValidator,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: Pick<PublicActivityEventPublisher, "recordDuelCompletedSafely">
   ) {}
 
   async createOpenChallengeForTelegramUser(
@@ -534,6 +536,10 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
+    if (accepted.transitioned) {
+      await this.recordDuelCompletedActivity(accepted.record, now);
+    }
+
     return {
       ...this.viewChallenge(accepted.record, now),
       transitioned: accepted.transitioned
@@ -761,6 +767,10 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
+    if (updated.status !== "active") {
+      await this.recordDuelCompletedActivity(updated.challenge, now);
+    }
+
     return { state: "updated", session: updated };
   }
 
@@ -829,6 +839,10 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
+    if (updated.status !== "active") {
+      await this.recordDuelCompletedActivity(updated.challenge, now);
+    }
+
     const achievementUnlocksByCharacterId = resolved.resolution === "resolved"
       ? await this.trackCommittedTurnBasedGearActions(updated, resolved.round, now)
       : {};
@@ -874,6 +888,23 @@ export class DuelChallengeService {
     }
 
     return unlocksByCharacterId;
+  }
+
+  private async recordDuelCompletedActivity(challenge: DuelChallengeRecord, occurredAt: Date): Promise<void> {
+    if (!this.activityEvents || challenge.status !== "resolved" || !challenge.target || !challenge.result) {
+      return;
+    }
+
+    await this.activityEvents.recordDuelCompletedSafely({
+      challengeId: challenge.id,
+      mode: challenge.result.mode ?? challenge.mode,
+      challengerCharacterId: challenge.challengerCharacterId,
+      challengerDisplayName: challenge.result.participants?.challenger.displayName ?? challenge.challenger.name,
+      targetCharacterId: challenge.targetCharacterId ?? challenge.target.id,
+      targetDisplayName: challenge.result.participants?.target.displayName ?? challenge.target.name,
+      outcome: challenge.result.outcome,
+      occurredAt
+    });
   }
 
   async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {

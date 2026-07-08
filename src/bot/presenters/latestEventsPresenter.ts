@@ -173,6 +173,11 @@ function renderEventRow(event: ActivityEventRecord): string {
       const delta = readPayloadNumber(event.payload, "levelDelta") ?? 5;
       return `🛡️ ${time} | ${actor}: перемога. Монстр — «${subject}», перевага рівнів: +${delta}.`;
     }
+    case "duel.completed": {
+      const mode = readPayloadString(event.payload, "mode");
+      const label = mode === "turn-based" ? "покрокова дуель" : "швидка дуель";
+      return `⚔️ ${time} | ${actor} і ${subject}: ${label} завершена. Корчмар записав без публічного сорому.`;
+    }
     case "duel.tournament_claimed": {
       const rank = readPayloadNumber(event.payload, "rank") ?? 1;
       const points = readPayloadNumber(event.payload, "points") ?? 0;

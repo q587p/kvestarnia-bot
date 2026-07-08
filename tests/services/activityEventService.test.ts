@@ -249,6 +249,53 @@ describe("ActivityEventService", () => {
     expect(repository.rows).toHaveLength(0);
   });
 
+  it("publishes completed duels as normal combat rows and tournament claims as important rows", async () => {
+    const repository = new FakeActivityEventRepository();
+    const publisher = makePublicActivityEventPublisher(repository);
+    const occurredAt = new Date("2026-07-08T10:00:00.000Z");
+
+    await publisher.recordDuelCompletedSafely({
+      challengeId: "duel-1",
+      mode: "quick",
+      challengerCharacterId: "character-1",
+      challengerDisplayName: "Ада",
+      targetCharacterId: "character-2",
+      targetDisplayName: "Бор",
+      outcome: "challenger",
+      occurredAt
+    });
+    await publisher.recordDuelTournamentClaimedSafely({
+      characterId: "character-1",
+      actorDisplayName: "Ада",
+      claimId: "claim-2",
+      period: "week",
+      periodKey: "2026-W28",
+      rank: 2,
+      points: 13,
+      occurredAt
+    });
+
+    expect(repository.rows).toMatchObject([
+      {
+        eventType: "duel.completed",
+        category: "combat",
+        severity: "normal",
+        actorDisplayName: "Ада",
+        subjectName: "Бор",
+        dedupeKey: "duel.completed:duel-1",
+        payload: { mode: "quick", outcome: "challenger" }
+      },
+      {
+        eventType: "duel.tournament_claimed",
+        category: "combat",
+        severity: "high",
+        actorDisplayName: "Ада",
+        dedupeKey: "duel.tournament_claimed:claim-2",
+        payload: { period: "week", periodKey: "2026-W28", rank: 2, points: 13 }
+      }
+    ]);
+  });
+
   it("emits Big Barrel Brother raid completion rows for wins and losses", async () => {
     const repository = new FakeActivityEventRepository();
     const publisher = makePublicActivityEventPublisher(repository);

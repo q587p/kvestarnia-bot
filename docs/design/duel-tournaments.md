@@ -56,4 +56,6 @@ The loop stays bounded and uses existing medical manatky instead of player-funde
 
 ## Public Recognition
 
-`📜 Хроніки Квестарні` may show successful tournament reward claims. Tournament losses are not published.
+`📜 Хроніки Квестарні` shows successful tournament reward claims as important period recognition. Tournament losses are not published.
+
+Completed quick and turn-based duels may appear separately as neutral `⚔️ Бої` rows without naming a public loser.

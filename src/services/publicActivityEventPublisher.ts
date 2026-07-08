@@ -149,6 +149,34 @@ export class PublicActivityEventPublisher {
     });
   }
 
+  recordDuelCompletedSafely(input: {
+    challengeId: string;
+    mode: "quick" | "turn-based";
+    challengerCharacterId: string;
+    challengerDisplayName: string;
+    targetCharacterId: string;
+    targetDisplayName: string;
+    outcome: "challenger" | "target" | "draw";
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "duel.completed",
+      category: "combat",
+      severity: "normal",
+      actorCharacterId: input.challengerCharacterId,
+      actorDisplayName: input.challengerDisplayName,
+      relatedCharacterIds: [input.challengerCharacterId, input.targetCharacterId],
+      subjectKind: "duel-opponent",
+      subjectId: input.targetCharacterId,
+      subjectName: input.targetDisplayName,
+      sourceType: "duel-challenge",
+      sourceId: input.challengeId,
+      dedupeKey: `duel.completed:${input.challengeId}`,
+      payload: { mode: input.mode, outcome: input.outcome },
+      occurredAt: input.occurredAt
+    });
+  }
+
   recordDuelTournamentClaimedSafely(input: {
     characterId: string;
     actorDisplayName: string;
@@ -162,7 +190,7 @@ export class PublicActivityEventPublisher {
     return this.recordSafely({
       eventType: "duel.tournament_claimed",
       category: "combat",
-      severity: input.rank === 1 ? "high" : "normal",
+      severity: "high",
       actorCharacterId: input.characterId,
       actorDisplayName: input.actorDisplayName,
       subjectKind: "duel-tournament",

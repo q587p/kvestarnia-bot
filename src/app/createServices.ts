@@ -145,7 +145,8 @@ export function createServices(
       undefined,
       undefined,
       presence,
-      achievements
+      achievements,
+      publicActivityEvents
     ),
     duelTournaments: new DuelTournamentService(
       repositories.duelTournaments,

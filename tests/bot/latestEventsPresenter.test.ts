@@ -58,6 +58,11 @@ describe("latest events presenter", () => {
             subjectName: "Огрище",
             payload: { levelDelta: 6 }
           }),
+          makeEvent("duel.completed", "2026-07-01T18:45:00.000Z", {
+            actorDisplayName: "Ада",
+            subjectName: "Бор",
+            payload: { mode: "turn-based", outcome: "target" }
+          }),
           makeEvent("duel.tournament_claimed", "2026-07-01T18:30:00.000Z", {
             actorDisplayName: "Дуелянт",
             payload: { period: "day", periodKey: "2026-07-01", rank: 1, points: 5 }
@@ -80,6 +85,7 @@ describe("latest events presenter", () => {
     expect(text).toContain("Мудрий: рідкісна манатка — «Пляшка Пінного Міражу».");
     expect(text).toContain("Майстриня: легендарна манатка — «Ложка, яку не кладуть у шухляду».");
     expect(text).toContain("Пандочка: перемога. Монстр — «Огрище», перевага рівнів: +6.");
+    expect(text).toContain("Ада і Бор: покрокова дуель завершена. Корчмар записав без публічного сорому.");
     expect(text).toContain("Дуелянт: денний турнір, місце 1, 5 очк.");
   });
 

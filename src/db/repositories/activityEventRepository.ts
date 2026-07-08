@@ -8,6 +8,7 @@ export const activityEventTypes = [
   "item.rare_received",
   "item.upgraded",
   "combat.underdog_won",
+  "duel.completed",
   "duel.tournament_claimed"
 ] as const;
 export type ActivityEventType = (typeof activityEventTypes)[number];

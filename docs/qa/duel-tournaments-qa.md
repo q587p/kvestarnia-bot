@@ -12,7 +12,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 - Presenter coverage confirms tournament cards omit public loss counts.
 - Presenter coverage confirms visible daily, weekly and monthly tournament period keys use Holocene display dates.
 - Duel presenter and command coverage confirms combat-style active turn-based cards, stored journal pages and targeted rematch invite delivery.
-- Latest Events coverage confirms tournament claim rows render as combat recognition.
+- Latest Events coverage confirms completed quick/turn-based duels render under combat recognition and successful tournament claims are important rows.
 - Schema coverage confirms the replay-safe claim table and unique character/period/period-key index.
 - Inventory performance follow-up coverage confirms the inventory view model reuses one filter/sort/page result, Mantok Chest auto-select stays equivalent while consuming stack quantities directly, and non-equipment item detail callbacks skip irrelevant equip-preview/craft work.
 
@@ -32,8 +32,8 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 10. Press the same claim callback repeatedly and verify the card says the prize was already issued with no resource duplication.
 11. Press stale tournament cards from an older period and verify they do not claim the wrong visible period.
 12. Repeat rollover/claim checks for weekly and monthly periods when practical with seeded clock/data or a local DB snapshot.
-13. Open `📜 Хроніки Квестарні` and verify one tournament claim event appears.
-14. Verify no public event appears for tournament losses.
+13. Open `📜 Хроніки Квестарні` -> `⚔️ Бої` and verify completed quick and turn-based duel rows appear as neutral duel-completion records.
+14. Open `📜 Хроніки Квестарні` -> `⭐ Важливе` and verify successful daily/weekly/monthly tournament reward claims appear there, while tournament losses do not create public rows.
 15. Open `📜 Журнал бою` from a turn-based result and verify the stored round replay does not mutate duel state.
 16. Press `🔁 Реванш` from a result and verify the other participant receives the targeted invite card.
 17. Open `Манатки`, change filter, sort and page, and verify the card/keyboard text stays unchanged while slow logs include route, item count, filter/sort/page and timing fields only when the callback is slow.
