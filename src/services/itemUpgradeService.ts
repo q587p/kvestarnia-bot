@@ -20,6 +20,7 @@ import {
 } from "../domain/itemUpgrades";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import { ISKROKAMIN_ITEM_ID } from "./itemGrant";
 import { FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 
@@ -94,7 +95,8 @@ export class ItemUpgradeService {
     private readonly repository: ItemUpgradeRepository,
     private readonly clock: () => Date = () => new Date(),
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly publicActivityEvents?: PublicActivityEventPublisher
   ) {}
 
   async listForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeListResult> {
@@ -213,11 +215,30 @@ export class ItemUpgradeService {
       expectedPityFailures: input.expectedPityFailures
     });
 
-    if (result.state !== "attempted" || !this.achievements) {
+    if (result.state !== "attempted") {
       return result;
     }
 
     const sourceId = `${input.method ?? "npc"}:${result.character.id}:${input.itemId}:${result.fromLevel}->${result.targetLevel}`;
+    if (result.success) {
+      const upgradedItem = findItem(result.item.itemId);
+      await this.publicActivityEvents?.recordItemUpgradeSucceededSafely({
+        characterId: result.character.id,
+        actorDisplayName: result.character.name,
+        sourceId,
+        itemId: result.item.itemId,
+        itemName: upgradedItem
+          ? getItemDisplayNameWithUpgrade(upgradedItem, getItemUpgradeLevelFromItemId(result.item.itemId))
+          : result.item.itemId,
+        targetLevel: result.targetLevel,
+        occurredAt: now
+      });
+    }
+
+    if (!this.achievements) {
+      return result;
+    }
+
     const unlocks = await this.achievements.trackEventSafely({
       type: result.success ? "item-upgrade.succeeded" : "item-upgrade.failed",
       characterId: result.character.id,

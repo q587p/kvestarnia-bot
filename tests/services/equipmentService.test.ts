@@ -16,8 +16,10 @@ import type {
   InventoryRepository
 } from "../../src/db/repositories/inventoryRepository";
 import { items } from "../../src/content";
+import { getCombatMantokAbilityGrantsForEquippedItems } from "../../src/content/mantokAbilityGrants";
 import { normalizeEquipmentSlot } from "../../src/content/equipmentSlots";
 import type { ItemContent } from "../../src/content/schema";
+import { summarizeMantokSetBonusEffects } from "../../src/domain/equipment/mantokSetBonuses";
 import type { AchievementService } from "../../src/services/achievementService";
 import {
   EquipmentService,
@@ -844,6 +846,49 @@ describe("EquipmentService", () => {
     expect(getEquippedItemContents(equipment.rows)).toEqual([]);
   });
 
+  it("preserves an existing tuning row on same-item equip replay", async () => {
+    const tuning = {
+      state: "tuning" as const,
+      strength: "weak" as const,
+      startedAt: new Date("2026-07-08T08:00:00.000Z"),
+      readyAt: new Date("2026-07-08T08:13:00.000Z")
+    };
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "weapon",
+          itemId: "item.pan-of-persuasion.plus-1",
+          attunement: tuning
+        })
+      ]
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([buildItem({ itemId: "item.pan-of-persuasion.plus-1" })])
+    );
+
+    const result = await service.equipItemForTelegramUser(
+      telegramUserId,
+      "item.pan-of-persuasion.plus-1"
+    );
+
+    expect(result).toMatchObject({
+      state: "equipped",
+      replacedItem: null
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(equipment.rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: tuning
+    });
+    expect(result.state === "equipped"
+      ? result.slots.find((slot) => slot.slot === "weapon")?.attunement
+      : null
+    ).toMatchObject(tuning);
+  });
+
   it("prompts before replacing a slot that is still tuning", async () => {
     const equipment = new FakeEquipmentRepository({
       characterId,
@@ -889,8 +934,105 @@ describe("EquipmentService", () => {
       state: "equipped",
       item: {
         itemId: "item.stamp-of-minor-authority"
+      },
+      replacedItem: {
+        itemId: "item.pan-of-persuasion.plus-1"
       }
     });
+    expect(equipment.rows[0]?.attunement).toBeUndefined();
+  });
+
+  it("clears cross-slot tuning when a twohand equip replaces the occupied hand", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "offhand",
+          itemId: "item.set.red-line.margin-dagger",
+          attunement: {
+            state: "tuning",
+            strength: "strong",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:42:00.000Z")
+          }
+        })
+      ]
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([
+        buildItem({ itemId: "item.mantok.coverage.class.ranger.twohand-bow" })
+      ]),
+      new FakeCharacterRepository(buildCharacter({ classId: "class.ranger", level: 13 }))
+    );
+
+    const result = await service.equipItemForTelegramUser(
+      telegramUserId,
+      "item.mantok.coverage.class.ranger.twohand-bow",
+      "weapon",
+      { confirmTwohand: true, confirmAttunement: true }
+    );
+
+    expect(result).toMatchObject({
+      state: "equipped",
+      slot: "weapon",
+      clearedHandItem: {
+        itemId: "item.set.red-line.margin-dagger"
+      }
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(equipment.rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.mantok.coverage.class.ranger.twohand-bow"
+    });
+    expect(equipment.rows.some((row) => normalizeEquipmentSlot(row.slot) === "offhand")).toBe(false);
+  });
+
+  it("keeps bonuses, set bonuses and Mantok gear actions inactive while tuning", () => {
+    const rows = [
+      buildEquipment({
+        id: "equipment-left",
+        slot: "weapon",
+        itemId: "item.set.red-line.left-dagger",
+        attunement: {
+          state: "tuning",
+          strength: "strong",
+          startedAt: new Date("2026-07-08T08:00:00.000Z"),
+          readyAt: new Date("2026-07-08T08:42:00.000Z")
+        }
+      }),
+      buildEquipment({
+        id: "equipment-margin",
+        slot: "offhand",
+        itemId: "item.set.red-line.margin-dagger.plus-1",
+        attunement: {
+          state: "tuning",
+          strength: "strong",
+          startedAt: new Date("2026-07-08T08:00:00.000Z"),
+          readyAt: new Date("2026-07-08T08:42:00.000Z")
+        }
+      }),
+      buildEquipment({
+        id: "equipment-rapier",
+        slot: "tool",
+        itemId: "item.ability.last-page-rapier",
+        attunement: {
+          state: "tuning",
+          strength: "strong",
+          startedAt: new Date("2026-07-08T08:00:00.000Z"),
+          readyAt: new Date("2026-07-08T08:42:00.000Z")
+        }
+      })
+    ];
+    const activeContents = getEquippedItemContents(rows);
+    const activeItemIds = activeContents.map((item) => item.id);
+
+    expect(activeItemIds).toEqual([]);
+    expect(summarizeMantokSetBonusEffects(activeItemIds)).toEqual({});
+    expect(getCombatMantokAbilityGrantsForEquippedItems({
+      itemIds: activeItemIds,
+      characterLevel: 13
+    })).toEqual([]);
   });
 
   it("tracks one achievement event for concurrent duplicate same-item equip callbacks", async () => {
@@ -1145,6 +1287,7 @@ class FakeEquipmentRepository implements EquipmentRepository {
       ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot: input.slot }))
     };
     delete baseWithoutAttunement.attunement;
+    const preservedAttunement = !changed && !input.attunement ? existing?.attunement : undefined;
     const row = {
       ...baseWithoutAttunement,
       characterId: input.characterId,
@@ -1159,6 +1302,8 @@ class FakeEquipmentRepository implements EquipmentRepository {
               readyAt: input.attunement.readyAt
             }
           }
+        : preservedAttunement
+          ? { attunement: preservedAttunement }
         : {})
     };
 

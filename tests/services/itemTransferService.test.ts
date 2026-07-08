@@ -22,9 +22,14 @@ import type {
 const fixedNow = new Date("2026-06-24T12:00:00.000Z");
 const [earlierItem, selectedItem, shiftedItem] = pickOrderedEligibleItems();
 const bandage = items.find((item) => item.id === "item.responsible-panic-bandage");
+const iskrokamin = items.find((item) => item.id === "item.iskrokamin");
 
 if (!bandage) {
   throw new Error("Expected responsible panic bandage content.");
+}
+
+if (!iskrokamin) {
+  throw new Error("Expected Iskrokamin content.");
 }
 
 describe("ItemTransferService gift selection guards", () => {
@@ -208,6 +213,30 @@ describe("ItemTransferService gift selection guards", () => {
       ? postalDraft.items.map((item) => item.itemId)
       : []
     ).toContain(bandage.id);
+  });
+
+  it("allows Iskrokamin in both Safe Gifting and postal package selection", async () => {
+    const repository = new FakeItemTransferRepository([
+      stack(selectedItem),
+      stack(iskrokamin)
+    ]);
+    const service = makeService(repository);
+
+    const giftSelection = await service.getSelectionForTelegramUser(1n, 2n);
+    expect(giftSelection.state).toBe("selection");
+    expect(giftSelection.state === "selection"
+      ? giftSelection.items.map((item) => item.itemId)
+      : []
+    ).toContain(iskrokamin.id);
+
+    repository.postalTransfer = postalDraftRecord();
+    const postalDraft = await service.getPostalDraftForTelegramUser(1n, "postal-token", 0);
+
+    expect(postalDraft.state).toBe("draft");
+    expect(postalDraft.state === "draft"
+      ? postalDraft.items.map((item) => item.itemId)
+      : []
+    ).toContain(iskrokamin.id);
   });
 });
 

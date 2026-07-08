@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
+import {
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+  parseEquipmentAttunementPayload
+} from "../../src/domain/equipment/equipmentAttunement";
 
 const telegramUserId = 42n;
 const characterId = "character-equipment-test";
@@ -216,6 +220,115 @@ describe("PrismaEquipmentRepository integration", () => {
     await expect(
       repository.listDueAttunementNotifications(new Date("2000-01-01T00:02:00.000Z"))
     ).resolves.toEqual([]);
+  });
+
+  it("preserves a tuning attunement row on same-item equip replay", async () => {
+    await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: {
+        strength: "weak",
+        itemName: "Пательня переконання +1",
+        startedAt: new Date("2099-01-01T00:00:00.000Z"),
+        readyAt: new Date("2099-01-01T00:13:00.000Z")
+      }
+    });
+    const before = await prisma.dailyAction.findMany({
+      where: { characterId, key: EQUIPMENT_ATTUNEMENT_ACTION_KEY }
+    });
+
+    const replay = await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1"
+    });
+    const after = await prisma.dailyAction.findMany({
+      where: { characterId, key: EQUIPMENT_ATTUNEMENT_ACTION_KEY }
+    });
+
+    expect(replay.changed).toBe(false);
+    expect(before).toHaveLength(1);
+    expect(after).toHaveLength(1);
+    expect(parseEquipmentAttunementPayload(after[0]?.resultJson)?.status).toBe("tuning");
+    await expect(repository.listByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      equipment: [
+        {
+          itemId: "item.pan-of-persuasion.plus-1",
+          attunement: { state: "tuning" }
+        }
+      ]
+    });
+  });
+
+  it("cancels tuning attunement only after confirmed different-item replacement", async () => {
+    await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: {
+        strength: "weak",
+        itemName: "Пательня переконання +1",
+        startedAt: new Date("2099-01-01T00:00:00.000Z"),
+        readyAt: new Date("2099-01-01T00:13:00.000Z")
+      }
+    });
+
+    const replaced = await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.stamp-of-minor-authority"
+    });
+    const payloads = (await prisma.dailyAction.findMany({
+      where: { characterId, key: EQUIPMENT_ATTUNEMENT_ACTION_KEY }
+    })).map((row) => parseEquipmentAttunementPayload(row.resultJson));
+
+    expect(replaced.changed).toBe(true);
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        status: "cancelled",
+        itemId: "item.pan-of-persuasion.plus-1"
+      })
+    ]);
+  });
+
+  it("cancels cross-slot attunement when a twohand equip clears the offhand", async () => {
+    await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "offhand",
+      itemId: "item.set.red-line.margin-dagger",
+      attunement: {
+        strength: "strong",
+        itemName: "Кинджал червоного поля",
+        startedAt: new Date("2099-01-01T00:00:00.000Z"),
+        readyAt: new Date("2099-01-01T00:42:00.000Z")
+      }
+    });
+
+    await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.test-twohand-ladle",
+      clearSlot: "offhand"
+    });
+    const payloads = (await prisma.dailyAction.findMany({
+      where: { characterId, key: EQUIPMENT_ATTUNEMENT_ACTION_KEY }
+    })).map((row) => parseEquipmentAttunementPayload(row.resultJson));
+    const rows = await prisma.characterEquipment.findMany({ where: { characterId } });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        slot: "weapon",
+        itemId: "item.test-twohand-ladle"
+      })
+    ]);
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        status: "cancelled",
+        slot: "offhand",
+        itemId: "item.set.red-line.margin-dagger"
+      })
+    ]);
   });
 
   it("clears both canonical chest and legacy armor rows on chest unequip", async () => {

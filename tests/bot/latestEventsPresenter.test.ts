@@ -95,6 +95,26 @@ describe("latest events presenter", () => {
     expect(text).toContain("«&lt;манатка&gt;»");
     expect(text).toContain("Пригодник без таблички");
   });
+
+  it("renders successful item upgrade activity rows", () => {
+    const text = presentLatestEventsPage({
+      now: new Date("2026-07-08T12:00:00.000Z"),
+      page: {
+        events: [
+          makeEvent("item.upgraded", "2026-07-08T09:00:00.000Z", {
+            actorDisplayName: "Майстер",
+            subjectName: "Пательня переконання +5",
+            payload: { targetLevel: 5 }
+          })
+        ],
+        page: 0,
+        pageSize: 15,
+        hasNextPage: false
+      }
+    });
+
+    expect(text).toContain("Майстер: манатка підсилена до +5 — «Пательня переконання +5».");
+  });
 });
 
 function makeEvent(

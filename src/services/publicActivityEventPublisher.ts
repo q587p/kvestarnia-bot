@@ -87,6 +87,34 @@ export class PublicActivityEventPublisher {
     }
   }
 
+  recordItemUpgradeSucceededSafely(input: {
+    characterId: string;
+    actorDisplayName: string;
+    sourceId: string;
+    itemId: string;
+    itemName: string;
+    targetLevel: number;
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    const targetLevel = Math.max(1, Math.floor(input.targetLevel));
+
+    return this.recordSafely({
+      eventType: "item.upgraded",
+      category: "manatky",
+      severity: targetLevel >= 5 ? "high" : "normal",
+      actorCharacterId: input.characterId,
+      actorDisplayName: input.actorDisplayName,
+      subjectKind: "item",
+      subjectId: input.itemId,
+      subjectName: input.itemName,
+      sourceType: "item-upgrade",
+      sourceId: input.sourceId,
+      dedupeKey: `item.upgraded:${input.sourceId}`,
+      payload: { targetLevel },
+      occurredAt: input.occurredAt
+    });
+  }
+
   recordUnderdogCombatWinSafely(input: {
     characterId: string;
     actorDisplayName: string;

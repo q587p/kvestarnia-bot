@@ -283,8 +283,7 @@ const authoredItemContents = [
     description: "Малий камінець, який світиться так, ніби вже підписав техніку безпеки замість вас.",
     rarity: "uncommon",
     slot: "junk",
-    goldValue: 23,
-    tags: ["trade-blocked"]
+    goldValue: 23
   },
   {
     id: "item.yeger.first-notch",

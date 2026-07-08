@@ -8,6 +8,7 @@ import {
 import type { ItemContent } from "../../src/content/schema";
 import {
   BANDAGE_DROP_QUANTITY_WEIGHTS,
+  getIskrokaminReplacementChance,
   getItemDropChance,
   getLootExpansionCandidates,
   getLootCandidates,
@@ -15,7 +16,8 @@ import {
   rollBandageDropQuantity,
   rollLootExpansionItem,
   rollLootRarity,
-  rollMonsterLoot
+  rollMonsterLoot,
+  rollPostFightBandageSlotReward
 } from "../../src/domain/loot";
 import { FakeRandomSource, SeededRandomSource } from "../../src/shared/random";
 
@@ -132,6 +134,52 @@ describe("loot engine", () => {
     expect(rollBandageDropQuantity({ luck: 16, rng: new FakeRandomSource([0.49, 0]) })).toBe(1);
     expect(rollBandageDropQuantity({ luck: 16, rng: new FakeRandomSource([0.99, 0]) })).toBe(5);
     expect(rollBandageDropQuantity({ luck: 6, rng: new FakeRandomSource([0.49, 0]) })).toBe(0);
+  });
+
+  it("returns no post-fight bandage-slot reward when the quantity is zero", () => {
+    expect(
+      rollPostFightBandageSlotReward({
+        bandageQuantity: 0,
+        luck: 6,
+        rng: new FakeRandomSource([0])
+      })
+    ).toBeNull();
+  });
+
+  it("keeps the post-fight bandage slot exclusive between bandages and Iskrokamin", () => {
+    expect(
+      rollPostFightBandageSlotReward({
+        bandageQuantity: 3,
+        luck: 6,
+        rng: new FakeRandomSource([0.5])
+      })
+    ).toEqual({ kind: "bandage", quantity: 3 });
+    expect(
+      rollPostFightBandageSlotReward({
+        bandageQuantity: 3,
+        luck: 6,
+        rng: new FakeRandomSource([0.01])
+      })
+    ).toEqual({ kind: "iskrokamin", quantity: 2 });
+  });
+
+  it("keeps Luck bounded for Iskrokamin replacement", () => {
+    expect(getIskrokaminReplacementChance(6)).toBe(0.04);
+    expect(getIskrokaminReplacementChance(999)).toBe(0.06);
+    expect(
+      rollPostFightBandageSlotReward({
+        bandageQuantity: 5,
+        luck: 999,
+        rng: new FakeRandomSource([0.059_999])
+      })
+    ).toEqual({ kind: "iskrokamin", quantity: 3 });
+    expect(
+      rollPostFightBandageSlotReward({
+        bandageQuantity: 5,
+        luck: 999,
+        rng: new FakeRandomSource([0.06])
+      })
+    ).toEqual({ kind: "bandage", quantity: 5 });
   });
 
   it("does not make rare or epic mandatory with high LUCK", () => {

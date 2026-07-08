@@ -18,6 +18,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added weak/strong magic attunement for magical equipment: `+1..+3` items tune for 13 minutes, while `+4..+5`, Mantok set pieces and ability-grant manatky tune for 42 minutes before their bonuses count.
 - Added the runtime attunement completion scheduler and local `/dev_finish_attunements` QA helper behind the existing non-production dev-grant gate.
 - Added rewardless first upgrade success, first upgrade failure and first `+5` upgrade achievement hooks.
+- Added a rewardless first-Iskrokamin achievement now that `Іскрокамінь` can appear from fight rewards.
+- Added `📜 Хроніки Квестарні` manatky rows for successful upgrades, with `+5` upgrades marked as important.
 - Added focused domain, callback, presenter, Mantok semantics, dev-helper and Prisma transaction coverage for upgrade math, compact snapshot callbacks, equipped-row alignment, stale replay rejection and plus-id presentation.
 - Added very rare generated Loot Expansion `+N` drop weighting, keeping plus variants possible without double-upgrading generated ids or turning plus drops into the normal loot path.
 
@@ -26,6 +28,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Failed attempts spend the chosen resources once and increment bounded pity once; replays with stale stack, level or pity snapshots reject before spending.
 - Item detail, inventory, equipment, hero/effective-stat, Mantok set and Mantok ability-grant surfaces treat upgraded concrete ids as ordinary catalog ids with the expected `+N` display and preserved base semantics.
 - Equipment bonuses, set bonuses and Mantok ability grants from tuning magical manatky are withheld until attunement is ready; equipment cards strike through the pending effect, hero cards show the `Налаштування на...` status, and replacing a tuning slot requires a separate confirmation.
+- Replaying equip for the same item already tuning in the same slot now preserves the pending attunement row as a no-op; active attunement is cancelled only when the item actually changes or another slot is cleared.
+- Ordinary fight reward bandage slots can now rarely be replaced by bounded `Іскрокамінь` grants instead of granting both from the same slot.
+- `Іскрокамінь` is transferable through Safe Gifting and postal delivery like other ordinary tradeable material stacks.
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
 - Updated task docs, developer setup notes, balance notes, achievement catalog, lore board, release notes and compact Codex context for the shipped `0.3.0` MVP.

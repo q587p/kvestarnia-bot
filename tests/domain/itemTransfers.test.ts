@@ -32,6 +32,11 @@ const soulbound = item({
   goldValue: 13,
   tags: ["soulbound"]
 });
+const iskrokamin = item({
+  id: "item.iskrokamin",
+  name: "Іскрокамінь",
+  goldValue: 23
+});
 
 describe("item gift eligibility", () => {
   it("keeps one owned ordinary stack eligible", () => {
@@ -70,13 +75,14 @@ describe("item gift eligibility", () => {
     const eligible = buildItemGiftEligibleStacks({
       stacks: [
         { itemId: giftable.id, quantity: 1 },
+        { itemId: iskrokamin.id, quantity: 1 },
         { itemId: tradeBlocked.id, quantity: 1 },
         { itemId: soulbound.id, quantity: 1 }
       ],
-      itemContents: [giftable, tradeBlocked, soulbound]
+      itemContents: [giftable, iskrokamin, tradeBlocked, soulbound]
     });
 
-    expect(eligible.map((stack) => stack.itemId)).toEqual([giftable.id]);
+    expect(eligible.map((stack) => stack.itemId)).toEqual([giftable.id, iskrokamin.id]);
   });
 
   it("allows explicit postal packages to include owned blocked or priceless stacks", () => {

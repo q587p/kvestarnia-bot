@@ -142,6 +142,10 @@ function renderEventRow(event: ActivityEventRecord): string {
       }
       return `🎒 ${time} | ${actor}: рідкісна манатка — «${subject}».`;
     }
+    case "item.upgraded": {
+      const targetLevel = readPayloadNumber(event.payload, "targetLevel");
+      return `🛠️ ${time} | ${actor}: манатка підсилена до +${targetLevel ?? "?"} — «${subject}».`;
+    }
     case "combat.underdog_won": {
       const delta = readPayloadNumber(event.payload, "levelDelta") ?? 5;
       return `🛡️ ${time} | ${actor}: перемога. Монстр — «${subject}», перевага рівнів: +${delta}.`;

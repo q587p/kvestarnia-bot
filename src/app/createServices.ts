@@ -170,7 +170,13 @@ export function createServices(
     ),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
-    itemUpgrades: new ItemUpgradeService(repositories.itemUpgrades, undefined, undefined, achievements),
+    itemUpgrades: new ItemUpgradeService(
+      repositories.itemUpgrades,
+      undefined,
+      undefined,
+      achievements,
+      publicActivityEvents
+    ),
     itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),

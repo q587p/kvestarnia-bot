@@ -2710,7 +2710,7 @@ describe("FightService", () => {
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0])
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1, 0.1, 0.5, 0.5])
     });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
@@ -3562,7 +3562,7 @@ describe("FightService", () => {
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      rng: new FakeRandomSource([0, 0.92, 0, 0])
+      rng: new FakeRandomSource([0, 0.92, 0, 0.5])
     });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
@@ -3621,7 +3621,7 @@ describe("FightService", () => {
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      rng: new FakeRandomSource([0, 0.93, 0])
+      rng: new FakeRandomSource([0, 0.93, 0.5, 0.5])
     });
 
     const recovered = await service.resolvePersistentFightTurn(telegramUserId, {

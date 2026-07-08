@@ -799,6 +799,17 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.ninety-three-responsible-bandages"
   },
   {
+    id: "achievement.iskrokamin.first-owned",
+    category: "gear",
+    title: "Іскра попросила кишеню",
+    description: "уперше отримати Іскрокамінь і не пояснювати торбі, чому вона тепер трохи світиться.",
+    hidden: false,
+    lockedDescription: "уперше отримати Іскрокамінь.",
+    sortOrder: 78.1,
+    status: "enabled",
+    trigger: { type: "item.received", itemId: "item.iskrokamin", threshold: 1 }
+  },
+  {
     id: "achievement.bandage.first-used",
     category: "gear",
     title: "Паніка спрацювала за призначенням",

@@ -126,6 +126,47 @@ describe("ActivityEventService", () => {
     });
   });
 
+  it("publishes successful item upgrades to manatky and marks +5 important", async () => {
+    const repository = new FakeActivityEventRepository();
+    const publisher = makePublicActivityEventPublisher(repository);
+
+    await publisher.recordItemUpgradeSucceededSafely({
+      characterId: "character-1",
+      actorDisplayName: "Майстер",
+      sourceId: "npc:character-1:item.pan-of-persuasion:0->1",
+      itemId: "item.pan-of-persuasion.plus-1",
+      itemName: "Пательня переконання +1",
+      targetLevel: 1,
+      occurredAt: new Date("2026-07-08T10:00:00.000Z")
+    });
+    await publisher.recordItemUpgradeSucceededSafely({
+      characterId: "character-1",
+      actorDisplayName: "Майстер",
+      sourceId: "npc:character-1:item.pan-of-persuasion.plus-4:4->5",
+      itemId: "item.pan-of-persuasion.plus-5",
+      itemName: "Пательня переконання +5",
+      targetLevel: 5,
+      occurredAt: new Date("2026-07-08T10:05:00.000Z")
+    });
+
+    expect(repository.rows).toMatchObject([
+      {
+        eventType: "item.upgraded",
+        category: "manatky",
+        severity: "normal",
+        subjectId: "item.pan-of-persuasion.plus-1",
+        payload: { targetLevel: 1 }
+      },
+      {
+        eventType: "item.upgraded",
+        category: "manatky",
+        severity: "high",
+        subjectId: "item.pan-of-persuasion.plus-5",
+        payload: { targetLevel: 5 }
+      }
+    ]);
+  });
+
   it("keeps important level milestones backed by enabled visible level achievements", () => {
     const visibleAchievementLevels = achievements.flatMap((achievement) => {
       if (achievement.status !== "enabled" || achievement.hidden || achievement.trigger.type !== "level.reached") {

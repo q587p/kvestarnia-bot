@@ -485,6 +485,22 @@ describe("AchievementService", () => {
     ]);
   });
 
+  it("unlocks first Iskrokamin received from item reward events", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    const unlocks = await service.trackEvent({
+      type: "item.received",
+      characterId: "character-1",
+      itemIds: ["item.iskrokamin"],
+      occurredAt: new Date("2026-07-08T09:10:00.000Z"),
+      sourceId: "fight-reward-iskrokamin"
+    });
+
+    expect(unlocks.map((unlock) => unlock.id)).toContain("achievement.iskrokamin.first-owned");
+    expect(repo.achievementFor("achievement.iskrokamin.first-owned")).toBeDefined();
+  });
+
   it("unlocks the first Mantok gear-action achievement from a committed gear event", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);

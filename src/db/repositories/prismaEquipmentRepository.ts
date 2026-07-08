@@ -347,8 +347,6 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
 
       const now = input.attunement?.startedAt ?? new Date();
 
-      await cancelActiveAttunementsForSlot(tx, input.characterId, input.slot, now);
-
       if (input.clearSlot) {
         await tx.characterEquipment.deleteMany({
           where: {
@@ -375,6 +373,8 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       });
 
       if (updated.count > 0) {
+        await cancelActiveAttunementsForSlot(tx, input.characterId, input.slot, now);
+
         const row = await tx.characterEquipment.findUniqueOrThrow({
           where: {
             characterId_slot: {
@@ -402,8 +402,6 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       });
 
       if (existing) {
-        await maybeCreateAttunement(tx, input, existing);
-
         return {
           row: existing,
           changed: false

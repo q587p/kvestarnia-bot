@@ -96,6 +96,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.item-upgrade.first-success` | enabled | visible | `item-upgrade.succeeded >= 1` | Молот сказав «дзень» | уперше успішно підсилити манатку в Чароковальні. |
 | `achievement.item-upgrade.first-failure` | enabled | visible | `item-upgrade.failed >= 1` | Іскра має власну думку | уперше пережити невдалу спробу підсилення без втрати гідности в журналі. |
 | `achievement.item-upgrade.level-five` | enabled | visible | `item-upgrade.level-5 >= 1` | Пʼять плюсів і жодної скромности | довести манатку до +5 і дати молоту маленьку відпустку. |
+| `achievement.iskrokamin.first-owned` | enabled | visible | `item.received(item.iskrokamin) >= 1` | Іскра попросила кишеню | уперше отримати Іскрокамінь. |
 | `achievement.item.twenty-three-owned` | enabled | visible | `item.received >= 23` | Торба відкрила малий архів | мати 23 манатки в торбі й почути, як ремінь просить профспілку. |
 | `achievement.item.forty-two-owned` | enabled | visible | `item.received >= 42` | Сорок дві манатки відповіли | мати 42 манатки в торбі й не питати, на яке саме питання вони відповіли. |
 | `achievement.item.ninety-three-owned` | enabled | visible | `item.received >= 93` | Девʼяносто три докази торби | мати 93 манатки в торбі й виглядати як пересувний склад пригод. |
