@@ -14,6 +14,7 @@ import {
   makeYegerBuyBandageCallbackData,
   makeYegerCancelBandagePurchaseCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
+  makeYegerFieldKitHelpCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
   makeYegerNotchExchangeCallbackData,
@@ -34,8 +35,9 @@ import {
   type QuestMarkerInput
 } from "./questButtonMarkers";
 
-interface YegerNavigationOptions {
+export interface YegerNavigationOptions {
   questMarkers?: QuestMarkerInput | null;
+  showFieldKitHelp?: boolean;
 }
 
 export function buildYegerKeyboard(
@@ -114,6 +116,10 @@ export function buildYegerCornerKeyboard(
 
   if (isBaseYegerQuestCompleted(result)) {
     keyboard.text("🩹 Бинти", makeYegerBandagesCallbackData()).row();
+  }
+
+  if (options.showFieldKitHelp) {
+    keyboard.text("🧰 Аптечка?", makeYegerFieldKitHelpCallbackData()).row();
   }
 
   if (result.state === "completed" && result.notchExchange && result.notchExchange.options.length > 0) {

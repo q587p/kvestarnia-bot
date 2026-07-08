@@ -515,6 +515,19 @@ export function presentYegerHelp(): string {
   ].join("\n");
 }
 
+export function presentYegerFieldKitHelp(): string {
+  return [
+    "🧰 Аптечка?",
+    "",
+    "Єгер дивиться на ваші руки так, ніби вони вже тримають неправильний бинт.",
+    "",
+    npcQuote(
+      "Єгер",
+      "Польова аптечка любить порядок. Спершу закрийте «Неспокійні справи», потім «Неспокійні справи 2.0». Після другої дощечки бинти починають слухати інструкції, а не лише паніку."
+    )
+  ].join("\n");
+}
+
 export function presentYegerTrackingStart(input?: {
   yegerProgress?: { wins: number; target: number };
   thirteenProgress?: ThirteenSmallProblemsProgress | null;

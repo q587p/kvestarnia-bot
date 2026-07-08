@@ -36,6 +36,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
 - Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows the spoiler-light `✨ Доступ до Чароковальні` route while the elf-mage still handles the field-kit unlock inside Charkokovalnia, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
+- When the Charkokovalnia unlock is pending but field-kit crafting is still locked and the player has no field kit, `Єгерський куток` now offers `🧰 Аптечка?`; the hint points to completing both Yeger board stages instead of leaving the field-kit route implicit.
 - Updated task docs, developer setup notes, balance notes, achievement catalog, lore board, release notes and compact Codex context for the shipped `0.3.0` MVP.
 - Bumped package metadata to `0.3.0`.
 

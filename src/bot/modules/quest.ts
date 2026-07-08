@@ -133,6 +133,7 @@ import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
 presentYegerBandages,
 presentYegerBandageBuy,
+presentYegerFieldKitHelp,
 presentYegerHelp,
 presentYegerNotchExchange,
 presentYegerNotchExchangeResult,
@@ -183,7 +184,8 @@ export function registerQuestBotModule(
   registerHuntCommand(bot, services.yeger, {
     presence: services.presence,
     tavernRaid: services.tavern,
-    resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+    resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+    resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
   });
   registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
 
@@ -1082,7 +1084,19 @@ async function handleYegerCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: false,
-      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
+    });
+    return;
+  }
+
+  if (callback.type === "field-kit-help") {
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
+    await safeAnswerCallbackQuery(ctx);
+    await markYegerCornerPresence(ctx, services.presence);
+    await safeEditMessageText(ctx, presentYegerFieldKitHelp(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerHelpKeyboard(yegerNavigationOptions)
     });
     return;
   }
@@ -1169,7 +1183,8 @@ async function handleYegerCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: false,
-      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
     });
     return;
   }
@@ -1485,8 +1500,35 @@ async function getYegerBandageCraftOptions(
 async function buildYegerNavigationOptions(
   telegramUserId: bigint,
   services: BotServices
-): Promise<{ questMarkers?: QuestMarkerInput }> {
-  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+): Promise<{ questMarkers?: QuestMarkerInput; showFieldKitHelp?: boolean }> {
+  const [questMarkers, showFieldKitHelp] = await Promise.all([
+    buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+    shouldShowYegerFieldKitHelp(telegramUserId, services)
+  ]);
 
-  return questMarkers ? { questMarkers } : {};
+  return {
+    ...(questMarkers ? { questMarkers } : {}),
+    ...(showFieldKitHelp ? { showFieldKitHelp: true } : {})
+  };
+}
+
+async function shouldShowYegerFieldKitHelp(
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<boolean> {
+  if (
+    typeof services.itemUpgrades?.getUnlockQuestForTelegramUser !== "function" ||
+    typeof services.itemCraft?.previewForTelegramUser !== "function"
+  ) {
+    return false;
+  }
+
+  const unlockQuest = await services.itemUpgrades.getUnlockQuestForTelegramUser(telegramUserId);
+  if (unlockQuest.state !== "unlock-required" || unlockQuest.fieldKitQuantity > 0) {
+    return false;
+  }
+
+  const kitPreview = await services.itemCraft.previewForTelegramUser(telegramUserId, "kit");
+
+  return kitPreview.state === "locked";
 }

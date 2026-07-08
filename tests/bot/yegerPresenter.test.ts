@@ -3,6 +3,7 @@ import {
   presentYegerBandages,
   presentYegerBandageBuy,
   presentYegerCorner,
+  presentYegerFieldKitHelp,
   presentYegerHelp,
   presentYegerHuntOutside,
   presentYegerNotchExchange,
@@ -269,6 +270,16 @@ describe("Yeger presenter", () => {
       })
     ).toContain("дозвіл на прогрес");
     expect(presentYegerHelp()).toContain("Втеча, поразка й протермінований бій");
+  });
+
+  it("explains that field-kit access comes from both Yeger boards", () => {
+    const text = presentYegerFieldKitHelp();
+
+    expect(text).toContain("🧰 Аптечка?");
+    expect(text).toContain("Єгер:\n<blockquote>");
+    expect(text).toContain("«Неспокійні справи»");
+    expect(text).toContain("«Неспокійні справи 2.0»");
+    expect(text).toContain("Після другої дощечки");
   });
 
   it("uses biography-aware ranger corner reactions", () => {

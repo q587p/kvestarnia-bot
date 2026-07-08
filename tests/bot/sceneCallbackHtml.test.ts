@@ -58,6 +58,7 @@ import {
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import {
   makeYegerBandagesCallbackData,
+  makeYegerFieldKitHelpCallbackData,
   makeYegerOpenCallbackData,
   makeYegerTrackCallbackData,
   makeYegerTurnInCallbackData
@@ -2073,6 +2074,105 @@ describe("scene callback HTML options", () => {
     expect(getCraftOptionsForTelegramUser).toHaveBeenCalledWith(42n, "item.responsible-panic-bandage");
     expect(keyboard).toContain("v1:craft:p:dense");
     expect(keyboard).toContain("v1:craft:p:kit");
+  });
+
+  it("offers field-kit help from the Yeger corner when Charkokovalnia needs a kit but kit crafting is locked", async () => {
+    const getUnlockQuestForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "unlock-required" as const,
+        character,
+        fieldKitQuantity: 0,
+        rewardXp: 42
+      })
+    );
+    const previewForTelegramUser = vi.fn(() => Promise.resolve({ state: "locked" as const }));
+    const calls = await captureApiCalls(
+      makeYegerOpenCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "offered" as const,
+              character,
+              progress: { wins: 0, target: 5 }
+            })
+        },
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser
+        },
+        itemCraft: {
+          previewForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(getUnlockQuestForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(previewForTelegramUser).toHaveBeenCalledWith(42n, "kit");
+    expect(keyboard).toContain("🧰 Аптечка?");
+    expect(keyboard).toContain(makeYegerFieldKitHelpCallbackData());
+  });
+
+  it("hides field-kit help from the Yeger corner when kit crafting access already exists", async () => {
+    const previewForTelegramUser = vi.fn(() => Promise.resolve({ state: "not-enough" as const }));
+    const calls = await captureApiCalls(
+      makeYegerOpenCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "offered" as const,
+              character,
+              progress: { wins: 0, target: 5 }
+            })
+        },
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "unlock-required" as const,
+              character,
+              fieldKitQuantity: 0,
+              rewardXp: 42
+            })
+        },
+        itemCraft: {
+          previewForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(previewForTelegramUser).toHaveBeenCalledWith(42n, "kit");
+    expect(keyboard).not.toContain("🧰 Аптечка?");
+    expect(keyboard).not.toContain(makeYegerFieldKitHelpCallbackData());
+  });
+
+  it("explains the Yeger boards from the field-kit help callback", async () => {
+    const calls = await captureApiCalls(
+      makeYegerFieldKitHelpCallbackData(),
+      servicesWith({
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "unlock-required" as const,
+              character,
+              fieldKitQuantity: 0,
+              rewardXp: 42
+            })
+        },
+        itemCraft: {
+          previewForTelegramUser: () => Promise.resolve({ state: "locked" as const })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🧰 Аптечка?");
+    expect(String(edit?.payload.text)).toContain("«Неспокійні справи»");
+    expect(String(edit?.payload.text)).toContain("«Неспокійні справи 2.0»");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeYegerOpenCallbackData());
   });
 
   it("edits equip requirement denials as message text instead of popup text", async () => {
