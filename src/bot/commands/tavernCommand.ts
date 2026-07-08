@@ -120,8 +120,18 @@ type TavernCommandKeyboard =
   | { state: "yard"; questMarkers?: QuestMarkerInput | null }
   | "news-corner"
   | "fighting-corner"
-  | { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean }
-  | { state: "duel-tournament"; period: "day" | "week" | "month"; claim: Parameters<typeof buildDuelTournamentKeyboard>[0]["claim"] }
+  | {
+      state: "fighting-corner";
+      questMarkers?: QuestMarkerInput | null;
+      trainingDoppelgangerAvailable?: boolean;
+      tournamentPendingRewardCount?: number;
+    }
+  | {
+      state: "duel-tournament";
+      period: "day" | "week" | "month";
+      claim: Parameters<typeof buildDuelTournamentKeyboard>[0]["claim"];
+      pendingRewards: Parameters<typeof buildDuelTournamentKeyboard>[0]["pendingRewards"];
+    }
   | "deep"
   | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
   | "back-to-fighting-corner"
@@ -520,7 +530,11 @@ export async function sendKorchmaFightingCorner(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options: { questMarkers?: QuestMarkerInput | null; now?: Date } = {}
+  options: {
+    questMarkers?: QuestMarkerInput | null;
+    now?: Date;
+    tournamentService?: Pick<DuelTournamentService, "countPendingRewardsForTelegramUser"> | undefined;
+  } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -556,11 +570,21 @@ export async function sendKorchmaFightingCorner(
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER);
   const trainingDoppelgangerAvailable = !isTrainingDoppelgangerAtShynok(options.now ?? systemClock());
-  await sendText(ctx, mode, presentKorchmaFightingCorner(result.character, { trainingDoppelgangerAvailable }), {
-    state: "fighting-corner",
-    trainingDoppelgangerAvailable,
-    ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
-  });
+  const tournamentPendingRewardCount = await options.tournamentService?.countPendingRewardsForTelegramUser(telegramUserId);
+  await sendText(
+    ctx,
+    mode,
+    presentKorchmaFightingCorner(result.character, {
+      trainingDoppelgangerAvailable,
+      ...(tournamentPendingRewardCount === undefined ? {} : { tournamentPendingRewardCount })
+    }),
+    {
+      state: "fighting-corner",
+      trainingDoppelgangerAvailable,
+      ...(tournamentPendingRewardCount === undefined ? {} : { tournamentPendingRewardCount }),
+      ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers })
+    }
+  );
 }
 
 export async function sendKorchmaDeepClosed(
@@ -713,7 +737,12 @@ export async function sendDuelTournamentBoard(
     ctx,
     mode,
     presentDuelTournamentBoard(boardResult.board),
-    { state: "duel-tournament", period, claim: boardResult.board.claim }
+    {
+      state: "duel-tournament",
+      period,
+      claim: boardResult.board.claim,
+      pendingRewards: boardResult.board.pendingRewards
+    }
   );
 }
 
@@ -1068,11 +1097,18 @@ async function sendText(
                     ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }),
                     ...(keyboard.trainingDoppelgangerAvailable === undefined
                       ? {}
-                      : { trainingDoppelgangerAvailable: keyboard.trainingDoppelgangerAvailable })
+                      : { trainingDoppelgangerAvailable: keyboard.trainingDoppelgangerAvailable }),
+                    ...(keyboard.tournamentPendingRewardCount === undefined
+                      ? {}
+                      : { tournamentPendingRewardCount: keyboard.tournamentPendingRewardCount })
                   }
                 )
             : isDuelTournamentKeyboard(keyboard)
-              ? buildDuelTournamentKeyboard({ period: keyboard.period, claim: keyboard.claim })
+              ? buildDuelTournamentKeyboard({
+                  period: keyboard.period,
+                  claim: keyboard.claim,
+                  ...(keyboard.pendingRewards === undefined ? {} : { pendingRewards: keyboard.pendingRewards })
+                })
             : keyboard === "deep"
               ? buildKorchmaDeepKeyboard()
             : isDeepKeyboard(keyboard)
@@ -1159,7 +1195,7 @@ function isFrontKeyboard(
 
 function isFightingCornerKeyboard(
   keyboard: TavernCommandKeyboard
-): keyboard is { state: "fighting-corner"; questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean } {
+): keyboard is Extract<TavernCommandKeyboard, { state: "fighting-corner" }> {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "fighting-corner";
 }
 

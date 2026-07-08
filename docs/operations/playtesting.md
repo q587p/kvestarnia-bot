@@ -8,13 +8,14 @@
 
 Manual Telegram QA status for the implementation pass: not run in Telegram. Use the focused checklist in [`docs/qa/duel-tournaments-qa.md`](../qa/duel-tournaments-qa.md).
 
-1. Open Korchma -> `🥊 Бійцівський куток`; verify `🎖️ Турніри` appears beside existing duel actions and `🏆 Переможці`.
-2. Open `🎖️ Турніри`; verify day/week/month tabs, current points, rank, remaining time and previous winners render compactly.
+1. Open Korchma -> `🥊 Бійцівський куток`; verify `🏆 Турніри` appears beside existing duel actions and `🏅 Переможці`.
+2. Open `🏆 Турніри`; verify day/week/month tabs, current points, rank, remaining time, previous winners and pending prize chests render compactly.
 2a. Verify visible tournament period labels use Holocene years, for example `12026-07`, not `2026-07`.
+2b. If prize chests are waiting, verify the Fighting Corner tournament button shows the pending count.
 3. Complete a turn-based duel and verify only the resolved result affects the active tournament.
 3a. During the turn-based duel, verify the active card has compact HP names, natural action lines and the 23-second turn hint.
 4. Replay old duel cards and duplicate tournament buttons; verify no additional points or rewards are created.
-5. Claim an available completed-period reward and verify gold plus the matching medical manatky are granted once.
+5. Claim an available completed-period prize chest and verify gold plus the matching medical manatky are granted once.
 6. Open `📜 Журнал бою` from a turn-based result and verify it replays stored actions without changing the duel.
 7. Press `🔁 Реванш` from a result and verify the other participant receives a targeted invite card.
 8. Open `📜 Хроніки Квестарні`; verify one tournament claim row appears and no loss row appears.

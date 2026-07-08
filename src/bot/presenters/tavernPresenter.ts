@@ -144,12 +144,15 @@ export function presentKorchmaHall(
 
 export function presentKorchmaFightingCorner(
   _character: CharacterSummary,
-  options: { trainingDoppelgangerAvailable?: boolean } = {}
+  options: { trainingDoppelgangerAvailable?: boolean; tournamentPendingRewardCount?: number } = {}
 ): string {
   void _character;
   const trainingLine = options.trainingDoppelgangerAvailable === false
     ? "Сумлінного Допельґанґера зараз немає в кутку. Тут лишилися дуелі, турніри й дошка переможців."
     : "Можна потренуватися з Сумлінним Допельґанґером, глянути турніри й переможців або кинути дружній виклик іншому пригоднику.";
+  const pendingRewardLine = options.tournamentPendingRewardCount && options.tournamentPendingRewardCount > 0
+    ? `🏆 Турніри — Корчмар тримає для вас ${options.tournamentPendingRewardCount} ${formatTournamentChestCount(options.tournamentPendingRewardCount)}.`
+    : "🏆 Турніри — очки тільки за завершені покрокові дуелі; призи платить Корчмар.";
 
   return [
     "🥊 Бійцівський куток",
@@ -160,7 +163,7 @@ export function presentKorchmaFightingCorner(
     "",
     "⚡ Миттєва дуель — результат одразу після згоди.",
     "♟️ Покрокова дуель — гравці таємно обирають дії за раунд.",
-    "🎖️ Турніри — очки тільки за завершені покрокові дуелі; призи платить Корчмар.",
+    pendingRewardLine,
     "",
     "Що обираємо?"
   ].join("\n");
@@ -261,6 +264,8 @@ export function presentDuelTournamentBoard(
     "",
     ...presentTournamentStandings(board.standings),
     "",
+    ...presentPendingTournamentRewards(board),
+    ...(board.pendingRewards.length > 0 ? [""] : []),
     ...presentTournamentClaimLine(board),
     "",
     ...presentPreviousTournamentWinners(board.previous.label, board.previous.key, board.previousWinners)
@@ -275,10 +280,19 @@ function presentTournamentNotice(
   }
 
   if (claimResult.state === "claimed") {
-    const prefix = claimResult.created
-      ? "Корчмар видав приз"
-      : "Цей приз уже видано";
-    return `🎁 ${prefix}: ${presentTournamentReward(claimResult.reward)}.`;
+    if (!claimResult.created) {
+      return [
+        "🧾 Цю турнірну скриньку вже видано.",
+        "Корчмар показує запис у журналі й дуже просить не хитати печатку."
+      ].join("\n");
+    }
+
+    return [
+      "🎁 Корчмар ставить перед вами турнірну скриньку.",
+      `${presentTournamentPeriodLabel(claimResult.claim.period)} — ${presentTournamentPeriodKey(claimResult.claim.periodKey)}.`,
+      `Місце ${claimResult.claim.rank}, ${claimResult.claim.points} оч.`,
+      `Отримано: ${presentTournamentReward(claimResult.reward)}.`
+    ].join("\n");
   }
 
   if (claimResult.state === "not-ended") {
@@ -286,6 +300,20 @@ function presentTournamentNotice(
   }
 
   return "🧾 Для цього періоду призу немає. Корчмар перевірив журнал двічі й один раз підозріло.";
+}
+
+function presentPendingTournamentRewards(board: DuelTournamentBoard): string[] {
+  if (board.pendingRewards.length === 0) {
+    return [];
+  }
+
+  return [
+    `🎁 <b>На вас чекають нагороди</b>: ${board.pendingRewards.length}`,
+    "",
+    ...board.pendingRewards.map((reward) =>
+      `${presentRankMedal(reward.rank)} ${presentTournamentPeriodLabel(reward.period)} — ${presentTournamentPeriodKey(reward.periodKey)}`
+    )
+  ];
 }
 
 function presentTournamentStandings(entries: DuelTournamentBoard["standings"]): string[] {
@@ -350,6 +378,43 @@ function presentTournamentPeriodKey(key: string): string {
 function presentTournamentReward(reward: DuelTournamentPresentedReward): string {
   const itemParts = reward.items.map((item) => `${item.quantity} шт. «${escapeHtml(item.name)}»`);
   return [`${reward.gold} зол.`, ...itemParts].join(", ");
+}
+
+function presentTournamentPeriodLabel(period: DuelTournamentBoard["period"]): string {
+  const labels: Record<DuelTournamentBoard["period"], string> = {
+    day: "Денний турнір",
+    week: "Тижневий турнір",
+    month: "Місячний турнір"
+  };
+  return labels[period];
+}
+
+function presentRankMedal(rank: number): string {
+  if (rank === 1) {
+    return "🥇";
+  }
+  if (rank === 2) {
+    return "🥈";
+  }
+  if (rank === 3) {
+    return "🥉";
+  }
+  return "🏅";
+}
+
+function formatTournamentChestCount(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "турнірних скриньок";
+  }
+  if (last === 1) {
+    return "турнірну скриньку";
+  }
+  if (last >= 2 && last <= 4) {
+    return "турнірні скриньки";
+  }
+  return "турнірних скриньок";
 }
 
 function presentTournamentRemaining(ms: number): string {

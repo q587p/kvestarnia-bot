@@ -7,8 +7,11 @@ import type {
 } from "../db/repositories/duelTournamentRepository";
 import {
   buildDuelTournamentStandings,
+  DUEL_TOURNAMENT_PERIODS,
+  DUEL_TOURNAMENT_REWARD_LOOKBACK,
   DUEL_TOURNAMENT_RULES_VERSION,
   DUEL_TOURNAMENT_TOP_LIMIT,
+  getClosedDuelTournamentWindows,
   getDuelTournamentReward,
   getDuelTournamentWindow,
   getDuelTournamentWindowFromKey,
@@ -31,6 +34,15 @@ export interface DuelTournamentPresentedReward {
   items: { itemId: string; name: string; quantity: number }[];
 }
 
+export interface DuelTournamentPendingReward {
+  period: DuelTournamentPeriod;
+  periodKey: string;
+  window: DuelTournamentPeriodWindow;
+  rank: number;
+  points: number;
+  reward: DuelTournamentPresentedReward;
+}
+
 export interface DuelTournamentBoard {
   period: DuelTournamentPeriod;
   current: DuelTournamentPeriodWindow;
@@ -42,6 +54,7 @@ export interface DuelTournamentBoard {
   yourRank: number | null;
   remainingMs: number;
   claim: DuelTournamentClaimState;
+  pendingRewards: DuelTournamentPendingReward[];
 }
 
 export type DuelTournamentBoardResult =
@@ -106,6 +119,10 @@ export class DuelTournamentService {
       return { state: "not-ended", board };
     }
 
+    if (!isWithinRewardLookback(period, periodKey, now)) {
+      return { state: "not-eligible", board };
+    }
+
     const records = await this.duels.listResolvedSince(window.startsAt);
     const standings = buildDuelTournamentStandings(records, window);
     const placement = standings.find((entry) => entry.characterId === character.id);
@@ -134,7 +151,9 @@ export class DuelTournamentService {
       claimedAt: now
     });
 
-    const presentedReward = presentReward(reward);
+    const presentedReward = claimResult.created
+      ? presentReward(reward)
+      : presentRewardFromClaim(claimResult.claim);
 
     if (claimResult.created) {
       await this.activityEvents?.recordDuelTournamentClaimedSafely({
@@ -158,6 +177,15 @@ export class DuelTournamentService {
     };
   }
 
+  async countPendingRewardsForTelegramUser(telegramUserId: bigint): Promise<number> {
+    const character = await this.tournaments.findCharacterByTelegramUser(telegramUserId);
+    if (!character) {
+      return 0;
+    }
+
+    return (await this.listPendingRewards(character, this.clock())).length;
+  }
+
   private async buildBoard(
     character: DuelTournamentCharacterRecord,
     period: DuelTournamentPeriod
@@ -165,7 +193,11 @@ export class DuelTournamentService {
     const now = this.clock();
     const current = getDuelTournamentWindow(period, now);
     const previous = getPreviousDuelTournamentWindow(period, now);
-    const records = await this.duels.listResolvedSince(previous.startsAt);
+    const pendingWindows = getRewardLookbackWindows(now);
+    const earliest = earliestDate([previous, ...pendingWindows].map((window) => window.startsAt));
+    const records = await this.duels.listResolvedSince(earliest);
+    const claims = await this.tournaments.listClaimsForCharacter(character.id);
+    const pendingRewards = buildPendingRewards(character, records, claims, pendingWindows);
     const standings = buildDuelTournamentStandings(records, current);
     const previousStandings = buildDuelTournamentStandings(records, previous);
     const yourEntry = standings.find((entry) => entry.characterId === character.id);
@@ -173,7 +205,8 @@ export class DuelTournamentService {
     const previousReward = previousEntry
       ? getDuelTournamentReward(period, previousEntry.rank, previousEntry.points)
       : null;
-    const existingClaim = await this.tournaments.findClaim(character.id, period, previous.key);
+    const existingClaim = claims.find((claim) => claim.period === period && claim.periodKey === previous.key) ?? null;
+    const pendingForPeriod = pendingRewards.find((reward) => reward.period === period) ?? null;
 
     return {
       period,
@@ -185,7 +218,15 @@ export class DuelTournamentService {
       yourPoints: yourEntry?.points ?? 0,
       yourRank: yourEntry?.rank ?? null,
       remainingMs: Math.max(0, current.endsAt.getTime() - now.getTime()),
-      claim: existingClaim
+      claim: pendingForPeriod
+        ? {
+            state: "available",
+            periodKey: pendingForPeriod.periodKey,
+            reward: pendingForPeriod.reward,
+            rank: pendingForPeriod.rank,
+            points: pendingForPeriod.points
+          }
+        : existingClaim
         ? { state: "claimed", claim: existingClaim, reward: presentRewardFromClaim(existingClaim) }
         : previousEntry && previousReward
           ? {
@@ -195,17 +236,34 @@ export class DuelTournamentService {
               rank: previousEntry.rank,
               points: previousEntry.points
             }
-          : { state: "unavailable", reason: "no-placement" }
+          : { state: "unavailable", reason: "no-placement" },
+      pendingRewards
     };
   }
+
+  private async listPendingRewards(
+    character: DuelTournamentCharacterRecord,
+    now: Date
+  ): Promise<DuelTournamentPendingReward[]> {
+    const windows = getRewardLookbackWindows(now);
+    const earliest = earliestDate(windows.map((window) => window.startsAt));
+    const [records, claims] = await Promise.all([
+      this.duels.listResolvedSince(earliest),
+      this.tournaments.listClaimsForCharacter(character.id)
+    ]);
+
+    return buildPendingRewards(character, records, claims, windows);
+  }
 }
+
+const itemNamesById = new Map(items.map((item) => [item.id, item.name]));
 
 function presentReward(reward: DuelTournamentReward): DuelTournamentPresentedReward {
   return {
     gold: reward.gold,
     items: reward.items.map((item) => ({
       itemId: item.itemId,
-      name: items.find((content) => content.id === item.itemId)?.name ?? item.itemId,
+      name: itemNamesById.get(item.itemId) ?? item.itemId,
       quantity: item.quantity
     }))
   };
@@ -230,7 +288,7 @@ function parseClaimItems(value: unknown): DuelTournamentPresentedReward["items"]
 
     return [{
       itemId: item.itemId,
-      name: items.find((content) => content.id === item.itemId)?.name ?? item.itemId,
+      name: itemNamesById.get(item.itemId) ?? item.itemId,
       quantity: Math.max(0, Math.floor(item.quantity))
     }];
   });
@@ -243,4 +301,60 @@ function isClaimRewardItem(value: unknown): value is { itemId: string; quantity:
 
   const candidate = value as Record<string, unknown>;
   return typeof candidate.itemId === "string" && typeof candidate.quantity === "number";
+}
+
+function getRewardLookbackWindows(now: Date): DuelTournamentPeriodWindow[] {
+  return DUEL_TOURNAMENT_PERIODS.flatMap((period) =>
+    getClosedDuelTournamentWindows(period, now, DUEL_TOURNAMENT_REWARD_LOOKBACK[period])
+  );
+}
+
+function buildPendingRewards(
+  character: DuelTournamentCharacterRecord,
+  records: readonly ResolvedDuelChallengeRecord[],
+  claims: readonly DuelTournamentClaimRecord[],
+  windows: readonly DuelTournamentPeriodWindow[]
+): DuelTournamentPendingReward[] {
+  const claimKeys = new Set(claims.map((claim) => claimKey(claim.period, claim.periodKey)));
+  const pendingRewards: DuelTournamentPendingReward[] = [];
+
+  for (const window of windows) {
+    if (claimKeys.has(claimKey(window.period, window.key))) {
+      continue;
+    }
+
+    const standings = buildDuelTournamentStandings(records, window);
+    const placement = standings.find((entry) => entry.characterId === character.id);
+    const reward = placement
+      ? getDuelTournamentReward(window.period, placement.rank, placement.points)
+      : null;
+
+    if (!placement || !reward) {
+      continue;
+    }
+
+    pendingRewards.push({
+      period: window.period,
+      periodKey: window.key,
+      window,
+      rank: placement.rank,
+      points: placement.points,
+      reward: presentReward(reward)
+    });
+  }
+
+  return pendingRewards;
+}
+
+function isWithinRewardLookback(period: DuelTournamentPeriod, periodKey: string, now: Date): boolean {
+  return getClosedDuelTournamentWindows(period, now, DUEL_TOURNAMENT_REWARD_LOOKBACK[period])
+    .some((window) => window.key === periodKey);
+}
+
+function earliestDate(dates: readonly Date[]): Date {
+  return new Date(Math.min(...dates.map((date) => date.getTime())));
+}
+
+function claimKey(period: DuelTournamentPeriod, periodKey: string): string {
+  return `${period}:${periodKey}`;
 }

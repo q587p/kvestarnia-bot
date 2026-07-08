@@ -8,6 +8,11 @@ export const DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID = "item.responsible-panic-band
 export const DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID = "item.dense-bandage";
 export const DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID = "item.field-kit";
 export const DUEL_TOURNAMENT_TOP_LIMIT = 3;
+export const DUEL_TOURNAMENT_REWARD_LOOKBACK: Record<DuelTournamentPeriod, number> = {
+  day: 13,
+  week: 8,
+  month: 5
+};
 
 export interface DuelTournamentPeriodWindow {
   period: DuelTournamentPeriod;
@@ -89,7 +94,7 @@ export function getDuelTournamentWindowFromKey(
   key: string
 ): DuelTournamentPeriodWindow | null {
   const startsAt = parsePeriodStart(period, key);
-  if (!startsAt) {
+  if (!startsAt || getDuelTournamentPeriodKey(period, startsAt) !== key) {
     return null;
   }
   return {
@@ -99,6 +104,23 @@ export function getDuelTournamentWindowFromKey(
     startsAt,
     endsAt: getNextPeriodStart(period, startsAt)
   };
+}
+
+export function getClosedDuelTournamentWindows(
+  period: DuelTournamentPeriod,
+  now: Date,
+  limit = DUEL_TOURNAMENT_REWARD_LOOKBACK[period]
+): DuelTournamentPeriodWindow[] {
+  const windows: DuelTournamentPeriodWindow[] = [];
+  let cursor = now;
+
+  for (let index = 0; index < Math.max(0, limit); index += 1) {
+    const window = getPreviousDuelTournamentWindow(period, cursor);
+    windows.push(window);
+    cursor = window.startsAt;
+  }
+
+  return windows;
 }
 
 export function getDuelTournamentPeriodKey(period: DuelTournamentPeriod, date: Date): string {

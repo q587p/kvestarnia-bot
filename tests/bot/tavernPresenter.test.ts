@@ -113,7 +113,8 @@ function makeTournamentBoard(input: {
     yourPoints: 0,
     yourRank: null,
     remainingMs: 60_000,
-    claim: { state: "unavailable", reason: "not-ended" }
+    claim: { state: "unavailable", reason: "not-ended" },
+    pendingRewards: []
   };
 }
 
@@ -373,13 +374,32 @@ describe("tavern presenter", () => {
           gold: 3,
           items: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }]
         }
-      }
+      },
+      pendingRewards: [{
+        period: "day",
+        periodKey: "2026-07-07",
+        window: {
+          period: "day",
+          key: "2026-07-07",
+          label: "Денний турнір",
+          startsAt: new Date("2026-07-06T21:00:00.000Z"),
+          endsAt: new Date("2026-07-07T21:00:00.000Z")
+        },
+        rank: 1,
+        points: 3,
+        reward: {
+          gold: 3,
+          items: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }]
+        }
+      }]
     });
 
     expect(text).toContain("🏆 Турніри");
     expect(text).toContain("Період: 12026-07-08");
     expect(text).toContain("Ваші очки: <b>5</b>, місце 1");
     expect(text).toContain("1. Дара — 5 оч., 2 перем., 1 ніч.");
+    expect(text).toContain("🎁 <b>На вас чекають нагороди</b>: 1");
+    expect(text).toContain("🥇 Денний турнір — 12026-07-07");
     expect(text).toContain("Приз: 3 зол., 1 шт. «Бинт відповідальної паніки».");
     expect(text).toContain("<b>Попередні переможці</b> (12026-07-07):");
     expect(text).not.toContain("Період: 2026-");

@@ -48,5 +48,7 @@ export interface DuelTournamentRepository {
     periodKey: string
   ): Promise<DuelTournamentClaimRecord | null>;
 
+  listClaimsForCharacter(characterId: string): Promise<DuelTournamentClaimRecord[]>;
+
   claimReward(input: ClaimDuelTournamentRewardInput): Promise<DuelTournamentClaimResult>;
 }

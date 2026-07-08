@@ -314,7 +314,8 @@ async function handleDuelTournamentCallback(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildDuelTournamentKeyboard({
       period: action.period,
-      claim: result.board.claim
+      claim: result.board.claim,
+      pendingRewards: result.board.pendingRewards
     })
   });
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
@@ -1280,7 +1281,8 @@ async function handlePlaceCallback(
       return;
     }
     await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply", {
-      ...(questMarkers ? { questMarkers } : {})
+      ...(questMarkers ? { questMarkers } : {}),
+      ...(services.duelTournaments ? { tournamentService: services.duelTournaments } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;

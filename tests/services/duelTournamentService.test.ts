@@ -80,6 +80,69 @@ describe("DuelTournamentService", () => {
     expect(result.board.previousWinners[0]).toEqual(expect.objectContaining({ characterId: "rival" }));
     expect(result.board.claim.state).toBe("unavailable");
   });
+
+  it("lists multiple unclaimed prize chests across bounded daily, weekly and monthly lookback", async () => {
+    const repo = new FakeTournamentRepository([character("hero", 100n, "Ада")]);
+    const service = new DuelTournamentService(
+      repo,
+      new FakeDuelSource([
+        duel("daily", "2026-07-07T09:00:00.000Z", "hero", "rival", "challenger"),
+        duel("weekly", "2026-07-02T09:00:00.000Z", "hero", "rival", "challenger"),
+        duel("monthly", "2026-06-15T09:00:00.000Z", "hero", "rival", "challenger"),
+        duel("too-old-daily", "2026-06-01T09:00:00.000Z", "hero", "rival", "challenger")
+      ]),
+      new FakeActivityEvents(),
+      () => new Date("2026-07-08T12:00:00.000Z")
+    );
+
+    const result = await service.getBoardForTelegramUser(100n, "day");
+
+    expect(result.state).toBe("ready");
+    if (result.state !== "ready") {
+      return;
+    }
+    const pendingKeys = result.board.pendingRewards.map((reward) => `${reward.period}:${reward.periodKey}`);
+    expect(pendingKeys).toEqual(expect.arrayContaining([
+      "day:2026-07-07",
+      "week:2026-W27",
+      "month:2026-06"
+    ]));
+    expect(pendingKeys).not.toContain("day:2026-06-01");
+    expect(result.board.claim).toEqual(expect.objectContaining({
+      state: "available",
+      periodKey: "2026-07-07"
+    }));
+    await expect(service.countPendingRewardsForTelegramUser(100n)).resolves.toBe(pendingKeys.length);
+  });
+
+  it("removes claimed periods from pending rewards and rejects invalid or stale period keys without payment", async () => {
+    const repo = new FakeTournamentRepository([character("hero", 100n, "Ада")]);
+    const service = new DuelTournamentService(
+      repo,
+      new FakeDuelSource([
+        duel("daily", "2026-07-07T09:00:00.000Z", "hero", "rival", "challenger"),
+        duel("too-old-daily", "2026-06-01T09:00:00.000Z", "hero", "rival", "challenger")
+      ]),
+      new FakeActivityEvents(),
+      () => new Date("2026-07-08T12:00:00.000Z")
+    );
+
+    await service.claimRewardForTelegramUser(100n, "day", "2026-07-07");
+    const board = await service.getBoardForTelegramUser(100n, "day");
+    const invalid = await service.claimRewardForTelegramUser(100n, "day", "2026-99-99");
+    const stale = await service.claimRewardForTelegramUser(100n, "day", "2026-06-01");
+
+    expect(board.state).toBe("ready");
+    if (board.state === "ready") {
+      expect(board.board.pendingRewards.map((reward) => `${reward.period}:${reward.periodKey}`))
+        .not.toContain("day:2026-07-07");
+      expect(board.board.claim.state).toBe("claimed");
+    }
+    expect(invalid.state).toBe("invalid-period");
+    expect(stale.state).toBe("not-eligible");
+    expect(repo.goldByCharacter.get("hero")).toBe(42);
+    expect(repo.itemQuantity("hero", "item.responsible-panic-bandage")).toBe(5);
+  });
 });
 
 class FakeTournamentRepository implements DuelTournamentRepository {
@@ -95,6 +158,12 @@ class FakeTournamentRepository implements DuelTournamentRepository {
 
   findClaim(characterId: string, period: "day" | "week" | "month", periodKey: string): Promise<DuelTournamentClaimRecord | null> {
     return Promise.resolve(this.claims.get(claimKey(characterId, period, periodKey)) ?? null);
+  }
+
+  listClaimsForCharacter(characterId: string): Promise<DuelTournamentClaimRecord[]> {
+    return Promise.resolve(
+      [...this.claims.values()].filter((claim) => claim.characterId === characterId)
+    );
   }
 
   claimReward(input: ClaimDuelTournamentRewardInput): Promise<{ claim: DuelTournamentClaimRecord; created: boolean }> {

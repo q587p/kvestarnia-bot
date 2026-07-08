@@ -56,6 +56,16 @@ export class PrismaDuelTournamentRepository implements DuelTournamentRepository 
     return claim ? mapClaim(claim) : null;
   }
 
+  async listClaimsForCharacter(characterId: string): Promise<DuelTournamentClaimRecord[]> {
+    const claims = await this.prisma.duelTournamentClaim.findMany({
+      where: {
+        characterId
+      }
+    });
+
+    return claims.map(mapClaim);
+  }
+
   async claimReward(input: ClaimDuelTournamentRewardInput): Promise<DuelTournamentClaimResult> {
     try {
       const claim = await this.prisma.$transaction(async (tx) => {

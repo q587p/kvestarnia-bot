@@ -75,6 +75,7 @@ import {
 } from "../../src/bot/keyboards/shynokKeyboard";
 import {
   buildEnterKorchmaKeyboard,
+  buildDuelTournamentKeyboard,
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
   buildKorchmaDeepKeyboard,
@@ -494,8 +495,8 @@ describe("main menu and scene keyboards", () => {
       "🥊 Потренуватися",
       "⚡ Миттєва дуель",
       "♟️ Покрокова дуель",
-      "🎖️ Турніри",
-      "🏆 Переможці",
+      "🏆 Турніри",
+      "🏅 Переможці",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaFightingCornerKeyboard())).toEqual([
@@ -511,9 +512,59 @@ describe("main menu and scene keyboards", () => {
     }))).toEqual([
       "⚡ Миттєва дуель",
       "♟️ Покрокова дуель",
-      "🎖️ Турніри",
-      "🏆 Переможці",
+      "🏆 Турніри",
+      "🏅 Переможці",
       "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({
+      tournamentPendingRewardCount: 2
+    }))).toContain("🏆 Турніри (2)");
+    expect(flatInlineButtonTexts(buildDuelTournamentKeyboard({
+      period: "day",
+      claim: {
+        state: "available",
+        periodKey: "2026-07-07",
+        rank: 1,
+        points: 3,
+        reward: { gold: 42, items: [] }
+      },
+      pendingRewards: [
+        {
+          period: "day",
+          periodKey: "2026-07-07",
+          window: {
+            period: "day",
+            key: "2026-07-07",
+            label: "Денний турнір",
+            startsAt: new Date("2026-07-06T21:00:00.000Z"),
+            endsAt: new Date("2026-07-07T21:00:00.000Z")
+          },
+          rank: 1,
+          points: 3,
+          reward: { gold: 42, items: [] }
+        },
+        {
+          period: "week",
+          periodKey: "2026-W27",
+          window: {
+            period: "week",
+            key: "2026-W27",
+            label: "Тижневий турнір",
+            startsAt: new Date("2026-06-29T21:00:00.000Z"),
+            endsAt: new Date("2026-07-06T21:00:00.000Z")
+          },
+          rank: 2,
+          points: 1,
+          reward: { gold: 42, items: [] }
+        }
+      ]
+    }))).toEqual([
+      "• День",
+      "Тиждень",
+      "Місяць",
+      "🎁 Забрати скриньку",
+      "🎁 Тиждень 12026-W27",
+      "↩️ До Бійцівського кутка"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({
       questMarkers: {

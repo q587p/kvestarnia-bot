@@ -10,7 +10,15 @@ They do not introduce a new combat engine. Tournament standings read resolved du
 - Weekly: fixed Kyiv ISO week.
 - Monthly: fixed Kyiv calendar month.
 
-Cards show the active period, current standings, the player's points/rank, time remaining, previous winners and a claim button when a completed previous period has an unclaimed prize.
+Cards show the active period, current standings, the player's points/rank, time remaining, previous winners and pending Korchma prize chests.
+
+Unclaimed reward lookback is bounded:
+
+- Daily: 13 closed daily periods.
+- Weekly: 8 closed weekly periods.
+- Monthly: 5 closed monthly periods.
+
+Each pending chest remains independently claimable from the tournament screen while it is inside that lookback window.
 
 Stored period keys may remain Gregorian for repository/callback stability, but player-facing tournament cards must render period keys as Holocene dates: `12026-07-08`, `12026-W28`, `12026-07`.
 
@@ -42,7 +50,7 @@ This keeps recognition possible for normal rematches while making easy same-pair
 
 ## Rewards
 
-Rewards are paid by Korchma, never by another player.
+Rewards are paid by Korchma as manually claimed prize chests, never by another player and never through Postal Delivery.
 
 Only top-three placements with positive points can claim. The reward snapshot is stored with the claim, so future balance changes or repeated callbacks do not recalculate or duplicate rewards.
 
