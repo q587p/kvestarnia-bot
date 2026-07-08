@@ -122,17 +122,52 @@ describe("party session keyboard", () => {
 
     expect(inlineButtonTexts(keyboard)).toEqual([
       "✅ Готові",
+      "🔎 Оновити",
       "🚪 Вийти",
       "🧹 Скасувати збір",
-      "🛢️ Почати рейд",
-      "📣 Запрошення на рейд",
-      "🔗 Запросити в рейд",
-      "🔎 Оновити"
+      "📣 Картка запрошення",
+      "🔗 Запросити на рейд",
+      "🛢️ Почати рейд"
     ]);
+    expect(inlineButtonRows(keyboard)[0]).toEqual(["✅ Готові", "🔎 Оновити"]);
+    expect(inlineButtonRows(keyboard)[3]).toEqual(["📣 Картка запрошення", "🔗 Запросити на рейд"]);
+    expect(inlineButtonTexts(keyboard).at(-1)).toBe("🛢️ Почати рейд");
     expect(keyboardText(keyboard)).toContain("https://t.me/share/url");
     expect(keyboardText(keyboard)).toContain("party_partyABC12");
     expect(keyboardText(keyboard)).toContain("v1:party:sh:partyABC12");
     expect(keyboardText(keyboard)).toContain("v1:party:rs:partyABC12:r");
+  });
+
+  it("hides Big Barrel Brother cancel once another participant has joined", () => {
+    const session = {
+      ...makeSession(),
+      originLocationId: "barrel.big-brother",
+      participants: [
+        ...makeSession().participants,
+        {
+          id: "participant-2",
+          sessionId: "party-1",
+          characterId: "character-2",
+          remortCount: 0,
+          status: "joined" as const,
+          joinSource: "invite" as const,
+          joinedAt: new Date("2026-06-29T15:01:00.000Z"),
+          leftAt: null,
+          chatId: 43n,
+          messageId: 14,
+          character: makeCharacter("character-2", 43n)
+        }
+      ]
+    };
+
+    const keyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyABC12",
+      includeBossStart: true
+    });
+
+    expect(inlineButtonTexts(keyboard)).not.toContain("🧹 Скасувати збір");
+    expect(inlineButtonTexts(keyboard).at(-1)).toBe("🛢️ Почати рейд");
   });
 
   it("toggles Big Barrel Brother readiness from ready back to waiting", () => {
@@ -273,6 +308,10 @@ describe("party session keyboard", () => {
 
 function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: string }>> }): string[] {
   return keyboard.inline_keyboard.flatMap((row) => row.map((button) => button.text));
+}
+
+function inlineButtonRows(keyboard: { inline_keyboard: Array<Array<{ text: string }>> }): string[][] {
+  return keyboard.inline_keyboard.map((row) => row.map((button) => button.text));
 }
 
 function makeBossSession(

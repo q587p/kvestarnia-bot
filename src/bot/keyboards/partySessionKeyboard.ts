@@ -46,8 +46,11 @@ export function buildPartySessionKeyboard(
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const token = session.inviteToken;
+  let refreshPlaced = false;
 
   if (session.status === "recruiting") {
+    const isBigBarrel = session.originLocationId === "barrel.big-brother";
+    const joinedParticipantCount = session.participants.filter((participant) => participant.status === "joined").length;
     const viewer = options.viewerCharacterId
       ? session.participants.find(
           (participant) =>
@@ -63,32 +66,41 @@ export function buildPartySessionKeyboard(
         keyboard.text(
           ready ? "⏳ Зачекайте" : getReadyButtonLabel(viewer.character.pronoun),
           makePartySessionReadinessCallbackData(token, ready ? "waiting" : "ready")
-        ).row();
+        ).text("🔎 Оновити", makePartySessionViewCallbackData(token)).row();
+        refreshPlaced = true;
       }
       keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token)).row();
     }
 
-    if (options.viewerCharacterId === session.leaderCharacterId) {
+    if (options.viewerCharacterId === session.leaderCharacterId && joinedParticipantCount < 2) {
       keyboard.text("🧹 Скасувати збір", makePartySessionCancelCallbackData(token)).row();
     }
 
-    if (options.includeBossStart && options.viewerCharacterId === session.leaderCharacterId) {
-      keyboard.text("🛢️ Почати рейд", makePartyBossStartCallbackData(token)).row();
-    } else if (options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
+    if (!options.includeBossStart && options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🧪 Dev: бос-проба", makePartyBossStartCallbackData(token)).row();
     }
 
-    if (session.originLocationId === "barrel.big-brother" && options.inviteUrl) {
-      keyboard.text("📣 Запрошення на рейд", makePartySessionShareCallbackData(token)).row();
-      keyboard.url("🔗 Запросити в рейд", buildTelegramShareUrl(options.inviteUrl)).row();
+    if (isBigBarrel && options.inviteUrl) {
+      keyboard
+        .text("📣 Картка запрошення", makePartySessionShareCallbackData(token))
+        .url("🔗 Запросити на рейд", buildTelegramShareUrl(options.inviteUrl))
+        .row();
     }
 
     if (options.includeDevExpire) {
       keyboard.text("⏱️ Dev: завершити строк", makePartySessionExpireCallbackData(token)).row();
     }
+
+    if (options.includeBossStart && options.viewerCharacterId === session.leaderCharacterId) {
+      keyboard.text("🛢️ Почати рейд", makePartyBossStartCallbackData(token)).row();
+    }
   }
 
-  return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(token));
+  if (!refreshPlaced) {
+    keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(token));
+  }
+
+  return keyboard;
 }
 
 export function buildPartyBossKeyboard(
