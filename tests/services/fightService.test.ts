@@ -1856,6 +1856,39 @@ describe("FightService", () => {
     }
   });
 
+  it("applies remort monster pressure to targeted Yeger fights", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 8, xp: 587, remortCount: 3 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
+    const baseMonster = monsters.find((monster) => monster.id === "monster.foam-auditor-boots");
+    if (!baseMonster) {
+      throw new Error("Expected foam auditor monster fixture.");
+    }
+    const baseline = deriveMonsterCombatStats(baseMonster);
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "yeger",
+      target: { monsterIds: [baseMonster.id] }
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.session.state?.life?.remortCount).toBe(3);
+      expect(started.session.state?.monster.id).toBe(baseMonster.id);
+      expect(started.session.state?.monster.level).toBe(baseline.level);
+      expect(started.session.state?.monster.hpMax).toBeGreaterThan(baseline.hpMax);
+      expect(started.session.state?.monster.attack).toBeGreaterThan(baseline.attack);
+    }
+  });
+
   it("does not replace an active persistent fight when another difficulty is clicked", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
