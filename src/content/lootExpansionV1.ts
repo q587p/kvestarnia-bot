@@ -2,6 +2,7 @@ import { classes } from "./classes";
 import { activeRaces } from "./races";
 import type { ItemContent, ItemEffectContent } from "./schema";
 import { lootExpansionV1Data as lootExpansionV1RawData } from "./lootExpansionV1Data";
+import { getItemUpgradeMagicStrengthLabel, getItemUpgradeRarity } from "../domain/itemUpgrades";
 
 type RawLootExpansionData = typeof lootExpansionV1RawData;
 
@@ -889,7 +890,7 @@ function buildItemContent(
     id: getLootExpansionItemId(base.id, enhancement),
     name: enhancement === 0 ? base.name_uk : `${base.name_uk} +${enhancement}`,
     description: buildDescription(base, enhancement, minLevel),
-    rarity: mapLootExpansionRarity(base.rarity),
+    rarity: getItemUpgradeRarity(mapLootExpansionRarity(base.rarity), enhancement),
     slot,
     ...(equipmentSlot ? { equipmentSlot } : {}),
     goldValue: priceCoins,
@@ -906,7 +907,7 @@ function buildDescription(
   const parts: string[] = [base.flavor_uk];
 
   if (enhancement > 0) {
-    parts.push(`Посилення +${enhancement}: слабка магія, мінімальний рівень ${minLevel}.`);
+    parts.push(`Посилення +${enhancement}: ${getItemUpgradeMagicStrengthLabel(enhancement)}, мінімальний рівень ${minLevel}.`);
   }
 
   return parts.join(" ");

@@ -11,6 +11,8 @@ import {
   getItemDisplayNameWithUpgrade,
   getItemUpgradeRequiredLevel,
   getItemUpgradeLevelFromItemId,
+  getItemUpgradeMagicStrengthLabel,
+  getItemUpgradeRarity,
   getItemUpgradeUnlockRewardXp,
   getNextItemUpgradeItemId,
   isItemUpgradeable,
@@ -86,17 +88,45 @@ describe("item upgrades", () => {
     ]);
     expect(variants[0]).toMatchObject({
       name: "Тестова пательня +1",
+      rarity: "uncommon",
+      description: "Для Чароковальні.\n\nПідсилення +1: слабка магія, Чароковальня просить не лизати іскри.",
       effect: {
         weaponDamage: 3
       }
     });
+    expect(variants[2]).toMatchObject({
+      name: "Тестова пательня +3",
+      rarity: "rare",
+      description: "Для Чароковальні.\n\nПідсилення +3: слабка магія, Чароковальня просить не лизати іскри."
+    });
+    expect(variants[3]).toMatchObject({
+      name: "Тестова пательня +4",
+      rarity: "rare",
+      description: "Для Чароковальні.\n\nПідсилення +4: сильна магія, Чароковальня просить не лизати іскри."
+    });
     expect(variants[4]).toMatchObject({
       name: "Тестова пательня +5",
+      rarity: "epic",
+      description: "Для Чароковальні.\n\nПідсилення +5: сильна магія, Чароковальня просить не лизати іскри.",
       effect: {
         weaponDamage: 9
       }
     });
     expect(getItemDisplayNameWithUpgrade(variants[4]!, 5)).toBe("Тестова пательня +5");
+  });
+
+  it("raises upgrade rarity floors without downgrading already rare bases", () => {
+    expect(getItemUpgradeRarity("common", 0)).toBe("common");
+    expect(getItemUpgradeRarity("common", 1)).toBe("uncommon");
+    expect(getItemUpgradeRarity("common", 2)).toBe("uncommon");
+    expect(getItemUpgradeRarity("common", 3)).toBe("rare");
+    expect(getItemUpgradeRarity("common", 4)).toBe("rare");
+    expect(getItemUpgradeRarity("common", 5)).toBe("epic");
+    expect(getItemUpgradeRarity("rare", 1)).toBe("rare");
+    expect(getItemUpgradeRarity("epic", 3)).toBe("epic");
+    expect(getItemUpgradeMagicStrengthLabel(3)).toBe("слабка магія");
+    expect(getItemUpgradeMagicStrengthLabel(4)).toBe("сильна магія");
+    expect(getItemUpgradeMagicStrengthLabel(5)).toBe("сильна магія");
   });
 
   it("keeps upgrade eligibility narrow and excludes materials", () => {

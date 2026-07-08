@@ -554,6 +554,22 @@ describe("item detail presenter", () => {
     expect(text).toContain("Кількість: <b>1</b>");
   });
 
+  it("shows generated high-plus loot as rare strong magic", () => {
+    const content = items.find((item) => item.id === "item.loot-v1-w037-plus-4");
+    expect(content).toBeDefined();
+    if (!content) {
+      throw new Error("Expected suspicious fish +4 content.");
+    }
+
+    const text = presentOwnedItemDetail(itemSummary({ itemId: content.id, content }));
+
+    expect(text).toContain("🔎 <b>Рибина Підозріла +4</b>");
+    expect(text).toContain("Рідкість: <b>рідкісна</b>");
+    expect(text).toContain("Посилення +4: сильна магія, мінімальний рівень 14.");
+    expect(text).not.toContain("Рідкість: <b>звичайна</b>");
+    expect(text).not.toContain("Посилення +4: слабка магія");
+  });
+
   it("distinguishes borrowed gear actions and service perks on item detail pages", () => {
     const staff = items.find((item) => item.id === "item.set.asclepius.staff");
     const cloak = items.find((item) => item.id === "item.set.yeger-shadow.cloak");

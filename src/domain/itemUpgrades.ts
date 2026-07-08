@@ -114,6 +114,25 @@ export function getItemDisplayNameWithUpgrade(item: Pick<ItemContent, "name">, l
   return safeLevel > 0 ? `${baseName} +${safeLevel}` : baseName;
 }
 
+const rarityOrder: ItemContent["rarity"][] = ["common", "uncommon", "rare", "epic"];
+
+export function getItemUpgradeRarity(
+  baseRarity: ItemContent["rarity"],
+  level: number
+): ItemContent["rarity"] {
+  const safeLevel = normalizeItemUpgradeLevel(level);
+  const rarityFloor: ItemContent["rarity"] =
+    safeLevel >= 5 ? "epic" : safeLevel >= 3 ? "rare" : safeLevel >= 1 ? "uncommon" : "common";
+  const baseIndex = rarityOrder.indexOf(baseRarity);
+  const floorIndex = rarityOrder.indexOf(rarityFloor);
+
+  return rarityOrder[Math.max(baseIndex, floorIndex)] ?? baseRarity;
+}
+
+export function getItemUpgradeMagicStrengthLabel(level: number): "слабка магія" | "сильна магія" {
+  return normalizeItemUpgradeLevel(level) >= 4 ? "сильна магія" : "слабка магія";
+}
+
 export function isItemUpgradeable(item: ItemContent, level = getItemUpgradeLevelFromItemId(item.id)): boolean {
   const tags = new Set(item.tags ?? []);
 
@@ -279,7 +298,8 @@ export function buildItemUpgradeVariantContents(baseItems: readonly ItemContent[
         ...base,
         id: makeItemUpgradeVariantId(base.id, level),
         name: getItemDisplayNameWithUpgrade(base, level),
-        description: `${base.description}\n\nПідсилення +${level}: Чароковальня просить не лизати іскри.`,
+        description: `${base.description}\n\nПідсилення +${level}: ${getItemUpgradeMagicStrengthLabel(level)}, Чароковальня просить не лизати іскри.`,
+        rarity: getItemUpgradeRarity(base.rarity, level),
         ...(effect ? { effect } : {})
       };
     });
