@@ -39,6 +39,35 @@ describe("item upgrade presenter", () => {
     expect(text).not.toContain("Рівень лишився на місці");
   });
 
+  it("separates the Iskrokamin balance from the mage self-temper hint", () => {
+    const text = presentItemUpgradeList({
+      state: "ready",
+      character: { ...character, classId: "class.mage", className: "Маг" },
+      iskrokamin: 995,
+      canUseSelfTemper: true,
+      items: [
+        {
+          itemId: "item.herring-cap",
+          name: "Картуз правильного оселедця",
+          baseName: "Картуз правильного оселедця",
+          quantity: 1,
+          enhancementLevel: 0,
+          equipped: false,
+          targetLevel: 1,
+          primaryStat: "armor",
+          rarity: "common",
+          setId: null,
+          setName: null,
+          isSetPiece: false
+        }
+      ]
+    });
+
+    expect(text).toContain(
+      "Іскрокамінь: <b>995</b>\n\nЯк маг, ви можете зробити іскровий підкрут самі"
+    );
+  });
+
   it("marks set pieces in upgrade previews without exposing formulas", () => {
     const text = presentItemUpgradePreview({
       state: "ready",
