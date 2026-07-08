@@ -187,8 +187,8 @@ describe("item upgrades", () => {
     expect(calculateItemUpgradeCosts({
       method: "npc",
       targetLevel: 3,
-      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 23 }
-    })).toEqual({ gold: 260, iskrokamin: 18, mana: 0 });
+      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 42 }
+    })).toEqual({ gold: 260, iskrokamin: 14, mana: 0 });
     expect(calculateItemUpgradeCosts({
       method: "npc",
       targetLevel: 5
@@ -196,15 +196,20 @@ describe("item upgrades", () => {
     expect(calculateItemUpgradeCosts({
       method: "self",
       targetLevel: 1,
-      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 23 }
-    })).toEqual({ gold: 0, iskrokamin: 4, mana: 10 });
+      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 42 }
+    })).toEqual({ gold: 0, iskrokamin: 3, mana: 10 });
+    expect(calculateItemUpgradeCosts({
+      method: "npc",
+      targetLevel: 1,
+      donor: { kind: "same-slot", chanceBonus: 7, iskrokaminDiscountPercent: 13 }
+    })).toEqual({ gold: 50, iskrokamin: 4, mana: 0 });
 
     expect(calculateItemUpgradeChance({
       method: "npc",
       targetLevel: 5,
       luck: 99,
       pityFailures: 4,
-      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 23 }
+      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 42 }
     })).toMatchObject({
       donorBonus: 12,
       finalChance: 91,
@@ -230,7 +235,7 @@ describe("item upgrades", () => {
     })).toMatchObject({
       kind: "same-template",
       chanceBonus: 12,
-      iskrokaminDiscountPercent: 23
+      iskrokaminDiscountPercent: 42
     });
     expect(getDonorBonus({
       baseItem: weapon,
@@ -242,7 +247,7 @@ describe("item upgrades", () => {
     })).toMatchObject({
       kind: "same-set",
       chanceBonus: 9,
-      iskrokaminDiscountPercent: 13
+      iskrokaminDiscountPercent: 23
     });
     expect(getDonorBonus({
       baseItem: weapon,
@@ -251,7 +256,8 @@ describe("item upgrades", () => {
       donorItemId: "item.test-upgrade-ladle"
     })).toMatchObject({
       kind: "same-slot",
-      chanceBonus: 7
+      chanceBonus: 7,
+      iskrokaminDiscountPercent: 13
     });
     expect(getDonorBonus({
       baseItem: weapon,

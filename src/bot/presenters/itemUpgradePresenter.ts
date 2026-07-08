@@ -135,21 +135,26 @@ export function presentItemUpgradeAttempt(result: ItemUpgradeAttemptServiceResul
     return `Не вистачає мани: треба <b>${result.required}</b>, зараз <b>${result.available}</b>.`;
   }
 
-  const itemName = escapeHtml(items.find((item) => item.id === result.item.itemId)?.name ?? result.item.itemId);
+  const item = items.find((item) => item.id === result.item.itemId) ?? null;
+  const itemName = escapeHtml(item?.name ?? result.item.itemId);
   const outcome = result.success
     ? `✅ <b>Підсилено до +${result.targetLevel}</b>`
     : "🧯 <b>Не вийшло</b>";
   const pityLine = result.success
     ? "Жалісливий молот забув невдачі для цього кроку."
     : `Жалісливий молот запамʼятав невдачу: <b>${result.pityFailuresAfter}</b>.`;
+  const effect = item && "effect" in item ? item.effect : undefined;
+  const effectLine = result.success ? presentItemUpgradeResultEffectLine(effect) : null;
 
   return [
     "✨ <b>Чароковальня</b>",
     "",
     outcome,
     `Манатка: <b>${itemName}</b>`,
+    ...(effectLine ? [effectLine] : []),
+    "",
     `Витрачено: ${presentCosts(result.spent)}${result.donorConsumed ? " · донорська манатка" : ""}`,
-    `Фактичний шанс цієї спроби: <b>${result.finalChance}%</b>${result.pityGuaranteed ? " (гарантія)" : ""}.`,
+    "",
     pityLine
   ].join("\n");
 }
@@ -197,6 +202,12 @@ export function presentItemUpgradeEffectDelta(before: { effect?: Parameters<type
   const afterEffect = presentItemEffect(after.effect) ?? "без видимого ефекту";
 
   return beforeEffect === afterEffect ? null : `Ефект: <i>${beforeEffect}</i> → <b>${afterEffect}</b>`;
+}
+
+function presentItemUpgradeResultEffectLine(effect: Parameters<typeof presentItemEffect>[0] | undefined): string | null {
+  const presented = presentItemEffect(effect);
+
+  return presented ? `Новий ефект: <b>${escapeHtml(presented)}</b>` : null;
 }
 
 function presentCosts(costs: { gold: number; iskrokamin: number; mana: number }): string {

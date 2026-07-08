@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentItemUpgradeAttempt,
   presentItemUpgradeList,
   presentItemUpgradePreview,
   presentItemUpgradeUnlock
@@ -110,6 +111,52 @@ describe("item upgrade presenter", () => {
     expect(text).not.toContain("x1.42");
     expect(text).not.toContain("13%");
     expect(text).not.toContain("23%");
+  });
+
+  it("shows successful attempt result without exposing the committed chance", () => {
+    const text = presentItemUpgradeAttempt({
+      state: "attempted",
+      success: true,
+      character: {
+        id: "character-1",
+        userId: "user-1",
+        name: "Мандрівник",
+        pronoun: "they",
+        path: "boundary",
+        raceId: "race.human-ish",
+        classId: "class.warrior",
+        level: 5,
+        xp: 120,
+        gold: 160,
+        hpCurrent: 24,
+        hpMax: 24,
+        manaCurrent: 12,
+        manaMax: 12,
+        currentLocationId: "location.korchma.yard",
+        statsJson: character.stats
+      },
+      item: {
+        id: "row-1",
+        characterId: "character-1",
+        itemId: "item.pan-of-persuasion.plus-1",
+        quantity: 1,
+        equipped: false
+      },
+      donorConsumed: true,
+      fromLevel: 0,
+      targetLevel: 1,
+      finalChance: 89,
+      pityFailuresBefore: 0,
+      pityFailuresAfter: 0,
+      pityGuaranteed: false,
+      spent: { gold: 50, iskrokamin: 4, mana: 0 }
+    });
+
+    expect(text).toContain("✅ <b>Підсилено до +1</b>\nМанатка: <b>Пательня переконання +1</b>");
+    expect(text).toContain("Новий ефект: <b>+3 до удару</b>");
+    expect(text).toContain("\n\nВитрачено: 50 золота · 4 Іскрокамінь · донорська манатка\n\n");
+    expect(text).not.toContain("Фактичний шанс");
+    expect(text).not.toContain("89%");
   });
 });
 

@@ -26,6 +26,12 @@ export interface ItemUpgradeDonorBonus {
   iskrokaminDiscountPercent: number;
 }
 
+export const ITEM_UPGRADE_DONOR_DISCOUNTS: Record<ItemUpgradeDonorBonus["kind"], number> = {
+  "same-template": 42,
+  "same-set": 23,
+  "same-slot": 13
+};
+
 export interface ItemUpgradeChanceBreakdown {
   baseChance: number;
   luckBonus: number;
@@ -275,7 +281,9 @@ export function applyItemUpgradeDonorDiscount(
 ): number {
   const cost = Math.max(1, Math.floor(iskrokaminCost));
   const discountPercent = Math.max(0, Math.floor(donor?.iskrokaminDiscountPercent ?? 0));
-  const discount = Math.floor(cost * discountPercent / 100);
+  const discount = donor && discountPercent > 0
+    ? Math.max(1, Math.floor(cost * discountPercent / 100))
+    : 0;
   const discounted = cost - discount;
   const floor = Math.ceil(cost * 0.5);
 
@@ -326,7 +334,7 @@ export function getDonorBonus(input: {
     return {
       kind: "same-template",
       chanceBonus: 12,
-      iskrokaminDiscountPercent: 23
+      iskrokaminDiscountPercent: ITEM_UPGRADE_DONOR_DISCOUNTS["same-template"]
     };
   }
 
@@ -334,7 +342,7 @@ export function getDonorBonus(input: {
     return {
       kind: "same-set",
       chanceBonus: 9,
-      iskrokaminDiscountPercent: 13
+      iskrokaminDiscountPercent: ITEM_UPGRADE_DONOR_DISCOUNTS["same-set"]
     };
   }
 
@@ -342,7 +350,7 @@ export function getDonorBonus(input: {
     return {
       kind: "same-slot",
       chanceBonus: 7,
-      iskrokaminDiscountPercent: 7
+      iskrokaminDiscountPercent: ITEM_UPGRADE_DONOR_DISCOUNTS["same-slot"]
     };
   }
 
