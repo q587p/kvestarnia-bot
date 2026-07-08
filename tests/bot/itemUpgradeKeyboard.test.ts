@@ -29,7 +29,7 @@ describe("item upgrade keyboard", () => {
       method: "self"
     }));
 
-    expect(buttonTexts(keyboard)).toContain("🛠️ До Мага");
+    expect(buttonTexts(keyboard)).toContain("🛠️ За допомогою ельфа-мага");
   });
 });
 

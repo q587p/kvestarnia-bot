@@ -67,7 +67,7 @@ export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult
         result.donor?.itemId ?? null
       )).row();
     } else if (result.method === "self") {
-      keyboard.text("🛠️ До Мага", makeItemUpgradePreviewCallbackData(
+      keyboard.text("🛠️ За допомогою ельфа-мага", makeItemUpgradePreviewCallbackData(
         result.item.itemId,
         "npc",
         result.donor?.itemId ?? null
