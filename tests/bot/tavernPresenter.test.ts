@@ -573,6 +573,25 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("поки тільки ви");
   });
 
+  it("can hide the Yeger count joke after the character has seen it", () => {
+    const text = presentKorchmaHall(
+      character,
+      {
+        active: [
+          { telegramUserId: 42n, name: "Мандрівник", status: "active" },
+          { telegramUserId: 77n, name: "Дара", status: "active" }
+        ],
+        idle: [{ telegramUserId: 88n, name: "Нестор Межовий", status: "idle" }],
+        total: 3
+      },
+      42n,
+      { showYegerCountHint: false }
+    );
+
+    expect(text).toContain("За столами й закутками корчми: 2 активні, 1 притихлий.");
+    expect(text).not.toContain("Підозрілий єгер у кутку біля бочки не рахується");
+  });
+
   it("does not say only-you when the sole interior person is not the current player", () => {
     const presence: PresenceGroup = {
       active: [{ telegramUserId: 77n, name: "Дара", status: "active" }],

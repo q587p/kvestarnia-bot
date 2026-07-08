@@ -7,9 +7,10 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
+## [0.2.31] - 12026-07-08 - Mantok Ability Grants Polish
 
 ### Fixed
+- The Korchma hall presence summary now shows the "Yeger does not count" joke only once per character remort life, using player hint receipts without changing presence counts, Yeger routing or schema.
 - Big Barrel Brother raid gear-action settlements now carry first-use achievement unlock notifications back to the acting participant and any refreshed participant cards, matching persistent PvE combat without changing raid damage, mana, cooldown, reward or replay behavior.
 - Turn-based duel gear-action round resolution now carries first-use achievement unlock notifications back to the acting participant and the other participant's refreshed card, while stale, blocked, duplicate or queued-only callbacks still do not spend mana, advance turns, tick cooldowns, mutate RNG or unlock early.
 - Unknown or stale Telegram callback payloads now answer with the existing invalid-button alert instead of leaving the client spinner blinking silently; the `Хто поруч` Rogue `Тиха кишеня` callback is covered as an active regression path.
