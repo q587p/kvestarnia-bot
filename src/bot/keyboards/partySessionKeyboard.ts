@@ -69,11 +69,11 @@ export function buildPartySessionKeyboard(
         ).text("🔎 Оновити", makePartySessionViewCallbackData(token)).row();
         refreshPlaced = true;
       }
-      keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token)).row();
-    }
-
-    if (options.viewerCharacterId === session.leaderCharacterId && joinedParticipantCount < 2) {
-      keyboard.text("🧹 Скасувати збір", makePartySessionCancelCallbackData(token)).row();
+      keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token));
+      if (options.viewerCharacterId === session.leaderCharacterId && joinedParticipantCount < 2) {
+        keyboard.text("🧹 Скасувати збір", makePartySessionCancelCallbackData(token));
+      }
+      keyboard.row();
     }
 
     if (!options.includeBossStart && options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {

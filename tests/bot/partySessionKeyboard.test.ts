@@ -130,7 +130,8 @@ describe("party session keyboard", () => {
       "🛢️ Почати рейд"
     ]);
     expect(inlineButtonRows(keyboard)[0]).toEqual(["✅ Готові", "🔎 Оновити"]);
-    expect(inlineButtonRows(keyboard)[3]).toEqual(["📣 Картка запрошення", "🔗 Запросити на рейд"]);
+    expect(inlineButtonRows(keyboard)[1]).toEqual(["🚪 Вийти", "🧹 Скасувати збір"]);
+    expect(inlineButtonRows(keyboard)[2]).toEqual(["📣 Картка запрошення", "🔗 Запросити на рейд"]);
     expect(inlineButtonTexts(keyboard).at(-1)).toBe("🛢️ Почати рейд");
     expect(keyboardText(keyboard)).toContain("https://t.me/share/url");
     expect(keyboardText(keyboard)).toContain("party_partyABC12");
