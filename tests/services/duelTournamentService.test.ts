@@ -30,8 +30,8 @@ describe("DuelTournamentService", () => {
     expect(replay.state).toBe("claimed");
     expect(first.state === "claimed" && first.created).toBe(true);
     expect(replay.state === "claimed" && replay.created).toBe(false);
-    expect(repo.goldByCharacter.get("hero")).toBe(3);
-    expect(repo.itemQuantity("hero", "item.responsible-panic-bandage")).toBe(1);
+    expect(repo.goldByCharacter.get("hero")).toBe(42);
+    expect(repo.itemQuantity("hero", "item.responsible-panic-bandage")).toBe(5);
     expect(events.records).toHaveLength(1);
     const [event] = events.records;
     expect(event?.eventType).toBe("duel.tournament_claimed");

@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { ResolvedDuelChallengeRecord } from "../../src/db/repositories/duelChallengeRepository";
 import {
   buildDuelTournamentStandings,
-  DUEL_TOURNAMENT_REWARD_ITEM_ID,
+  DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID,
+  DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID,
+  DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID,
+  type DuelTournamentPeriod,
   getDuelTournamentReward,
   getDuelTournamentWindow,
   getPreviousDuelTournamentWindow
 } from "../../src/domain/duels/duelTournament";
+
+type ExpectedReward = { gold: number; itemId: string; quantity: number };
 
 describe("duel tournament domain", () => {
   it("uses fixed Kyiv periods and previous period rollover", () => {
@@ -43,12 +48,33 @@ describe("duel tournament domain", () => {
   });
 
   it("keeps reward calculations bounded by period and placement", () => {
-    expect(getDuelTournamentReward("day", 1, 5)).toEqual({
-      gold: 3,
-      items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 1 }]
-    });
-    expect(getDuelTournamentReward("week", 1, 5)?.gold).toBe(13);
-    expect(getDuelTournamentReward("month", 1, 5)?.gold).toBe(42);
+    const expectedRewards: Record<DuelTournamentPeriod, ExpectedReward[]> = {
+      day: [
+        { gold: 42, itemId: DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID, quantity: 5 },
+        { gold: 23, itemId: DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID, quantity: 3 },
+        { gold: 13, itemId: DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID, quantity: 1 }
+      ],
+      week: [
+        { gold: 93, itemId: DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID, quantity: 5 },
+        { gold: 42, itemId: DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID, quantity: 3 },
+        { gold: 23, itemId: DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID, quantity: 1 }
+      ],
+      month: [
+        { gold: 587, itemId: DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID, quantity: 3 },
+        { gold: 93, itemId: DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID, quantity: 2 },
+        { gold: 42, itemId: DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID, quantity: 1 }
+      ]
+    };
+
+    for (const [period, rewards] of Object.entries(expectedRewards) as [DuelTournamentPeriod, ExpectedReward[]][]) {
+      for (const [index, reward] of rewards.entries()) {
+        expect(getDuelTournamentReward(period, index + 1, 5)).toEqual({
+          gold: reward.gold,
+          items: [{ itemId: reward.itemId, quantity: reward.quantity }]
+        });
+      }
+    }
+
     expect(getDuelTournamentReward("month", 4, 99)).toBeNull();
     expect(getDuelTournamentReward("day", 1, 0)).toBeNull();
   });

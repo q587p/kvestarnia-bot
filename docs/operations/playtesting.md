@@ -12,7 +12,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram. Use 
 2. Open `🎖️ Турніри`; verify day/week/month tabs, current points, rank, remaining time and previous winners render compactly.
 3. Complete a turn-based duel and verify only the resolved result affects the active tournament.
 4. Replay old duel cards and duplicate tournament buttons; verify no additional points or rewards are created.
-5. Claim an available completed-period reward and verify gold plus bandage are granted once.
+5. Claim an available completed-period reward and verify gold plus the matching medical manatky are granted once.
 6. Open `📜 Хроніки Квестарні`; verify one tournament claim row appears and no loss row appears.
 
 ## 0.2.31 — Mantok Ability Grants Polish smoke

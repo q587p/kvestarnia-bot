@@ -4,7 +4,9 @@ export const DUEL_TOURNAMENT_PERIODS = ["day", "week", "month"] as const;
 export type DuelTournamentPeriod = (typeof DUEL_TOURNAMENT_PERIODS)[number];
 
 export const DUEL_TOURNAMENT_RULES_VERSION = "duel-tournament-v1";
-export const DUEL_TOURNAMENT_REWARD_ITEM_ID = "item.responsible-panic-bandage";
+export const DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID = "item.responsible-panic-bandage";
+export const DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID = "item.dense-bandage";
+export const DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID = "item.field-kit";
 export const DUEL_TOURNAMENT_TOP_LIMIT = 3;
 
 export interface DuelTournamentPeriodWindow {
@@ -44,19 +46,19 @@ const periodLabels: Record<DuelTournamentPeriod, string> = {
 
 const rewardTable: Record<DuelTournamentPeriod, readonly DuelTournamentReward[]> = {
   day: [
-    { gold: 3, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 1 }] },
-    { gold: 2, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 1 }] },
-    { gold: 1, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 1 }] }
+    { gold: 42, items: [{ itemId: DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID, quantity: 5 }] },
+    { gold: 23, items: [{ itemId: DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID, quantity: 3 }] },
+    { gold: 13, items: [{ itemId: DUEL_TOURNAMENT_DAILY_REWARD_ITEM_ID, quantity: 1 }] }
   ],
   week: [
-    { gold: 13, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 2 }] },
-    { gold: 8, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 1 }] },
-    { gold: 5, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 1 }] }
+    { gold: 93, items: [{ itemId: DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID, quantity: 5 }] },
+    { gold: 42, items: [{ itemId: DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID, quantity: 3 }] },
+    { gold: 23, items: [{ itemId: DUEL_TOURNAMENT_WEEKLY_REWARD_ITEM_ID, quantity: 1 }] }
   ],
   month: [
-    { gold: 42, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 5 }] },
-    { gold: 23, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 3 }] },
-    { gold: 13, items: [{ itemId: DUEL_TOURNAMENT_REWARD_ITEM_ID, quantity: 2 }] }
+    { gold: 587, items: [{ itemId: DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID, quantity: 3 }] },
+    { gold: 93, items: [{ itemId: DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID, quantity: 2 }] },
+    { gold: 42, items: [{ itemId: DUEL_TOURNAMENT_MONTHLY_REWARD_ITEM_ID, quantity: 1 }] }
   ]
 };
 

@@ -23,7 +23,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 6. Complete repeated wins against the same opponent and verify points stop growing after the bounded contribution.
 7. Complete a quick duel and verify tournament standings do not change.
 8. Complete or trigger a training fight and verify tournament standings do not change.
-9. After a daily rollover, claim the previous daily prize and verify gold plus bandage are received once.
+9. After a daily rollover, claim the previous daily prize and verify gold plus the matching medical manatky are received once.
 10. Press the same claim callback repeatedly and verify the card says the prize was already issued with no resource duplication.
 11. Press stale tournament cards from an older period and verify they do not claim the wrong visible period.
 12. Repeat rollover/claim checks for weekly and monthly periods when practical with seeded clock/data or a local DB snapshot.

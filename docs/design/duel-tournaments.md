@@ -46,11 +46,11 @@ Only top-three placements with positive points can claim. The reward snapshot is
 
 Current reward table:
 
-- Daily: 3/2/1 gold plus 1 `Бинт відповідальної паніки`.
-- Weekly: 13/8/5 gold plus 2/1/1 `Бинт відповідальної паніки`.
-- Monthly: 42/23/13 gold plus 5/3/2 `Бинт відповідальної паніки`.
+- Daily: 42/23/13 gold plus 5/3/1 `Бинт відповідальної паніки`.
+- Weekly: 93/42/23 gold plus 5/3/1 `Щільний бинт`.
+- Monthly: 587/93/42 gold plus 3/2/1 `Польова аптечка`.
 
-The loop is intentionally below ordinary PvE gold/hour and uses low-power existing manatky.
+The loop stays bounded and uses existing medical manatky instead of player-funded prizes.
 
 ## Public Recognition
 
